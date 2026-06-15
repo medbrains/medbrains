@@ -1,6 +1,4 @@
 import {
-  Badge,
-  Button,
   Card,
   Group,
   Loader,
@@ -49,6 +47,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { PageHeader } from "@/components/PageHeader";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { bedsideService } from "@/services/bedside.service";
 
@@ -82,12 +81,12 @@ const BEDSIDE_PAGE_PERMISSIONS = [
   P.BEDSIDE.SESSIONS_MANAGE,
 ] as const;
 
-const requestStatusColors: Record<BedsideRequestStatus, string> = {
-  pending: "orange",
-  acknowledged: "blue",
-  in_progress: "violet",
-  completed: "green",
-  cancelled: "gray",
+const requestStatusColors: Record<BedsideRequestStatus, BadgeTone> = {
+  pending: "warning",
+  acknowledged: "info",
+  in_progress: "accent",
+  completed: "success",
+  cancelled: "neutral",
 };
 
 function scheduleIcon(eventType: string) {
@@ -114,6 +113,17 @@ function scheduleColor(eventType: string) {
     default:
       return "gray";
   }
+}
+
+const SCHEDULE_BADGE_TONES: Record<string, BadgeTone> = {
+  blue: "info",
+  green: "success",
+  orange: "warning",
+  gray: "neutral",
+};
+
+function scheduleBadgeTone(eventType: string): BadgeTone {
+  return SCHEDULE_BADGE_TONES[scheduleColor(eventType)] ?? "neutral";
 }
 
 function compactContextId(value: string) {
@@ -147,13 +157,33 @@ function IpdBedsideContextStrip({
         Linked IPD context
       </Text>
       <Group gap="xs">
-        {admissionId && <Badge variant="light">Admission {compactContextId(admissionId)}</Badge>}
-        {patientId && <Badge variant="light">Patient {compactContextId(patientId)}</Badge>}
-        {encounterId && <Badge variant="light">Encounter {compactContextId(encounterId)}</Badge>}
-        {wardId && <Badge variant="light">Ward {compactContextId(wardId)}</Badge>}
-        {bedId && <Badge variant="light">Bed {compactContextId(bedId)}</Badge>}
+        {admissionId && (
+          <Badge tone="neutral" variant="light">
+            Admission {compactContextId(admissionId)}
+          </Badge>
+        )}
+        {patientId && (
+          <Badge tone="neutral" variant="light">
+            Patient {compactContextId(patientId)}
+          </Badge>
+        )}
+        {encounterId && (
+          <Badge tone="neutral" variant="light">
+            Encounter {compactContextId(encounterId)}
+          </Badge>
+        )}
+        {wardId && (
+          <Badge tone="neutral" variant="light">
+            Ward {compactContextId(wardId)}
+          </Badge>
+        )}
+        {bedId && (
+          <Badge tone="neutral" variant="light">
+            Bed {compactContextId(bedId)}
+          </Badge>
+        )}
         {chargeContext && (
-          <Badge color={chargeable === "true" ? "orange" : "gray"} variant="light">
+          <Badge tone={chargeable === "true" ? "warning" : "neutral"} variant="light">
             {chargeContext}
             {chargeable ? ` · chargeable ${chargeable}` : ""}
           </Badge>
@@ -394,7 +424,7 @@ export function BedsidePortalPage() {
                               </Text>
                               <Badge
                                 size="sm"
-                                color={scheduleColor(item.event_type)}
+                                tone={scheduleBadgeTone(item.event_type)}
                                 variant="light"
                               >
                                 {item.event_type}
@@ -438,7 +468,7 @@ export function BedsidePortalPage() {
                               {med.drug_name ?? "Medication"}
                             </Text>
                           </Group>
-                          <Badge size="sm" variant="light">
+                          <Badge size="sm" tone="neutral" variant="light">
                             {med.status ?? "scheduled"}
                           </Badge>
                         </Group>
@@ -487,8 +517,7 @@ export function BedsidePortalPage() {
                       ).map(([type, cfg]) => (
                         <Button
                           key={type}
-                          variant="light"
-                          color={cfg.color}
+                          tone="secondary"
                           size="xl"
                           h={90}
                           loading={nurseRequestMut.isPending}
@@ -609,6 +638,7 @@ export function BedsidePortalPage() {
                         minRows={2}
                       />
                       <Button
+                        tone="primary"
                         size="lg"
                         onClick={() => feedbackMut.mutate()}
                         loading={feedbackMut.isPending}
@@ -641,7 +671,7 @@ export function BedsidePortalPage() {
                                 {video.description}
                               </Text>
                               <Group gap="xs" mt={2}>
-                                <Badge size="xs" variant="light">
+                                <Badge size="xs" tone="neutral" variant="light">
                                   {video.category}
                                 </Badge>
                                 {video.duration_seconds && (
@@ -750,7 +780,9 @@ function DietOrderSection({
                   {[order.meal_type, order.instructions].filter(Boolean).join(" | ") || "—"}
                 </Text>
               </Stack>
-              <Badge variant="light">{order.status ?? "active"}</Badge>
+              <Badge tone="neutral" variant="light">
+                {order.status ?? "active"}
+              </Badge>
             </Group>
           </Card>
         ))}
@@ -805,7 +837,7 @@ function BedsideOperationsPanel({
         <Card withBorder padding="md">
           <Group justify="space-between" mb="sm">
             <Title order={4}>Tablet Sessions</Title>
-            <Badge variant="light">
+            <Badge tone="neutral" variant="light">
               {(sessionsQ.data ?? []).filter((session) => session.is_active).length} active
             </Badge>
           </Group>
@@ -843,15 +875,15 @@ function BedsideOperationsPanel({
                       <Text size="sm">{new Date(session.started_at).toLocaleString()}</Text>
                     </Table.Td>
                     <Table.Td>
-                      <Badge color={session.is_active ? "green" : "gray"} variant="light">
+                      <Badge tone={session.is_active ? "success" : "neutral"} variant="light">
                         {session.is_active ? "Active" : "Ended"}
                       </Badge>
                     </Table.Td>
                     {canManageSessions && (
                       <Table.Td>
                         <Button
+                          tone="secondary"
                           size="xs"
-                          variant="light"
                           disabled={!session.is_active}
                           loading={endSessionMut.isPending}
                           onClick={() => endSessionMut.mutate(session.id)}
@@ -872,7 +904,9 @@ function BedsideOperationsPanel({
         <Card withBorder padding="md">
           <Group justify="space-between" mb="sm">
             <Title order={4}>Nurse Request Queue</Title>
-            <Badge variant="light">{requestsQ.data?.length ?? 0} requests</Badge>
+            <Badge tone="neutral" variant="light">
+              {requestsQ.data?.length ?? 0} requests
+            </Badge>
           </Group>
           {requestsQ.isLoading ? (
             <Loader size="sm" />
@@ -901,7 +935,10 @@ function BedsideOperationsPanel({
                       <Text size="sm">{new Date(request.created_at).toLocaleString()}</Text>
                     </Table.Td>
                     <Table.Td>
-                      <Badge color={requestStatusColors[request.status] ?? "gray"} variant="light">
+                      <Badge
+                        tone={requestStatusColors[request.status] ?? "neutral"}
+                        variant="light"
+                      >
                         {request.status.replace(/_/g, " ")}
                       </Badge>
                     </Table.Td>
@@ -909,8 +946,8 @@ function BedsideOperationsPanel({
                       <Table.Td>
                         <Group gap="xs" wrap="nowrap">
                           <Button
+                            tone="secondary"
                             size="xs"
-                            variant="light"
                             disabled={request.status !== "pending"}
                             loading={updateRequestMut.isPending}
                             onClick={() =>
@@ -923,8 +960,8 @@ function BedsideOperationsPanel({
                             Ack
                           </Button>
                           <Button
+                            tone="secondary"
                             size="xs"
-                            variant="light"
                             disabled={
                               request.status === "completed" || request.status === "cancelled"
                             }

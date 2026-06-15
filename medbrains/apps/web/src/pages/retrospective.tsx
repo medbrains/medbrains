@@ -1,7 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Badge,
-  Button,
   Group,
   Modal,
   NumberInput,
@@ -23,8 +21,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { type Column, DataTable } from "@/components/DataTable";
-import { statusColor } from "@/lib/status-colors";
 import { PageHeader } from "@/components/PageHeader";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   DEFAULT_RETROSPECTIVE_REVIEW_FORM_VALUES,
   DEFAULT_RETROSPECTIVE_SETTINGS_FORM_VALUES,
@@ -37,10 +35,32 @@ import {
   toRetrospectiveSettingsRequest,
 } from "@/forms/retrospective.form";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { statusColor } from "@/lib/status-colors";
 import { retrospectiveService } from "@/services/retrospective.service";
 
 // ── Status badge helpers ──
 
+function statusColorTone(v: string): BadgeTone {
+  const c = statusColor(v);
+  const m: Record<string, BadgeTone> = {
+    success: "success",
+    danger: "danger",
+    warning: "warning",
+    primary: "primary",
+    info: "info",
+    slate: "neutral",
+    gray: "neutral",
+    teal: "success",
+    green: "success",
+    red: "danger",
+    yellow: "warning",
+    orange: "warning",
+    blue: "info",
+    violet: "accent",
+    cinnabar: "accent",
+  };
+  return (c ? m[c] : undefined) ?? "neutral";
+}
 
 type ReviewAction = "approve" | "reject";
 
@@ -50,11 +70,7 @@ type ReviewTarget = {
 };
 
 function StatusBadge({ status }: { status: string }) {
-  return (
-    <Badge color={statusColor(status) ?? "slate"} variant="light">
-      {status}
-    </Badge>
-  );
+  return <Badge tone={statusColorTone(status)}>{status}</Badge>;
 }
 
 // ── Approval Queue Tab ──
@@ -117,7 +133,11 @@ function ApprovalQueueTab() {
     {
       key: "source_table",
       label: "Source",
-      render: (r) => <Badge variant="outline">{r.source_table}</Badge>,
+      render: (r) => (
+        <Badge tone="neutral" variant="outline">
+          {r.source_table}
+        </Badge>
+      ),
     },
     {
       key: "clinical_event_date",
@@ -150,17 +170,16 @@ function ApprovalQueueTab() {
         canApprove ? (
           <Group gap="xs">
             <Button
+              tone="primary"
               size="xs"
-              color="success"
               leftSection={<IconCheck size={14} />}
               onClick={() => openReview(r.id, "approve")}
             >
               Approve
             </Button>
             <Button
+              tone="subtle-danger"
               size="xs"
-              color="danger"
-              variant="outline"
               leftSection={<IconX size={14} />}
               onClick={() => openReview(r.id, "reject")}
             >
@@ -192,12 +211,12 @@ function ApprovalQueueTab() {
             {...reviewForm.register("review_notes")}
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={closeReview}>
+            <Button tone="secondary" onClick={closeReview}>
               Cancel
             </Button>
             <Button
+              tone={reviewTarget?.action === "approve" ? "primary" : "danger"}
               type="submit"
-              color={reviewTarget?.action === "approve" ? "success" : "danger"}
               loading={approveMut.isPending || rejectMut.isPending}
             >
               {reviewTarget?.action === "approve" ? "Approve" : "Reject"}
@@ -228,7 +247,11 @@ function AllEntriesTab() {
     {
       key: "source_table",
       label: "Source",
-      render: (r) => <Badge variant="outline">{r.source_table}</Badge>,
+      render: (r) => (
+        <Badge tone="neutral" variant="outline">
+          {r.source_table}
+        </Badge>
+      ),
     },
     {
       key: "status",
@@ -378,7 +401,7 @@ function SettingsTab() {
           )}
         />
         <Group justify="flex-end">
-          <Button type="submit" loading={saveMut.isPending}>
+          <Button tone="primary" type="submit" loading={saveMut.isPending}>
             Save Settings
           </Button>
         </Group>

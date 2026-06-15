@@ -2,8 +2,6 @@ import "@mantine/charts/styles.css";
 import { BarChart, LineChart } from "@mantine/charts";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Drawer,
   Grid,
@@ -70,25 +68,43 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { DataTable, IpdContextStrip, ipdContextFromSearchParams, PageHeader } from "@/components";
-import { statusColor } from "@/lib/status-colors";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { statusColor } from "@/lib/status-colors";
 import { infectionControlService } from "@/services/infectionControl.service";
 
 // ── Color Maps ──────────────────────────────────────────
 
-
-
-const requestStatusColors: Record<string, string> = {
+const requestStatusColors: Record<string, BadgeTone> = {
   pending: "warning",
   approved: "success",
   denied: "danger",
-  expired: "slate",
+  expired: "neutral",
 };
 
-
+function statusColorTone(v: string): BadgeTone {
+  const c = statusColor(v);
+  const m: Record<string, BadgeTone> = {
+    success: "success",
+    danger: "danger",
+    warning: "warning",
+    primary: "primary",
+    info: "info",
+    slate: "neutral",
+    gray: "neutral",
+    teal: "success",
+    green: "success",
+    red: "danger",
+    yellow: "warning",
+    orange: "warning",
+    blue: "info",
+    violet: "accent",
+  };
+  return (c ? m[c] : undefined) ?? "neutral";
+}
 
 // Dropdown options for categorical fields
 const DEVICE_TYPES = [
@@ -172,14 +188,14 @@ function SurveillanceTab() {
       key: "hai_type" as const,
       label: "HAI Type",
       render: (r: InfectionSurveillanceEvent) => (
-        <Badge color={statusColor(r.hai_type) ?? "slate"}>{r.hai_type.toUpperCase()}</Badge>
+        <Badge tone={statusColorTone(r.hai_type)}>{r.hai_type.toUpperCase()}</Badge>
       ),
     },
     {
       key: "infection_status" as const,
       label: "Status",
       render: (r: InfectionSurveillanceEvent) => (
-        <Badge color={statusColor(r.infection_status) ?? "slate"}>
+        <Badge tone={statusColorTone(r.infection_status)}>
           {r.infection_status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -211,7 +227,7 @@ function SurveillanceTab() {
       key: "infection_status" as const,
       label: "Status",
       render: (r: InfectionSurveillanceEvent) => (
-        <Badge color={statusColor(r.infection_status) ?? "slate"}>
+        <Badge tone={statusColorTone(r.infection_status)}>
           {r.infection_status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -278,7 +294,7 @@ function SurveillanceTab() {
           </Text>
         </Group>
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
             Report HAI
           </Button>
         )}
@@ -341,7 +357,7 @@ function SurveillanceTab() {
             value={form.notes}
             onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })}
           />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate()}>
+          <Button tone="primary" loading={createMut.isPending} onClick={() => createMut.mutate()}>
             Save
           </Button>
         </Stack>
@@ -461,7 +477,7 @@ function StewardshipTab() {
       key: "request_status" as const,
       label: "Status",
       render: (r: AntibioticStewardshipRequest) => (
-        <Badge color={requestStatusColors[r.request_status] ?? "slate"}>{r.request_status}</Badge>
+        <Badge tone={requestStatusColors[r.request_status] ?? "neutral"}>{r.request_status}</Badge>
       ),
     },
     {
@@ -469,11 +485,11 @@ function StewardshipTab() {
       label: "Culture",
       render: (r: AntibioticStewardshipRequest) =>
         r.culture_sent ? (
-          <Badge color="success" size="sm">
+          <Badge tone="success" size="sm">
             Sent
           </Badge>
         ) : (
-          <Badge color="slate" size="sm">
+          <Badge tone="neutral" size="sm">
             No
           </Badge>
         ),
@@ -490,17 +506,15 @@ function StewardshipTab() {
         r.request_status === "pending" && canCreate ? (
           <Group gap="xs">
             <Button
+              tone="secondary"
               size="compact-xs"
-              variant="light"
-              color="success"
               onClick={() => reviewMut.mutate({ id: r.id, status: "approved" })}
             >
               Approve
             </Button>
             <Button
+              tone="subtle-danger"
               size="compact-xs"
-              variant="light"
-              color="danger"
               onClick={() => reviewMut.mutate({ id: r.id, status: "denied" })}
             >
               Deny
@@ -539,7 +553,7 @@ function StewardshipTab() {
           )}
         </Group>
         {canCreate && subView === "requests" && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
             New Request
           </Button>
         )}
@@ -585,14 +599,14 @@ function StewardshipTab() {
                         const sensPercent = Math.round((data.sensitive / data.total) * 100);
                         const interPercent = Math.round((data.intermediate / data.total) * 100);
                         const resPercent = Math.round((data.resistant / data.total) * 100);
-                        let color = "slate";
+                        let color: BadgeTone = "neutral";
                         if (sensPercent >= 70) color = "success";
                         else if (sensPercent >= 40) color = "warning";
                         else color = "danger";
                         return (
                           <Table.Td key={drug}>
                             <Badge
-                              color={color}
+                              tone={color}
                               size="sm"
                               style={{ cursor: "help" }}
                               title={`S:${sensPercent}% I:${interPercent}% R:${resPercent}% (n=${data.total})`}
@@ -656,7 +670,7 @@ function StewardshipTab() {
             checked={form.culture_sent}
             onChange={(e) => setForm({ ...form, culture_sent: e.currentTarget.checked })}
           />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate()}>
+          <Button tone="primary" loading={createMut.isPending} onClick={() => createMut.mutate()}>
             Submit
           </Button>
         </Stack>
@@ -736,7 +750,7 @@ function BiowasteTab() {
       key: "waste_category" as const,
       label: "Category",
       render: (r: BiowasteRecord) => (
-        <Badge color={statusColor(r.waste_category) ?? "slate"}>
+        <Badge tone={statusColorTone(r.waste_category)}>
           {r.waste_category.replace(/_/g, " ")}
         </Badge>
       ),
@@ -813,7 +827,7 @@ function BiowasteTab() {
           )}
         </Group>
         {canCreate && subView === "records" && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
             Add Record
           </Button>
         )}
@@ -852,7 +866,7 @@ function BiowasteTab() {
                 {Object.entries(monthlyReport).map(([cat, data]) => (
                   <Table.Tr key={cat}>
                     <Table.Td>
-                      <Badge color={statusColor(cat) ?? "slate"}>{cat.replace(/_/g, " ")}</Badge>
+                      <Badge tone={statusColorTone(cat)}>{cat.replace(/_/g, " ")}</Badge>
                     </Table.Td>
                     <Table.Td>{data.weight.toFixed(2)}</Table.Td>
                     <Table.Td>{data.containers}</Table.Td>
@@ -936,7 +950,11 @@ function BiowasteTab() {
               setForm({ ...form, manifest_number: e.currentTarget.value || undefined })
             }
           />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+          <Button
+            tone="primary"
+            loading={createMut.isPending}
+            onClick={() => createMut.mutate(form)}
+          >
             Save
           </Button>
         </Stack>
@@ -1038,12 +1056,12 @@ function HygieneTab() {
     {
       key: "compliant" as const,
       label: "Compliant",
-      render: (r: HandHygieneAudit) => <Badge color="success">{r.compliant}</Badge>,
+      render: (r: HandHygieneAudit) => <Badge tone="success">{r.compliant}</Badge>,
     },
     {
       key: "non_compliant" as const,
       label: "Non-Compliant",
-      render: (r: HandHygieneAudit) => <Badge color="danger">{r.non_compliant}</Badge>,
+      render: (r: HandHygieneAudit) => <Badge tone="danger">{r.non_compliant}</Badge>,
     },
     {
       key: "compliance_rate" as const,
@@ -1089,11 +1107,11 @@ function HygieneTab() {
       label: "Status",
       render: (r: CultureSurveillance) =>
         r.acceptable == null ? (
-          <Badge color="slate">Pending</Badge>
+          <Badge tone="neutral">Pending</Badge>
         ) : r.acceptable ? (
-          <Badge color="success">Pass</Badge>
+          <Badge tone="success">Pass</Badge>
         ) : (
-          <Badge color="danger">Fail</Badge>
+          <Badge tone="danger">Fail</Badge>
         ),
     },
     {
@@ -1116,7 +1134,7 @@ function HygieneTab() {
           ]}
         />
         {canCreate && subView === "audits" && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
             New Audit
           </Button>
         )}
@@ -1303,7 +1321,11 @@ function HygieneTab() {
             value={form.findings ?? ""}
             onChange={(e) => setForm({ ...form, findings: e.currentTarget.value || undefined })}
           />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+          <Button
+            tone="primary"
+            loading={createMut.isPending}
+            onClick={() => createMut.mutate(form)}
+          >
             Save
           </Button>
         </Stack>
@@ -1394,9 +1416,7 @@ function OutbreakTab() {
       key: "outbreak_status" as const,
       label: "Status",
       render: (r: OutbreakEvent) => (
-        <Badge color={statusColor(r.outbreak_status) ?? "slate"}>
-          {r.outbreak_status}
-        </Badge>
+        <Badge tone={statusColorTone(r.outbreak_status)}>{r.outbreak_status}</Badge>
       ),
     },
     {
@@ -1414,11 +1434,11 @@ function OutbreakTab() {
       label: "HICC",
       render: (r: OutbreakEvent) =>
         r.hicc_notified ? (
-          <Badge color="success" size="sm">
+          <Badge tone="success" size="sm">
             Notified
           </Badge>
         ) : (
-          <Badge color="slate" size="sm">
+          <Badge tone="neutral" size="sm">
             No
           </Badge>
         ),
@@ -1443,10 +1463,9 @@ function OutbreakTab() {
           {canUpdate &&
             (statusTransitions[r.outbreak_status] ?? []).map((next) => (
               <Button
+                tone="secondary"
                 key={next}
                 size="compact-xs"
-                variant="light"
-                color={statusColor(next) ?? "slate"}
                 onClick={() =>
                   updateMut.mutate({
                     id: r.id,
@@ -1479,7 +1498,7 @@ function OutbreakTab() {
           </Text>
         </Group>
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
             Report Outbreak
           </Button>
         )}
@@ -1518,7 +1537,11 @@ function OutbreakTab() {
             value={form.description ?? ""}
             onChange={(e) => setForm({ ...form, description: e.currentTarget.value || undefined })}
           />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+          <Button
+            tone="primary"
+            loading={createMut.isPending}
+            onClick={() => createMut.mutate(form)}
+          >
             Report
           </Button>
         </Stack>
@@ -1535,7 +1558,7 @@ function OutbreakTab() {
           <Stack>
             <Text fw={600}>{selected.organism}</Text>
             <Group>
-              <Badge color={statusColor(selected.outbreak_status) ?? "slate"}>
+              <Badge tone={statusColorTone(selected.outbreak_status)}>
                 {selected.outbreak_status}
               </Badge>
               <Text size="sm">Cases: {selected.total_cases}</Text>
@@ -1589,7 +1612,7 @@ function OutbreakTab() {
               >
                 <Text size="sm">{c.contact_type}</Text>
                 {c.quarantine_required && (
-                  <Badge color="danger" size="sm">
+                  <Badge tone="danger" size="sm">
                     Quarantine
                   </Badge>
                 )}
@@ -1643,7 +1666,7 @@ function SharpsSafetyTab() {
       key: "pep_initiated" as const,
       label: "PEP Status",
       render: (r: NeedleStickIncident) => (
-        <Badge color={r.pep_initiated ? "success" : "danger"}>
+        <Badge tone={r.pep_initiated ? "success" : "danger"}>
           {r.pep_initiated ? "Initiated" : "Not Initiated"}
         </Badge>
       ),
@@ -1673,7 +1696,7 @@ function SharpsSafetyTab() {
           {incidents.length} incident(s)
         </Text>
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} disabled>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} disabled>
             Report Incident
           </Button>
         )}
@@ -1848,7 +1871,7 @@ function AnalyticsTab() {
       label: "Compliance %",
       render: (r: SurgicalProphylaxisRow) => (
         <Badge
-          color={r.compliance_pct >= 90 ? "success" : r.compliance_pct >= 70 ? "warning" : "danger"}
+          tone={r.compliance_pct >= 90 ? "success" : r.compliance_pct >= 70 ? "warning" : "danger"}
         >
           {r.compliance_pct.toFixed(1)}%
         </Badge>
@@ -1971,7 +1994,7 @@ function AnalyticsTab() {
                             <Tooltip
                               label={`S:${row.sensitive_count} I:${row.intermediate_count} R:${row.resistant_count} (n=${row.total_tests})`}
                             >
-                              <Badge color={color} size="sm">
+                              <Badge tone={color} size="sm">
                                 {pct.toFixed(0)}%
                               </Badge>
                             </Tooltip>
@@ -2085,14 +2108,16 @@ function MeetingsTab() {
     {
       key: "meeting_type" as const,
       label: "Type",
-      render: (r: IcMeeting) => <Badge variant="light">{r.meeting_type}</Badge>,
+      render: (r: IcMeeting) => <Badge tone="neutral">{r.meeting_type}</Badge>,
     },
     { key: "agenda" as const, label: "Agenda", render: (r: IcMeeting) => r.agenda ?? "---" },
     {
       key: "attendees" as const,
       label: "Attendees",
       render: (r: IcMeeting) => (
-        <Badge size="sm">{Array.isArray(r.attendees) ? r.attendees.length : 0}</Badge>
+        <Badge tone="neutral" size="sm">
+          {Array.isArray(r.attendees) ? r.attendees.length : 0}
+        </Badge>
       ),
     },
     {
@@ -2111,7 +2136,7 @@ function MeetingsTab() {
       key: "action_items" as const,
       label: "Actions",
       render: (r: IcMeeting) => (
-        <Badge size="sm" color="orange">
+        <Badge size="sm" tone="warning">
           {Array.isArray(r.action_items) ? r.action_items.length : 0}
         </Badge>
       ),
@@ -2132,12 +2157,12 @@ function MeetingsTab() {
         />
         <Group>
           {canCreate && subView === "meetings" && (
-            <Button leftSection={<IconPlus size={16} />} onClick={openMeeting}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openMeeting}>
               New Meeting
             </Button>
           )}
           {canCreate && subView === "exposures" && (
-            <Button leftSection={<IconPlus size={16} />} onClick={openExposure}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openExposure}>
               Record Exposure
             </Button>
           )}
@@ -2281,6 +2306,7 @@ function MeetingsTab() {
             }
           />
           <Button
+            tone="primary"
             loading={createMeetingMut.isPending}
             onClick={() => createMeetingMut.mutate(meetingForm)}
           >
@@ -2350,6 +2376,7 @@ function MeetingsTab() {
             }
           />
           <Button
+            tone="primary"
             loading={createExposureMut.isPending}
             onClick={() => createExposureMut.mutate(exposureForm)}
           >

@@ -5,8 +5,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Avatar,
-  Badge,
-  Button,
   Card,
   Divider,
   Grid,
@@ -23,6 +21,7 @@ import { IconUserCog } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { PageHeader } from "@/components/PageHeader";
+import { Badge, Button } from "@/components/ui";
 import {
   DEFAULT_DOCTOR_PROFILE_FORM_VALUES,
   type DoctorProfileFormInput,
@@ -104,17 +103,17 @@ export function DoctorProfilePage() {
               </Text>
               <Group gap="xs">
                 {profile.is_visiting && (
-                  <Badge size="sm" color="warning">
+                  <Badge size="sm" tone="warning">
                     Visiting
                   </Badge>
                 )}
                 {profile.is_full_time && (
-                  <Badge size="sm" color="primary">
+                  <Badge size="sm" tone="primary">
                     Full-time
                   </Badge>
                 )}
                 {!profile.is_active && (
-                  <Badge size="sm" color="red">
+                  <Badge size="sm" tone="danger">
                     Inactive
                   </Badge>
                 )}
@@ -161,7 +160,7 @@ export function DoctorProfilePage() {
                 {...profileForm.register("bio_long")}
               />
               <Group justify="flex-end">
-                <Button type="submit" loading={update.isPending}>
+                <Button tone="primary" type="submit" loading={update.isPending}>
                   Save changes
                 </Button>
               </Group>
@@ -184,22 +183,22 @@ export function DoctorProfilePage() {
               </ReadOnly>
               <ReadOnly label="Years experience">{profile.years_experience ?? "—"}</ReadOnly>
               <ReadOnly label="Schedule X prescribing">
-                <Badge size="xs" color={profile.can_prescribe_schedule_x ? "primary" : "gray"}>
+                <Badge size="xs" tone={profile.can_prescribe_schedule_x ? "primary" : "neutral"}>
                   {profile.can_prescribe_schedule_x ? "Yes" : "No"}
                 </Badge>
               </ReadOnly>
               <ReadOnly label="Can sign MLC">
-                <Badge size="xs" color={profile.can_sign_mlc ? "primary" : "gray"}>
+                <Badge size="xs" tone={profile.can_sign_mlc ? "primary" : "neutral"}>
                   {profile.can_sign_mlc ? "Yes" : "No"}
                 </Badge>
               </ReadOnly>
               <ReadOnly label="Can sign death certificate">
-                <Badge size="xs" color={profile.can_sign_death_certificate ? "primary" : "gray"}>
+                <Badge size="xs" tone={profile.can_sign_death_certificate ? "primary" : "neutral"}>
                   {profile.can_sign_death_certificate ? "Yes" : "No"}
                 </Badge>
               </ReadOnly>
               <ReadOnly label="Can perform surgery">
-                <Badge size="xs" color={profile.can_perform_surgery ? "primary" : "gray"}>
+                <Badge size="xs" tone={profile.can_perform_surgery ? "primary" : "neutral"}>
                   {profile.can_perform_surgery ? "Yes" : "No"}
                 </Badge>
               </ReadOnly>

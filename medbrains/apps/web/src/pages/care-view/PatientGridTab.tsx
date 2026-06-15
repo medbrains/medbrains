@@ -1,4 +1,4 @@
-import { Button, Card, Group, SimpleGrid, Stack, Text, ThemeIcon } from "@mantine/core";
+import { Card, Group, SimpleGrid, Stack, Text, ThemeIcon } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { PatientCardRow, VitalsChecklistRow, WardGridResponse } from "@medbrains/types";
 import {
@@ -15,6 +15,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { DataTable, OperationalSignal, type OperationalSignalTone } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { Button } from "@/components/ui";
 import { careViewService } from "@/services/careView.service";
 import { urgencyColor } from "./shared";
 
@@ -316,7 +317,7 @@ function VitalsChecklistSection({ wardId }: { wardId: string | null }) {
   return (
     <Stack gap="xs">
       <Button
-        variant="subtle"
+        tone="ghost"
         size="compact-sm"
         leftSection={<IconTemperature size={16} />}
         onClick={disclosure.toggle}

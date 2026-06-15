@@ -2,8 +2,6 @@ import "@mantine/charts/styles.css";
 import { BarChart, DonutChart } from "@mantine/charts";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Checkbox,
   CheckboxGroup,
@@ -57,9 +55,10 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
-import { statusColor } from "@/lib/status-colors";
 import type { Column } from "@/components/DataTable";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { statusColor } from "@/lib/status-colors";
 import { occupationalHealthService } from "@/services/occupationalHealth.service";
 
 // ── Constants ──────────────────────────────────────────
@@ -70,7 +69,6 @@ const SCREENING_TYPES = [
   { value: "special", label: "Special" },
   { value: "exit", label: "Exit" },
 ];
-
 
 const FITNESS_STATUS_OPTIONS = [
   { value: "fit", label: "Fit" },
@@ -97,15 +95,15 @@ const DRUG_SCREEN_STATUS_OPTIONS = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
-const DRUG_SCREEN_STATUS_COLORS: Record<string, string> = {
-  ordered: "gray",
+const DRUG_SCREEN_STATUS_COLORS: Record<string, BadgeTone> = {
+  ordered: "neutral",
   collected: "primary",
   sent_to_lab: "info",
   mro_review: "warning",
   positive: "danger",
   negative: "success",
-  inconclusive: "orange",
-  cancelled: "gray",
+  inconclusive: "warning",
+  cancelled: "neutral",
 };
 
 const DRUG_PANEL_OPTIONS = [
@@ -130,6 +128,37 @@ const RTW_STATUS_OPTIONS = [
   { value: "follow_up_required", label: "Follow-up Required" },
 ];
 
+function statusColorTone(v: string): BadgeTone {
+  const c = statusColor(v);
+  const m: Record<string, BadgeTone> = {
+    success: "success",
+    danger: "danger",
+    warning: "warning",
+    primary: "primary",
+    info: "info",
+    slate: "neutral",
+    gray: "neutral",
+    teal: "success",
+    green: "success",
+    red: "danger",
+    yellow: "warning",
+    orange: "warning",
+    blue: "info",
+    violet: "accent",
+    cinnabar: "accent",
+  };
+  return (c ? m[c] : undefined) ?? "neutral";
+}
+
+function fitnessStatusTone(status: string): BadgeTone {
+  const m: Record<string, BadgeTone> = {
+    success: "success",
+    danger: "danger",
+    gray: "neutral",
+    orange: "warning",
+  };
+  return m[FITNESS_STATUS_COLORS[status] ?? ""] ?? "neutral";
+}
 
 // ── Main Page ──────────────────────────────────────────
 
@@ -318,7 +347,7 @@ function ScreeningsPanel() {
       key: "screening_type",
       label: "Type",
       render: (r) => (
-        <Badge color={statusColor(r.screening_type) ?? "gray"} variant="light" size="sm">
+        <Badge tone={statusColorTone(r.screening_type)} size="sm">
           {SCREENING_TYPES.find((t) => t.value === r.screening_type)?.label ?? r.screening_type}
         </Badge>
       ),
@@ -332,7 +361,7 @@ function ScreeningsPanel() {
       key: "fitness_status",
       label: "Fitness Status",
       render: (r) => (
-        <Badge color={FITNESS_STATUS_COLORS[r.fitness_status] ?? "gray"} variant="filled" size="sm">
+        <Badge tone={fitnessStatusTone(r.fitness_status)} variant="filled" size="sm">
           {r.fitness_status}
         </Badge>
       ),
@@ -405,7 +434,7 @@ function ScreeningsPanel() {
   }, [dueScreenings, showDue, subView]);
 
   // Helper to get urgency color
-  const getUrgencyColor = (dueDate: string) => {
+  const getUrgencyColor = (dueDate: string): BadgeTone => {
     if (!dueDate) return "primary";
     const days = Math.floor((new Date(dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
     if (days < 0) return "danger";
@@ -439,8 +468,7 @@ function ScreeningsPanel() {
                 w={200}
               />
               <Button
-                variant={showDue ? "filled" : "light"}
-                color="orange"
+                tone={showDue ? "primary" : "secondary"}
                 size="sm"
                 onClick={() => {
                   setShowDue(!showDue);
@@ -455,7 +483,7 @@ function ScreeningsPanel() {
         {canCreate && (
           <Group gap="xs">
             <Button
-              variant="light"
+              tone="secondary"
               leftSection={<IconShieldCheck size={16} />}
               onClick={() => {
                 setForm({
@@ -468,7 +496,11 @@ function ScreeningsPanel() {
             >
               Pre-Employment
             </Button>
-            <Button leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
+            <Button
+              tone="primary"
+              leftSection={<IconPlus size={16} />}
+              onClick={createHandlers.open}
+            >
               New Screening
             </Button>
           </Group>
@@ -502,7 +534,7 @@ function ScreeningsPanel() {
                         <Text size="sm">
                           {SCREENING_TYPES.find((t) => t.value === item.type)?.label}
                         </Text>
-                        <Badge color={getUrgencyColor(item.due_date)} size="sm">
+                        <Badge tone={getUrgencyColor(item.due_date)} size="sm">
                           {item.due_date}
                         </Badge>
                       </Group>
@@ -671,6 +703,7 @@ function ScreeningsPanel() {
             onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
           />
           <Button
+            tone="primary"
             onClick={() => createMut.mutate()}
             loading={createMut.isPending}
             disabled={!form.employee_id || !form.screening_date}
@@ -712,7 +745,7 @@ function ScreeningsPanel() {
               setEditForm({ ...editForm, notes: e.currentTarget.value || undefined })
             }
           />
-          <Button onClick={() => updateMut.mutate()} loading={updateMut.isPending}>
+          <Button tone="primary" onClick={() => updateMut.mutate()} loading={updateMut.isPending}>
             Update Screening
           </Button>
         </Stack>
@@ -754,16 +787,13 @@ function ScreeningsPanel() {
                   </Group>
                   <Group>
                     <Text fw={600}>Examination Type:</Text>
-                    <Badge color={statusColor(selected.screening_type) ?? "gray"}>
+                    <Badge tone={statusColorTone(selected.screening_type)}>
                       {SCREENING_TYPES.find((t) => t.value === selected.screening_type)?.label}
                     </Badge>
                   </Group>
                   <Group>
                     <Text fw={600}>Fitness Status:</Text>
-                    <Badge
-                      color={FITNESS_STATUS_COLORS[selected.fitness_status] ?? "gray"}
-                      size="lg"
-                    >
+                    <Badge tone={fitnessStatusTone(selected.fitness_status)} size="lg">
                       {selected.fitness_status.toUpperCase()}
                     </Badge>
                   </Group>
@@ -794,10 +824,14 @@ function ScreeningsPanel() {
               </Stack>
             </Card>
             <Group justify="flex-end" className="print-hide">
-              <Button variant="light" onClick={certHandlers.close}>
+              <Button tone="secondary" onClick={certHandlers.close}>
                 Close
               </Button>
-              <Button leftSection={<IconPrinter size={16} />} onClick={() => window.print()}>
+              <Button
+                tone="primary"
+                leftSection={<IconPrinter size={16} />}
+                onClick={() => window.print()}
+              >
                 Print Certificate
               </Button>
             </Group>
@@ -890,7 +924,7 @@ function DrugScreensPanel() {
       key: "status",
       label: "Status",
       render: (r) => (
-        <Badge color={DRUG_SCREEN_STATUS_COLORS[r.status] ?? "gray"} variant="filled" size="sm">
+        <Badge tone={DRUG_SCREEN_STATUS_COLORS[r.status] ?? "neutral"} variant="filled" size="sm">
           {DRUG_SCREEN_STATUS_OPTIONS.find((s) => s.value === r.status)?.label ?? r.status}
         </Badge>
       ),
@@ -949,7 +983,7 @@ function DrugScreensPanel() {
           w={200}
         />
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
             New Drug Screen
           </Button>
         )}
@@ -985,6 +1019,7 @@ function DrugScreensPanel() {
             onChange={(v) => setForm({ ...form, panel: v ?? undefined })}
           />
           <Button
+            tone="primary"
             onClick={() => createMut.mutate()}
             loading={createMut.isPending}
             disabled={!form.employee_id}
@@ -1016,7 +1051,7 @@ function DrugScreensPanel() {
               setEditForm({ ...editForm, mro_decision: e.currentTarget.value || undefined })
             }
           />
-          <Button onClick={() => updateMut.mutate()} loading={updateMut.isPending}>
+          <Button tone="primary" onClick={() => updateMut.mutate()} loading={updateMut.isPending}>
             Update Drug Screen
           </Button>
         </Stack>
@@ -1100,7 +1135,7 @@ function VaccinationsPanel() {
       key: "is_compliant",
       label: "Compliant",
       render: (r) => (
-        <Badge color={r.is_compliant ? "success" : "danger"} variant="filled" size="sm">
+        <Badge tone={r.is_compliant ? "success" : "danger"} variant="filled" size="sm">
           {r.is_compliant ? "Yes" : "No"}
         </Badge>
       ),
@@ -1132,14 +1167,13 @@ function VaccinationsPanel() {
                   {row.compliant_count} / {row.total_employees}
                 </Text>
                 <Badge
-                  color={
+                  tone={
                     row.compliance_pct >= 90
                       ? "success"
                       : row.compliance_pct >= 70
                         ? "warning"
                         : "danger"
                   }
-                  variant="light"
                   size="sm"
                 >
                   {row.compliance_pct.toFixed(1)}%
@@ -1152,7 +1186,7 @@ function VaccinationsPanel() {
 
       <Group justify="flex-end" mb="md">
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
             Record Vaccination
           </Button>
         )}
@@ -1240,6 +1274,7 @@ function VaccinationsPanel() {
             onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
           />
           <Button
+            tone="primary"
             onClick={() => createMut.mutate()}
             loading={createMut.isPending}
             disabled={!form.employee_id || !form.vaccine_name || !form.administered_date}
@@ -1349,7 +1384,7 @@ function InjuriesPanel() {
       key: "is_osha_recordable",
       label: "OSHA",
       render: (r) => (
-        <Badge color={r.is_osha_recordable ? "danger" : "gray"} variant="filled" size="sm">
+        <Badge tone={r.is_osha_recordable ? "danger" : "neutral"} variant="filled" size="sm">
           {r.is_osha_recordable ? "Recordable" : "Non-Rec."}
         </Badge>
       ),
@@ -1358,7 +1393,7 @@ function InjuriesPanel() {
       key: "rtw_status",
       label: "RTW Status",
       render: (r) => (
-        <Badge color={statusColor(r.rtw_status) ?? "gray"} variant="filled" size="sm">
+        <Badge tone={statusColorTone(r.rtw_status)} variant="filled" size="sm">
           {RTW_STATUS_OPTIONS.find((s) => s.value === r.rtw_status)?.label ?? r.rtw_status}
         </Badge>
       ),
@@ -1413,7 +1448,7 @@ function InjuriesPanel() {
           w={240}
         />
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
             Report Injury
           </Button>
         )}
@@ -1478,6 +1513,7 @@ function InjuriesPanel() {
             onChange={(e) => setFormOsha(e.currentTarget.checked)}
           />
           <Button
+            tone="primary"
             onClick={() => createMut.mutate()}
             loading={createMut.isPending}
             disabled={!form.employee_id || !form.injury_date}
@@ -1573,7 +1609,7 @@ function InjuriesPanel() {
               })
             }
           />
-          <Button onClick={() => updateMut.mutate()} loading={updateMut.isPending}>
+          <Button tone="primary" onClick={() => updateMut.mutate()} loading={updateMut.isPending}>
             Update Injury Report
           </Button>
         </Stack>
@@ -1595,7 +1631,6 @@ const HAZARD_TYPES = [
   { value: "radiation", label: "Radiation" },
   { value: "other", label: "Other" },
 ];
-
 
 function HazardRegistryPanel() {
   const canCreate = useHasPermission(P.OCC_HEALTH.SCREENINGS_CREATE);
@@ -1641,7 +1676,7 @@ function HazardRegistryPanel() {
       key: "hazard_type",
       label: "Type",
       render: (r) => (
-        <Badge variant="light" size="sm">
+        <Badge tone="neutral" size="sm">
           {HAZARD_TYPES.find((t) => t.value === r.hazard_type)?.label ?? r.hazard_type}
         </Badge>
       ),
@@ -1655,7 +1690,7 @@ function HazardRegistryPanel() {
       key: "risk_level",
       label: "Risk Level",
       render: (r) => (
-        <Badge color={statusColor(r.risk_level) ?? "gray"} variant="filled" size="sm">
+        <Badge tone={statusColorTone(r.risk_level)} variant="filled" size="sm">
           {r.risk_level}
         </Badge>
       ),
@@ -1689,7 +1724,7 @@ function HazardRegistryPanel() {
     <>
       <Group justify="flex-end" mb="md">
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
             Add Hazard
           </Button>
         )}
@@ -1757,6 +1792,7 @@ function HazardRegistryPanel() {
             }
           />
           <Button
+            tone="primary"
             onClick={() => createMut.mutate()}
             loading={createMut.isPending}
             disabled={!form.location || !form.assessed_date}
@@ -1983,6 +2019,7 @@ function ReturnToWorkPanel() {
           />
           {canCreate && (
             <Button
+              tone="primary"
               onClick={() => clearanceMut.mutate()}
               loading={clearanceMut.isPending}
               disabled={!form.employee_id || !form.clearance_date}

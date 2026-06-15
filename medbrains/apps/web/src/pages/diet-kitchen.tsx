@@ -2,8 +2,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Alert,
-  Badge,
-  Button,
   Card,
   Drawer,
   Group,
@@ -72,6 +70,7 @@ import { useSearchParams } from "react-router";
 import { DataTable, PageHeader } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   dietOptionalInteger,
   dietOptionalNumber,
@@ -84,18 +83,18 @@ import { usePatientContext } from "@/hooks/usePatientContext";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { dietKitchenService } from "@/services/diet-kitchen.service";
 
-const ORDER_STATUS_COLORS: Record<string, string> = {
+const ORDER_STATUS_COLORS: Record<string, BadgeTone> = {
   active: "success",
   modified: "warning",
   completed: "primary",
-  cancelled: "slate",
+  cancelled: "neutral",
 };
 
-const PREP_STATUS_COLORS: Record<string, string> = {
-  pending: "slate",
+const PREP_STATUS_COLORS: Record<string, BadgeTone> = {
+  pending: "neutral",
   preparing: "warning",
   ready: "primary",
-  dispatched: "orange",
+  dispatched: "warning",
   delivered: "success",
 };
 
@@ -329,7 +328,7 @@ function DietOrdersTab() {
     {
       key: "diet_type",
       label: "Diet Type",
-      render: (r: DietOrder) => <Badge variant="light">{r.diet_type}</Badge>,
+      render: (r: DietOrder) => <Badge>{r.diet_type}</Badge>,
     },
     {
       key: "patient_id",
@@ -361,14 +360,14 @@ function DietOrdersTab() {
       key: "status",
       label: "Status",
       render: (r: DietOrder) => (
-        <Badge color={ORDER_STATUS_COLORS[r.status] ?? "slate"}>{r.status}</Badge>
+        <Badge tone={ORDER_STATUS_COLORS[r.status] ?? "neutral"}>{r.status}</Badge>
       ),
     },
     {
       key: "is_npo",
       label: "NPO",
       render: (r: DietOrder) =>
-        r.is_npo ? <Badge color="danger">NPO</Badge> : <Text size="sm">-</Text>,
+        r.is_npo ? <Badge tone="danger">NPO</Badge> : <Text size="sm">-</Text>,
     },
     {
       key: "start_date",
@@ -400,7 +399,7 @@ function DietOrdersTab() {
     <>
       <Group justify="flex-end" mb="md">
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
             New Diet Order
           </Button>
         )}
@@ -545,7 +544,7 @@ function DietOrdersTab() {
               />
             )}
           />
-          <Button loading={createMut.isPending} type="submit">
+          <Button tone="primary" loading={createMut.isPending} type="submit">
             Create Order
           </Button>
         </Stack>
@@ -618,7 +617,7 @@ function DietTemplatesTab() {
     {
       key: "diet_type",
       label: "Type",
-      render: (r: DietTemplate) => <Badge variant="light">{r.diet_type}</Badge>,
+      render: (r: DietTemplate) => <Badge>{r.diet_type}</Badge>,
     },
     {
       key: "nutrition",
@@ -670,7 +669,7 @@ function DietTemplatesTab() {
       key: "is_active",
       label: "Active",
       render: (r: DietTemplate) => (
-        <Badge color={r.is_active ? "success" : "slate"}>{r.is_active ? "Yes" : "No"}</Badge>
+        <Badge tone={r.is_active ? "success" : "neutral"}>{r.is_active ? "Yes" : "No"}</Badge>
       ),
     },
   ];
@@ -679,7 +678,7 @@ function DietTemplatesTab() {
     <>
       <Group justify="flex-end" mb="md">
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
             New Template
           </Button>
         )}
@@ -779,7 +778,7 @@ function DietTemplatesTab() {
               )}
             />
           </Group>
-          <Button loading={createMut.isPending} type="submit">
+          <Button tone="primary" loading={createMut.isPending} type="submit">
             Create Template
           </Button>
         </Stack>
@@ -942,7 +941,7 @@ function KitchenTab() {
       key: "is_active",
       label: "Active",
       render: (r: KitchenMenu) => (
-        <Badge color={r.is_active ? "success" : "slate"}>{r.is_active ? "Yes" : "No"}</Badge>
+        <Badge tone={r.is_active ? "success" : "neutral"}>{r.is_active ? "Yes" : "No"}</Badge>
       ),
     },
     {
@@ -961,7 +960,7 @@ function KitchenTab() {
     {
       key: "meal_type",
       label: "Meal",
-      render: (r: MealPreparation) => <Badge variant="light">{r.meal_type}</Badge>,
+      render: (r: MealPreparation) => <Badge>{r.meal_type}</Badge>,
     },
     {
       key: "meal_date",
@@ -972,7 +971,7 @@ function KitchenTab() {
       key: "status",
       label: "Status",
       render: (r: MealPreparation) => (
-        <Badge color={PREP_STATUS_COLORS[r.status] ?? "slate"}>{r.status}</Badge>
+        <Badge tone={PREP_STATUS_COLORS[r.status] ?? "neutral"}>{r.status}</Badge>
       ),
     },
     {
@@ -1033,7 +1032,7 @@ function KitchenTab() {
     {
       key: "meal_type",
       label: "Meal",
-      render: (r: MealCount) => <Badge variant="light">{r.meal_type}</Badge>,
+      render: (r: MealCount) => <Badge>{r.meal_type}</Badge>,
     },
     { key: "ward", label: "Ward", render: (r: MealCount) => <Text size="sm">{r.ward}</Text> },
     {
@@ -1089,28 +1088,28 @@ function KitchenTab() {
     <>
       <Group mb="md">
         <Button
-          variant={sub === "menus" ? "filled" : "light"}
+          tone={sub === "menus" ? "primary" : "secondary"}
           size="xs"
           onClick={() => setSub("menus")}
         >
           Menus
         </Button>
         <Button
-          variant={sub === "preps" ? "filled" : "light"}
+          tone={sub === "preps" ? "primary" : "secondary"}
           size="xs"
           onClick={() => setSub("preps")}
         >
           Meal Prep
         </Button>
         <Button
-          variant={sub === "counts" ? "filled" : "light"}
+          tone={sub === "counts" ? "primary" : "secondary"}
           size="xs"
           onClick={() => setSub("counts")}
         >
           Meal Counts
         </Button>
         <Button
-          variant={sub === "summary" ? "filled" : "light"}
+          tone={sub === "summary" ? "primary" : "secondary"}
           size="xs"
           onClick={() => setSub("summary")}
         >
@@ -1118,12 +1117,12 @@ function KitchenTab() {
         </Button>
         <div style={{ flex: 1 }} />
         {canManage && sub === "menus" && (
-          <Button leftSection={<IconPlus size={16} />} size="xs" onClick={openMenu}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} size="xs" onClick={openMenu}>
             New Menu
           </Button>
         )}
         {canCreateMealPrep && sub === "preps" && (
-          <Button leftSection={<IconPlus size={16} />} size="xs" onClick={openPrep}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} size="xs" onClick={openPrep}>
             New Meal Prep
           </Button>
         )}
@@ -1232,7 +1231,7 @@ function KitchenTab() {
                   .sort(([, a], [, b]) => b - a)
                   .map(([mealType, count]) => (
                     <Group key={mealType} justify="space-between">
-                      <Badge variant="light">{mealType}</Badge>
+                      <Badge>{mealType}</Badge>
                       <Group gap="xs">
                         <Progress value={(count / summary.stats.total) * 100} w={100} size="sm" />
                         <Text size="sm" fw={500} w={40} ta="right">
@@ -1285,7 +1284,7 @@ function KitchenTab() {
               <TextInput label="Season" {...field} error={menuErrors.season?.message} />
             )}
           />
-          <Button loading={createMenuMut.isPending} type="submit">
+          <Button tone="primary" loading={createMenuMut.isPending} type="submit">
             Create Menu
           </Button>
         </Stack>
@@ -1329,7 +1328,7 @@ function KitchenTab() {
               />
             )}
           />
-          <Button loading={createPrepMut.isPending} type="submit">
+          <Button tone="primary" loading={createPrepMut.isPending} type="submit">
             Create Meal Prep
           </Button>
         </Stack>
@@ -1442,7 +1441,7 @@ function InventoryTab() {
       key: "is_active",
       label: "Active",
       render: (r: KitchenInventory) => (
-        <Badge color={r.is_active ? "success" : "slate"}>{r.is_active ? "Yes" : "No"}</Badge>
+        <Badge tone={r.is_active ? "success" : "neutral"}>{r.is_active ? "Yes" : "No"}</Badge>
       ),
     },
   ];
@@ -1451,7 +1450,7 @@ function InventoryTab() {
     <>
       <Group justify="flex-end" mb="md">
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
             Add Item
           </Button>
         )}
@@ -1526,7 +1525,7 @@ function InventoryTab() {
               <TextInput label="Supplier" {...field} error={errors.supplier?.message} />
             )}
           />
-          <Button loading={createMut.isPending} type="submit">
+          <Button tone="primary" loading={createMut.isPending} type="submit">
             Add Item
           </Button>
         </Stack>
@@ -1604,23 +1603,23 @@ function AuditsTab() {
     {
       key: "audit_type",
       label: "Type",
-      render: (r: KitchenAudit) => <Badge variant="light">{r.audit_type}</Badge>,
+      render: (r: KitchenAudit) => <Badge>{r.audit_type}</Badge>,
     },
     {
       key: "hygiene_score",
       label: "Hygiene Score",
       render: (r: KitchenAudit) => {
         const score = r.hygiene_score;
-        const color =
-          score == null ? "slate" : score >= 80 ? "success" : score >= 60 ? "warning" : "danger";
-        return <Badge color={color}>{score ?? "-"}/100</Badge>;
+        const tone: BadgeTone =
+          score == null ? "neutral" : score >= 80 ? "success" : score >= 60 ? "warning" : "danger";
+        return <Badge tone={tone}>{score ?? "-"}/100</Badge>;
       },
     },
     {
       key: "is_compliant",
       label: "Compliant",
       render: (r: KitchenAudit) => (
-        <Badge color={r.is_compliant ? "success" : "danger"}>{r.is_compliant ? "Yes" : "No"}</Badge>
+        <Badge tone={r.is_compliant ? "success" : "danger"}>{r.is_compliant ? "Yes" : "No"}</Badge>
       ),
     },
     {
@@ -1643,7 +1642,7 @@ function AuditsTab() {
     <>
       <Group justify="flex-end" mb="md">
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
             New Audit
           </Button>
         )}
@@ -1723,7 +1722,7 @@ function AuditsTab() {
               />
             )}
           />
-          <Button loading={createMut.isPending} type="submit">
+          <Button tone="primary" loading={createMut.isPending} type="submit">
             Record Audit
           </Button>
         </Stack>

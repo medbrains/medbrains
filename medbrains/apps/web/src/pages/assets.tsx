@@ -1,7 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Button,
   Card,
   Drawer,
   Group,
@@ -48,6 +47,7 @@ import {
   TableValueBadge,
 } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { assetsService } from "@/services/assets.service";
 
@@ -536,8 +536,8 @@ export function AssetsPage() {
           canManage ? (
             <Group gap="xs">
               <Button
+                tone="secondary"
                 leftSection={<IconPlus size={16} />}
-                variant="light"
                 onClick={() => {
                   setEditingAssetCategory(null);
                   resetAssetCategory(assetCategoryDefaults);
@@ -547,6 +547,7 @@ export function AssetsPage() {
                 Asset Category
               </Button>
               <Button
+                tone="primary"
                 leftSection={<IconPlus size={16} />}
                 onClick={() => {
                   setEditingStoreCategory(null);
@@ -779,10 +780,10 @@ export function AssetsPage() {
               />
             </SimpleGrid>
             <Group justify="flex-end">
-              <Button variant="subtle" onClick={assetCategoryDrawerHandlers.close}>
+              <Button tone="ghost" onClick={assetCategoryDrawerHandlers.close}>
                 Cancel
               </Button>
-              <Button type="submit" loading={assetCategoryMutation.isPending}>
+              <Button tone="primary" type="submit" loading={assetCategoryMutation.isPending}>
                 Save
               </Button>
             </Group>
@@ -896,10 +897,10 @@ export function AssetsPage() {
               />
             </SimpleGrid>
             <Group justify="flex-end">
-              <Button variant="subtle" onClick={storeCategoryDrawerHandlers.close}>
+              <Button tone="ghost" onClick={storeCategoryDrawerHandlers.close}>
                 Cancel
               </Button>
-              <Button type="submit" loading={storeCategoryMutation.isPending}>
+              <Button tone="primary" type="submit" loading={storeCategoryMutation.isPending}>
                 Save
               </Button>
             </Group>

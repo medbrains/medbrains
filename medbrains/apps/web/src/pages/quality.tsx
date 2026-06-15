@@ -3,8 +3,6 @@ import { BarChart, DonutChart, LineChart } from "@mantine/charts";
 import {
   ActionIcon,
   Alert,
-  Badge,
-  Button,
   Card,
   Checkbox,
   Drawer,
@@ -88,52 +86,73 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
-import { statusColor } from "@/lib/status-colors";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { statusColor } from "@/lib/status-colors";
 import { qualityService } from "@/services/quality.service";
 import classes from "./quality.module.scss";
 
 // ── Color Maps ──────────────────────────────────────────
 
-
-const incidentStatusColors: Record<string, string> = {
-  reported: "slate",
+const incidentStatusColors: Record<string, BadgeTone> = {
+  reported: "neutral",
   acknowledged: "primary",
   investigating: "primary",
-  rca_complete: "violet",
-  capa_assigned: "orange",
-  capa_in_progress: "teal",
+  rca_complete: "accent",
+  capa_assigned: "warning",
+  capa_in_progress: "success",
   closed: "success",
   reopened: "danger",
 };
 
-const docStatusColors: Record<string, string> = {
-  draft: "slate",
+const docStatusColors: Record<string, BadgeTone> = {
+  draft: "neutral",
   under_review: "primary",
-  approved: "teal",
+  approved: "success",
   released: "success",
-  revised: "orange",
+  revised: "warning",
   obsolete: "danger",
 };
 
-const capaStatusColors: Record<string, string> = {
-  open: "slate",
+const capaStatusColors: Record<string, BadgeTone> = {
+  open: "neutral",
   in_progress: "primary",
-  completed: "teal",
+  completed: "success",
   verified: "success",
   overdue: "danger",
 };
 
-
-const auditStatusColors: Record<string, string> = {
-  planned: "slate",
+const auditStatusColors: Record<string, BadgeTone> = {
+  planned: "neutral",
   in_progress: "primary",
   completed: "success",
   cancelled: "danger",
 };
+
+function statusColorTone(v: string): BadgeTone {
+  const c = statusColor(v);
+  const m: Record<string, BadgeTone> = {
+    success: "success",
+    danger: "danger",
+    warning: "warning",
+    primary: "primary",
+    info: "info",
+    slate: "neutral",
+    gray: "neutral",
+    teal: "success",
+    green: "success",
+    red: "danger",
+    yellow: "warning",
+    orange: "warning",
+    blue: "info",
+    violet: "accent",
+    cinnabar: "accent",
+  };
+  return (c ? m[c] : undefined) ?? "neutral";
+}
 
 // Dropdown options for categorical fields
 const INDICATOR_CATEGORIES = [
@@ -311,7 +330,7 @@ function IndicatorsTab() {
     {
       key: "category" as const,
       label: "Category",
-      render: (i: QualityIndicator) => <Badge variant="light">{i.category}</Badge>,
+      render: (i: QualityIndicator) => <Badge tone="neutral">{i.category}</Badge>,
     },
     { key: "frequency" as const, label: "Frequency", render: (i: QualityIndicator) => i.frequency },
     {
@@ -324,7 +343,7 @@ function IndicatorsTab() {
       key: "status" as const,
       label: "Status",
       render: (i: QualityIndicator) =>
-        i.is_active ? <Badge color="success">Active</Badge> : <Badge color="slate">Inactive</Badge>,
+        i.is_active ? <Badge tone="success">Active</Badge> : <Badge tone="neutral">Inactive</Badge>,
     },
     {
       key: "actions" as const,
@@ -401,7 +420,7 @@ function IndicatorsTab() {
           </Text>
         </Group>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
             New Indicator
           </Button>
         )}
@@ -460,7 +479,7 @@ function IndicatorsTab() {
                           </div>
                         </Table.Td>
                         <Table.Td>
-                          <Badge color={meetsTarget ? "success" : "danger"}>
+                          <Badge tone={meetsTarget ? "success" : "danger"}>
                             {current.toFixed(2)}
                             {i.unit ? ` ${i.unit}` : ""}
                           </Badge>
@@ -496,12 +515,7 @@ function IndicatorsTab() {
           <Stack>
             <Group justify="space-between">
               <Text fw={600}>Trend Analysis: {trendIndicator.name}</Text>
-              <Button
-                variant="subtle"
-                size="compact-sm"
-                color="slate"
-                onClick={() => setTrendIndicator(null)}
-              >
+              <Button tone="ghost" size="compact-sm" onClick={() => setTrendIndicator(null)}>
                 Close
               </Button>
             </Group>
@@ -525,18 +539,18 @@ function IndicatorsTab() {
             )}
             {trendIndicator.target_value != null && (
               <Group gap="lg">
-                <Badge color="success" variant="dot" size="lg">
+                <Badge tone="success" variant="dot" size="lg">
                   Target: {trendIndicator.target_value}
                   {trendIndicator.unit ? ` ${trendIndicator.unit}` : ""}
                 </Badge>
                 {trendIndicator.threshold_warning != null && (
-                  <Badge color="orange" variant="dot" size="lg">
+                  <Badge tone="warning" variant="dot" size="lg">
                     Warning Threshold: {trendIndicator.threshold_warning}
                     {trendIndicator.unit ? ` ${trendIndicator.unit}` : ""}
                   </Badge>
                 )}
                 {trendIndicator.threshold_critical != null && (
-                  <Badge color="danger" variant="dot" size="lg">
+                  <Badge tone="danger" variant="dot" size="lg">
                     Critical Threshold: {trendIndicator.threshold_critical}
                     {trendIndicator.unit ? ` ${trendIndicator.unit}` : ""}
                   </Badge>
@@ -651,7 +665,11 @@ function IndicatorsTab() {
             checked={form.auto_calculated ?? false}
             onChange={(e) => setForm({ ...form, auto_calculated: e.currentTarget.checked })}
           />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+          <Button
+            tone="primary"
+            loading={createMut.isPending}
+            onClick={() => createMut.mutate(form)}
+          >
             Save
           </Button>
         </Stack>
@@ -708,7 +726,7 @@ function IndicatorsTab() {
             value={recordForm.notes}
             onChange={(e) => setRecordForm({ ...recordForm, notes: e.currentTarget.value })}
           />
-          <Button loading={recordMut.isPending} onClick={() => recordMut.mutate()}>
+          <Button tone="primary" loading={recordMut.isPending} onClick={() => recordMut.mutate()}>
             Record
           </Button>
         </Stack>
@@ -818,7 +836,7 @@ function DocumentsTab() {
       key: "status" as const,
       label: "Status",
       render: (d: QualityDocument) => (
-        <Badge color={docStatusColors[d.status] ?? "slate"}>{d.status.replace(/_/g, " ")}</Badge>
+        <Badge tone={docStatusColors[d.status] ?? "neutral"}>{d.status.replace(/_/g, " ")}</Badge>
       ),
     },
     {
@@ -832,7 +850,7 @@ function DocumentsTab() {
       label: "Training",
       render: (d: QualityDocument) =>
         d.is_training_required ? (
-          <Badge color="orange" size="sm">
+          <Badge tone="warning" size="sm">
             Required
           </Badge>
         ) : (
@@ -848,9 +866,8 @@ function DocumentsTab() {
             (statusTransitions[d.status] ?? []).map((nextStatus) => (
               <Tooltip key={nextStatus} label={nextStatus.replace(/_/g, " ")}>
                 <Button
+                  tone="secondary"
                   size="compact-xs"
-                  variant="light"
-                  color={docStatusColors[nextStatus] ?? "slate"}
                   loading={statusMut.isPending}
                   onClick={() => statusMut.mutate({ id: d.id, status: nextStatus })}
                 >
@@ -872,8 +889,7 @@ function DocumentsTab() {
               </Tooltip>
               <Tooltip label="Pending Acknowledgments">
                 <Badge
-                  color="orange"
-                  variant="light"
+                  tone="warning"
                   size="sm"
                   style={{ cursor: "pointer" }}
                   onClick={() => {
@@ -936,14 +952,14 @@ function DocumentsTab() {
         </Group>
         <Group>
           <Button
-            variant="light"
+            tone="secondary"
             leftSection={<IconPrinter size={16} />}
             onClick={() => window.print()}
           >
             Print
           </Button>
           {canManage && (
-            <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
               New Document
             </Button>
           )}
@@ -1011,7 +1027,11 @@ function DocumentsTab() {
             checked={form.is_training_required ?? false}
             onChange={(e) => setForm({ ...form, is_training_required: e.currentTarget.checked })}
           />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+          <Button
+            tone="primary"
+            loading={createMut.isPending}
+            onClick={() => createMut.mutate(form)}
+          >
             Save
           </Button>
         </Stack>
@@ -1098,17 +1118,17 @@ function DocumentsTab() {
                     return (
                       <Table.Tr key={doc.id}>
                         <Table.Td>
-                          <Badge color="primary">v{doc.current_version}</Badge>
+                          <Badge tone="primary">v{doc.current_version}</Badge>
                         </Table.Td>
                         <Table.Td>
-                          <Badge color={docStatusColors[doc.status] ?? "slate"}>
+                          <Badge tone={docStatusColors[doc.status] ?? "neutral"}>
                             {doc.status.replace(/_/g, " ")}
                           </Badge>
                         </Table.Td>
                         <Table.Td>{new Date(doc.created_at).toLocaleDateString()}</Table.Td>
                         <Table.Td>
                           {hasChanges ? (
-                            <Badge color="orange" size="sm">
+                            <Badge tone="warning" size="sm">
                               Modified
                             </Badge>
                           ) : idx === versionHistory.length - 1 ? (
@@ -1255,14 +1275,14 @@ function IncidentsTab() {
       key: "severity" as const,
       label: "Severity",
       render: (i: QualityIncident) => (
-        <Badge color={statusColor(i.severity) ?? "slate"}>{i.severity.replace(/_/g, " ")}</Badge>
+        <Badge tone={statusColorTone(i.severity)}>{i.severity.replace(/_/g, " ")}</Badge>
       ),
     },
     {
       key: "status" as const,
       label: "Status",
       render: (i: QualityIncident) => (
-        <Badge color={incidentStatusColors[i.status] ?? "slate"}>
+        <Badge tone={incidentStatusColors[i.status] ?? "neutral"}>
           {i.status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -1277,7 +1297,7 @@ function IncidentsTab() {
       label: "Anon",
       render: (i: QualityIncident) =>
         i.is_anonymous ? (
-          <Badge size="sm" color="violet">
+          <Badge size="sm" tone="accent">
             Yes
           </Badge>
         ) : (
@@ -1343,22 +1363,20 @@ function IncidentsTab() {
         {canCreate && (
           <Group>
             <Button
-              variant="light"
-              color="violet"
+              tone="secondary"
               leftSection={<IconFileDescription size={16} />}
               onClick={openMortality}
             >
               Mortality Review
             </Button>
             <Button
-              variant="light"
-              color="slate"
+              tone="secondary"
               leftSection={<IconAlertTriangle size={16} />}
               onClick={openNearMissReport}
             >
               Report Near Miss
             </Button>
-            <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
               Report Incident
             </Button>
           </Group>
@@ -1468,7 +1486,11 @@ function IncidentsTab() {
             checked={form.is_anonymous ?? false}
             onChange={(e) => setForm({ ...form, is_anonymous: e.currentTarget.checked })}
           />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+          <Button
+            tone="primary"
+            loading={createMut.isPending}
+            onClick={() => createMut.mutate(form)}
+          >
             Submit Report
           </Button>
         </Stack>
@@ -1485,10 +1507,10 @@ function IncidentsTab() {
         {selectedIncident && (
           <Stack>
             <Group>
-              <Badge color={statusColor(selectedIncident.severity) ?? "slate"} size="lg">
+              <Badge tone={statusColorTone(selectedIncident.severity)} size="lg">
                 {selectedIncident.severity.replace(/_/g, " ")}
               </Badge>
-              <Badge color={incidentStatusColors[selectedIncident.status] ?? "slate"} size="lg">
+              <Badge tone={incidentStatusColors[selectedIncident.status] ?? "neutral"} size="lg">
                 {selectedIncident.status.replace(/_/g, " ")}
               </Badge>
             </Group>
@@ -1533,8 +1555,8 @@ function IncidentsTab() {
                   }
                 />
                 <Button
+                  tone="secondary"
                   size="sm"
-                  variant="light"
                   loading={updateMut.isPending}
                   onClick={() =>
                     updateMut.mutate({
@@ -1580,7 +1602,7 @@ function IncidentsTab() {
                         </Table.Td>
                         <Table.Td>{c.capa_type}</Table.Td>
                         <Table.Td>
-                          <Badge color={capaStatusColors[c.status] ?? "slate"}>
+                          <Badge tone={capaStatusColors[c.status] ?? "neutral"}>
                             {c.status.replace(/_/g, " ")}
                           </Badge>
                         </Table.Td>
@@ -1609,12 +1631,7 @@ function IncidentsTab() {
                 <Stack gap="sm">
                   <Group justify="space-between">
                     <Text fw={600}>CAPA Effectiveness Review: {selectedCapa.capa_number}</Text>
-                    <Button
-                      variant="subtle"
-                      size="compact-sm"
-                      color="slate"
-                      onClick={() => setSelectedCapa(null)}
-                    >
+                    <Button tone="ghost" size="compact-sm" onClick={() => setSelectedCapa(null)}>
                       Close
                     </Button>
                   </Group>
@@ -1678,15 +1695,15 @@ function IncidentsTab() {
                                 )}
                               </>
                             ) : reviewOverdue ? (
-                              <Badge color="danger" mt={4}>
+                              <Badge tone="danger" mt={4}>
                                 Overdue
                               </Badge>
                             ) : selectedCapa.completed_at ? (
-                              <Badge color="warning" mt={4}>
+                              <Badge tone="warning" mt={4}>
                                 Due Soon
                               </Badge>
                             ) : (
-                              <Badge color="slate" mt={4}>
+                              <Badge tone="neutral" mt={4}>
                                 Pending
                               </Badge>
                             )}
@@ -1710,12 +1727,12 @@ function IncidentsTab() {
                             )}
                           </Card>
                         ) : (
-                          <Badge color="slate" size="lg">
+                          <Badge tone="neutral" size="lg">
                             Pending Review
                           </Badge>
                         )}
                         {reviewOverdue && (
-                          <Badge color="danger" size="lg">
+                          <Badge tone="danger" size="lg">
                             Review overdue by {daysOverdueSinceCompletion - 90} days (90-day
                             threshold exceeded)
                           </Badge>
@@ -1766,6 +1783,7 @@ function IncidentsTab() {
                   onChange={(e) => setCapaForm({ ...capaForm, due_date: e.currentTarget.value })}
                 />
                 <Button
+                  tone="primary"
                   size="sm"
                   loading={createCapaMut.isPending}
                   onClick={() =>
@@ -1846,6 +1864,7 @@ function IncidentsTab() {
             clearable
           />
           <Button
+            tone="primary"
             loading={createMortalityMut.isPending}
             onClick={() => createMortalityMut.mutate(mortalityForm)}
           >
@@ -1990,7 +2009,7 @@ function CommitteesTab() {
       label: "Mandatory",
       render: (c: QualityCommittee) =>
         c.is_mandatory ? (
-          <Badge color="danger" size="sm">
+          <Badge tone="danger" size="sm">
             Mandatory
           </Badge>
         ) : (
@@ -2001,7 +2020,7 @@ function CommitteesTab() {
       key: "active" as const,
       label: "Status",
       render: (c: QualityCommittee) =>
-        c.is_active ? <Badge color="success">Active</Badge> : <Badge color="slate">Inactive</Badge>,
+        c.is_active ? <Badge tone="success">Active</Badge> : <Badge tone="neutral">Inactive</Badge>,
     },
     {
       key: "actions" as const,
@@ -2061,17 +2080,12 @@ function CommitteesTab() {
           <Text c="dimmed" size="sm">
             {committees.length} committee(s)
           </Text>
-          <Button
-            variant="light"
-            color="violet"
-            size="sm"
-            onClick={() => setShowFeedback(!showFeedback)}
-          >
+          <Button tone="secondary" size="sm" onClick={() => setShowFeedback(!showFeedback)}>
             {showFeedback ? "Hide Feedback" : "Show Feedback"}
           </Button>
         </Group>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCommittee}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCommittee}>
             New Committee
           </Button>
         )}
@@ -2158,7 +2172,7 @@ function CommitteesTab() {
                     </Table.Td>
                     <Table.Td>{m.venue ?? "---"}</Table.Td>
                     <Table.Td>
-                      <Badge>{m.status}</Badge>
+                      <Badge tone="neutral">{m.status}</Badge>
                     </Table.Td>
                   </Table.Tr>
                 ))}
@@ -2195,7 +2209,7 @@ function CommitteesTab() {
                   <Table.Td>{new Date(a.due_date).toLocaleDateString()}</Table.Td>
                   <Table.Td>
                     <Badge
-                      color={
+                      tone={
                         a.status === "completed"
                           ? "success"
                           : a.status === "overdue"
@@ -2317,6 +2331,7 @@ function CommitteesTab() {
             }
           />
           <Button
+            tone="primary"
             loading={createCommitteeMut.isPending}
             onClick={() => createCommitteeMut.mutate(committeeForm)}
           >
@@ -2351,6 +2366,7 @@ function CommitteesTab() {
             }
           />
           <Button
+            tone="primary"
             loading={createMeetingMut.isPending}
             onClick={() => createMeetingMut.mutate(meetingForm)}
           >
@@ -2485,7 +2501,9 @@ function AccreditationTab() {
       key: "body" as const,
       label: "Body",
       render: (s: QualityAccreditationStandard) => (
-        <Badge variant="outline">{s.body.toUpperCase()}</Badge>
+        <Badge tone="neutral" variant="outline">
+          {s.body.toUpperCase()}
+        </Badge>
       ),
     },
     {
@@ -2498,11 +2516,9 @@ function AccreditationTab() {
       label: "Compliance",
       render: (s: QualityAccreditationStandard) => {
         const c = complianceMap.get(s.id);
-        if (!c) return <Badge color="slate">Not Assessed</Badge>;
+        if (!c) return <Badge tone="neutral">Not Assessed</Badge>;
         return (
-          <Badge color={statusColor(c.compliance) ?? "slate"}>
-            {c.compliance.replace(/_/g, " ")}
-          </Badge>
+          <Badge tone={statusColorTone(c.compliance)}>{c.compliance.replace(/_/g, " ")}</Badge>
         );
       },
     },
@@ -2622,27 +2638,20 @@ function AccreditationTab() {
             clearable
             w={160}
           />
-          <Badge color="success" variant="light">
-            Compliant: {compliantCount}
-          </Badge>
-          <Badge color="warning" variant="light">
-            Partial: {partialCount}
-          </Badge>
-          <Badge color="danger" variant="light">
-            Non-Compliant: {nonCompliantCount}
-          </Badge>
+          <Badge tone="success">Compliant: {compliantCount}</Badge>
+          <Badge tone="warning">Partial: {partialCount}</Badge>
+          <Badge tone="danger">Non-Compliant: {nonCompliantCount}</Badge>
         </Group>
         <Group>
           {canManage && (
-            <Button leftSection={<IconPlus size={16} />} onClick={openStandard}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openStandard}>
               Add Standard
             </Button>
           )}
           {bodyFilter && canManage && (
             <Button
+              tone="secondary"
               leftSection={<IconFileStack size={16} />}
-              variant="light"
-              color="violet"
               loading={compileEvidenceMut.isPending}
               onClick={() => compileEvidenceMut.mutate(bodyFilter)}
             >
@@ -2712,6 +2721,7 @@ function AccreditationTab() {
             }
           />
           <Button
+            tone="primary"
             loading={createStandardMut.isPending}
             onClick={() => createStandardMut.mutate(standardForm)}
           >
@@ -2795,6 +2805,7 @@ function AccreditationTab() {
             }
           />
           <Button
+            tone="primary"
             loading={updateComplianceMut.isPending}
             onClick={() => updateComplianceMut.mutate(complianceForm)}
           >
@@ -2852,12 +2863,8 @@ function AccreditationTab() {
               </Card>
             </SimpleGrid>
             <Group>
-              <Badge color="success" variant="light">
-                Compliant: {evidenceData.compliant_count}
-              </Badge>
-              <Badge color="danger" variant="light">
-                Non-Compliant: {evidenceData.non_compliant_items.length}
-              </Badge>
+              <Badge tone="success">Compliant: {evidenceData.compliant_count}</Badge>
+              <Badge tone="danger">Non-Compliant: {evidenceData.non_compliant_items.length}</Badge>
             </Group>
             {evidenceData.non_compliant_items.length > 0 && (
               <>
@@ -3007,7 +3014,7 @@ function AuditsTab() {
     {
       key: "audit_type" as const,
       label: "Type",
-      render: (a: QualityAudit) => <Badge variant="light">{a.audit_type}</Badge>,
+      render: (a: QualityAudit) => <Badge tone="neutral">{a.audit_type}</Badge>,
     },
     {
       key: "audit_date" as const,
@@ -3028,7 +3035,7 @@ function AuditsTab() {
       key: "status" as const,
       label: "Status",
       render: (a: QualityAudit) => (
-        <Badge color={auditStatusColors[a.status] ?? "slate"}>{a.status.replace(/_/g, " ")}</Badge>
+        <Badge tone={auditStatusColors[a.status] ?? "neutral"}>{a.status.replace(/_/g, " ")}</Badge>
       ),
     },
     {
@@ -3073,22 +3080,20 @@ function AuditsTab() {
         {canCreate && (
           <Group>
             <Button
-              variant="light"
-              color="primary"
+              tone="secondary"
               leftSection={<IconCalendarEvent size={16} />}
               onClick={openSchedule}
             >
               Schedule Audits
             </Button>
             <Button
-              variant="light"
-              color="violet"
+              tone="secondary"
               leftSection={<IconShieldCheck size={16} />}
               onClick={openMockInspection}
             >
               Mock Inspection
             </Button>
-            <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
               New Audit
             </Button>
           </Group>
@@ -3141,7 +3146,11 @@ function AuditsTab() {
             value={form.audit_date}
             onChange={(e) => setForm({ ...form, audit_date: e.currentTarget.value })}
           />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+          <Button
+            tone="primary"
+            loading={createMut.isPending}
+            onClick={() => createMut.mutate(form)}
+          >
             Save
           </Button>
         </Stack>
@@ -3161,8 +3170,8 @@ function AuditsTab() {
               {selectedAudit.title}
             </Text>
             <Group>
-              <Badge variant="light">{selectedAudit.audit_type}</Badge>
-              <Badge color={auditStatusColors[selectedAudit.status] ?? "slate"}>
+              <Badge tone="neutral">{selectedAudit.audit_type}</Badge>
+              <Badge tone={auditStatusColors[selectedAudit.status] ?? "neutral"}>
                 {selectedAudit.status.replace(/_/g, " ")}
               </Badge>
             </Group>
@@ -3175,13 +3184,13 @@ function AuditsTab() {
             )}
 
             <Group mt="md">
-              <Badge color="danger" size="lg">
+              <Badge tone="danger" size="lg">
                 Non-Conformities: {selectedAudit.non_conformities}
               </Badge>
-              <Badge color="orange" size="lg">
+              <Badge tone="warning" size="lg">
                 Observations: {selectedAudit.observations}
               </Badge>
-              <Badge color="primary" size="lg">
+              <Badge tone="primary" size="lg">
                 Opportunities: {selectedAudit.opportunities}
               </Badge>
             </Group>
@@ -3231,6 +3240,7 @@ function AuditsTab() {
               <Text fw={600}>Audit Findings ({findings.length})</Text>
               {canCreate && (
                 <Button
+                  tone="primary"
                   size="compact-sm"
                   leftSection={<IconPlus size={14} />}
                   onClick={openFinding}
@@ -3258,7 +3268,7 @@ function AuditsTab() {
                   {findings.map((f: AuditFinding) => (
                     <Table.Tr key={f.id}>
                       <Table.Td>
-                        <Badge variant="light">{f.finding_type.replace(/_/g, " ")}</Badge>
+                        <Badge tone="neutral">{f.finding_type.replace(/_/g, " ")}</Badge>
                       </Table.Td>
                       <Table.Td>
                         <Text size="sm" lineClamp={2}>
@@ -3266,7 +3276,7 @@ function AuditsTab() {
                         </Text>
                       </Table.Td>
                       <Table.Td>
-                        <Badge color={statusColor(f.severity) ?? "slate"}>{f.severity}</Badge>
+                        <Badge tone={statusColorTone(f.severity)}>{f.severity}</Badge>
                       </Table.Td>
                       <Table.Td>
                         <Text size="sm" lineClamp={1}>
@@ -3275,7 +3285,7 @@ function AuditsTab() {
                       </Table.Td>
                       <Table.Td>
                         <Badge
-                          color={
+                          tone={
                             f.status === "closed"
                               ? "success"
                               : f.status === "open"
@@ -3341,6 +3351,7 @@ function AuditsTab() {
             onChange={(e) => setScheduleForm({ ...scheduleForm, end_date: e.currentTarget.value })}
           />
           <Button
+            tone="primary"
             loading={scheduleAuditsMut.isPending}
             onClick={() => scheduleAuditsMut.mutate(scheduleForm)}
           >
@@ -3389,6 +3400,7 @@ function AuditsTab() {
             }
           />
           <Button
+            tone="primary"
             loading={createFindingMut.isPending}
             onClick={() => createFindingMut.mutate(findingForm)}
           >
@@ -3471,11 +3483,11 @@ function AnalyticsReviewsTab() {
       key: "status" as const,
       label: "Status",
       render: (r: PatientSafetyIndicator) => {
-        if (r.benchmark == null) return <Badge color="slate">N/A</Badge>;
+        if (r.benchmark == null) return <Badge tone="neutral">N/A</Badge>;
         return r.rate_per_1000 <= r.benchmark ? (
-          <Badge color="success">Within</Badge>
+          <Badge tone="success">Within</Badge>
         ) : (
-          <Badge color="danger">Exceeded</Badge>
+          <Badge tone="danger">Exceeded</Badge>
         );
       },
     },
@@ -3492,7 +3504,7 @@ function AnalyticsReviewsTab() {
       label: "Overall Score",
       render: (r: DepartmentScorecard) => (
         <Badge
-          color={r.overall_score >= 80 ? "success" : r.overall_score >= 60 ? "warning" : "danger"}
+          tone={r.overall_score >= 80 ? "success" : r.overall_score >= 60 ? "warning" : "danger"}
           size="lg"
         >
           {r.overall_score.toFixed(1)}%
@@ -3510,8 +3522,7 @@ function AnalyticsReviewsTab() {
               <Tooltip key={name} label={name}>
                 <Badge
                   size="sm"
-                  variant="light"
-                  color={score >= 80 ? "success" : score >= 60 ? "warning" : "danger"}
+                  tone={score >= 80 ? "success" : score >= 60 ? "warning" : "danger"}
                 >
                   {score.toFixed(0)}%
                 </Badge>
@@ -3536,7 +3547,7 @@ function AnalyticsReviewsTab() {
     {
       key: "capa_type" as const,
       label: "Type",
-      render: (r: QualityCapa) => <Badge variant="light">{r.capa_type}</Badge>,
+      render: (r: QualityCapa) => <Badge tone="neutral">{r.capa_type}</Badge>,
     },
     {
       key: "description" as const,
@@ -3559,7 +3570,7 @@ function AnalyticsReviewsTab() {
             <Text size="sm" c="danger">
               {new Date(r.due_date).toLocaleDateString()}
             </Text>
-            <Badge color="danger" size="sm">
+            <Badge tone="danger" size="sm">
               {daysOverdue}d overdue
             </Badge>
           </Group>
@@ -3570,7 +3581,7 @@ function AnalyticsReviewsTab() {
       key: "status" as const,
       label: "Status",
       render: (r: QualityCapa) => (
-        <Badge color={capaStatusColors[r.status] ?? "slate"}>{r.status.replace(/_/g, " ")}</Badge>
+        <Badge tone={capaStatusColors[r.status] ?? "neutral"}>{r.status.replace(/_/g, " ")}</Badge>
       ),
     },
     {
@@ -3582,18 +3593,18 @@ function AnalyticsReviewsTab() {
         );
         if (daysOverdue > 30)
           return (
-            <Badge color="danger" size="sm">
+            <Badge tone="danger" size="sm">
               Critical
             </Badge>
           );
         if (daysOverdue > 14)
           return (
-            <Badge color="orange" size="sm">
+            <Badge tone="warning" size="sm">
               High
             </Badge>
           );
         return (
-          <Badge color="warning" size="sm">
+          <Badge tone="warning" size="sm">
             Standard
           </Badge>
         );
@@ -3616,13 +3627,13 @@ function AnalyticsReviewsTab() {
     {
       key: "severity" as const,
       label: "Severity",
-      render: (r: QualityIncident) => <Badge color="danger">{r.severity.replace(/_/g, " ")}</Badge>,
+      render: (r: QualityIncident) => <Badge tone="danger">{r.severity.replace(/_/g, " ")}</Badge>,
     },
     {
       key: "status" as const,
       label: "Status",
       render: (r: QualityIncident) => (
-        <Badge color={incidentStatusColors[r.status] ?? "slate"}>
+        <Badge tone={incidentStatusColors[r.status] ?? "neutral"}>
           {r.status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -3726,7 +3737,7 @@ function AnalyticsReviewsTab() {
                   {committeeDash.action_items_open}
                 </Text>
                 {committeeDash.action_items_overdue > 0 && (
-                  <Badge color="danger" size="sm" mt={4}>
+                  <Badge tone="danger" size="sm" mt={4}>
                     {committeeDash.action_items_overdue} overdue
                   </Badge>
                 )}

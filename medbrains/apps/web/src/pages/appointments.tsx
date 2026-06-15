@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Group,
   Loader,
   Modal,
@@ -52,20 +50,21 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "@/components/PageHeader";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { parseDate, toDateString, todayDateString } from "@/lib/date-utils";
 import { appointmentsService } from "@/services/appointments.service";
 
 // ── Helpers ────────────────────────────────────────────────
 
-const STATUS_COLORS: Record<string, string> = {
+const STATUS_COLORS: Record<string, BadgeTone> = {
   scheduled: "primary",
   confirmed: "info",
   checked_in: "warning",
-  in_consultation: "orange",
+  in_consultation: "warning",
   completed: "success",
   cancelled: "danger",
-  no_show: "slate",
+  no_show: "neutral",
 };
 
 const APPT_TYPE_LABELS: Record<string, string> = {
@@ -373,10 +372,10 @@ function BookAppointmentModal({ opened, onClose }: { opened: boolean; onClose: (
             )}
           </Group>
           <Group justify="flex-end" mt="md">
-            <Button variant="light" onClick={handleClose}>
+            <Button tone="secondary" onClick={handleClose}>
               Cancel
             </Button>
-            <Button onClick={() => setStep("slots")} disabled={!canProceedToSlots}>
+            <Button tone="primary" onClick={() => setStep("slots")} disabled={!canProceedToSlots}>
               Select Time Slot
             </Button>
           </Group>
@@ -405,8 +404,8 @@ function BookAppointmentModal({ opened, onClose }: { opened: boolean; onClose: (
               {slots.map((slot) => (
                 <Button
                   key={slot.start_time}
+                  tone={selectedSlot?.start_time === slot.start_time ? "primary" : "secondary"}
                   size="xs"
-                  variant={selectedSlot?.start_time === slot.start_time ? "filled" : "light"}
                   disabled={!slot.is_available}
                   onClick={() => setSelectedSlot(slot)}
                 >
@@ -418,10 +417,11 @@ function BookAppointmentModal({ opened, onClose }: { opened: boolean; onClose: (
           )}
 
           <Group justify="flex-end" mt="md">
-            <Button variant="light" onClick={() => setStep("form")}>
+            <Button tone="secondary" onClick={() => setStep("form")}>
               Back
             </Button>
             <Button
+              tone="primary"
               onClick={() => void submitBooking()}
               disabled={!selectedSlot}
               loading={bookMutation.isPending}
@@ -626,7 +626,11 @@ export function AppointmentsPage() {
         subtitle="OPD appointment scheduling and management"
         actions={
           canBook ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={() => setModalOpen(true)}>
+            <Button
+              tone="primary"
+              leftSection={<IconPlus size={16} />}
+              onClick={() => setModalOpen(true)}
+            >
               Book Appointment
             </Button>
           ) : undefined
@@ -642,10 +646,10 @@ export function AppointmentsPage() {
           leftSection={<IconCalendar size={16} />}
           w={200}
         />
-        <Button variant="light" mt={24} onClick={() => setDateFilter(null)}>
+        <Button tone="secondary" mt={24} onClick={() => setDateFilter(null)}>
           All appointments
         </Button>
-        <Button variant="subtle" mt={24} onClick={() => setDateFilter(todayStr())}>
+        <Button tone="ghost" mt={24} onClick={() => setDateFilter(todayStr())}>
           Today
         </Button>
       </Group>
@@ -713,13 +717,13 @@ export function AppointmentsPage() {
                       <Text size="sm">{appt.doctor_name}</Text>
                     </Table.Td>
                     <Table.Td>
-                      <Badge variant="light" size="sm">
+                      <Badge tone="neutral" variant="light" size="sm">
                         {APPT_TYPE_LABELS[appt.appointment_type] ?? appt.appointment_type}
                       </Badge>
                     </Table.Td>
                     <Table.Td>
                       <Badge
-                        color={STATUS_COLORS[appt.status] ?? "slate"}
+                        tone={STATUS_COLORS[appt.status] ?? "neutral"}
                         variant="light"
                         size="sm"
                       >
@@ -738,9 +742,8 @@ export function AppointmentsPage() {
                             <Tooltip label={checkInTooltip}>
                               <span>
                                 <Button
+                                  tone="primary"
                                   size="xs"
-                                  variant="light"
-                                  color="success"
                                   leftSection={<IconLogin size={14} />}
                                   disabled={!canCheckInToOpd}
                                   loading={
@@ -864,7 +867,7 @@ export function AppointmentsPage() {
           />
           <Group justify="flex-end">
             <Button
-              variant="light"
+              tone="secondary"
               onClick={() => {
                 setCancelTarget(null);
                 cancelForm.reset({ cancel_reason: "" });
@@ -873,7 +876,7 @@ export function AppointmentsPage() {
               Keep
             </Button>
             <Button
-              color="danger"
+              tone="danger"
               onClick={() => void submitCancel()}
               loading={cancelMutation.isPending}
             >
@@ -948,8 +951,10 @@ export function AppointmentsPage() {
                   {rescheduleSlots.data.map((slot: AvailableSlot) => (
                     <Button
                       key={slot.start_time}
+                      tone={
+                        rescheduleSlot?.start_time === slot.start_time ? "primary" : "secondary"
+                      }
                       size="xs"
-                      variant={rescheduleSlot?.start_time === slot.start_time ? "filled" : "light"}
                       disabled={!slot.is_available}
                       onClick={() => setRescheduleSlot(slot)}
                     >
@@ -964,7 +969,7 @@ export function AppointmentsPage() {
 
           <Group justify="flex-end">
             <Button
-              variant="light"
+              tone="secondary"
               onClick={() => {
                 setRescheduleTarget(null);
                 rescheduleForm.reset({ appointment_date: null });
@@ -974,6 +979,7 @@ export function AppointmentsPage() {
               Cancel
             </Button>
             <Button
+              tone="primary"
               disabled={!rescheduleDate || !rescheduleSlot}
               loading={rescheduleMutation.isPending}
               onClick={() => void submitReschedule()}

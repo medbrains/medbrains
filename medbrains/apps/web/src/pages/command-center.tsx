@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Group,
   Modal,
@@ -63,6 +61,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader, StatCard } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import {
   type AssignTransportInput,
@@ -124,67 +123,67 @@ function occupancyColor(pct: number): string {
   return "success";
 }
 
-function bedStatusColor(s: string): string {
+function bedStatusColor(s: string): BadgeTone {
   switch (s) {
     case "vacant_clean":
       return "success";
     case "occupied":
       return "primary";
     case "cleaning":
-      return "orange";
+      return "warning";
     case "vacant_dirty":
       return "danger";
     case "maintenance":
-      return "gray";
+      return "neutral";
     default:
-      return "gray";
+      return "neutral";
   }
 }
 
-function transportModeColor(m: string): string {
+function transportModeColor(m: string): BadgeTone {
   switch (m) {
     case "ambulance":
       return "danger";
     case "stretcher":
-      return "orange";
+      return "warning";
     case "wheelchair":
       return "primary";
     case "bed":
-      return "violet";
+      return "accent";
     default:
-      return "gray";
+      return "neutral";
   }
 }
 
-function transportPriorityColor(p: string): string {
+function transportPriorityColor(p: string): BadgeTone {
   switch (p) {
     case "emergency":
       return "danger";
     case "urgent":
-      return "orange";
+      return "warning";
     default:
-      return "gray";
+      return "neutral";
   }
 }
 
-function transportStatusColor(s: string): string {
+function transportStatusColor(s: string): BadgeTone {
   switch (s) {
     case "requested":
       return "primary";
     case "assigned":
-      return "cyan";
+      return "info";
     case "in_transit":
       return "warning";
     case "completed":
       return "success";
     case "cancelled":
-      return "gray";
+      return "neutral";
     default:
-      return "gray";
+      return "neutral";
   }
 }
 
-function alertLevelColor(level: string): string {
+function alertLevelColor(level: string): BadgeTone {
   return level === "critical" ? "danger" : "warning";
 }
 
@@ -399,7 +398,7 @@ function OverviewTab() {
       render: (r) => (
         <Badge
           variant="light"
-          color={r.queue_depth > 10 ? "danger" : r.queue_depth > 5 ? "warning" : "success"}
+          tone={r.queue_depth > 10 ? "danger" : r.queue_depth > 5 ? "warning" : "success"}
           size="sm"
         >
           {r.queue_depth}
@@ -423,7 +422,7 @@ function OverviewTab() {
       key: "level",
       label: "Level",
       render: (r) => (
-        <Badge color={alertLevelColor(r.alert_level)} size="sm" variant="filled">
+        <Badge tone={alertLevelColor(r.alert_level)} size="sm" variant="filled">
           {r.alert_level.toUpperCase()}
         </Badge>
       ),
@@ -457,7 +456,7 @@ function OverviewTab() {
             </ActionIcon>
           </Tooltip>
         ) : r.acknowledged_by ? (
-          <Badge size="xs" variant="light" color="success">
+          <Badge size="xs" variant="light" tone="success">
             ACK
           </Badge>
         ) : null,
@@ -637,7 +636,7 @@ function BedManagementTab() {
       key: "status",
       label: "Status",
       render: (r) => (
-        <Badge color={bedStatusColor(r.status)} size="sm" variant="filled">
+        <Badge tone={bedStatusColor(r.status)} size="sm" variant="filled">
           {r.status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -858,7 +857,7 @@ function DischargeCoordinatorTab() {
               {fmtShortDate(r.expected_discharge_date)}
             </Text>
             {isOverdue && (
-              <Badge size="xs" color="danger" variant="filled">
+              <Badge size="xs" tone="danger" variant="filled">
                 OVERDUE
               </Badge>
             )}
@@ -882,35 +881,35 @@ function DischargeCoordinatorTab() {
         const badges: React.ReactNode[] = [];
         if (r.pending_labs > 0) {
           badges.push(
-            <Badge key="labs" size="xs" color="danger" variant="filled">
+            <Badge key="labs" size="xs" tone="danger" variant="filled">
               Labs ({r.pending_labs})
             </Badge>,
           );
         }
         if (r.pending_billing) {
           badges.push(
-            <Badge key="billing" size="xs" color="orange" variant="filled">
+            <Badge key="billing" size="xs" tone="warning" variant="filled">
               Billing
             </Badge>,
           );
         }
         if (r.summary_draft) {
           badges.push(
-            <Badge key="summary" size="xs" color="warning" variant="filled">
+            <Badge key="summary" size="xs" tone="warning" variant="filled">
               Summary
             </Badge>,
           );
         }
         if (r.checklist_pending > 0) {
           badges.push(
-            <Badge key="checklist" size="xs" color="warning" variant="filled">
+            <Badge key="checklist" size="xs" tone="warning" variant="filled">
               Checklist ({r.checklist_pending})
             </Badge>,
           );
         }
         if (badges.length === 0) {
           return (
-            <Badge size="xs" color="success" variant="light">
+            <Badge size="xs" tone="success" variant="light">
               Clear
             </Badge>
           );
@@ -1110,7 +1109,7 @@ function TransportTab() {
       key: "mode",
       label: "Mode",
       render: (r) => (
-        <Badge color={transportModeColor(r.transport_mode)} size="sm" variant="light">
+        <Badge tone={transportModeColor(r.transport_mode)} size="sm" variant="light">
           {r.transport_mode}
         </Badge>
       ),
@@ -1119,7 +1118,7 @@ function TransportTab() {
       key: "priority",
       label: "Priority",
       render: (r) => (
-        <Badge color={transportPriorityColor(r.priority)} size="sm" variant="filled">
+        <Badge tone={transportPriorityColor(r.priority)} size="sm" variant="filled">
           {r.priority}
         </Badge>
       ),
@@ -1128,7 +1127,7 @@ function TransportTab() {
       key: "status",
       label: "Status",
       render: (r) => (
-        <Badge color={transportStatusColor(r.status)} size="sm" variant="filled">
+        <Badge tone={transportStatusColor(r.status)} size="sm" variant="filled">
           {r.status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -1151,15 +1150,14 @@ function TransportTab() {
         return (
           <Group gap={4}>
             {r.status === "requested" && (
-              <Button size="compact-xs" variant="light" onClick={() => setAssignModalId(r.id)}>
+              <Button tone="secondary" size="compact-xs" onClick={() => setAssignModalId(r.id)}>
                 Assign
               </Button>
             )}
             {r.status === "in_transit" && (
               <Button
+                tone="primary"
                 size="compact-xs"
-                variant="light"
-                color="success"
                 onClick={() => completeMut.mutate(r.id)}
                 loading={completeMut.isPending}
               >
@@ -1213,7 +1211,12 @@ function TransportTab() {
         toolbar={
           canManage ? (
             <Group justify="flex-end">
-              <Button leftSection={<IconPlus size={14} />} size="xs" onClick={openCreateTransport}>
+              <Button
+                tone="primary"
+                leftSection={<IconPlus size={14} />}
+                size="xs"
+                onClick={openCreateTransport}
+              >
                 New Transport Request
               </Button>
             </Group>
@@ -1278,10 +1281,10 @@ function TransportTab() {
             {...registerTransport("notes")}
           />
           <Group justify="flex-end" mt="sm">
-            <Button variant="subtle" onClick={closeCreateTransport}>
+            <Button tone="ghost" onClick={closeCreateTransport}>
               Cancel
             </Button>
-            <Button type="submit" loading={createMut.isPending}>
+            <Button tone="primary" type="submit" loading={createMut.isPending}>
               Create
             </Button>
           </Group>
@@ -1303,10 +1306,10 @@ function TransportTab() {
             {...registerAssign("assigned_to")}
           />
           <Group justify="flex-end" mt="sm">
-            <Button variant="subtle" onClick={closeAssignTransport}>
+            <Button tone="ghost" onClick={closeAssignTransport}>
               Cancel
             </Button>
-            <Button type="submit" loading={assignMut.isPending}>
+            <Button tone="primary" type="submit" loading={assignMut.isPending}>
               Assign
             </Button>
           </Group>
@@ -1404,7 +1407,7 @@ function AlertsThresholdsTab() {
       key: "level",
       label: "Level",
       render: (r) => (
-        <Badge color={alertLevelColor(r.alert_level)} size="sm" variant="filled">
+        <Badge tone={alertLevelColor(r.alert_level)} size="sm" variant="filled">
           {r.alert_level.toUpperCase()}
         </Badge>
       ),
@@ -1451,7 +1454,7 @@ function AlertsThresholdsTab() {
             <Tooltip
               label={`Acknowledged by ${r.acknowledged_by} at ${fmtDate(r.acknowledged_at)}`}
             >
-              <Badge size="xs" variant="light" color="success">
+              <Badge size="xs" variant="light" tone="success">
                 ACK
               </Badge>
             </Tooltip>
@@ -1514,7 +1517,7 @@ function AlertsThresholdsTab() {
       key: "active",
       label: "Active",
       render: (r) => (
-        <Badge size="sm" color={r.is_active ? "success" : "slate"} variant="light">
+        <Badge size="sm" tone={r.is_active ? "success" : "neutral"} variant="light">
           {r.is_active ? "Active" : "Inactive"}
         </Badge>
       ),
@@ -1588,7 +1591,12 @@ function AlertsThresholdsTab() {
         toolbar={
           canManage ? (
             <Group justify="flex-end">
-              <Button leftSection={<IconPlus size={14} />} size="xs" onClick={openCreateThreshold}>
+              <Button
+                tone="primary"
+                leftSection={<IconPlus size={14} />}
+                size="xs"
+                onClick={openCreateThreshold}
+              >
                 Add Threshold
               </Button>
             </Group>
@@ -1652,10 +1660,10 @@ function AlertsThresholdsTab() {
             )}
           />
           <Group justify="flex-end" mt="sm">
-            <Button variant="subtle" onClick={closeCreateThreshold}>
+            <Button tone="ghost" onClick={closeCreateThreshold}>
               Cancel
             </Button>
-            <Button type="submit" loading={createThreshold.isPending}>
+            <Button tone="primary" type="submit" loading={createThreshold.isPending}>
               Create
             </Button>
           </Group>

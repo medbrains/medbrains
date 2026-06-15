@@ -1,7 +1,5 @@
 import {
   Accordion,
-  Badge,
-  Button,
   Card,
   Group,
   Modal,
@@ -31,6 +29,7 @@ import {
 } from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
+import { Badge, Button } from "@/components/ui";
 import classes from "./landing.module.scss";
 
 interface FeatureEntry {
@@ -116,17 +115,17 @@ function PlatformBadge({ web, mobile, tv }: { web: string; mobile: string; tv: s
   return (
     <Group gap={4} wrap="nowrap" style={{ flexShrink: 0 }}>
       {web === "Y" && (
-        <Badge size="xs" variant="dot" color="primary">
+        <Badge size="xs" variant="dot" tone="primary">
           W
         </Badge>
       )}
       {mobile === "Y" && (
-        <Badge size="xs" variant="dot" color="teal">
+        <Badge size="xs" variant="dot" tone="success">
           M
         </Badge>
       )}
       {tv === "Y" && (
-        <Badge size="xs" variant="dot" color="slate">
+        <Badge size="xs" variant="dot" tone="neutral">
           TV
         </Badge>
       )}
@@ -198,7 +197,7 @@ export function LandingPage() {
             <Text fw={700} size="lg">
               All Features
             </Text>
-            <Badge size="sm" variant="light" color="primary">
+            <Badge size="sm" tone="primary">
               {filteredCount.toLocaleString()}
             </Badge>
           </Group>
@@ -232,7 +231,7 @@ export function LandingPage() {
                       <Text fw={600} size="sm">
                         {category}
                       </Text>
-                      <Badge size="sm" variant="light" color="primary">
+                      <Badge size="sm" tone="primary">
                         {catCount}
                       </Badge>
                     </Group>
@@ -246,7 +245,7 @@ export function LandingPage() {
                               <Text size="sm" fw={500}>
                                 {mod}
                               </Text>
-                              <Badge size="xs" variant="light" color="slate">
+                              <Badge size="xs" tone="neutral">
                                 {feats.length}
                               </Badge>
                             </Group>
@@ -327,15 +326,15 @@ export function LandingPage() {
 
           <div className={classes.navActions}>
             {user ? (
-              <Button size="sm" onClick={() => navigate("/apps")}>
+              <Button tone="primary" size="sm" onClick={() => navigate("/apps")}>
                 Go to Dashboard
               </Button>
             ) : (
               <>
-                <Button variant="subtle" size="sm" onClick={() => navigate("/login")}>
+                <Button tone="ghost" size="sm" onClick={() => navigate("/login")}>
                   Sign In
                 </Button>
-                <Button size="sm" onClick={() => navigate("/onboarding")}>
+                <Button tone="primary" size="sm" onClick={() => navigate("/onboarding")}>
                   Get Started
                 </Button>
               </>
@@ -359,20 +358,24 @@ export function LandingPage() {
             everything a modern hospital needs.
           </p>
           <div className={classes.heroCtas}>
-            <Button size="lg" onClick={() => navigate(user ? "/apps" : "/onboarding")}>
+            <Button
+              tone="primary"
+              size="lg"
+              onClick={() => navigate(user ? "/apps" : "/onboarding")}
+            >
               Get Started
             </Button>
             <Button
+              tone="secondary"
               size="lg"
-              variant="outline"
               leftSection={<IconList size={18} />}
               onClick={openModal}
             >
               View All Features
             </Button>
             <Button
+              tone="ghost"
               size="lg"
-              variant="subtle"
               leftSection={<IconBrandGithub size={18} />}
               component="a"
               href="https://github.com/nicholasraman/medbrains"
@@ -417,7 +420,7 @@ export function LandingPage() {
           </SimpleGrid>
           <Group justify="center" mt="xl">
             <Button
-              variant="light"
+              tone="secondary"
               size="md"
               leftSection={<IconSearch size={16} />}
               onClick={openModal}
@@ -440,7 +443,7 @@ export function LandingPage() {
               <div className={classes.moduleCategoryTitle}>{cat.category}</div>
               <div className={classes.moduleBadges}>
                 {cat.modules.map((mod) => (
-                  <Badge key={mod} variant="light" color="primary" size="lg" radius="sm">
+                  <Badge key={mod} tone="primary" size="lg" radius="sm">
                     {mod}
                   </Badge>
                 ))}

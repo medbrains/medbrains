@@ -1,7 +1,5 @@
 import {
   ActionIcon,
-  Badge,
-  Button,
   Code,
   Divider,
   Drawer,
@@ -50,6 +48,7 @@ import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { consentService } from "@/services/consent.service";
 
@@ -89,27 +88,27 @@ const INJURY_CLASSIFICATION_OPTIONS = [
   { value: "dangerous", label: "Dangerous to life" },
 ];
 
-const CATEGORY_COLORS: Record<string, string> = {
-  general: "gray",
+const CATEGORY_COLORS: Record<string, BadgeTone> = {
+  general: "neutral",
   surgical: "danger",
-  anesthesia: "violet",
+  anesthesia: "accent",
   blood_transfusion: "danger",
   investigation: "primary",
   data_sharing: "primary",
-  research: "violet",
+  research: "accent",
   photography: "info",
-  teaching: "teal",
+  teaching: "success",
   refusal: "warning",
   advance_directive: "warning",
-  organ_donation: "teal",
+  organ_donation: "success",
   communication: "success",
   death_certificate: "danger",
   medico_legal_opinion: "warning",
-  custom: "gray",
+  custom: "neutral",
 };
 
-const AUDIT_ACTION_COLORS: Record<string, string> = {
-  created: "gray",
+const AUDIT_ACTION_COLORS: Record<string, BadgeTone> = {
+  created: "neutral",
   granted: "success",
   signed: "success",
   denied: "danger",
@@ -121,14 +120,14 @@ const AUDIT_ACTION_COLORS: Record<string, string> = {
   amended: "primary",
 };
 
-const STATUS_COLORS: Record<string, string> = {
+const STATUS_COLORS: Record<string, BadgeTone> = {
   granted: "success",
   signed: "success",
   pending: "warning",
   denied: "danger",
   refused: "danger",
   withdrawn: "warning",
-  expired: "gray",
+  expired: "neutral",
   missing: "danger",
 };
 
@@ -265,7 +264,7 @@ function TemplatesTab({
       key: "category",
       label: "Category",
       render: (r) => (
-        <Badge color={CATEGORY_COLORS[r.category] ?? "gray"} variant="light" size="sm">
+        <Badge tone={CATEGORY_COLORS[r.category] ?? "neutral"} size="sm">
           {r.category.replace(/_/g, " ")}
         </Badge>
       ),
@@ -284,17 +283,17 @@ function TemplatesTab({
       render: (r) => (
         <Group gap={4}>
           {r.requires_witness && (
-            <Badge size="xs" variant="outline" color="warning">
+            <Badge size="xs" variant="outline" tone="warning">
               Witness
             </Badge>
           )}
           {r.requires_doctor && (
-            <Badge size="xs" variant="outline" color="primary">
+            <Badge size="xs" variant="outline" tone="primary">
               Doctor
             </Badge>
           )}
           {r.is_read_aloud_required && (
-            <Badge size="xs" variant="outline" color="violet">
+            <Badge size="xs" variant="outline" tone="accent">
               Read-aloud
             </Badge>
           )}
@@ -305,7 +304,7 @@ function TemplatesTab({
       key: "active",
       label: "Active",
       render: (r) => (
-        <Badge color={r.is_active ? "success" : "gray"} variant="light" size="sm">
+        <Badge tone={r.is_active ? "success" : "neutral"} size="sm">
           {r.is_active ? "Active" : "Inactive"}
         </Badge>
       ),
@@ -384,8 +383,7 @@ function TemplatesTab({
         <Group gap="xs">
           {canCreate && (
             <Button
-              variant="outline"
-              color="primary"
+              tone="secondary"
               leftSection={<IconCertificate size={16} />}
               onClick={openDeathCert}
             >
@@ -393,17 +391,13 @@ function TemplatesTab({
             </Button>
           )}
           {canCreate && (
-            <Button
-              variant="outline"
-              color="primary"
-              leftSection={<IconScale size={16} />}
-              onClick={openMlo}
-            >
+            <Button tone="secondary" leftSection={<IconScale size={16} />} onClick={openMlo}>
               Medico-Legal Opinion
             </Button>
           )}
           {canCreate && (
             <Button
+              tone="primary"
               leftSection={<IconPlus size={16} />}
               onClick={() => {
                 setEditing(null);
@@ -613,7 +607,7 @@ function TemplateForm({
         min={1}
       />
       <NumberInput label="Sort Order" value={sortOrder} onChange={(v) => setSortOrder(Number(v))} />
-      <Button onClick={handleSubmit} loading={loading}>
+      <Button tone="primary" onClick={handleSubmit} loading={loading}>
         {initial ? "Update" : "Create"}
       </Button>
     </Stack>
@@ -828,7 +822,7 @@ function DeathCertificateForm({
       </Group>
 
       {isMedicoLegal && (
-        <Badge color="danger" variant="light" size="lg">
+        <Badge tone="danger" size="lg">
           MLC — Police intimation and inquest required under CrPC
         </Badge>
       )}
@@ -866,9 +860,9 @@ function DeathCertificateForm({
       />
 
       <Button
+        tone="primary"
         onClick={handleSubmit}
         loading={loading}
-        color="primary"
         leftSection={<IconCertificate size={16} />}
       >
         Create Death Certificate Template
@@ -1121,9 +1115,9 @@ function MedicoLegalOpinionForm({
       />
 
       <Button
+        tone="primary"
         onClick={handleSubmit}
         loading={loading}
-        color="primary"
         leftSection={<IconScale size={16} />}
       >
         Create Medico-Legal Opinion Template
@@ -1164,11 +1158,7 @@ function AuditTab() {
       key: "consent_source",
       label: "Source",
       render: (r) => (
-        <Badge
-          color={r.consent_source === "patient_consent" ? "primary" : "violet"}
-          variant="light"
-          size="sm"
-        >
+        <Badge tone={r.consent_source === "patient_consent" ? "primary" : "accent"} size="sm">
           {r.consent_source === "patient_consent" ? "Patient" : "Procedure"}
         </Badge>
       ),
@@ -1177,7 +1167,7 @@ function AuditTab() {
       key: "action",
       label: "Action",
       render: (r) => (
-        <Badge color={AUDIT_ACTION_COLORS[r.action] ?? "gray"} variant="light" size="sm">
+        <Badge tone={AUDIT_ACTION_COLORS[r.action] ?? "neutral"} size="sm">
           {r.action}
         </Badge>
       ),
@@ -1370,11 +1360,7 @@ function VerificationTab({ canRevoke }: { canRevoke: boolean }) {
       key: "source",
       label: "Source",
       render: (r) => (
-        <Badge
-          color={r.source === "patient_consent" ? "primary" : "violet"}
-          variant="light"
-          size="sm"
-        >
+        <Badge tone={r.source === "patient_consent" ? "primary" : "accent"} size="sm">
           {r.source === "patient_consent" ? "Patient" : "Procedure"}
         </Badge>
       ),
@@ -1383,7 +1369,7 @@ function VerificationTab({ canRevoke }: { canRevoke: boolean }) {
       key: "status",
       label: "Status",
       render: (r) => (
-        <Badge color={STATUS_COLORS[r.status] ?? "gray"} variant="light" size="sm">
+        <Badge tone={STATUS_COLORS[r.status] ?? "neutral"} size="sm">
           {r.status}
         </Badge>
       ),
@@ -1445,6 +1431,7 @@ function VerificationTab({ canRevoke }: { canRevoke: boolean }) {
           leftSection={<IconSearch size={14} />}
         />
         <Button
+          tone="primary"
           leftSection={<IconShieldCheck size={16} />}
           onClick={() => setSearched(true)}
           disabled={!patientId}
@@ -1506,11 +1493,7 @@ function SignaturesTab({ canManage }: { canManage: boolean }) {
       key: "consent_source",
       label: "Source",
       render: (r) => (
-        <Badge
-          color={r.consent_source === "patient_consent" ? "primary" : "violet"}
-          variant="light"
-          size="sm"
-        >
+        <Badge tone={r.consent_source === "patient_consent" ? "primary" : "accent"} size="sm">
           {r.consent_source === "patient_consent" ? "Patient" : "Procedure"}
         </Badge>
       ),
@@ -1527,11 +1510,7 @@ function SignaturesTab({ canManage }: { canManage: boolean }) {
     {
       key: "signature_type",
       label: "Type",
-      render: (r) => (
-        <Badge variant="light" size="sm">
-          {r.signature_type.replace(/_/g, " ")}
-        </Badge>
-      ),
+      render: (r) => <Badge size="sm">{r.signature_type.replace(/_/g, " ")}</Badge>,
     },
     {
       key: "witness_name",
@@ -1587,7 +1566,7 @@ function SignaturesTab({ canManage }: { canManage: boolean }) {
           w={220}
         />
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
             Add Signature
           </Button>
         )}
@@ -1745,7 +1724,7 @@ function SignatureForm({
         value={doctorSigUrl}
         onChange={(e) => setDoctorSigUrl(e.target.value)}
       />
-      <Button onClick={handleSubmit} loading={loading}>
+      <Button tone="primary" onClick={handleSubmit} loading={loading}>
         Record Signature
       </Button>
     </Stack>

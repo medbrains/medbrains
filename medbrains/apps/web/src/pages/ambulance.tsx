@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Drawer,
   Group,
@@ -64,6 +62,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   ambulanceFuelTypeOptions,
   ambulanceLicenseTypeOptions,
@@ -82,44 +81,44 @@ import { ambulanceService } from "@/services/ambulance.service";
 
 // ── Constants ───────────────────────────────────────────
 
-const AMB_STATUS_COLORS: Record<string, string> = {
-  available: "green",
-  on_trip: "blue",
-  maintenance: "orange",
-  off_duty: "gray",
-  decommissioned: "red",
+const AMB_STATUS_COLORS: Record<string, BadgeTone> = {
+  available: "success",
+  on_trip: "info",
+  maintenance: "warning",
+  off_duty: "neutral",
+  decommissioned: "danger",
 };
 
-const TRIP_TYPE_COLORS: Record<string, string> = {
-  emergency: "red",
-  scheduled: "blue",
-  inter_facility: "teal",
-  discharge: "green",
+const TRIP_TYPE_COLORS: Record<string, BadgeTone> = {
+  emergency: "danger",
+  scheduled: "info",
+  inter_facility: "success",
+  discharge: "success",
 };
 
-const PRIORITY_COLORS: Record<string, string> = {
-  critical: "red",
-  urgent: "orange",
-  routine: "blue",
+const PRIORITY_COLORS: Record<string, BadgeTone> = {
+  critical: "danger",
+  urgent: "warning",
+  routine: "info",
 };
 
-const TRIP_STATUS_COLORS: Record<AmbulanceTripStatus, string> = {
-  requested: "gray",
-  dispatched: "blue",
-  en_route_pickup: "cyan",
-  at_pickup: "teal",
-  en_route_drop: "violet",
-  at_drop: "violet",
-  completed: "green",
-  cancelled: "red",
+const TRIP_STATUS_COLORS: Record<AmbulanceTripStatus, BadgeTone> = {
+  requested: "neutral",
+  dispatched: "info",
+  en_route_pickup: "info",
+  at_pickup: "success",
+  en_route_drop: "accent",
+  at_drop: "accent",
+  completed: "success",
+  cancelled: "danger",
 };
 
-const MAINT_STATUS_COLORS: Record<AmbulanceMaintenanceStatus, string> = {
-  scheduled: "blue",
-  in_progress: "orange",
-  completed: "green",
-  overdue: "red",
-  cancelled: "gray",
+const MAINT_STATUS_COLORS: Record<AmbulanceMaintenanceStatus, BadgeTone> = {
+  scheduled: "info",
+  in_progress: "warning",
+  completed: "success",
+  overdue: "danger",
+  cancelled: "neutral",
 };
 
 function isExpiringSoon(dateStr: string | null): boolean {
@@ -271,7 +270,7 @@ function FleetTab() {
       key: "ambulance_type",
       label: "Type",
       render: (r) => (
-        <Badge size="sm" variant="light">
+        <Badge size="sm" tone="neutral" variant="light">
           {r.ambulance_type.toUpperCase()}
         </Badge>
       ),
@@ -280,7 +279,7 @@ function FleetTab() {
       key: "status",
       label: "Status",
       render: (r) => (
-        <Badge size="sm" color={AMB_STATUS_COLORS[r.status] ?? "gray"}>
+        <Badge size="sm" tone={AMB_STATUS_COLORS[r.status] ?? "neutral"}>
           {r.status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -303,7 +302,7 @@ function FleetTab() {
         const issues = certs.filter((c) => isExpired(c.d) || isExpiringSoon(c.d));
         if (issues.length === 0)
           return (
-            <Badge size="xs" color="green">
+            <Badge size="xs" tone="success">
               OK
             </Badge>
           );
@@ -314,7 +313,7 @@ function FleetTab() {
                 key={c.label}
                 label={`${c.label}: ${isExpired(c.d) ? "EXPIRED" : "Expiring soon"}`}
               >
-                <Badge size="xs" color={isExpired(c.d) ? "red" : "orange"}>
+                <Badge size="xs" tone={isExpired(c.d) ? "danger" : "warning"}>
                   {c.label}
                 </Badge>
               </Tooltip>
@@ -383,6 +382,7 @@ function FleetTab() {
         />
         {canCreate && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               setEditing(null);
@@ -525,7 +525,7 @@ function FleetTab() {
             control={control}
             render={({ field }) => <Textarea label="Notes" {...field} />}
           />
-          <Button type="submit" loading={createMut.isPending || updateMut.isPending}>
+          <Button tone="primary" type="submit" loading={createMut.isPending || updateMut.isPending}>
             {editing ? "Update" : "Create"}
           </Button>
         </Stack>
@@ -622,7 +622,7 @@ function TripsTab() {
       key: "trip_type",
       label: "Type",
       render: (r) => (
-        <Badge size="sm" color={TRIP_TYPE_COLORS[r.trip_type] ?? "gray"}>
+        <Badge size="sm" tone={TRIP_TYPE_COLORS[r.trip_type] ?? "neutral"}>
           {r.trip_type.replace(/_/g, " ")}
         </Badge>
       ),
@@ -631,7 +631,7 @@ function TripsTab() {
       key: "priority",
       label: "Priority",
       render: (r) => (
-        <Badge size="sm" color={PRIORITY_COLORS[r.priority] ?? "gray"}>
+        <Badge size="sm" tone={PRIORITY_COLORS[r.priority] ?? "neutral"}>
           {r.priority}
         </Badge>
       ),
@@ -640,7 +640,7 @@ function TripsTab() {
       key: "status",
       label: "Status",
       render: (r) => (
-        <Badge size="sm" color={TRIP_STATUS_COLORS[r.status] ?? "gray"}>
+        <Badge size="sm" tone={TRIP_STATUS_COLORS[r.status] ?? "neutral"}>
           {r.status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -677,7 +677,7 @@ function TripsTab() {
           (new Date(r.pickup_arrived_at).getTime() - new Date(r.dispatched_at).getTime()) / 60000,
         );
         return (
-          <Badge size="sm" color={mins <= 15 ? "green" : mins <= 30 ? "orange" : "red"}>
+          <Badge size="sm" tone={mins <= 15 ? "success" : mins <= 30 ? "warning" : "danger"}>
             {mins}m
           </Badge>
         );
@@ -751,6 +751,7 @@ function TripsTab() {
         </Group>
         {canCreate && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               reset(emptyTripForm);
@@ -874,7 +875,7 @@ function TripsTab() {
             control={control}
             render={({ field }) => <Textarea label="Drop Address" {...field} />}
           />
-          <Button type="submit" loading={createMut.isPending}>
+          <Button tone="primary" type="submit" loading={createMut.isPending}>
             Book Trip
           </Button>
         </Stack>
@@ -932,7 +933,7 @@ function DriversTab() {
       key: "license_type",
       label: "Type",
       render: (r) => (
-        <Badge size="sm" variant="light">
+        <Badge size="sm" tone="neutral" variant="light">
           {r.license_type}
         </Badge>
       ),
@@ -942,9 +943,13 @@ function DriversTab() {
       label: "Expiry",
       render: (r) => {
         const exp = r.license_expiry;
-        const color = isExpired(exp) ? "red" : isExpiringSoon(exp) ? "orange" : "green";
+        const tone: BadgeTone = isExpired(exp)
+          ? "danger"
+          : isExpiringSoon(exp)
+            ? "warning"
+            : "success";
         return (
-          <Badge size="sm" color={color}>
+          <Badge size="sm" tone={tone}>
             {exp}
           </Badge>
         );
@@ -954,7 +959,7 @@ function DriversTab() {
       key: "is_active",
       label: "Active",
       render: (r) => (
-        <Badge size="sm" color={r.is_active ? "green" : "gray"}>
+        <Badge size="sm" tone={r.is_active ? "success" : "neutral"}>
           {r.is_active ? "Yes" : "No"}
         </Badge>
       ),
@@ -964,7 +969,7 @@ function DriversTab() {
       label: "BLS",
       render: (r) =>
         r.bls_certified ? (
-          <Badge size="sm" color="teal">
+          <Badge size="sm" tone="success">
             Certified
           </Badge>
         ) : (
@@ -985,6 +990,7 @@ function DriversTab() {
       <Group justify="flex-end" mb="md">
         {canManage && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               reset(emptyDriverForm);
@@ -1106,7 +1112,7 @@ function DriversTab() {
               <TextInput label="Phone" {...field} error={errors.phone?.message} />
             )}
           />
-          <Button type="submit" loading={createMut.isPending}>
+          <Button tone="primary" type="submit" loading={createMut.isPending}>
             Add Driver
           </Button>
         </Stack>
@@ -1174,7 +1180,7 @@ function MaintenanceTab() {
       key: "maintenance_type",
       label: "Type",
       render: (r) => (
-        <Badge size="sm" variant="light">
+        <Badge size="sm" tone="neutral" variant="light">
           {r.maintenance_type.replace(/_/g, " ")}
         </Badge>
       ),
@@ -1188,7 +1194,7 @@ function MaintenanceTab() {
       key: "status",
       label: "Status",
       render: (r) => (
-        <Badge size="sm" color={MAINT_STATUS_COLORS[r.status] ?? "gray"}>
+        <Badge size="sm" tone={MAINT_STATUS_COLORS[r.status] ?? "neutral"}>
           {r.status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -1243,6 +1249,7 @@ function MaintenanceTab() {
         />
         {canManage && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               reset(emptyMaintenanceForm);
@@ -1342,7 +1349,7 @@ function MaintenanceTab() {
               />
             )}
           />
-          <Button type="submit" loading={createMut.isPending}>
+          <Button tone="primary" type="submit" loading={createMut.isPending}>
             Schedule
           </Button>
         </Stack>

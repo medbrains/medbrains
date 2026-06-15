@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Drawer,
   Group,
   NumberInput,
@@ -64,6 +62,7 @@ import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   defaultSecurityAccessCardFormValues,
   defaultSecurityAccessLogFormValues,
@@ -131,33 +130,33 @@ const CAMERA_TYPES = [
   { value: "fisheye", label: "Fisheye" },
 ];
 
-const SEVERITY_COLORS: Record<string, string> = {
+const SEVERITY_COLORS: Record<string, BadgeTone> = {
   low: "primary",
   medium: "warning",
-  high: "orange",
+  high: "warning",
   critical: "danger",
 };
 
-const ZONE_LEVEL_COLORS: Record<string, string> = {
-  public: "slate",
+const ZONE_LEVEL_COLORS: Record<string, BadgeTone> = {
+  public: "neutral",
   general: "primary",
-  restricted: "orange",
+  restricted: "warning",
   high_security: "danger",
-  critical: "violet",
+  critical: "accent",
 };
 
-const STATUS_COLORS: Record<string, string> = {
+const STATUS_COLORS: Record<string, BadgeTone> = {
   reported: "primary",
   investigating: "warning",
   resolved: "success",
-  closed: "slate",
+  closed: "neutral",
 };
 
-const ALERT_STATUS_COLORS: Record<string, string> = {
+const ALERT_STATUS_COLORS: Record<string, BadgeTone> = {
   active: "success",
   alert_triggered: "danger",
   resolved: "primary",
-  deactivated: "slate",
+  deactivated: "neutral",
 };
 
 // ══════════════════════════════════════════════════════════
@@ -205,7 +204,7 @@ function AccessControlTab() {
       key: "level",
       label: "Level",
       render: (r) => (
-        <Badge color={ZONE_LEVEL_COLORS[r.level] ?? "slate"}>{r.level.replace("_", " ")}</Badge>
+        <Badge tone={ZONE_LEVEL_COLORS[r.level] ?? "neutral"}>{r.level.replace("_", " ")}</Badge>
       ),
     },
     {
@@ -213,7 +212,7 @@ function AccessControlTab() {
       label: "After Hours",
       render: (r) =>
         r.after_hours_restricted ? (
-          <Badge color="orange">Restricted</Badge>
+          <Badge tone="warning">Restricted</Badge>
         ) : (
           <Text c="dimmed">Open</Text>
         ),
@@ -222,7 +221,7 @@ function AccessControlTab() {
       key: "is_active",
       label: "Status",
       render: (r) => (
-        <Badge color={r.is_active ? "success" : "slate"}>
+        <Badge tone={r.is_active ? "success" : "neutral"}>
           {r.is_active ? "Active" : "Inactive"}
         </Badge>
       ),
@@ -283,7 +282,7 @@ function AccessControlTab() {
       key: "is_active",
       label: "Status",
       render: (r) => (
-        <Badge color={r.is_active ? "success" : "slate"}>
+        <Badge tone={r.is_active ? "success" : "neutral"}>
           {r.is_active ? "Active" : "Inactive"}
         </Badge>
       ),
@@ -360,27 +359,27 @@ function AccessControlTab() {
     {
       key: "access_method",
       label: "Method",
-      render: (r) => <Badge variant="light">{r.access_method}</Badge>,
+      render: (r) => <Badge tone="neutral">{r.access_method}</Badge>,
     },
     {
       key: "direction",
       label: "Direction",
       render: (r) => (
-        <Badge color={r.direction === "entry" ? "success" : "orange"}>{r.direction}</Badge>
+        <Badge tone={r.direction === "entry" ? "success" : "warning"}>{r.direction}</Badge>
       ),
     },
     {
       key: "granted",
       label: "Access",
       render: (r) => (
-        <Badge color={r.granted ? "success" : "danger"}>{r.granted ? "Granted" : "Denied"}</Badge>
+        <Badge tone={r.granted ? "success" : "danger"}>{r.granted ? "Granted" : "Denied"}</Badge>
       ),
     },
     {
       key: "is_after_hours",
       label: "After Hours",
       render: (r) =>
-        r.is_after_hours ? <Badge color="orange">Yes</Badge> : <Text c="dimmed">No</Text>,
+        r.is_after_hours ? <Badge tone="warning">Yes</Badge> : <Text c="dimmed">No</Text>,
     },
     {
       key: "accessed_at",
@@ -396,7 +395,7 @@ function AccessControlTab() {
       </Text>
       <Group>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={handleOpenZone}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={handleOpenZone}>
             Add Zone
           </Button>
         )}
@@ -408,7 +407,7 @@ function AccessControlTab() {
       </Text>
       <Group>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={handleOpenCard}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={handleOpenCard}>
             Issue Card
           </Button>
         )}
@@ -420,7 +419,7 @@ function AccessControlTab() {
       </Text>
       <Group>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} variant="light" onClick={handleOpenLog}>
+          <Button tone="secondary" leftSection={<IconPlus size={16} />} onClick={handleOpenLog}>
             Log Entry
           </Button>
         )}
@@ -496,7 +495,7 @@ function AccessControlTab() {
               />
             </Group>
           )}
-          <Button type="submit" loading={createZoneMut.isPending}>
+          <Button tone="primary" type="submit" loading={createZoneMut.isPending}>
             Create Zone
           </Button>
         </Stack>
@@ -543,7 +542,7 @@ function AccessControlTab() {
               />
             )}
           />
-          <Button type="submit" loading={createCardMut.isPending}>
+          <Button tone="primary" type="submit" loading={createCardMut.isPending}>
             Issue Card
           </Button>
         </Stack>
@@ -631,7 +630,7 @@ function AccessControlTab() {
               />
             )}
           />
-          <Button type="submit" loading={createLogMut.isPending}>
+          <Button tone="primary" type="submit" loading={createLogMut.isPending}>
             Record Log
           </Button>
         </Stack>
@@ -696,7 +695,7 @@ function CctvTab() {
       key: "is_recording",
       label: "Recording",
       render: (r) => (
-        <Badge color={r.is_recording ? "success" : "danger"}>
+        <Badge tone={r.is_recording ? "success" : "danger"}>
           {r.is_recording ? "Recording" : "Offline"}
         </Badge>
       ),
@@ -705,7 +704,7 @@ function CctvTab() {
       key: "is_active",
       label: "Status",
       render: (r) => (
-        <Badge color={r.is_active ? "success" : "slate"}>
+        <Badge tone={r.is_active ? "success" : "neutral"}>
           {r.is_active ? "Active" : "Inactive"}
         </Badge>
       ),
@@ -716,7 +715,7 @@ function CctvTab() {
     <Stack>
       {canManage && (
         <Group>
-          <Button leftSection={<IconPlus size={16} />} onClick={handleOpen}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={handleOpen}>
             Add Camera
           </Button>
         </Group>
@@ -795,7 +794,7 @@ function CctvTab() {
             {...cameraForm.register("ip_address")}
             error={cameraForm.formState.errors.ip_address?.message}
           />
-          <Button type="submit" loading={createMut.isPending}>
+          <Button tone="primary" type="submit" loading={createMut.isPending}>
             Add Camera
           </Button>
         </Stack>
@@ -871,12 +870,12 @@ function IncidentsTab() {
     {
       key: "severity",
       label: "Severity",
-      render: (r) => <Badge color={SEVERITY_COLORS[r.severity] ?? "slate"}>{r.severity}</Badge>,
+      render: (r) => <Badge tone={SEVERITY_COLORS[r.severity] ?? "neutral"}>{r.severity}</Badge>,
     },
     {
       key: "status",
       label: "Status",
-      render: (r) => <Badge color={STATUS_COLORS[r.status] ?? "slate"}>{r.status}</Badge>,
+      render: (r) => <Badge tone={STATUS_COLORS[r.status] ?? "neutral"}>{r.status}</Badge>,
     },
     {
       key: "category",
@@ -899,7 +898,7 @@ function IncidentsTab() {
       key: "police_notified",
       label: "Police",
       render: (r) =>
-        r.police_notified ? <Badge color="danger">Yes</Badge> : <Text c="dimmed">No</Text>,
+        r.police_notified ? <Badge tone="danger">Yes</Badge> : <Text c="dimmed">No</Text>,
     },
     ...(canUpdate
       ? [
@@ -943,7 +942,7 @@ function IncidentsTab() {
     <Stack>
       {canCreate && (
         <Group>
-          <Button leftSection={<IconPlus size={16} />} onClick={handleOpen}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={handleOpen}>
             Report Incident
           </Button>
         </Group>
@@ -1031,7 +1030,7 @@ function IncidentsTab() {
               error={incidentForm.formState.errors.police_report_number?.message}
             />
           )}
-          <Button type="submit" loading={createMut.isPending}>
+          <Button tone="primary" type="submit" loading={createMut.isPending}>
             Submit Report
           </Button>
         </Stack>
@@ -1117,7 +1116,7 @@ function PatientSafetyTab() {
     {
       key: "tag_type",
       label: "Tag Type",
-      render: (r) => <Badge variant="light">{r.tag_type.replace("_", " ")}</Badge>,
+      render: (r) => <Badge tone="neutral">{r.tag_type.replace("_", " ")}</Badge>,
     },
     {
       key: "tag_identifier",
@@ -1135,7 +1134,7 @@ function PatientSafetyTab() {
       key: "alert_status",
       label: "Status",
       render: (r) => (
-        <Badge color={ALERT_STATUS_COLORS[r.alert_status] ?? "slate"}>
+        <Badge tone={ALERT_STATUS_COLORS[r.alert_status] ?? "neutral"}>
           {r.alert_status.replace("_", " ")}
         </Badge>
       ),
@@ -1174,7 +1173,7 @@ function PatientSafetyTab() {
     {
       key: "alert_type",
       label: "Alert Type",
-      render: (r) => <Badge color="danger">{r.alert_type.replace("_", " ")}</Badge>,
+      render: (r) => <Badge tone="danger">{r.alert_type.replace("_", " ")}</Badge>,
     },
     {
       key: "triggered_at",
@@ -1192,7 +1191,7 @@ function PatientSafetyTab() {
       key: "is_resolved",
       label: "Status",
       render: (r) => (
-        <Badge color={r.is_resolved ? "success" : "danger"}>
+        <Badge tone={r.is_resolved ? "success" : "danger"}>
           {r.is_resolved ? "Resolved" : "Active"}
         </Badge>
       ),
@@ -1203,7 +1202,7 @@ function PatientSafetyTab() {
       render: (r) =>
         r.is_resolved ? (
           r.was_false_alarm ? (
-            <Badge color="warning">Yes</Badge>
+            <Badge tone="warning">Yes</Badge>
           ) : (
             <Text c="dimmed">No</Text>
           )
@@ -1262,7 +1261,7 @@ function PatientSafetyTab() {
       </Text>
       <Group>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={handleOpen}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={handleOpen}>
             Activate Tag
           </Button>
         )}
@@ -1339,7 +1338,7 @@ function PatientSafetyTab() {
             {...tagForm.register("mother_id")}
             error={tagForm.formState.errors.mother_id?.message}
           />
-          <Button type="submit" loading={createTagMut.isPending}>
+          <Button tone="primary" type="submit" loading={createTagMut.isPending}>
             Activate Tag
           </Button>
         </Stack>
@@ -1405,7 +1404,7 @@ function CodeDebriefsTab() {
       key: "action_items",
       label: "Actions",
       render: (r) => (
-        <Badge variant="light">
+        <Badge tone="neutral">
           {Array.isArray(r.action_items) ? `${r.action_items.length} items` : "—"}
         </Badge>
       ),
@@ -1421,7 +1420,7 @@ function CodeDebriefsTab() {
     <Stack>
       {canCreate && (
         <Group>
-          <Button leftSection={<IconPlus size={16} />} onClick={handleOpen}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={handleOpen}>
             New Debrief
           </Button>
         </Group>
@@ -1510,7 +1509,7 @@ function CodeDebriefsTab() {
             {...debriefForm.register("protocol_changes_recommended")}
             error={debriefForm.formState.errors.protocol_changes_recommended?.message}
           />
-          <Button type="submit" loading={createMut.isPending}>
+          <Button tone="primary" type="submit" loading={createMut.isPending}>
             Create Debrief
           </Button>
         </Stack>

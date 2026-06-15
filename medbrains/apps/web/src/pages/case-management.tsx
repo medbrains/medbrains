@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Drawer,
   Group,
@@ -69,6 +67,7 @@ import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   caseOptionalText,
   casePriorityOptions,
@@ -83,38 +82,48 @@ import {
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { caseManagementService } from "@/services/case-management.service";
 
-const STATUS_COLORS: Record<string, string> = {
+const STATUS_COLORS: Record<string, BadgeTone> = {
   assigned: "primary",
   active: "success",
-  pending_discharge: "orange",
-  discharged: "teal",
-  closed: "slate",
+  pending_discharge: "warning",
+  discharged: "success",
+  closed: "neutral",
 };
 
-const PRIORITY_COLORS: Record<string, string> = {
-  routine: "slate",
+const PRIORITY_COLORS: Record<string, BadgeTone> = {
+  routine: "neutral",
   urgent: "danger",
   complex: "warning",
 };
 
-const BARRIER_TYPE_COLORS: Record<string, string> = {
+const BARRIER_TYPE_COLORS: Record<string, BadgeTone> = {
   insurance_auth: "danger",
-  placement: "orange",
+  placement: "warning",
   equipment: "info",
   family: "warning",
   transport: "primary",
   financial: "danger",
-  clinical: "violet",
-  documentation: "slate",
-  other: "dark",
+  clinical: "accent",
+  documentation: "neutral",
+  other: "neutral",
 };
 
-const REFERRAL_STATUS_COLORS: Record<string, string> = {
+const REFERRAL_STATUS_COLORS: Record<string, BadgeTone> = {
   pending: "warning",
   accepted: "success",
   declined: "danger",
-  completed: "teal",
-  cancelled: "slate",
+  completed: "success",
+  cancelled: "neutral",
+};
+
+const TONE_BY_COLOR: Record<string, BadgeTone> = {
+  success: "success",
+  danger: "danger",
+  warning: "warning",
+  slate: "neutral",
+  orange: "warning",
+  teal: "success",
+  primary: "primary",
 };
 
 // ── Helpers ────────────────────────────────────────────
@@ -406,7 +415,12 @@ function CaseBoardTab() {
         <Group gap="xs">
           <Text size="sm">{truncate(r.patient_id, 8)}</Text>
           {r.riskScore > 0 && (
-            <Badge color={r.riskColor} size="xs" variant="dot" title="Readmission Risk">
+            <Badge
+              tone={TONE_BY_COLOR[r.riskColor] ?? "neutral"}
+              size="xs"
+              variant="dot"
+              title="Readmission Risk"
+            >
               {r.riskLabel}
             </Badge>
           )}
@@ -422,7 +436,7 @@ function CaseBoardTab() {
       key: "status",
       label: "Status",
       render: (r) => (
-        <Badge color={STATUS_COLORS[r.status] ?? "slate"} variant="filled" size="sm">
+        <Badge tone={STATUS_COLORS[r.status] ?? "neutral"} variant="filled" size="sm">
           {r.status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -431,7 +445,7 @@ function CaseBoardTab() {
       key: "priority",
       label: "Priority",
       render: (r) => (
-        <Badge color={PRIORITY_COLORS[r.priority] ?? "slate"} variant="light" size="sm">
+        <Badge tone={PRIORITY_COLORS[r.priority] ?? "neutral"} variant="light" size="sm">
           {r.priority}
         </Badge>
       ),
@@ -441,7 +455,7 @@ function CaseBoardTab() {
       label: "LOS",
       render: (r) =>
         r.losDays > 0 ? (
-          <Badge color={r.losColor} size="sm" variant="light">
+          <Badge tone={TONE_BY_COLOR[r.losColor] ?? "neutral"} size="sm" variant="light">
             {r.losDays}d ({r.losStatus})
           </Badge>
         ) : (
@@ -507,13 +521,13 @@ function CaseBoardTab() {
                 CM: {truncate(c.case_manager_id, 8)}
               </Text>
               <Group gap="xs" mt={4}>
-                <Badge color="success" variant="light" size="xs">
+                <Badge tone="success" variant="light" size="xs">
                   Active: {c.active_cases}
                 </Badge>
-                <Badge color="orange" variant="light" size="xs">
+                <Badge tone="warning" variant="light" size="xs">
                   Pending: {c.pending_discharge}
                 </Badge>
-                <Badge color="primary" variant="light" size="xs">
+                <Badge tone="primary" variant="light" size="xs">
                   Total: {c.total_cases}
                 </Badge>
               </Group>
@@ -539,13 +553,17 @@ function CaseBoardTab() {
           {canCreate && (
             <>
               <Button
-                variant="light"
+                tone="secondary"
                 leftSection={<IconRobot size={16} />}
                 onClick={autoHandlers.open}
               >
                 Auto-Assign
               </Button>
-              <Button leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
+              <Button
+                tone="primary"
+                leftSection={<IconPlus size={16} />}
+                onClick={createHandlers.open}
+              >
                 Assign Case
               </Button>
             </>
@@ -639,7 +657,7 @@ function CaseBoardTab() {
               <Textarea label="Notes" {...field} error={createErrors.notes?.message} />
             )}
           />
-          <Button type="submit" loading={createMut.isPending}>
+          <Button tone="primary" type="submit" loading={createMut.isPending}>
             Create Assignment
           </Button>
         </Stack>
@@ -692,7 +710,12 @@ function CaseBoardTab() {
               />
             )}
           />
-          <Button type="submit" loading={autoMut.isPending} leftSection={<IconRobot size={16} />}>
+          <Button
+            tone="primary"
+            type="submit"
+            loading={autoMut.isPending}
+            leftSection={<IconRobot size={16} />}
+          >
             Auto-Assign
           </Button>
         </Stack>
@@ -781,7 +804,7 @@ function CaseBoardTab() {
               <Textarea label="Notes" {...field} error={editErrors.notes?.message} />
             )}
           />
-          <Button type="submit" loading={updateMut.isPending}>
+          <Button tone="primary" type="submit" loading={updateMut.isPending}>
             Update Assignment
           </Button>
         </Stack>
@@ -819,7 +842,7 @@ function CaseBoardTab() {
                 <Text size="xs" c="dimmed">
                   Priority
                 </Text>
-                <Badge color={PRIORITY_COLORS[editing.priority] ?? "slate"}>
+                <Badge tone={PRIORITY_COLORS[editing.priority] ?? "neutral"}>
                   {editing.priority}
                 </Badge>
               </div>
@@ -902,7 +925,7 @@ function CaseBoardTab() {
                             </Text>
                           )}
                           <Badge
-                            color={m.status === "completed" ? "success" : "slate"}
+                            tone={m.status === "completed" ? "success" : "neutral"}
                             size="xs"
                             mt={4}
                           >
@@ -1015,7 +1038,7 @@ function DischargeBarriersTab() {
       key: "barrier_type",
       label: "Barrier Type",
       render: (r) => (
-        <Badge color={BARRIER_TYPE_COLORS[r.barrier_type] ?? "slate"} variant="filled" size="sm">
+        <Badge tone={BARRIER_TYPE_COLORS[r.barrier_type] ?? "neutral"} variant="filled" size="sm">
           {r.barrier_type.replace(/_/g, " ")}
         </Badge>
       ),
@@ -1035,11 +1058,11 @@ function DischargeBarriersTab() {
       label: "Resolved",
       render: (r) =>
         r.is_resolved ? (
-          <Badge color="success" variant="filled" size="sm">
+          <Badge tone="success" variant="filled" size="sm">
             Resolved
           </Badge>
         ) : (
-          <Badge color="danger" variant="filled" size="sm">
+          <Badge tone="danger" variant="filled" size="sm">
             Unresolved
           </Badge>
         ),
@@ -1096,7 +1119,12 @@ function DischargeBarriersTab() {
           w={150}
         />
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={createHandlers.open} ml="auto">
+          <Button
+            tone="primary"
+            leftSection={<IconPlus size={16} />}
+            onClick={createHandlers.open}
+            ml="auto"
+          >
             Add Barrier
           </Button>
         )}
@@ -1150,7 +1178,7 @@ function DischargeBarriersTab() {
               />
             )}
           />
-          <Button type="submit" loading={createMut.isPending}>
+          <Button tone="primary" type="submit" loading={createMut.isPending}>
             Add Barrier
           </Button>
         </Stack>
@@ -1259,7 +1287,7 @@ function ReferralsTab() {
       key: "referral_type",
       label: "Type",
       render: (r) => (
-        <Badge variant="light" size="sm">
+        <Badge tone="neutral" variant="light" size="sm">
           {caseReferralTypeOptions.find((t) => t.value === r.referral_type)?.label ??
             r.referral_type}
         </Badge>
@@ -1274,7 +1302,7 @@ function ReferralsTab() {
       key: "status",
       label: "Status",
       render: (r) => (
-        <Badge color={REFERRAL_STATUS_COLORS[r.status] ?? "slate"} variant="filled" size="sm">
+        <Badge tone={REFERRAL_STATUS_COLORS[r.status] ?? "neutral"} variant="filled" size="sm">
           {r.status}
         </Badge>
       ),
@@ -1312,7 +1340,7 @@ function ReferralsTab() {
     <>
       <Group justify="flex-end" mb="md">
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
             Create Referral
           </Button>
         )}
@@ -1378,7 +1406,7 @@ function ReferralsTab() {
               />
             )}
           />
-          <Button type="submit" loading={createMut.isPending}>
+          <Button tone="primary" type="submit" loading={createMut.isPending}>
             Create Referral
           </Button>
         </Stack>
@@ -1414,7 +1442,7 @@ function ReferralsTab() {
               <Textarea label="Outcome" {...field} error={referralUpdateErrors.outcome?.message} />
             )}
           />
-          <Button type="submit" loading={updateMut.isPending}>
+          <Button tone="primary" type="submit" loading={updateMut.isPending}>
             Update Referral
           </Button>
         </Stack>
@@ -1465,7 +1493,7 @@ function AnalyticsTab() {
       key: "barrier_type",
       label: "Barrier Type",
       render: (r) => (
-        <Badge color={BARRIER_TYPE_COLORS[r.barrier_type] ?? "slate"} variant="light" size="sm">
+        <Badge tone={BARRIER_TYPE_COLORS[r.barrier_type] ?? "neutral"} variant="light" size="sm">
           {r.barrier_type.replace(/_/g, " ")}
         </Badge>
       ),

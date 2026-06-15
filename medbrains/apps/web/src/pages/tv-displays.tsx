@@ -1,9 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
   Box,
-  Button,
   Card,
   Divider,
   Drawer,
@@ -62,6 +60,7 @@ import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   defaultQueueTokenFormValues,
   defaultTvAnnouncementFormValues,
@@ -125,13 +124,13 @@ const ANNOUNCEMENT_PRIORITIES = [
   { value: "emergency", label: "Emergency" },
 ];
 
-const statusColors: Record<string, string> = {
-  waiting: "slate",
+const statusColors: Record<string, BadgeTone> = {
+  waiting: "neutral",
   called: "primary",
   in_progress: "success",
   completed: "success",
   no_show: "danger",
-  cancelled: "slate",
+  cancelled: "neutral",
 };
 
 const displayTypeLabels: Record<string, string> = {
@@ -320,29 +319,20 @@ export function TvDisplaysPage() {
               Queue display command center
             </Text>
             <Group gap="xs">
-              <Badge color="teal" variant="light">
-                {registeredDisplayCount} registered displays
-              </Badge>
-              <Badge color="blue" variant="light">
-                {queueDisplayCount} queue boards
-              </Badge>
+              <Badge tone="success">{registeredDisplayCount} registered displays</Badge>
+              <Badge tone="info">{queueDisplayCount} queue boards</Badge>
               {canManageTokens && (
                 <>
-                  <Badge color="orange" variant="light">
-                    {waitingTokenCount} waiting
-                  </Badge>
-                  <Badge color="green" variant="light">
-                    {currentTokens.length} called/in progress
-                  </Badge>
+                  <Badge tone="warning">{waitingTokenCount} waiting</Badge>
+                  <Badge tone="success">{currentTokens.length} called/in progress</Badge>
                 </>
               )}
             </Group>
           </Stack>
           <Group gap="xs" className={styles.displayCommandActions}>
             <Button
+              tone="secondary"
               size="xs"
-              variant="light"
-              color="teal"
               leftSection={<IconDeviceTv size={14} />}
               onClick={() => setActiveTab("displays")}
             >
@@ -350,9 +340,8 @@ export function TvDisplaysPage() {
             </Button>
             {canManageTokens && (
               <Button
+                tone="secondary"
                 size="xs"
-                variant="light"
-                color="orange"
                 leftSection={<IconTicket size={14} />}
                 onClick={() => setActiveTab("tokens")}
               >
@@ -361,9 +350,8 @@ export function TvDisplaysPage() {
             )}
             {canBroadcast && (
               <Button
+                tone="secondary"
                 size="xs"
-                variant="light"
-                color="blue"
                 leftSection={<IconBell size={14} />}
                 onClick={() => setActiveTab("announcements")}
               >
@@ -455,7 +443,7 @@ export function TvDisplaysPage() {
                         <Text size="xs" fw={700} c="dimmed" tt="uppercase">
                           Launch targets
                         </Text>
-                        <Badge size="xs" variant="light">
+                        <Badge tone="neutral" size="xs">
                           {displayLaunchRows.length}
                         </Badge>
                       </Group>
@@ -476,11 +464,11 @@ export function TvDisplaysPage() {
                           </Stack>
                           <Group gap={4} justify="flex-end">
                             {target.appCodes.map((appCode) => (
-                              <Badge key={appCode} size="xs" variant="outline">
+                              <Badge key={appCode} tone="neutral" size="xs" variant="outline">
                                 {appCode}
                               </Badge>
                             ))}
-                            <Badge size="xs" variant="light">
+                            <Badge tone="neutral" size="xs">
                               {target.count}
                             </Badge>
                             <Tooltip label={`Open ${target.label}`}>
@@ -502,9 +490,8 @@ export function TvDisplaysPage() {
                 )}
                 <Stack gap="xs">
                   <Button
+                    tone={activeTab === "displays" ? "primary" : "secondary"}
                     size="xs"
-                    variant={activeTab === "displays" ? "filled" : "light"}
-                    color="teal"
                     leftSection={<IconDeviceTv size={14} />}
                     onClick={() => setActiveTab("displays")}
                     fullWidth
@@ -513,9 +500,8 @@ export function TvDisplaysPage() {
                   </Button>
                   {canManageTokens && (
                     <Button
+                      tone={activeTab === "tokens" ? "primary" : "secondary"}
                       size="xs"
-                      variant={activeTab === "tokens" ? "filled" : "light"}
-                      color="orange"
                       leftSection={<IconTicket size={14} />}
                       onClick={() => setActiveTab("tokens")}
                       fullWidth
@@ -525,9 +511,8 @@ export function TvDisplaysPage() {
                   )}
                   {canBroadcast && (
                     <Button
+                      tone={activeTab === "announcements" ? "primary" : "secondary"}
                       size="xs"
-                      variant={activeTab === "announcements" ? "filled" : "light"}
-                      color="blue"
                       leftSection={<IconBell size={14} />}
                       onClick={() => setActiveTab("announcements")}
                       fullWidth
@@ -620,9 +605,7 @@ function DisplaysTab({
       key: "display_type",
       label: "Type",
       render: (row) => (
-        <Badge variant="light" color="primary">
-          {displayTypeLabels[row.display_type] || row.display_type}
-        </Badge>
+        <Badge tone="primary">{displayTypeLabels[row.display_type] || row.display_type}</Badge>
       ),
     },
     {
@@ -646,7 +629,7 @@ function DisplaysTab({
                 {target.label}
               </Text>
               {target.appCodes.map((appCode) => (
-                <Badge key={appCode} size="xs" variant="light">
+                <Badge key={appCode} tone="neutral" size="xs">
                   {appCode}
                 </Badge>
               ))}
@@ -664,7 +647,7 @@ function DisplaysTab({
       render: (row) => (
         <Group gap="xs">
           {row.language.map((lang) => (
-            <Badge key={lang} size="xs" variant="outline">
+            <Badge key={lang} tone="neutral" size="xs" variant="outline">
               {lang.toUpperCase()}
             </Badge>
           ))}
@@ -679,27 +662,27 @@ function DisplaysTab({
         return (
           <Group gap="xs">
             {patientNamesAllowed && row.show_patient_name && (
-              <Badge size="xs" color="orange">
+              <Badge tone="warning" size="xs">
                 Names enabled
               </Badge>
             )}
             {(!patientNamesAllowed || !row.show_patient_name) && (
-              <Badge size="xs" color="success">
+              <Badge tone="success" size="xs">
                 Token-only
               </Badge>
             )}
             {!patientNamesAllowed && row.show_patient_name && (
-              <Badge size="xs" color="red">
+              <Badge tone="danger" size="xs">
                 Names blocked
               </Badge>
             )}
             {row.show_wait_time && (
-              <Badge size="xs" color="primary">
+              <Badge tone="primary" size="xs">
                 Wait
               </Badge>
             )}
             {row.announcement_enabled && (
-              <Badge size="xs" color="orange">
+              <Badge tone="warning" size="xs">
                 Announcements
               </Badge>
             )}
@@ -775,6 +758,7 @@ function DisplaysTab({
       <Group justify="flex-end" mb="md">
         {canCreate && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               setSelectedDisplay(null);
@@ -918,10 +902,14 @@ function DisplaysTab({
               )}
             />
             <Group justify="flex-end" mt="md">
-              <Button variant="subtle" onClick={close}>
+              <Button tone="ghost" onClick={close}>
                 Cancel
               </Button>
-              <Button type="submit" loading={createMutation.isPending || updateMutation.isPending}>
+              <Button
+                tone="primary"
+                type="submit"
+                loading={createMutation.isPending || updateMutation.isPending}
+              >
                 {selectedDisplay ? "Update" : "Create"}
               </Button>
             </Group>
@@ -1091,7 +1079,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
       key: "token_number",
       label: "Token",
       render: (row) => (
-        <Badge size="lg" variant="filled">
+        <Badge tone="neutral" size="lg" variant="filled">
           {row.token_number}
         </Badge>
       ),
@@ -1100,13 +1088,17 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
       key: "status",
       label: "Status",
       render: (row) => (
-        <Badge color={statusColors[row.status] || "slate"}>{tokenStatusLabel(row.status)}</Badge>
+        <Badge tone={statusColors[row.status] || "neutral"}>{tokenStatusLabel(row.status)}</Badge>
       ),
     },
     {
       key: "priority",
       label: "Priority",
-      render: (row) => <Badge variant="outline">{row.priority}</Badge>,
+      render: (row) => (
+        <Badge tone="neutral" variant="outline">
+          {row.priority}
+        </Badge>
+      ),
     },
     {
       key: "department_id",
@@ -1238,19 +1230,17 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
                       medbrains://tv/queue?department={lane.departmentId}
                     </Text>
                   </Stack>
-                  <Badge color={lane.displayCount > 0 ? "primary" : "orange"} variant="light">
+                  <Badge tone={lane.displayCount > 0 ? "primary" : "warning"}>
                     {lane.displayCount} displays
                   </Badge>
                 </Group>
                 <Group mt="sm" justify="space-between" align="flex-end" gap="sm">
                   <Group gap="xs">
-                    <Badge color={lane.currentTokens.length > 0 ? "success" : "slate"}>
+                    <Badge tone={lane.currentTokens.length > 0 ? "success" : "neutral"}>
                       Now {lane.currentTokens.map((token) => token.token_number).join(", ") || "-"}
                     </Badge>
-                    <Badge color="primary" variant="light">
-                      Waiting {lane.waitingCount}
-                    </Badge>
-                    <Badge color="slate" variant="light">
+                    <Badge tone="primary">Waiting {lane.waitingCount}</Badge>
+                    <Badge tone="neutral">
                       Next{" "}
                       {lane.nextTokens
                         .slice(0, 3)
@@ -1362,7 +1352,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
                       : "Select a department before issuing a token"}
                   </Text>
                 </Stack>
-                <Button type="button" variant="subtle" size="xs" onClick={closeGenerate}>
+                <Button tone="ghost" type="button" size="xs" onClick={closeGenerate}>
                   Close
                 </Button>
               </Group>
@@ -1418,6 +1408,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
                   )}
                 />
                 <Button
+                  tone="primary"
                   type="submit"
                   loading={generateMutation.isPending}
                   leftSection={<IconTicket size={16} />}
@@ -1449,7 +1440,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
           style={{ width: 150 }}
         />
         <Button
-          variant="subtle"
+          tone="ghost"
           leftSection={<IconRefresh size={16} />}
           onClick={() => {
             void queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
@@ -1461,6 +1452,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
         <div style={{ flex: 1 }} />
         {canManage && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               tokenForm.reset({
@@ -1581,15 +1573,13 @@ function AnnouncementsTab({ canBroadcast }: { canBroadcast: boolean }) {
           </Group>
           <Group justify="flex-end">
             <Button
+              tone={priority === "emergency" ? "danger" : "primary"}
               leftSection={<IconBell size={16} />}
               onClick={() => {
                 void handleBroadcast();
               }}
               loading={broadcastMutation.isPending}
               disabled={!canBroadcast || !message.trim()}
-              color={
-                priority === "emergency" ? "danger" : priority === "warning" ? "orange" : "primary"
-              }
             >
               {priority === "emergency" ? "Send Emergency Alert" : "Broadcast"}
             </Button>
@@ -1601,7 +1591,7 @@ function AnnouncementsTab({ canBroadcast }: { canBroadcast: boolean }) {
       <SimpleGrid cols={3}>
         <Card withBorder p="md">
           <Group gap="sm">
-            <Badge color="primary">Info</Badge>
+            <Badge tone="primary">Info</Badge>
           </Group>
           <Text size="sm" c="dimmed" mt="xs">
             General announcements displayed in rotation with queue information.
@@ -1609,7 +1599,7 @@ function AnnouncementsTab({ canBroadcast }: { canBroadcast: boolean }) {
         </Card>
         <Card withBorder p="md">
           <Group gap="sm">
-            <Badge color="orange">Warning</Badge>
+            <Badge tone="warning">Warning</Badge>
           </Group>
           <Text size="sm" c="dimmed" mt="xs">
             Important notices that require attention. Displayed more prominently.
@@ -1617,7 +1607,7 @@ function AnnouncementsTab({ canBroadcast }: { canBroadcast: boolean }) {
         </Card>
         <Card withBorder p="md">
           <Group gap="sm">
-            <Badge color="danger">Emergency</Badge>
+            <Badge tone="danger">Emergency</Badge>
           </Group>
           <Text size="sm" c="dimmed" mt="xs">
             Critical alerts that take over the entire display until dismissed.

@@ -1,6 +1,4 @@
 import {
-  Badge,
-  Button,
   Card,
   Group,
   Progress,
@@ -34,17 +32,18 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { lmsService } from "@/services/lms.service";
 
 // ── Constants ──────────────────────────────────────────
 
-const STATUS_COLORS: Record<string, string> = {
-  assigned: "blue",
-  in_progress: "yellow",
-  completed: "green",
-  expired: "red",
-  cancelled: "gray",
+const STATUS_COLORS: Record<string, BadgeTone> = {
+  assigned: "info",
+  in_progress: "warning",
+  completed: "success",
+  expired: "danger",
+  cancelled: "neutral",
 };
 
 const CATEGORY_OPTIONS = [
@@ -101,7 +100,7 @@ function CourseCatalogTab() {
           />
         </Group>
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} size="sm">
+          <Button tone="primary" leftSection={<IconPlus size={16} />} size="sm">
             Add Course
           </Button>
         )}
@@ -119,7 +118,7 @@ function CourseCatalogTab() {
                   {c.title}
                 </Text>
                 {c.is_mandatory && (
-                  <Badge size="xs" color="red" variant="light">
+                  <Badge size="xs" tone="danger">
                     Mandatory
                   </Badge>
                 )}
@@ -128,15 +127,15 @@ function CourseCatalogTab() {
                 {c.description ?? "No description"}
               </Text>
               <Group gap="xs">
-                <Badge size="xs" variant="outline">
+                <Badge size="xs" variant="outline" tone="neutral">
                   {c.category}
                 </Badge>
                 {c.duration_hours ? (
-                  <Badge size="xs" variant="light" color="blue">
+                  <Badge size="xs" tone="info">
                     {c.duration_hours}h
                   </Badge>
                 ) : null}
-                <Badge size="xs" variant="dot" color={c.is_active ? "green" : "gray"}>
+                <Badge size="xs" variant="dot" tone={c.is_active ? "success" : "neutral"}>
                   {c.is_active ? "Active" : "Inactive"}
                 </Badge>
               </Group>
@@ -170,7 +169,7 @@ function MyLearningTab() {
               <Text fw={600} size="sm" lineClamp={1}>
                 {e.course_title}
               </Text>
-              <Badge size="xs" color={isOverdue ? "red" : (STATUS_COLORS[e.status] ?? "gray")}>
+              <Badge size="xs" tone={isOverdue ? "danger" : (STATUS_COLORS[e.status] ?? "neutral")}>
                 {isOverdue ? "Overdue" : e.status.replace("_", " ")}
               </Badge>
             </Group>
@@ -231,7 +230,7 @@ function LearningPathsTab() {
     <Stack gap="md">
       {canCreate && (
         <Group justify="flex-end">
-          <Button leftSection={<IconPlus size={16} />} size="sm">
+          <Button tone="primary" leftSection={<IconPlus size={16} />} size="sm">
             Create Path
           </Button>
         </Group>
@@ -249,7 +248,7 @@ function LearningPathsTab() {
                   {p.title}
                 </Text>
                 {p.is_mandatory && (
-                  <Badge size="xs" color="red" variant="light">
+                  <Badge size="xs" tone="danger">
                     Mandatory
                   </Badge>
                 )}
@@ -258,10 +257,10 @@ function LearningPathsTab() {
                 {p.description ?? "No description"}
               </Text>
               <Group gap="xs">
-                <Badge size="xs" variant="outline">
+                <Badge size="xs" variant="outline" tone="neutral">
                   {p.code}
                 </Badge>
-                <Badge size="xs" variant="dot" color={p.is_active ? "green" : "gray"}>
+                <Badge size="xs" variant="dot" tone={p.is_active ? "success" : "neutral"}>
                   {p.is_active ? "Active" : "Inactive"}
                 </Badge>
               </Group>
@@ -305,7 +304,7 @@ function ComplianceTab() {
               <Table.Td>{row.course_title}</Table.Td>
               <Table.Td>
                 {row.is_mandatory ? (
-                  <Badge size="xs" color="red" variant="light">
+                  <Badge size="xs" tone="danger">
                     Yes
                   </Badge>
                 ) : (
@@ -318,7 +317,7 @@ function ComplianceTab() {
               <Table.Td ta="center">{row.completed}</Table.Td>
               <Table.Td ta="center">
                 {row.overdue > 0 ? (
-                  <Badge size="xs" color="red">
+                  <Badge size="xs" tone="danger">
                     {row.overdue}
                   </Badge>
                 ) : (

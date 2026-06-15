@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Drawer,
   Group,
@@ -44,10 +42,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
-import { statusColor } from "@/lib/status-colors";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   orderSetContextOptions,
   orderSetItemTypeOptions,
@@ -56,11 +54,32 @@ import {
   parseTriggerDiagnoses,
 } from "@/forms/order-sets.form";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { statusColor } from "@/lib/status-colors";
 import { orderSetsService } from "@/services/order-sets.service";
 
 // ── Constants ──────────────────────────────────────────
 
-
+function statusColorTone(v: string): BadgeTone {
+  const c = statusColor(v);
+  const m: Record<string, BadgeTone> = {
+    success: "success",
+    danger: "danger",
+    warning: "warning",
+    primary: "primary",
+    info: "info",
+    slate: "neutral",
+    gray: "neutral",
+    teal: "success",
+    green: "success",
+    red: "danger",
+    yellow: "warning",
+    orange: "warning",
+    blue: "info",
+    violet: "accent",
+    cinnabar: "accent",
+  };
+  return (c ? m[c] : undefined) ?? "neutral";
+}
 
 const emptyTemplateForm: OrderSetTemplateFormInput = {
   name: "",
@@ -262,7 +281,7 @@ function TemplatesTab({
       key: "context",
       label: "Context",
       render: (r) => (
-        <Badge color={statusColor(r.context) ?? "slate"} variant="light" size="sm">
+        <Badge tone={statusColorTone(r.context)} size="sm">
           {r.context.replace(/_/g, " ")}
         </Badge>
       ),
@@ -277,11 +296,11 @@ function TemplatesTab({
       label: "Approved",
       render: (r) =>
         r.approved_at ? (
-          <Badge color="success" variant="light" size="sm">
+          <Badge tone="success" size="sm">
             Approved
           </Badge>
         ) : (
-          <Badge color="warning" variant="light" size="sm">
+          <Badge tone="warning" size="sm">
             Pending
           </Badge>
         ),
@@ -383,6 +402,7 @@ function TemplatesTab({
         </Group>
         {canCreate && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               reset(emptyTemplateForm);
@@ -464,7 +484,7 @@ function TemplatesTab({
               />
             )}
           />
-          <Button type="submit" loading={createMut.isPending}>
+          <Button tone="primary" type="submit" loading={createMut.isPending}>
             Create Template
           </Button>
         </Stack>
@@ -575,7 +595,7 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
       key: "item_type",
       label: "Type",
       render: (r) => (
-        <Badge color={statusColor(r.item_type) ?? "slate"} variant="light" size="sm">
+        <Badge tone={statusColorTone(r.item_type)} size="sm">
           {r.item_type}
         </Badge>
       ),
@@ -601,7 +621,7 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
       label: "Mandatory",
       render: (r) =>
         r.is_mandatory ? (
-          <Badge color="danger" variant="light" size="xs">
+          <Badge tone="danger" size="xs">
             Required
           </Badge>
         ) : (
@@ -653,6 +673,7 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
         />
         {canUpdate && selectedTemplateId && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               reset(emptyItemForm);
@@ -676,10 +697,7 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
                   {templateDetail.template.version}
                 </Text>
               </div>
-              <Badge
-                color={statusColor(templateDetail.template.context) ?? "slate"}
-                variant="light"
-              >
+              <Badge tone={statusColorTone(templateDetail.template.context)}>
                 {templateDetail.template.context.replace(/_/g, " ")}
               </Badge>
             </Group>
@@ -861,7 +879,7 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
             </>
           )}
 
-          <Button type="submit" loading={addItemMut.isPending}>
+          <Button tone="primary" type="submit" loading={addItemMut.isPending}>
             Add Item
           </Button>
         </Stack>
@@ -990,11 +1008,7 @@ function ActivationsTab() {
               <Card key={item.id} withBorder p="xs">
                 <Group justify="space-between">
                   <Group>
-                    <Badge
-                      color={statusColor(item.item_type) ?? "slate"}
-                      variant="light"
-                      size="sm"
-                    >
+                    <Badge tone={statusColorTone(item.item_type)} size="sm">
                       {item.item_type}
                     </Badge>
                     <Text size="sm">{item.was_selected ? "Created" : "Skipped"}</Text>

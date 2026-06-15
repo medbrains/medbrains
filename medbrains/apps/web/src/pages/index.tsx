@@ -1,24 +1,14 @@
-import {
-  Alert,
-  Badge,
-  Card,
-  Center,
-  Container,
-  Group,
-  Loader,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
+import { Alert, Card, Center, Container, Group, Loader, Stack, Text, Title } from "@mantine/core";
 import type { HealthResponse } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
+import { Badge } from "@/components/ui";
 import { sessionService } from "@/services/session.service";
 
 function StatusBadge({ label, status }: { label: string; status: string }) {
   const isConnected = status === "connected" || status === "ok";
   return (
     <Group gap="sm">
-      <Badge size="lg" variant="dot" color={isConnected ? "success" : "danger"}>
+      <Badge size="lg" variant="dot" tone={isConnected ? "success" : "danger"}>
         {label}
       </Badge>
       <Text size="sm" c="dimmed">

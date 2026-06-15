@@ -1,7 +1,5 @@
 import {
   Alert,
-  Badge,
-  Button,
   Card,
   Group,
   Modal,
@@ -36,6 +34,7 @@ import { HandoffPanel } from "@/components/crdt/HandoffPanel";
 import { NursingNotesPanel } from "@/components/crdt/NursingNotesPanel";
 import { EncounterSelect } from "@/components/EncounterSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminAccessService } from "@/services/adminAccess.service";
 import { nurseActivitiesService } from "@/services/nurseActivities.service";
@@ -161,12 +160,12 @@ const NURSE_PAGE_PERMISSIONS = [
   P.NURSE.EQUIPMENT_RECORD,
 ] as const;
 
-const statusBadge: Record<string, string> = {
-  pending: "yellow",
-  administered: "green",
-  held: "blue",
-  refused: "orange",
-  missed: "red",
+const statusBadge: Record<string, BadgeTone> = {
+  pending: "warning",
+  administered: "success",
+  held: "info",
+  refused: "warning",
+  missed: "danger",
 };
 
 function nurseTabFromSearch(value: string | null): NurseTabKey | null {
@@ -259,6 +258,27 @@ interface ClinicalStatus {
 }
 
 const NEUTRAL_STATUS: ClinicalStatus = { label: "Not entered", color: "gray", tone: "neutral" };
+
+function statusBadgeTone(color: string): BadgeTone {
+  const m: Record<string, BadgeTone> = {
+    success: "success",
+    danger: "danger",
+    warning: "warning",
+    primary: "primary",
+    info: "info",
+    slate: "neutral",
+    gray: "neutral",
+    teal: "success",
+    green: "success",
+    red: "danger",
+    yellow: "warning",
+    orange: "warning",
+    blue: "info",
+    violet: "accent",
+    cinnabar: "accent",
+  };
+  return (color ? m[color] : undefined) ?? "neutral";
+}
 
 function painStatus(score: number | undefined): ClinicalStatus {
   if (score === undefined) return NEUTRAL_STATUS;
@@ -368,7 +388,7 @@ function ClinicalIndicatorCard({
             </Text>
           </Stack>
         </Group>
-        <Badge color={status.color} variant="light" size="sm">
+        <Badge tone={statusBadgeTone(status.color)} size="sm">
           {status.label}
         </Badge>
       </Group>
@@ -520,7 +540,7 @@ export function NurseActivitiesPage() {
                     <Stack gap="sm">
                       <Group justify="space-between">
                         <Text fw={700}>Shift Collaboration Notes</Text>
-                        <Badge variant="light">Daily shift board</Badge>
+                        <Badge tone="neutral">Daily shift board</Badge>
                       </Group>
                       <HandoffPanel shiftId={dailyShiftId()} canAppend={canRecordHandoff} />
                     </Stack>
@@ -693,7 +713,7 @@ function MarTab({ patientId }: { patientId: string }) {
           w={200}
         />
         {patientId && (
-          <Badge variant="light" mt={24}>
+          <Badge tone="neutral" mt={24}>
             Filtered to current patient
           </Badge>
         )}
@@ -709,11 +729,9 @@ function MarTab({ patientId }: { patientId: string }) {
               <Stack gap={2}>
                 <Group gap="xs">
                   <Text fw={600}>Rx {row.prescription_id.slice(0, 8)}</Text>
-                  <Badge color={statusBadge[row.status] ?? "gray"}>{row.status}</Badge>
+                  <Badge tone={statusBadge[row.status] ?? "neutral"}>{row.status}</Badge>
                   {row.late_minutes != null && row.late_minutes > 0 && (
-                    <Badge color="red" variant="light">
-                      {row.late_minutes}m late
-                    </Badge>
+                    <Badge tone="danger">{row.late_minutes}m late</Badge>
                   )}
                 </Group>
                 <Text size="sm" c="dimmed">
@@ -724,8 +742,8 @@ function MarTab({ patientId }: { patientId: string }) {
                 <Group>
                   {canAdminister && (
                     <Button
+                      tone="primary"
                       size="xs"
-                      color="green"
                       onClick={() => administer.mutate(row.id)}
                       loading={administer.isPending}
                     >
@@ -734,9 +752,8 @@ function MarTab({ patientId }: { patientId: string }) {
                   )}
                   {canHold && (
                     <Button
+                      tone="secondary"
                       size="xs"
-                      color="blue"
-                      variant="light"
                       onClick={() => setActioning({ id: row.id, mode: "hold" })}
                     >
                       Hold
@@ -744,9 +761,8 @@ function MarTab({ patientId }: { patientId: string }) {
                   )}
                   {canRefuse && (
                     <Button
+                      tone="secondary"
                       size="xs"
-                      color="orange"
-                      variant="light"
                       onClick={() => setActioning({ id: row.id, mode: "refuse" })}
                     >
                       Refuse
@@ -782,6 +798,7 @@ function MarTab({ patientId }: { patientId: string }) {
           />
           <Group justify="flex-end">
             <Button
+              tone="primary"
               onClick={submitReason}
               disabled={!reason.trim()}
               loading={hold.isPending || refuse.isPending}
@@ -835,7 +852,7 @@ function IoTab({
           locked={isLinkedEncounter}
           patientId={patientId}
         />
-        {isLinkedEncounter && <Badge variant="light">IPD linked</Badge>}
+        {isLinkedEncounter && <Badge tone="neutral">IPD linked</Badge>}
         {!canRecord && (
           <Text size="xs" c="dimmed" mt={28}>
             View only
@@ -883,7 +900,7 @@ function IoTab({
             <Card key={row.id} withBorder padding="sm">
               <Group justify="space-between">
                 <Group gap="xs">
-                  <Badge color={row.direction === "intake" ? "blue" : "orange"}>
+                  <Badge tone={row.direction === "intake" ? "info" : "warning"}>
                     {row.direction}
                   </Badge>
                   <Text fw={500}>{row.category}</Text>
@@ -948,9 +965,7 @@ function CreateIoPanel({ encounterId, onCreated }: { encounterId: string; onCrea
               Record every fluid input/output against the linked encounter.
             </Text>
           </Stack>
-          <Badge color={directionStatus.color} variant="light">
-            {directionStatus.label}
-          </Badge>
+          <Badge tone={statusBadgeTone(directionStatus.color)}>{directionStatus.label}</Badge>
         </Group>
         <SimpleGrid cols={{ base: 1, md: 4 }} spacing="sm">
           <SegmentedControl
@@ -979,6 +994,7 @@ function CreateIoPanel({ encounterId, onCreated }: { encounterId: string; onCrea
             suffix=" ml"
           />
           <Button
+            tone="primary"
             mt={{ base: 0, md: 24 }}
             leftSection={<IconPlus size={14} />}
             onClick={() => create.mutate()}
@@ -1083,6 +1099,7 @@ function VitalsTab({
           w={160}
         />
         <Button
+          tone="primary"
           onClick={() => createSchedule.mutate()}
           loading={createSchedule.isPending}
           disabled={!encounterId || !canRecord}
@@ -1100,7 +1117,7 @@ function VitalsTab({
                 Same configured vitals component used in OPD, linked to this nursing encounter.
               </Text>
             </Stack>
-            {isLinkedEncounter && <Badge variant="light">IPD linked</Badge>}
+            {isLinkedEncounter && <Badge tone="neutral">IPD linked</Badge>}
           </Group>
           <Tabs
             value={activeVitalsTab}
@@ -1157,7 +1174,7 @@ function VitalsTab({
                   <Stack gap={2}>
                     <Group gap="xs">
                       <Text fw={600}>Every {row.frequency_minutes} min</Text>
-                      <Badge color={scheduleDueStatus(row.next_due_at).color} variant="light">
+                      <Badge tone={statusBadgeTone(scheduleDueStatus(row.next_due_at).color)}>
                         {scheduleDueStatus(row.next_due_at).label}
                       </Badge>
                     </Group>
@@ -1170,8 +1187,8 @@ function VitalsTab({
                   </Stack>
                   {canRecord && (
                     <Button
+                      tone="secondary"
                       size="xs"
-                      variant="light"
                       onClick={() => endSchedule.mutate(row.id)}
                       loading={endSchedule.isPending}
                     >
@@ -1213,7 +1230,7 @@ function VitalsTimeline({ vitals, isLoading }: { vitals: Vital[]; isLoading: boo
                 {formatDateTime(row.recorded_at)}
               </Text>
               {index === 0 && (
-                <Badge color="green" variant="light" size="xs">
+                <Badge tone="success" size="xs">
                   Latest
                 </Badge>
               )}
@@ -1222,30 +1239,36 @@ function VitalsTimeline({ vitals, isLoading }: { vitals: Vital[]; isLoading: boo
         >
           <Group gap="xs" mt={5} wrap="wrap">
             {vitalDisplayValue(row.temperature, " C") && (
-              <Badge variant="light">{vitalDisplayValue(row.temperature, " C")}</Badge>
+              <Badge tone="neutral">{vitalDisplayValue(row.temperature, " C")}</Badge>
             )}
             {vitalDisplayValue(row.pulse, " bpm") && (
-              <Badge variant="light">{vitalDisplayValue(row.pulse, " bpm")}</Badge>
+              <Badge tone="neutral">{vitalDisplayValue(row.pulse, " bpm")}</Badge>
             )}
             {row.systolic_bp != null && row.diastolic_bp != null && (
-              <Badge variant="light">
+              <Badge tone="neutral">
                 BP {row.systolic_bp}/{row.diastolic_bp}
               </Badge>
             )}
             {vitalDisplayValue(row.spo2, "% SpO2") && (
-              <Badge variant="light">{vitalDisplayValue(row.spo2, "% SpO2")}</Badge>
+              <Badge tone="neutral">{vitalDisplayValue(row.spo2, "% SpO2")}</Badge>
             )}
             {vitalDisplayValue(row.respiratory_rate, "/min RR") && (
-              <Badge variant="light">{vitalDisplayValue(row.respiratory_rate, "/min RR")}</Badge>
+              <Badge tone="neutral">{vitalDisplayValue(row.respiratory_rate, "/min RR")}</Badge>
             )}
             {vitalDisplayValue(row.weight_kg, " kg") && (
-              <Badge variant="outline">{vitalDisplayValue(row.weight_kg, " kg")}</Badge>
+              <Badge tone="neutral" variant="outline">
+                {vitalDisplayValue(row.weight_kg, " kg")}
+              </Badge>
             )}
             {vitalDisplayValue(row.height_cm, " cm") && (
-              <Badge variant="outline">{vitalDisplayValue(row.height_cm, " cm")}</Badge>
+              <Badge tone="neutral" variant="outline">
+                {vitalDisplayValue(row.height_cm, " cm")}
+              </Badge>
             )}
             {vitalDisplayValue(row.bmi, " BMI") && (
-              <Badge variant="outline">{vitalDisplayValue(row.bmi, " BMI")}</Badge>
+              <Badge tone="neutral" variant="outline">
+                {vitalDisplayValue(row.bmi, " BMI")}
+              </Badge>
             )}
           </Group>
           {row.notes && (
@@ -1386,7 +1409,7 @@ function SafetyTab({
           locked={isLinkedEncounter}
           patientId={patientId}
         />
-        {isLinkedEncounter && <Badge variant="light">IPD linked</Badge>}
+        {isLinkedEncounter && <Badge tone="neutral">IPD linked</Badge>}
       </Group>
       {!encounterId && (
         <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
@@ -1405,7 +1428,7 @@ function SafetyTab({
                   </ThemeIcon>
                   <Text fw={700}>Pain</Text>
                 </Group>
-                <Badge color={latestPainStatus.color} variant="light">
+                <Badge tone={statusBadgeTone(latestPainStatus.color)}>
                   Latest {painRows?.[0]?.score ?? "-"}
                 </Badge>
               </Group>
@@ -1415,7 +1438,7 @@ function SafetyTab({
                     <Text size="sm" fw={600}>
                       NRS score
                     </Text>
-                    <Badge color={currentPainStatus.color} variant="light">
+                    <Badge tone={statusBadgeTone(currentPainStatus.color)}>
                       {currentPainStatus.label}
                     </Badge>
                   </Group>
@@ -1456,6 +1479,7 @@ function SafetyTab({
                     minRows={2}
                   />
                   <Button
+                    tone="primary"
                     size="xs"
                     leftSection={<IconPlus size={14} />}
                     onClick={() => createPain.mutate()}
@@ -1469,7 +1493,7 @@ function SafetyTab({
               {canViewPain ? (
                 painRows?.slice(0, 3).map((row) => (
                   <Group key={row.id} gap="xs" wrap="nowrap">
-                    <Badge color={painStatus(row.score).color} variant="light" size="xs">
+                    <Badge tone={statusBadgeTone(painStatus(row.score).color)} size="xs">
                       {row.score}/10
                     </Badge>
                     <Text size="xs" c="dimmed">
@@ -1496,7 +1520,7 @@ function SafetyTab({
                   </ThemeIcon>
                   <Text fw={700}>Fall Risk</Text>
                 </Group>
-                <Badge color={latestFallStatus.color} variant="light">
+                <Badge tone={statusBadgeTone(latestFallStatus.color)}>
                   {fallRows?.[0]?.risk_level ?? "No score"}
                 </Badge>
               </Group>
@@ -1506,7 +1530,7 @@ function SafetyTab({
                     <Text size="sm" fw={600}>
                       Morse assessment
                     </Text>
-                    <Badge color={currentFallStatus.color} variant="light">
+                    <Badge tone={statusBadgeTone(currentFallStatus.color)}>
                       {currentFallStatus.label}
                     </Badge>
                   </Group>
@@ -1527,6 +1551,7 @@ function SafetyTab({
                     ]}
                   />
                   <Button
+                    tone="primary"
                     size="xs"
                     leftSection={<IconPlus size={14} />}
                     onClick={() => createFallRisk.mutate()}
@@ -1541,8 +1566,7 @@ function SafetyTab({
                 fallRows?.slice(0, 3).map((row) => (
                   <Group key={row.id} gap="xs" wrap="nowrap">
                     <Badge
-                      color={fallRiskStatus(row.risk_level, row.score).color}
-                      variant="light"
+                      tone={statusBadgeTone(fallRiskStatus(row.risk_level, row.score).color)}
                       size="xs"
                     >
                       {row.risk_level}
@@ -1570,7 +1594,7 @@ function SafetyTab({
                   </ThemeIcon>
                   <Text fw={700}>Wounds</Text>
                 </Group>
-                <Badge color={latestWoundStatus.color} variant="light">
+                <Badge tone={statusBadgeTone(latestWoundStatus.color)}>
                   {woundRows?.length ?? 0} active
                 </Badge>
               </Group>
@@ -1621,6 +1645,7 @@ function SafetyTab({
                     minRows={2}
                   />
                   <Button
+                    tone="primary"
                     size="xs"
                     leftSection={<IconPlus size={14} />}
                     onClick={() => createWound.mutate()}
@@ -1634,7 +1659,7 @@ function SafetyTab({
               {canViewWound ? (
                 woundRows?.slice(0, 3).map((row) => (
                   <Group key={row.id} gap="xs" wrap="nowrap">
-                    <Badge color={woundStatus(row).color} variant="light" size="xs">
+                    <Badge tone={statusBadgeTone(woundStatus(row).color)} size="xs">
                       {row.stage ?? row.classification ?? "wound"}
                     </Badge>
                     <Text size="xs" c="dimmed">
@@ -1736,7 +1761,7 @@ function HandoffWorkflowPanel({
               Transfer bedside responsibility to the incoming nurse using SBAR.
             </Text>
           </Stack>
-          {isLinkedEncounter && <Badge variant="light">IPD linked</Badge>}
+          {isLinkedEncounter && <Badge tone="neutral">IPD linked</Badge>}
         </Group>
 
         <Group align="end">
@@ -1794,6 +1819,7 @@ function HandoffWorkflowPanel({
 
         <Group justify="flex-end">
           <Button
+            tone="primary"
             onClick={() => createHandoff.mutate()}
             loading={createHandoff.isPending}
             disabled={!encounterId || !incomingNurseId || !canRecord}
@@ -1811,7 +1837,7 @@ function HandoffWorkflowPanel({
                   <Group justify="space-between" align="flex-start">
                     <Stack gap={2}>
                       <Group gap="xs">
-                        <Badge color={row.completed_at ? "green" : "orange"} variant="light">
+                        <Badge tone={row.completed_at ? "success" : "warning"}>
                           {row.completed_at ? "Accepted" : "Awaiting incoming nurse"}
                         </Badge>
                         <Text size="xs" c="dimmed">
@@ -1829,8 +1855,8 @@ function HandoffWorkflowPanel({
                     </Stack>
                     {!row.completed_at && canRecord && (
                       <Button
+                        tone="secondary"
                         size="xs"
-                        variant="light"
                         onClick={() => acceptHandoff.mutate(row.id)}
                         loading={acceptHandoff.isPending}
                       >
@@ -1879,7 +1905,12 @@ function EquipmentTab() {
       <Group justify="space-between">
         <Text fw={700}>Ward Equipment Checks</Text>
         {canRecord && (
-          <Button size="xs" onClick={() => create.mutate()} loading={create.isPending}>
+          <Button
+            tone="primary"
+            size="xs"
+            onClick={() => create.mutate()}
+            loading={create.isPending}
+          >
             Mark routine check
           </Button>
         )}
@@ -1892,7 +1923,7 @@ function EquipmentTab() {
             {data?.map((row) => (
               <Card key={row.id} withBorder padding="sm">
                 <Group justify="space-between">
-                  <Badge color={row.all_passed ? "green" : "red"}>
+                  <Badge tone={row.all_passed ? "success" : "danger"}>
                     {row.all_passed ? "Passed" : "Needs action"}
                   </Badge>
                   <Text size="sm" c="dimmed">
@@ -1986,7 +2017,7 @@ function CodeBlueTab({
               />
             )}
             <Button
-              color="red"
+              tone="danger"
               onClick={() => start.mutate()}
               loading={start.isPending}
               disabled={!patientId || !effectiveLocation}
@@ -2009,7 +2040,7 @@ function CodeBlueTab({
               <Group justify="space-between">
                 <Stack gap={2}>
                   <Group gap="xs">
-                    <Badge color="red">ACTIVE</Badge>
+                    <Badge tone="danger">ACTIVE</Badge>
                     <Text fw={600}>{row.location}</Text>
                   </Group>
                   <Text size="sm" c="dimmed">
@@ -2017,7 +2048,7 @@ function CodeBlueTab({
                   </Text>
                 </Stack>
                 {canRecord && (
-                  <Button color="red" onClick={() => end.mutate(row.id)} loading={end.isPending}>
+                  <Button tone="danger" onClick={() => end.mutate(row.id)} loading={end.isPending}>
                     End event
                   </Button>
                 )}

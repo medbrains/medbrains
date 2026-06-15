@@ -1,9 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
   Box,
-  Button,
   Card,
   Drawer,
   Group,
@@ -73,6 +71,7 @@ import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { mrdService } from "@/services/mrd.service";
@@ -86,20 +85,20 @@ import {
 
 // ── Helpers ──────────────────────────────────────────────
 
-const STATUS_COLORS: Record<string, string> = {
+const STATUS_COLORS: Record<string, BadgeTone> = {
   active: "success",
   archived: "primary",
-  destroyed: "slate",
+  destroyed: "neutral",
   missing: "danger",
-  draft: "slate",
+  draft: "neutral",
   generated: "primary",
   printed: "warning",
   filed: "success",
   deficient: "danger",
-  voided: "slate",
+  voided: "neutral",
   available: "success",
   pending: "warning",
-  waived: "slate",
+  waived: "neutral",
   issued: "warning",
   returned: "success",
   overdue: "danger",
@@ -254,7 +253,7 @@ function printMrdCaseSheetPreview(
   popup.document.close();
 }
 
-function completenessColor(status: string): string {
+function completenessColor(status: string): BadgeTone {
   if (status === "ok") return "success";
   if (status === "missing") return "danger";
   return "warning";
@@ -289,10 +288,10 @@ function MrdCompletenessPanel({
           </Text>
         </Stack>
         <Group gap="xs">
-          <Badge color={completeness.missing_total > 0 ? "danger" : "success"} variant="light">
+          <Badge tone={completeness.missing_total > 0 ? "danger" : "success"}>
             {completeness.completeness_pct}% complete
           </Badge>
-          <Badge color="slate" variant="outline">
+          <Badge tone="neutral" variant="outline">
             {completeness.complete_total}/{completeness.required_total} required
           </Badge>
         </Group>
@@ -314,10 +313,10 @@ function MrdCompletenessPanel({
                 </Text>
               </Stack>
               <Group gap={6}>
-                <Badge size="xs" color={completenessColor(item.status)} variant="light">
+                <Badge size="xs" tone={completenessColor(item.status)}>
                   {item.status}
                 </Badge>
-                <Badge size="xs" color="slate" variant="outline">
+                <Badge size="xs" tone="neutral" variant="outline">
                   {item.source_module}
                 </Badge>
               </Group>
@@ -753,7 +752,7 @@ function RecordsTab() {
     {
       key: "record_type",
       label: "Type",
-      render: (r) => <Badge variant="light">{r.record_type.toUpperCase()}</Badge>,
+      render: (r) => <Badge tone="neutral">{r.record_type.toUpperCase()}</Badge>,
     },
     { key: "volume_number", label: "Vol", render: (r) => <Text>{r.volume_number}</Text> },
     {
@@ -764,7 +763,7 @@ function RecordsTab() {
     {
       key: "status",
       label: "Status",
-      render: (r) => <Badge color={STATUS_COLORS[r.status] ?? "slate"}>{r.status}</Badge>,
+      render: (r) => <Badge tone={STATUS_COLORS[r.status] ?? "neutral"}>{r.status}</Badge>,
     },
     {
       key: "last_accessed_at",
@@ -827,7 +826,7 @@ function RecordsTab() {
           clearable
         />
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Index Record
           </Button>
         )}
@@ -890,7 +889,11 @@ function RecordsTab() {
             value={createForm.notes ?? ""}
             onChange={(e) => setCreateForm({ ...createForm, notes: e.currentTarget.value })}
           />
-          <Button onClick={() => createMut.mutate(createForm)} loading={createMut.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createMut.mutate(createForm)}
+            loading={createMut.isPending}
+          >
             Create
           </Button>
         </Stack>
@@ -927,7 +930,11 @@ function RecordsTab() {
             onChange={(v) => setIssueForm({ ...issueForm, due_days: Number(v) })}
             min={1}
           />
-          <Button onClick={() => issueMut.mutate(issueForm)} loading={issueMut.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => issueMut.mutate(issueForm)}
+            loading={issueMut.isPending}
+          >
             Issue Record
           </Button>
         </Stack>
@@ -962,7 +969,7 @@ function RecordsTab() {
               key: "status",
               label: "Status",
               render: (m: MrdRecordMovement) => (
-                <Badge color={STATUS_COLORS[m.status] ?? "slate"}>{m.status}</Badge>
+                <Badge tone={STATUS_COLORS[m.status] ?? "neutral"}>{m.status}</Badge>
               ),
             },
             {
@@ -976,8 +983,8 @@ function RecordsTab() {
               render: (m: MrdRecordMovement) =>
                 canManage && m.status === "issued" ? (
                   <Button
+                    tone="secondary"
                     size="xs"
-                    variant="light"
                     onClick={() => returnMut.mutate(m.id)}
                     loading={returnMut.isPending}
                   >
@@ -1241,13 +1248,13 @@ function CaseSheetsTab() {
     {
       key: "packet_type",
       label: "Type",
-      render: (packet) => <Badge variant="light">{packet.packet_type.toUpperCase()}</Badge>,
+      render: (packet) => <Badge tone="neutral">{packet.packet_type.toUpperCase()}</Badge>,
     },
     {
       key: "status",
       label: "Status",
       render: (packet) => (
-        <Badge color={STATUS_COLORS[packet.status] ?? "slate"}>{packet.status}</Badge>
+        <Badge tone={STATUS_COLORS[packet.status] ?? "neutral"}>{packet.status}</Badge>
       ),
     },
     {
@@ -1375,11 +1382,9 @@ function CaseSheetsTab() {
           />
           {sourceFilterLabel && (
             <Group gap={6}>
-              <Badge variant="light" color="primary">
-                {sourceFilterLabel}
-              </Badge>
+              <Badge tone="primary">{sourceFilterLabel}</Badge>
               <Button
-                variant="subtle"
+                tone="ghost"
                 size="compact-xs"
                 onClick={() => {
                   const next = new URLSearchParams(searchParams);
@@ -1413,7 +1418,7 @@ function CaseSheetsTab() {
           </Stack>
           <Group gap={6}>
             {MRD_CASE_SHEET_PRINT_COPIES.map((copy) => (
-              <Badge key={copy.label} color="violet" variant="light">
+              <Badge key={copy.label} tone="accent">
                 {printCopyRouteLabel(copy)}
               </Badge>
             ))}
@@ -1475,16 +1480,16 @@ function CaseSheetsTab() {
                 label: "Required",
                 render: (page: MrdCaseSheetPage) =>
                   page.is_required ? (
-                    <Badge color="danger">Required</Badge>
+                    <Badge tone="danger">Required</Badge>
                   ) : (
-                    <Badge color="slate">Optional</Badge>
+                    <Badge tone="neutral">Optional</Badge>
                   ),
               },
               {
                 key: "status",
                 label: "Status",
                 render: (page: MrdCaseSheetPage) => (
-                  <Badge color={STATUS_COLORS[page.status] ?? "slate"}>{page.status}</Badge>
+                  <Badge tone={STATUS_COLORS[page.status] ?? "neutral"}>{page.status}</Badge>
                 ),
               },
             ]}
@@ -1536,6 +1541,7 @@ function CaseSheetsTab() {
               )}
             />
             <Button
+              tone="primary"
               type="submit"
               leftSection={<IconMapPin size={16} />}
               loading={fileMut.isPending}
@@ -1560,7 +1566,7 @@ function CaseSheetsTab() {
           <Stack>
             <Group gap={6}>
               {MRD_CASE_SHEET_REPRINT_COPIES.map((copy) => (
-                <Badge key={copy.label} color="orange" variant="light">
+                <Badge key={copy.label} tone="warning">
                   {printCopyRouteLabel(copy)}
                 </Badge>
               ))}
@@ -1581,6 +1587,7 @@ function CaseSheetsTab() {
               )}
             />
             <Button
+              tone="primary"
               type="submit"
               leftSection={<IconPrinter size={16} />}
               loading={reprintMut.isPending}
@@ -1607,7 +1614,7 @@ function CaseSheetsTab() {
             <>
               <Group gap={6}>
                 {printPreview.copies.map((copy) => (
-                  <Badge key={copy.label} color="violet" variant="light">
+                  <Badge key={copy.label} tone="accent">
                     {printCopyRouteLabel(copy)}
                   </Badge>
                 ))}
@@ -1616,10 +1623,11 @@ function CaseSheetsTab() {
                 <MrdCaseSheetPrintablePreview preview={printPreview} />
               </Box>
               <Group justify="flex-end">
-                <Button variant="default" onClick={closePrintPreview}>
+                <Button tone="secondary" onClick={closePrintPreview}>
                   Close
                 </Button>
                 <Button
+                  tone="primary"
                   leftSection={<IconPrinter size={16} />}
                   onClick={() =>
                     printMrdCaseSheetPreview(
@@ -1713,9 +1721,9 @@ function StorageLocationsTab() {
       label: "Status",
       render: (location) =>
         location.is_active ? (
-          <Badge color="success">Active</Badge>
+          <Badge tone="success">Active</Badge>
         ) : (
-          <Badge color="slate">Closed</Badge>
+          <Badge tone="neutral">Closed</Badge>
         ),
     },
     {
@@ -1732,7 +1740,7 @@ function StorageLocationsTab() {
           Configure compactors, racks, shelves, and bins used by MRD filing and retrieval.
         </Text>
         {canManageStorage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Add Location
           </Button>
         )}
@@ -1823,6 +1831,7 @@ function StorageLocationsTab() {
             onChange={(event) => setForm({ ...form, notes: event.currentTarget.value })}
           />
           <Button
+            tone="primary"
             onClick={() => createMut.mutate(form)}
             loading={createMut.isPending}
             disabled={!form.code.trim() || !form.name.trim()}
@@ -1874,7 +1883,7 @@ function BirthsTab() {
     {
       key: "baby_gender",
       label: "Gender",
-      render: (r) => <Badge variant="light">{r.baby_gender}</Badge>,
+      render: (r) => <Badge tone="neutral">{r.baby_gender}</Badge>,
     },
     {
       key: "baby_weight_grams",
@@ -1892,9 +1901,9 @@ function BirthsTab() {
       label: "Certificate",
       render: (r) =>
         r.certificate_issued ? (
-          <Badge color="success">Issued</Badge>
+          <Badge tone="success">Issued</Badge>
         ) : (
-          <Badge color="slate">Pending</Badge>
+          <Badge tone="neutral">Pending</Badge>
         ),
     },
   ];
@@ -1903,7 +1912,7 @@ function BirthsTab() {
     <>
       <Group justify="flex-end" mb="md">
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Register Birth
           </Button>
         )}
@@ -1981,7 +1990,11 @@ function BirthsTab() {
             value={form.complications ?? ""}
             onChange={(e) => setForm({ ...form, complications: e.currentTarget.value })}
           />
-          <Button onClick={() => createMut.mutate(form)} loading={createMut.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createMut.mutate(form)}
+            loading={createMut.isPending}
+          >
             Register
           </Button>
         </Stack>
@@ -2033,22 +2046,22 @@ function DeathsTab() {
     {
       key: "manner_of_death",
       label: "Manner",
-      render: (r) => <Badge variant="light">{r.manner_of_death}</Badge>,
+      render: (r) => <Badge tone="neutral">{r.manner_of_death}</Badge>,
     },
     {
       key: "is_medico_legal",
       label: "MLC",
       render: (r) =>
-        r.is_medico_legal ? <Badge color="danger">MLC</Badge> : <Text size="sm">No</Text>,
+        r.is_medico_legal ? <Badge tone="danger">MLC</Badge> : <Text size="sm">No</Text>,
     },
     {
       key: "cert",
       label: "Certificate",
       render: (r) =>
         r.certificate_issued ? (
-          <Badge color="success">Issued</Badge>
+          <Badge tone="success">Issued</Badge>
         ) : (
-          <Badge color="slate">Pending</Badge>
+          <Badge tone="neutral">Pending</Badge>
         ),
     },
     {
@@ -2056,9 +2069,9 @@ function DeathsTab() {
       label: "Reported",
       render: (r) =>
         r.reported_to_municipality ? (
-          <Badge color="success">Yes</Badge>
+          <Badge tone="success">Yes</Badge>
         ) : (
-          <Badge color="orange">No</Badge>
+          <Badge tone="warning">No</Badge>
         ),
     },
   ];
@@ -2067,7 +2080,7 @@ function DeathsTab() {
     <>
       <Group justify="flex-end" mb="md">
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Register Death
           </Button>
         )}
@@ -2141,7 +2154,11 @@ function DeathsTab() {
               onChange={(v) => setForm({ ...form, is_brought_dead: v === "true" })}
             />
           </Group>
-          <Button onClick={() => createMut.mutate(form)} loading={createMut.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createMut.mutate(form)}
+            loading={createMut.isPending}
+          >
             Register
           </Button>
         </Stack>
@@ -2268,7 +2285,7 @@ function StatsTab() {
             key: "manner_of_death",
             label: "Manner",
             render: (r: NonNullable<MrdMorbidityMortalityResponse>["mortality"][number]) => (
-              <Badge variant="light">{r.manner_of_death}</Badge>
+              <Badge tone="neutral">{r.manner_of_death}</Badge>
             ),
           },
           {
@@ -2392,7 +2409,7 @@ function RetentionTab() {
       key: "is_active",
       label: "Active",
       render: (r) =>
-        r.is_active ? <Badge color="success">Yes</Badge> : <Badge color="slate">No</Badge>,
+        r.is_active ? <Badge tone="success">Yes</Badge> : <Badge tone="neutral">No</Badge>,
     },
   ];
 
@@ -2400,7 +2417,7 @@ function RetentionTab() {
     <>
       <Group justify="flex-end" mb="md">
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Add Policy
           </Button>
         )}
@@ -2448,7 +2465,11 @@ function RetentionTab() {
             onChange={(v) => setForm({ ...form, destruction_method: v ?? undefined })}
             clearable
           />
-          <Button onClick={() => createMut.mutate(form)} loading={createMut.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createMut.mutate(form)}
+            loading={createMut.isPending}
+          >
             Create
           </Button>
         </Stack>

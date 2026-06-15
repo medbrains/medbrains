@@ -1,7 +1,5 @@
 import {
   ActionIcon,
-  Badge,
-  Button,
   Group,
   Modal,
   Select,
@@ -28,6 +26,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { pgLogbookService } from "@/services/pgLogbook.service";
 
@@ -152,7 +151,7 @@ export function PgLogbookPage() {
         title="PG Logbook & Supervision"
         subtitle="Case logs, procedure logs, and supervisor verification"
         actions={
-          <Button leftSection={<IconPlus size={14} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={14} />} onClick={open}>
             New Entry
           </Button>
         }
@@ -242,10 +241,11 @@ export function PgLogbookPage() {
             onChange={(v) => setEntryDate(v as Date | null)}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={handleClose}>
+            <Button tone="ghost" onClick={handleClose}>
               Cancel
             </Button>
             <Button
+              tone="primary"
               onClick={handleCreate}
               loading={createMutation.isPending}
               disabled={!entryType || !title.trim()}
@@ -295,7 +295,7 @@ function LogbookTable({
               <Text size="sm">{e.entry_date}</Text>
             </Table.Td>
             <Table.Td>
-              <Badge size="sm" variant="light">
+              <Badge tone="neutral" size="sm">
                 {e.entry_type}
               </Badge>
             </Table.Td>
@@ -313,7 +313,7 @@ function LogbookTable({
               {e.diagnosis_codes.length > 0 ? (
                 <Group gap={2}>
                   {e.diagnosis_codes.map((c) => (
-                    <Badge key={c} size="xs" variant="light">
+                    <Badge key={c} tone="neutral" size="xs">
                       {c}
                     </Badge>
                   ))}
@@ -324,11 +324,11 @@ function LogbookTable({
             </Table.Td>
             <Table.Td>
               {e.supervisor_verified ? (
-                <Badge color="success" size="sm">
+                <Badge tone="success" size="sm">
                   Verified
                 </Badge>
               ) : (
-                <Badge color="warning" size="sm">
+                <Badge tone="warning" size="sm">
                   Pending
                 </Badge>
               )}
@@ -374,7 +374,7 @@ function CoSignatureTable({
     );
   }
 
-  const statusColor = (s: string) => {
+  const statusColor = (s: string): BadgeTone => {
     switch (s) {
       case "approved":
         return "success";
@@ -399,12 +399,12 @@ function CoSignatureTable({
         {entries.map((e) => (
           <Table.Tr key={e.id}>
             <Table.Td>
-              <Badge size="sm" variant="light">
+              <Badge tone="neutral" size="sm">
                 {e.order_type}
               </Badge>
             </Table.Td>
             <Table.Td>
-              <Badge color={statusColor(e.status)} size="sm">
+              <Badge tone={statusColor(e.status)} size="sm">
                 {e.status}
               </Badge>
             </Table.Td>
@@ -416,20 +416,10 @@ function CoSignatureTable({
             <Table.Td>
               {e.status === "pending" && e.approver_id === userId && (
                 <Group gap={4}>
-                  <Button
-                    size="xs"
-                    color="success"
-                    variant="light"
-                    onClick={() => onDecision(e.id, "approved")}
-                  >
+                  <Button tone="secondary" size="xs" onClick={() => onDecision(e.id, "approved")}>
                     Approve
                   </Button>
-                  <Button
-                    size="xs"
-                    color="danger"
-                    variant="light"
-                    onClick={() => onDecision(e.id, "denied")}
-                  >
+                  <Button tone="subtle-danger" size="xs" onClick={() => onDecision(e.id, "denied")}>
                     Deny
                   </Button>
                 </Group>

@@ -4,13 +4,14 @@
  *
  * Per RFCs/sprints/SPRINT-doctor-activities.md §5.2.
  */
-import { ActionIcon, Badge, Card, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Card, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import { P, type PendingSignoffEntry } from "@medbrains/types";
 import { IconAlertTriangle, IconClipboardCheck, IconSignature } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { SignWorkspace } from "@/components/Doctor/SignWorkspace";
 import { PageHeader } from "@/components/PageHeader";
+import { Badge, type BadgeTone } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { signoffService } from "@/services/signoff.service";
 
@@ -133,14 +134,12 @@ function SignoffList({
             <Group justify="space-between" wrap="nowrap">
               <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
                 <Group gap="xs">
-                  <Badge size="xs" variant="light">
-                    {labelFor(item.record_type)}
-                  </Badge>
-                  <Badge size="xs" color={legalColor(item.legal_class)}>
+                  <Badge size="xs">{labelFor(item.record_type)}</Badge>
+                  <Badge size="xs" tone={legalColor(item.legal_class)}>
                     {item.legal_class.replace("_", " ")}
                   </Badge>
                   {isOverdue && (
-                    <Badge size="xs" color="red" leftSection={<IconAlertTriangle size={10} />}>
+                    <Badge size="xs" tone="danger" leftSection={<IconAlertTriangle size={10} />}>
                       Overdue
                     </Badge>
                   )}
@@ -157,7 +156,7 @@ function SignoffList({
                   Created {new Date(item.created_at).toLocaleString()} • {Math.round(ageHours)}h ago
                 </Text>
                 {item.risk_label && (
-                  <Badge size="xs" color="orange" leftSection={<IconAlertTriangle size={10} />}>
+                  <Badge size="xs" tone="warning" leftSection={<IconAlertTriangle size={10} />}>
                     {item.risk_label}
                   </Badge>
                 )}
@@ -202,15 +201,15 @@ function labelFor(type: string): string {
   }
 }
 
-function legalColor(legalClass: string): string {
+function legalColor(legalClass: string): BadgeTone {
   switch (legalClass) {
     case "medico_legal":
-      return "red";
+      return "danger";
     case "statutory_export":
-      return "orange";
+      return "warning";
     case "clinical":
-      return "blue";
+      return "info";
     default:
-      return "gray";
+      return "neutral";
   }
 }

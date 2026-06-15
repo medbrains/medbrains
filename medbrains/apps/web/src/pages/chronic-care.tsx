@@ -3,8 +3,6 @@ import "@mantine/charts/styles.css";
 import { LineChart } from "@mantine/charts";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Drawer,
   Group,
@@ -69,6 +67,7 @@ import { DataTable, PageHeader } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import type { Column } from "@/components/DataTable";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { chronicCareService } from "@/services/chronicCare.service";
 
@@ -90,22 +89,22 @@ const PROGRAM_TYPES: Array<{ value: ChronicProgramTypeFormValue; label: string }
   { value: "other", label: "Other" },
 ];
 
-const STATUS_COLORS: Record<string, string> = {
+const STATUS_COLORS: Record<string, BadgeTone> = {
   active: "success",
-  completed: "teal",
-  discontinued: "orange",
+  completed: "success",
+  discontinued: "warning",
   transferred: "primary",
   lost_to_followup: "danger",
-  deceased: "dark",
+  deceased: "neutral",
 };
 
-const EVENT_COLORS: Record<string, string> = {
+const EVENT_COLORS: Record<string, BadgeTone> = {
   started: "success",
   dose_changed: "primary",
-  switched: "violet",
+  switched: "accent",
   discontinued: "danger",
-  resumed: "teal",
-  held: "orange",
+  resumed: "success",
+  held: "warning",
 };
 
 // ══════════════════════════════════════════════════════════
@@ -238,7 +237,7 @@ function ProgramsTab({ canCreate }: { canCreate: boolean }) {
       key: "program_type",
       label: "Type",
       render: (r) => (
-        <Badge variant="light">
+        <Badge tone="neutral" variant="light">
           {PROGRAM_TYPES.find((t) => t.value === r.program_type)?.label ?? r.program_type}
         </Badge>
       ),
@@ -256,7 +255,7 @@ function ProgramsTab({ canCreate }: { canCreate: boolean }) {
       key: "is_active",
       label: "Status",
       render: (r) => (
-        <Badge color={r.is_active ? "success" : "slate"}>
+        <Badge tone={r.is_active ? "success" : "neutral"}>
           {r.is_active ? "Active" : "Inactive"}
         </Badge>
       ),
@@ -315,6 +314,7 @@ function ProgramsTab({ canCreate }: { canCreate: boolean }) {
         />
         {canCreate && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
               setEditing(null);
@@ -466,7 +466,7 @@ function ProgramDrawer({
             />
           )}
         />
-        <Button onClick={() => void submitProgram()} loading={loading}>
+        <Button tone="primary" onClick={() => void submitProgram()} loading={loading}>
           {editing ? "Update" : "Create"}
         </Button>
       </Stack>
@@ -519,7 +519,7 @@ function EnrollmentsTab({ canCreate }: { canCreate: boolean }) {
       key: "program_type",
       label: "Type",
       render: (r) => (
-        <Badge variant="light" size="sm">
+        <Badge tone="neutral" variant="light" size="sm">
           {PROGRAM_TYPES.find((t) => t.value === r.program_type)?.label ?? r.program_type}
         </Badge>
       ),
@@ -533,7 +533,7 @@ function EnrollmentsTab({ canCreate }: { canCreate: boolean }) {
       key: "status",
       label: "Status",
       render: (r) => (
-        <Badge color={STATUS_COLORS[r.status] ?? "slate"}>{r.status.replace(/_/g, " ")}</Badge>
+        <Badge tone={STATUS_COLORS[r.status] ?? "neutral"}>{r.status.replace(/_/g, " ")}</Badge>
       ),
     },
     {
@@ -585,7 +585,7 @@ function EnrollmentsTab({ canCreate }: { canCreate: boolean }) {
           w={180}
         />
         {canCreate && (
-          <Button leftSection={<IconPlus size={14} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={14} />} onClick={open}>
             Enroll Patient
           </Button>
         )}
@@ -720,7 +720,11 @@ function EnrollDrawer({
             <Textarea label="Notes" value={field.value ?? ""} onChange={field.onChange} />
           )}
         />
-        <Button onClick={() => void submitEnrollment()} loading={createMut.isPending}>
+        <Button
+          tone="primary"
+          onClick={() => void submitEnrollment()}
+          loading={createMut.isPending}
+        >
           Enroll
         </Button>
       </Stack>
@@ -789,13 +793,13 @@ function AdherenceSummaryCards({ summary }: { summary: AdherenceSummaryResponse 
             Doses
           </Text>
           <Group gap="xs" mt="xs">
-            <Badge color="success" variant="light">
+            <Badge tone="success" variant="light">
               {summary.doses_taken} taken
             </Badge>
-            <Badge color="danger" variant="light">
+            <Badge tone="danger" variant="light">
               {summary.doses_missed} missed
             </Badge>
-            <Badge color="warning" variant="light">
+            <Badge tone="warning" variant="light">
               {summary.doses_late} late
             </Badge>
           </Group>
@@ -805,13 +809,13 @@ function AdherenceSummaryCards({ summary }: { summary: AdherenceSummaryResponse 
             Refills
           </Text>
           <Group gap="xs" mt="xs">
-            <Badge color="success" variant="light">
+            <Badge tone="success" variant="light">
               {summary.refills_on_time} on time
             </Badge>
-            <Badge color="orange" variant="light">
+            <Badge tone="warning" variant="light">
               {summary.refills_late} late
             </Badge>
-            <Badge color="danger" variant="light">
+            <Badge tone="danger" variant="light">
               {summary.refills_missed} missed
             </Badge>
           </Group>
@@ -821,10 +825,10 @@ function AdherenceSummaryCards({ summary }: { summary: AdherenceSummaryResponse 
             Appointments
           </Text>
           <Group gap="xs" mt="xs">
-            <Badge color="success" variant="light">
+            <Badge tone="success" variant="light">
               {summary.appointments_attended} attended
             </Badge>
-            <Badge color="danger" variant="light">
+            <Badge tone="danger" variant="light">
               {summary.appointments_missed} missed
             </Badge>
           </Group>
@@ -923,7 +927,9 @@ function OutcomesTab() {
             {Object.entries(byType).map(([type, count]) => (
               <Group key={type} justify="space-between">
                 <Text size="sm">{PROGRAM_TYPES.find((t) => t.value === type)?.label ?? type}</Text>
-                <Badge variant="light">{count}</Badge>
+                <Badge tone="neutral" variant="light">
+                  {count}
+                </Badge>
               </Group>
             ))}
           </Stack>
@@ -990,7 +996,7 @@ function OutcomeDetailCards({ dashboard }: { dashboard: OutcomeDashboardResponse
                 Actual: {t.latest_value !== null ? `${t.latest_value} ${t.target.unit}` : "—"}
               </Text>
               <Badge
-                color={t.at_target ? "success" : t.at_target === false ? "danger" : "slate"}
+                tone={t.at_target ? "success" : t.at_target === false ? "danger" : "neutral"}
                 size="xs"
               >
                 {t.at_target ? "At target" : t.at_target === false ? "Off target" : "No data"}
@@ -1109,7 +1115,7 @@ function DrugOgramView({ data }: { data: DrugTimelineWithLabsResponse }) {
           </Text>
           <Group gap="xs">
             {data.active_drugs.map((d) => (
-              <Badge key={d.drug_name} variant="light" color="primary" size="sm">
+              <Badge key={d.drug_name} tone="primary" variant="light" size="sm">
                 {d.drug_name} {d.dosage ? `(${d.dosage})` : ""}
               </Badge>
             ))}
@@ -1136,8 +1142,8 @@ function DrugOgramView({ data }: { data: DrugTimelineWithLabsResponse }) {
                       label={`${ev.event_type}: ${ev.dosage ?? ""} ${ev.frequency ?? ""} (${new Date(ev.effective_date).toLocaleDateString()})${ev.change_reason ? ` — ${ev.change_reason}` : ""}`}
                     >
                       <Badge
+                        tone={EVENT_COLORS[ev.event_type] ?? "neutral"}
                         variant="filled"
-                        color={EVENT_COLORS[ev.event_type] ?? "slate"}
                         size="xs"
                         style={{ cursor: "pointer" }}
                       >
@@ -1247,8 +1253,8 @@ function TreatmentSummaryTab() {
         />
         {summary && (
           <Button
+            tone="secondary"
             leftSection={<IconPrinter size={14} />}
-            variant="light"
             mt={24}
             onClick={() => window.print()}
           >
@@ -1299,7 +1305,7 @@ function TreatmentSummaryView({ summary }: { summary: TreatmentSummaryResponse }
               <Group key={`${d.diagnosis_name}-${d.icd_code ?? "uncoded"}`} gap="xs">
                 <Text size="sm">{d.diagnosis_name}</Text>
                 {d.icd_code && (
-                  <Badge variant="light" size="xs">
+                  <Badge tone="neutral" variant="light" size="xs">
                     {d.icd_code}
                   </Badge>
                 )}
@@ -1349,7 +1355,7 @@ function TreatmentSummaryView({ summary }: { summary: TreatmentSummaryResponse }
                     {t.target.parameter_name}
                   </Text>
                   <Badge
-                    color={t.at_target ? "success" : t.at_target === false ? "danger" : "slate"}
+                    tone={t.at_target ? "success" : t.at_target === false ? "danger" : "neutral"}
                     size="xs"
                   >
                     {t.at_target ? "At target" : t.at_target === false ? "Off target" : "No data"}
@@ -1431,7 +1437,7 @@ function TreatmentSummaryView({ summary }: { summary: TreatmentSummaryResponse }
                 <Text size="xs" c="dimmed">
                   Enrolled: {e.enrollment_date}
                 </Text>
-                <Badge color={STATUS_COLORS[e.status] ?? "slate"} size="xs">
+                <Badge tone={STATUS_COLORS[e.status] ?? "neutral"} size="xs">
                   {e.status.replace(/_/g, " ")}
                 </Badge>
               </Group>

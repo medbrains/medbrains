@@ -2,18 +2,7 @@
  * Doctor "My Day" — composite dashboard.
  * Per RFCs/sprints/SPRINT-doctor-activities.md §2.5.
  */
-import {
-  Badge,
-  Button,
-  Card,
-  Divider,
-  Grid,
-  Group,
-  SimpleGrid,
-  Stack,
-  Text,
-  ThemeIcon,
-} from "@mantine/core";
+import { Card, Divider, Grid, Group, SimpleGrid, Stack, Text, ThemeIcon } from "@mantine/core";
 import type { DoctorProfile, MyDayResponse } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
@@ -28,6 +17,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { PageHeader } from "@/components/PageHeader";
+import { Badge, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { doctorService } from "@/services/doctor.service";
 
@@ -61,7 +51,7 @@ export function MyDayPage() {
         actions={
           <Group gap="xs">
             <Button
-              variant="light"
+              tone="secondary"
               size="xs"
               leftSection={<IconClipboardCheck size={14} />}
               onClick={() => navigate("/doctor/signoffs")}
@@ -69,7 +59,7 @@ export function MyDayPage() {
               Sign-off queue ({myDay?.pending_signoffs.total ?? 0})
             </Button>
             <Button
-              variant="subtle"
+              tone="ghost"
               size="xs"
               leftSection={<IconUserCog size={14} />}
               onClick={() => navigate("/doctor/profile")}
@@ -128,9 +118,7 @@ export function MyDayPage() {
                 {myDay.coverage.length} active assignment(s)
               </Text>
             </div>
-            <Badge color="warning" variant="light">
-              Locum
-            </Badge>
+            <Badge tone="warning">Locum</Badge>
           </Group>
           <Divider my="sm" />
           <Stack gap="xs">
@@ -187,7 +175,7 @@ export function MyDayPage() {
               On call
             </Text>
             {myDay?.on_call.is_on_call_now ? (
-              <Badge color="warning" variant="filled" size="lg">
+              <Badge tone="warning" variant="filled" size="lg">
                 Currently on call
               </Badge>
             ) : (
@@ -270,7 +258,7 @@ function QuickAction({
               {label}
             </Text>
             {badge !== undefined && badge > 0 && (
-              <Badge size="sm" color="warning">
+              <Badge size="sm" tone="warning">
                 {badge}
               </Badge>
             )}

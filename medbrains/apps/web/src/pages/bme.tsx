@@ -3,8 +3,6 @@ import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
   Alert,
-  Badge,
-  Button,
   Card,
   Drawer,
   Group,
@@ -66,6 +64,8 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { DataTable, IpdContextStrip, ipdContextFromSearchParams, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
+import type { BadgeTone } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { bmeService } from "@/services/bme.service";
 
@@ -135,103 +135,103 @@ const EQUIPMENT_CATEGORIES = [
 // ── Badge helpers ──────────────────────────────────────
 
 function statusBadge(status: string) {
-  const map: Record<string, string> = {
+  const map: Record<string, BadgeTone> = {
     active: "success",
     under_maintenance: "warning",
-    out_of_service: "orange",
+    out_of_service: "warning",
     condemned: "danger",
-    disposed: "slate",
+    disposed: "neutral",
   };
   return (
-    <Badge color={map[status] ?? "slate"} variant="light" size="sm">
+    <Badge tone={map[status] ?? "neutral"} variant="light" size="sm">
       {status.replace(/_/g, " ")}
     </Badge>
   );
 }
 
 function riskBadge(risk: string) {
-  const map: Record<string, string> = {
+  const map: Record<string, BadgeTone> = {
     critical: "danger",
-    high: "orange",
+    high: "warning",
     medium: "warning",
     low: "success",
   };
   return (
-    <Badge color={map[risk] ?? "slate"} variant="light" size="sm">
+    <Badge tone={map[risk] ?? "neutral"} variant="light" size="sm">
       {risk}
     </Badge>
   );
 }
 
 function priorityBadge(p: string) {
-  const map: Record<string, string> = {
+  const map: Record<string, BadgeTone> = {
     critical: "danger",
-    high: "orange",
+    high: "warning",
     medium: "warning",
     low: "primary",
   };
   return (
-    <Badge color={map[p] ?? "slate"} variant="light" size="sm">
+    <Badge tone={map[p] ?? "neutral"} variant="light" size="sm">
       {p}
     </Badge>
   );
 }
 
 function calStatusBadge(s: string) {
-  const map: Record<string, string> = {
+  const map: Record<string, BadgeTone> = {
     calibrated: "success",
     due: "warning",
     overdue: "danger",
     out_of_tolerance: "danger",
-    exempted: "slate",
+    exempted: "neutral",
   };
   return (
-    <Badge color={map[s] ?? "slate"} variant="light" size="sm">
+    <Badge tone={map[s] ?? "neutral"} variant="light" size="sm">
       {s.replace(/_/g, " ")}
     </Badge>
   );
 }
 
 function breakdownStatusBadge(s: string) {
-  const map: Record<string, string> = {
+  const map: Record<string, BadgeTone> = {
     reported: "danger",
     acknowledged: "warning",
     in_progress: "primary",
-    parts_awaited: "orange",
+    parts_awaited: "warning",
     resolved: "success",
-    closed: "slate",
+    closed: "neutral",
   };
   return (
-    <Badge color={map[s] ?? "slate"} variant="light" size="sm">
+    <Badge tone={map[s] ?? "neutral"} variant="light" size="sm">
       {s.replace(/_/g, " ")}
     </Badge>
   );
 }
 
 function contractTypeBadge(t: string) {
-  const map: Record<string, string> = {
+  const map: Record<string, BadgeTone> = {
     amc: "primary",
-    cmc: "violet",
+    cmc: "accent",
     warranty: "success",
-    camc: "teal",
+    camc: "success",
   };
   return (
-    <Badge color={map[t] ?? "slate"} variant="light" size="sm">
+    <Badge tone={map[t] ?? "neutral"} variant="light" size="sm">
       {t.toUpperCase()}
     </Badge>
   );
 }
 
 function woStatusBadge(s: string) {
-  const map: Record<string, string> = {
+  const map: Record<string, BadgeTone> = {
     open: "primary",
     assigned: "warning",
-    in_progress: "orange",
+    in_progress: "warning",
     completed: "success",
-    cancelled: "slate",
+    cancelled: "neutral",
   };
   return (
-    <Badge color={map[s] ?? "slate"} variant="light" size="sm">
+    <Badge tone={map[s] ?? "neutral"} variant="light" size="sm">
       {s.replace(/_/g, " ")}
     </Badge>
   );
@@ -370,7 +370,7 @@ function EquipmentTab() {
     <Stack>
       <Group justify="flex-end">
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Add Equipment
           </Button>
         )}
@@ -446,7 +446,11 @@ function EquipmentTab() {
             value={form.notes ?? ""}
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
           />
-          <Button onClick={handleSubmit} loading={createMut.isPending || updateMut.isPending}>
+          <Button
+            tone="primary"
+            onClick={handleSubmit}
+            loading={createMut.isPending || updateMut.isPending}
+          >
             {editItem ? "Update" : "Create"}
           </Button>
         </Stack>
@@ -541,7 +545,7 @@ function PmTab() {
       key: "frequency",
       label: "Frequency",
       render: (r) => (
-        <Badge variant="light" size="sm">
+        <Badge tone="neutral" variant="light" size="sm">
           {r.frequency.replace(/_/g, " ")}
         </Badge>
       ),
@@ -568,11 +572,11 @@ function PmTab() {
       label: "Active",
       render: (r) =>
         r.is_active ? (
-          <Badge color="success" size="sm">
+          <Badge tone="success" size="sm">
             Yes
           </Badge>
         ) : (
-          <Badge color="slate" size="sm">
+          <Badge tone="neutral" size="sm">
             No
           </Badge>
         ),
@@ -600,7 +604,7 @@ function PmTab() {
       key: "type",
       label: "Type",
       render: (r) => (
-        <Badge variant="light" size="sm">
+        <Badge tone="neutral" variant="light" size="sm">
           {r.order_type}
         </Badge>
       ),
@@ -785,6 +789,7 @@ function PmTab() {
       <Group justify="flex-end">
         {canManage && (
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -804,6 +809,7 @@ function PmTab() {
       <Group justify="flex-end">
         {canManage && (
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -855,7 +861,11 @@ function PmTab() {
             value={pmForm.notes ?? ""}
             onChange={(e) => setPmForm({ ...pmForm, notes: e.target.value })}
           />
-          <Button onClick={() => createPmMut.mutate(pmForm)} loading={createPmMut.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createPmMut.mutate(pmForm)}
+            loading={createPmMut.isPending}
+          >
             Create
           </Button>
         </Stack>
@@ -910,7 +920,11 @@ function PmTab() {
             value={woForm.description ?? ""}
             onChange={(e) => setWoForm({ ...woForm, description: e.target.value })}
           />
-          <Button onClick={() => createWoMut.mutate(woForm)} loading={createWoMut.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createWoMut.mutate(woForm)}
+            loading={createWoMut.isPending}
+          >
             Create
           </Button>
         </Stack>
@@ -983,7 +997,7 @@ function CalibrationTab() {
       key: "frequency",
       label: "Frequency",
       render: (r) => (
-        <Badge variant="light" size="sm">
+        <Badge tone="neutral" variant="light" size="sm">
           {r.frequency.replace(/_/g, " ")}
         </Badge>
       ),
@@ -1010,11 +1024,11 @@ function CalibrationTab() {
       label: "In Tolerance",
       render: (r) =>
         r.is_in_tolerance === true ? (
-          <Badge color="success" size="sm">
+          <Badge tone="success" size="sm">
             Yes
           </Badge>
         ) : r.is_in_tolerance === false ? (
-          <Badge color="danger" size="sm">
+          <Badge tone="danger" size="sm">
             No
           </Badge>
         ) : (
@@ -1031,7 +1045,7 @@ function CalibrationTab() {
       label: "Locked",
       render: (r) =>
         r.is_locked ? (
-          <Badge color="danger" size="sm">
+          <Badge tone="danger" size="sm">
             Locked
           </Badge>
         ) : null,
@@ -1054,11 +1068,11 @@ function CalibrationTab() {
                   {a.equipName}
                 </Text>
                 {a.daysLeft < 0 ? (
-                  <Badge color="danger" size="sm" variant="filled">
+                  <Badge tone="danger" size="sm" variant="filled">
                     OVERDUE by {Math.abs(a.daysLeft)}d
                   </Badge>
                 ) : (
-                  <Badge color="warning" size="sm" leftSection={<IconClock size={12} />}>
+                  <Badge tone="warning" size="sm" leftSection={<IconClock size={12} />}>
                     Due in {a.daysLeft}d
                   </Badge>
                 )}
@@ -1074,6 +1088,7 @@ function CalibrationTab() {
       <Group justify="flex-end">
         {canManage && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               setForm({ equipment_id: "" });
@@ -1154,7 +1169,11 @@ function CalibrationTab() {
             value={form.notes ?? ""}
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
           />
-          <Button onClick={() => createMut.mutate(form)} loading={createMut.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createMut.mutate(form)}
+            loading={createMut.isPending}
+          >
             Save
           </Button>
         </Stack>
@@ -1311,24 +1330,24 @@ function ContractsTab() {
         const daysLeft = Math.ceil((new Date(r.end_date).getTime() - Date.now()) / 86400000);
         if (daysLeft < 0)
           return (
-            <Badge color="danger" size="sm">
+            <Badge tone="danger" size="sm">
               Expired
             </Badge>
           );
         if (daysLeft <= 30)
           return (
-            <Badge color="danger" size="sm">
+            <Badge tone="danger" size="sm">
               {daysLeft}d left
             </Badge>
           );
         if (daysLeft <= 90)
           return (
-            <Badge color="warning" size="sm">
+            <Badge tone="warning" size="sm">
               {daysLeft}d left
             </Badge>
           );
         return (
-          <Badge color="success" size="sm">
+          <Badge tone="success" size="sm">
             {daysLeft}d left
           </Badge>
         );
@@ -1339,11 +1358,11 @@ function ContractsTab() {
       label: "Active",
       render: (r) =>
         r.is_active ? (
-          <Badge color="success" size="sm">
+          <Badge tone="success" size="sm">
             Yes
           </Badge>
         ) : (
-          <Badge color="slate" size="sm">
+          <Badge tone="neutral" size="sm">
             No
           </Badge>
         ),
@@ -1419,18 +1438,18 @@ function ContractsTab() {
                 <Text size="sm" fw={500}>
                   {c.equipName}
                 </Text>
-                <Badge variant="light" size="sm">
+                <Badge tone="neutral" variant="light" size="sm">
                   {c.contract_type.toUpperCase()}
                 </Badge>
                 <Text size="xs" c="dimmed">
                   #{c.contract_number}
                 </Text>
                 {c.daysLeft < 0 ? (
-                  <Badge color="danger" size="sm" variant="filled">
+                  <Badge tone="danger" size="sm" variant="filled">
                     EXPIRED {Math.abs(c.daysLeft)}d ago
                   </Badge>
                 ) : (
-                  <Badge color="warning" size="sm" leftSection={<IconClock size={12} />}>
+                  <Badge tone="warning" size="sm" leftSection={<IconClock size={12} />}>
                     Expires in {c.daysLeft}d
                   </Badge>
                 )}
@@ -1476,7 +1495,7 @@ function ContractsTab() {
                   </Table.Td>
                   <Table.Td ta="right">
                     <Badge
-                      color={
+                      tone={
                         row.utilization > 100
                           ? "danger"
                           : row.utilization > 80
@@ -1502,6 +1521,7 @@ function ContractsTab() {
       <Group justify="flex-end">
         {canManage && (
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -1533,6 +1553,7 @@ function ContractsTab() {
       <Group justify="flex-end">
         {canEval && (
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -1652,6 +1673,7 @@ function ContractsTab() {
             />
           </Group>
           <Button
+            tone="primary"
             onClick={() => createContractMut.mutate(contractForm)}
             loading={createContractMut.isPending}
           >
@@ -1766,7 +1788,11 @@ function ContractsTab() {
             value={evalForm.comments ?? ""}
             onChange={(e) => setEvalForm({ ...evalForm, comments: e.target.value })}
           />
-          <Button onClick={() => createEvalMut.mutate(evalForm)} loading={createEvalMut.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createEvalMut.mutate(evalForm)}
+            loading={createEvalMut.isPending}
+          >
             Save
           </Button>
         </Stack>
@@ -1907,6 +1933,7 @@ function BreakdownsTab() {
       <Group justify="flex-end">
         {canCreate && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               setForm({ equipment_id: "", description: "" });
@@ -1957,7 +1984,11 @@ function BreakdownsTab() {
             value={form.notes ?? ""}
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
           />
-          <Button onClick={() => createMut.mutate(form)} loading={createMut.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createMut.mutate(form)}
+            loading={createMut.isPending}
+          >
             Report
           </Button>
         </Stack>
@@ -1970,8 +2001,8 @@ function BreakdownsTab() {
 //  Analytics Tab
 // ══════════════════════════════════════════════════════════
 
-function uptimeColor(pct: number | null): string {
-  if (pct == null) return "gray";
+function uptimeColor(pct: number | null): BadgeTone {
+  if (pct == null) return "neutral";
   if (pct < 90) return "danger";
   if (pct < 95) return "warning";
   return "success";
@@ -2075,7 +2106,7 @@ function AnalyticsTab() {
       key: "uptime_percent",
       label: "Uptime %",
       render: (r) => (
-        <Badge color={uptimeColor(r.uptime_percent)} variant="light" size="lg">
+        <Badge tone={uptimeColor(r.uptime_percent)} variant="light" size="lg">
           {r.uptime_percent != null ? `${r.uptime_percent.toFixed(1)}%` : "—"}
         </Badge>
       ),

@@ -1,14 +1,4 @@
-import {
-  Badge,
-  Button,
-  Card,
-  Container,
-  Group,
-  SimpleGrid,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
+import { Card, Container, Group, SimpleGrid, Stack, Text, Title } from "@mantine/core";
 import { P } from "@medbrains/types";
 import { IconFileTypeXml } from "@tabler/icons-react";
 import chestXrayPaDemoDicom from "@/assets/demo-dicom/chest-xray-pa-demo.dcm?url";
@@ -16,6 +6,7 @@ import ctBrainPlainDemoDicom from "@/assets/demo-dicom/ct-brain-plain-demo.dcm?u
 import leftHandXrayDemoDicom from "@/assets/demo-dicom/left-hand-xray-demo.dcm?url";
 import mriRightKneeDemoDicom from "@/assets/demo-dicom/mri-right-knee-demo.dcm?url";
 import usAbdomenDemoDicom from "@/assets/demo-dicom/us-abdomen-demo.dcm?url";
+import { Badge, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 
 const fixtures = [
@@ -60,9 +51,7 @@ export function DemoDicomFixturesPage() {
         <Stack gap={4}>
           <Group gap="sm">
             <Title order={1}>DICOM Demo Fixtures</Title>
-            <Badge color="teal" variant="light">
-              Synthetic
-            </Badge>
+            <Badge tone="success">Synthetic</Badge>
           </Group>
           <Text c="dimmed">
             Local synthetic imaging samples for validating doctor view, radiology records, PACS
@@ -82,17 +71,19 @@ export function DemoDicomFixturesPage() {
                       {fixture.bodySite}
                     </Text>
                   </Stack>
-                  <Badge variant="filled">{fixture.modality}</Badge>
+                  <Badge variant="filled" tone="neutral">
+                    {fixture.modality}
+                  </Badge>
                 </Group>
 
                 <Group gap="xs">
                   <Button
+                    tone="secondary"
                     component="a"
                     href={fixture.dicom}
                     target="_blank"
                     rel="noreferrer"
                     leftSection={<IconFileTypeXml size={16} />}
-                    variant="light"
                   >
                     DICOM
                   </Button>

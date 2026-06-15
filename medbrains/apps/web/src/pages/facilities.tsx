@@ -2,8 +2,6 @@ import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Drawer,
   Group,
@@ -61,6 +59,7 @@ import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { DataTable, IpdContextStrip, ipdContextFromSearchParams, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { facilitiesService } from "@/services/facilities.service";
 
@@ -178,35 +177,35 @@ const WATER_SCHEDULE_TYPES = [
   { value: "other", label: "Other" },
 ];
 
-function priorityColor(p: string) {
+function priorityColor(p: string): BadgeTone {
   switch (p) {
     case "critical":
       return "danger";
     case "high":
-      return "orange";
+      return "warning";
     case "medium":
       return "primary";
     default:
-      return "gray";
+      return "neutral";
   }
 }
 
-function woStatusColor(s: string) {
+function woStatusColor(s: string): BadgeTone {
   switch (s) {
     case "open":
       return "primary";
     case "assigned":
-      return "cyan";
+      return "info";
     case "in_progress":
       return "warning";
     case "on_hold":
-      return "orange";
+      return "warning";
     case "completed":
       return "success";
     case "cancelled":
-      return "gray";
+      return "neutral";
     default:
-      return "gray";
+      return "neutral";
   }
 }
 
@@ -319,7 +318,7 @@ function MgpsTab() {
     {
       key: "gas_type",
       label: "Gas",
-      render: (r) => <Badge variant="light">{r.gas_type.replace(/_/g, " ")}</Badge>,
+      render: (r) => <Badge>{r.gas_type.replace(/_/g, " ")}</Badge>,
     },
     {
       key: "source_type",
@@ -350,7 +349,7 @@ function MgpsTab() {
       key: "is_alarm",
       label: "Alarm",
       render: (r) =>
-        r.is_alarm ? <Badge color="danger">ALARM</Badge> : <Badge color="success">OK</Badge>,
+        r.is_alarm ? <Badge tone="danger">ALARM</Badge> : <Badge tone="success">OK</Badge>,
     },
     {
       key: "reading_at",
@@ -363,7 +362,7 @@ function MgpsTab() {
     {
       key: "gas_type",
       label: "Gas",
-      render: (r) => <Badge variant="light">{r.gas_type.replace(/_/g, " ")}</Badge>,
+      render: (r) => <Badge>{r.gas_type.replace(/_/g, " ")}</Badge>,
     },
     {
       key: "peso_license_number",
@@ -384,7 +383,7 @@ function MgpsTab() {
       key: "compliance_status",
       label: "Status",
       render: (r) => (
-        <Badge color={r.compliance_status === "compliant" ? "success" : "danger"}>
+        <Badge tone={r.compliance_status === "compliant" ? "success" : "danger"}>
           {r.compliance_status ?? "—"}
         </Badge>
       ),
@@ -398,7 +397,7 @@ function MgpsTab() {
           Gas Readings
         </Text>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openReading}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openReading}>
             Record Reading
           </Button>
         )}
@@ -415,7 +414,7 @@ function MgpsTab() {
           PESO / Drug License Compliance
         </Text>
         {canManageCompliance && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCompliance} variant="light">
+          <Button tone="secondary" leftSection={<IconPlus size={16} />} onClick={openCompliance}>
             Add Compliance
           </Button>
         )}
@@ -506,7 +505,11 @@ function MgpsTab() {
             value={gasForm.notes ?? ""}
             onChange={(e) => setGasForm({ ...gasForm, notes: e.currentTarget.value })}
           />
-          <Button onClick={() => createReading.mutate()} loading={createReading.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createReading.mutate()}
+            loading={createReading.isPending}
+          >
             Save
           </Button>
         </Stack>
@@ -552,7 +555,11 @@ function MgpsTab() {
             value={compForm.notes ?? ""}
             onChange={(e) => setCompForm({ ...compForm, notes: e.currentTarget.value })}
           />
-          <Button onClick={() => createCompliance.mutate()} loading={createCompliance.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createCompliance.mutate()}
+            loading={createCompliance.isPending}
+          >
             Save
           </Button>
         </Stack>
@@ -627,7 +634,7 @@ function FireSafetyTab() {
     {
       key: "equipment_type",
       label: "Type",
-      render: (r) => <Badge variant="light">{r.equipment_type.replace(/_/g, " ")}</Badge>,
+      render: (r) => <Badge>{r.equipment_type.replace(/_/g, " ")}</Badge>,
     },
     {
       key: "serial_number",
@@ -650,7 +657,7 @@ function FireSafetyTab() {
       key: "is_active",
       label: "Active",
       render: (r) => (
-        <Badge color={r.is_active ? "success" : "slate"}>{r.is_active ? "Yes" : "No"}</Badge>
+        <Badge tone={r.is_active ? "success" : "neutral"}>{r.is_active ? "Yes" : "No"}</Badge>
       ),
     },
   ];
@@ -665,7 +672,7 @@ function FireSafetyTab() {
       key: "is_functional",
       label: "Functional",
       render: (r) => (
-        <Badge color={r.is_functional ? "success" : "danger"}>
+        <Badge tone={r.is_functional ? "success" : "danger"}>
           {r.is_functional ? "OK" : "Failed"}
         </Badge>
       ),
@@ -690,11 +697,7 @@ function FireSafetyTab() {
     {
       key: "drill_type",
       label: "Type",
-      render: (r) => (
-        <Badge variant="light" color="danger">
-          {r.drill_type.replace(/_/g, " ")}
-        </Badge>
-      ),
+      render: (r) => <Badge tone="danger">{r.drill_type.replace(/_/g, " ")}</Badge>,
     },
     { key: "drill_date", label: "Date", render: (r) => <Text size="sm">{r.drill_date}</Text> },
     {
@@ -754,7 +757,7 @@ function FireSafetyTab() {
       key: "is_active",
       label: "Active",
       render: (r) => (
-        <Badge color={r.is_active ? "success" : "slate"}>{r.is_active ? "Yes" : "No"}</Badge>
+        <Badge tone={r.is_active ? "success" : "neutral"}>{r.is_active ? "Yes" : "No"}</Badge>
       ),
     },
   ];
@@ -766,7 +769,7 @@ function FireSafetyTab() {
           Fire Equipment
         </Text>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openEquip}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openEquip}>
             Add Equipment
           </Button>
         )}
@@ -793,12 +796,7 @@ function FireSafetyTab() {
           Mock Drills
         </Text>
         {canManage && (
-          <Button
-            leftSection={<IconPlus size={16} />}
-            onClick={openDrill}
-            variant="light"
-            color="danger"
-          >
+          <Button tone="subtle-danger" leftSection={<IconPlus size={16} />} onClick={openDrill}>
             Record Drill
           </Button>
         )}
@@ -870,7 +868,11 @@ function FireSafetyTab() {
             value={equipForm.notes ?? ""}
             onChange={(e) => setEquipForm({ ...equipForm, notes: e.currentTarget.value })}
           />
-          <Button onClick={() => createEquip.mutate()} loading={createEquip.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createEquip.mutate()}
+            loading={createEquip.isPending}
+          >
             Save
           </Button>
         </Stack>
@@ -954,7 +956,11 @@ function FireSafetyTab() {
               setDrillForm({ ...drillForm, improvement_actions: e.currentTarget.value })
             }
           />
-          <Button onClick={() => createDrill.mutate()} loading={createDrill.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createDrill.mutate()}
+            loading={createDrill.isPending}
+          >
             Save
           </Button>
         </Stack>
@@ -1014,7 +1020,7 @@ function WaterQualityTab() {
     {
       key: "source_type",
       label: "Source",
-      render: (r) => <Badge variant="light">{r.source_type.replace(/_/g, " ")}</Badge>,
+      render: (r) => <Badge>{r.source_type.replace(/_/g, " ")}</Badge>,
     },
     { key: "test_type", label: "Test", render: (r) => <Text size="sm">{r.test_type}</Text> },
     {
@@ -1036,11 +1042,11 @@ function WaterQualityTab() {
       label: "Status",
       render: (r) =>
         r.is_within_limits === null || r.is_within_limits === undefined ? (
-          <Badge color="slate">Pending</Badge>
+          <Badge tone="neutral">Pending</Badge>
         ) : r.is_within_limits ? (
-          <Badge color="success">Pass</Badge>
+          <Badge tone="success">Pass</Badge>
         ) : (
-          <Badge color="danger">Fail</Badge>
+          <Badge tone="danger">Fail</Badge>
         ),
     },
     { key: "sample_date", label: "Sampled", render: (r) => <Text size="sm">{r.sample_date}</Text> },
@@ -1078,7 +1084,7 @@ function WaterQualityTab() {
       key: "is_active",
       label: "Active",
       render: (r) => (
-        <Badge color={r.is_active ? "success" : "slate"}>{r.is_active ? "Yes" : "No"}</Badge>
+        <Badge tone={r.is_active ? "success" : "neutral"}>{r.is_active ? "Yes" : "No"}</Badge>
       ),
     },
   ];
@@ -1090,7 +1096,7 @@ function WaterQualityTab() {
           Water Test Results
         </Text>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openTest}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openTest}>
             Record Test
           </Button>
         )}
@@ -1107,7 +1113,7 @@ function WaterQualityTab() {
           Cleaning / Testing Schedules
         </Text>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openSched} variant="light">
+          <Button tone="secondary" leftSection={<IconPlus size={16} />} onClick={openSched}>
             Add Schedule
           </Button>
         )}
@@ -1188,7 +1194,7 @@ function WaterQualityTab() {
             value={testForm.notes ?? ""}
             onChange={(e) => setTestForm({ ...testForm, notes: e.currentTarget.value })}
           />
-          <Button onClick={() => createTest.mutate()} loading={createTest.isPending}>
+          <Button tone="primary" onClick={() => createTest.mutate()} loading={createTest.isPending}>
             Save
           </Button>
         </Stack>
@@ -1223,7 +1229,11 @@ function WaterQualityTab() {
             value={schedForm.notes ?? ""}
             onChange={(e) => setSchedForm({ ...schedForm, notes: e.currentTarget.value })}
           />
-          <Button onClick={() => createSched.mutate()} loading={createSched.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createSched.mutate()}
+            loading={createSched.isPending}
+          >
             Save
           </Button>
         </Stack>
@@ -1262,9 +1272,7 @@ function EnergyTab() {
     {
       key: "source_type",
       label: "Source",
-      render: (r) => (
-        <Badge variant="light">{r.source_type.replace(/_/g, " ").toUpperCase()}</Badge>
-      ),
+      render: (r) => <Badge>{r.source_type.replace(/_/g, " ").toUpperCase()}</Badge>,
     },
     {
       key: "equipment_name",
@@ -1296,7 +1304,7 @@ function EnergyTab() {
       key: "is_alarm",
       label: "Alarm",
       render: (r) =>
-        r.is_alarm ? <Badge color="danger">ALARM</Badge> : <Badge color="success">OK</Badge>,
+        r.is_alarm ? <Badge tone="danger">ALARM</Badge> : <Badge tone="success">OK</Badge>,
     },
     {
       key: "reading_at",
@@ -1313,11 +1321,11 @@ function EnergyTab() {
         </Text>
         <Group gap="xs">
           {canManage && (
-            <Button leftSection={<IconPlus size={16} />} onClick={openReading}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openReading}>
               Record Reading
             </Button>
           )}
-          <Button variant="light" onClick={() => setShowAnalytics(!showAnalytics)}>
+          <Button tone="secondary" onClick={() => setShowAnalytics(!showAnalytics)}>
             {showAnalytics ? "Hide Analytics" : "Show Analytics"}
           </Button>
         </Group>
@@ -1421,7 +1429,11 @@ function EnergyTab() {
             value={form.notes ?? ""}
             onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })}
           />
-          <Button onClick={() => createReading.mutate()} loading={createReading.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createReading.mutate()}
+            loading={createReading.isPending}
+          >
             Save
           </Button>
         </Stack>
@@ -1610,12 +1622,12 @@ function WorkOrdersTab() {
     {
       key: "priority",
       label: "Priority",
-      render: (r) => <Badge color={priorityColor(r.priority)}>{r.priority}</Badge>,
+      render: (r) => <Badge tone={priorityColor(r.priority)}>{r.priority}</Badge>,
     },
     {
       key: "status",
       label: "Status",
-      render: (r) => <Badge color={woStatusColor(r.status)}>{r.status.replace(/_/g, " ")}</Badge>,
+      render: (r) => <Badge tone={woStatusColor(r.status)}>{r.status.replace(/_/g, " ")}</Badge>,
     },
     {
       key: "description",
@@ -1666,12 +1678,16 @@ function WorkOrdersTab() {
         </Text>
         <Group gap="xs">
           {canManage && (
-            <Button variant="light" leftSection={<IconCalendarRepeat size={16} />} onClick={openPm}>
+            <Button
+              tone="secondary"
+              leftSection={<IconCalendarRepeat size={16} />}
+              onClick={openPm}
+            >
               Schedule PM
             </Button>
           )}
           {canCreate && (
-            <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
               Create Work Order
             </Button>
           )}
@@ -1719,7 +1735,7 @@ function WorkOrdersTab() {
             value={form.notes ?? ""}
             onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })}
           />
-          <Button onClick={() => createWo.mutate()} loading={createWo.isPending}>
+          <Button tone="primary" onClick={() => createWo.mutate()} loading={createWo.isPending}>
             Submit
           </Button>
         </Stack>
@@ -1780,7 +1796,11 @@ function WorkOrdersTab() {
             value={statusForm.notes ?? ""}
             onChange={(e) => setStatusForm({ ...statusForm, notes: e.currentTarget.value })}
           />
-          <Button onClick={() => updateStatus.mutate()} loading={updateStatus.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => updateStatus.mutate()}
+            loading={updateStatus.isPending}
+          >
             Update
           </Button>
         </Stack>
@@ -1826,6 +1846,7 @@ function WorkOrdersTab() {
             onChange={(e) => setPmForm({ ...pmForm, start_date: e.currentTarget.value })}
           />
           <Button
+            tone="primary"
             onClick={() => schedulePm.mutate()}
             loading={schedulePm.isPending}
             disabled={!pmForm.start_date || !pmForm.frequency}

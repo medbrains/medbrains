@@ -1,8 +1,9 @@
-import { Badge, Button, Card, Group, Select, Stack, Text } from "@mantine/core";
+import { Card, Group, Select, Stack, Text } from "@mantine/core";
 import type { HandoverSummaryResponse } from "@medbrains/types";
 import { IconClipboardList, IconPrinter } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { Badge, Button } from "@/components/ui";
 import { careViewService } from "@/services/careView.service";
 import { SHIFTS } from "./shared";
 
@@ -29,6 +30,7 @@ export function HandoverTab({ wardId }: { wardId: string | null }) {
           w={200}
         />
         <Button
+          tone="primary"
           leftSection={<IconClipboardList size={16} />}
           disabled={!effectiveWard || !shift}
           loading={isLoading}
@@ -38,7 +40,7 @@ export function HandoverTab({ wardId }: { wardId: string | null }) {
         </Button>
         {data && (
           <Button
-            variant="light"
+            tone="secondary"
             leftSection={<IconPrinter size={16} />}
             onClick={() => window.print()}
           >
@@ -55,10 +57,10 @@ export function HandoverTab({ wardId }: { wardId: string | null }) {
             <Text fw={600}>
               {data.ward_name} — {data.shift} shift
             </Text>
-            <Badge color="primary" size="lg">
+            <Badge tone="primary" size="lg">
               {data.total_patients} patients
             </Badge>
-            <Badge color="danger" size="lg">
+            <Badge tone="danger" size="lg">
               {data.critical_count} critical
             </Badge>
           </Group>
@@ -76,12 +78,12 @@ export function HandoverTab({ wardId }: { wardId: string | null }) {
                 </Group>
                 <Group gap={4}>
                   {patient.is_critical && (
-                    <Badge size="xs" color="danger">
+                    <Badge size="xs" tone="danger">
                       Critical
                     </Badge>
                   )}
                   {patient.isolation_required && (
-                    <Badge size="xs" color="orange">
+                    <Badge size="xs" tone="warning">
                       Isolation
                     </Badge>
                   )}

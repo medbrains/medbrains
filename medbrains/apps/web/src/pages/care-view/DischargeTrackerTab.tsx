@@ -1,8 +1,9 @@
-import { Badge, Progress, Stack, Text } from "@mantine/core";
+import { Progress, Stack, Text } from "@mantine/core";
 import type { DischargeReadinessRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { Badge } from "@/components/ui";
 import { careViewService } from "@/services/careView.service";
 import { readinessColor } from "./shared";
 
@@ -57,7 +58,7 @@ export function DischargeTrackerTab({ wardId }: { wardId: string | null }) {
       key: "billing_cleared",
       label: "Billing",
       render: (row) => (
-        <Badge size="xs" color={row.billing_cleared ? "success" : "slate"}>
+        <Badge size="xs" tone={row.billing_cleared ? "success" : "neutral"}>
           {row.billing_cleared ? "Cleared" : "Pending"}
         </Badge>
       ),
@@ -66,7 +67,7 @@ export function DischargeTrackerTab({ wardId }: { wardId: string | null }) {
       key: "pharmacy_cleared",
       label: "Pharmacy",
       render: (row) => (
-        <Badge size="xs" color={row.pharmacy_cleared ? "success" : "slate"}>
+        <Badge size="xs" tone={row.pharmacy_cleared ? "success" : "neutral"}>
           {row.pharmacy_cleared ? "Cleared" : "Pending"}
         </Badge>
       ),
@@ -75,7 +76,7 @@ export function DischargeTrackerTab({ wardId }: { wardId: string | null }) {
       key: "nursing_cleared",
       label: "Nursing",
       render: (row) => (
-        <Badge size="xs" color={row.nursing_cleared ? "success" : "slate"}>
+        <Badge size="xs" tone={row.nursing_cleared ? "success" : "neutral"}>
           {row.nursing_cleared ? "Cleared" : "Pending"}
         </Badge>
       ),
@@ -84,7 +85,7 @@ export function DischargeTrackerTab({ wardId }: { wardId: string | null }) {
       key: "doctor_cleared",
       label: "Doctor",
       render: (row) => (
-        <Badge size="xs" color={row.doctor_cleared ? "success" : "slate"}>
+        <Badge size="xs" tone={row.doctor_cleared ? "success" : "neutral"}>
           {row.doctor_cleared ? "Cleared" : "Pending"}
         </Badge>
       ),

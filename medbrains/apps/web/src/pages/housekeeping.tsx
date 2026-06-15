@@ -2,9 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Alert,
-  Badge,
   Box,
-  Button,
   Card,
   Drawer,
   Group,
@@ -75,6 +73,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import {
   type CreateBiowasteRecordInput,
@@ -97,25 +96,25 @@ const AREA_TYPES: CleaningAreaType[] = [
   "general",
 ];
 
-const taskStatusColors: Record<CleaningTaskStatusType, string> = {
-  pending: "slate",
+const taskStatusColors: Record<CleaningTaskStatusType, BadgeTone> = {
+  pending: "neutral",
   assigned: "primary",
-  in_progress: "orange",
+  in_progress: "warning",
   completed: "success",
-  verified: "teal",
+  verified: "success",
   rejected: "danger",
 };
 
-const linenStatusColors: Record<LinenStatusType, string> = {
+const linenStatusColors: Record<LinenStatusType, BadgeTone> = {
   clean: "success",
   in_use: "primary",
   soiled: "warning",
-  washing: "orange",
+  washing: "warning",
   condemned: "danger",
 };
 
-const turnaroundColor = (mins?: number) => {
-  if (!mins) return "gray";
+const turnaroundColor = (mins?: number): BadgeTone => {
+  if (!mins) return "neutral";
   if (mins <= 30) return "success";
   if (mins <= 60) return "warning";
   return "danger";
@@ -149,7 +148,7 @@ const PEST_TREATMENT_TYPES = [
 // ── BMW Color Codes (per CPCB guidelines) ────────────────
 const BMW_CATEGORY_META: Record<
   WasteCategoryType,
-  { color: string; mantineColor: string; label: string; description: string }
+  { color: string; mantineColor: BadgeTone; label: string; description: string }
 > = {
   yellow: {
     color: "#FFC107",
@@ -165,7 +164,7 @@ const BMW_CATEGORY_META: Record<
   },
   white_translucent: {
     color: "#90A4AE",
-    mantineColor: "slate",
+    mantineColor: "neutral",
     label: "White (Translucent)",
     description: "Sharps waste — needles, syringes, blades, broken glass",
   },
@@ -177,19 +176,19 @@ const BMW_CATEGORY_META: Record<
   },
   cytotoxic: {
     color: "#9C27B0",
-    mantineColor: "violet",
+    mantineColor: "accent",
     label: "Cytotoxic",
     description: "Cytotoxic drug vials, contaminated items from chemo",
   },
   chemical: {
     color: "#FF9800",
-    mantineColor: "orange",
+    mantineColor: "warning",
     label: "Chemical",
     description: "Discarded chemicals, liquid waste from lab",
   },
   radioactive: {
     color: "#795548",
-    mantineColor: "violet",
+    mantineColor: "accent",
     label: "Radioactive",
     description: "Radioactive waste from imaging / nuclear medicine",
   },
@@ -215,6 +214,14 @@ const contaminationMeta: Record<
   regular: { color: "success", label: "Normal", icon: IconCheck },
   contaminated: { color: "danger", label: "Contaminated", icon: IconAlertTriangle },
   isolation: { color: "orange", label: "Isolation", icon: IconBiohazard },
+};
+
+// Local Badge tone map for contaminationMeta colors (the meta is also used by
+// ThemeIcon, so the shared helper keeps Mantine colors and Badges map here).
+const CONTAMINATION_BADGE_TONE: Record<string, BadgeTone> = {
+  success: "success",
+  danger: "danger",
+  orange: "warning",
 };
 
 // ══════════════════════════════════════════════════════════
@@ -400,6 +407,7 @@ function RoomBedTab({
             </Text>
             {canManageTurnaround && (
               <Button
+                tone="primary"
                 leftSection={<IconPlus size={16} />}
                 size="xs"
                 onClick={turnaroundDrawerH.open}
@@ -429,7 +437,7 @@ function RoomBedTab({
                 label: "TAT (min)",
                 render: (r: RoomTurnaround) =>
                   r.turnaround_minutes != null ? (
-                    <Badge color={turnaroundColor(r.turnaround_minutes)}>
+                    <Badge tone={turnaroundColor(r.turnaround_minutes)}>
                       {r.turnaround_minutes}m
                     </Badge>
                   ) : (
@@ -443,7 +451,7 @@ function RoomBedTab({
                   r.ready_at ? (
                     new Date(r.ready_at).toLocaleString()
                   ) : (
-                    <Badge color="warning">Pending</Badge>
+                    <Badge tone="warning">Pending</Badge>
                   ),
               },
               ...(canManageTurnaround
@@ -478,7 +486,12 @@ function RoomBedTab({
           Cleaning Tasks
         </Text>
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} size="xs" onClick={taskDrawerH.open}>
+          <Button
+            tone="primary"
+            leftSection={<IconPlus size={16} />}
+            size="xs"
+            onClick={taskDrawerH.open}
+          >
             New Task
           </Button>
         )}
@@ -503,7 +516,7 @@ function RoomBedTab({
             key: "status",
             label: "Status",
             render: (r: CleaningTask) => (
-              <Badge color={taskStatusColors[r.status]}>{r.status}</Badge>
+              <Badge tone={taskStatusColors[r.status]}>{r.status}</Badge>
             ),
           },
           ...(canManage
@@ -584,7 +597,11 @@ function RoomBedTab({
             value={taskForm.notes ?? ""}
             onChange={(e) => setTaskForm({ ...taskForm, notes: e.target.value })}
           />
-          <Button onClick={() => createTaskM.mutate(taskForm)} loading={createTaskM.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createTaskM.mutate(taskForm)}
+            loading={createTaskM.isPending}
+          >
             Create Task
           </Button>
         </Stack>
@@ -605,6 +622,7 @@ function RoomBedTab({
             onChange={(e) => setTurnaroundForm({ ...turnaroundForm, cleaned_by: e.target.value })}
           />
           <Button
+            tone="primary"
             onClick={() => createTurnaroundM.mutate(turnaroundForm)}
             loading={createTurnaroundM.isPending}
           >
@@ -696,7 +714,12 @@ function SchedulesTab({
           Cleaning Schedules
         </Text>
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} size="xs" onClick={schedDrawerH.open}>
+          <Button
+            tone="primary"
+            leftSection={<IconPlus size={16} />}
+            size="xs"
+            onClick={schedDrawerH.open}
+          >
             New Schedule
           </Button>
         )}
@@ -720,7 +743,7 @@ function SchedulesTab({
             key: "is_active",
             label: "Status",
             render: (r: CleaningSchedule) => (
-              <Badge color={r.is_active ? "success" : "slate"}>
+              <Badge tone={r.is_active ? "success" : "neutral"}>
                 {r.is_active ? "Active" : "Inactive"}
               </Badge>
             ),
@@ -738,13 +761,18 @@ function SchedulesTab({
             </Text>
             {canManagePest && (
               <Group gap="xs">
-                <Button leftSection={<IconPlus size={16} />} size="xs" onClick={pestDrawerH.open}>
+                <Button
+                  tone="primary"
+                  leftSection={<IconPlus size={16} />}
+                  size="xs"
+                  onClick={pestDrawerH.open}
+                >
                   New Schedule
                 </Button>
                 <Button
+                  tone="secondary"
                   leftSection={<IconBug size={16} />}
                   size="xs"
-                  variant="light"
                   onClick={pestLogDrawerH.open}
                 >
                   Record Treatment
@@ -777,7 +805,7 @@ function SchedulesTab({
                 label: "Next Due",
                 render: (r: PestControlSchedule) =>
                   r.next_due ? (
-                    <Badge color={new Date(r.next_due) < new Date() ? "danger" : "success"}>
+                    <Badge tone={new Date(r.next_due) < new Date() ? "danger" : "success"}>
                       {r.next_due}
                     </Badge>
                   ) : (
@@ -856,7 +884,11 @@ function SchedulesTab({
             value={schedForm.notes ?? ""}
             onChange={(e) => setSchedForm({ ...schedForm, notes: e.target.value })}
           />
-          <Button onClick={() => createSchedM.mutate(schedForm)} loading={createSchedM.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createSchedM.mutate(schedForm)}
+            loading={createSchedM.isPending}
+          >
             Create Schedule
           </Button>
         </Stack>
@@ -893,7 +925,11 @@ function SchedulesTab({
             value={pestForm.notes ?? ""}
             onChange={(e) => setPestForm({ ...pestForm, notes: e.target.value })}
           />
-          <Button onClick={() => createPestM.mutate(pestForm)} loading={createPestM.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createPestM.mutate(pestForm)}
+            loading={createPestM.isPending}
+          >
             Create Schedule
           </Button>
         </Stack>
@@ -936,6 +972,7 @@ function SchedulesTab({
             onChange={(e) => setPestLogForm({ ...pestLogForm, certificate_no: e.target.value })}
           />
           <Button
+            tone="primary"
             onClick={() => createPestLogM.mutate(pestLogForm)}
             loading={createPestLogM.isPending}
           >
@@ -1037,7 +1074,12 @@ function LinenTab({
               Linen Items
             </Text>
             {canCreate && (
-              <Button leftSection={<IconPlus size={16} />} size="xs" onClick={linenDrawerH.open}>
+              <Button
+                tone="primary"
+                leftSection={<IconPlus size={16} />}
+                size="xs"
+                onClick={linenDrawerH.open}
+              >
                 Add Item
               </Button>
             )}
@@ -1053,7 +1095,7 @@ function LinenTab({
                 key: "current_status",
                 label: "Status",
                 render: (r: LinenItem) => (
-                  <Badge color={linenStatusColors[r.current_status]}>{r.current_status}</Badge>
+                  <Badge tone={linenStatusColors[r.current_status]}>{r.current_status}</Badge>
                 ),
               },
               {
@@ -1061,9 +1103,9 @@ function LinenTab({
                 label: "Washes",
                 render: (r: LinenItem) => {
                   const pct = (r.wash_count / r.max_washes) * 100;
-                  const color = pct > 80 ? "danger" : pct > 50 ? "warning" : "success";
+                  const tone: BadgeTone = pct > 80 ? "danger" : pct > 50 ? "warning" : "success";
                   return (
-                    <Badge color={color}>
+                    <Badge tone={tone}>
                       {r.wash_count}/{r.max_washes}
                     </Badge>
                   );
@@ -1101,9 +1143,10 @@ function LinenTab({
               />
               {contaminationFilter && (
                 <Badge
-                  color={
-                    contaminationMeta[contaminationFilter as LinenContaminationTypeValue]?.color ??
-                    "slate"
+                  tone={
+                    CONTAMINATION_BADGE_TONE[
+                      contaminationMeta[contaminationFilter as LinenContaminationTypeValue]?.color
+                    ] ?? "neutral"
                   }
                   size="sm"
                 >
@@ -1118,9 +1161,9 @@ function LinenTab({
             </Group>
             {canCreate && (
               <Button
+                tone="secondary"
                 leftSection={<IconPlus size={16} />}
                 size="xs"
-                variant="light"
                 onClick={movementDrawerH.open}
               >
                 Record Movement
@@ -1177,7 +1220,7 @@ function LinenTab({
                     contaminationMeta[r.contamination_type as LinenContaminationTypeValue];
                   return meta ? (
                     <Badge
-                      color={meta.color}
+                      tone={CONTAMINATION_BADGE_TONE[meta.color] ?? "neutral"}
                       variant="filled"
                       leftSection={(() => {
                         const I = meta.icon;
@@ -1187,7 +1230,7 @@ function LinenTab({
                       {meta.label}
                     </Badge>
                   ) : (
-                    <Badge color="slate">{r.contamination_type}</Badge>
+                    <Badge tone="neutral">{r.contamination_type}</Badge>
                   );
                 },
               },
@@ -1209,7 +1252,12 @@ function LinenTab({
               Laundry Batches
             </Text>
             {canManageLaundry && (
-              <Button leftSection={<IconPlus size={16} />} size="xs" onClick={batchDrawerH.open}>
+              <Button
+                tone="primary"
+                leftSection={<IconPlus size={16} />}
+                size="xs"
+                onClick={batchDrawerH.open}
+              >
                 New Batch
               </Button>
             )}
@@ -1239,7 +1287,7 @@ function LinenTab({
                 key: "contamination_type",
                 label: "Type",
                 render: (r: LaundryBatch) => (
-                  <Badge color={r.contamination_type === "regular" ? "success" : "danger"}>
+                  <Badge tone={r.contamination_type === "regular" ? "success" : "danger"}>
                     {r.contamination_type}
                   </Badge>
                 ),
@@ -1248,7 +1296,7 @@ function LinenTab({
                 key: "status",
                 label: "Status",
                 render: (r: LaundryBatch) => (
-                  <Badge color={r.status === "completed" ? "success" : "primary"}>{r.status}</Badge>
+                  <Badge tone={r.status === "completed" ? "success" : "primary"}>{r.status}</Badge>
                 ),
               },
               ...(canManageLaundry
@@ -1314,7 +1362,11 @@ function LinenTab({
             value={linenForm.notes ?? ""}
             onChange={(e) => setLinenForm({ ...linenForm, notes: e.target.value })}
           />
-          <Button onClick={() => createLinenM.mutate(linenForm)} loading={createLinenM.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createLinenM.mutate(linenForm)}
+            loading={createLinenM.isPending}
+          >
             Add Item
           </Button>
         </Stack>
@@ -1362,6 +1414,7 @@ function LinenTab({
             onChange={(e) => setMovementForm({ ...movementForm, recorded_by: e.target.value })}
           />
           <Button
+            tone="primary"
             onClick={() => createMovementM.mutate(movementForm)}
             loading={createMovementM.isPending}
           >
@@ -1428,7 +1481,11 @@ function LinenTab({
             value={batchForm.operator_name ?? ""}
             onChange={(e) => setBatchForm({ ...batchForm, operator_name: e.target.value })}
           />
-          <Button onClick={() => createBatchM.mutate(batchForm)} loading={createBatchM.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createBatchM.mutate(batchForm)}
+            loading={createBatchM.isPending}
+          >
             Start Batch
           </Button>
         </Stack>
@@ -1481,7 +1538,12 @@ function ParAuditTab({ canList, canManage }: { canList: boolean; canManage: bool
           Linen Par Levels
         </Text>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} size="xs" onClick={parDrawerH.open}>
+          <Button
+            tone="primary"
+            leftSection={<IconPlus size={16} />}
+            size="xs"
+            onClick={parDrawerH.open}
+          >
             Set Par Level
           </Button>
         )}
@@ -1501,13 +1563,13 @@ function ParAuditTab({ canList, canManage }: { canList: boolean; canManage: bool
             key: "current_stock",
             label: "Current Stock",
             render: (r: LinenParLevel) => {
-              const color =
+              const tone: BadgeTone =
                 r.current_stock <= r.reorder_level
                   ? "danger"
                   : r.current_stock < r.par_level
                     ? "warning"
                     : "success";
-              return <Badge color={color}>{r.current_stock}</Badge>;
+              return <Badge tone={tone}>{r.current_stock}</Badge>;
             },
           },
           {
@@ -1544,9 +1606,9 @@ function ParAuditTab({ canList, canManage }: { canList: boolean; canManage: bool
             label: "Replacement",
             render: (r: LinenCondemnation) =>
               r.replacement_requested ? (
-                <Badge color="primary">Requested</Badge>
+                <Badge tone="primary">Requested</Badge>
               ) : (
-                <Badge color="slate">No</Badge>
+                <Badge tone="neutral">No</Badge>
               ),
           },
         ]}
@@ -1585,7 +1647,11 @@ function ParAuditTab({ canList, canManage }: { canList: boolean; canManage: bool
             onChange={(v) => setParForm({ ...parForm, reorder_level: Number(v) })}
             min={0}
           />
-          <Button onClick={() => upsertParM.mutate(parForm)} loading={upsertParM.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => upsertParM.mutate(parForm)}
+            loading={upsertParM.isPending}
+          >
             Save
           </Button>
         </Stack>
@@ -1764,7 +1830,7 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
               style={{ borderLeft: `4px solid ${meta.color}` }}
             >
               <Group justify="space-between" mb="xs">
-                <Badge color={meta.mantineColor} variant="filled" size="lg">
+                <Badge tone={meta.mantineColor} variant="filled" size="lg">
                   {meta.label}
                 </Badge>
                 <Text size="xs" c="dimmed">
@@ -1827,7 +1893,12 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
           />
         </Group>
         {canCreate && (
-          <Button leftSection={<IconTruck size={16} />} size="xs" onClick={openManifestDrawer}>
+          <Button
+            tone="primary"
+            leftSection={<IconTruck size={16} />}
+            size="xs"
+            onClick={openManifestDrawer}
+          >
             Transport Manifest
           </Button>
         )}
@@ -1860,7 +1931,7 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
             render: (r: BiowasteRecord) => {
               const meta = BMW_CATEGORY_META[r.waste_category];
               return (
-                <Badge color={meta?.mantineColor ?? "slate"} variant="filled">
+                <Badge tone={meta?.mantineColor ?? "neutral"} variant="filled">
                   {meta?.label ?? r.waste_category}
                 </Badge>
               );
@@ -1891,13 +1962,11 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
             label: "Manifest #",
             render: (r: BiowasteRecord) =>
               r.manifest_number ? (
-                <Badge color="teal" variant="light" leftSection={<IconTruck size={12} />}>
+                <Badge tone="success" leftSection={<IconTruck size={12} />}>
                   {r.manifest_number}
                 </Badge>
               ) : (
-                <Badge color="danger" variant="light">
-                  No manifest
-                </Badge>
+                <Badge tone="danger">No manifest</Badge>
               ),
           },
           {
@@ -1905,13 +1974,9 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
             label: "Evidence",
             render: (r: BiowasteRecord) =>
               r.disposal_vendor && r.manifest_number ? (
-                <Badge color="success" variant="light">
-                  NABH ready
-                </Badge>
+                <Badge tone="success">NABH ready</Badge>
               ) : (
-                <Badge color="orange" variant="light">
-                  Needs manifest
-                </Badge>
+                <Badge tone="warning">Needs manifest</Badge>
               ),
           },
         ]}
@@ -1924,9 +1989,9 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
         </Text>
         {canCreate && (
           <Button
+            tone="primary"
             leftSection={<IconAlertTriangle size={16} />}
             size="xs"
-            color="orange"
             onClick={sharpModalH.open}
           >
             Replace Sharp Container
@@ -1942,17 +2007,17 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
             key: "category",
             label: "Waste Category",
             render: (r: BmwScheduleEntry) => {
-              const bmwColorMap: Record<string, string> = {
+              const bmwColorMap: Record<string, BadgeTone> = {
                 yellow: "warning",
                 red: "danger",
                 blue: "primary",
-                white_translucent: "slate",
-                cytotoxic: "violet",
-                chemical: "orange",
-                radioactive: "violet",
+                white_translucent: "neutral",
+                cytotoxic: "accent",
+                chemical: "warning",
+                radioactive: "accent",
               };
               return (
-                <Badge color={bmwColorMap[r.category] ?? "slate"} variant="filled">
+                <Badge tone={bmwColorMap[r.category] ?? "neutral"} variant="filled">
                   {r.category.replace(/_/g, " ")}
                 </Badge>
               );
@@ -2014,6 +2079,7 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
             minRows={3}
           />
           <Button
+            tone="primary"
             onClick={() => {
               if (!sharpForm.location_id) return;
               sharpReplacementMut.mutate({
@@ -2023,7 +2089,6 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
               });
             }}
             loading={sharpReplacementMut.isPending}
-            color="orange"
           >
             Confirm Replacement
           </Button>
@@ -2150,6 +2215,7 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
             placeholder="Additional transport notes"
           />
           <Button
+            tone="primary"
             type="submit"
             loading={createBiowasteMut.isPending}
             leftSection={<IconTruck size={16} />}

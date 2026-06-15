@@ -3,9 +3,7 @@ import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
-  Badge,
   Box,
-  Button,
   Card,
   Drawer,
   Group,
@@ -94,6 +92,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
 import { DataTable, PageHeader, TableValueBadge } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   DAY_OPTIONS,
   DEFAULT_DISPLAY_CONFIG_FORM_VALUES,
@@ -720,7 +719,7 @@ function PatientFlowHub({
             modules.
           </Text>
         </div>
-        <Badge size="sm" variant="light" color="primary" leftSection={<IconDoorEnter size={12} />}>
+        <Badge size="sm" tone="primary" leftSection={<IconDoorEnter size={12} />}>
           Intake
         </Badge>
       </Group>
@@ -740,15 +739,14 @@ function PatientFlowHub({
                   <Group gap="sm" wrap="nowrap">
                     <Badge
                       size="lg"
-                      variant="light"
-                      color={action.enabled ? "primary" : "slate"}
+                      tone={action.enabled ? "primary" : "neutral"}
                       leftSection={action.icon}
                     >
                       {action.module}
                     </Badge>
                   </Group>
                   {!action.enabled && (
-                    <Badge size="xs" variant="light" color="slate">
+                    <Badge size="xs" tone="neutral">
                       No access
                     </Badge>
                   )}
@@ -762,17 +760,17 @@ function PatientFlowHub({
                 {(metadata.activationEvents.length > 0 || metadata.emittedEvent) && (
                   <Group gap={4}>
                     {metadata.activationEvents.slice(0, 2).map((eventName) => (
-                      <Badge key={eventName} size="xs" variant="light" color="blue">
+                      <Badge key={eventName} size="xs" tone="info">
                         after {eventLabel(eventName)}
                       </Badge>
                     ))}
                     {metadata.activationEvents.length > 2 && (
-                      <Badge size="xs" variant="light" color="blue">
+                      <Badge size="xs" tone="info">
                         +{metadata.activationEvents.length - 2}
                       </Badge>
                     )}
                     {metadata.emittedEvent && (
-                      <Badge size="xs" variant="light" color="green">
+                      <Badge size="xs" tone="success">
                         emits {eventLabel(metadata.emittedEvent)}
                       </Badge>
                     )}
@@ -791,8 +789,8 @@ function PatientFlowHub({
                   </Text>
                 )}
                 <Button
+                  tone={action.enabled ? "secondary" : "ghost"}
                   mt="auto"
-                  variant={action.enabled ? "light" : "subtle"}
                   rightSection={<IconArrowRight size={16} />}
                   disabled={!action.enabled}
                   onClick={() => navigate(action.path)}
@@ -878,6 +876,14 @@ const TRIAGE_LANES: ReadonlyArray<{
   { color: "green", key: "green", label: "Green" },
   { color: "blue", key: "blue", label: "Blue" },
 ];
+
+const TRIAGE_LANE_BADGE_TONES: Record<string, BadgeTone> = {
+  red: "danger",
+  orange: "warning",
+  yellow: "warning",
+  green: "success",
+  blue: "info",
+};
 
 interface TokenBoardsTabProps {
   canViewOpdQueue: boolean;
@@ -980,7 +986,7 @@ function TokenBoardsTab({
                 })}
           </Text>
         </Stack>
-        <Badge variant="light" color="teal">
+        <Badge tone="success">
           {isKioskDisplay ? t("tokenBoards.mode.kiosk") : t("tokenBoards.mode.autoRefresh")}
         </Badge>
       </Group>
@@ -1016,8 +1022,8 @@ function TokenBoardsTab({
           {!isKioskDisplay && (
             <Group gap="xs" wrap="wrap">
               <Button
+                tone={activeSurface === "all" ? "primary" : "secondary"}
                 size="xs"
-                variant={activeSurface === "all" ? "filled" : "light"}
                 onClick={() => handleBoardFilterChange("all")}
               >
                 {t("tokenBoards.filters.allBoards")}
@@ -1025,8 +1031,8 @@ function TokenBoardsTab({
               {accessibleSurfaces.map((surface) => (
                 <Button
                   key={surface.id}
+                  tone={activeSurface === surface.id ? "primary" : "secondary"}
                   size="xs"
-                  variant={activeSurface === surface.id ? "filled" : "light"}
                   onClick={() => handleBoardFilterChange(surface.id)}
                 >
                   {surface.title}
@@ -1279,7 +1285,7 @@ function TokenBoardCard({
               {surface.subtitle}
             </Text>
           </Stack>
-          <Badge color={isError ? "danger" : "teal"} variant="light">
+          <Badge tone={isError ? "danger" : "success"}>
             {isError
               ? t("tokenBoards.card.feedError")
               : t("tokenBoards.card.sync", { time: lastUpdatedLabel(lastUpdatedAt) })}
@@ -1336,15 +1342,15 @@ function TokenBoardLaunchMeta({ surface }: { surface: TokenBoardSurfaceDefinitio
     <Stack gap={6}>
       <Group gap={6} wrap="wrap">
         {surface.targets.tvAppCodes.map((appCode) => (
-          <Badge key={appCode} size="xs" variant="outline" color="gray">
+          <Badge key={appCode} size="xs" variant="outline" tone="neutral">
             {appCode}
           </Badge>
         ))}
-        <Badge size="xs" variant="light" color="blue">
+        <Badge size="xs" tone="info">
           {t("tokenBoards.launch.mobile")}: {surface.targets.mobileRoute} ·{" "}
           {surface.targets.mobileParams.surface}
         </Badge>
-        <Badge size="xs" variant="light" color="green">
+        <Badge size="xs" tone="success">
           {surface.targets.tvDisplayType}
         </Badge>
       </Group>
@@ -1365,16 +1371,16 @@ function TokenBoardLaunchMeta({ surface }: { surface: TokenBoardSurfaceDefinitio
   );
 }
 
-function readinessColor(tone: TokenBoardReadinessTone) {
+function readinessColor(tone: TokenBoardReadinessTone): BadgeTone {
   switch (tone) {
     case "danger":
-      return "red";
+      return "danger";
     case "warning":
-      return "orange";
+      return "warning";
     case "success":
-      return "teal";
+      return "success";
     default:
-      return "blue";
+      return "info";
   }
 }
 
@@ -1382,11 +1388,7 @@ function TokenBoardReadinessStrip({ items }: { items: TokenBoardReadinessItem[] 
   return (
     <Group gap={6} wrap="wrap">
       {items.map((item) => (
-        <Badge
-          key={`${item.label}-${item.value}`}
-          color={readinessColor(item.tone)}
-          variant="light"
-        >
+        <Badge key={`${item.label}-${item.value}`} tone={readinessColor(item.tone)}>
           {item.label}: {item.value}
         </Badge>
       ))}
@@ -1413,9 +1415,7 @@ function TokenLane({
         <Text size="xs" fw={700} c="dimmed" tt="uppercase">
           {title}
         </Text>
-        <Badge size="xs" variant="light">
-          {tokens.length}
-        </Badge>
+        <Badge size="xs">{tokens.length}</Badge>
       </Group>
       {tokens.length === 0 ? (
         <Box
@@ -1459,9 +1459,7 @@ function TokenLane({
                       </Text>
                     </Stack>
                   </Group>
-                  <Badge color={tokenStatusBadgeColor(token.signal.tone)} variant="light">
-                    {statusText}
-                  </Badge>
+                  <Badge tone={tokenStatusBadgeColor(token.signal.tone)}>{statusText}</Badge>
                 </Group>
               </Box>
             );
@@ -1481,6 +1479,8 @@ function ErTriageLane({
   label: string;
   tokens: ErTriageToken[];
 }) {
+  const laneTone: BadgeTone = (color ? TRIAGE_LANE_BADGE_TONES[color] : undefined) ?? "neutral";
+
   return (
     <Box
       p="sm"
@@ -1502,13 +1502,13 @@ function ErTriageLane({
         </Stack>
         <Group gap={4} justify="flex-end">
           {tokens.length === 0 ? (
-            <Badge variant="light">Clear</Badge>
+            <Badge>Clear</Badge>
           ) : (
             tokens.map((token) => (
               <Badge
                 key={`${token.triage_level}-${token.token_number}`}
-                color={token.is_overdue ? "danger" : color}
-                variant={token.is_overdue ? "filled" : "light"}
+                tone={token.is_overdue ? "danger" : laneTone}
+                variant={token.is_overdue ? "filled" : undefined}
               >
                 {token.token_number}
               </Badge>
@@ -1520,18 +1520,18 @@ function ErTriageLane({
   );
 }
 
-function tokenStatusBadgeColor(tone: TokenBoardStatusTone) {
+function tokenStatusBadgeColor(tone: TokenBoardStatusTone): BadgeTone {
   switch (tone) {
     case "success":
-      return "teal";
+      return "success";
     case "warning":
-      return "orange";
+      return "warning";
     case "danger":
-      return "red";
+      return "danger";
     case "info":
-      return "blue";
+      return "info";
     default:
-      return "slate";
+      return "neutral";
   }
 }
 
@@ -1821,6 +1821,7 @@ function VisitorManagementTab({
           <Text fw={600}>Visitor Registrations</Text>
           {canCreate && (
             <Button
+              tone="primary"
               size="xs"
               leftSection={<IconPlus size={14} />}
               onClick={visitorDrawerHandlers.open}
@@ -1925,7 +1926,7 @@ function VisitorManagementTab({
             error={visitorForm.formState.errors.purpose?.message}
             {...visitorForm.register("purpose")}
           />
-          <Button type="submit" loading={createVisitor.isPending}>
+          <Button tone="primary" type="submit" loading={createVisitor.isPending}>
             Register
           </Button>
         </Stack>
@@ -1961,7 +1962,12 @@ function VisitorManagementTab({
               />
             )}
           />
-          <Button type="submit" loading={createPass.isPending} disabled={!selectedRegistration}>
+          <Button
+            tone="primary"
+            type="submit"
+            loading={createPass.isPending}
+            disabled={!selectedRegistration}
+          >
             Issue Pass
           </Button>
         </Stack>
@@ -2145,7 +2151,7 @@ function QueueConfigTab({
       key: "is_active",
       label: "Active",
       render: (r: VisitingHours) =>
-        r.is_active ? <Badge color="success">Yes</Badge> : <Badge color="slate">No</Badge>,
+        r.is_active ? <Badge tone="success">Yes</Badge> : <Badge tone="neutral">No</Badge>,
     },
   ];
 
@@ -2157,6 +2163,7 @@ function QueueConfigTab({
           <Text fw={600}>Visiting Hours</Text>
           {canManageVisitors && (
             <Button
+              tone="primary"
               size="xs"
               leftSection={<IconPlus size={14} />}
               onClick={hoursDrawerHandlers.open}
@@ -2179,6 +2186,7 @@ function QueueConfigTab({
           <Text fw={600}>Queue Priority Rules</Text>
           {canManage && (
             <Button
+              tone="primary"
               size="xs"
               leftSection={<IconPlus size={14} />}
               onClick={ruleDrawerHandlers.open}
@@ -2201,6 +2209,7 @@ function QueueConfigTab({
           <Text fw={600}>Display Configuration</Text>
           {canManage && (
             <Button
+              tone="primary"
               size="xs"
               leftSection={<IconPlus size={14} />}
               onClick={configDrawerHandlers.open}
@@ -2257,7 +2266,7 @@ function QueueConfigTab({
               />
             )}
           />
-          <Button type="submit" loading={createRule.isPending}>
+          <Button tone="primary" type="submit" loading={createRule.isPending}>
             Save
           </Button>
         </Stack>
@@ -2351,7 +2360,7 @@ function QueueConfigTab({
               />
             )}
           />
-          <Button type="submit" loading={createConfig.isPending}>
+          <Button tone="primary" type="submit" loading={createConfig.isPending}>
             Save
           </Button>
         </Stack>
@@ -2409,7 +2418,7 @@ function QueueConfigTab({
               />
             )}
           />
-          <Button type="submit" loading={createHours.isPending}>
+          <Button tone="primary" type="submit" loading={createHours.isPending}>
             Save
           </Button>
         </Stack>
@@ -2517,7 +2526,12 @@ function EnquiryDeskTab({ canCreate, canManage }: { canCreate: boolean; canManag
       <Group justify="space-between">
         <Text fw={600}>Enquiry Log</Text>
         {canCreate && (
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={drawerHandlers.open}>
+          <Button
+            tone="primary"
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={drawerHandlers.open}
+          >
             Log Enquiry
           </Button>
         )}
@@ -2570,7 +2584,7 @@ function EnquiryDeskTab({ canCreate, canManage }: { canCreate: boolean; canManag
             rows={3}
             {...enquiryForm.register("response_text")}
           />
-          <Button type="submit" loading={createEnquiry.isPending}>
+          <Button tone="primary" type="submit" loading={createEnquiry.isPending}>
             Log Enquiry
           </Button>
         </Stack>
@@ -2720,7 +2734,7 @@ function QueueMetricsTab() {
       label: "Currently Waiting",
       render: (r) => (
         <Badge
-          color={r.current_waiting > 10 ? "danger" : r.current_waiting > 5 ? "orange" : "success"}
+          tone={r.current_waiting > 10 ? "danger" : r.current_waiting > 5 ? "warning" : "success"}
         >
           {r.current_waiting}
         </Badge>

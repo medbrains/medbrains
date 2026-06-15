@@ -3,8 +3,6 @@ import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Drawer,
   Group,
@@ -69,6 +67,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   schedulingInteger,
   schedulingNumber,
@@ -85,24 +84,24 @@ import { schedulingService } from "@/services/scheduling.service";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-const RISK_LEVEL_COLORS: Record<string, string> = {
+const RISK_LEVEL_COLORS: Record<string, BadgeTone> = {
   low: "success",
   medium: "warning",
   high: "danger",
 };
 
-const PRIORITY_COLORS: Record<string, string> = {
-  low: "slate",
+const PRIORITY_COLORS: Record<string, BadgeTone> = {
+  low: "neutral",
   normal: "primary",
-  high: "orange",
+  high: "warning",
   urgent: "danger",
 };
 
-const WAITLIST_STATUS_COLORS: Record<string, string> = {
+const WAITLIST_STATUS_COLORS: Record<string, BadgeTone> = {
   waiting: "warning",
   offered: "primary",
   booked: "success",
-  expired: "slate",
+  expired: "neutral",
   cancelled: "danger",
 };
 
@@ -308,7 +307,7 @@ function PredictionsTab({ canScore }: { canScore: boolean }) {
       key: "risk_level",
       label: "Risk Level",
       render: (r) => (
-        <Badge color={RISK_LEVEL_COLORS[r.risk_level] ?? "slate"} variant="light" size="sm">
+        <Badge tone={RISK_LEVEL_COLORS[r.risk_level] ?? "neutral"} size="sm">
           {r.risk_level}
         </Badge>
       ),
@@ -362,6 +361,7 @@ function PredictionsTab({ canScore }: { canScore: boolean }) {
         />
         {canScore && (
           <Button
+            tone="primary"
             leftSection={<IconBrain size={16} />}
             onClick={() => scoreBatchMut.mutate()}
             loading={scoreBatchMut.isPending}
@@ -530,7 +530,7 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
       key: "priority",
       label: "Priority",
       render: (r) => (
-        <Badge color={PRIORITY_COLORS[r.priority] ?? "slate"} variant="light" size="sm">
+        <Badge tone={PRIORITY_COLORS[r.priority] ?? "neutral"} size="sm">
           {r.priority}
         </Badge>
       ),
@@ -539,7 +539,7 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
       key: "status",
       label: "Status",
       render: (r) => (
-        <Badge color={WAITLIST_STATUS_COLORS[r.status] ?? "slate"} variant="light" size="sm">
+        <Badge tone={WAITLIST_STATUS_COLORS[r.status] ?? "neutral"} size="sm">
           {r.status}
         </Badge>
       ),
@@ -620,7 +620,7 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
         <Group gap="sm">
           {canAutoFill && (
             <Button
-              variant="light"
+              tone="secondary"
               leftSection={<IconPlayerPlay size={16} />}
               onClick={() => autoFillMut.mutate()}
               loading={autoFillMut.isPending}
@@ -630,6 +630,7 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
           )}
           {canManage && (
             <Button
+              tone="primary"
               leftSection={<IconPlus size={16} />}
               onClick={() => {
                 reset(emptyWaitlistForm);
@@ -722,7 +723,7 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
             control={control}
             render={({ field }) => <Textarea label="Reason" {...field} />}
           />
-          <Button type="submit" loading={createMut.isPending}>
+          <Button tone="primary" type="submit" loading={createMut.isPending}>
             Create Entry
           </Button>
         </Stack>
@@ -746,7 +747,7 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
             onChange={(e) => setOfferedAppointmentId(e.currentTarget.value)}
             required
           />
-          <Button onClick={handleOffer} loading={offerMut.isPending}>
+          <Button tone="primary" onClick={handleOffer} loading={offerMut.isPending}>
             Offer Slot
           </Button>
         </Stack>
@@ -895,7 +896,7 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
       key: "is_active",
       label: "Active",
       render: (r) => (
-        <Badge color={r.is_active ? "success" : "danger"} variant="light" size="sm">
+        <Badge tone={r.is_active ? "success" : "danger"} size="sm">
           {r.is_active ? "Active" : "Inactive"}
         </Badge>
       ),
@@ -938,6 +939,7 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
       <Group justify="flex-end">
         {canManage && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               setEditing(null);
@@ -1054,7 +1056,7 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
               )}
             />
           )}
-          <Button type="submit" loading={createMut.isPending || updateMut.isPending}>
+          <Button tone="primary" type="submit" loading={createMut.isPending || updateMut.isPending}>
             {editing ? "Update Rule" : "Create Rule"}
           </Button>
         </Stack>
@@ -1261,6 +1263,7 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
             style={{ flex: 1 }}
           />
           <Button
+            tone="primary"
             onClick={() => promoteMut.mutate()}
             loading={promoteMut.isPending}
             disabled={!promoteSlotId}
@@ -1274,6 +1277,7 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
       {canManage && (
         <Group gap="sm">
           <Button
+            tone="primary"
             leftSection={<IconCalendarPlus size={16} />}
             onClick={() => {
               resetRecurring(emptyRecurringForm);
@@ -1283,8 +1287,7 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
             Create Recurring Slots
           </Button>
           <Button
-            variant="light"
-            color="danger"
+            tone="subtle-danger"
             leftSection={<IconLock size={16} />}
             onClick={() => {
               resetBlock(emptyBlockForm);
@@ -1396,7 +1399,7 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
               />
             )}
           />
-          <Button type="submit" loading={recurringMut.isPending}>
+          <Button tone="primary" type="submit" loading={recurringMut.isPending}>
             Create Recurring Slots
           </Button>
         </Stack>
@@ -1469,7 +1472,7 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
               />
             )}
           />
-          <Button color="danger" type="submit" loading={blockMut.isPending}>
+          <Button tone="danger" type="submit" loading={blockMut.isPending}>
             Create Block
           </Button>
         </Stack>

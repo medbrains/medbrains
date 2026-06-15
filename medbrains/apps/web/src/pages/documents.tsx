@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Checkbox,
   Drawer,
@@ -64,8 +62,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
-import { statusColor } from "@/lib/status-colors";
 import { DocumentPreviewModal } from "@/components/DocumentPreview/DocumentPreviewModal";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { documentsService } from "@/services/documents.service";
 
@@ -203,22 +201,39 @@ const WATERMARKS: { value: string; label: string }[] = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
-const statusColors: Record<string, string> = {
-  draft: "slate",
+const statusColors: Record<string, BadgeTone> = {
+  draft: "neutral",
   generated: "primary",
   printed: "success",
-  downloaded: "teal",
+  downloaded: "success",
   voided: "danger",
-  superseded: "orange",
+  superseded: "warning",
 };
 
+const REVIEW_STATUS_TONES: Record<string, BadgeTone> = {
+  pending: "warning",
+  reviewed: "success",
+  overdue: "danger",
+  gray: "neutral",
+  slate: "neutral",
+  teal: "success",
+  orange: "warning",
+  red: "danger",
+  blue: "info",
+  primary: "primary",
+  violet: "accent",
+};
 
-const printJobStatusColors: Record<PrintJob["status"], string> = {
+function reviewStatusTone(status: string): BadgeTone {
+  return REVIEW_STATUS_TONES[status] ?? "neutral";
+}
+
+const printJobStatusColors: Record<PrintJob["status"], BadgeTone> = {
   queued: "warning",
   printing: "primary",
   completed: "success",
   failed: "danger",
-  cancelled: "slate",
+  cancelled: "neutral",
 };
 
 const DEFAULT_PRINTER_FORM: CreatePrinterFormInput = {
@@ -391,6 +406,13 @@ const PRINT_ROUTING_REQUIREMENTS: readonly PrintRoutingRequirement[] = [
     standardRefs: ["MRD retention and reprint audit", "NABH IMS"],
   },
 ];
+
+function readinessTone(color: string): BadgeTone {
+  if (color === "success") return "success";
+  if (color === "danger") return "danger";
+  if (color === "orange") return "warning";
+  return "neutral";
+}
 
 function printerCapabilities(form: CreatePrinterFormInput) {
   return {
@@ -695,11 +717,7 @@ function TemplatesTab() {
     {
       key: "category",
       label: "Category",
-      render: (row: DocumentTemplate) => (
-        <Badge size="sm" variant="light">
-          {row.category.replace(/_/g, " ")}
-        </Badge>
-      ),
+      render: (row: DocumentTemplate) => <Badge size="sm">{row.category.replace(/_/g, " ")}</Badge>,
     },
     {
       key: "print_format",
@@ -722,15 +740,11 @@ function TemplatesTab() {
       label: "Default",
       render: (row: DocumentTemplate) =>
         row.is_default ? (
-          <Badge size="sm" color="success" variant="light">
+          <Badge size="sm" tone="success">
             Default
           </Badge>
         ) : (
-          <Button
-            variant="subtle"
-            size="compact-xs"
-            onClick={() => setDefaultMutation.mutate(row.id)}
-          >
+          <Button tone="ghost" size="compact-xs" onClick={() => setDefaultMutation.mutate(row.id)}>
             Set Default
           </Button>
         ),
@@ -739,7 +753,7 @@ function TemplatesTab() {
       key: "is_active",
       label: "Status",
       render: (row: DocumentTemplate) => (
-        <Badge size="sm" color={row.is_active ? "success" : "slate"} variant="light">
+        <Badge size="sm" tone={row.is_active ? "success" : "neutral"}>
           {row.is_active ? "Active" : "Inactive"}
         </Badge>
       ),
@@ -790,7 +804,7 @@ function TemplatesTab() {
             w={200}
           />
           {canCreate && (
-            <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
               Create Template
             </Button>
           )}
@@ -988,10 +1002,11 @@ function TemplatesTab() {
           />
 
           <Group justify="flex-end" mt="md">
-            <Button variant="subtle" onClick={closeDrawer}>
+            <Button tone="ghost" onClick={closeDrawer}>
               Cancel
             </Button>
             <Button
+              tone="primary"
               onClick={handleSubmit}
               loading={createMutation.isPending || updateMutation.isPending}
               disabled={!name || (!editingTemplate && !code)}
@@ -1064,16 +1079,14 @@ function OutputsTab() {
       key: "category",
       label: "Category",
       render: (row: DocumentOutput) => (
-        <Badge size="sm" variant="light">
-          {row.category?.replace(/_/g, " ") ?? "—"}
-        </Badge>
+        <Badge size="sm">{row.category?.replace(/_/g, " ") ?? "—"}</Badge>
       ),
     },
     {
       key: "status",
       label: "Status",
       render: (row: DocumentOutput) => (
-        <Badge size="sm" color={statusColors[row.status] ?? "slate"} variant="light">
+        <Badge size="sm" tone={statusColors[row.status] ?? "neutral"}>
           {row.status}
         </Badge>
       ),
@@ -1085,7 +1098,7 @@ function OutputsTab() {
         <Group gap={4}>
           <Text size="sm">{row.print_count}</Text>
           {row.watermark && row.watermark !== "none" && (
-            <Badge size="xs" color="orange" variant="light">
+            <Badge size="xs" tone="warning">
               {row.watermark}
             </Badge>
           )}
@@ -1283,11 +1296,7 @@ function ReviewScheduleTab() {
       key: "review_status",
       label: "Status",
       render: (row: DocumentFormReviewSchedule) => (
-        <Badge
-          size="sm"
-          color={statusColor(row.review_status ?? "pending") ?? "slate"}
-          variant="light"
-        >
+        <Badge size="sm" tone={reviewStatusTone(row.review_status ?? "pending")}>
           {row.review_status ?? "pending"}
         </Badge>
       ),
@@ -1299,7 +1308,7 @@ function ReviewScheduleTab() {
         <Group gap={4}>
           {canManage && row.review_status !== "reviewed" && (
             <Button
-              variant="subtle"
+              tone="ghost"
               size="xs"
               onClick={() => markReviewedMutation.mutate(row.id)}
               loading={markReviewedMutation.isPending}
@@ -1320,7 +1329,7 @@ function ReviewScheduleTab() {
             NABH-mandated annual form/document review tracking
           </Text>
           {canManage && (
-            <Button leftSection={<IconPlus size={16} />} onClick={openDrawer}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openDrawer}>
               Add Schedule
             </Button>
           )}
@@ -1365,10 +1374,11 @@ function ReviewScheduleTab() {
             rows={3}
           />
           <Group justify="flex-end" mt="md">
-            <Button variant="subtle" onClick={closeDrawer}>
+            <Button tone="ghost" onClick={closeDrawer}>
               Cancel
             </Button>
             <Button
+              tone="primary"
               onClick={() =>
                 createMutation.mutate({
                   template_id: templateId,
@@ -1434,10 +1444,8 @@ function PrintRoutingTab() {
       render: (row: PrintRoutingRequirement) => (
         <Stack gap={3}>
           <Group gap={6}>
-            <Badge variant="light">{row.module}</Badge>
-            <Badge color="gray" variant="light">
-              {row.trigger}
-            </Badge>
+            <Badge>{row.module}</Badge>
+            <Badge tone="neutral">{row.trigger}</Badge>
           </Group>
           <Text size="sm" fw={600}>
             {row.workflow}
@@ -1463,7 +1471,10 @@ function PrintRoutingTab() {
       render: (row: PrintRoutingRequirement) => (
         <Group gap={4}>
           {row.requiredCopies.map((copy) => (
-            <Badge key={copy} color={copy === "customer" || copy === "office" ? "violet" : "teal"}>
+            <Badge
+              key={copy}
+              tone={copy === "customer" || copy === "office" ? "accent" : "success"}
+            >
               {optionLabel(PRINT_COPY_MODES, copy)}
             </Badge>
           ))}
@@ -1476,11 +1487,7 @@ function PrintRoutingTab() {
       render: (row: PrintRoutingRequirement) => (
         <Stack gap={4}>
           {row.printerProfiles.map((profile) => (
-            <Badge
-              key={profile}
-              color={activeProfiles.has(profile) ? "blue" : "orange"}
-              variant="light"
-            >
+            <Badge key={profile} tone={activeProfiles.has(profile) ? "info" : "warning"}>
               {optionLabel(LOGICAL_PRINTER_PROFILES, profile)}
             </Badge>
           ))}
@@ -1507,9 +1514,7 @@ function PrintRoutingTab() {
         const readiness = routingReadiness(row, activeProfiles, activeCopyModes);
         return (
           <Stack gap={4}>
-            <Badge color={readiness.color} variant="light">
-              {readiness.label}
-            </Badge>
+            <Badge tone={readinessTone(readiness.color)}>{readiness.label}</Badge>
             {readiness.missingProfiles.length > 0 && (
               <Text size="xs" c="orange">
                 Missing:{" "}
@@ -1645,9 +1650,7 @@ function PrintQueueTab() {
       key: "status",
       label: "Status",
       render: (row: PrintJob) => (
-        <Badge color={printJobStatusColors[row.status]} variant="light">
-          {row.status}
-        </Badge>
+        <Badge tone={printJobStatusColors[row.status]}>{row.status}</Badge>
       ),
     },
     {
@@ -1704,8 +1707,8 @@ function PrintQueueTab() {
         <Group gap={4} justify="flex-end">
           {canManage && row.status === "queued" && (
             <Button
+              tone="ghost"
               size="xs"
-              variant="subtle"
               leftSection={<IconPrinter size={14} />}
               loading={updateMutation.isPending}
               onClick={() => updateMutation.mutate({ id: row.id, status: "printing" })}
@@ -1715,9 +1718,8 @@ function PrintQueueTab() {
           )}
           {canManage && row.status === "printing" && (
             <Button
+              tone="ghost"
               size="xs"
-              variant="subtle"
-              color="success"
               leftSection={<IconCheck size={14} />}
               loading={updateMutation.isPending}
               onClick={() => updateMutation.mutate({ id: row.id, status: "completed" })}
@@ -1727,9 +1729,8 @@ function PrintQueueTab() {
           )}
           {canManage && (row.status === "queued" || row.status === "printing") && (
             <Button
+              tone="subtle-danger"
               size="xs"
-              variant="subtle"
-              color="danger"
               leftSection={<IconX size={14} />}
               loading={updateMutation.isPending}
               onClick={() =>
@@ -1867,7 +1868,7 @@ function PrintersTab() {
             <Text size="sm" fw={600}>
               {row.name}
             </Text>
-            <Badge color={row.is_active ? "success" : "slate"} variant="light">
+            <Badge tone={row.is_active ? "success" : "neutral"}>
               {row.is_active ? "Active" : "Inactive"}
             </Badge>
           </Group>
@@ -1894,7 +1895,7 @@ function PrintersTab() {
         return (
           <Group gap={4}>
             {copyModes.map((mode) => (
-              <Badge key={mode} variant="light" color="teal">
+              <Badge key={mode} tone="success">
                 {optionLabel(PRINT_COPY_MODES, mode)}
               </Badge>
             ))}
@@ -1954,7 +1955,7 @@ function PrintersTab() {
             </Card>
           </SimpleGrid>
           {canManage && (
-            <Button leftSection={<IconPlus size={16} />} onClick={openCreateDrawer}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreateDrawer}>
               Add Printer
             </Button>
           )}
@@ -2067,11 +2068,9 @@ function PrintersTab() {
           <Card withBorder radius="sm">
             <Stack gap="xs">
               <Group gap="xs">
-                <Badge variant="light">
-                  {optionLabel(LOGICAL_PRINTER_PROFILES, selectedProfile)}
-                </Badge>
+                <Badge>{optionLabel(LOGICAL_PRINTER_PROFILES, selectedProfile)}</Badge>
                 {selectedCopyModes.map((mode) => (
-                  <Badge key={mode} color="teal" variant="light">
+                  <Badge key={mode} tone="success">
                     {optionLabel(PRINT_COPY_MODES, mode)}
                   </Badge>
                 ))}
@@ -2079,10 +2078,10 @@ function PrintersTab() {
             </Stack>
           </Card>
           <Group justify="flex-end" mt="md">
-            <Button variant="subtle" onClick={closeDrawer} type="button">
+            <Button tone="ghost" onClick={closeDrawer} type="button">
               Cancel
             </Button>
-            <Button type="submit" loading={createMutation.isPending}>
+            <Button tone="primary" type="submit" loading={createMutation.isPending}>
               Create
             </Button>
           </Group>

@@ -1,4 +1,4 @@
-import { ActionIcon, Badge, Group, SegmentedControl, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Group, SegmentedControl, Text, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { MedAdminItem, MyTasksResponse, NurseTaskItem } from "@medbrains/types";
 import { IconCheck } from "@tabler/icons-react";
@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { Badge } from "@/components/ui";
 import { careViewService } from "@/services/careView.service";
 
 export function MyTasksTab({ wardId, canManage }: { wardId: string | null; canManage: boolean }) {
@@ -59,7 +60,7 @@ function MedicationsTable({ items, loading }: { items: MedAdminItem[]; loading: 
         <Group gap={4}>
           <Text size="sm">{row.drug_name}</Text>
           {row.is_high_alert && (
-            <Badge size="xs" color="danger" variant="filled">
+            <Badge size="xs" tone="danger" variant="filled">
               HIGH ALERT
             </Badge>
           )}
@@ -81,7 +82,7 @@ function MedicationsTable({ items, loading }: { items: MedAdminItem[]; loading: 
       key: "status",
       label: "Status",
       render: (row) => (
-        <Badge size="sm" color={row.is_overdue ? "danger" : "warning"}>
+        <Badge size="sm" tone={row.is_overdue ? "danger" : "warning"}>
           {row.is_overdue ? "Overdue" : "Pending"}
         </Badge>
       ),
@@ -136,7 +137,7 @@ function NursingTasksTable({
       key: "category",
       label: "Category",
       render: (row) => (
-        <Badge size="xs" variant="light" color="primary">
+        <Badge size="xs" variant="light" tone="primary">
           {row.category ?? "—"}
         </Badge>
       ),
@@ -147,8 +148,8 @@ function NursingTasksTable({
       render: (row) => (
         <Badge
           size="xs"
-          color={
-            row.priority === "stat" ? "danger" : row.priority === "urgent" ? "orange" : "slate"
+          tone={
+            row.priority === "stat" ? "danger" : row.priority === "urgent" ? "warning" : "neutral"
           }
         >
           {row.priority}
@@ -168,7 +169,7 @@ function NursingTasksTable({
       key: "status",
       label: "Status",
       render: (row) => (
-        <Badge size="sm" color={row.is_overdue ? "danger" : "warning"}>
+        <Badge size="sm" tone={row.is_overdue ? "danger" : "warning"}>
           {row.is_overdue ? "Overdue" : "Pending"}
         </Badge>
       ),

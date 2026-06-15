@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Checkbox,
   Drawer,
@@ -72,8 +70,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
-import { statusColor } from "@/lib/status-colors";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   cssdIndicatorTypeOptions,
   cssdInstrumentCategoryOptions,
@@ -88,16 +86,46 @@ import { cssdService } from "@/services/cssd.service";
 
 // ── Label Maps ──────────────────────────────────────────
 
-const statusColors: Record<string, string> = {
+const statusColors: Record<string, BadgeTone> = {
   available: "success",
   in_use: "primary",
   decontaminating: "warning",
-  sterilizing: "orange",
-  sterile: "teal",
+  sterilizing: "warning",
+  sterile: "success",
   damaged: "danger",
-  condemned: "slate",
+  condemned: "neutral",
 };
 
+const STATUS_TONE: Record<string, BadgeTone> = {
+  available: "success",
+  sterile: "success",
+  completed: "success",
+  verified: "success",
+  active: "success",
+  pass: "success",
+  loading: "neutral",
+  pending: "neutral",
+  running: "primary",
+  in_use: "primary",
+  decontaminating: "warning",
+  preparing: "warning",
+  sterilizing: "warning",
+  damaged: "danger",
+  failed: "danger",
+  condemned: "danger",
+  gray: "neutral",
+  slate: "neutral",
+  teal: "success",
+  orange: "warning",
+  red: "danger",
+  blue: "info",
+  primary: "primary",
+  violet: "accent",
+};
+
+function statusBadgeTone(s: string): BadgeTone {
+  return STATUS_TONE[s] ?? "neutral";
+}
 
 const methodLabels: Record<SterilizationMethod, string> = {
   steam: "Steam (Autoclave)",
@@ -210,7 +238,7 @@ function InstrumentsTab() {
       key: "status" as const,
       label: "Status",
       render: (i: CssdInstrument) => (
-        <Badge color={statusColors[i.status] ?? "slate"}>{i.status}</Badge>
+        <Badge tone={statusColors[i.status] ?? "neutral"}>{i.status}</Badge>
       ),
     },
     {
@@ -229,12 +257,12 @@ function InstrumentsTab() {
         </Text>
         <Group>
           {canManageSets && (
-            <Button variant="outline" leftSection={<IconPackage size={16} />} onClick={openSet}>
+            <Button tone="secondary" leftSection={<IconPackage size={16} />} onClick={openSet}>
               New Set
             </Button>
           )}
           {canManage && (
-            <Button leftSection={<IconPlus size={16} />} onClick={openInstr}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openInstr}>
               Add Instrument
             </Button>
           )}
@@ -271,9 +299,9 @@ function InstrumentsTab() {
                   <Table.Td>{s.department ?? "—"}</Table.Td>
                   <Table.Td>
                     {s.is_active ? (
-                      <Badge color="success">Active</Badge>
+                      <Badge tone="success">Active</Badge>
                     ) : (
-                      <Badge color="slate">Inactive</Badge>
+                      <Badge tone="neutral">Inactive</Badge>
                     )}
                   </Table.Td>
                 </Table.Tr>
@@ -350,7 +378,7 @@ function InstrumentsTab() {
               <Textarea label="Notes" {...field} error={instrErrors.notes?.message} />
             )}
           />
-          <Button loading={createInstrMut.isPending} type="submit">
+          <Button tone="primary" loading={createInstrMut.isPending} type="submit">
             Save
           </Button>
         </Stack>
@@ -392,7 +420,7 @@ function InstrumentsTab() {
               <Textarea label="Description" {...field} error={setErrors.description?.message} />
             )}
           />
-          <Button loading={createSetMut.isPending} type="submit">
+          <Button tone="primary" loading={createSetMut.isPending} type="submit">
             Save
           </Button>
         </Stack>
@@ -522,14 +550,14 @@ function SterilizationTab() {
       key: "status" as const,
       label: "Status",
       render: (l: CssdSterilizationLoad) => (
-        <Badge color={statusColor(l.status) ?? "slate"}>{l.status}</Badge>
+        <Badge tone={statusBadgeTone(l.status)}>{l.status}</Badge>
       ),
     },
     {
       key: "is_flash" as const,
       label: "Flash",
       render: (l: CssdSterilizationLoad) =>
-        l.is_flash ? <Badge color="orange">Flash</Badge> : "—",
+        l.is_flash ? <Badge tone="warning">Flash</Badge> : "—",
     },
     {
       key: "created_at" as const,
@@ -586,7 +614,7 @@ function SterilizationTab() {
     <Stack>
       <Group justify="flex-end">
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openLoad}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openLoad}>
             New Load
           </Button>
         )}
@@ -665,7 +693,7 @@ function SterilizationTab() {
               <Textarea label="Notes" {...field} error={loadErrors.notes?.message} />
             )}
           />
-          <Button loading={createLoadMut.isPending} type="submit">
+          <Button tone="primary" loading={createLoadMut.isPending} type="submit">
             Create
           </Button>
         </Stack>
@@ -684,10 +712,8 @@ function SterilizationTab() {
               <Card withBorder>
                 <Stack gap="xs">
                   <Group>
-                    <Badge color={statusColor(selectedLoad.status)}>
-                      {selectedLoad.status}
-                    </Badge>
-                    {selectedLoad.is_flash && <Badge color="orange">Flash</Badge>}
+                    <Badge tone={statusBadgeTone(selectedLoad.status)}>{selectedLoad.status}</Badge>
+                    {selectedLoad.is_flash && <Badge tone="warning">Flash</Badge>}
                   </Group>
                   <Text size="sm">
                     <b>Method:</b> {methodLabels[selectedLoad.method]}
@@ -719,14 +745,12 @@ function SterilizationTab() {
                     {indicators.map((ind: CssdIndicatorResult) => (
                       <Group key={ind.id} justify="space-between">
                         <Group gap="xs">
-                          <Badge variant="light">
-                            {ind.indicator_type === "biological" ? "BI" : "CI"}
-                          </Badge>
+                          <Badge>{ind.indicator_type === "biological" ? "BI" : "CI"}</Badge>
                           <Text size="sm">
                             {ind.indicator_type === "biological" ? "Biological" : "Chemical"}
                           </Text>
                         </Group>
-                        <Badge color={ind.result_pass ? "success" : "danger"}>
+                        <Badge tone={ind.result_pass ? "success" : "danger"}>
                           {ind.result_pass ? "Pass" : "Fail"}
                         </Badge>
                       </Group>
@@ -754,9 +778,9 @@ function SterilizationTab() {
                         <Table.Td>{ind.indicator_type}</Table.Td>
                         <Table.Td>
                           {ind.result_pass ? (
-                            <Badge color="success">Pass</Badge>
+                            <Badge tone="success">Pass</Badge>
                           ) : (
-                            <Badge color="danger">Fail</Badge>
+                            <Badge tone="danger">Fail</Badge>
                           )}
                         </Table.Td>
                         <Table.Td>
@@ -822,7 +846,7 @@ function SterilizationTab() {
                         )}
                       />
                     </Group>
-                    <Button loading={indicatorMut.isPending} type="submit">
+                    <Button tone="primary" loading={indicatorMut.isPending} type="submit">
                       Record
                     </Button>
                   </Stack>
@@ -917,9 +941,9 @@ function IssuanceTab() {
       key: "is_recalled" as const,
       label: "Status",
       render: (i: CssdIssuance) => {
-        if (i.is_recalled) return <Badge color="danger">Recalled</Badge>;
-        if (i.returned_at) return <Badge color="slate">Returned</Badge>;
-        return <Badge color="success">Issued</Badge>;
+        if (i.is_recalled) return <Badge tone="danger">Recalled</Badge>;
+        if (i.returned_at) return <Badge tone="neutral">Returned</Badge>;
+        return <Badge tone="success">Issued</Badge>;
       },
     },
     {
@@ -960,7 +984,7 @@ function IssuanceTab() {
     <Stack>
       <Group justify="flex-end">
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
             Issue Pack
           </Button>
         )}
@@ -1011,7 +1035,7 @@ function IssuanceTab() {
               <Textarea label="Notes" {...field} error={errors.notes?.message} />
             )}
           />
-          <Button loading={createMut.isPending} type="submit">
+          <Button tone="primary" loading={createMut.isPending} type="submit">
             Issue
           </Button>
         </Stack>
@@ -1128,7 +1152,7 @@ function EquipmentTab() {
       key: "is_active" as const,
       label: "Status",
       render: (s: CssdSterilizer) =>
-        s.is_active ? <Badge color="success">Active</Badge> : <Badge color="slate">Inactive</Badge>,
+        s.is_active ? <Badge tone="success">Active</Badge> : <Badge tone="neutral">Inactive</Badge>,
     },
     {
       key: "next_maintenance_at" as const,
@@ -1160,7 +1184,7 @@ function EquipmentTab() {
     <Stack>
       <Group justify="flex-end">
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
             Add Sterilizer
           </Button>
         )}
@@ -1234,7 +1258,7 @@ function EquipmentTab() {
               <TextInput label="Location" {...field} error={sterilizerErrors.location?.message} />
             )}
           />
-          <Button loading={createMut.isPending} type="submit">
+          <Button tone="primary" loading={createMut.isPending} type="submit">
             Save
           </Button>
         </Stack>
@@ -1336,7 +1360,7 @@ function EquipmentTab() {
                     />
                   )}
                 />
-                <Button loading={maintMut.isPending} type="submit">
+                <Button tone="primary" loading={maintMut.isPending} type="submit">
                   Log
                 </Button>
               </Stack>

@@ -1,6 +1,6 @@
 import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
-import { Button, Card, Group, SegmentedControl, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Card, Group, SegmentedControl, SimpleGrid, Stack, Text } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useHasPermission } from "@medbrains/stores";
 import type { AnalyticsDoctorRevenueRow, DeptRevenueRow } from "@medbrains/types";
@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { Button } from "@/components/ui";
 import { analyticsService } from "@/services/analytics.service";
 
 // ── Helpers ──────────────────────────────────────────────
@@ -154,7 +155,7 @@ export function RevenueTab() {
           />
           {canExport && (
             <Button
-              variant="light"
+              tone="secondary"
               leftSection={<IconDownload size={16} />}
               onClick={handleExport}
               mt="xl"

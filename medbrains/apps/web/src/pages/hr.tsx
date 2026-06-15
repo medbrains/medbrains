@@ -1,7 +1,5 @@
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Drawer,
   Group,
@@ -51,23 +49,53 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
-import { statusColor } from "@/lib/status-colors";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { statusColor } from "@/lib/status-colors";
 import { hrService } from "@/services/hr.service";
 
 // ── Status colors ────────────────────────────────────────────
 
-
-const leaveStatusColors: Record<string, string> = {
-  draft: "slate",
+const leaveStatusColors: Record<string, BadgeTone> = {
+  draft: "neutral",
   pending_hod: "primary",
   pending_admin: "primary",
   approved: "success",
   rejected: "danger",
-  cancelled: "dark",
+  cancelled: "neutral",
 };
 
+// Local map: shared `statusColor` returns Mantine color names; convert to BadgeTone at Badge call sites.
+const STATUS_TONE: Record<string, BadgeTone> = {
+  neutral: "neutral",
+  gray: "neutral",
+  slate: "neutral",
+  dark: "neutral",
+  primary: "primary",
+  indigo: "primary",
+  success: "success",
+  green: "success",
+  teal: "success",
+  lime: "success",
+  warning: "warning",
+  yellow: "warning",
+  orange: "warning",
+  danger: "danger",
+  red: "danger",
+  info: "info",
+  blue: "info",
+  cyan: "info",
+  accent: "accent",
+  violet: "accent",
+  grape: "accent",
+  pink: "accent",
+  rose: "accent",
+};
+
+function statusBadgeTone(status: string | null | undefined): BadgeTone {
+  return STATUS_TONE[statusColor(status)] ?? "neutral";
+}
 
 // ══════════════════════════════════════════════════════════
 //  Main Page
@@ -280,12 +308,12 @@ function EmployeesTab({
         </Group>
         <Group>
           {canCreate && (
-            <Button leftSection={<IconPlus size={16} />} variant="light" onClick={openDesig}>
+            <Button tone="secondary" leftSection={<IconPlus size={16} />} onClick={openDesig}>
               Add Designation
             </Button>
           )}
           {canCreate && (
-            <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
               Add Employee
             </Button>
           )}
@@ -319,16 +347,14 @@ function EmployeesTab({
             key: "employment_type",
             label: "Type",
             render: (r: Employee) => (
-              <Badge variant="light" size="sm">
-                {r.employment_type.replace(/_/g, " ")}
-              </Badge>
+              <Badge size="sm">{r.employment_type.replace(/_/g, " ")}</Badge>
             ),
           },
           {
             key: "status",
             label: "Status",
             render: (r: Employee) => (
-              <Badge color={statusColor(r.status) || "slate"} size="sm">
+              <Badge tone={statusBadgeTone(r.status)} size="sm">
                 {r.status.replace(/_/g, " ")}
               </Badge>
             ),
@@ -429,6 +455,7 @@ function EmployeesTab({
             onChange={(e) => setForm({ ...form, date_of_joining: e.currentTarget.value })}
           />
           <Button
+            tone="primary"
             onClick={() => createMut.mutate()}
             loading={createMut.isPending}
             disabled={!form.employee_code || !form.first_name}
@@ -475,6 +502,7 @@ function EmployeesTab({
             ]}
           />
           <Button
+            tone="primary"
             onClick={() => desigMut.mutate()}
             loading={desigMut.isPending}
             disabled={!desigForm.code || !desigForm.name}
@@ -596,7 +624,7 @@ function EmployeeDetailDrawer({
                 <Text fw={500} size="sm" w={140}>
                   Status:
                 </Text>
-                <Badge color={statusColor(employee.status) || "slate"} size="sm">
+                <Badge tone={statusBadgeTone(employee.status)} size="sm">
                   {employee.status.replace(/_/g, " ")}
                 </Badge>
               </Group>
@@ -654,7 +682,13 @@ function EmployeeDetailDrawer({
 
         <Tabs.Panel value="credentials">
           {canManageCredentials && (
-            <Button leftSection={<IconPlus size={16} />} mb="md" size="sm" onClick={openCred}>
+            <Button
+              tone="primary"
+              leftSection={<IconPlus size={16} />}
+              mb="md"
+              size="sm"
+              onClick={openCred}
+            >
               Add Credential
             </Button>
           )}
@@ -695,7 +729,7 @@ function EmployeeDetailDrawer({
                 key: "status",
                 label: "Status",
                 render: (r: EmployeeCredential) => (
-                  <Badge color={statusColor(r.status) || "slate"} size="sm">
+                  <Badge tone={statusBadgeTone(r.status)} size="sm">
                     {r.status.replace(/_/g, " ")}
                   </Badge>
                 ),
@@ -756,6 +790,7 @@ function EmployeeDetailDrawer({
                 onChange={(e) => setCredForm({ ...credForm, expiry_date: e.currentTarget.value })}
               />
               <Button
+                tone="primary"
                 onClick={() => credMut.mutate()}
                 loading={credMut.isPending}
                 disabled={!credForm.issuing_body || !credForm.registration_no}
@@ -775,9 +810,7 @@ function EmployeeDetailDrawer({
                 key: "type",
                 label: "Leave Type",
                 render: (r: LeaveBalance) => (
-                  <Badge variant="light" size="sm">
-                    {r.leave_type.replace(/_/g, " ")}
-                  </Badge>
+                  <Badge size="sm">{r.leave_type.replace(/_/g, " ")}</Badge>
                 ),
               },
               {
@@ -894,7 +927,7 @@ function AttendanceTab({ canManage }: { canManage: boolean }) {
           />
         </Group>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Mark Attendance
           </Button>
         )}
@@ -938,18 +971,14 @@ function AttendanceTab({ canManage }: { canManage: boolean }) {
           {
             key: "status",
             label: "Status",
-            render: (r: AttendanceRecord) => (
-              <Badge variant="light" size="sm">
-                {r.status}
-              </Badge>
-            ),
+            render: (r: AttendanceRecord) => <Badge size="sm">{r.status}</Badge>,
           },
           {
             key: "late",
             label: "Late",
             render: (r: AttendanceRecord) =>
               r.is_late ? (
-                <Badge color="orange" size="sm">
+                <Badge tone="warning" size="sm">
                   {r.late_minutes}m
                 </Badge>
               ) : (
@@ -963,7 +992,7 @@ function AttendanceTab({ canManage }: { canManage: boolean }) {
             label: "OT",
             render: (r: AttendanceRecord) =>
               r.overtime_minutes > 0 ? (
-                <Badge color="primary" size="sm">
+                <Badge tone="primary" size="sm">
                   {r.overtime_minutes}m
                 </Badge>
               ) : (
@@ -1038,6 +1067,7 @@ function AttendanceTab({ canManage }: { canManage: boolean }) {
             ]}
           />
           <Button
+            tone="primary"
             onClick={() => createMut.mutate()}
             loading={createMut.isPending}
             disabled={!form.employee_id || !form.attendance_date}
@@ -1149,7 +1179,7 @@ function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApprove: b
           ]}
         />
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Apply Leave
           </Button>
         )}
@@ -1172,11 +1202,7 @@ function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApprove: b
           {
             key: "type",
             label: "Type",
-            render: (r: LeaveRequest) => (
-              <Badge variant="light" size="sm">
-                {r.leave_type.replace(/_/g, " ")}
-              </Badge>
-            ),
+            render: (r: LeaveRequest) => <Badge size="sm">{r.leave_type.replace(/_/g, " ")}</Badge>,
           },
           {
             key: "dates",
@@ -1201,7 +1227,7 @@ function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApprove: b
             key: "status",
             label: "Status",
             render: (r: LeaveRequest) => (
-              <Badge color={leaveStatusColors[r.status] || "slate"} size="sm">
+              <Badge tone={leaveStatusColors[r.status] ?? "neutral"} size="sm">
                 {r.status.replace(/_/g, " ")}
               </Badge>
             ),
@@ -1323,6 +1349,7 @@ function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApprove: b
             onChange={(e) => setForm({ ...form, reason: e.currentTarget.value })}
           />
           <Button
+            tone="primary"
             onClick={() => createMut.mutate()}
             loading={createMut.isPending}
             disabled={!form.employee_id || !form.start_date || !form.end_date}
@@ -1515,7 +1542,7 @@ function RosterTab({
               />
             </Group>
             {canManage && (
-              <Button leftSection={<IconPlus size={16} />} onClick={openRoster}>
+              <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openRoster}>
                 Add Roster Entry
               </Button>
             )}
@@ -1553,7 +1580,7 @@ function RosterTab({
                 label: "On-Call",
                 render: (r: DutyRoster) =>
                   r.is_on_call ? (
-                    <Badge color="orange" size="sm">
+                    <Badge tone="warning" size="sm">
                       Yes
                     </Badge>
                   ) : (
@@ -1568,11 +1595,11 @@ function RosterTab({
                 render: (r: DutyRoster) =>
                   r.swap_with ? (
                     r.swap_approved ? (
-                      <Badge color="success" size="sm">
+                      <Badge tone="success" size="sm">
                         Approved
                       </Badge>
                     ) : (
-                      <Badge color="warning" size="sm">
+                      <Badge tone="warning" size="sm">
                         Pending
                       </Badge>
                     )
@@ -1606,7 +1633,7 @@ function RosterTab({
         <Tabs.Panel value="shifts">
           <Group justify="flex-end" mb="md">
             {canManage && (
-              <Button leftSection={<IconPlus size={16} />} onClick={openShift}>
+              <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openShift}>
                 Add Shift
               </Button>
             )}
@@ -1633,9 +1660,7 @@ function RosterTab({
                 key: "type",
                 label: "Type",
                 render: (r: ShiftDefinition) => (
-                  <Badge variant="light" size="sm">
-                    {r.shift_type.replace(/_/g, " ")}
-                  </Badge>
+                  <Badge size="sm">{r.shift_type.replace(/_/g, " ")}</Badge>
                 ),
               },
               {
@@ -1657,7 +1682,7 @@ function RosterTab({
                 label: "Night",
                 render: (r: ShiftDefinition) =>
                   r.is_night ? (
-                    <Badge color="primary" size="sm">
+                    <Badge tone="primary" size="sm">
                       Night
                     </Badge>
                   ) : (
@@ -1671,11 +1696,11 @@ function RosterTab({
                 label: "Active",
                 render: (r: ShiftDefinition) =>
                   r.is_active ? (
-                    <Badge color="success" size="sm">
+                    <Badge tone="success" size="sm">
                       Yes
                     </Badge>
                   ) : (
-                    <Badge color="slate" size="sm">
+                    <Badge tone="neutral" size="sm">
                       No
                     </Badge>
                   ),
@@ -1687,7 +1712,7 @@ function RosterTab({
         <Tabs.Panel value="on-call">
           <Group justify="flex-end" mb="md">
             {canManageOnCall && (
-              <Button leftSection={<IconPlus size={16} />} onClick={openOnCall}>
+              <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openOnCall}>
                 Add On-Call
               </Button>
             )}
@@ -1725,13 +1750,11 @@ function RosterTab({
                 label: "Primary",
                 render: (r: OnCallSchedule) =>
                   r.is_primary ? (
-                    <Badge color="success" size="sm">
+                    <Badge tone="success" size="sm">
                       Primary
                     </Badge>
                   ) : (
-                    <Badge variant="light" size="sm">
-                      Backup
-                    </Badge>
+                    <Badge size="sm">Backup</Badge>
                   ),
               },
               {
@@ -1781,6 +1804,7 @@ function RosterTab({
             onChange={(e) => setRosterForm({ ...rosterForm, is_on_call: e.currentTarget.checked })}
           />
           <Button
+            tone="primary"
             onClick={() => rosterMut.mutate()}
             loading={rosterMut.isPending}
             disabled={!rosterForm.employee_id || !rosterForm.shift_id || !rosterForm.roster_date}
@@ -1853,6 +1877,7 @@ function RosterTab({
             onChange={(e) => setShiftForm({ ...shiftForm, is_night: e.currentTarget.checked })}
           />
           <Button
+            tone="primary"
             onClick={() => shiftMut.mutate()}
             loading={shiftMut.isPending}
             disabled={!shiftForm.code || !shiftForm.name}
@@ -1910,6 +1935,7 @@ function RosterTab({
             }
           />
           <Button
+            tone="primary"
             onClick={() => onCallMut.mutate()}
             loading={onCallMut.isPending}
             disabled={!onCallForm.employee_id || !onCallForm.schedule_date}
@@ -2046,10 +2072,10 @@ function TrainingTab({ canManage }: { canManage: boolean }) {
         />
         {canManage && subView === "programs" && (
           <Group gap="xs">
-            <Button leftSection={<IconPlus size={16} />} variant="light" onClick={openRecord}>
+            <Button tone="secondary" leftSection={<IconPlus size={16} />} onClick={openRecord}>
               Record Training
             </Button>
-            <Button leftSection={<IconPlus size={16} />} onClick={openProgram}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openProgram}>
               Add Program
             </Button>
           </Group>
@@ -2081,11 +2107,11 @@ function TrainingTab({ canManage }: { canManage: boolean }) {
               label: "Mandatory",
               render: (r: TrainingProgram) =>
                 r.is_mandatory ? (
-                  <Badge color="danger" size="sm">
+                  <Badge tone="danger" size="sm">
                     Mandatory
                   </Badge>
                 ) : (
-                  <Badge color="slate" variant="light" size="sm">
+                  <Badge tone="neutral" size="sm">
                     Optional
                   </Badge>
                 ),
@@ -2109,11 +2135,11 @@ function TrainingTab({ canManage }: { canManage: boolean }) {
               label: "Active",
               render: (r: TrainingProgram) =>
                 r.is_active ? (
-                  <Badge color="success" size="sm">
+                  <Badge tone="success" size="sm">
                     Yes
                   </Badge>
                 ) : (
-                  <Badge color="slate" size="sm">
+                  <Badge tone="neutral" size="sm">
                     No
                   </Badge>
                 ),
@@ -2189,11 +2215,11 @@ function TrainingTab({ canManage }: { canManage: boolean }) {
                 label: "Type",
                 render: (r: TrainingComplianceRow) =>
                   r.is_mandatory ? (
-                    <Badge color="danger" size="sm">
+                    <Badge tone="danger" size="sm">
                       Mandatory
                     </Badge>
                   ) : (
-                    <Badge color="slate" variant="light" size="sm">
+                    <Badge tone="neutral" size="sm">
                       Optional
                     </Badge>
                   ),
@@ -2282,6 +2308,7 @@ function TrainingTab({ canManage }: { canManage: boolean }) {
             }
           />
           <Button
+            tone="primary"
             onClick={() => progMut.mutate()}
             loading={progMut.isPending}
             disabled={!progForm.code || !progForm.name}
@@ -2347,6 +2374,7 @@ function TrainingTab({ canManage }: { canManage: boolean }) {
             onChange={(e) => setRecForm({ ...recForm, trainer_name: e.currentTarget.value })}
           />
           <Button
+            tone="primary"
             onClick={() => recMut.mutate()}
             loading={recMut.isPending}
             disabled={!recForm.employee_id || !recForm.program_id || !recForm.training_date}
@@ -2489,16 +2517,14 @@ function ComplianceTab({
               key: "type",
               label: "Type",
               render: (r: Employee) => (
-                <Badge variant="light" size="sm">
-                  {r.employment_type.replace(/_/g, " ")}
-                </Badge>
+                <Badge size="sm">{r.employment_type.replace(/_/g, " ")}</Badge>
               ),
             },
             {
               key: "status",
               label: "Status",
               render: (r: Employee) => (
-                <Badge color={statusColor(r.status) || "slate"} size="sm">
+                <Badge tone={statusBadgeTone(r.status)} size="sm">
                   {r.status.replace(/_/g, " ")}
                 </Badge>
               ),
@@ -2510,7 +2536,7 @@ function ComplianceTab({
       <Tabs.Panel value="appraisals">
         <Group justify="flex-end" mb="md">
           {canManageAppraisal && (
-            <Button leftSection={<IconPlus size={16} />} onClick={openAppraisal}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openAppraisal}>
               Create Appraisal
             </Button>
           )}
@@ -2565,6 +2591,7 @@ function ComplianceTab({
               onChange={(e) => setApprForm({ ...apprForm, improvements: e.currentTarget.value })}
             />
             <Button
+              tone="primary"
               onClick={() => apprMut.mutate()}
               loading={apprMut.isPending}
               disabled={!apprForm.employee_id}
@@ -2578,7 +2605,7 @@ function ComplianceTab({
       <Tabs.Panel value="statutory">
         <Group justify="flex-end" mb="md">
           {canManageCredentials && (
-            <Button leftSection={<IconPlus size={16} />} onClick={openStat}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openStat}>
               Add Statutory Record
             </Button>
           )}
@@ -2634,6 +2661,7 @@ function ComplianceTab({
               onChange={(e) => setStatForm({ ...statForm, expiry_date: e.currentTarget.value })}
             />
             <Button
+              tone="primary"
               onClick={() => statMut.mutate()}
               loading={statMut.isPending}
               disabled={!statForm.employee_id || !statForm.title}

@@ -1,7 +1,5 @@
 import {
-  Badge,
   Box,
-  Button,
   Card,
   Divider,
   Grid,
@@ -39,6 +37,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { PageHeader, StatCard } from "@/components";
+import { Badge, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { dashboardService } from "@/services/dashboard.service";
 
@@ -169,7 +168,7 @@ function DefaultDashboard({
         actions={
           canManage ? (
             <Button
-              variant="subtle"
+              tone="ghost"
               size="xs"
               leftSection={<IconSettings size={14} />}
               onClick={() => navigate("/admin/settings#dashboards")}
@@ -343,7 +342,7 @@ function DefaultDashboard({
                 <Text size="sm" c="var(--mb-text-secondary)">
                   {mod.name}
                 </Text>
-                <Badge color="success" variant="light" size="sm">
+                <Badge tone="success" size="sm">
                   {mod.status}
                 </Badge>
               </Group>
@@ -362,7 +361,7 @@ function DefaultDashboard({
                   {t("systemHealth.apiServer")}
                 </Text>
               </Group>
-              <Badge color="success" variant="light" size="sm">
+              <Badge tone="success" size="sm">
                 Healthy
               </Badge>
             </Group>
@@ -375,7 +374,7 @@ function DefaultDashboard({
                   {t("systemHealth.postgresql")}
                 </Text>
               </Group>
-              <Badge color="success" variant="light" size="sm">
+              <Badge tone="success" size="sm">
                 Connected
               </Badge>
             </Group>
@@ -388,7 +387,7 @@ function DefaultDashboard({
                   {t("systemHealth.yottadb")}
                 </Text>
               </Group>
-              <Badge color="slate" variant="light" size="sm">
+              <Badge tone="neutral" size="sm">
                 Deferred
               </Badge>
             </Group>

@@ -3,9 +3,7 @@ import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
   Alert,
-  Badge,
   Box,
-  Button,
   Card,
   Divider,
   Drawer,
@@ -117,6 +115,7 @@ import { PatientContextBanner } from "@/components/Patient/PatientContextBanner"
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import { deriveCampJourneyCompletedEvents } from "@/components/Patient/patient-journey-events";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   campFollowupTypeOptions,
   campIdProofTypeOptions,
@@ -141,20 +140,20 @@ import {
 
 // ── Constants ──────────────────────────────────────────
 
-const CAMP_STATUS_COLORS: Record<string, string> = {
-  planned: "slate",
+const CAMP_STATUS_COLORS: Record<string, BadgeTone> = {
+  planned: "neutral",
   approved: "primary",
   setup: "primary",
   active: "success",
-  completed: "teal",
+  completed: "success",
   cancelled: "danger",
 };
 
-const FOLLOWUP_STATUS_COLORS: Record<string, string> = {
+const FOLLOWUP_STATUS_COLORS: Record<string, BadgeTone> = {
   scheduled: "primary",
   completed: "success",
   missed: "danger",
-  cancelled: "slate",
+  cancelled: "neutral",
 };
 
 type CampTranslate = ReturnType<typeof useTranslation>["t"];
@@ -547,7 +546,7 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
             : "Choose an active camp to start registration and screening"
         }
         actions={
-          <Button variant="light" onClick={() => navigate(campLandingPath(contextPatientId))}>
+          <Button tone="secondary" onClick={() => navigate(campLandingPath(contextPatientId))}>
             Back to Camp Management
           </Button>
         }
@@ -570,7 +569,7 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
           <Group justify="space-between" align="flex-start" gap="sm">
             <Stack gap={4}>
               <Group gap="xs">
-                <Badge color={selectedCamp ? "success" : "slate"} variant="filled">
+                <Badge tone={selectedCamp ? "success" : "neutral"} variant="filled">
                   {selectedCamp ? "Active camp context" : "No active camp"}
                 </Badge>
                 {selectedCamp && (
@@ -579,7 +578,7 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
                       {selectedCamp.camp_code} · {selectedCamp.name}
                     </Text>
                     <Badge
-                      color={CAMP_STATUS_COLORS[selectedCamp.status] ?? "slate"}
+                      tone={CAMP_STATUS_COLORS[selectedCamp.status] ?? "neutral"}
                       variant="light"
                     >
                       {selectedCamp.status}
@@ -677,9 +676,8 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
                   {workTabs.map((tab) => (
                     <Button
                       key={tab.value}
+                      tone={activeWorkTab === tab.value ? "primary" : "secondary"}
                       size="xs"
-                      variant={activeWorkTab === tab.value ? "filled" : "light"}
-                      color={activeWorkTab === tab.value ? "primary" : "slate"}
                       leftSection={tab.icon}
                       onClick={() => setActiveTab(tab.value)}
                       fullWidth
@@ -694,8 +692,8 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
                     Actions
                   </Text>
                   <Button
+                    tone="secondary"
                     size="xs"
-                    variant="light"
                     leftSection={<IconUsers size={14} />}
                     disabled={!selectedCamp}
                     onClick={() => setActiveTab("registrations")}
@@ -704,8 +702,8 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
                     Register
                   </Button>
                   <Button
+                    tone="secondary"
                     size="xs"
-                    variant="light"
                     leftSection={<IconStethoscope size={14} />}
                     disabled={!selectedCamp}
                     onClick={() => setActiveTab("screenings")}
@@ -714,8 +712,8 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
                     Screen
                   </Button>
                   <Button
+                    tone="secondary"
                     size="xs"
-                    variant="light"
                     leftSection={<IconCalendarCheck size={14} />}
                     disabled={!selectedCamp}
                     onClick={() => setActiveTab("followups")}
@@ -724,9 +722,8 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
                     Follow-up
                   </Button>
                   <Button
+                    tone="secondary"
                     size="xs"
-                    variant="light"
-                    color="orange"
                     leftSection={<IconArrowRight size={14} />}
                     onClick={() => navigate(campLandingPath(contextPatientId))}
                     fullWidth
@@ -858,15 +855,15 @@ function CampPatientContextPanel({ patientId }: { patientId: string }) {
       render: (row) => (
         <Group gap="xs">
           <Button
+            tone="secondary"
             size="xs"
-            variant="light"
             onClick={() => navigate(campClinicalRoutePath(row.camp_id, row.id, patientId))}
           >
             {t("patientHistory.actions.openFlow")}
           </Button>
           <Button
+            tone="ghost"
             size="xs"
-            variant="subtle"
             onClick={() => navigate(campWorkPath(row.camp_id, patientId))}
           >
             {t("patientHistory.actions.workCamp")}
@@ -1118,7 +1115,7 @@ function CampsTab({ onWorkCamp }: { onWorkCamp: (campId: string) => void }) {
       key: "camp_type",
       label: "Type",
       render: (r) => (
-        <Badge variant="light" size="sm">
+        <Badge tone="neutral" variant="light" size="sm">
           {campTypeOptions.find((t) => t.value === r.camp_type)?.label ?? r.camp_type}
         </Badge>
       ),
@@ -1127,7 +1124,7 @@ function CampsTab({ onWorkCamp }: { onWorkCamp: (campId: string) => void }) {
       key: "status",
       label: "Status",
       render: (r) => (
-        <Badge color={CAMP_STATUS_COLORS[r.status] ?? "slate"} variant="filled" size="sm">
+        <Badge tone={CAMP_STATUS_COLORS[r.status] ?? "neutral"} variant="filled" size="sm">
           {r.status}
         </Badge>
       ),
@@ -1245,7 +1242,7 @@ function CampsTab({ onWorkCamp }: { onWorkCamp: (campId: string) => void }) {
           w={200}
         />
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
             Plan Camp
           </Button>
         )}
@@ -1410,7 +1407,7 @@ function CampsTab({ onWorkCamp }: { onWorkCamp: (campId: string) => void }) {
             error={errors.logistics_notes?.message}
             {...register("logistics_notes")}
           />
-          <Button type="submit" loading={createMut.isPending}>
+          <Button tone="primary" type="submit" loading={createMut.isPending}>
             Create Camp
           </Button>
         </Stack>
@@ -1566,11 +1563,11 @@ function CampDetail({ camp }: { camp: Camp }) {
       label: "Confirmed",
       render: (r) =>
         r.is_confirmed ? (
-          <Badge color="success" size="xs">
+          <Badge tone="success" size="xs">
             Yes
           </Badge>
         ) : (
-          <Badge color="slate" size="xs">
+          <Badge tone="neutral" size="xs">
             No
           </Badge>
         ),
@@ -1604,8 +1601,8 @@ function CampDetail({ camp }: { camp: Camp }) {
         </Stack>
         {canDownloadPacket && (
           <Button
+            tone="secondary"
             size="xs"
-            variant="light"
             leftSection={<IconDownload size={14} />}
             loading={packetMut.isPending}
             onClick={() => packetMut.mutate()}
@@ -1639,7 +1636,7 @@ function CampDetail({ camp }: { camp: Camp }) {
               </Text>
             </Stack>
             <Badge
-              color={remoteOps.readiness.ready ? "success" : "orange"}
+              tone={remoteOps.readiness.ready ? "success" : "warning"}
               variant="filled"
               size="lg"
             >
@@ -1659,17 +1656,17 @@ function CampDetail({ camp }: { camp: Camp }) {
               <Group key={item.id} justify="space-between" align="flex-start" wrap="nowrap">
                 <Stack gap={2} style={{ flex: 1 }}>
                   <Group gap="xs">
-                    <Badge size="xs" variant="light">
+                    <Badge tone="neutral" size="xs" variant="light">
                       {item.nabh_chapter}
                     </Badge>
                     <Badge
                       size="xs"
-                      color={
+                      tone={
                         item.status === "ok" || item.status === "not_applicable"
                           ? "success"
                           : item.status === "issue"
                             ? "danger"
-                            : "slate"
+                            : "neutral"
                       }
                     >
                       {item.status.replace("_", " ")}
@@ -1680,24 +1677,22 @@ function CampDetail({ camp }: { camp: Camp }) {
                 {canUpdate && (
                   <Group gap={4} wrap="nowrap">
                     <Button
+                      tone="primary"
                       size="compact-xs"
-                      variant="light"
-                      color="success"
                       onClick={() => checklistMut.mutate({ id: item.id, status: "ok" })}
                     >
                       OK
                     </Button>
                     <Button
+                      tone="subtle-danger"
                       size="compact-xs"
-                      variant="light"
-                      color="danger"
                       onClick={() => checklistMut.mutate({ id: item.id, status: "issue" })}
                     >
                       Issue
                     </Button>
                     <Button
+                      tone="ghost"
                       size="compact-xs"
-                      variant="subtle"
                       onClick={() => checklistMut.mutate({ id: item.id, status: "not_applicable" })}
                     >
                       N/A
@@ -1712,7 +1707,9 @@ function CampDetail({ camp }: { camp: Camp }) {
             <Stack gap="xs">
               <Group justify="space-between">
                 <Text fw={600}>Supplies</Text>
-                <Badge variant="light">{remoteOps.supplies.length}</Badge>
+                <Badge tone="neutral" variant="light">
+                  {remoteOps.supplies.length}
+                </Badge>
               </Group>
               {remoteOps.supplies.slice(0, 6).map((item) => (
                 <Group key={item.id} justify="space-between" wrap="nowrap">
@@ -1726,7 +1723,7 @@ function CampDetail({ camp }: { camp: Camp }) {
                     </Text>
                   </Stack>
                   {item.is_critical && (
-                    <Badge size="xs" color="danger">
+                    <Badge size="xs" tone="danger">
                       Critical
                     </Badge>
                   )}
@@ -1804,8 +1801,8 @@ function CampDetail({ camp }: { camp: Camp }) {
                     }
                   />
                   <Button
+                    tone="secondary"
                     size="xs"
-                    variant="light"
                     leftSection={<IconPlus size={14} />}
                     disabled={!supplyForm.item_name}
                     loading={supplyMut.isPending}
@@ -1820,7 +1817,7 @@ function CampDetail({ camp }: { camp: Camp }) {
             <Stack gap="xs">
               <Group justify="space-between">
                 <Text fw={600}>Incidents / Near Miss</Text>
-                <Badge variant="light" color={remoteOps.incidents.length > 0 ? "danger" : "slate"}>
+                <Badge variant="light" tone={remoteOps.incidents.length > 0 ? "danger" : "neutral"}>
                   {remoteOps.incidents.length}
                 </Badge>
               </Group>
@@ -1834,7 +1831,7 @@ function CampDetail({ camp }: { camp: Camp }) {
                       {item.description}
                     </Text>
                   </Stack>
-                  <Badge size="xs" color={item.severity === "critical" ? "danger" : "orange"}>
+                  <Badge size="xs" tone={item.severity === "critical" ? "danger" : "warning"}>
                     {item.severity}
                   </Badge>
                 </Group>
@@ -1893,9 +1890,8 @@ function CampDetail({ camp }: { camp: Camp }) {
                     }
                   />
                   <Button
+                    tone="subtle-danger"
                     size="xs"
-                    variant="light"
-                    color="danger"
                     leftSection={<IconPlus size={14} />}
                     disabled={!incidentForm.description}
                     loading={incidentMut.isPending}
@@ -1913,7 +1909,12 @@ function CampDetail({ camp }: { camp: Camp }) {
       <Group justify="space-between">
         <Text fw={600}>Team Members ({team.length})</Text>
         {canUpdate && (
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={addHandlers.open}>
+          <Button
+            tone="primary"
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={addHandlers.open}
+          >
             Add Member
           </Button>
         )}
@@ -1941,6 +1942,7 @@ function CampDetail({ camp }: { camp: Camp }) {
             onChange={(v) => setTeamForm({ ...teamForm, role_in_camp: v ?? "volunteer" })}
           />
           <Button
+            tone="primary"
             onClick={() => addMut.mutate()}
             loading={addMut.isPending}
             disabled={!teamForm.employee_id}
@@ -2332,6 +2334,7 @@ function RegistrationsTab({
           >
             <span>
               <Button
+                tone="primary"
                 leftSection={<IconPlus size={16} />}
                 onClick={createHandlers.open}
                 disabled={!canEditCampName}
@@ -2536,7 +2539,7 @@ function RegistrationsTab({
               />
             )}
           />
-          <Button type="submit" loading={createMut.isPending}>
+          <Button tone="primary" type="submit" loading={createMut.isPending}>
             Register
           </Button>
         </Stack>
@@ -2597,7 +2600,7 @@ function RegistrationsTab({
               />
             )}
           />
-          <Button type="submit" loading={openClinicalVisitMut.isPending}>
+          <Button tone="primary" type="submit" loading={openClinicalVisitMut.isPending}>
             {t("registrations.routeDrawer.openOpd")}
           </Button>
         </Stack>
@@ -2614,7 +2617,7 @@ function RegistrationsTab({
         withCloseButton
         title={
           <Button
-            variant="subtle"
+            tone="ghost"
             size="xs"
             onClick={() => {
               clinicalHandlers.close();
@@ -2934,7 +2937,7 @@ function ScreeningsTab({
       label: t("screenings.columns.referred"),
       render: (r) =>
         r.referred_to_hospital ? (
-          <Badge color="orange" size="sm">
+          <Badge tone="warning" size="sm">
             {r.referral_urgency
               ? t(`screenings.referralUrgency.${r.referral_urgency}`, {
                   defaultValue: campWorkflowLabel(r.referral_urgency),
@@ -2971,11 +2974,11 @@ function ScreeningsTab({
       label: t("samples.columns.sentToLab"),
       render: (r) =>
         r.sent_to_lab ? (
-          <Badge color="success" size="sm">
+          <Badge tone="success" size="sm">
             {t("common.yes")}
           </Badge>
         ) : (
-          <Badge color="slate" size="sm">
+          <Badge tone="neutral" size="sm">
             {t("common.no")}
           </Badge>
         ),
@@ -3004,6 +3007,7 @@ function ScreeningsTab({
             </Stack>
             {canManageScreenings && (
               <Button
+                tone="primary"
                 size="xs"
                 leftSection={<IconPlus size={14} />}
                 onClick={() => openScreeningDrawer()}
@@ -3024,7 +3028,12 @@ function ScreeningsTab({
               {t("samples.title")}
             </Text>
             {canManageLab && (
-              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={labHandlers.open}>
+              <Button
+                tone="primary"
+                size="xs"
+                leftSection={<IconPlus size={14} />}
+                onClick={labHandlers.open}
+              >
                 {t("samples.actions.recordSample")}
               </Button>
             )}
@@ -3135,7 +3144,7 @@ function ScreeningsTab({
               />
             </Group>
           )}
-          <Button type="submit" loading={scrMut.isPending}>
+          <Button tone="primary" type="submit" loading={scrMut.isPending}>
             {t("screenings.actions.saveScreening")}
           </Button>
         </Stack>
@@ -3190,7 +3199,7 @@ function ScreeningsTab({
             error={labErrors.barcode?.message}
             {...registerLab("barcode")}
           />
-          <Button type="submit" loading={labMut.isPending}>
+          <Button tone="primary" type="submit" loading={labMut.isPending}>
             {t("samples.actions.saveSample")}
           </Button>
         </Stack>
@@ -3360,7 +3369,7 @@ function FollowupsTab({
       key: "status",
       label: t("followups.columns.status"),
       render: (r) => (
-        <Badge color={FOLLOWUP_STATUS_COLORS[r.status] ?? "slate"} variant="filled" size="sm">
+        <Badge tone={FOLLOWUP_STATUS_COLORS[r.status] ?? "neutral"} variant="filled" size="sm">
           {campFollowupStatusLabel(t, r.status)}
         </Badge>
       ),
@@ -3370,7 +3379,7 @@ function FollowupsTab({
       label: t("followups.columns.converted"),
       render: (r) =>
         r.converted_to_patient ? (
-          <Badge color="success" size="sm">
+          <Badge tone="success" size="sm">
             {t("common.yes")}
           </Badge>
         ) : (
@@ -3425,7 +3434,7 @@ function FollowupsTab({
           </Text>
         </Stack>
         {canManage && campId && (
-          <Button leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
             {t("followups.actions.scheduleFollowup")}
           </Button>
         )}
@@ -3536,7 +3545,7 @@ function FollowupsTab({
             error={errors.notes?.message}
             {...register("notes")}
           />
-          <Button type="submit" loading={createMut.isPending}>
+          <Button tone="primary" type="submit" loading={createMut.isPending}>
             {t("followups.actions.schedule")}
           </Button>
         </Stack>

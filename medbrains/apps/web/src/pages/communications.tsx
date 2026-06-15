@@ -1,7 +1,5 @@
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Drawer,
   Group,
@@ -58,58 +56,59 @@ import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { communicationsService } from "@/services/communications.service";
 
-const CHANNEL_COLORS: Record<string, string> = {
-  sms: "blue",
-  whatsapp: "green",
-  email: "violet",
-  push: "orange",
-  ivr: "cyan",
-  portal: "teal",
+const CHANNEL_COLORS: Record<string, BadgeTone> = {
+  sms: "info",
+  whatsapp: "success",
+  email: "accent",
+  push: "warning",
+  ivr: "info",
+  portal: "success",
 };
-const MSG_STATUS_COLORS: Record<string, string> = {
-  queued: "gray",
-  sent: "blue",
-  delivered: "green",
-  failed: "red",
-  read: "teal",
+const MSG_STATUS_COLORS: Record<string, BadgeTone> = {
+  queued: "neutral",
+  sent: "info",
+  delivered: "success",
+  failed: "danger",
+  read: "success",
 };
-const PRIORITY_COLORS: Record<string, string> = {
-  routine: "blue",
-  urgent: "orange",
-  critical: "red",
-  stat: "red",
+const PRIORITY_COLORS: Record<string, BadgeTone> = {
+  routine: "info",
+  urgent: "warning",
+  critical: "danger",
+  stat: "danger",
 };
-const ALERT_STATUS_COLORS: Record<string, string> = {
-  triggered: "red",
-  acknowledged: "blue",
-  escalated: "orange",
-  resolved: "green",
-  expired: "gray",
+const ALERT_STATUS_COLORS: Record<string, BadgeTone> = {
+  triggered: "danger",
+  acknowledged: "info",
+  escalated: "warning",
+  resolved: "success",
+  expired: "neutral",
 };
-const COMPLAINT_STATUS_COLORS: Record<string, string> = {
-  open: "red",
-  assigned: "blue",
-  in_progress: "orange",
-  pending_review: "yellow",
-  resolved: "green",
-  closed: "gray",
-  reopened: "red",
+const COMPLAINT_STATUS_COLORS: Record<string, BadgeTone> = {
+  open: "danger",
+  assigned: "info",
+  in_progress: "warning",
+  pending_review: "warning",
+  resolved: "success",
+  closed: "neutral",
+  reopened: "danger",
 };
-const SEVERITY_COLORS: Record<string, string> = {
-  low: "blue",
-  medium: "yellow",
-  high: "orange",
-  critical: "red",
+const SEVERITY_COLORS: Record<string, BadgeTone> = {
+  low: "info",
+  medium: "warning",
+  high: "warning",
+  critical: "danger",
 };
-const FEEDBACK_COLORS: Record<string, string> = {
-  bedside: "teal",
-  post_discharge: "blue",
-  nps: "violet",
-  department: "orange",
-  kiosk: "cyan",
+const FEEDBACK_COLORS: Record<string, BadgeTone> = {
+  bedside: "success",
+  post_discharge: "info",
+  nps: "accent",
+  department: "warning",
+  kiosk: "info",
 };
 
 type MessageForm = {
@@ -439,7 +438,7 @@ function MessagesTab() {
       key: "channel",
       label: "Channel",
       render: (r) => (
-        <Badge size="sm" color={CHANNEL_COLORS[r.channel] ?? "gray"}>
+        <Badge size="sm" tone={CHANNEL_COLORS[r.channel] ?? "neutral"}>
           {r.channel}
         </Badge>
       ),
@@ -448,7 +447,7 @@ function MessagesTab() {
       key: "status",
       label: "Status",
       render: (r) => (
-        <Badge size="sm" color={MSG_STATUS_COLORS[r.status] ?? "gray"}>
+        <Badge size="sm" tone={MSG_STATUS_COLORS[r.status] ?? "neutral"}>
           {r.status}
         </Badge>
       ),
@@ -497,6 +496,7 @@ function MessagesTab() {
         </Group>
         {canCreate && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               setForm(emptyMessageForm);
@@ -541,6 +541,7 @@ function MessagesTab() {
             onChange={(e) => setForm({ ...form, body: e.currentTarget.value })}
           />
           <Button
+            tone="primary"
             onClick={() => {
               const payload = messagePayload(form);
               if (!payload) return;
@@ -602,7 +603,7 @@ function ClinicalTab() {
       key: "priority",
       label: "Priority",
       render: (r) => (
-        <Badge size="sm" color={PRIORITY_COLORS[r.priority] ?? "gray"}>
+        <Badge size="sm" tone={PRIORITY_COLORS[r.priority] ?? "neutral"}>
           {r.priority}
         </Badge>
       ),
@@ -610,11 +611,7 @@ function ClinicalTab() {
     {
       key: "message_type",
       label: "Type",
-      render: (r) => (
-        <Badge size="sm" variant="light">
-          {r.message_type.replace(/_/g, " ")}
-        </Badge>
-      ),
+      render: (r) => <Badge size="sm">{r.message_type.replace(/_/g, " ")}</Badge>,
     },
     { key: "subject", label: "Subject", render: (r) => <Text size="sm">{r.subject ?? "—"}</Text> },
     {
@@ -630,7 +627,7 @@ function ClinicalTab() {
       key: "is_read",
       label: "Read",
       render: (r) => (
-        <Badge size="xs" color={r.is_read ? "green" : "gray"}>
+        <Badge size="xs" tone={r.is_read ? "success" : "neutral"}>
           {r.is_read ? "Yes" : "No"}
         </Badge>
       ),
@@ -666,6 +663,7 @@ function ClinicalTab() {
         />
         {canCreate && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               setForm(emptyClinicalMessageForm);
@@ -716,6 +714,7 @@ function ClinicalTab() {
             onChange={(e) => setForm({ ...form, is_urgent: e.currentTarget.checked })}
           />
           <Button
+            tone="primary"
             onClick={() => {
               const payload = clinicalPayload(form);
               if (!payload) return;
@@ -773,17 +772,13 @@ function AlertsTab() {
     {
       key: "alert_source",
       label: "Source",
-      render: (r) => (
-        <Badge size="sm" variant="light">
-          {r.alert_source}
-        </Badge>
-      ),
+      render: (r) => <Badge size="sm">{r.alert_source}</Badge>,
     },
     {
       key: "priority",
       label: "Priority",
       render: (r) => (
-        <Badge size="sm" color={PRIORITY_COLORS[r.priority] ?? "gray"}>
+        <Badge size="sm" tone={PRIORITY_COLORS[r.priority] ?? "neutral"}>
           {r.priority}
         </Badge>
       ),
@@ -792,7 +787,7 @@ function AlertsTab() {
       key: "status",
       label: "Status",
       render: (r) => (
-        <Badge size="sm" color={ALERT_STATUS_COLORS[r.status] ?? "gray"}>
+        <Badge size="sm" tone={ALERT_STATUS_COLORS[r.status] ?? "neutral"}>
           {r.status}
         </Badge>
       ),
@@ -942,17 +937,13 @@ function ComplaintsTab() {
     {
       key: "source",
       label: "Source",
-      render: (r) => (
-        <Badge size="sm" variant="light">
-          {r.source.replace(/_/g, " ")}
-        </Badge>
-      ),
+      render: (r) => <Badge size="sm">{r.source.replace(/_/g, " ")}</Badge>,
     },
     {
       key: "status",
       label: "Status",
       render: (r) => (
-        <Badge size="sm" color={COMPLAINT_STATUS_COLORS[r.status] ?? "gray"}>
+        <Badge size="sm" tone={COMPLAINT_STATUS_COLORS[r.status] ?? "neutral"}>
           {r.status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -961,7 +952,7 @@ function ComplaintsTab() {
       key: "severity",
       label: "Severity",
       render: (r) => (
-        <Badge size="sm" color={SEVERITY_COLORS[r.severity ?? "medium"] ?? "gray"}>
+        <Badge size="sm" tone={SEVERITY_COLORS[r.severity ?? "medium"] ?? "neutral"}>
           {r.severity ?? "medium"}
         </Badge>
       ),
@@ -987,7 +978,7 @@ function ComplaintsTab() {
         if (!r.sla_deadline) return <Text size="sm">—</Text>;
         const remaining = (new Date(r.sla_deadline).getTime() - Date.now()) / 3600000;
         return (
-          <Badge size="sm" color={r.sla_breached ? "red" : remaining < 4 ? "orange" : "green"}>
+          <Badge size="sm" tone={r.sla_breached ? "danger" : remaining < 4 ? "warning" : "success"}>
             {r.sla_breached ? "Breached" : `${Math.round(remaining)}h`}
           </Badge>
         );
@@ -1029,6 +1020,7 @@ function ComplaintsTab() {
         />
         {canCreate && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               setForm(emptyComplaintForm);
@@ -1104,6 +1096,7 @@ function ComplaintsTab() {
             onChange={(v) => setForm({ ...form, sla_hours: v })}
           />
           <Button
+            tone="primary"
             onClick={() => {
               const payload = complaintPayload(form);
               if (!payload) return;
@@ -1163,7 +1156,7 @@ function FeedbackTab() {
       key: "feedback_type",
       label: "Type",
       render: (r) => (
-        <Badge size="sm" color={FEEDBACK_COLORS[r.feedback_type] ?? "gray"}>
+        <Badge size="sm" tone={FEEDBACK_COLORS[r.feedback_type] ?? "neutral"}>
           {r.feedback_type.replace(/_/g, " ")}
         </Badge>
       ),
@@ -1187,7 +1180,7 @@ function FeedbackTab() {
       label: "Recommend",
       render: (r) =>
         r.would_recommend != null ? (
-          <Badge size="xs" color={r.would_recommend ? "green" : "red"}>
+          <Badge size="xs" tone={r.would_recommend ? "success" : "danger"}>
             {r.would_recommend ? "Yes" : "No"}
           </Badge>
         ) : (
@@ -1260,6 +1253,7 @@ function FeedbackTab() {
         />
         {canCreate && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               setForm(emptyFeedbackForm);
@@ -1329,6 +1323,7 @@ function FeedbackTab() {
             onChange={(e) => setForm({ ...form, is_anonymous: e.currentTarget.checked })}
           />
           <Button
+            tone="primary"
             onClick={() => {
               const payload = feedbackPayload(form);
               if (!payload) return;
@@ -1387,7 +1382,7 @@ function ConfigTab() {
       key: "channel",
       label: "Channel",
       render: (r) => (
-        <Badge size="sm" color={CHANNEL_COLORS[r.channel] ?? "gray"}>
+        <Badge size="sm" tone={CHANNEL_COLORS[r.channel] ?? "neutral"}>
           {r.channel}
         </Badge>
       ),
@@ -1395,17 +1390,13 @@ function ConfigTab() {
     {
       key: "template_type",
       label: "Type",
-      render: (r) => (
-        <Badge size="sm" variant="light">
-          {r.template_type.replace(/_/g, " ")}
-        </Badge>
-      ),
+      render: (r) => <Badge size="sm">{r.template_type.replace(/_/g, " ")}</Badge>,
     },
     {
       key: "is_active",
       label: "Active",
       render: (r) => (
-        <Badge size="xs" color={r.is_active ? "green" : "gray"}>
+        <Badge size="xs" tone={r.is_active ? "success" : "neutral"}>
           {r.is_active ? "Yes" : "No"}
         </Badge>
       ),
@@ -1417,6 +1408,7 @@ function ConfigTab() {
     <>
       <Group justify="flex-end" mb="md">
         <Button
+          tone="primary"
           leftSection={<IconPlus size={16} />}
           onClick={() => {
             setForm(emptyTemplateForm);
@@ -1477,6 +1469,7 @@ function ConfigTab() {
             onChange={(e) => setForm({ ...form, body_template: e.currentTarget.value })}
           />
           <Button
+            tone="primary"
             onClick={() => {
               const payload = templatePayload(form);
               if (!payload) return;
@@ -1615,16 +1608,12 @@ function DltTab() {
     {
       key: "sender_id",
       label: "Sender",
-      render: (r) => <Badge variant="light">{r.sender_id}</Badge>,
+      render: (r) => <Badge>{r.sender_id}</Badge>,
     },
     {
       key: "category",
       label: "Category",
-      render: (r) => (
-        <Badge size="sm" variant="light">
-          {r.category}
-        </Badge>
-      ),
+      render: (r) => <Badge size="sm">{r.category}</Badge>,
     },
     { key: "language", label: "Lang", render: (r) => <Text size="xs">{r.language}</Text> },
     {
@@ -1646,7 +1635,7 @@ function DltTab() {
             onChange={(e) => toggleMut.mutate({ id: r.id, is_active: e.currentTarget.checked })}
           />
         ) : (
-          <Badge color={r.is_active ? "green" : "gray"}>
+          <Badge tone={r.is_active ? "success" : "neutral"}>
             {r.is_active ? "Active" : "Inactive"}
           </Badge>
         ),
@@ -1682,7 +1671,7 @@ function DltTab() {
       </Card>
       {canManage && (
         <Group>
-          <Button leftSection={<IconPlus size={14} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={14} />} onClick={open}>
             Register Template
           </Button>
         </Group>
@@ -1798,10 +1787,11 @@ function DltTab() {
             onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={close}>
+            <Button tone="secondary" onClick={close}>
               Cancel
             </Button>
             <Button
+              tone="primary"
               leftSection={<IconCheck size={14} />}
               loading={createMut.isPending}
               disabled={

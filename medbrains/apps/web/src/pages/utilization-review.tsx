@@ -3,8 +3,6 @@ import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Drawer,
   Group,
@@ -54,10 +52,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
-import { statusColor } from "@/lib/status-colors";
 import type { Column } from "@/components/DataTable";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { statusColor } from "@/lib/status-colors";
 import {
   type CreateUrCommunicationInput,
   type CreateUrConversionInput,
@@ -67,14 +66,34 @@ import {
 
 // ── Color maps ─────────────────────────────────────────
 
-const reviewTypeColors: Record<string, string> = {
+const reviewTypeColors: Record<string, BadgeTone> = {
   pre_admission: "primary",
   admission: "success",
-  continued_stay: "orange",
-  retrospective: "slate",
+  continued_stay: "warning",
+  retrospective: "neutral",
 };
 
-
+function statusColorTone(v: string): BadgeTone {
+  const c = statusColor(v);
+  const m: Record<string, BadgeTone> = {
+    success: "success",
+    danger: "danger",
+    warning: "warning",
+    primary: "primary",
+    info: "info",
+    slate: "neutral",
+    gray: "neutral",
+    teal: "success",
+    green: "success",
+    red: "danger",
+    yellow: "warning",
+    orange: "warning",
+    blue: "info",
+    violet: "accent",
+    cinnabar: "accent",
+  };
+  return (c ? m[c] : undefined) ?? "neutral";
+}
 
 type ReviewViewMode = "list" | "timeline";
 
@@ -264,7 +283,7 @@ function ReviewsTab() {
       key: "review_type",
       label: "Review Type",
       render: (r) => (
-        <Badge color={reviewTypeColors[r.review_type] ?? "slate"}>
+        <Badge tone={reviewTypeColors[r.review_type] ?? "neutral"}>
           {r.review_type.replace(/_/g, " ")}
         </Badge>
       ),
@@ -278,7 +297,7 @@ function ReviewsTab() {
       key: "decision",
       label: "Decision",
       render: (r) => (
-        <Badge color={statusColor(r.decision) ?? "slate"}>{r.decision.replace(/_/g, " ")}</Badge>
+        <Badge tone={statusColorTone(r.decision)}>{r.decision.replace(/_/g, " ")}</Badge>
       ),
     },
     {
@@ -295,7 +314,7 @@ function ReviewsTab() {
       key: "is_outlier",
       label: "Outlier",
       render: (r) =>
-        r.is_outlier ? <Badge color="danger">Outlier</Badge> : <Text size="sm">No</Text>,
+        r.is_outlier ? <Badge tone="danger">Outlier</Badge> : <Text size="sm">No</Text>,
     },
     {
       key: "next_review_date",
@@ -365,7 +384,7 @@ function ReviewsTab() {
         subtitle="Manage admission-level utilization reviews"
         actions={
           canCreate ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={openCreateReview}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreateReview}>
               New Review
             </Button>
           ) : undefined
@@ -419,7 +438,7 @@ function ReviewsTab() {
                   title={
                     <Group gap="xs">
                       <Text fw={600}>{r.review_type.replace(/_/g, " ")}</Text>
-                      <Badge color={statusColor(r.decision) ?? "slate"} size="sm">
+                      <Badge tone={statusColorTone(r.decision)} size="sm">
                         {r.decision.replace(/_/g, " ")}
                       </Badge>
                     </Group>
@@ -453,7 +472,7 @@ function ReviewsTab() {
                       </Text>
                     )}
                     {r.next_review_date && (
-                      <Badge color="primary" size="xs" mt={4}>
+                      <Badge tone="primary" size="xs" mt={4}>
                         Next Review: {new Date(r.next_review_date).toLocaleDateString()}
                       </Badge>
                     )}
@@ -577,7 +596,7 @@ function ReviewsTab() {
               />
             )}
           />
-          <Button loading={createMut.isPending} type="submit">
+          <Button tone="primary" loading={createMut.isPending} type="submit">
             Create Review
           </Button>
         </Stack>
@@ -616,7 +635,7 @@ function LosMonitoringTab() {
       key: "review_type",
       label: "Review Type",
       render: (r) => (
-        <Badge color={reviewTypeColors[r.review_type] ?? "slate"}>
+        <Badge tone={reviewTypeColors[r.review_type] ?? "neutral"}>
           {r.review_type.replace(/_/g, " ")}
         </Badge>
       ),
@@ -625,7 +644,7 @@ function LosMonitoringTab() {
       key: "decision",
       label: "Decision",
       render: (r) => (
-        <Badge color={statusColor(r.decision) ?? "slate"}>{r.decision.replace(/_/g, " ")}</Badge>
+        <Badge tone={statusColorTone(r.decision)}>{r.decision.replace(/_/g, " ")}</Badge>
       ),
     },
     {
@@ -776,7 +795,7 @@ function LosMonitoringTab() {
             <Text fw={600} size="lg">
               Denial Management
             </Text>
-            <Badge color="danger" size="lg">
+            <Badge tone="danger" size="lg">
               {denialData.totalDenials} Denials
             </Badge>
           </Group>
@@ -902,7 +921,7 @@ function PayerLogTab() {
       key: "communication_type",
       label: "Type",
       render: (r) => (
-        <Badge color={statusColor(r.communication_type) ?? "slate"}>
+        <Badge tone={statusColorTone(r.communication_type)}>
           {r.communication_type.replace(/_/g, " ")}
         </Badge>
       ),
@@ -949,7 +968,11 @@ function PayerLogTab() {
         subtitle="Track communications with insurance payers"
         actions={
           canCreate ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={openCreateCommunication}>
+            <Button
+              tone="primary"
+              leftSection={<IconPlus size={16} />}
+              onClick={openCreateCommunication}
+            >
               Log Communication
             </Button>
           ) : undefined
@@ -1025,7 +1048,7 @@ function PayerLogTab() {
             error={errors.summary?.message}
             {...register("summary")}
           />
-          <Button loading={createMut.isPending} type="submit">
+          <Button tone="primary" loading={createMut.isPending} type="submit">
             Log Communication
           </Button>
         </Stack>
@@ -1087,13 +1110,17 @@ function StatusTrackingTab() {
     {
       key: "from_status",
       label: "From Status",
-      render: (r) => <Badge variant="outline">{r.from_status}</Badge>,
+      render: (r) => (
+        <Badge tone="neutral" variant="outline">
+          {r.from_status}
+        </Badge>
+      ),
     },
     {
       key: "to_status",
       label: "To Status",
       render: (r) => (
-        <Badge variant="outline" color="primary">
+        <Badge tone="primary" variant="outline">
           {r.to_status}
         </Badge>
       ),
@@ -1130,7 +1157,11 @@ function StatusTrackingTab() {
         subtitle="Observation to inpatient status conversions"
         actions={
           canCreate ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={openCreateConversion}>
+            <Button
+              tone="primary"
+              leftSection={<IconPlus size={16} />}
+              onClick={openCreateConversion}
+            >
               New Conversion
             </Button>
           ) : undefined
@@ -1199,7 +1230,7 @@ function StatusTrackingTab() {
             error={errors.reason?.message}
             {...register("reason")}
           />
-          <Button loading={createMut.isPending} type="submit">
+          <Button tone="primary" loading={createMut.isPending} type="submit">
             Create Conversion
           </Button>
         </Stack>

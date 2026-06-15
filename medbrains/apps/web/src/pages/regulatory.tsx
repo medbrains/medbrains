@@ -2,9 +2,7 @@ import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
-  Badge,
   Box,
-  Button,
   Card,
   Drawer,
   Grid,
@@ -67,41 +65,64 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
-import { statusColor } from "@/lib/status-colors";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { statusColor } from "@/lib/status-colors";
 import { regulatoryService } from "@/services/regulatory.service";
 
-const severityColors: Record<string, string> = {
+const severityColors: Record<string, BadgeTone> = {
   mild: "primary",
   moderate: "warning",
-  severe: "orange",
+  severe: "warning",
   fatal: "danger",
 };
 
-const eventStatusColors: Record<string, string> = {
-  draft: "slate",
+const eventStatusColors: Record<string, BadgeTone> = {
+  draft: "neutral",
   submitted: "primary",
   under_review: "warning",
   closed: "success",
-  withdrawn: "dimmed",
+  withdrawn: "neutral",
 };
 
-const checklistStatusColors: Record<string, string> = {
-  not_started: "slate",
+const checklistStatusColors: Record<string, BadgeTone> = {
+  not_started: "neutral",
   in_progress: "primary",
   compliant: "success",
   non_compliant: "danger",
-  not_applicable: "dimmed",
+  not_applicable: "neutral",
 };
 
-const calendarStatusColors: Record<string, string> = {
+const calendarStatusColors: Record<string, BadgeTone> = {
   upcoming: "primary",
   overdue: "danger",
   completed: "success",
-  cancelled: "dimmed",
+  cancelled: "neutral",
 };
+
+function statusColorTone(v: string): BadgeTone {
+  const c = statusColor(v);
+  const m: Record<string, BadgeTone> = {
+    success: "success",
+    danger: "danger",
+    warning: "warning",
+    primary: "primary",
+    info: "info",
+    slate: "neutral",
+    gray: "neutral",
+    teal: "success",
+    green: "success",
+    red: "danger",
+    yellow: "warning",
+    orange: "warning",
+    blue: "info",
+    violet: "accent",
+    cinnabar: "accent",
+  };
+  return (c ? m[c] : undefined) ?? "neutral";
+}
 
 export function RegulatoryPage() {
   useRequirePermission(P.REGULATORY.DASHBOARD_VIEW);
@@ -340,7 +361,7 @@ function DashboardOverview({
                 label: "Avg Score",
                 render: (r) => (
                   <Badge
-                    color={r.avg_score >= 80 ? "success" : r.avg_score >= 60 ? "warning" : "danger"}
+                    tone={r.avg_score >= 80 ? "success" : r.avg_score >= 60 ? "warning" : "danger"}
                   >
                     {r.avg_score.toFixed(1)}%
                   </Badge>
@@ -380,7 +401,7 @@ function DashboardOverview({
                 key: "accreditation_body",
                 label: "Body",
                 render: (r) => (
-                  <Badge size="sm" tt="uppercase">
+                  <Badge tone="neutral" size="sm" tt="uppercase">
                     {r.accreditation_body}
                   </Badge>
                 ),
@@ -388,7 +409,7 @@ function DashboardOverview({
               {
                 key: "non_compliant_items",
                 label: "Gaps",
-                render: (r) => <Badge color="danger">{r.non_compliant_items}</Badge>,
+                render: (r) => <Badge tone="danger">{r.non_compliant_items}</Badge>,
               },
             ]}
           />
@@ -523,7 +544,7 @@ function SelfAssessmentView() {
                     </Text>
                   </div>
                   <Badge
-                    color={
+                    tone={
                       currentScore >= 80 ? "success" : currentScore >= 50 ? "warning" : "danger"
                     }
                   >
@@ -571,6 +592,7 @@ function SelfAssessmentView() {
                   <Grid.Col span={{ base: 12, md: 2 }}>
                     <Box mt={24}>
                       <Button
+                        tone="primary"
                         fullWidth
                         onClick={() => handleSave(std.id)}
                         loading={updateMut.isPending}
@@ -644,7 +666,7 @@ function ChecklistsTab() {
         subtitle="Department-wise regulatory compliance assessments"
         actions={
           canCreate ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
               New Checklist
             </Button>
           ) : undefined
@@ -732,7 +754,11 @@ function ChecklistsTab() {
               })
             }
           />
-          <Button onClick={() => createMut.mutate(form)} loading={createMut.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createMut.mutate(form)}
+            loading={createMut.isPending}
+          >
             Create Checklist
           </Button>
         </Stack>
@@ -810,7 +836,7 @@ function ChecklistListView({
             key: "accreditation_body",
             label: "Body",
             render: (r) => (
-              <Badge size="sm" tt="uppercase">
+              <Badge tone="neutral" size="sm" tt="uppercase">
                 {r.accreditation_body}
               </Badge>
             ),
@@ -824,7 +850,7 @@ function ChecklistListView({
             key: "overall_status",
             label: "Status",
             render: (r) => (
-              <Badge color={checklistStatusColors[r.overall_status]}>
+              <Badge tone={checklistStatusColors[r.overall_status]}>
                 {r.overall_status.replace(/_/g, " ")}
               </Badge>
             ),
@@ -835,7 +861,7 @@ function ChecklistListView({
             render: (r) =>
               r.compliance_score != null ? (
                 <Badge
-                  color={
+                  tone={
                     r.compliance_score >= 80
                       ? "success"
                       : r.compliance_score >= 60
@@ -876,9 +902,8 @@ function ChecklistListView({
               canUpdate ? (
                 <Tooltip label="Auto-populate from system data">
                   <Button
+                    tone="secondary"
                     size="compact-xs"
-                    variant="light"
-                    color="teal"
                     loading={autoPopulateMut.isPending}
                     onClick={() => autoPopulateMut.mutate(r.id)}
                   >
@@ -946,7 +971,7 @@ function GapAnalysisView({
       <Paper p="md" withBorder>
         <Group justify="space-between" mb="md">
           <Text fw={600}>Gap Analysis Visual Report</Text>
-          <Button leftSection={<IconDownload size={16} />} variant="light" size="sm">
+          <Button tone="secondary" leftSection={<IconDownload size={16} />} size="sm">
             Export Report
           </Button>
         </Group>
@@ -991,7 +1016,7 @@ function GapAnalysisView({
               key: "body",
               label: "Body",
               render: (r) => (
-                <Badge size="sm" tt="uppercase">
+                <Badge tone="neutral" size="sm" tt="uppercase">
                   {r.body}
                 </Badge>
               ),
@@ -1044,7 +1069,7 @@ function GapAnalysisView({
               label: "Status",
               render: (r) => (
                 <Badge
-                  color={r.metPercent >= 80 ? "success" : r.metPercent >= 50 ? "warning" : "danger"}
+                  tone={r.metPercent >= 80 ? "success" : r.metPercent >= 50 ? "warning" : "danger"}
                 >
                   {r.metPercent >= 80 ? "Good" : r.metPercent >= 50 ? "Fair" : "Critical"}
                 </Badge>
@@ -1141,12 +1166,12 @@ function AdrTab() {
         actions={
           <Group>
             {canCreateAdr && (
-              <Button leftSection={<IconPlus size={16} />} onClick={openAdr}>
+              <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openAdr}>
                 New ADR Report
               </Button>
             )}
             {canCreateMv && (
-              <Button leftSection={<IconPlus size={16} />} variant="light" onClick={openMv}>
+              <Button tone="secondary" leftSection={<IconPlus size={16} />} onClick={openMv}>
                 New Device Report
               </Button>
             )}
@@ -1197,13 +1222,13 @@ function AdrTab() {
           {
             key: "severity",
             label: "Severity",
-            render: (r) => <Badge color={severityColors[r.severity]}>{r.severity}</Badge>,
+            render: (r) => <Badge tone={severityColors[r.severity]}>{r.severity}</Badge>,
           },
           {
             key: "status",
             label: "Status",
             render: (r) => (
-              <Badge color={eventStatusColors[r.status]}>{r.status.replace(/_/g, " ")}</Badge>
+              <Badge tone={eventStatusColors[r.status]}>{r.status.replace(/_/g, " ")}</Badge>
             ),
           },
           {
@@ -1211,7 +1236,7 @@ function AdrTab() {
             label: "PvPI",
             render: (r) =>
               r.submitted_to_pvpi ? (
-                <Badge color="success" size="sm">
+                <Badge tone="success" size="sm">
                   Submitted
                 </Badge>
               ) : r.status === "draft" && canCreateAdr ? (
@@ -1267,13 +1292,13 @@ function AdrTab() {
           {
             key: "severity",
             label: "Severity",
-            render: (r) => <Badge color={severityColors[r.severity]}>{r.severity}</Badge>,
+            render: (r) => <Badge tone={severityColors[r.severity]}>{r.severity}</Badge>,
           },
           {
             key: "status",
             label: "Status",
             render: (r) => (
-              <Badge color={eventStatusColors[r.status]}>{r.status.replace(/_/g, " ")}</Badge>
+              <Badge tone={eventStatusColors[r.status]}>{r.status.replace(/_/g, " ")}</Badge>
             ),
           },
           {
@@ -1281,7 +1306,7 @@ function AdrTab() {
             label: "CDSCO",
             render: (r) =>
               r.submitted_to_cdsco ? (
-                <Badge color="success" size="sm">
+                <Badge tone="success" size="sm">
                   Submitted
                 </Badge>
               ) : r.status === "draft" && canCreateMv ? (
@@ -1381,7 +1406,11 @@ function AdrTab() {
               { value: "unclassifiable", label: "Unclassifiable" },
             ]}
           />
-          <Button onClick={() => createAdrMut.mutate(adrForm)} loading={createAdrMut.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createAdrMut.mutate(adrForm)}
+            loading={createAdrMut.isPending}
+          >
             Submit ADR Report
           </Button>
         </Stack>
@@ -1456,7 +1485,11 @@ function AdrTab() {
               { value: "destroyed", label: "Destroyed" },
             ]}
           />
-          <Button onClick={() => createMvMut.mutate(mvForm)} loading={createMvMut.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createMvMut.mutate(mvForm)}
+            loading={createMvMut.isPending}
+          >
             Submit Device Report
           </Button>
         </Stack>
@@ -1479,7 +1512,6 @@ function PcpndtTab() {
     queryFn: () => regulatoryService.listPcpndtForms(),
   });
 
-  
   const [form, setForm] = useState<CreatePcpndtRequest>({
     patient_id: "",
     performing_doctor_id: "",
@@ -1507,7 +1539,7 @@ function PcpndtTab() {
         subtitle="Pre-Conception and Pre-Natal Diagnostic Techniques Act compliance"
         actions={
           canCreate ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
               New Form F
             </Button>
           ) : undefined
@@ -1556,13 +1588,13 @@ function PcpndtTab() {
           {
             key: "status",
             label: "Status",
-            render: (r) => <Badge color={statusColor(r.status)}>{r.status}</Badge>,
+            render: (r) => <Badge tone={statusColorTone(r.status)}>{r.status}</Badge>,
           },
           {
             key: "gender_blocked",
             label: "Gender Blocked",
             render: (r) => (
-              <Badge color={r.gender_disclosure_blocked ? "success" : "danger"}>
+              <Badge tone={r.gender_disclosure_blocked ? "success" : "danger"}>
                 {r.gender_disclosure_blocked ? "Yes" : "VIOLATION"}
               </Badge>
             ),
@@ -1578,7 +1610,7 @@ function PcpndtTab() {
             key: "quarterly",
             label: "In Quarterly",
             render: (r) => (
-              <Badge color={r.quarterly_report_included ? "success" : "slate"} size="sm">
+              <Badge tone={r.quarterly_report_included ? "success" : "neutral"} size="sm">
                 {r.quarterly_report_included ? "Yes" : "No"}
               </Badge>
             ),
@@ -1646,7 +1678,11 @@ function PcpndtTab() {
               Gender disclosure will be permanently blocked on this form per PCPNDT Act.
             </Text>
           </Paper>
-          <Button onClick={() => createMut.mutate(form)} loading={createMut.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createMut.mutate(form)}
+            loading={createMut.isPending}
+          >
             Create Form F
           </Button>
         </Stack>
@@ -1712,7 +1748,7 @@ function CalendarTab() {
         subtitle="Unified regulatory deadline tracking"
         actions={
           canManage ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
               New Event
             </Button>
           ) : undefined
@@ -1793,7 +1829,11 @@ function CalendarTab() {
               { value: "annual", label: "Annual" },
             ]}
           />
-          <Button onClick={() => createMut.mutate(form)} loading={createMut.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createMut.mutate(form)}
+            loading={createMut.isPending}
+          >
             Create Event
           </Button>
         </Stack>
@@ -1862,7 +1902,7 @@ function CalendarListView({
             key: "event_type",
             label: "Type",
             render: (r) => (
-              <Badge size="sm" variant="light">
+              <Badge tone="neutral" size="sm">
                 {r.event_type.replace(/_/g, " ")}
               </Badge>
             ),
@@ -1883,7 +1923,7 @@ function CalendarListView({
           {
             key: "status",
             label: "Status",
-            render: (r) => <Badge color={calendarStatusColors[r.status]}>{r.status}</Badge>,
+            render: (r) => <Badge tone={calendarStatusColors[r.status]}>{r.status}</Badge>,
           },
           {
             key: "recurrence",
@@ -1936,6 +1976,11 @@ function LicenseAlertsView({ dashboard }: { dashboard?: ComplianceDashboard }) {
     if (days < 60) return "orange";
     if (days < 90) return "warning";
     return "success";
+  };
+
+  const licenseTone = (days: number): BadgeTone => {
+    const c = getLicenseColor(days);
+    return c === "orange" ? "warning" : (c as BadgeTone);
   };
 
   const licenseRenewalEvents = dashboard.upcoming_deadlines.filter(
@@ -2020,7 +2065,7 @@ function LicenseAlertsView({ dashboard }: { dashboard?: ComplianceDashboard }) {
                 render: (r) => {
                   const days = getDaysUntilExpiry(r.due_date);
                   return (
-                    <Badge color={getLicenseColor(days)} size="lg">
+                    <Badge tone={licenseTone(days)} size="lg">
                       {days < 0
                         ? "EXPIRED"
                         : days < 30
@@ -2037,7 +2082,7 @@ function LicenseAlertsView({ dashboard }: { dashboard?: ComplianceDashboard }) {
               {
                 key: "status",
                 label: "Status",
-                render: (r) => <Badge color={calendarStatusColors[r.status]}>{r.status}</Badge>,
+                render: (r) => <Badge tone={calendarStatusColors[r.status]}>{r.status}</Badge>,
               },
             ]}
           />
@@ -2061,22 +2106,22 @@ function LicenseAlertsView({ dashboard }: { dashboard?: ComplianceDashboard }) {
         </Text>
         <Grid>
           <Grid.Col span={3}>
-            <Badge color="danger" size="lg" fullWidth>
+            <Badge tone="danger" size="lg" fullWidth>
               Critical: Less than 30 days
             </Badge>
           </Grid.Col>
           <Grid.Col span={3}>
-            <Badge color="orange" size="lg" fullWidth>
+            <Badge tone="warning" size="lg" fullWidth>
               High: 30-60 days
             </Badge>
           </Grid.Col>
           <Grid.Col span={3}>
-            <Badge color="warning" size="lg" fullWidth>
+            <Badge tone="warning" size="lg" fullWidth>
               Medium: 60-90 days
             </Badge>
           </Grid.Col>
           <Grid.Col span={3}>
-            <Badge color="success" size="lg" fullWidth>
+            <Badge tone="success" size="lg" fullWidth>
               Low: More than 90 days
             </Badge>
           </Grid.Col>
@@ -2176,7 +2221,7 @@ function TimelineView({
                                 : event.title}
                             </Text>
                           </Box>
-                          <Badge color={barColor} size="sm" style={{ minWidth: "80px" }}>
+                          <Badge tone={barColor} size="sm" style={{ minWidth: "80px" }}>
                             {event.due_date}
                           </Badge>
                         </Group>
@@ -2250,7 +2295,7 @@ function SubmissionsTab() {
     },
   });
 
-  const submissionStatusColors: Record<string, string> = {
+  const submissionStatusColors: Record<string, BadgeTone> = {
     pending: "warning",
     submitted: "primary",
     acknowledged: "success",
@@ -2264,7 +2309,7 @@ function SubmissionsTab() {
         subtitle="Track submissions to regulatory bodies"
         actions={
           canManage ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
               New Submission
             </Button>
           ) : undefined
@@ -2279,7 +2324,7 @@ function SubmissionsTab() {
           {
             key: "submission_type",
             label: "Type",
-            render: (r: RegulatorySubmission) => <Badge variant="light">{r.submission_type}</Badge>,
+            render: (r: RegulatorySubmission) => <Badge tone="neutral">{r.submission_type}</Badge>,
           },
           {
             key: "submitted_to",
@@ -2308,7 +2353,7 @@ function SubmissionsTab() {
             key: "status",
             label: "Status",
             render: (r: RegulatorySubmission) => (
-              <Badge color={submissionStatusColors[r.status] ?? "slate"}>{r.status}</Badge>
+              <Badge tone={submissionStatusColors[r.status] ?? "neutral"}>{r.status}</Badge>
             ),
           },
           {
@@ -2379,7 +2424,11 @@ function SubmissionsTab() {
             value={form.notes ?? ""}
             onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
           />
-          <Button onClick={() => createMut.mutate(form)} loading={createMut.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createMut.mutate(form)}
+            loading={createMut.isPending}
+          >
             Save Submission
           </Button>
         </Stack>
@@ -2426,7 +2475,7 @@ function MockSurveysTab() {
         subtitle="Simulate accreditation surveys for readiness assessment"
         actions={
           canManage ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
               New Mock Survey
             </Button>
           ) : undefined
@@ -2451,7 +2500,7 @@ function MockSurveysTab() {
             key: "accreditation_body",
             label: "Body",
             render: (r: ComplianceChecklist) => (
-              <Badge size="sm" tt="uppercase">
+              <Badge tone="neutral" size="sm" tt="uppercase">
                 {r.accreditation_body}
               </Badge>
             ),
@@ -2465,7 +2514,7 @@ function MockSurveysTab() {
             key: "overall_status",
             label: "Status",
             render: (r: ComplianceChecklist) => (
-              <Badge color={checklistStatusColors[r.overall_status]}>
+              <Badge tone={checklistStatusColors[r.overall_status]}>
                 {r.overall_status.replace(/_/g, " ")}
               </Badge>
             ),
@@ -2476,7 +2525,7 @@ function MockSurveysTab() {
             render: (r: ComplianceChecklist) =>
               r.compliance_score != null ? (
                 <Badge
-                  color={
+                  tone={
                     r.compliance_score >= 80
                       ? "success"
                       : r.compliance_score >= 60
@@ -2563,7 +2612,11 @@ function MockSurveysTab() {
               })
             }
           />
-          <Button onClick={() => createMut.mutate(form)} loading={createMut.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createMut.mutate(form)}
+            loading={createMut.isPending}
+          >
             Create Mock Survey
           </Button>
         </Stack>
@@ -2582,7 +2635,6 @@ function StaffCredentialsTab() {
     queryFn: () => regulatoryService.staffCredentials(),
   });
 
-  
   return (
     <Stack gap="md">
       <PageHeader
@@ -2608,7 +2660,7 @@ function StaffCredentialsTab() {
             key: "credential_type",
             label: "Credential",
             render: (r: StaffCredentialSummary) => (
-              <Badge variant="light">{r.credential_type}</Badge>
+              <Badge tone="neutral">{r.credential_type}</Badge>
             ),
           },
           {
@@ -2633,16 +2685,16 @@ function StaffCredentialsTab() {
                     N/A
                   </Text>
                 );
-              const color =
+              const color: BadgeTone =
                 r.days_until_expiry < 0
                   ? "danger"
                   : r.days_until_expiry < 30
                     ? "danger"
                     : r.days_until_expiry < 90
-                      ? "orange"
+                      ? "warning"
                       : "success";
               return (
-                <Badge color={color}>
+                <Badge tone={color}>
                   {r.days_until_expiry < 0
                     ? `${Math.abs(r.days_until_expiry)}d expired`
                     : `${r.days_until_expiry}d`}
@@ -2654,9 +2706,7 @@ function StaffCredentialsTab() {
             key: "status",
             label: "Status",
             render: (r: StaffCredentialSummary) => (
-              <Badge color={statusColor(r.status) ?? "slate"}>
-                {r.status.replace(/_/g, " ")}
-              </Badge>
+              <Badge tone={statusColorTone(r.status)}>{r.status.replace(/_/g, " ")}</Badge>
             ),
           },
         ]}
@@ -2675,12 +2725,12 @@ function LicenseDashboardTab() {
     queryFn: () => regulatoryService.licenseDashboard(),
   });
 
-  const renewalStatusColors: Record<string, string> = {
+  const renewalStatusColors: Record<string, BadgeTone> = {
     active: "success",
-    expiring_soon: "orange",
+    expiring_soon: "warning",
     expired: "danger",
     pending_renewal: "primary",
-    not_applicable: "slate",
+    not_applicable: "neutral",
   };
 
   const expiredCount = licenses.filter(
@@ -2784,16 +2834,16 @@ function LicenseDashboardTab() {
                     N/A
                   </Text>
                 );
-              const color =
+              const color: BadgeTone =
                 r.days_until_expiry < 0
                   ? "danger"
                   : r.days_until_expiry < 30
                     ? "danger"
                     : r.days_until_expiry < 90
-                      ? "orange"
+                      ? "warning"
                       : "success";
               return (
-                <Badge color={color} size="lg">
+                <Badge tone={color} size="lg">
                   {r.days_until_expiry < 0
                     ? `EXPIRED (${Math.abs(r.days_until_expiry)}d)`
                     : `${r.days_until_expiry}d`}
@@ -2805,7 +2855,7 @@ function LicenseDashboardTab() {
             key: "renewal_status",
             label: "Status",
             render: (r: LicenseDashboardItem) => (
-              <Badge color={renewalStatusColors[r.renewal_status] ?? "slate"}>
+              <Badge tone={renewalStatusColors[r.renewal_status] ?? "neutral"}>
                 {r.renewal_status.replace(/_/g, " ")}
               </Badge>
             ),
@@ -2936,11 +2986,11 @@ function NablDocumentsTab() {
             label: "Status",
             render: (r: NablDocumentSummary) =>
               r.completeness_pct >= 100 ? (
-                <Badge color="success">Complete</Badge>
+                <Badge tone="success">Complete</Badge>
               ) : r.completeness_pct >= 50 ? (
-                <Badge color="warning">In Progress</Badge>
+                <Badge tone="warning">In Progress</Badge>
               ) : (
-                <Badge color="danger">Incomplete</Badge>
+                <Badge tone="danger">Incomplete</Badge>
               ),
           },
         ]}

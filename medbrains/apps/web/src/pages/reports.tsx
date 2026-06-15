@@ -1,7 +1,5 @@
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Group,
   Modal,
@@ -41,6 +39,7 @@ import { PageHeader } from "@/components";
 import { NabhIndicatorMatrix } from "@/components/Reports/NabhIndicatorMatrix";
 import { type EChartsCoreOption, ReportChart } from "@/components/Reports/ReportChart";
 import { ReportDetailPanel } from "@/components/Reports/ReportDetailPanel";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { reportsService } from "@/services/reports.service";
 import styles from "./reports.module.scss";
@@ -1334,6 +1333,29 @@ function daysAgoIso(days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+function colorToBadgeTone(color: string): BadgeTone {
+  const map: Record<string, BadgeTone> = {
+    gray: "neutral",
+    slate: "neutral",
+    dark: "neutral",
+    green: "success",
+    teal: "success",
+    lime: "success",
+    yellow: "warning",
+    orange: "warning",
+    red: "danger",
+    blue: "info",
+    cyan: "info",
+    indigo: "primary",
+    primary: "primary",
+    violet: "accent",
+    grape: "accent",
+    pink: "accent",
+    copper: "accent",
+  };
+  return map[color] ?? "neutral";
+}
+
 function reportSourceLabel(report: ReportDefinition): string {
   return report.sourceTables.slice(0, 4).join(", ");
 }
@@ -2598,12 +2620,8 @@ function ReportTile({
           <Group justify="space-between" align="flex-start">
             <Stack gap={3}>
               <Group gap={6}>
-                <Badge color={priority.color} variant="light">
-                  {priority.label}
-                </Badge>
-                <Badge color={readiness.color} variant="light">
-                  {readiness.label}
-                </Badge>
+                <Badge tone={colorToBadgeTone(priority.color)}>{priority.label}</Badge>
+                <Badge tone={colorToBadgeTone(readiness.color)}>{readiness.label}</Badge>
               </Group>
               <Text fw={800}>{report.title}</Text>
               <Text size="sm" c="dimmed">
@@ -2614,9 +2632,8 @@ function ReportTile({
           {canView ? (
             <div style={{ position: "relative" }}>
               <Button
+                tone="primary"
                 size="xs"
-                variant="gradient"
-                gradient={{ from: "primary", to: "copper", deg: 120 }}
                 leftSection={<IconFileAnalytics size={14} />}
                 onClick={() => onDetails(report)}
                 style={{ position: "absolute", top: 8, right: 8, zIndex: 2 }}
@@ -2687,10 +2704,10 @@ function ReportFamilyPanel({
             </Stack>
           </Group>
           <Group gap="xs">
-            <Badge color={family.accent} variant="light" size="lg">
+            <Badge tone={colorToBadgeTone(family.accent)} size="lg">
               {reports.length} charts
             </Badge>
-            <Badge color="red" variant="light">
+            <Badge tone="danger">
               {reports.filter((report) => report.priority === "P1").length} P1
             </Badge>
           </Group>
@@ -2858,10 +2875,9 @@ export function ReportsPage() {
               {REPORT_PRIORITY_FILTERS.map((priority) => (
                 <Button
                   key={priority}
+                  tone={priorityFilter === priority ? "primary" : "secondary"}
                   size="xs"
                   radius="xl"
-                  variant={priorityFilter === priority ? "filled" : "light"}
-                  color={priority === "all" ? "blue" : PRIORITY_META[priority].color}
                   onClick={() => setReportParam("priority", priority, "all")}
                 >
                   {priority === "all" ? "All priority" : priority}
@@ -2873,10 +2889,9 @@ export function ReportsPage() {
             {REPORT_READINESS_FILTERS.map((readiness) => (
               <Button
                 key={readiness}
+                tone={readinessFilter === readiness ? "primary" : "secondary"}
                 size="xs"
                 radius="xl"
-                variant={readinessFilter === readiness ? "filled" : "light"}
-                color={readiness === "all" ? "gray" : READINESS_META[readiness].color}
                 onClick={() => setReportParam("readiness", readiness, "all")}
               >
                 {readiness === "all" ? "All readiness" : READINESS_META[readiness].label}
