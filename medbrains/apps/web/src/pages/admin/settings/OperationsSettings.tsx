@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Card,
   Checkbox,
   Group,
@@ -14,7 +13,7 @@ import { notifications } from "@mantine/notifications";
 import { IconCheck, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Button, Table } from "@/components/ui";
+import { Button, IconButton, Table } from "@/components/ui";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 interface HolidayEntry {
@@ -211,15 +210,14 @@ function HolidaysCard({
                     )}
                   </Table.Td>
                   <Table.Td w={40}>
-                    <ActionIcon
+                    <IconButton
                       size="sm"
-                      variant="subtle"
-                      color="danger"
+                      tone="danger"
                       aria-label="Remove holiday"
                       onClick={() => onSave(holidays.filter((_, i) => i !== index))}
                     >
                       <IconTrash size={14} />
-                    </ActionIcon>
+                    </IconButton>
                   </Table.Td>
                 </Table.Tr>
               ))}

@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ActionIcon, Alert, Modal, Select, Stack, Switch, Text, TextInput } from "@mantine/core";
+import { Alert, Modal, Select, Stack, Switch, Text, TextInput } from "@mantine/core";
 import type { CreateFacilityInput } from "@medbrains/schemas";
 import { createFacilitySchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
@@ -7,7 +7,7 @@ import type { OnboardingFacility } from "@medbrains/types";
 import { IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, IconButton } from "@/components/ui";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -131,14 +131,9 @@ export function FacilitiesStep({ onNext, onBack }: Props) {
               {f.parent_local_id && " (sub-institution)"}
             </Text>
           </div>
-          <ActionIcon
-            variant="subtle"
-            color="danger"
-            onClick={() => removeFacility(f.local_id)}
-            aria-label="Delete"
-          >
+          <IconButton tone="danger" onClick={() => removeFacility(f.local_id)} aria-label="Delete">
             <IconTrash size={16} />
-          </ActionIcon>
+          </IconButton>
         </div>
       ))}
 

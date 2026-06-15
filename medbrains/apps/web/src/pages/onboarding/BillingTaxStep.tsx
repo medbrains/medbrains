@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Group,
   Modal,
   NumberInput,
@@ -22,7 +21,7 @@ import type {
 import { IconCash, IconPercentage, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, IconButton } from "@/components/ui";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -179,14 +178,13 @@ export function BillingTaxStep({ onNext, onBack }: Props) {
               <Badge tone={cat.applicability === "exempt" ? "neutral" : "primary"}>
                 {cat.rate_percent}% &middot; {cat.applicability.replace(/_/g, " ")}
               </Badge>
-              <ActionIcon
-                variant="subtle"
-                color="danger"
+              <IconButton
+                tone="danger"
                 onClick={() => removeTaxCategory(cat.local_id)}
                 aria-label="Delete"
               >
                 <IconTrash size={16} />
-              </ActionIcon>
+              </IconButton>
             </div>
           </div>
         ))}
@@ -229,14 +227,13 @@ export function BillingTaxStep({ onNext, onBack }: Props) {
                   Default
                 </Badge>
               )}
-              <ActionIcon
-                variant="subtle"
-                color="danger"
+              <IconButton
+                tone="danger"
                 onClick={() => removePaymentMethod(pm.local_id)}
                 aria-label="Delete"
               >
                 <IconTrash size={16} />
-              </ActionIcon>
+              </IconButton>
             </div>
           </div>
         ))}

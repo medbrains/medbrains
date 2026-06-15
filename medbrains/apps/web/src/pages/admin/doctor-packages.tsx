@@ -3,7 +3,6 @@
  * Sub-Sprint B of SPRINT-doctor-activities.md.
  */
 import {
-  ActionIcon,
   Card,
   Drawer,
   Group,
@@ -26,7 +25,7 @@ import { IconList, IconPackage, IconPlus, IconTrash } from "@tabler/icons-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { Badge, Button, Table } from "@/components/ui";
+import { Badge, Button, IconButton, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { patientPackagesService } from "@/services/patientPackages.service";
 
@@ -172,9 +171,13 @@ export function AdminDoctorPackagesPage() {
                 <Table.Td>
                   {canManagePackageMasters && (
                     <Tooltip label="Manage inclusions">
-                      <ActionIcon variant="subtle" onClick={() => setEditPackageId(p.id)}>
+                      <IconButton
+                        aria-label="Manage inclusions"
+                        tone="default"
+                        onClick={() => setEditPackageId(p.id)}
+                      >
                         <IconList size={16} />
-                      </ActionIcon>
+                      </IconButton>
                     </Tooltip>
                   )}
                 </Table.Td>
@@ -393,14 +396,14 @@ function InclusionsDrawer({ packageId, onClose }: { packageId: string; onClose: 
                     </Text>
                   )}
                 </Stack>
-                <ActionIcon
-                  variant="subtle"
-                  color="red"
+                <IconButton
+                  aria-label="Delete"
+                  tone="danger"
                   onClick={() => remove.mutate(inc.id)}
                   loading={remove.isPending}
                 >
                   <IconTrash size={14} />
-                </ActionIcon>
+                </IconButton>
               </Group>
             </Card>
           ))}

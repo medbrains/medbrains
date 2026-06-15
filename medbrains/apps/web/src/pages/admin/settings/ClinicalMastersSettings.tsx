@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Group,
   Loader,
   Modal,
@@ -36,7 +35,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import {
   type CreateMasterItemInput,
   clinicalMastersService,
@@ -347,24 +346,22 @@ function MasterTable({
                     {item.tenant_id ? (
                       <Group gap="xs" wrap="nowrap">
                         {canUpdate && (
-                          <ActionIcon
-                            variant="subtle"
-                            color="primary"
+                          <IconButton
+                            tone="primary"
                             onClick={() => openEdit(item)}
                             aria-label="Edit"
                           >
                             <IconPencil size={16} />
-                          </ActionIcon>
+                          </IconButton>
                         )}
                         {canDelete && (
-                          <ActionIcon
-                            variant="subtle"
-                            color="danger"
+                          <IconButton
+                            tone="danger"
                             onClick={() => setDeleteTarget(item)}
                             aria-label="Delete"
                           >
                             <IconTrash size={16} />
-                          </ActionIcon>
+                          </IconButton>
                         )}
                       </Group>
                     ) : (
@@ -763,9 +760,8 @@ function InsuranceProvidersTable() {
                   <Table.Td>
                     <Group gap="xs" wrap="nowrap">
                       {canUpdate && (
-                        <ActionIcon
-                          variant="subtle"
-                          color="primary"
+                        <IconButton
+                          tone="primary"
                           onClick={() => {
                             setEditingItem(provider);
                             setModalOpen(true);
@@ -773,17 +769,16 @@ function InsuranceProvidersTable() {
                           aria-label="Edit"
                         >
                           <IconPencil size={16} />
-                        </ActionIcon>
+                        </IconButton>
                       )}
                       {canDelete && (
-                        <ActionIcon
-                          variant="subtle"
-                          color="danger"
+                        <IconButton
+                          tone="danger"
                           onClick={() => setDeleteTarget(provider)}
                           aria-label="Delete"
                         >
                           <IconTrash size={16} />
-                        </ActionIcon>
+                        </IconButton>
                       )}
                     </Group>
                   </Table.Td>

@@ -8,7 +8,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Card,
   Group,
   Modal,
@@ -32,7 +31,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "@/components";
-import { Badge, Button, Table } from "@/components/ui";
+import { Badge, Button, IconButton, Table } from "@/components/ui";
 import {
   accessGroupFormToRequest,
   accessGroupMemberFormToRequest,
@@ -139,23 +138,27 @@ export default function GroupsPage() {
               <Table.Td>
                 <Group gap="xs">
                   <Tooltip label="Members">
-                    <ActionIcon variant="subtle" onClick={() => setMemberPanelGroup(g)}>
+                    <IconButton
+                      aria-label="Members"
+                      tone="default"
+                      onClick={() => setMemberPanelGroup(g)}
+                    >
                       <IconUsers size={16} />
-                    </ActionIcon>
+                    </IconButton>
                   </Tooltip>
                   <Tooltip label="Edit">
-                    <ActionIcon variant="subtle" onClick={() => setEditTarget(g)}>
+                    <IconButton aria-label="Edit" tone="default" onClick={() => setEditTarget(g)}>
                       <IconPencil size={16} />
-                    </ActionIcon>
+                    </IconButton>
                   </Tooltip>
                   <Tooltip label="Deactivate">
-                    <ActionIcon
-                      variant="subtle"
-                      color="red"
+                    <IconButton
+                      aria-label="Deactivate"
+                      tone="danger"
                       onClick={() => deleteMutation.mutate(g.id)}
                     >
                       <IconTrash size={16} />
-                    </ActionIcon>
+                    </IconButton>
                   </Tooltip>
                 </Group>
               </Table.Td>

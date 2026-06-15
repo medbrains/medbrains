@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Modal,
   MultiSelect,
   NumberInput,
@@ -18,7 +17,7 @@ import { IconPlus, IconStethoscope, IconTrash, IconUpload, IconUser } from "@tab
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { CsvImportModal, SelectLabel } from "@/components";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, IconButton } from "@/components/ui";
 import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
@@ -200,14 +199,9 @@ export function UsersStep({ onNext, onBack }: Props) {
                   {r.code}
                 </Text>
               </div>
-              <ActionIcon
-                variant="subtle"
-                color="danger"
-                onClick={() => removeRole(r.local_id)}
-                aria-label="Delete"
-              >
+              <IconButton tone="danger" onClick={() => removeRole(r.local_id)} aria-label="Delete">
                 <IconTrash size={16} />
-              </ActionIcon>
+              </IconButton>
             </div>
           ))}
         </div>
@@ -234,14 +228,9 @@ export function UsersStep({ onNext, onBack }: Props) {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Badge tone="neutral">{u.role.replace(/_/g, " ")}</Badge>
-            <ActionIcon
-              variant="subtle"
-              color="danger"
-              onClick={() => removeUser(u.local_id)}
-              aria-label="Delete"
-            >
+            <IconButton tone="danger" onClick={() => removeUser(u.local_id)} aria-label="Delete">
               <IconTrash size={16} />
-            </ActionIcon>
+            </IconButton>
           </div>
         </div>
       ))}

@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Alert,
   CopyButton,
   Group,
@@ -52,7 +51,7 @@ import {
 } from "@/components";
 import { UserCreateDrawer } from "@/components/admin/UserCreateDrawer";
 import { OfflineWriteBanner } from "@/components/OfflineWriteBanner";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useCreateInline } from "@/hooks/useCreateInline";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminAccessService, type CreateSetupUserInput } from "@/services/adminAccess.service";
@@ -872,50 +871,30 @@ export function UsersPage() {
         <Group gap={4}>
           {canUpdate && (
             <Tooltip label="Edit user">
-              <ActionIcon
-                variant="subtle"
-                color="primary"
-                onClick={() => openEdit(row)}
-                aria-label="Edit"
-              >
+              <IconButton tone="primary" onClick={() => openEdit(row)} aria-label="Edit">
                 <IconPencil size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
           {canUpdate && (
             <Tooltip label="Permission overrides">
-              <ActionIcon
-                variant="subtle"
-                color="violet"
-                onClick={() => openPermissions(row)}
-                aria-label="Security"
-              >
+              <IconButton tone="default" onClick={() => openPermissions(row)} aria-label="Security">
                 <IconShield size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
           {canUpdate && (
             <Tooltip label="Reset password">
-              <ActionIcon
-                variant="subtle"
-                color="copper"
-                onClick={() => openReset(row)}
-                aria-label="Reset password"
-              >
+              <IconButton tone="default" onClick={() => openReset(row)} aria-label="Reset password">
                 <IconKey size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
           {canDelete && (
             <Tooltip label="Delete user">
-              <ActionIcon
-                variant="subtle"
-                color="danger"
-                onClick={() => openDelete(row)}
-                aria-label="Delete"
-              >
+              <IconButton tone="danger" onClick={() => openDelete(row)} aria-label="Delete">
                 <IconTrash size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
         </Group>

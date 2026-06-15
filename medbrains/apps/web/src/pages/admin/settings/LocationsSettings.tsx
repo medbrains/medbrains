@@ -1,11 +1,11 @@
-import { ActionIcon, Group, Loader, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Group, Loader, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { LocationRow } from "@medbrains/types";
 import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { CreateLocationModal, SelectLabel } from "@/components";
-import { Badge, Button, Table } from "@/components/ui";
+import { Badge, Button, IconButton, Table } from "@/components/ui";
 import { useCreateInline } from "@/hooks/useCreateInline";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
@@ -336,22 +336,12 @@ export function LocationsSettings() {
       </Table.Td>
       <Table.Td>
         <Group gap={4}>
-          <ActionIcon
-            variant="subtle"
-            color="primary"
-            onClick={() => openEdit(loc)}
-            aria-label="Edit"
-          >
+          <IconButton tone="primary" onClick={() => openEdit(loc)} aria-label="Edit">
             <IconPencil size={16} />
-          </ActionIcon>
-          <ActionIcon
-            variant="subtle"
-            color="danger"
-            onClick={() => setDeleteTarget(loc)}
-            aria-label="Delete"
-          >
+          </IconButton>
+          <IconButton tone="danger" onClick={() => setDeleteTarget(loc)} aria-label="Delete">
             <IconTrash size={16} />
-          </ActionIcon>
+          </IconButton>
         </Group>
       </Table.Td>
     </Table.Tr>

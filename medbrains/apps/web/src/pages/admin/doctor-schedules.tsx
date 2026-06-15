@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Card,
   Checkbox,
   Group,
@@ -18,7 +17,7 @@ import {
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
-import { Badge, Button, Table } from "@/components/ui";
+import { Badge, Button, IconButton, Table } from "@/components/ui";
 import "@mantine/schedule/styles.css";
 import type { ScheduleEventData } from "@mantine/schedule";
 import { WeekView } from "@mantine/schedule";
@@ -852,9 +851,8 @@ export function DoctorSchedulesPage() {
                       {canManage && (
                         <Table.Td>
                           <Group gap="xs" wrap="nowrap">
-                            <ActionIcon
-                              variant="subtle"
-                              color="primary"
+                            <IconButton
+                              tone="primary"
                               title="Edit"
                               onClick={() => {
                                 setEditSchedule(s);
@@ -863,16 +861,15 @@ export function DoctorSchedulesPage() {
                               aria-label="Edit"
                             >
                               <IconPencil size={16} />
-                            </ActionIcon>
-                            <ActionIcon
-                              variant="subtle"
-                              color="danger"
+                            </IconButton>
+                            <IconButton
+                              tone="danger"
                               title="Delete"
                               onClick={() => deleteMutation.mutate(s.id)}
                               aria-label="Delete"
                             >
                               <IconTrash size={16} />
-                            </ActionIcon>
+                            </IconButton>
                           </Group>
                         </Table.Td>
                       )}
@@ -934,15 +931,14 @@ export function DoctorSchedulesPage() {
                 </Table.Td>
                 {canManage && (
                   <Table.Td>
-                    <ActionIcon
-                      variant="subtle"
-                      color="danger"
+                    <IconButton
+                      tone="danger"
                       title="Remove"
                       onClick={() => deleteExceptionMutation.mutate(ex.id)}
                       aria-label="Delete"
                     >
                       <IconTrash size={16} />
-                    </ActionIcon>
+                    </IconButton>
                   </Table.Td>
                 )}
               </Table.Tr>

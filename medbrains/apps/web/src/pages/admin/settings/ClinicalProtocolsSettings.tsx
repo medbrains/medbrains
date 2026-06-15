@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ActionIcon, Group, Modal, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { Group, Modal, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { type ClinicalProtocolFormInput, clinicalProtocolFormSchema } from "@medbrains/schemas";
@@ -9,7 +9,7 @@ import { P } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
-import { Badge, Button, Table } from "@/components/ui";
+import { Badge, Button, IconButton, Table } from "@/components/ui";
 import {
   CLINICAL_PROTOCOL_CATEGORY_OPTIONS,
   DEFAULT_CLINICAL_PROTOCOL_FORM_VALUES,
@@ -107,15 +107,14 @@ export function ClinicalProtocolsSettings() {
               </Table.Td>
               {canManage && (
                 <Table.Td>
-                  <ActionIcon
-                    variant="subtle"
-                    color="danger"
+                  <IconButton
+                    tone="danger"
                     size="sm"
                     onClick={() => deleteMutation.mutate(p.id)}
                     aria-label="Delete"
                   >
                     <IconTrash size={14} />
-                  </ActionIcon>
+                  </IconButton>
                 </Table.Td>
               )}
             </Table.Tr>

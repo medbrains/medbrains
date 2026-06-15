@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Card,
   Drawer,
   Group,
@@ -33,7 +32,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminAccessService } from "@/services/adminAccess.service";
 
@@ -264,34 +263,34 @@ export function AccessRequestsPage() {
                     {request.status === "pending" && (
                       <>
                         <Tooltip label="Approve">
-                          <ActionIcon
-                            variant="light"
-                            color="success"
+                          <IconButton
+                            aria-label="Approve"
+                            tone="success"
                             onClick={() => setReviewTarget({ request, action: "approve" })}
                           >
                             <IconCheck size={16} />
-                          </ActionIcon>
+                          </IconButton>
                         </Tooltip>
                         <Tooltip label="Reject">
-                          <ActionIcon
-                            variant="light"
-                            color="danger"
+                          <IconButton
+                            aria-label="Reject"
+                            tone="danger"
                             onClick={() => setReviewTarget({ request, action: "reject" })}
                           >
                             <IconX size={16} />
-                          </ActionIcon>
+                          </IconButton>
                         </Tooltip>
                       </>
                     )}
                     {request.status === "approved" && (
                       <Tooltip label="Revoke">
-                        <ActionIcon
-                          variant="light"
-                          color="gray"
+                        <IconButton
+                          aria-label="Revoke"
+                          tone="default"
                           onClick={() => setReviewTarget({ request, action: "revoke" })}
                         >
                           <IconLockAccess size={16} />
-                        </ActionIcon>
+                        </IconButton>
                       </Tooltip>
                     )}
                   </Group>

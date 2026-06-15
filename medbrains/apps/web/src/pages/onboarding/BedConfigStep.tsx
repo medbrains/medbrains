@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ActionIcon, Group, Modal, NumberInput, Stack, Text, TextInput } from "@mantine/core";
+import { Group, Modal, NumberInput, Stack, Text, TextInput } from "@mantine/core";
 import type { CreateBedTypeInput } from "@medbrains/schemas";
 import { createBedTypeSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
@@ -7,7 +7,7 @@ import type { OnboardingBedType } from "@medbrains/types";
 import { IconBed, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Button } from "@/components/ui";
+import { Button, IconButton } from "@/components/ui";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -106,14 +106,13 @@ export function BedConfigStep({ onNext, onBack }: Props) {
             <Text fw={600} c="teal" size="sm">
               ₹{bed.daily_rate}/day
             </Text>
-            <ActionIcon
-              variant="subtle"
-              color="danger"
+            <IconButton
+              tone="danger"
               onClick={() => removeBedType(bed.local_id)}
               aria-label="Delete"
             >
               <IconTrash size={16} />
-            </ActionIcon>
+            </IconButton>
           </div>
         </div>
       ))}

@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ActionIcon, Group, Menu, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Group, Menu, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { AdminCreateRoleFormInput, EditRoleFormInput } from "@medbrains/schemas";
 import { adminCreateRoleFormSchema, editRoleFormSchema } from "@medbrains/schemas";
@@ -13,7 +13,7 @@ import { Controller, useForm } from "react-hook-form";
 import { useNavigate } from "react-router";
 import { PageHeader } from "@/components";
 import { OfflineWriteBanner } from "@/components/OfflineWriteBanner";
-import { Badge, Button, Table } from "@/components/ui";
+import { Badge, Button, IconButton, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminAccessService } from "@/services/adminAccess.service";
 
@@ -375,9 +375,9 @@ export function RolesPage() {
               <Table.Td>
                 <Menu shadow="md" width={160}>
                   <Menu.Target>
-                    <ActionIcon variant="subtle" color="slate" size="sm" aria-label="More actions">
+                    <IconButton tone="default" size="sm" aria-label="More actions">
                       <IconDots size={16} />
-                    </ActionIcon>
+                    </IconButton>
                   </Menu.Target>
                   <Menu.Dropdown>
                     <Menu.Item

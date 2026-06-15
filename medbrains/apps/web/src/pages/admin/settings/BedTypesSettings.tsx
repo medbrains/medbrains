@@ -1,15 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  ActionIcon,
-  Group,
-  Loader,
-  Modal,
-  NumberInput,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Group, Loader, Modal, NumberInput, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { type BedTypeSettingsFormInput, bedTypeSettingsFormSchema } from "@medbrains/schemas";
 import type { BedTypeRow } from "@medbrains/types";
@@ -17,7 +7,7 @@ import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Badge, Button, Table } from "@/components/ui";
+import { Badge, Button, IconButton, Table } from "@/components/ui";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
 const EMPTY_FORM: BedTypeSettingsFormInput = {
@@ -254,26 +244,24 @@ export function BedTypesSettings() {
                 </Table.Td>
                 <Table.Td>
                   <Group gap="xs" wrap="nowrap">
-                    <ActionIcon
-                      variant="subtle"
-                      color="primary"
+                    <IconButton
+                      tone="primary"
                       size="sm"
                       onClick={() => openEditModal(bt)}
                       title="Edit bed type"
                       aria-label="Edit"
                     >
                       <IconPencil size={16} />
-                    </ActionIcon>
-                    <ActionIcon
-                      variant="subtle"
-                      color="danger"
+                    </IconButton>
+                    <IconButton
+                      tone="danger"
                       size="sm"
                       onClick={() => setDeleteConfirmId(bt.id)}
                       title="Delete bed type"
                       aria-label="Delete"
                     >
                       <IconTrash size={16} />
-                    </ActionIcon>
+                    </IconButton>
                   </Group>
                 </Table.Td>
               </Table.Tr>

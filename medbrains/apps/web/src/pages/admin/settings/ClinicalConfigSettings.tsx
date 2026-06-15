@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Alert,
   Card,
   Group,
@@ -17,7 +16,7 @@ import { IconArrowRight, IconHeartbeat, IconPlus, IconTrash } from "@tabler/icon
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { Button } from "@/components/ui";
+import { Button, IconButton } from "@/components/ui";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 /* ------------------------------------------------------------------ */
@@ -175,9 +174,14 @@ function RosSystemsCard({
               onChange={(e) => handleChange(idx, "label", e.currentTarget.value)}
               style={{ flex: 1 }}
             />
-            <ActionIcon variant="subtle" color="red" size="sm" onClick={() => handleRemove(idx)}>
+            <IconButton
+              aria-label="Delete"
+              tone="danger"
+              size="sm"
+              onClick={() => handleRemove(idx)}
+            >
               <IconTrash size={14} />
-            </ActionIcon>
+            </IconButton>
           </Group>
         ))}
         {local.length === 0 && (
@@ -312,9 +316,14 @@ function DischargeChecklistCard({
               checked={it.required}
               onChange={(e) => handleRequiredToggle(idx, e.currentTarget.checked)}
             />
-            <ActionIcon variant="subtle" color="red" size="sm" onClick={() => handleRemove(idx)}>
+            <IconButton
+              aria-label="Delete"
+              tone="danger"
+              size="sm"
+              onClick={() => handleRemove(idx)}
+            >
               <IconTrash size={14} />
-            </ActionIcon>
+            </IconButton>
           </Group>
         ))}
         {local.length === 0 && (

@@ -1,14 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  ActionIcon,
-  Group,
-  Loader,
-  Modal,
-  NumberInput,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Group, Loader, Modal, NumberInput, Stack, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { type SequenceSettingsFormInput, sequenceSettingsFormSchema } from "@medbrains/schemas";
 import type { SequenceRow } from "@medbrains/types";
@@ -16,7 +7,7 @@ import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Button, Table } from "@/components/ui";
+import { Button, IconButton, Table } from "@/components/ui";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
 // ── Helpers ──────────────────────────────────────────────
@@ -278,25 +269,23 @@ export function SequencesSettings() {
                 </Table.Td>
                 <Table.Td>
                   <Group gap="xs" wrap="nowrap">
-                    <ActionIcon
-                      variant="subtle"
-                      color="primary"
+                    <IconButton
+                      tone="primary"
                       onClick={() => openEditModal(row)}
                       title="Edit sequence"
                       aria-label="Edit"
                     >
                       <IconPencil size={16} />
-                    </ActionIcon>
-                    <ActionIcon
-                      variant="subtle"
-                      color="danger"
+                    </IconButton>
+                    <IconButton
+                      tone="danger"
                       onClick={() => handleDelete(row.seq_type)}
                       loading={deleteMutation.isPending}
                       title="Delete sequence"
                       aria-label="Delete"
                     >
                       <IconTrash size={16} />
-                    </ActionIcon>
+                    </IconButton>
                   </Group>
                 </Table.Td>
               </Table.Tr>

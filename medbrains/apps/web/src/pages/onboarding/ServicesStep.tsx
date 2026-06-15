@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ActionIcon, Group, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Group, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
 import type { CreateServiceInput } from "@medbrains/schemas";
 import { createServiceSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
@@ -7,7 +7,7 @@ import type { OnboardingService, ServiceType } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -155,14 +155,13 @@ export function ServicesStep({ onNext, onBack }: Props) {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Badge tone={typeColors[svc.service_type] ?? "neutral"}>{svc.service_type}</Badge>
-            <ActionIcon
-              variant="subtle"
-              color="danger"
+            <IconButton
+              tone="danger"
               onClick={() => removeService(svc.local_id)}
               aria-label="Delete"
             >
               <IconTrash size={16} />
-            </ActionIcon>
+            </IconButton>
           </div>
         </div>
       ))}

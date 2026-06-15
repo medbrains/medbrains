@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Group,
   Loader,
   Modal,
@@ -27,7 +26,7 @@ import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
 // ── Constants ─────────────────────────────────────────────
@@ -530,23 +529,17 @@ export function BillingTaxSettings() {
       </Table.Td>
       <Table.Td>
         <Group gap={4}>
-          <ActionIcon
-            variant="subtle"
-            color="primary"
-            onClick={() => openEditTax(row)}
-            aria-label="Edit"
-          >
+          <IconButton tone="primary" onClick={() => openEditTax(row)} aria-label="Edit">
             <IconPencil size={16} />
-          </ActionIcon>
-          <ActionIcon
-            variant="subtle"
-            color="danger"
+          </IconButton>
+          <IconButton
+            tone="danger"
             onClick={() => handleDeleteTax(row)}
             loading={deleteTaxMutation.isPending}
             aria-label="Delete"
           >
             <IconTrash size={16} />
-          </ActionIcon>
+          </IconButton>
         </Group>
       </Table.Td>
     </Table.Tr>
@@ -582,23 +575,17 @@ export function BillingTaxSettings() {
       </Table.Td>
       <Table.Td>
         <Group gap={4}>
-          <ActionIcon
-            variant="subtle"
-            color="primary"
-            onClick={() => openEditPayment(row)}
-            aria-label="Edit"
-          >
+          <IconButton tone="primary" onClick={() => openEditPayment(row)} aria-label="Edit">
             <IconPencil size={16} />
-          </ActionIcon>
-          <ActionIcon
-            variant="subtle"
-            color="danger"
+          </IconButton>
+          <IconButton
+            tone="danger"
             onClick={() => handleDeletePayment(row)}
             loading={deletePaymentMutation.isPending}
             aria-label="Delete"
           >
             <IconTrash size={16} />
-          </ActionIcon>
+          </IconButton>
         </Group>
       </Table.Td>
     </Table.Tr>

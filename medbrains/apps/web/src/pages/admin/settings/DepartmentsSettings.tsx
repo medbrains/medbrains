@@ -1,21 +1,11 @@
-import {
-  ActionIcon,
-  Grid,
-  Group,
-  Loader,
-  Modal,
-  Select,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Grid, Group, Loader, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { DepartmentRow, WorkingHours } from "@medbrains/types";
 import { IconCheck, IconClock, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { CreateDepartmentModal, SelectLabel } from "@/components";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { useCreateInline } from "@/hooks/useCreateInline";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
@@ -512,22 +502,12 @@ export function DepartmentsSettings() {
       </Table.Td>
       <Table.Td>
         <Group gap={4}>
-          <ActionIcon
-            variant="subtle"
-            color="primary"
-            onClick={() => openEdit(dept)}
-            aria-label="Edit"
-          >
+          <IconButton tone="primary" onClick={() => openEdit(dept)} aria-label="Edit">
             <IconPencil size={16} />
-          </ActionIcon>
-          <ActionIcon
-            variant="subtle"
-            color="danger"
-            onClick={() => openDelete(dept)}
-            aria-label="Delete"
-          >
+          </IconButton>
+          <IconButton tone="danger" onClick={() => openDelete(dept)} aria-label="Delete">
             <IconTrash size={16} />
-          </ActionIcon>
+          </IconButton>
         </Group>
       </Table.Td>
     </Table.Tr>

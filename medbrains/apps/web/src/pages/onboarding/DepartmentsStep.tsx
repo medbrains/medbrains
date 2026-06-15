@@ -1,15 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Accordion,
-  ActionIcon,
-  Grid,
-  Group,
-  Modal,
-  Select,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Accordion, Grid, Group, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
 import type { CreateDepartmentInput } from "@medbrains/schemas";
 import { createDepartmentSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
@@ -18,7 +8,7 @@ import { IconClock, IconCopy, IconPlus, IconTrash, IconUpload } from "@tabler/ic
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { CsvImportModal } from "@/components";
-import { Button } from "@/components/ui";
+import { Button, IconButton } from "@/components/ui";
 import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
@@ -235,14 +225,13 @@ export function DepartmentsStep({ onNext, onBack }: Props) {
                 </Text>
               )}
             </div>
-            <ActionIcon
-              variant="subtle"
-              color="danger"
+            <IconButton
+              tone="danger"
               onClick={() => removeDepartment(dept.local_id)}
               aria-label="Delete"
             >
               <IconTrash size={16} />
-            </ActionIcon>
+            </IconButton>
           </div>
         );
       })}

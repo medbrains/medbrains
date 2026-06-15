@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Group,
   Loader,
   Modal,
@@ -24,7 +23,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { CreateFacilityModal, SelectLabel } from "@/components";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { useCreateInline } from "@/hooks/useCreateInline";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
@@ -520,23 +519,17 @@ export function FacilitiesSettings() {
       </Table.Td>
       <Table.Td>
         <Group gap={4}>
-          <ActionIcon
-            variant="subtle"
-            color="primary"
-            onClick={() => openEdit(facility)}
-            aria-label="Edit"
-          >
+          <IconButton tone="primary" onClick={() => openEdit(facility)} aria-label="Edit">
             <IconPencil size={16} />
-          </ActionIcon>
-          <ActionIcon
-            variant="subtle"
-            color="danger"
+          </IconButton>
+          <IconButton
+            tone="danger"
             onClick={() => handleDelete(facility)}
             loading={deleteMutation.isPending}
             aria-label="Delete"
           >
             <IconTrash size={16} />
-          </ActionIcon>
+          </IconButton>
         </Group>
       </Table.Td>
     </Table.Tr>

@@ -1,15 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  ActionIcon,
-  Group,
-  Modal,
-  Select,
-  Stack,
-  Switch,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Group, Modal, Select, Stack, Switch, Text, Textarea, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
   type ConsultationTemplateSettingsFormInput,
@@ -21,7 +11,7 @@ import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Badge, Button, Table } from "@/components/ui";
+import { Badge, Button, IconButton, Table } from "@/components/ui";
 import { clinicalTemplatesService } from "@/services/clinicalTemplates.service";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
@@ -221,15 +211,14 @@ export function ConsultationTemplatesSettings() {
                 <Table.Td>
                   <Group gap="xs">
                     {canDelete && (
-                      <ActionIcon
-                        variant="subtle"
-                        color="danger"
+                      <IconButton
+                        tone="danger"
                         title="Delete"
                         onClick={() => deleteMutation.mutate(tmpl.id)}
                         aria-label="Delete"
                       >
                         <IconTrash size={16} />
-                      </ActionIcon>
+                      </IconButton>
                     )}
                   </Group>
                 </Table.Td>
