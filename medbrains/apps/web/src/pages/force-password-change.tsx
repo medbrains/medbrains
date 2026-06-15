@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Alert, Button, Paper, PasswordInput, Stack, Text, Title } from "@mantine/core";
+import { Alert, Paper, PasswordInput, Stack, Text, Title } from "@mantine/core";
 import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
 import { IconLock } from "@tabler/icons-react";
@@ -7,6 +7,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { Navigate, useNavigate } from "react-router";
 import { z } from "zod";
+import { Button } from "@/components/ui";
 
 const forcePasswordChangeSchema = z
   .object({
@@ -63,8 +64,7 @@ export function ForcePasswordChangePage() {
           <Stack>
             <Title order={3}>Set a new password</Title>
             <Text size="sm" c="dimmed">
-              This account was provisioned with a temporary password. Choose a new one to
-              continue.
+              This account was provisioned with a temporary password. Choose a new one to continue.
             </Text>
             {changeMutation.isError && (
               <Alert color="red" title="Password change failed">
@@ -112,7 +112,7 @@ export function ForcePasswordChangePage() {
                 />
               )}
             />
-            <Button type="submit" loading={changeMutation.isPending}>
+            <Button tone="primary" type="submit" loading={changeMutation.isPending}>
               Change password
             </Button>
           </Stack>

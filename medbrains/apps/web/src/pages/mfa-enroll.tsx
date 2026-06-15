@@ -1,7 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Alert,
-  Button,
   Code,
   CopyButton,
   Group,
@@ -19,6 +18,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Navigate, useNavigate } from "react-router";
 import { z } from "zod";
+import { Button } from "@/components/ui";
 
 const activateSchema = z.object({
   code: z.string().length(6, "Enter the 6-digit code from your authenticator app"),
@@ -110,6 +110,7 @@ export function MfaEnrollPage() {
                 )}
               />
               <Button
+                tone="primary"
                 type="submit"
                 loading={activateMutation.isPending}
                 disabled={!enrollment.data}
@@ -122,19 +123,21 @@ export function MfaEnrollPage() {
           <Stack>
             <Title order={3}>Save your recovery codes</Title>
             <Text size="sm" c="dimmed">
-              Each code works once if you lose your authenticator. Store them somewhere safe —
-              they are shown only now.
+              Each code works once if you lose your authenticator. Store them somewhere safe — they
+              are shown only now.
             </Text>
             <Code block>{recoveryCodes.join("\n")}</Code>
             <Group justify="space-between">
               <CopyButton value={recoveryCodes.join("\n")}>
                 {({ copied, copy }) => (
-                  <Button variant="light" onClick={copy}>
+                  <Button tone="secondary" onClick={copy}>
                     {copied ? "Copied" : "Copy codes"}
                   </Button>
                 )}
               </CopyButton>
-              <Button onClick={() => navigate("/apps", { replace: true })}>Done</Button>
+              <Button tone="primary" onClick={() => navigate("/apps", { replace: true })}>
+                Done
+              </Button>
             </Group>
           </Stack>
         )}

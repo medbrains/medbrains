@@ -1,14 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Alert,
-  Anchor,
-  Button,
-  Checkbox,
-  PasswordInput,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Alert, Anchor, Checkbox, PasswordInput, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { userSchema } from "@medbrains/schemas";
 import { useAuthStore, usePermissionStore } from "@medbrains/stores";
@@ -17,6 +8,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, Navigate, useNavigate } from "react-router";
+import { Button } from "@/components/ui";
 import {
   DEFAULT_LOGIN_FORM_VALUES,
   type LoginFormInput,
@@ -259,7 +251,13 @@ export function LoginPage() {
                 />
               )}
 
-              <Button type="submit" fullWidth loading={loginMutation.isPending} size="md">
+              <Button
+                tone="primary"
+                type="submit"
+                fullWidth
+                loading={loginMutation.isPending}
+                size="md"
+              >
                 {mfaStep ? "Verify & Sign In" : "Sign In"}
               </Button>
             </Stack>
@@ -290,13 +288,13 @@ export function LoginPage() {
                   />
 
                   <div className={classes.desktopSetupActions}>
-                    <Button variant="light" size="xs" onClick={testDesktopConnection}>
+                    <Button tone="secondary" size="xs" onClick={testDesktopConnection}>
                       Test
                     </Button>
-                    <Button size="xs" onClick={saveDesktopConnection}>
+                    <Button tone="primary" size="xs" onClick={saveDesktopConnection}>
                       Save & reload
                     </Button>
-                    <Button variant="subtle" size="xs" onClick={resetDesktopConnection}>
+                    <Button tone="ghost" size="xs" onClick={resetDesktopConnection}>
                       Reset
                     </Button>
                   </div>

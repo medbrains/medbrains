@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Alert, Anchor, Button, Paper, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
+import { Alert, Anchor, Paper, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
 import { api } from "@medbrains/api";
 import { IconKey, IconLock, IconUser } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
@@ -7,6 +7,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
 import { z } from "zod";
+import { Button } from "@/components/ui";
 
 const requestSchema = z.object({
   username: z.string().min(3, "Enter your username"),
@@ -67,8 +68,8 @@ export function ForgotPasswordPage() {
             <Stack>
               <Title order={3}>Reset password</Title>
               <Text size="sm" c="dimmed">
-                Enter your username. If a phone number is on file, a 6-digit code will be sent
-                by SMS. No phone on file? Ask your hospital admin to reset it.
+                Enter your username. If a phone number is on file, a 6-digit code will be sent by
+                SMS. No phone on file? Ask your hospital admin to reset it.
               </Text>
               {requestMutation.isError && (
                 <Alert color="red" title="Request failed">
@@ -88,7 +89,7 @@ export function ForgotPasswordPage() {
                   />
                 )}
               />
-              <Button type="submit" loading={requestMutation.isPending}>
+              <Button tone="primary" type="submit" loading={requestMutation.isPending}>
                 Send reset code
               </Button>
               <Anchor component={Link} to="/login" size="sm" ta="center">
@@ -151,7 +152,7 @@ export function ForgotPasswordPage() {
                   />
                 )}
               />
-              <Button type="submit" loading={confirmMutation.isPending}>
+              <Button tone="primary" type="submit" loading={confirmMutation.isPending}>
                 Set new password
               </Button>
               <Anchor size="sm" ta="center" onClick={() => setUsername(null)}>

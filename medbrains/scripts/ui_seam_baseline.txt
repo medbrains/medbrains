@@ -78,8 +78,6 @@ doctor/signoffs.tsx
 documents.tsx
 emergency.tsx
 facilities.tsx
-force-password-change.tsx
-forgot-password.tsx
 front-office.tsx
 housekeeping.tsx
 hr.tsx
@@ -92,8 +90,6 @@ ipd.tsx
 lab.tsx
 landing.tsx
 lms.tsx
-login.tsx
-mfa-enroll.tsx
 mrd.tsx
 nurse-activities.tsx
 occupational-health.tsx
