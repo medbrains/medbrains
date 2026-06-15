@@ -97,6 +97,10 @@ Import our primitives, **not** raw `@mantine/core`, for these:
 | Text input | `ui/Input` `NumberField` `PasswordField` `TextArea` | |
 | Select | `ui/Select` | |
 | Toggle | `ui/Switch` | sm by default |
+| Checkbox | `ui/Checkbox` | sm by default |
+| Inline view switch | `ui/SegmentedControl` | 2–4 options; Tabs for page sections |
+| Icon tile | `ui/ThemeIcon` | `tone="neutral\|primary\|success\|warning\|danger\|info"`; decorative only |
+| Divider | `ui/Divider` | always the hairline rule colour |
 | Data grid | `DataTable` | columns + loading/empty — the default for lists |
 | Ad-hoc table | `ui/Table` | bespoke layouts; compound `Table.Thead/Tr/Th`, hover rows, no column borders |
 | Tooltip | `ui/Tooltip` | a hint, never the only place info lives |
