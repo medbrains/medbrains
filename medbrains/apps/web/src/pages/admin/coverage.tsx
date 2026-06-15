@@ -2,28 +2,35 @@
  * Admin: locum / cross-coverage assignments.
  * Per RFCs/sprints/SPRINT-doctor-activities.md §2.2.
  */
-import {
-  ActionIcon,
-  Card,
-  Group,
-  Modal,
-  Select,
-  Stack,
-  Switch,
-  Text,
-  Textarea,
-  Tooltip,
-} from "@mantine/core";
+import { Group, Modal, Select, Stack, Switch, Text, Textarea } from "@mantine/core";
 import { DateTimePicker } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { IconPlus, IconTrash, IconUserCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { type Column, DataTable, type DataTableFilter } from "@/components/DataTable";
 import { PageHeader } from "@/components/PageHeader";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Tooltip } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminDoctorsService } from "@/services/adminDoctors.service";
+
+interface CoverageRow {
+  id: string;
+  absent_doctor_id: string;
+  covering_doctor_id: string;
+  start_at: string;
+  end_at: string;
+  reason?: string | null;
+}
+
+/** Coverage status derived from the assignment window. */
+function coverageStatus(row: { start_at: string; end_at: string }): string {
+  const now = Date.now();
+  const start = new Date(row.start_at).getTime();
+  const end = new Date(row.end_at).getTime();
+  return now < start ? "scheduled" : now > end ? "ended" : "active";
+}
 
 export function AdminCoveragePage() {
   useRequirePermission("admin.coverage.list");
@@ -54,6 +61,98 @@ export function AdminCoveragePage() {
     },
   });
 
+  const columns: Column<CoverageRow>[] = [
+    {
+      key: "absent",
+      label: "Absent",
+      sortable: true,
+      searchable: true,
+      accessor: (a) => doctorName(a.absent_doctor_id),
+      render: (a) => <Text size="sm">{doctorName(a.absent_doctor_id)}</Text>,
+    },
+    {
+      key: "covering",
+      label: "Covering",
+      sortable: true,
+      searchable: true,
+      accessor: (a) => doctorName(a.covering_doctor_id),
+      render: (a) => (
+        <Text size="sm" fw={500}>
+          {doctorName(a.covering_doctor_id)}
+        </Text>
+      ),
+    },
+    {
+      key: "from",
+      label: "From",
+      sortable: true,
+      sortValue: (a) => new Date(a.start_at).getTime(),
+      accessor: (a) => new Date(a.start_at).toLocaleString(),
+      render: (a) => <Text size="xs">{new Date(a.start_at).toLocaleString()}</Text>,
+    },
+    {
+      key: "until",
+      label: "Until",
+      sortable: true,
+      sortValue: (a) => new Date(a.end_at).getTime(),
+      accessor: (a) => new Date(a.end_at).toLocaleString(),
+      render: (a) => <Text size="xs">{new Date(a.end_at).toLocaleString()}</Text>,
+    },
+    {
+      key: "reason",
+      label: "Reason",
+      searchable: true,
+      accessor: (a) => a.reason ?? "",
+      render: (a) => (
+        <Text size="xs" c="dimmed" lineClamp={1}>
+          {a.reason ?? "—"}
+        </Text>
+      ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      accessor: (a) => coverageStatus(a),
+      render: (a) => (
+        <Badge size="xs" tone={statusColor(coverageStatus(a))}>
+          {coverageStatus(a)}
+        </Badge>
+      ),
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (a) => (
+        <Tooltip label="Remove">
+          <IconButton
+            aria-label="Remove coverage"
+            tone="danger"
+            onClick={() => {
+              if (window.confirm("Remove this coverage assignment?")) {
+                remove.mutate(a.id);
+              }
+            }}
+          >
+            <IconTrash size={16} />
+          </IconButton>
+        </Tooltip>
+      ),
+    },
+  ];
+
+  const filters: DataTableFilter<CoverageRow>[] = [
+    {
+      key: "status",
+      label: "Status",
+      options: [
+        { value: "active", label: "Active" },
+        { value: "scheduled", label: "Scheduled" },
+        { value: "ended", label: "Ended" },
+      ],
+      matches: (a, value) => coverageStatus(a) === value,
+    },
+  ];
+
   return (
     <div>
       <PageHeader
@@ -80,81 +179,19 @@ export function AdminCoveragePage() {
         }
       />
 
-      <Card padding={0} withBorder>
-        <Table>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Absent</Table.Th>
-              <Table.Th>Covering</Table.Th>
-              <Table.Th>From</Table.Th>
-              <Table.Th>Until</Table.Th>
-              <Table.Th>Reason</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th w={60} />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {assignments.map((a) => {
-              const now = Date.now();
-              const start = new Date(a.start_at).getTime();
-              const end = new Date(a.end_at).getTime();
-              const status = now < start ? "scheduled" : now > end ? "ended" : "active";
-              return (
-                <Table.Tr key={a.id}>
-                  <Table.Td>
-                    <Text size="sm">{doctorName(a.absent_doctor_id)}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm" fw={500}>
-                      {doctorName(a.covering_doctor_id)}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs">{new Date(a.start_at).toLocaleString()}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs">{new Date(a.end_at).toLocaleString()}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs" c="dimmed" lineClamp={1}>
-                      {a.reason ?? "—"}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge size="xs" tone={statusColor(status)}>
-                      {status}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <Tooltip label="Remove">
-                      <ActionIcon
-                        variant="subtle"
-                        color="red"
-                        onClick={() => {
-                          if (window.confirm("Remove this coverage assignment?")) {
-                            remove.mutate(a.id);
-                          }
-                        }}
-                      >
-                        <IconTrash size={16} />
-                      </ActionIcon>
-                    </Tooltip>
-                  </Table.Td>
-                </Table.Tr>
-              );
-            })}
-            {!isLoading && assignments.length === 0 && (
-              <Table.Tr>
-                <Table.Td colSpan={7}>
-                  <Text size="sm" c="dimmed" ta="center" py="xl">
-                    No coverage assignments.
-                  </Text>
-                </Table.Td>
-              </Table.Tr>
-            )}
-          </Table.Tbody>
-        </Table>
-      </Card>
+      <DataTable<CoverageRow>
+        columns={columns}
+        data={assignments}
+        loading={isLoading}
+        rowKey={(a) => a.id}
+        searchable
+        searchPlaceholder="Search doctor or reason"
+        filters={filters}
+        exportable
+        exportFileName="coverage"
+        emptyIcon={<IconUserCheck size={28} stroke={1.5} />}
+        emptyTitle="No coverage assignments"
+      />
 
       {createOpen && (
         <CreateCoverageModal
