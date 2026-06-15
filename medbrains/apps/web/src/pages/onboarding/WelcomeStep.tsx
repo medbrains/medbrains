@@ -1,6 +1,6 @@
-import { Alert, Stack, Text, ThemeIcon, Title } from "@mantine/core";
+import { Stack, Text, ThemeIcon, Title } from "@mantine/core";
 import { IconBuildingHospital, IconDatabase, IconLock, IconServer } from "@tabler/icons-react";
-import { Button } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -27,7 +27,7 @@ export function WelcomeStep({ onNext }: Props) {
         </Text>
       </div>
 
-      <Alert variant="light" color="primary" title="Before you begin">
+      <Alert tone="info" title="Before you begin">
         Make sure you have the following information ready:
       </Alert>
 

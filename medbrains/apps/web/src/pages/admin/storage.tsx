@@ -7,17 +7,7 @@
  */
 import "@mantine/charts/styles.css";
 import { DonutChart } from "@mantine/charts";
-import {
-  Alert,
-  Drawer,
-  Group,
-  NumberInput,
-  Stack,
-  Tabs,
-  Text,
-  TextInput,
-  Tooltip,
-} from "@mantine/core";
+import { Drawer, Group, NumberInput, Stack, Tabs, Text, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
@@ -25,7 +15,7 @@ import { IconArchive, IconChartDonut, IconHistory, IconSettings } from "@tabler/
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import {
   type StoragePolicy as Policy,
@@ -111,7 +101,7 @@ export function StoragePage() {
           <TransitionsTab />
         </Tabs.Panel>
         <Tabs.Panel value="archived" pt="md">
-          <Alert color="blue">
+          <Alert tone="info">
             Archive-tier listings come from the same patient-documents query; see the MRD records
             page for per-record restore controls.
           </Alert>
@@ -298,7 +288,7 @@ function PolicyEditForm({ policy, onSaved }: { policy: Policy; onSaved: () => vo
         value={description}
         onChange={(e) => setDescription(e.currentTarget.value)}
       />
-      {error && <Alert color="red">{error}</Alert>}
+      {error && <Alert tone="danger">{error}</Alert>}
       <Group justify="flex-end">
         <Button tone="primary" loading={update.isPending} onClick={() => update.mutate()}>
           Save

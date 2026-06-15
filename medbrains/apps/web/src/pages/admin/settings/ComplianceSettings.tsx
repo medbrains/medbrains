@@ -1,9 +1,10 @@
-import { Alert, Card, Divider, Group, Loader, Stack, Switch, Text, Title } from "@mantine/core";
+import { Card, Divider, Group, Loader, Stack, Switch, Text, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { ComplianceSettings as ComplianceFlags, TenantSettingsRow } from "@medbrains/types";
 import { IconAlertTriangle, IconShieldCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { Alert } from "@/components/ui";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 const DEFAULT_COMPLIANCE: ComplianceFlags = {
@@ -165,7 +166,7 @@ export function ComplianceSettingsTab() {
 
   return (
     <Stack gap="lg">
-      <Alert icon={<IconShieldCheck size={20} />} color="primary" variant="light">
+      <Alert icon={<IconShieldCheck size={20} />} tone="info">
         <Text size="sm">
           Configure which regulatory compliance features are active for your hospital. Display
           settings control visibility of badges and labels. Enforcement settings add validation

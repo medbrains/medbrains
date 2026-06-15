@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Alert,
   Box,
   Card,
   Checkbox,
@@ -176,7 +175,15 @@ import { PatientContextBanner } from "@/components/Patient/PatientContextBanner"
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, type ButtonTone, IconButton, Table } from "@/components/ui";
+import {
+  Alert,
+  Badge,
+  type BadgeTone,
+  Button,
+  type ButtonTone,
+  IconButton,
+  Table,
+} from "@/components/ui";
 import { WardSelect } from "@/components/WardSelect";
 import { ALL_TEMPLATES, type ChecklistTemplate } from "@/data/checklist-templates";
 import {
@@ -1084,7 +1091,7 @@ export function IpdAdmissionDetailPage() {
               </Button>
             }
           />
-          <Alert color="danger" icon={<IconAlertTriangle size={16} />}>
+          <Alert tone="danger" icon={<IconAlertTriangle size={16} />}>
             Unable to open this IPD admission because the route does not include an admission ID.
           </Alert>
         </Stack>
@@ -1503,7 +1510,7 @@ function AdmissionDetail({
         }}
       />
       {adm.discharged_at && (
-        <Alert color="gray" variant="light">
+        <Alert tone="neutral">
           {t("admissionContext.dischargedAt", {
             date: new Date(adm.discharged_at).toLocaleString(),
           })}
@@ -2333,8 +2340,7 @@ function AssessmentsTab({ admissionId }: { admissionId: string }) {
           {assessmentType === "braden_scale" ? (
             <>
               <Alert
-                color="orange"
-                variant="light"
+                tone="warning"
                 icon={<IconAlertTriangle size={16} />}
                 title="Pressure injury prevention evidence"
               >
@@ -2464,8 +2470,7 @@ function AssessmentsTab({ admissionId }: { admissionId: string }) {
             <>
               {assessmentType === "morse_fall_scale" && (
                 <Alert
-                  color="yellow"
-                  variant="light"
+                  tone="warning"
                   icon={<IconAlertTriangle size={16} />}
                   title="Fall prevention source data"
                 >

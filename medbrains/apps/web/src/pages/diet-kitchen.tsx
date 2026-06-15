@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Alert,
   Card,
   Drawer,
   Group,
@@ -69,7 +68,7 @@ import { useSearchParams } from "react-router";
 import { DataTable, PageHeader } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import {
   dietOptionalInteger,
   dietOptionalNumber,
@@ -422,7 +421,7 @@ function DietOrdersTab() {
       <Drawer opened={opened} onClose={close} title="New Diet Order" position="right" size="xl">
         <Stack component="form" onSubmit={handleSubmit(submitOrder)}>
           {contextAdmissionId && (
-            <Alert color="primary" variant="light" title="Linked IPD admission">
+            <Alert tone="info" title="Linked IPD admission">
               {[
                 contextWardId ? `Ward ${contextWardId.slice(0, 8)}` : "",
                 contextBedId ? `Bed ${contextBedId.slice(0, 8)}` : "",

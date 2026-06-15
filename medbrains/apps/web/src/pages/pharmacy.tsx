@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Alert,
   Card,
   Drawer,
   Group,
@@ -149,7 +148,16 @@ import {
 import { PharmacyDispensingView } from "@/components/Pharmacy/PharmacyDispensingView";
 import { PharmacyLabel } from "@/components/Pharmacy/PharmacyLabel";
 import { StoreIndentsTab } from "@/components/Pharmacy/StoreIndentsTab";
-import { Badge, type BadgeTone, Button, IconButton, SignatureHero, Table } from "@/components/ui";
+import {
+  Alert,
+  type AlertTone,
+  Badge,
+  type BadgeTone,
+  Button,
+  IconButton,
+  SignatureHero,
+  Table,
+} from "@/components/ui";
 import {
   awareCategoryOptions,
   drugScheduleOptions,
@@ -434,7 +442,7 @@ function PharmacyPatientContext({
   if (!patientId) return null;
   if (!canViewPatientRecord) {
     return (
-      <Alert color="gray" variant="light" title="Patient context restricted">
+      <Alert tone="neutral" title="Patient context restricted">
         Patient identity and demographics are hidden for this pharmacy role.
       </Alert>
     );
@@ -954,9 +962,7 @@ export function PharmacyOrderDetailPage() {
             canViewPatientRecord={canViewPatientRecord}
           />
         ) : (
-          <Alert color="warning" variant="light">
-            Pharmacy order id is missing from the route.
-          </Alert>
+          <Alert tone="warning">Pharmacy order id is missing from the route.</Alert>
         )}
       </Stack>
     </ClinicalEventProvider>
@@ -1564,7 +1570,7 @@ function PharmacyOrdersTab({
             />
           )}
           {isDispenseHandoff && (
-            <Alert color="teal" variant="light" title="Dispense handoff">
+            <Alert tone="success" title="Dispense handoff">
               <Group justify="space-between" align="center" gap="sm">
                 <Text size="sm">
                   Ordered pharmacy items are filtered for this patient. Review FEFO and safety
@@ -1619,7 +1625,7 @@ function PharmacyOrdersTab({
           />
         </Stack>
       ) : (
-        <Alert color="warning" variant="light">
+        <Alert tone="warning">
           This role can create or process pharmacy orders, but the order queue and patient list stay
           hidden until `pharmacy.prescriptions.list` is granted.
         </Alert>
@@ -1942,12 +1948,12 @@ function PharmacyReturnsTab({
 
   return (
     <Stack>
-      <Alert color="blue" variant="light" icon={<IconReceipt size={16} />}>
+      <Alert tone="info" icon={<IconReceipt size={16} />}>
         Medicine returns are linked to already dispensed/billed order lines. Use Custom credit notes
         for supplier returns, expiry/damage write-off, or manual financial adjustments.
       </Alert>
       {!canViewQueue && (
-        <Alert color="gray" variant="light" icon={<IconLock size={16} />}>
+        <Alert tone="neutral" icon={<IconLock size={16} />}>
           Return queue access requires a return list, approval, restock, destroy, or rejection role.
           You can still request a return if that action is available.
         </Alert>
@@ -2135,7 +2141,7 @@ function CreatePharmacyReturnModal({
     <Modal opened={opened} onClose={handleClose} title="Request Medicine Return" size="xl">
       {!canViewPatientRecord ? (
         <Stack>
-          <Alert color="orange" variant="light" icon={<IconLock size={16} />}>
+          <Alert tone="warning" icon={<IconLock size={16} />}>
             Patient record access is required to select the dispensed medicine for a return.
           </Alert>
           <Group justify="flex-end">
@@ -2185,7 +2191,7 @@ function CreatePharmacyReturnModal({
             required
           />
           {patientId.length > 0 && !patientOrdersLoading && returnableItems.length === 0 && (
-            <Alert color="gray" variant="light" icon={<IconClock size={16} />}>
+            <Alert tone="neutral" icon={<IconClock size={16} />}>
               No dispensed pharmacy medicines are available for return.
             </Alert>
           )}
@@ -2449,7 +2455,7 @@ function PharmacyOrderForm({
         />
         <PharmacyPatientContext patientId={patientId} canViewPatientRecord={canViewPatientRecord} />
         {createError && (
-          <Alert color="red" icon={<IconAlertTriangle size={16} />}>
+          <Alert tone="danger" icon={<IconAlertTriangle size={16} />}>
             {createError}
           </Alert>
         )}
@@ -2695,7 +2701,7 @@ function PharmacyOrderDetail({
         </Text>
       )}
       {canEditOrderItems && (
-        <Alert color="primary" variant="light" icon={<IconShieldCheck size={16} />}>
+        <Alert tone="info" icon={<IconShieldCheck size={16} />}>
           Edit or remove medicines before dispense. Draft billing lines stay synchronized.
         </Alert>
       )}
@@ -2715,7 +2721,7 @@ function PharmacyOrderDetail({
         compact
       />
       {isDispenseHandoff && (
-        <Alert color="teal" variant="light" title={t("handoff.dispense.title")}>
+        <Alert tone="success" title={t("handoff.dispense.title")}>
           <Group justify="space-between" align="center" gap="sm">
             <Text size="sm">{dispenseHandoffMessage}</Text>
             <Group gap="xs">
@@ -3028,6 +3034,13 @@ function DrugInteractionModal({
     minor: "gray",
   };
 
+  const severityAlertTones: Record<string, AlertTone> = {
+    severe: "danger",
+    moderate: "warning",
+    mild: "warning",
+    minor: "neutral",
+  };
+
   return (
     <Modal opened={opened} onClose={onClose} title="Drug Interaction Check" size="xl">
       <Stack>
@@ -3056,8 +3069,7 @@ function DrugInteractionModal({
             {(checkMutation.data as DrugInteractionResult[]).map((r) => (
               <Alert
                 key={`${r.interacting_drug}-${r.interaction_type}-${r.severity}`}
-                color={severityColors[r.severity] ?? "gray"}
-                variant="light"
+                tone={severityAlertTones[r.severity] ?? "neutral"}
                 title={r.interacting_drug}
               >
                 <Group gap="xs" mb={4}>
@@ -3075,7 +3087,7 @@ function DrugInteractionModal({
         )}
 
         {checkMutation.data && (checkMutation.data as DrugInteractionResult[]).length === 0 && (
-          <Alert color="success" variant="light" title="No Interactions">
+          <Alert tone="success" title="No Interactions">
             <Text size="sm">No drug interactions found for this combination.</Text>
           </Alert>
         )}
@@ -3118,7 +3130,7 @@ function FormularyCheckModal({ opened, onClose }: { opened: boolean; onClose: ()
                 </Badge>
               </Group>
               {result.requires_approval && (
-                <Alert color="orange" variant="light">
+                <Alert tone="warning">
                   <Text size="sm">This drug requires DTC approval before prescribing.</Text>
                 </Alert>
               )}
@@ -3774,7 +3786,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
   return (
     <Stack>
       {canManage && (!canEditBatchPrices || !canEditBatchNumbers) && (
-        <Alert color="orange" variant="light">
+        <Alert tone="warning">
           Stock intake requires editable batch identifiers plus purchase and selling rate access.
         </Alert>
       )}
@@ -3877,7 +3889,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
                 Add multiple received batches in one table, then verify before stock is posted.
               </Text>
               {!canEditBatchSource && (
-                <Alert color="gray" variant="light">
+                <Alert tone="neutral">
                   Supplier, invoice, GRN, and storage-source details are restricted for this role
                   and will not be posted with the batch.
                 </Alert>
@@ -3987,7 +3999,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
                 </Group>
               </Stack>
               {storeSelectionRequired && !bulkHeader.store_location_id && (
-                <Alert color="warning" variant="light">
+                <Alert tone="warning">
                   Select the receiving store before verification so stock is posted to the correct
                   pharmacy location.
                 </Alert>
@@ -4214,7 +4226,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
             </>
           ) : (
             <>
-              <Alert color="primary" variant="light">
+              <Alert tone="info">
                 Verify product, batch, expiry, paid quantity, and free quantity before posting. This
                 will increase pharmacy stock immediately. Purchase rate must be equal to or less
                 than MRP.
@@ -5000,7 +5012,7 @@ function PharmacyLocationsView({ canViewStores }: { canViewStores: boolean }) {
       exportFileName="pharmacy-stores"
     />
   ) : (
-    <Alert color="warning" variant="light">
+    <Alert tone="warning">
       Store assignment locations require `pharmacy.stores.list` or `pharmacy.stores.manage`.
     </Alert>
   );
@@ -5117,7 +5129,7 @@ function TransfersView({
       exportFileName="pharmacy-transfers"
     />
   ) : (
-    <Alert color="warning" variant="light">
+    <Alert tone="warning">
       Transfer queue requires `pharmacy.stores.list` or `pharmacy.stores.manage`.
     </Alert>
   );
@@ -5689,7 +5701,7 @@ function RxQueueTab({
   return (
     <Stack>
       {!canViewQueue && canReview && (
-        <Alert color="blue" variant="light" icon={<IconShieldCheck size={16} />}>
+        <Alert tone="info" icon={<IconShieldCheck size={16} />}>
           {t("rxQueue.reviewOnlyAccess")}
         </Alert>
       )}
@@ -5719,7 +5731,7 @@ function RxQueueTab({
         />
       )}
       {(patientIdFilter || rxQueueIdFilter) && (
-        <Alert color="teal" variant="light" title={t("handoff.prescriptionReview.title")}>
+        <Alert tone="success" title={t("handoff.prescriptionReview.title")}>
           <Group justify="space-between" align="center" gap="sm">
             <Text size="sm">{t("handoff.prescriptionReview.message")}</Text>
             <Button size="xs" tone="ghost" onClick={clearRxQueueHandoff}>
@@ -5829,7 +5841,7 @@ function RxQueueTab({
           />
         )}
         {needsPriceOverrideReason && (
-          <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+          <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
             {t("rxReviewModal.priceOverrideReasonRequired")}
           </Alert>
         )}
@@ -5867,7 +5879,7 @@ function RxDetailView({
   if (isLoading) return <Loader />;
   if (error)
     return (
-      <Alert color="danger" variant="light" title={t("notify.error")}>
+      <Alert tone="danger" title={t("notify.error")}>
         {String(error)}
       </Alert>
     );
@@ -5917,8 +5929,7 @@ function RxDetailView({
       {/* Allergy alert */}
       {allergyNames.length > 0 && (
         <Alert
-          color="danger"
-          variant="light"
+          tone="danger"
           title={t("rxQueue.drugAllergies")}
           icon={<IconAlertTriangle size={16} />}
         >
@@ -6815,7 +6826,7 @@ function PosCounterTab({
         <Card withBorder p="md">
           <Stack component="form" onSubmit={handleSubmit(handleSubmitSale)}>
             <Text fw={600}>New Sale</Text>
-            <Alert color={registeredPatientId ? "primary" : "gray"} variant="light">
+            <Alert tone={registeredPatientId ? "info" : "neutral"}>
               {registeredPatientId
                 ? "Registered patient sale will post a paid invoice into Billing and keep Pharmacy POS as the stock and cash-drawer source."
                 : "Walk-in sale stays in Pharmacy POS until a registered patient is selected."}
@@ -7053,7 +7064,7 @@ function PosCounterTab({
         size="lg"
       >
         <Stack component="form" onSubmit={handleReturnSubmit(submitReturnItems)}>
-          <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+          <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
             Return only the medicines actually coming back to pharmacy. This posts a partial POS
             refund and restores stock for the selected quantities.
           </Alert>
@@ -7140,9 +7151,7 @@ function PosCounterTab({
               </Table.Tbody>
             </Table>
           ) : (
-            <Alert color="gray" variant="light">
-              No returnable items remain on this sale.
-            </Alert>
+            <Alert tone="neutral">No returnable items remain on this sale.</Alert>
           )}
           {returnErrors.items?.message && (
             <Text size="xs" c="danger">
@@ -7186,7 +7195,7 @@ function PosCounterTab({
       </Modal>
       <Modal opened={cancelOpened} onClose={closeCancelSale} title="Cancel POS sale" centered>
         <Stack>
-          <Alert color="warning" variant="light" icon={<IconAlertTriangle size={16} />}>
+          <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
             Cancelling reverses remaining stock and records a POS refund transaction. Use this only
             for same-day voids or cashier-approved sale reversals.
           </Alert>

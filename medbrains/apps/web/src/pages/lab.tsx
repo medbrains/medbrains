@@ -2,7 +2,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import "@mantine/charts/styles.css";
 import { LineChart } from "@mantine/charts";
 import {
-  Alert,
   Card,
   Drawer,
   Group,
@@ -141,7 +140,7 @@ import { LabTestSearchSelect } from "@/components/LabTestSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import {
   labB2bClientTypeOptions,
   labBethesdaCategoryOptions,
@@ -525,11 +524,10 @@ function LabPageInner() {
 
       {unacknowledgedAlerts.length > 0 && (
         <Alert
-          color="danger"
+          tone="danger"
           icon={<IconAlertTriangle size={18} />}
           title={`${unacknowledgedAlerts.length} unacknowledged critical alert(s)`}
           mb="md"
-          variant="light"
         >
           <Group gap="xs" wrap="wrap">
             {unacknowledgedAlerts.slice(0, 5).map((a: LabCriticalAlert) => (
@@ -1044,7 +1042,7 @@ function LabOrderDetail({
       {/* Critical alerts banner */}
       {orderAlerts.length > 0 && (
         <Alert
-          color="danger"
+          tone="danger"
           icon={<IconAlertTriangle size={16} />}
           title={t("title.criticalValues")}
         >
@@ -1931,11 +1929,7 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
               Add
             </Button>
           </Group>
-          {errors.test_ids?.message && (
-            <Alert color="danger" variant="light">
-              {errors.test_ids.message}
-            </Alert>
-          )}
+          {errors.test_ids?.message && <Alert tone="danger">{errors.test_ids.message}</Alert>}
           {selectedTestIds.length > 0 && (
             <Group gap="xs">
               {selectedTestIds.map((tid, i) => (

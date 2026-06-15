@@ -17,7 +17,7 @@
  */
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Alert, Card, Code, Group, Loader, Stack, Switch, Text, TextInput } from "@mantine/core";
+import { Card, Code, Group, Loader, Stack, Switch, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
   type OfflineModeSettingsFormInput,
@@ -28,7 +28,7 @@ import { IconAlertCircle, IconCheck, IconCloudOff, IconDeviceFloppy } from "@tab
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Button } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 const EMPTY_FORM: OfflineModeSettingsFormInput = {
@@ -199,7 +199,7 @@ export function OfflineModeSettings() {
       </Card>
 
       {offlineWithoutUrl && (
-        <Alert color="orange" icon={<IconAlertCircle size={16} />} title="Edge URL missing">
+        <Alert tone="warning" icon={<IconAlertCircle size={16} />} title="Edge URL missing">
           Offline mode is on but no edge URL is configured. The app will fall back to cloud REST and
           log a warning in the browser console. Set the URL above before relying on offline
           behavior.

@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Alert,
   Card,
   Group,
   Loader,
@@ -142,7 +141,7 @@ import {
 } from "@/components/OrderBasket/OrderBasketWorkspace";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
-import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import {
   DEFAULT_OPD_FOLLOW_UP_FORM_VALUES,
   DEFAULT_OPD_LAB_ORDER_FORM_VALUES,
@@ -805,7 +804,7 @@ export function OpdVitalsPage() {
           </Group>
         </Card>
         {!vitalsAllowed ? (
-          <Alert color="warning" icon={<IconAlertTriangle size={16} />}>
+          <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
             {t("vitals.permissionBlocked")}
           </Alert>
         ) : (
@@ -2871,8 +2870,7 @@ function InvestigationsTab({
             {labDupeWarning.length > 0 && (
               <Alert
                 icon={<IconAlertTriangle size={14} />}
-                color="warning"
-                variant="light"
+                tone="warning"
                 title="Duplicate Warning"
               >
                 <Text size="xs">

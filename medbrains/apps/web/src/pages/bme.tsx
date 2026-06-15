@@ -1,7 +1,6 @@
 import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
 import {
-  Alert,
   Card,
   Drawer,
   Group,
@@ -63,7 +62,7 @@ import { useSearchParams } from "react-router";
 import { DataTable, IpdContextStrip, ipdContextFromSearchParams, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import type { BadgeTone } from "@/components/ui";
-import { Badge, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, Button, IconButton, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { bmeService } from "@/services/bme.service";
 
@@ -1053,8 +1052,7 @@ function CalibrationTab() {
     <Stack>
       {calibrationAlerts.length > 0 && (
         <Alert
-          variant="light"
-          color={calibrationAlerts.some((a) => a.daysLeft < 0) ? "danger" : "warning"}
+          tone={calibrationAlerts.some((a) => a.daysLeft < 0) ? "danger" : "warning"}
           title={`${calibrationAlerts.length} Calibration${calibrationAlerts.length > 1 ? "s" : ""} Due Soon`}
           icon={<IconAlertTriangle size={20} />}
         >
@@ -1424,8 +1422,7 @@ function ContractsTab() {
     <Stack>
       {contractRenewalAlerts.length > 0 && (
         <Alert
-          variant="light"
-          color={contractRenewalAlerts.some((c) => c.daysLeft < 0) ? "danger" : "warning"}
+          tone={contractRenewalAlerts.some((c) => c.daysLeft < 0) ? "danger" : "warning"}
           title={`${contractRenewalAlerts.length} Contract${contractRenewalAlerts.length > 1 ? "s" : ""} Expiring Soon`}
           icon={<IconAlertTriangle size={20} />}
         >

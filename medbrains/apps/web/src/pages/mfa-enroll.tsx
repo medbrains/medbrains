@@ -1,15 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Alert,
-  Code,
-  CopyButton,
-  Group,
-  Paper,
-  Stack,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
+import { Code, CopyButton, Group, Paper, Stack, Text, TextInput, Title } from "@mantine/core";
 import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
 import { IconKey, IconShieldCheck } from "@tabler/icons-react";
@@ -18,7 +8,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Navigate, useNavigate } from "react-router";
 import { z } from "zod";
-import { Button } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 
 const activateSchema = z.object({
   code: z.string().length(6, "Enter the 6-digit code from your authenticator app"),
@@ -71,7 +61,7 @@ export function MfaEnrollPage() {
                 1Password…), then enter the 6-digit code it shows.
               </Text>
               {enrollment.isError && (
-                <Alert color="red" title="Could not start enrollment">
+                <Alert tone="danger" title="Could not start enrollment">
                   Reload the page to try again.
                 </Alert>
               )}
@@ -89,7 +79,7 @@ export function MfaEnrollPage() {
                 </Stack>
               )}
               {activateMutation.isError && (
-                <Alert color="red" title="Activation failed">
+                <Alert tone="danger" title="Activation failed">
                   {activateMutation.error instanceof Error
                     ? activateMutation.error.message
                     : "Invalid code."}

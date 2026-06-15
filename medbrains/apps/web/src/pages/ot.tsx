@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Alert,
   Card,
   Checkbox,
   Drawer,
@@ -85,7 +84,7 @@ import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import {
   DEFAULT_OT_ANESTHESIA_RECORD_FORM_VALUES,
   DEFAULT_OT_BOOKING_FORM_VALUES,
@@ -518,7 +517,7 @@ function BookingsTab({ canCreate, canList }: { canCreate: boolean; canList: bool
       </Group>
 
       {isIpdLinked && (
-        <Alert color="violet" variant="light">
+        <Alert tone="info">
           Showing OT work for the linked IPD admission. New bookings from here keep the admission
           and patient context attached for ward billing and clinical notes.
         </Alert>
@@ -535,7 +534,7 @@ function BookingsTab({ canCreate, canList }: { canCreate: boolean; canList: bool
           rowKey={(r) => r.id}
         />
       ) : (
-        <Alert color="warning" variant="light">
+        <Alert tone="warning">
           This role can create OT bookings, but the OT booking list stays hidden until
           `ot.bookings.list` is granted.
         </Alert>
@@ -613,7 +612,7 @@ function CreateBookingDrawer({
     <Drawer opened={opened} onClose={onClose} title="New OT Booking" position="right" size="xl">
       <Stack component="form" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
         {linkedAdmissionId && (
-          <Alert color="violet" variant="light">
+          <Alert tone="info">
             This booking is linked to IPD admission {linkedAdmissionId.slice(0, 8)}. OT notes,
             consumables, and billing can reconcile against the admission context.
           </Alert>
@@ -645,7 +644,7 @@ function CreateBookingDrawer({
           <PatientContextBanner patientId={selectedPatientId} hideLoadingState />
         ) : (
           selectedPatientId && (
-            <Alert color="warning" variant="light">
+            <Alert tone="warning">
               Patient identity is restricted for this role. The booking will keep the linked patient
               id without displaying the patient profile.
             </Alert>

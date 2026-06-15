@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Alert,
   Card,
   Group,
   Modal,
@@ -27,7 +26,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "@/components";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { pharmacyFinanceService } from "@/services/pharmacyFinance.service";
 
@@ -270,7 +269,7 @@ function CashDrawerTab({
       )}
 
       {(canOpen || canClose) && !canEditAmount && (
-        <Alert color="orange" variant="light">
+        <Alert tone="warning">
           Cash drawer opening and closing need billing amount edit access.
         </Alert>
       )}
@@ -296,9 +295,7 @@ function CashDrawerTab({
           ))}
         </Stack>
       ) : (
-        <Alert color="gray" variant="light">
-          Recent drawer history requires cash-drawer view permission.
-        </Alert>
+        <Alert tone="neutral">Recent drawer history requires cash-drawer view permission.</Alert>
       )}
 
       <OpenDrawerModal
@@ -522,9 +519,7 @@ function PettyCashTab({
   return (
     <Stack gap="xs">
       {canRecord && !canViewFinanceAmount(amountAccess) && (
-        <Alert color="orange" variant="light">
-          Petty cash approval needs billing amount view access.
-        </Alert>
+        <Alert tone="warning">Petty cash approval needs billing amount view access.</Alert>
       )}
       {data?.map((row) => (
         <Card key={row.id} withBorder padding="sm">

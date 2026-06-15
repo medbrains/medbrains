@@ -1,4 +1,4 @@
-import { Alert, Group, Stack, Text, Title } from "@mantine/core";
+import { Group, Stack, Text, Title } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type { Invoice, PatientAdvance } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -8,7 +8,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { PageHeader, PatientSearchSelect, PaymentCollectPanel } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
-import { Badge, Button, Card, Input } from "@/components/ui";
+import { Alert, Badge, Button, Card, Input } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { billingService } from "@/services/billing.service";
 import { billingInvoicePaymentRoute } from "./billing-workspace";
@@ -188,7 +188,7 @@ export function BillingCounterPage() {
 
               {invoicesQuery.isLoading && <Text c="dimmed">Loading…</Text>}
               {!invoicesQuery.isLoading && openInvoices.length === 0 && (
-                <Alert variant="light" color="primary">
+                <Alert tone="info">
                   No open invoices for this patient. Use “New invoice” to start one, or check Back
                   office for drafts and history.
                 </Alert>

@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LineChart } from "@mantine/charts";
 import {
-  Alert,
   Card,
   Group,
   Modal,
@@ -69,7 +68,7 @@ import { useTranslation } from "react-i18next";
 import { type Column, DataTable, OperationalSignal, useClinicalEmit } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { PatientNameCell } from "@/components/PatientNameCell";
-import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import {
   DEFAULT_OPD_CONSENT_FORM_VALUES,
   DEFAULT_OPD_FEEDBACK_FORM_VALUES,
@@ -904,8 +903,7 @@ export function ProceduresTab({
             {dupeWarning.length > 0 && (
               <Alert
                 icon={<IconAlertTriangle size={14} />}
-                color="warning"
-                variant="light"
+                tone="warning"
                 title="Duplicate Warning"
               >
                 <Text size="xs">
@@ -1185,7 +1183,7 @@ export function ReferralsTab({
             </Text>
           )}
           {ref.response_notes && (
-            <Alert color="success" variant="light" mt="xs" title="Response">
+            <Alert tone="success" mt="xs" title="Response">
               <Text size="xs">{ref.response_notes}</Text>
             </Alert>
           )}

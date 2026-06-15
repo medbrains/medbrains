@@ -1,4 +1,4 @@
-import { Alert, Card, FileInput, Group, SimpleGrid, Stack, Text, ThemeIcon } from "@mantine/core";
+import { Card, FileInput, Group, SimpleGrid, Stack, Text, ThemeIcon } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { CompletenessCheck } from "@medbrains/types";
 import {
@@ -13,7 +13,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Badge, Button } from "@/components/ui";
+import { Alert, Badge, Button } from "@/components/ui";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
 // ── Completeness thresholds ──────────────────────────────
@@ -270,7 +270,7 @@ export function SystemHealthSettings() {
         <Text fw={600} size="lg" mb="sm">
           Configuration Backup
         </Text>
-        <Alert icon={<IconInfoCircle size={16} />} variant="light" color="primary" mb="md">
+        <Alert icon={<IconInfoCircle size={16} />} tone="info" mb="md">
           <Text size="xs">
             Export your system configuration (departments, roles, services, settings) as JSON.
             Import a previously exported config to restore or replicate a setup.

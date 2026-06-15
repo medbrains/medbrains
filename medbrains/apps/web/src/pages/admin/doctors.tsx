@@ -8,7 +8,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Alert,
   Avatar,
   Card,
   Divider,
@@ -61,7 +60,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "@/components/PageHeader";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
 import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminDoctorsService } from "@/services/adminDoctors.service";
@@ -161,7 +160,7 @@ export function AdminDoctorsPage() {
       </SimpleGrid>
 
       {signingBlockedCount > 0 && (
-        <Alert color="warning" icon={<IconAlertTriangle size={16} />} variant="light" mb="md">
+        <Alert tone="warning" icon={<IconAlertTriangle size={16} />} mb="md">
           <Text size="sm">
             A doctor cannot sign prescriptions, lab reports, radiology reports, certificates, or
             discharge summaries until an active default signature credential is issued.
@@ -546,7 +545,7 @@ function CreateDoctorModal({
     <>
       <Modal opened={opened} onClose={onClose} title="Add doctor profile" size="lg">
         <Stack gap="sm">
-          <Alert color="primary" icon={<IconStethoscope size={16} />} variant="light">
+          <Alert tone="info" icon={<IconStethoscope size={16} />}>
             <Text size="sm">
               Create or select the doctor login account first, then record council registration,
               unit, privileges, and signature readiness.
@@ -814,7 +813,7 @@ function CreateLinkedDoctorUserModal({
   return (
     <Modal opened={opened} onClose={handleClose} title="Create doctor user" size="lg">
       <Stack gap="sm">
-        <Alert color="primary" icon={<IconUserCog size={16} />} variant="light">
+        <Alert tone="info" icon={<IconUserCog size={16} />}>
           <Text size="sm">
             This creates the login user with the doctor role. The doctor profile is still created in
             the previous form so council details and signing privileges are reviewed separately.

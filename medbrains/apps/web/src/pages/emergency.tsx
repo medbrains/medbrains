@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Alert,
   Box,
   Card,
   Checkbox,
@@ -134,7 +133,7 @@ import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator"
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import {
   emergencyArrivalModeOptions,
   emergencyCodeDeactivateOutcomeOptions,
@@ -942,7 +941,7 @@ export function EmergencyPage() {
         <PatientContextBanner patientId={contextPatientId} hideLoadingState />
       )}
       {contextPatientId && !canViewPatientRecord && (
-        <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+        <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
           Patient context is restricted for this role.
         </Alert>
       )}
@@ -1243,9 +1242,7 @@ export function EmergencyVisitDetailPage() {
         </Card>
       )}
       {!isLoading && !visit && (
-        <Alert color="warning" variant="light">
-          ER visit was not found or is not accessible for this role.
-        </Alert>
+        <Alert tone="warning">ER visit was not found or is not accessible for this role.</Alert>
       )}
       {visit && (
         <>
@@ -1305,11 +1302,7 @@ export function EmergencyVisitDetailPage() {
                           ))}
                         </Stack>
                       ) : (
-                        <Alert
-                          color="orange"
-                          variant="light"
-                          icon={<IconAlertTriangle size={16} />}
-                        >
+                        <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
                           This visit is flagged as MLC, but no linked MLC case is available for your
                           current role.
                         </Alert>
@@ -1372,7 +1365,7 @@ function TriageLogTab({
           maxDropdownHeight={300}
         />
       ) : (
-        <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+        <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
           Triage review needs ER visit selector access so entries can be linked to a live visit.
         </Alert>
       )}
@@ -1520,7 +1513,7 @@ function ResuscitationTab({
           )}
         />
       ) : (
-        <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+        <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
           Resuscitation entries must be linked to an ER visit, so this role needs ER visit list
           access for the selector.
         </Alert>
@@ -1775,7 +1768,7 @@ function EmergencyVisitForm({
           <PatientContextBanner patientId={selectedPatientId} hideLoadingState />
         )}
         {!canViewPatientRecord && selectedPatientId && (
-          <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+          <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
             {t("patient.restrictedIdentity")}
           </Alert>
         )}
@@ -1822,7 +1815,7 @@ function EmergencyVisitForm({
             )}
           />
         ) : (
-          <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+          <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
             {t("mlc.permissionRequired")}
           </Alert>
         )}
@@ -1935,7 +1928,7 @@ function EmergencyVisitCommandBar({
             {canViewPatientRecord ? (
               <PatientContextBanner patientId={visit.patient_id} hideLoadingState />
             ) : (
-              <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+              <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
                 {t("patient.restrictedIdentity")}
               </Alert>
             )}
@@ -2610,7 +2603,7 @@ function VisitsTab({
             <PatientContextBanner patientId={contextPatientId} hideLoadingState />
           )}
           {contextPatientId && !canViewPatientRecord && (
-            <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+            <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
               Patient context is restricted for this role.
             </Alert>
           )}
@@ -2962,7 +2955,7 @@ function CodesTab({
       >
         <Stack component="form" onSubmit={handleDeactivateSubmit(handleDeactivateCode)}>
           {codeToDeactivate && (
-            <Alert color="warning" variant="light" icon={<IconAlertTriangle size={16} />}>
+            <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
               <Text size="sm" fw={600}>
                 CODE {codeToDeactivate.code_type.toUpperCase()}
               </Text>
@@ -3946,7 +3939,7 @@ function MlcCaseDetail({
         {/* POCSO Banner */}
         {mlcCase.is_pocso && (
           <Alert
-            color="danger"
+            tone="danger"
             variant="filled"
             icon={<IconAlertOctagon size={20} />}
             title="POCSO Case"
@@ -4381,7 +4374,7 @@ function MlcCaseDetail({
 
         {/* POCSO Reports */}
         {pocsoDocs.length > 0 && !canViewPocsoReport && (
-          <Alert color="gray" variant="light" icon={<IconAlertTriangle size={16} />}>
+          <Alert tone="neutral" icon={<IconAlertTriangle size={16} />}>
             POCSO report content is restricted for this role.
           </Alert>
         )}
@@ -4551,7 +4544,7 @@ function MlcCaseDetail({
                 />
               )}
             />
-            <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+            <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
               Reprints are audited and require a reason. First prints should use Print MLC.
             </Alert>
             <Group justify="flex-end">
@@ -4581,7 +4574,7 @@ function MlcCaseDetail({
         <form onSubmit={preparePoliceIntimationReprint}>
           <Stack gap="sm">
             {policePrintTarget && (
-              <Alert color="blue" variant="light" icon={<IconInfoCircle size={16} />}>
+              <Alert tone="info" icon={<IconInfoCircle size={16} />}>
                 Reprinting {policePrintTarget.intimation_number} for{" "}
                 {renderSensitiveValue(policeStationAccess, policePrintTarget.police_station)}.
               </Alert>
@@ -4600,7 +4593,7 @@ function MlcCaseDetail({
                 />
               )}
             />
-            <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+            <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
               Police intimation reprints are audited and require a reason.
             </Alert>
             <Group justify="flex-end">
@@ -4692,7 +4685,7 @@ function MlcCaseDetail({
         size="lg"
       >
         <Stack component="form" onSubmit={submitSbar}>
-          <Alert color="primary" variant="light" icon={<IconShieldCheck size={16} />}>
+          <Alert tone="info" icon={<IconShieldCheck size={16} />}>
             SBAR (Situation-Background-Assessment-Recommendation) is a standardized communication
             tool for clinical handovers as recommended by WHO and NABH.
           </Alert>
@@ -4746,7 +4739,7 @@ function MlcCaseDetail({
         size="lg"
       >
         <Stack component="form" onSubmit={submitAgeEst}>
-          <Alert color="violet" variant="light" icon={<IconScale size={16} />}>
+          <Alert tone="info" icon={<IconScale size={16} />}>
             Age estimation is a medico-legal procedure. Document all findings carefully. Ensure the
             examination is conducted by an authorized medical officer.
           </Alert>
@@ -4807,7 +4800,7 @@ function MlcCaseDetail({
         size="lg"
       >
         <Stack component="form" onSubmit={submitPocso}>
-          <Alert color="danger" variant="filled" icon={<IconAlertOctagon size={16} />}>
+          <Alert tone="danger" variant="filled" icon={<IconAlertOctagon size={16} />}>
             POCSO Act, 2012 mandates mandatory reporting. This report is a legal document. Ensure
             child-friendly language and procedures throughout.
           </Alert>
@@ -4934,7 +4927,7 @@ function MlcCaseDetail({
         size="md"
       >
         <Stack component="form" onSubmit={submitPoliceIntimation}>
-          <Alert color="primary" variant="light" icon={<IconBell size={16} />}>
+          <Alert tone="info" icon={<IconBell size={16} />}>
             Record the mandatory police intimation details for this medico-legal case. The
             police-station field follows MLC field-access restrictions.
           </Alert>
@@ -5000,7 +4993,7 @@ function MlcCaseDetail({
       >
         <Stack component="form" onSubmit={submitPoliceReceipt}>
           {receiptTarget && (
-            <Alert color="success" variant="light" icon={<IconCheck size={16} />}>
+            <Alert tone="success" icon={<IconCheck size={16} />}>
               Confirming receipt for {receiptTarget.intimation_number}
             </Alert>
           )}
@@ -5373,7 +5366,7 @@ function MlcTab({
       >
         <Stack component="form" onSubmit={handleUpdateSubmit(submitMlcCaseUpdate)}>
           {caseToUpdate && (
-            <Alert color="orange" variant="light" icon={<IconGavel size={16} />}>
+            <Alert tone="warning" icon={<IconGavel size={16} />}>
               <Text size="sm" fw={600}>
                 {caseToUpdate.mlc_number}
               </Text>
@@ -5914,7 +5907,7 @@ function MassCasualtyTab({
       >
         <Stack component="form" onSubmit={handleUpdateSubmit(submitMassCasualtyUpdate)}>
           {eventToUpdate && (
-            <Alert color="orange" variant="light" icon={<IconUsers size={16} />}>
+            <Alert tone="warning" icon={<IconUsers size={16} />}>
               <Text size="sm" fw={600}>
                 {eventToUpdate.event_name}
               </Text>

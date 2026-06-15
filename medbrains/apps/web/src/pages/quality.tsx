@@ -1,7 +1,6 @@
 import "@mantine/charts/styles.css";
 import { BarChart, DonutChart, LineChart } from "@mantine/charts";
 import {
-  Alert,
   Card,
   Checkbox,
   Drawer,
@@ -87,7 +86,7 @@ import { DataTable, PageHeader } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { qualityService } from "@/services/quality.service";
@@ -1422,8 +1421,7 @@ function IncidentsTab() {
           {form.incident_type === "fall" && (
             <Alert
               icon={<IconAlertTriangle size={16} />}
-              color="orange"
-              variant="light"
+              tone="warning"
               title="Feeds NABH falls register"
             >
               Select the patient, location, severity, and immediate action. This report will

@@ -1,5 +1,4 @@
 import {
-  Alert,
   Card,
   Group,
   Loader,
@@ -27,7 +26,7 @@ import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { OperationalSignal } from "@/components/OperationalSignal";
-import { Button } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 import { DEVICE_CONNECTOR_DEFINITIONS, deviceConnectorTitleKey } from "./device-integrations-i18n";
 
@@ -179,7 +178,7 @@ export function DeviceIntegrationsSettings() {
 
   return (
     <Stack gap="lg">
-      <Alert icon={<IconPlugConnected size={18} />} color="blue" variant="light">
+      <Alert icon={<IconPlugConnected size={18} />} tone="info">
         <Text size="sm">{t("deviceIntegrations.alert")}</Text>
       </Alert>
 

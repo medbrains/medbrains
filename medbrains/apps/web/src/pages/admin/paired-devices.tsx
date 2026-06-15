@@ -8,7 +8,6 @@
  */
 
 import {
-  Alert,
   Group,
   Loader,
   Modal,
@@ -26,7 +25,7 @@ import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components";
-import { Badge, Button, Table } from "@/components/ui";
+import { Alert, Badge, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminDevicesService, type PairingToken } from "@/services/adminDevices.service";
 
@@ -221,7 +220,7 @@ function MintTokenForm({
         value={notes}
         onChange={(e) => setNotes(e.currentTarget.value)}
       />
-      {error && <Alert color="red">{error}</Alert>}
+      {error && <Alert tone="danger">{error}</Alert>}
       <Group justify="flex-end">
         <Button
           tone="primary"
@@ -249,7 +248,7 @@ function PairingTokenView({ token, onDone }: { token: PairingToken; onDone: () =
   );
   return (
     <Stack>
-      <Alert color="green" title="Token minted">
+      <Alert tone="success" title="Token minted">
         Show this QR / payload to the device. The token expires in {expiresIn} seconds and is
         single-use.
       </Alert>

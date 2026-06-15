@@ -34,6 +34,7 @@ SEAM = {
     "Badge": "Badge",
     "ActionIcon": "IconButton",
     "Table": "Table",
+    "Alert": "Alert",
 }
 
 ROOT = Path(__file__).resolve().parent.parent

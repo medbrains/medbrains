@@ -1,5 +1,4 @@
 import {
-  Alert,
   Card,
   Grid,
   Group,
@@ -52,7 +51,7 @@ import {
 } from "@tabler/icons-react";
 import { useQueries } from "@tanstack/react-query";
 import { type ReactNode, useMemo, useState } from "react";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
 import { adminAccessService } from "@/services/adminAccess.service";
 import { adminDoctorsService } from "@/services/adminDoctors.service";
 import { assetsService } from "@/services/assets.service";
@@ -2381,7 +2380,7 @@ export function MasterDataStatusSettings() {
 
       {filteredGapItems.length > 0 && (
         <Stack gap="md">
-          <Alert color="orange" variant="light" icon={<IconAlertTriangle size={18} />}>
+          <Alert tone="warning" icon={<IconAlertTriangle size={18} />}>
             Missing coverage is shown before the API-backed card wall so setup gaps are not buried
             under modules that already have screens.
           </Alert>

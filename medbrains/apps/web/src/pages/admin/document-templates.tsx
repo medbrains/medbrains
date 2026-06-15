@@ -1,4 +1,4 @@
-import { Alert, Flex, Group, Paper, ScrollArea, Stack, Text, Textarea, Title } from "@mantine/core";
+import { Flex, Group, Paper, ScrollArea, Stack, Text, Textarea, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
@@ -7,7 +7,7 @@ import { IconCheck, IconRefresh, IconRestore } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components";
-import { Badge, Button } from "@/components/ui";
+import { Alert, Badge, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 
 interface TemplateInfo {
@@ -141,7 +141,7 @@ export function DocumentTemplatesPage() {
                   Save template
                 </Button>
               </Group>
-              <Alert variant="light" color="primary">
+              <Alert tone="info">
                 <Text size="xs">
                   Templates are Tera HTML extending the shared letterhead. Saved versions are
                   validated against the sample data before they can break a render. Placeholders

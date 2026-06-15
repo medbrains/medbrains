@@ -1,5 +1,4 @@
 import {
-  Alert,
   Card,
   Code,
   Group,
@@ -25,7 +24,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { labCatalogService } from "@/services/labCatalog.service";
 import { pharmacyCatalogService } from "@/services/pharmacyCatalog.service";
@@ -432,7 +431,7 @@ export function StandardsSettings() {
 
   return (
     <Stack gap="lg">
-      <Alert icon={<IconInfoCircle size={20} />} color="primary" variant="light">
+      <Alert icon={<IconInfoCircle size={20} />} tone="info">
         <Text size="sm">
           This is the setup checkpoint for EHR exchange standards. It does not create a separate
           standards service; it verifies the existing clinical, lab, pharmacy, radiology, FHIR and

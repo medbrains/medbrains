@@ -1,5 +1,4 @@
 import {
-  Alert,
   Card,
   Group,
   Loader,
@@ -47,7 +46,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
 import { OperationalSignal } from "@/components/OperationalSignal";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { NAV_GROUPS } from "@/config/navigation";
 import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
 import { adminAccessService } from "@/services/adminAccess.service";
@@ -1116,7 +1115,7 @@ function EffectiveUserAccessMatrix({
 
   return (
     <Stack gap="md">
-      <Alert icon={<IconUserShield size={16} />} color="blue" variant="light">
+      <Alert icon={<IconUserShield size={16} />} tone="info">
         <Text size="sm">
           Effective permissions resolve as role grants plus individual extras and active temporary
           grants, plus access-group global grants, minus individual denied permissions. Access
@@ -1241,12 +1240,11 @@ function EffectiveUserAccessMatrix({
 
           <Alert
             icon={<IconShieldLock size={16} />}
-            color={
+            tone={
               redundantExtraPermissions.length > 0 || deniedActiveGrantPermissions.length > 0
-                ? "orange"
-                : "green"
+                ? "warning"
+                : "success"
             }
-            variant="light"
           >
             <Group justify="space-between" align="flex-start" gap="md">
               <Stack gap={3}>
@@ -1399,7 +1397,7 @@ function EffectiveUserAccessMatrix({
             <Tabs.Panel value="overlaps" pt="sm">
               <Stack gap="sm">
                 {overlapRows.length === 0 ? (
-                  <Alert color="green" variant="light">
+                  <Alert tone="success">
                     <Text size="sm">
                       No duplicate individual grants or denied active grants for this user.
                     </Text>
@@ -1719,7 +1717,7 @@ function SurfaceCoverageMatrix() {
 
   return (
     <Stack gap="md">
-      <Alert icon={<IconShieldLock size={16} />} color="blue" variant="light">
+      <Alert icon={<IconShieldLock size={16} />} tone="info">
         <Text size="sm">
           This catalog maps routes, tabs, tables, columns, inputs, print actions and widgets to
           permissions plus field-access keys. Use it to find loose screens before adding role or
@@ -2777,7 +2775,7 @@ function SurfaceCoverageMatrix() {
               </Table>
             </ScrollArea.Autosize>
           ) : (
-            <Alert color="green" variant="light">
+            <Alert tone="success">
               Every registered access surface has the expected route, permission, masking, field,
               table, tab, and event metadata for its surface type.
             </Alert>
@@ -3080,7 +3078,7 @@ function SurfaceCoverageMatrix() {
           </Group>
 
           {routeCoverageGapRows.length === 0 ? (
-            <Alert color="green" variant="light">
+            <Alert tone="success">
               All navigation routes are mapped to access-matrix surfaces with matching permission
               requirements.
             </Alert>
@@ -3445,7 +3443,7 @@ function GroupScopeMatrix({
 
   return (
     <Stack gap="md">
-      <Alert icon={<IconUsersGroup size={16} />} color="cyan" variant="light">
+      <Alert icon={<IconUsersGroup size={16} />} tone="info">
         <Text size="sm">
           Group membership is visible here to prevent duplicate user overrides. Groups can grant
           shared global permissions and still scope resource relationships through SpiceDB.

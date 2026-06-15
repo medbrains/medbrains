@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Alert, Divider, Progress, Select, Stack, Text, TextInput, Title } from "@mantine/core";
+import { Divider, Progress, Select, Stack, Text, TextInput, Title } from "@mantine/core";
 import type { OnboardingInitInput } from "@medbrains/schemas";
 import { onboardingInitSchema } from "@medbrains/schemas";
 import { useAuthStore, useOnboardingStore } from "@medbrains/stores";
@@ -10,7 +10,7 @@ import { useMutation } from "@tanstack/react-query";
 import type { MutableRefObject } from "react";
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Button } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
@@ -244,9 +244,7 @@ export function AdminStep({ onNext, onBack, draftRef }: Props) {
         </div>
 
         {initMutation.isError && !Object.keys(form.formState.errors).length && (
-          <Alert color="danger" variant="light">
-            {initMutation.error.message}
-          </Alert>
+          <Alert tone="danger">{initMutation.error.message}</Alert>
         )}
 
         <div className={classes.navButtons}>

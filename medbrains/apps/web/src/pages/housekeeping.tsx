@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Alert,
   Box,
   Card,
   Drawer,
@@ -72,7 +71,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import {
   type CreateBiowasteRecordInput,
@@ -1802,12 +1801,7 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
       <Text fw={600} size="lg">
         BMW Segregation Overview
       </Text>
-      <Alert
-        icon={<IconAlertTriangle size={16} />}
-        color="warning"
-        variant="light"
-        title="CPCB BMW Rules 2016"
-      >
+      <Alert icon={<IconAlertTriangle size={16} />} tone="warning" title="CPCB BMW Rules 2016">
         All biomedical waste must be segregated at source into color-coded containers as per
         Biomedical Waste Management Rules, 2016. Saved manifests and sharp-container replacements
         now mirror automatically into the NABH BMW disposal log.
@@ -2098,12 +2092,7 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
         size="lg"
       >
         <Stack component="form" onSubmit={submitManifest}>
-          <Alert
-            icon={<IconTruck size={16} />}
-            color="primary"
-            variant="light"
-            title="Transport Documentation"
-          >
+          <Alert icon={<IconTruck size={16} />} tone="info" title="Transport Documentation">
             Complete all fields for BMW transport compliance. Saving this source record updates the
             NABH BMW disposal evidence register; no separate compliance capture is needed.
           </Alert>

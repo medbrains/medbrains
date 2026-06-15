@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Alert,
   Box,
   Card,
   Divider,
@@ -199,7 +198,7 @@ import { PatientJourneyActions } from "@/components/Patient/PatientJourneyAction
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PaymentModal, type PaymentModalSettlement } from "@/components/PaymentModal";
-import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import {
   billingAdvancePurposeOptions,
   billingChargeSourceOptions,
@@ -617,7 +616,7 @@ export function BillingInvoiceDetailPage() {
               </Button>
             }
           />
-          <Alert color="danger">Unable to open invoice without an invoice ID.</Alert>
+          <Alert tone="danger">Unable to open invoice without an invoice ID.</Alert>
         </Stack>
       </ClinicalEventProvider>
     );
@@ -974,8 +973,7 @@ function BillingPageInner() {
           </Group>
           {activeHandoff && (
             <Alert
-              color={activeHandoff === "payment" ? "orange" : "teal"}
-              variant="light"
+              tone={activeHandoff === "payment" ? "warning" : "success"}
               title={
                 activeHandoff === "payment"
                   ? t("handoff.payment.title")
@@ -1880,11 +1878,7 @@ function InvoiceDetail({
       </Card>
 
       {initialAction === "payment" && (
-        <Alert
-          color={canRecordPayment ? "orange" : "gray"}
-          variant="light"
-          title={t("handoff.payment.title")}
-        >
+        <Alert tone={canRecordPayment ? "warning" : "neutral"} title={t("handoff.payment.title")}>
           <Group justify="space-between" align="center" gap="sm">
             <Text size="sm">
               {canRecordPayment

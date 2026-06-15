@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Alert, Anchor, Checkbox, PasswordInput, Stack, Text, TextInput } from "@mantine/core";
+import { Anchor, Checkbox, PasswordInput, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { userSchema } from "@medbrains/schemas";
 import { useAuthStore, usePermissionStore } from "@medbrains/stores";
@@ -8,7 +8,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, Navigate, useNavigate } from "react-router";
-import { Button } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 import {
   DEFAULT_LOGIN_FORM_VALUES,
   type LoginFormInput,
@@ -234,7 +234,7 @@ export function LoginPage() {
               </div>
 
               {loginMutation.isError && (
-                <Alert color="danger" variant="light" radius="md">
+                <Alert tone="danger" radius="md">
                   {loginMutation.error.message}
                 </Alert>
               )}
@@ -300,7 +300,7 @@ export function LoginPage() {
                   </div>
 
                   {connectionStatus && (
-                    <Alert color={connectionStatus.color} variant="light" radius="md">
+                    <Alert tone={connectionStatus.color} radius="md">
                       {connectionStatus.message}
                     </Alert>
                   )}

@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Alert, Modal, Select, Stack, Switch, Text, TextInput } from "@mantine/core";
+import { Modal, Select, Stack, Switch, Text, TextInput } from "@mantine/core";
 import type { CreateFacilityInput } from "@medbrains/schemas";
 import { createFacilitySchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
@@ -7,7 +7,7 @@ import type { OnboardingFacility } from "@medbrains/types";
 import { IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Badge, Button, IconButton } from "@/components/ui";
+import { Alert, Badge, Button, IconButton } from "@/components/ui";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -110,7 +110,7 @@ export function FacilitiesStep({ onNext, onBack }: Props) {
         facilities below.
       </Text>
 
-      <Alert variant="light" color="primary">
+      <Alert tone="info">
         <Text size="sm" fw={600}>
           Main Hospital
         </Text>

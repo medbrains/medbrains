@@ -2,7 +2,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Alert,
   Card,
   Drawer,
   Group,
@@ -64,7 +63,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
-import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import {
   billingErpExportTypeOptions,
   billingErpTargetSystemOptions,
@@ -1072,12 +1071,12 @@ export function JournalEntriesTab() {
             <Text size="sm">Total Credit: ₹{totalCredit.toLocaleString()}</Text>
           </Group>
           {!balanced && totalDebit > 0 && (
-            <Alert color="danger" title="Unbalanced">
+            <Alert tone="danger" title="Unbalanced">
               Debits must equal credits before saving.
             </Alert>
           )}
           {errors.lines?.message && (
-            <Alert color="danger" title="Journal validation">
+            <Alert tone="danger" title="Journal validation">
               {errors.lines.message}
             </Alert>
           )}

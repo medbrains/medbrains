@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Alert,
   CopyButton,
   Group,
   Loader,
@@ -51,7 +50,7 @@ import {
 } from "@/components";
 import { UserCreateDrawer } from "@/components/admin/UserCreateDrawer";
 import { OfflineWriteBanner } from "@/components/OfflineWriteBanner";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useCreateInline } from "@/hooks/useCreateInline";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminAccessService, type CreateSetupUserInput } from "@/services/adminAccess.service";
@@ -705,7 +704,7 @@ function BulkImportModal({ opened, onClose }: { opened: boolean; onClose: () => 
   return (
     <Modal opened={opened} onClose={onClose} title="Bulk Import Users" size="lg">
       <Stack gap="md">
-        <Alert icon={<IconInfoCircle size={16} />} variant="light" color="primary">
+        <Alert icon={<IconInfoCircle size={16} />} tone="info">
           <Text size="xs">
             Paste a JSON array of user objects. Each object needs:{" "}
             <Text span fw={600}>

@@ -1,4 +1,4 @@
-import { Alert, Stack, Text, ThemeIcon, Title } from "@mantine/core";
+import { Stack, Text, ThemeIcon, Title } from "@mantine/core";
 import { useOnboardingStore } from "@medbrains/stores";
 import type {
   OnboardingBedType,
@@ -13,7 +13,7 @@ import type {
 import { IconAlertTriangle, IconCheck, IconRocket } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { Button } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
@@ -111,12 +111,7 @@ export function ReviewStep({ onBack }: Props) {
       </div>
 
       {warnings.length > 0 && (
-        <Alert
-          variant="light"
-          color="warning"
-          title="Setup Recommendations"
-          icon={<IconAlertTriangle size={20} />}
-        >
+        <Alert tone="warning" title="Setup Recommendations" icon={<IconAlertTriangle size={20} />}>
           <ul style={{ margin: 0, paddingLeft: 16 }}>
             {warnings.map((w) => (
               <li key={w}>
@@ -278,11 +273,7 @@ export function ReviewStep({ onBack }: Props) {
         </div>
       )}
 
-      {setupMutation.isError && (
-        <Alert color="danger" variant="light">
-          {setupMutation.error.message}
-        </Alert>
-      )}
+      {setupMutation.isError && <Alert tone="danger">{setupMutation.error.message}</Alert>}
 
       <div className={classes.navButtons}>
         <Button tone="secondary" onClick={onBack}>

@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Alert,
   Box,
   Card,
   Divider,
@@ -106,7 +105,7 @@ import { deriveCampJourneyCompletedEvents } from "@/components/Patient/patient-j
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { ShareDrawer } from "@/components/Sharing/ShareDrawer";
-import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import {
   DEFAULT_PATIENT_ALLERGY_FORM_VALUES,
   DEFAULT_PATIENT_DOCUMENT_FORM_VALUES,
@@ -452,11 +451,7 @@ function AllergiesTab({ patient }: { patient: Patient }) {
 
   return (
     <Stack gap="md">
-      {patient.no_known_allergies && (
-        <Alert color="success" variant="light">
-          NKDA -- No Known Drug Allergies
-        </Alert>
-      )}
+      {patient.no_known_allergies && <Alert tone="success">NKDA -- No Known Drug Allergies</Alert>}
 
       {canUpdate && (
         <Group justify="flex-end">
@@ -1139,8 +1134,7 @@ function BillingTab({ patientId }: { patientId: string }) {
       </SimpleGrid>
       {(activeAdmission || pendingInvoices.length > 0) && (
         <Alert
-          color={pendingInvoices.length > 0 ? "warning" : "primary"}
-          variant="light"
+          tone={pendingInvoices.length > 0 ? "warning" : "info"}
           icon={<IconAlertTriangle size={16} />}
         >
           <Stack gap={2}>
@@ -1491,7 +1485,7 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
             </Table>
           )}
           {selectedRelated && (
-            <Alert color="primary">
+            <Alert tone="info">
               Selected: {selectedRelated.uhid} — {selectedRelated.first_name}{" "}
               {selectedRelated.last_name}
             </Alert>
@@ -1778,7 +1772,7 @@ function MergeTab({ patient }: { patient: Patient }) {
   return (
     <Stack gap="lg">
       {patient.is_merged && (
-        <Alert color="orange" icon={<IconAlertTriangle size={16} />}>
+        <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
           This patient has been merged into another record.
         </Alert>
       )}
@@ -1995,7 +1989,7 @@ function MergeTab({ patient }: { patient: Patient }) {
                 </SimpleGrid>
               </Card>
 
-              <Alert color="warning" variant="light">
+              <Alert tone="warning">
                 All visits, prescriptions, lab orders, and billing records from{" "}
                 <b>{selectedTarget.uhid}</b> will be transferred to <b>{patient.uhid}</b>.
               </Alert>
@@ -2035,7 +2029,7 @@ function MergeTab({ patient }: { patient: Patient }) {
 
       {/* Confirmation Modal */}
       <Modal opened={confirmOpen} onClose={confirmHandlers.close} title="Confirm Merge">
-        <Alert color="danger" icon={<IconAlertTriangle size={16} />} mb="md">
+        <Alert tone="danger" icon={<IconAlertTriangle size={16} />} mb="md">
           This will deactivate {selectedTarget?.uhid} and merge its data into {patient.uhid}. This
           can be undone later.
         </Alert>
@@ -2322,7 +2316,7 @@ function DrugOGramSegment({ patientId }: { patientId: string }) {
       {/* Polypharmacy Alerts */}
       {activeAlerts.length > 0 && (
         <Alert
-          color="danger"
+          tone="danger"
           title={`${activeAlerts.length} Drug Interaction Alert(s)`}
           icon={<IconAlertTriangle size={16} />}
         >

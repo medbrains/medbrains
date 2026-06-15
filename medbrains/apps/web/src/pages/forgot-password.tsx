@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Alert, Anchor, Paper, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
+import { Anchor, Paper, PasswordInput, Stack, Text, TextInput, Title } from "@mantine/core";
 import { api } from "@medbrains/api";
 import { IconKey, IconLock, IconUser } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
@@ -7,7 +7,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router";
 import { z } from "zod";
-import { Button } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 
 const requestSchema = z.object({
   username: z.string().min(3, "Enter your username"),
@@ -72,7 +72,7 @@ export function ForgotPasswordPage() {
                 SMS. No phone on file? Ask your hospital admin to reset it.
               </Text>
               {requestMutation.isError && (
-                <Alert color="red" title="Request failed">
+                <Alert tone="danger" title="Request failed">
                   Could not reach the server. Try again.
                 </Alert>
               )}
@@ -106,7 +106,7 @@ export function ForgotPasswordPage() {
                 minutes.
               </Text>
               {confirmMutation.isError && (
-                <Alert color="red" title="Reset failed">
+                <Alert tone="danger" title="Reset failed">
                   {confirmMutation.error instanceof Error
                     ? confirmMutation.error.message
                     : "Invalid or expired code."}

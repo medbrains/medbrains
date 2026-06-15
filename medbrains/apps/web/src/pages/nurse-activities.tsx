@@ -1,5 +1,4 @@
 import {
-  Alert,
   Card,
   Group,
   Modal,
@@ -34,7 +33,7 @@ import { HandoffPanel } from "@/components/crdt/HandoffPanel";
 import { NursingNotesPanel } from "@/components/crdt/NursingNotesPanel";
 import { EncounterSelect } from "@/components/EncounterSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminAccessService } from "@/services/adminAccess.service";
 import { nurseActivitiesService } from "@/services/nurseActivities.service";
@@ -546,7 +545,7 @@ export function NurseActivitiesPage() {
                     </Stack>
                   </Card>
                 ) : (
-                  <Alert color="blue" variant="light">
+                  <Alert tone="info">
                     You can sign patient handoffs, but the daily shift board requires handoff view
                     permission.
                   </Alert>
@@ -1136,7 +1135,7 @@ function VitalsTab({
             <Tabs.Panel value="record" pt="md">
               <Stack>
                 {!encounterId && (
-                  <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+                  <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
                     Select or open a linked encounter before recording vitals.
                   </Alert>
                 )}
@@ -1412,7 +1411,7 @@ function SafetyTab({
         {isLinkedEncounter && <Badge tone="neutral">IPD linked</Badge>}
       </Group>
       {!encounterId && (
-        <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+        <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
           Open Nurse Activities from an IPD admission to pre-link pain, fall-risk and wound entries
           to the active encounter.
         </Alert>

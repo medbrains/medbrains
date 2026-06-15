@@ -1,22 +1,11 @@
-import {
-  Alert,
-  Card,
-  Group,
-  Loader,
-  Select,
-  Stack,
-  Switch,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
+import { Card, Group, Loader, Select, Stack, Switch, Text, TextInput, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { TenantSettingsRow } from "@medbrains/types";
 import { IconArrowRight, IconHeartbeat, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { Button, IconButton } from "@/components/ui";
+import { Alert, Button, IconButton } from "@/components/ui";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 /* ------------------------------------------------------------------ */
@@ -475,7 +464,7 @@ export function ClinicalConfigSettings() {
 
   return (
     <Stack gap="lg">
-      <Alert icon={<IconHeartbeat size={20} />} color="primary" variant="light">
+      <Alert icon={<IconHeartbeat size={20} />} tone="info">
         <Text size="sm">
           Configure clinical documentation settings for your hospital. These settings control which
           vitals are captured, which consultation sections are shown, and the default recording

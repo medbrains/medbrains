@@ -1,9 +1,9 @@
-import { Alert, Card, Group, Stack, Text } from "@mantine/core";
+import { Card, Group, Stack, Text } from "@mantine/core";
 import { P } from "@medbrains/types";
 import { IconInfoCircle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
-import { Badge, Table } from "@/components/ui";
+import { Alert, Badge, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { integrationService } from "@/services/integration.service";
 
@@ -22,12 +22,7 @@ export function IntegrationHubPage() {
         subtitle="Hardcoded Rust subscribers — code-reviewed, version-controlled, idempotent."
       />
 
-      <Alert
-        icon={<IconInfoCircle size={16} />}
-        color="blue"
-        variant="light"
-        title="Pipelines are code, not config"
-      >
+      <Alert icon={<IconInfoCircle size={16} />} tone="info" title="Pipelines are code, not config">
         Cross-module workflows live in <code>orchestration/default_pipelines.rs</code>. Each
         subscriber writes to the outbox with a stable idempotency key, so retries and accidental
         double-fires never produce duplicate side effects. To customise behaviour per tenant, use{" "}

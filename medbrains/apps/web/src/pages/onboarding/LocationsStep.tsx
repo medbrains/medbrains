@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Alert, Group, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Group, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
 import type { CreateLocationInput } from "@medbrains/schemas";
 import { createLocationSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
@@ -8,7 +8,7 @@ import { IconTrash, IconUpload } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { CsvImportModal } from "@/components";
-import { Button, IconButton } from "@/components/ui";
+import { Alert, Button, IconButton } from "@/components/ui";
 import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
@@ -79,9 +79,7 @@ export function LocationsStep({ onNext, onBack }: Props) {
       </Text>
 
       {locations.length === 0 && (
-        <Alert variant="light" color="primary">
-          No locations yet. Add your first campus location.
-        </Alert>
+        <Alert tone="info">No locations yet. Add your first campus location.</Alert>
       )}
 
       {locations.map((loc: OnboardingLocation) => (

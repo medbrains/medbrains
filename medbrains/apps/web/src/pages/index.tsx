@@ -1,7 +1,7 @@
-import { Alert, Card, Center, Container, Group, Loader, Stack, Text, Title } from "@mantine/core";
+import { Card, Center, Container, Group, Loader, Stack, Text, Title } from "@mantine/core";
 import type { HealthResponse } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import { Badge } from "@/components/ui";
+import { Alert, Badge } from "@/components/ui";
 import { sessionService } from "@/services/session.service";
 
 function StatusBadge({ label, status }: { label: string; status: string }) {
@@ -48,9 +48,7 @@ export function IndexPage() {
             )}
 
             {error && (
-              <Alert color="danger" variant="light">
-                Unable to reach API server. Is the backend running?
-              </Alert>
+              <Alert tone="danger">Unable to reach API server. Is the backend running?</Alert>
             )}
 
             {data && (

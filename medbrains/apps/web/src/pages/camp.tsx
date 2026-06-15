@@ -1,7 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { BarChart } from "@mantine/charts";
 import {
-  Alert,
   Box,
   Card,
   Divider,
@@ -114,7 +113,7 @@ import { PatientContextBanner } from "@/components/Patient/PatientContextBanner"
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import { deriveCampJourneyCompletedEvents } from "@/components/Patient/patient-journey-events";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import {
   campFollowupTypeOptions,
   campIdProofTypeOptions,
@@ -925,9 +924,7 @@ function CampPatientContextPanel({ patientId }: { patientId: string }) {
           </Stack>
         </Card>
       ) : (
-        <Alert color="orange" variant="light">
-          {t("patientHistory.restricted")}
-        </Alert>
+        <Alert tone="warning">{t("patientHistory.restricted")}</Alert>
       )}
     </Stack>
   );

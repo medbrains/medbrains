@@ -1,5 +1,4 @@
 import {
-  Alert,
   Card,
   Divider,
   Grid,
@@ -61,7 +60,7 @@ import {
   PatientRegisterForm,
   type PatientRegistrationLinkedServicesOptions,
 } from "@/components/Patient/PatientRegisterForm";
-import { Badge, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, Button, IconButton, Table } from "@/components/ui";
 import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
@@ -897,7 +896,7 @@ function PatientRegisterPageInner() {
                 ))}
               </Stack>
               {isCampRegistration && (
-                <Alert color="green" variant="light" icon={<IconUsers size={16} />}>
+                <Alert tone="success" icon={<IconUsers size={16} />}>
                   {t("registrationPage.campLinkedAlert")}
                 </Alert>
               )}
@@ -915,7 +914,7 @@ function PatientRegisterPageInner() {
         title={t("title.potentialDuplicatesFound")}
         size="lg"
       >
-        <Alert color="orange" icon={<IconAlertTriangle size={16} />} mb="md">
+        <Alert tone="warning" icon={<IconAlertTriangle size={16} />} mb="md">
           {t("registrationPage.duplicateAlert")}
         </Alert>
         <Table striped highlightOnHover>
