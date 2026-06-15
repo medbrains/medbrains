@@ -1,8 +1,9 @@
-import { Badge, Button, Stack, Switch, Text, Title } from "@mantine/core";
+import { Stack, Switch, Text, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useOnboardingStore } from "@medbrains/stores";
 import { IconCheck, IconDatabase } from "@tabler/icons-react";
 import { useState } from "react";
+import { Badge, Button } from "@/components/ui";
 import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
@@ -225,11 +226,10 @@ export function ModulesStep({ onNext, onBack }: Props) {
                 )}
                 {isEnabled && mod.has_masters && (
                   <Button
-                    variant="light"
+                    tone="secondary"
                     size="xs"
                     mt={8}
                     leftSection={isSeeded ? <IconCheck size={14} /> : <IconDatabase size={14} />}
-                    color={isSeeded ? "success" : "primary"}
                     loading={seeding === mod.code}
                     disabled={isSeeded}
                     onClick={() => handleSeedMasters(mod.code)}
@@ -237,7 +237,7 @@ export function ModulesStep({ onNext, onBack }: Props) {
                     {isSeeded ? (
                       <>
                         Defaults seeded{" "}
-                        <Badge size="xs" ml={4} color="success">
+                        <Badge tone="success" size="xs" ml={4}>
                           done
                         </Badge>
                       </>
@@ -257,10 +257,12 @@ export function ModulesStep({ onNext, onBack }: Props) {
       </div>
 
       <div className={classes.navButtons}>
-        <Button variant="default" onClick={onBack}>
+        <Button tone="secondary" onClick={onBack}>
           Back
         </Button>
-        <Button onClick={onNext}>Continue</Button>
+        <Button tone="primary" onClick={onNext}>
+          Continue
+        </Button>
       </div>
     </Stack>
   );

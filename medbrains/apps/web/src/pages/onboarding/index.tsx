@@ -1,20 +1,11 @@
-import {
-  Badge,
-  Button,
-  Container,
-  Group,
-  Loader,
-  Stepper,
-  Text,
-  ThemeIcon,
-  Title,
-} from "@mantine/core";
+import { Container, Group, Loader, Stepper, Text, ThemeIcon, Title } from "@mantine/core";
 import type { OnboardingInitInput } from "@medbrains/schemas";
 import { useAuthStore } from "@medbrains/stores";
 import { IconArrowLeft, IconBuildingHospital } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router";
+import { Badge, Button } from "@/components/ui";
 import { onboardingService } from "@/services/onboarding.service";
 
 import { AdminStep } from "./AdminStep";
@@ -130,7 +121,7 @@ export function OnboardingPage() {
       <div className={classes.header}>
         <Group gap="sm">
           <Button
-            variant="subtle"
+            tone="ghost"
             size="xs"
             leftSection={<IconArrowLeft size={14} />}
             onClick={() => navigate("/")}
@@ -143,10 +134,10 @@ export function OnboardingPage() {
           <Title order={4}>MedBrains Setup</Title>
         </Group>
         <Group gap="sm">
-          <Badge variant="light" size="lg">
+          <Badge tone="neutral" size="lg">
             Step {active + 1} of {steps.length}
           </Badge>
-          <Button variant="subtle" size="xs" onClick={() => navigate("/login")}>
+          <Button tone="ghost" size="xs" onClick={() => navigate("/login")}>
             Already registered? Log in
           </Button>
         </Group>

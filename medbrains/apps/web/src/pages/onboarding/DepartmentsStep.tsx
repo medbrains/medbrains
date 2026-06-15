@@ -2,7 +2,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Accordion,
   ActionIcon,
-  Button,
   Grid,
   Group,
   Modal,
@@ -19,6 +18,7 @@ import { IconClock, IconCopy, IconPlus, IconTrash, IconUpload } from "@tabler/ic
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { CsvImportModal } from "@/components";
+import { Button } from "@/components/ui";
 import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
@@ -194,14 +194,14 @@ export function DepartmentsStep({ onNext, onBack }: Props) {
       </Text>
 
       <Group>
-        <Button variant="light" leftSection={<IconPlus size={16} />} onClick={openModal}>
+        <Button tone="secondary" leftSection={<IconPlus size={16} />} onClick={openModal}>
           Add Department
         </Button>
-        <Button variant="subtle" onClick={addFromTemplate}>
+        <Button tone="ghost" onClick={addFromTemplate}>
           Quick-Add from Template
         </Button>
         <Button
-          variant="subtle"
+          tone="ghost"
           leftSection={<IconUpload size={16} />}
           onClick={() => setShowImport(true)}
         >
@@ -306,7 +306,7 @@ export function DepartmentsStep({ onNext, onBack }: Props) {
                   <Accordion.Panel>
                     <Stack gap="xs">
                       <Button
-                        variant="subtle"
+                        tone="ghost"
                         size="xs"
                         leftSection={<IconCopy size={14} />}
                         onClick={applyToAllWeekdays}
@@ -372,16 +372,20 @@ export function DepartmentsStep({ onNext, onBack }: Props) {
               </Accordion>
             )}
 
-            <Button type="submit">Add Department</Button>
+            <Button tone="primary" type="submit">
+              Add Department
+            </Button>
           </Stack>
         </form>
       </Modal>
 
       <div className={classes.navButtons}>
-        <Button variant="default" onClick={onBack}>
+        <Button tone="secondary" onClick={onBack}>
           Back
         </Button>
-        <Button onClick={onNext}>Continue</Button>
+        <Button tone="primary" onClick={onNext}>
+          Continue
+        </Button>
       </div>
     </Stack>
   );

@@ -1,11 +1,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Accordion, Button, NumberInput, Stack, Text, TextInput } from "@mantine/core";
+import { Accordion, NumberInput, Stack, Text, TextInput } from "@mantine/core";
 import type { SequencesInput } from "@medbrains/schemas";
 import { sequencesSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
 import type { AdditionalSequence } from "@medbrains/types";
 import { IconHash } from "@tabler/icons-react";
 import { Controller, useForm } from "react-hook-form";
+import { Button } from "@/components/ui";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -189,10 +190,12 @@ export function SequencesStep({ onNext, onBack }: Props) {
         </Accordion>
 
         <div className={classes.navButtons}>
-          <Button variant="default" onClick={onBack}>
+          <Button tone="secondary" onClick={onBack}>
             Back
           </Button>
-          <Button type="submit">Save & Continue</Button>
+          <Button tone="primary" type="submit">
+            Save & Continue
+          </Button>
         </div>
       </Stack>
     </form>

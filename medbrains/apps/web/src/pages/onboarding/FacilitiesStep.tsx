@@ -1,16 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  ActionIcon,
-  Alert,
-  Badge,
-  Button,
-  Modal,
-  Select,
-  Stack,
-  Switch,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { ActionIcon, Alert, Modal, Select, Stack, Switch, Text, TextInput } from "@mantine/core";
 import type { CreateFacilityInput } from "@medbrains/schemas";
 import { createFacilitySchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
@@ -18,6 +7,7 @@ import type { OnboardingFacility } from "@medbrains/types";
 import { IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Badge, Button } from "@/components/ui";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -127,7 +117,7 @@ export function FacilitiesStep({ onNext, onBack }: Props) {
         <Text size="xs" c="dimmed">
           MAIN &middot; main hospital (auto-created)
         </Text>
-        <Badge size="xs" mt={4}>
+        <Badge tone="neutral" size="xs" mt={4}>
           Main
         </Badge>
       </Alert>
@@ -152,7 +142,7 @@ export function FacilitiesStep({ onNext, onBack }: Props) {
         </div>
       ))}
 
-      <Button variant="light" onClick={openModal}>
+      <Button tone="secondary" onClick={openModal}>
         Add Sub-Institution
       </Button>
 
@@ -244,16 +234,20 @@ export function FacilitiesStep({ onNext, onBack }: Props) {
                 />
               )}
             />
-            <Button type="submit">Add Facility</Button>
+            <Button tone="primary" type="submit">
+              Add Facility
+            </Button>
           </Stack>
         </form>
       </Modal>
 
       <div className={classes.navButtons}>
-        <Button variant="default" onClick={onBack}>
+        <Button tone="secondary" onClick={onBack}>
           Back
         </Button>
-        <Button onClick={onNext}>Continue</Button>
+        <Button tone="primary" onClick={onNext}>
+          Continue
+        </Button>
       </div>
     </Stack>
   );

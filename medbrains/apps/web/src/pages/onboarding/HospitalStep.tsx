@@ -1,9 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Select, Stack, TextInput } from "@mantine/core";
+import { Select, Stack, TextInput } from "@mantine/core";
 import type { UpdateTenantInput } from "@medbrains/schemas";
 import { updateTenantSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
 import { Controller, useForm } from "react-hook-form";
+import { Button } from "@/components/ui";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -176,10 +177,12 @@ export function HospitalStep({ onNext, onBack }: Props) {
         </div>
 
         <div className={classes.navButtons}>
-          <Button variant="default" onClick={onBack}>
+          <Button tone="secondary" onClick={onBack}>
             Back
           </Button>
-          <Button type="submit">Save & Continue</Button>
+          <Button tone="primary" type="submit">
+            Save & Continue
+          </Button>
         </div>
       </Stack>
     </form>

@@ -1,4 +1,4 @@
-import { Alert, Button, Stack, Text, ThemeIcon, Title } from "@mantine/core";
+import { Alert, Stack, Text, ThemeIcon, Title } from "@mantine/core";
 import { useOnboardingStore } from "@medbrains/stores";
 import type {
   OnboardingBedType,
@@ -13,6 +13,7 @@ import type {
 import { IconAlertTriangle, IconCheck, IconRocket } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
+import { Button } from "@/components/ui";
 import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
@@ -284,11 +285,11 @@ export function ReviewStep({ onBack }: Props) {
       )}
 
       <div className={classes.navButtons}>
-        <Button variant="default" onClick={onBack}>
+        <Button tone="secondary" onClick={onBack}>
           Back
         </Button>
         <Button
-          color="teal"
+          tone="primary"
           leftSection={<IconCheck size={16} />}
           onClick={() => setupMutation.mutate()}
           loading={setupMutation.isPending}

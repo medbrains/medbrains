@@ -1,14 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  ActionIcon,
-  Button,
-  Group,
-  Modal,
-  NumberInput,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { ActionIcon, Group, Modal, NumberInput, Stack, Text, TextInput } from "@mantine/core";
 import type { CreateBedTypeInput } from "@medbrains/schemas";
 import { createBedTypeSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
@@ -16,6 +7,7 @@ import type { OnboardingBedType } from "@medbrains/types";
 import { IconBed, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Button } from "@/components/ui";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -90,10 +82,10 @@ export function BedConfigStep({ onNext, onBack }: Props) {
       </Text>
 
       <Group>
-        <Button variant="light" leftSection={<IconPlus size={16} />} onClick={openModal}>
+        <Button tone="secondary" leftSection={<IconPlus size={16} />} onClick={openModal}>
           Add Bed Type
         </Button>
-        <Button variant="subtle" onClick={addFromTemplate}>
+        <Button tone="ghost" onClick={addFromTemplate}>
           Quick-Add from Template
         </Button>
       </Group>
@@ -162,16 +154,20 @@ export function BedConfigStep({ onNext, onBack }: Props) {
               {...form.register("description")}
               error={form.formState.errors.description?.message}
             />
-            <Button type="submit">Add Bed Type</Button>
+            <Button tone="primary" type="submit">
+              Add Bed Type
+            </Button>
           </Stack>
         </form>
       </Modal>
 
       <div className={classes.navButtons}>
-        <Button variant="default" onClick={onBack}>
+        <Button tone="secondary" onClick={onBack}>
           Back
         </Button>
-        <Button onClick={onNext}>Continue</Button>
+        <Button tone="primary" onClick={onNext}>
+          Continue
+        </Button>
       </div>
     </Stack>
   );

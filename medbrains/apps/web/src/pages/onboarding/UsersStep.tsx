@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Modal,
   MultiSelect,
   NumberInput,
@@ -20,6 +18,7 @@ import { IconPlus, IconStethoscope, IconTrash, IconUpload, IconUser } from "@tab
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { CsvImportModal, SelectLabel } from "@/components";
+import { Badge, Button } from "@/components/ui";
 import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
@@ -158,11 +157,11 @@ export function UsersStep({ onNext, onBack }: Props) {
       </Text>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Button variant="light" leftSection={<IconPlus size={16} />} onClick={openUserModal}>
+        <Button tone="secondary" leftSection={<IconPlus size={16} />} onClick={openUserModal}>
           Add User
         </Button>
         <Button
-          variant="subtle"
+          tone="ghost"
           onClick={() => {
             roleForm.reset();
             setShowRoleModal(true);
@@ -171,7 +170,7 @@ export function UsersStep({ onNext, onBack }: Props) {
           Add Custom Role
         </Button>
         <Button
-          variant="subtle"
+          tone="ghost"
           leftSection={<IconUpload size={16} />}
           onClick={() => setShowImport(true)}
         >
@@ -234,7 +233,7 @@ export function UsersStep({ onNext, onBack }: Props) {
             )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Badge variant="light">{u.role.replace(/_/g, " ")}</Badge>
+            <Badge tone="neutral">{u.role.replace(/_/g, " ")}</Badge>
             <ActionIcon
               variant="subtle"
               color="danger"
@@ -350,7 +349,9 @@ export function UsersStep({ onNext, onBack }: Props) {
               </>
             )}
 
-            <Button type="submit">Create User</Button>
+            <Button tone="primary" type="submit">
+              Create User
+            </Button>
           </Stack>
         </form>
       </Modal>
@@ -384,16 +385,20 @@ export function UsersStep({ onNext, onBack }: Props) {
               {...roleForm.register("description")}
               error={roleForm.formState.errors.description?.message}
             />
-            <Button type="submit">Create Role</Button>
+            <Button tone="primary" type="submit">
+              Create Role
+            </Button>
           </Stack>
         </form>
       </Modal>
 
       <div className={classes.navButtons}>
-        <Button variant="default" onClick={onBack}>
+        <Button tone="secondary" onClick={onBack}>
           Back
         </Button>
-        <Button onClick={onNext}>Continue</Button>
+        <Button tone="primary" onClick={onNext}>
+          Continue
+        </Button>
       </div>
     </Stack>
   );

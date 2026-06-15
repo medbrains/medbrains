@@ -1,5 +1,6 @@
-import { Alert, Button, Stack, Text, ThemeIcon, Title } from "@mantine/core";
+import { Alert, Stack, Text, ThemeIcon, Title } from "@mantine/core";
 import { IconBuildingHospital, IconDatabase, IconLock, IconServer } from "@tabler/icons-react";
+import { Button } from "@/components/ui";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -51,7 +52,9 @@ export function WelcomeStep({ onNext }: Props) {
 
       <div className={classes.navButtons}>
         <div />
-        <Button onClick={onNext}>Begin Setup</Button>
+        <Button tone="primary" onClick={onNext}>
+          Begin Setup
+        </Button>
       </div>
     </Stack>
   );

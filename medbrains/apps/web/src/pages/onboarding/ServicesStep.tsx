@@ -1,15 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  ActionIcon,
-  Badge,
-  Button,
-  Group,
-  Modal,
-  Select,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { ActionIcon, Group, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
 import type { CreateServiceInput } from "@medbrains/schemas";
 import { createServiceSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
@@ -17,6 +7,7 @@ import type { OnboardingService, ServiceType } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -77,13 +68,13 @@ const templateServices: Array<{
   },
 ];
 
-const typeColors: Record<string, string> = {
+const typeColors: Record<string, BadgeTone> = {
   consultation: "primary",
-  procedure: "violet",
-  investigation: "teal",
+  procedure: "accent",
+  investigation: "success",
   nursing: "danger",
-  diet: "orange",
-  other: "slate",
+  diet: "warning",
+  other: "neutral",
 };
 
 export function ServicesStep({ onNext, onBack }: Props) {
@@ -145,10 +136,10 @@ export function ServicesStep({ onNext, onBack }: Props) {
       </Text>
 
       <Group>
-        <Button variant="light" leftSection={<IconPlus size={16} />} onClick={openModal}>
+        <Button tone="secondary" leftSection={<IconPlus size={16} />} onClick={openModal}>
           Add Service
         </Button>
-        <Button variant="subtle" onClick={addFromTemplate}>
+        <Button tone="ghost" onClick={addFromTemplate}>
           Quick-Add from Template
         </Button>
       </Group>
@@ -163,9 +154,7 @@ export function ServicesStep({ onNext, onBack }: Props) {
             </Text>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Badge variant="light" color={typeColors[svc.service_type] ?? "slate"}>
-              {svc.service_type}
-            </Badge>
+            <Badge tone={typeColors[svc.service_type] ?? "neutral"}>{svc.service_type}</Badge>
             <ActionIcon
               variant="subtle"
               color="danger"
@@ -213,16 +202,20 @@ export function ServicesStep({ onNext, onBack }: Props) {
               {...form.register("description")}
               error={form.formState.errors.description?.message}
             />
-            <Button type="submit">Add Service</Button>
+            <Button tone="primary" type="submit">
+              Add Service
+            </Button>
           </Stack>
         </form>
       </Modal>
 
       <div className={classes.navButtons}>
-        <Button variant="default" onClick={onBack}>
+        <Button tone="secondary" onClick={onBack}>
           Back
         </Button>
-        <Button onClick={onNext}>Continue</Button>
+        <Button tone="primary" onClick={onNext}>
+          Continue
+        </Button>
       </div>
     </Stack>
   );

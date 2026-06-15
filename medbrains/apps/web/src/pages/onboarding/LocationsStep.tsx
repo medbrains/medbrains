@@ -1,15 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  ActionIcon,
-  Alert,
-  Button,
-  Group,
-  Modal,
-  Select,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { ActionIcon, Alert, Group, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
 import type { CreateLocationInput } from "@medbrains/schemas";
 import { createLocationSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
@@ -18,6 +8,7 @@ import { IconTrash, IconUpload } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { CsvImportModal } from "@/components";
+import { Button } from "@/components/ui";
 import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
@@ -113,11 +104,11 @@ export function LocationsStep({ onNext, onBack }: Props) {
       ))}
 
       <Group gap="sm">
-        <Button variant="light" onClick={openModal}>
+        <Button tone="secondary" onClick={openModal}>
           Add Location
         </Button>
         <Button
-          variant="subtle"
+          tone="ghost"
           leftSection={<IconUpload size={16} />}
           onClick={() => setShowImport(true)}
         >
@@ -182,16 +173,20 @@ export function LocationsStep({ onNext, onBack }: Props) {
               {...form.register("name")}
               error={form.formState.errors.name?.message}
             />
-            <Button type="submit">Add Location</Button>
+            <Button tone="primary" type="submit">
+              Add Location
+            </Button>
           </Stack>
         </form>
       </Modal>
 
       <div className={classes.navButtons}>
-        <Button variant="default" onClick={onBack}>
+        <Button tone="secondary" onClick={onBack}>
           Back
         </Button>
-        <Button onClick={onNext}>Continue</Button>
+        <Button tone="primary" onClick={onNext}>
+          Continue
+        </Button>
       </div>
     </Stack>
   );

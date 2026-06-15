@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Group,
   Modal,
   NumberInput,
@@ -24,6 +22,7 @@ import type {
 import { IconCash, IconPercentage, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Badge, Button } from "@/components/ui";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -153,7 +152,7 @@ export function BillingTaxStep({ onNext, onBack }: Props) {
         </Title>
         <Group mb="sm">
           <Button
-            variant="light"
+            tone="secondary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -163,7 +162,7 @@ export function BillingTaxStep({ onNext, onBack }: Props) {
           >
             Add Tax Category
           </Button>
-          <Button variant="subtle" size="xs" onClick={addTaxTemplates}>
+          <Button tone="ghost" size="xs" onClick={addTaxTemplates}>
             Quick-Add GST Templates
           </Button>
         </Group>
@@ -177,7 +176,7 @@ export function BillingTaxStep({ onNext, onBack }: Props) {
               </Text>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Badge variant="light" color={cat.applicability === "exempt" ? "slate" : "primary"}>
+              <Badge tone={cat.applicability === "exempt" ? "neutral" : "primary"}>
                 {cat.rate_percent}% &middot; {cat.applicability.replace(/_/g, " ")}
               </Badge>
               <ActionIcon
@@ -201,7 +200,7 @@ export function BillingTaxStep({ onNext, onBack }: Props) {
         </Title>
         <Group mb="sm">
           <Button
-            variant="light"
+            tone="secondary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -211,7 +210,7 @@ export function BillingTaxStep({ onNext, onBack }: Props) {
           >
             Add Payment Method
           </Button>
-          <Button variant="subtle" size="xs" onClick={addPaymentTemplates}>
+          <Button tone="ghost" size="xs" onClick={addPaymentTemplates}>
             Quick-Add Common Methods
           </Button>
         </Group>
@@ -226,7 +225,7 @@ export function BillingTaxStep({ onNext, onBack }: Props) {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {pm.is_default && (
-                <Badge variant="filled" size="xs" color="teal">
+                <Badge tone="success" size="xs">
                   Default
                 </Badge>
               )}
@@ -290,7 +289,9 @@ export function BillingTaxStep({ onNext, onBack }: Props) {
               )}
             />
             <TextInput label="Description" {...taxForm.register("description")} />
-            <Button type="submit">Add Tax Category</Button>
+            <Button tone="primary" type="submit">
+              Add Tax Category
+            </Button>
           </Stack>
         </form>
       </Modal>
@@ -328,16 +329,20 @@ export function BillingTaxStep({ onNext, onBack }: Props) {
                 />
               )}
             />
-            <Button type="submit">Add Payment Method</Button>
+            <Button tone="primary" type="submit">
+              Add Payment Method
+            </Button>
           </Stack>
         </form>
       </Modal>
 
       <div className={classes.navButtons}>
-        <Button variant="default" onClick={onBack}>
+        <Button tone="secondary" onClick={onBack}>
           Back
         </Button>
-        <Button onClick={onNext}>Continue</Button>
+        <Button tone="primary" onClick={onNext}>
+          Continue
+        </Button>
       </div>
     </Stack>
   );

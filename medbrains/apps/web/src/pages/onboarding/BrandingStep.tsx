@@ -1,9 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, ColorInput, Stack, Text, TextInput } from "@mantine/core";
+import { ColorInput, Stack, Text, TextInput } from "@mantine/core";
 import type { BrandingInput } from "@medbrains/schemas";
 import { brandingSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
 import { Controller, useForm } from "react-hook-form";
+import { Button } from "@/components/ui";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -88,10 +89,12 @@ export function BrandingStep({ onNext, onBack }: Props) {
         </div>
 
         <div className={classes.navButtons}>
-          <Button variant="default" onClick={onBack}>
+          <Button tone="secondary" onClick={onBack}>
             Back
           </Button>
-          <Button type="submit">Save & Continue</Button>
+          <Button tone="primary" type="submit">
+            Save & Continue
+          </Button>
         </div>
       </Stack>
     </form>

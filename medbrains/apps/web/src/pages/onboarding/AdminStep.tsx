@@ -1,15 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Alert,
-  Button,
-  Divider,
-  Progress,
-  Select,
-  Stack,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
+import { Alert, Divider, Progress, Select, Stack, Text, TextInput, Title } from "@mantine/core";
 import type { OnboardingInitInput } from "@medbrains/schemas";
 import { onboardingInitSchema } from "@medbrains/schemas";
 import { useAuthStore, useOnboardingStore } from "@medbrains/stores";
@@ -20,6 +10,7 @@ import { useMutation } from "@tanstack/react-query";
 import type { MutableRefObject } from "react";
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Button } from "@/components/ui";
 import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
@@ -259,10 +250,10 @@ export function AdminStep({ onNext, onBack, draftRef }: Props) {
         )}
 
         <div className={classes.navButtons}>
-          <Button variant="default" onClick={onBack}>
+          <Button tone="secondary" onClick={onBack}>
             Back
           </Button>
-          <Button type="submit" loading={initMutation.isPending}>
+          <Button tone="primary" type="submit" loading={initMutation.isPending}>
             {user ? "Continue" : "Create Hospital & Admin"}
           </Button>
         </div>

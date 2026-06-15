@@ -1,8 +1,9 @@
-import { Button, Checkbox, Loader, Select, Stack, Text, Title } from "@mantine/core";
+import { Checkbox, Loader, Select, Stack, Text, Title } from "@mantine/core";
 import { useOnboardingStore } from "@medbrains/stores";
 import type { RegulatoryBody } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { Button } from "@/components/ui";
 import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
@@ -139,10 +140,12 @@ export function GeoRegulatoryStep({ onNext, onBack }: Props) {
       </div>
 
       <div className={classes.navButtons}>
-        <Button variant="default" onClick={onBack}>
+        <Button tone="secondary" onClick={onBack}>
           Back
         </Button>
-        <Button onClick={handleSave}>Save & Continue</Button>
+        <Button tone="primary" onClick={handleSave}>
+          Save & Continue
+        </Button>
       </div>
     </Stack>
   );
