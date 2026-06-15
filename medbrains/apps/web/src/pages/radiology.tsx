@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Checkbox,
   Drawer,
   Group,
@@ -52,11 +50,12 @@ import {
   useClinicalEmit,
 } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
-import { statusColor } from "@/lib/status-colors";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { radiologyOptionalText, radiologyPriorityOptions } from "@/forms/radiology.form";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { statusColor } from "@/lib/status-colors";
 import { radiologyService } from "@/services/radiology.service";
 import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "@/utils/printCopies";
 
@@ -70,6 +69,33 @@ const statusColors: Record<string, string> = {
   cancelled: "danger",
 };
 
+function colorToBadgeTone(color: string | null | undefined): BadgeTone {
+  switch (color) {
+    case "primary":
+      return "primary";
+    case "info":
+    case "blue":
+      return "info";
+    case "warning":
+    case "orange":
+    case "yellow":
+      return "warning";
+    case "teal":
+    case "green":
+    case "success":
+      return "success";
+    case "danger":
+    case "red":
+      return "danger";
+    case "violet":
+    case "grape":
+    case "rose":
+    case "cinnabar":
+      return "accent";
+    default:
+      return "neutral";
+  }
+}
 
 const RADIOLOGY_REPORT_PRINT_COPIES = PRINT_COPY_PACKETS.radiologyReport;
 
@@ -312,7 +338,7 @@ function RadiologyOrdersTab() {
       key: "priority" as const,
       label: "Priority",
       render: (o: RadiologyOrder) => (
-        <Badge size="xs" color={statusColor(o.priority) ?? "slate"}>
+        <Badge size="xs" tone={colorToBadgeTone(statusColor(o.priority))}>
           {o.priority}
         </Badge>
       ),
@@ -335,17 +361,17 @@ function RadiologyOrdersTab() {
       render: (o: RadiologyOrder) => (
         <Group gap={4}>
           {o.contrast_required && (
-            <Badge size="xs" color="warning">
+            <Badge size="xs" tone="warning">
               Contrast
             </Badge>
           )}
           {o.allergy_flagged && (
-            <Badge size="xs" color="danger">
+            <Badge size="xs" tone="danger">
               Allergy
             </Badge>
           )}
           {o.pregnancy_checked && (
-            <Badge size="xs" color="danger">
+            <Badge size="xs" tone="danger">
               Preg-Chk
             </Badge>
           )}
@@ -399,8 +425,8 @@ function RadiologyOrdersTab() {
           )}
           {o.status === "ordered" && (
             <Button
+              tone="secondary"
               size="xs"
-              variant="light"
               onClick={() => statusTransitionMutation.mutate({ id: o.id, status: "in_progress" })}
             >
               Start
@@ -408,9 +434,8 @@ function RadiologyOrdersTab() {
           )}
           {o.status === "in_progress" && (
             <Button
+              tone="secondary"
               size="xs"
-              variant="light"
-              color="orange"
               onClick={() => statusTransitionMutation.mutate({ id: o.id, status: "completed" })}
             >
               Complete
@@ -446,7 +471,12 @@ function RadiologyOrdersTab() {
               onChange={setStatusFilter}
             />
             {canCreate && (
-              <Button leftSection={<IconPlus size={16} />} size="xs" onClick={createHandlers.open}>
+              <Button
+                tone="primary"
+                leftSection={<IconPlus size={16} />}
+                size="xs"
+                onClick={createHandlers.open}
+              >
                 New Order
               </Button>
             )}
@@ -649,7 +679,7 @@ function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () =
           )}
         />
         <Textarea label="Notes" error={errors.notes?.message} {...register("notes")} />
-        <Button type="submit" loading={createMutation.isPending}>
+        <Button tone="primary" type="submit" loading={createMutation.isPending}>
           Create Order
         </Button>
       </Stack>
@@ -753,18 +783,16 @@ function OrderDetailDrawer({
           <PatientContextBanner patientId={order.patient_id} hideLoadingState />
           <Group>
             <Text fw={600}>Status:</Text>
-            <Badge color={statusColors[order.status] ?? "slate"}>{order.status}</Badge>
+            <Badge tone={colorToBadgeTone(statusColors[order.status])}>{order.status}</Badge>
             <Text fw={600}>Priority:</Text>
-            <Badge color={statusColor(order.priority) ?? "slate"}>{order.priority}</Badge>
+            <Badge tone={colorToBadgeTone(statusColor(order.priority))}>{order.priority}</Badge>
           </Group>
           {order.body_part && <Text size="sm">Body Part: {order.body_part}</Text>}
           {order.clinical_indication && (
             <Text size="sm">Indication: {order.clinical_indication}</Text>
           )}
           {order.cancellation_reason && (
-            <Badge color="danger" variant="light">
-              Cancelled: {order.cancellation_reason}
-            </Badge>
+            <Badge tone="danger">Cancelled: {order.cancellation_reason}</Badge>
           )}
 
           <Tabs value={reportTab} onChange={setReportTab}>
@@ -778,17 +806,17 @@ function OrderDetailDrawer({
               <Stack gap="xs">
                 <Group gap={8}>
                   {order.contrast_required && (
-                    <Badge size="sm" color="warning">
+                    <Badge size="sm" tone="warning">
                       Contrast Required
                     </Badge>
                   )}
                   {order.pregnancy_checked && (
-                    <Badge size="sm" color="danger">
+                    <Badge size="sm" tone="danger">
                       Pregnancy Verified
                     </Badge>
                   )}
                   {order.allergy_flagged && (
-                    <Badge size="sm" color="danger">
+                    <Badge size="sm" tone="danger">
                       Allergy Flagged
                     </Badge>
                   )}
@@ -807,10 +835,10 @@ function OrderDetailDrawer({
               {report ? (
                 <Stack>
                   <Group>
-                    <Badge color={report.status === "final" ? "success" : "warning"}>
+                    <Badge tone={report.status === "final" ? "success" : "warning"}>
                       {report.status}
                     </Badge>
-                    {report.is_critical && <Badge color="danger">CRITICAL</Badge>}
+                    {report.is_critical && <Badge tone="danger">CRITICAL</Badge>}
                   </Group>
                   <Text fw={600}>Findings:</Text>
                   <Text size="sm" style={{ whiteSpace: "pre-wrap" }}>
@@ -830,7 +858,7 @@ function OrderDetailDrawer({
                   )}
                   {canVerify && report.status !== "final" && (
                     <Button
-                      color="success"
+                      tone="primary"
                       onClick={() => verifyMutation.mutate(report.id)}
                       loading={verifyMutation.isPending}
                     >
@@ -839,8 +867,7 @@ function OrderDetailDrawer({
                   )}
                   {canPrintReports && order.status === "verified" && (
                     <Button
-                      color="teal"
-                      variant="light"
+                      tone="secondary"
                       leftSection={<IconPrinter size={16} />}
                       onClick={() => {
                         void printRadiologyReportPacket(order.id);
@@ -875,6 +902,7 @@ function OrderDetailDrawer({
                     onChange={(e) => setIsCritical(e.currentTarget.checked)}
                   />
                   <Button
+                    tone="primary"
                     onClick={() => reportMutation.mutate()}
                     loading={reportMutation.isPending}
                     disabled={!findings}
@@ -977,7 +1005,12 @@ function ModalitiesTab() {
         subtitle="Master list of imaging types"
         actions={
           canManage ? (
-            <Button leftSection={<IconPlus size={16} />} size="xs" onClick={formHandlers.open}>
+            <Button
+              tone="primary"
+              leftSection={<IconPlus size={16} />}
+              size="xs"
+              onClick={formHandlers.open}
+            >
               Add Modality
             </Button>
           ) : undefined
@@ -1013,13 +1046,14 @@ function ModalitiesTab() {
           />
           <Group>
             <Button
+              tone="primary"
               onClick={() => createMutation.mutate()}
               loading={createMutation.isPending}
               disabled={!code || !name}
             >
               Save
             </Button>
-            <Button variant="subtle" onClick={formHandlers.close}>
+            <Button tone="ghost" onClick={formHandlers.close}>
               Cancel
             </Button>
           </Group>
@@ -1051,11 +1085,11 @@ function ModalitiesTab() {
                 <Table.Td>{m.description ?? "—"}</Table.Td>
                 <Table.Td>
                   {m.is_active ? (
-                    <Badge color="success" size="xs">
+                    <Badge tone="success" size="xs">
                       Active
                     </Badge>
                   ) : (
-                    <Badge color="slate" size="xs">
+                    <Badge tone="neutral" size="xs">
                       Inactive
                     </Badge>
                   )}
@@ -1173,7 +1207,7 @@ function AppointmentsTab() {
       render: (r: Record<string, unknown>) => {
         const p = String(r.priority ?? "routine");
         return (
-          <Badge size="xs" color={statusColor(p) ?? "slate"}>
+          <Badge size="xs" tone={colorToBadgeTone(statusColor(p))}>
             {p}
           </Badge>
         );
@@ -1199,7 +1233,12 @@ function AppointmentsTab() {
         subtitle="Scheduled imaging appointments"
         actions={
           canCreate ? (
-            <Button leftSection={<IconPlus size={16} />} size="xs" onClick={createHandlers.open}>
+            <Button
+              tone="primary"
+              leftSection={<IconPlus size={16} />}
+              size="xs"
+              onClick={createHandlers.open}
+            >
               Create Appointment
             </Button>
           ) : undefined
@@ -1267,7 +1306,7 @@ function AppointmentsTab() {
             )}
           />
           <Textarea label="Notes" error={errors.notes?.message} {...register("notes")} />
-          <Button type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" type="submit" loading={createMutation.isPending}>
             Create Appointment
           </Button>
         </Stack>
@@ -1300,7 +1339,7 @@ function DicomStudiesTab() {
       key: "modality" as const,
       label: "Modality",
       render: (study: RadiologyDicomStudy) => (
-        <Badge size="xs" variant="light">
+        <Badge size="xs" tone="neutral">
           {study.modality}
         </Badge>
       ),
@@ -1339,12 +1378,12 @@ function DicomStudiesTab() {
           <Group gap="xs" wrap="nowrap">
             {study.viewer_url ? (
               <Button
+                tone="secondary"
                 component="a"
                 href={study.viewer_url}
                 target="_blank"
                 rel="noreferrer"
                 size="xs"
-                variant="light"
                 leftSection={<IconEye size={14} />}
               >
                 Viewer
@@ -1352,12 +1391,12 @@ function DicomStudiesTab() {
             ) : null}
             {study.pacs_url ? (
               <Button
+                tone="ghost"
                 component="a"
                 href={study.pacs_url}
                 target="_blank"
                 rel="noreferrer"
                 size="xs"
-                variant="subtle"
               >
                 DICOM
               </Button>
@@ -1431,8 +1470,7 @@ function TatAnalyticsTab() {
       render: (r: RadiologyTatRow) =>
         r.avg_tat_hours !== null ? (
           <Badge
-            color={r.avg_tat_hours <= 24 ? "success" : r.avg_tat_hours <= 48 ? "warning" : "danger"}
-            variant="light"
+            tone={r.avg_tat_hours <= 24 ? "success" : r.avg_tat_hours <= 48 ? "warning" : "danger"}
           >
             {r.avg_tat_hours.toFixed(1)}h
           </Badge>

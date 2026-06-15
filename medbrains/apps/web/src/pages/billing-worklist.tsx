@@ -1,4 +1,4 @@
-import { Badge, Card, Group, Stack, Text, Title } from "@mantine/core";
+import { Card, Group, Stack, Text, Title } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type { Invoice } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -13,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useMemo } from "react";
 import { useNavigate } from "react-router";
 import { PageHeader } from "@/components";
+import { Badge, type BadgeTone } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { billingService } from "@/services/billing.service";
 import { ipdService } from "@/services/ipd.service";
@@ -38,9 +39,9 @@ function daysSince(iso: string | null | undefined): number {
 }
 
 function ageBadge(days: number): ReactNode {
-  const color = days >= 7 ? "danger" : days >= 3 ? "warning" : "slate";
+  const tone: BadgeTone = days >= 7 ? "danger" : days >= 3 ? "warning" : "neutral";
   return (
-    <Badge size="xs" variant="light" color={color} ff="monospace">
+    <Badge size="xs" tone={tone} ff="monospace">
       {days === 0 ? "today" : `${days}d`}
     </Badge>
   );
@@ -71,6 +72,16 @@ function QueueCard({
   accent: string;
 }) {
   const total = rows.reduce((sum, row) => sum + row.amount, 0);
+  const accentTone: BadgeTone =
+    accent === "copper"
+      ? "accent"
+      : accent === "danger"
+        ? "danger"
+        : accent === "warning"
+          ? "warning"
+          : accent === "primary"
+            ? "primary"
+            : "neutral";
   return (
     <Card withBorder padding="sm" style={{ flex: "1 1 320px", minWidth: 300 }}>
       <Stack gap="xs">
@@ -78,7 +89,7 @@ function QueueCard({
           <Group gap={8}>
             {icon}
             <Title order={6}>{title}</Title>
-            <Badge size="sm" variant="light" color={accent}>
+            <Badge size="sm" tone={accentTone}>
               {rows.length}
             </Badge>
           </Group>

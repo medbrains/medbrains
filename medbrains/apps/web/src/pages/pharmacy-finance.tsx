@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Alert,
-  Badge,
-  Button,
   Card,
   Group,
   Modal,
@@ -29,6 +27,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "@/components";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { pharmacyFinanceService } from "@/services/pharmacyFinance.service";
 
@@ -66,11 +65,11 @@ interface SupplierPaymentRow {
   paid_at?: string | null;
 }
 
-const drawerStatusColor: Record<string, string> = {
-  open: "green",
-  closed: "gray",
-  variance_pending_signoff: "orange",
-  reopened: "blue",
+const drawerStatusColor: Record<string, BadgeTone> = {
+  open: "success",
+  closed: "neutral",
+  variance_pending_signoff: "warning",
+  reopened: "info",
 };
 
 const PHARMACY_FINANCE_PAGE_PERMISSIONS = [
@@ -236,7 +235,7 @@ function CashDrawerTab({
           <Group justify="space-between">
             <Stack gap={2}>
               <Group gap="xs">
-                <Badge color={drawerStatusColor[active.status] ?? "gray"}>{active.status}</Badge>
+                <Badge tone={drawerStatusColor[active.status] ?? "neutral"}>{active.status}</Badge>
                 <Text fw={600}>Drawer {active.id.slice(0, 8)}</Text>
               </Group>
               <Text size="sm" c="dimmed">
@@ -245,15 +244,15 @@ function CashDrawerTab({
               </Text>
             </Stack>
             {canCloseWithAmount ? (
-              <Button color="red" onClick={() => setCloseFor(active)}>
+              <Button tone="danger" onClick={() => setCloseFor(active)}>
                 Close drawer
               </Button>
             ) : canClose ? (
-              <Button color="red" disabled>
+              <Button tone="danger" disabled>
                 Close drawer
               </Button>
             ) : (
-              <Badge variant="light">Active drawer</Badge>
+              <Badge>Active drawer</Badge>
             )}
           </Group>
         </Card>
@@ -262,7 +261,7 @@ function CashDrawerTab({
           <Group justify="space-between">
             <Text>No active drawer.</Text>
             {canOpen && (
-              <Button onClick={openOpenDrawerModal} disabled={!canOpenWithAmount}>
+              <Button tone="primary" onClick={openOpenDrawerModal} disabled={!canOpenWithAmount}>
                 Open drawer
               </Button>
             )}
@@ -283,7 +282,7 @@ function CashDrawerTab({
             <Card key={row.id} withBorder padding="sm">
               <Group justify="space-between">
                 <Group gap="xs">
-                  <Badge color={drawerStatusColor[row.status] ?? "gray"}>{row.status}</Badge>
+                  <Badge tone={drawerStatusColor[row.status] ?? "neutral"}>{row.status}</Badge>
                   <Text>Opened {new Date(row.opened_at).toLocaleDateString()}</Text>
                 </Group>
                 <Text>
@@ -402,7 +401,7 @@ function OpenDrawerModal({
             render={({ field }) => <Textarea label="Notes" minRows={2} {...field} />}
           />
           <Group justify="flex-end">
-            <Button type="submit" loading={open.isPending} disabled={!canEditAmount}>
+            <Button tone="primary" type="submit" loading={open.isPending} disabled={!canEditAmount}>
               Open
             </Button>
           </Group>
@@ -484,7 +483,12 @@ function CloseDrawerModal({
             )}
           />
           <Group justify="flex-end">
-            <Button type="submit" loading={close.isPending} disabled={!canEditAmount}>
+            <Button
+              tone="primary"
+              type="submit"
+              loading={close.isPending}
+              disabled={!canEditAmount}
+            >
               Close
             </Button>
           </Group>
@@ -527,8 +531,12 @@ function PettyCashTab({
           <Group justify="space-between">
             <Group gap="xs">
               <Badge
-                color={
-                  row.status === "approved" ? "green" : row.status === "rejected" ? "red" : "yellow"
+                tone={
+                  row.status === "approved"
+                    ? "success"
+                    : row.status === "rejected"
+                      ? "danger"
+                      : "warning"
                 }
               >
                 {row.status}
@@ -541,15 +549,14 @@ function PettyCashTab({
               <Group>
                 <Button
                   size="xs"
-                  color="green"
+                  tone="primary"
                   onClick={() => decide.mutate({ id: row.id, approved: true })}
                 >
                   Approve
                 </Button>
                 <Button
                   size="xs"
-                  color="red"
-                  variant="light"
+                  tone="subtle-danger"
                   onClick={() => decide.mutate({ id: row.id, approved: false })}
                 >
                   Reject
@@ -589,17 +596,12 @@ function SupplierPaymentsTab({
     <Stack>
       <Group>
         <Button
-          variant={overdueOnly ? "filled" : "default"}
-          color="orange"
+          tone={overdueOnly ? "primary" : "secondary"}
           onClick={() => setOverdueOnly((v) => !v)}
         >
           Overdue only
         </Button>
-        {canManage && (
-          <Badge color="primary" variant="light">
-            Manage payments
-          </Badge>
-        )}
+        {canManage && <Badge tone="primary">Manage payments</Badge>}
       </Group>
       <Stack gap="xs">
         {data?.map((row) => (

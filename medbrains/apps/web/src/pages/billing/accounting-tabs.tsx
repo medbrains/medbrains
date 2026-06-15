@@ -4,8 +4,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Alert,
-  Badge,
-  Button,
   Card,
   Drawer,
   Group,
@@ -68,6 +66,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   billingErpExportTypeOptions,
   billingErpTargetSystemOptions,
@@ -79,6 +78,34 @@ import {
 } from "@/forms/billing.form";
 import { statusColor } from "@/lib/status-colors";
 import { billingService } from "@/services/billing.service";
+
+function colorToBadgeTone(color: string | null | undefined): BadgeTone {
+  switch (color) {
+    case "primary":
+      return "primary";
+    case "info":
+    case "blue":
+      return "info";
+    case "warning":
+    case "orange":
+    case "yellow":
+      return "warning";
+    case "teal":
+    case "green":
+    case "success":
+      return "success";
+    case "danger":
+    case "red":
+      return "danger";
+    case "violet":
+    case "grape":
+    case "rose":
+    case "cinnabar":
+      return "accent";
+    default:
+      return "neutral";
+  }
+}
 
 /* ─── GST & TDS Tab ──────────────────────────────────────────────── */
 
@@ -150,11 +177,11 @@ function GstrSubView({ canManage }: { canManage: boolean }) {
       notifications.show({ title: "Error", message: "Filing failed", color: "danger" }),
   });
 
-  const gstrStatusColors: Record<string, string> = {
-    draft: "slate",
+  const gstrStatusColors: Record<string, BadgeTone> = {
+    draft: "neutral",
     validated: "primary",
     filed: "success",
-    accepted: "teal",
+    accepted: "success",
     error: "danger",
   };
 
@@ -162,7 +189,11 @@ function GstrSubView({ canManage }: { canManage: boolean }) {
     {
       key: "return_type",
       label: "Type",
-      render: (r: GstReturnSummary) => <Badge size="sm">{r.return_type}</Badge>,
+      render: (r: GstReturnSummary) => (
+        <Badge size="sm" tone="neutral">
+          {r.return_type}
+        </Badge>
+      ),
     },
     {
       key: "period",
@@ -173,7 +204,7 @@ function GstrSubView({ canManage }: { canManage: boolean }) {
       key: "filing_status",
       label: "Status",
       render: (r: GstReturnSummary) => (
-        <Badge size="sm" color={gstrStatusColors[r.filing_status] ?? "slate"}>
+        <Badge size="sm" tone={gstrStatusColors[r.filing_status] ?? "neutral"}>
           {r.filing_status}
         </Badge>
       ),
@@ -205,7 +236,7 @@ function GstrSubView({ canManage }: { canManage: boolean }) {
             label: "",
             render: (r: GstReturnSummary) =>
               r.filing_status === "validated" ? (
-                <Button size="xs" variant="light" onClick={() => fileMut.mutate(r.id)}>
+                <Button tone="secondary" size="xs" onClick={() => fileMut.mutate(r.id)}>
                   File
                 </Button>
               ) : (
@@ -229,6 +260,7 @@ function GstrSubView({ canManage }: { canManage: boolean }) {
         <Text fw={600}>GST Return Summaries</Text>
         {canManage && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               reset(gstrDefaults);
@@ -279,7 +311,7 @@ function GstrSubView({ canManage }: { canManage: boolean }) {
             {...register("period")}
             required
           />
-          <Button type="submit" loading={generateMut.isPending}>
+          <Button tone="primary" type="submit" loading={generateMut.isPending}>
             Generate
           </Button>
         </Stack>
@@ -380,7 +412,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
       key: "tds_section",
       label: "Section",
       render: (r: TdsDeduction) => (
-        <Badge size="sm" variant="outline">
+        <Badge size="sm" variant="outline" tone="neutral">
           {r.tds_section}
         </Badge>
       ),
@@ -408,7 +440,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
       key: "status",
       label: "Status",
       render: (r: TdsDeduction) => (
-        <Badge size="sm" color={statusColor(r.status) ?? "slate"}>
+        <Badge size="sm" tone={colorToBadgeTone(statusColor(r.status))}>
           {r.status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -479,6 +511,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
         <Text fw={600}>TDS Deductions</Text>
         {canManage && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               reset(tdsDefaults);
@@ -597,7 +630,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
               />
             )}
           />
-          <Button type="submit" loading={createMut.isPending}>
+          <Button tone="primary" type="submit" loading={createMut.isPending}>
             Record
           </Button>
         </Stack>
@@ -823,7 +856,7 @@ export function JournalEntriesTab() {
       key: "entry_type",
       label: "Type",
       render: (r: JournalEntry) => (
-        <Badge size="sm" variant="light">
+        <Badge size="sm" tone="neutral">
           {r.entry_type.replace(/_/g, " ")}
         </Badge>
       ),
@@ -832,7 +865,7 @@ export function JournalEntriesTab() {
       key: "status",
       label: "Status",
       render: (r: JournalEntry) => (
-        <Badge size="sm" color={statusColor(r.status) ?? "slate"}>
+        <Badge size="sm" tone={colorToBadgeTone(statusColor(r.status))}>
           {r.status}
         </Badge>
       ),
@@ -921,6 +954,7 @@ export function JournalEntriesTab() {
         />
         {canCreate && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               reset(journalDefaults);
@@ -968,8 +1002,8 @@ export function JournalEntriesTab() {
           <Group justify="space-between">
             <Text fw={600}>Lines</Text>
             <Button
+              tone="secondary"
               size="xs"
-              variant="light"
               onClick={() => appendJournalLine({ ...journalLineDefaults })}
             >
               Add Line
@@ -1050,7 +1084,7 @@ export function JournalEntriesTab() {
             </Alert>
           )}
 
-          <Button type="submit" loading={createMut.isPending} disabled={!balanced}>
+          <Button tone="primary" type="submit" loading={createMut.isPending} disabled={!balanced}>
             Create Journal Entry
           </Button>
         </Stack>
@@ -1188,7 +1222,7 @@ export function BankReconTab() {
       key: "recon_status",
       label: "Status",
       render: (r: BankTransaction) => (
-        <Badge size="sm" color={statusColor(r.recon_status) ?? "slate"}>
+        <Badge size="sm" tone={colorToBadgeTone(statusColor(r.recon_status))}>
           {r.recon_status}
         </Badge>
       ),
@@ -1238,7 +1272,7 @@ export function BankReconTab() {
           {canManage && (
             <>
               <Button
-                variant="light"
+                tone="secondary"
                 leftSection={<IconRefresh size={16} />}
                 onClick={() => autoReconMut.mutate()}
                 loading={autoReconMut.isPending}
@@ -1246,15 +1280,14 @@ export function BankReconTab() {
                 Auto-Reconcile
               </Button>
               <Button
-                variant="light"
-                color="grape"
+                tone="secondary"
                 leftSection={<IconRefresh size={16} />}
                 onClick={() => autoMatchTpaMut.mutate()}
                 loading={autoMatchTpaMut.isPending}
               >
                 TPA Auto-match
               </Button>
-              <Button leftSection={<IconUpload size={16} />} onClick={openImport}>
+              <Button tone="primary" leftSection={<IconUpload size={16} />} onClick={openImport}>
                 Import Transactions
               </Button>
             </>
@@ -1370,7 +1403,7 @@ export function BankReconTab() {
                   setManualTxn({ ...manualTxn, reference_number: e.currentTarget.value })
                 }
               />
-              <Button size="xs" variant="light" onClick={addManualTxn}>
+              <Button tone="secondary" size="xs" onClick={addManualTxn}>
                 Add to Batch
               </Button>
             </Stack>
@@ -1381,6 +1414,7 @@ export function BankReconTab() {
           )}
 
           <Button
+            tone="primary"
             onClick={() => importMut.mutate()}
             loading={importMut.isPending}
             disabled={importTxns.length === 0}
@@ -1616,18 +1650,22 @@ export function ErpExportTab() {
     });
   };
 
-  const erpStatusColors: Record<string, string> = {
+  const erpStatusColors: Record<string, BadgeTone> = {
     pending: "warning",
     exported: "success",
     failed: "danger",
-    acknowledged: "teal",
+    acknowledged: "success",
   };
 
   const columns = [
     {
       key: "target_system",
       label: "System",
-      render: (r: ErpExportLog) => <Badge size="sm">{r.target_system}</Badge>,
+      render: (r: ErpExportLog) => (
+        <Badge size="sm" tone="neutral">
+          {r.target_system}
+        </Badge>
+      ),
     },
     {
       key: "export_type",
@@ -1638,7 +1676,7 @@ export function ErpExportTab() {
       key: "status",
       label: "Status",
       render: (r: ErpExportLog) => (
-        <Badge size="sm" color={erpStatusColors[r.status] ?? "slate"}>
+        <Badge size="sm" tone={erpStatusColors[r.status] ?? "neutral"}>
           {r.status}
         </Badge>
       ),
@@ -1714,6 +1752,7 @@ export function ErpExportTab() {
             w={160}
           />
           <Button
+            tone="primary"
             leftSection={<IconDatabase size={16} />}
             type="submit"
             loading={exportMut.isPending}
@@ -1799,11 +1838,11 @@ export function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
       }),
   });
 
-  const statusColors: Record<string, string> = {
+  const statusColors: Record<string, BadgeTone> = {
     pending: "warning",
     approved: "success",
     rejected: "danger",
-    auto_applied: "teal",
+    auto_applied: "success",
   };
 
   const columns = [
@@ -1841,7 +1880,7 @@ export function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
       key: "status",
       label: "Status",
       render: (r: BillingConcession) => (
-        <Badge size="sm" color={statusColors[r.status] ?? "slate"}>
+        <Badge size="sm" tone={statusColors[r.status] ?? "neutral"}>
           {r.status}
         </Badge>
       ),
@@ -1945,7 +1984,11 @@ export function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
             mb="md"
             styles={{ input: { fontFamily: "JetBrains Mono, monospace", fontSize: 13 } }}
           />
-          <Button onClick={() => saveRulesMut.mutate()} loading={saveRulesMut.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => saveRulesMut.mutate()}
+            loading={saveRulesMut.isPending}
+          >
             Save Rules
           </Button>
         </Card>

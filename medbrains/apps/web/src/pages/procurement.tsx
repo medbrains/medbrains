@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Drawer,
   Group,
   Modal,
@@ -68,11 +66,41 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { DataTable, PageHeader, TableValueBadge, VendorSearchSelect } from "@/components";
-import { statusColor } from "@/lib/status-colors";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { statusColor } from "@/lib/status-colors";
 import { procurementService } from "@/services/procurement.service";
 
 // ── Status colors ────────────────────────────────────────────
+
+const colorToBadgeTone = (color: string | null | undefined): BadgeTone => {
+  switch (color) {
+    case "primary":
+      return "primary";
+    case "success":
+    case "green":
+    case "teal":
+    case "lime":
+      return "success";
+    case "warning":
+    case "yellow":
+    case "orange":
+      return "warning";
+    case "danger":
+    case "red":
+      return "danger";
+    case "info":
+    case "blue":
+    case "cyan":
+      return "info";
+    case "violet":
+    case "grape":
+    case "indigo":
+      return "accent";
+    default:
+      return "neutral";
+  }
+};
 
 const poStatusColors: Record<string, string> = {
   draft: "slate",
@@ -93,7 +121,6 @@ const grnStatusColors: Record<string, string> = {
   rejected: "danger",
   completed: "violet",
 };
-
 
 const rcStatusColors: Record<string, string> = {
   draft: "slate",
@@ -435,7 +462,7 @@ function VendorPanel({ canCreate }: { canCreate: boolean }) {
     <>
       {canCreate && (
         <Group justify="flex-end" mb="md">
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Add Vendor
           </Button>
         </Group>
@@ -476,10 +503,12 @@ function VendorPanel({ canCreate }: { canCreate: boolean }) {
         {detailVendor && (
           <Stack>
             <Group>
-              <Badge color={statusColor(detailVendor.status)} variant="filled">
+              <Badge tone={colorToBadgeTone(statusColor(detailVendor.status))} variant="filled">
                 {detailVendor.status}
               </Badge>
-              <Badge variant="outline">{detailVendor.vendor_type}</Badge>
+              <Badge tone="neutral" variant="outline">
+                {detailVendor.vendor_type}
+              </Badge>
             </Group>
             <Text fw={600} size="lg">
               {detailVendor.name}
@@ -671,7 +700,7 @@ function VendorForm({ onSuccess }: { onSuccess: () => void }) {
         error={errors.product_lines?.message}
         {...register("product_lines")}
       />
-      <Button loading={mutation.isPending} type="submit">
+      <Button tone="primary" loading={mutation.isPending} type="submit">
         Register Vendor
       </Button>
     </Stack>
@@ -763,9 +792,8 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
           </Tooltip>
           {row.status === "draft" && canApprove && (
             <Button
+              tone="secondary"
               size="compact-xs"
-              variant="light"
-              color="success"
               loading={approveMutation.isPending}
               onClick={() => approveMutation.mutate(row.id)}
             >
@@ -774,9 +802,8 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
           )}
           {row.status === "approved" && (
             <Button
+              tone="secondary"
               size="compact-xs"
-              variant="light"
-              color="teal"
               loading={sendMutation.isPending}
               onClick={() => sendMutation.mutate(row.id)}
             >
@@ -792,7 +819,7 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
     <>
       {canCreate && (
         <Group justify="flex-end" mb="md">
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             New PO
           </Button>
         </Group>
@@ -865,7 +892,7 @@ function PoDetailView({ id }: { id: string }) {
   return (
     <Stack>
       <Group>
-        <Badge color={poStatusColors[po.status]} variant="filled">
+        <Badge tone={colorToBadgeTone(poStatusColors[po.status])} variant="filled">
           {po.status.replace(/_/g, " ")}
         </Badge>
         <Text size="sm" c="dimmed">
@@ -877,11 +904,9 @@ function PoDetailView({ id }: { id: string }) {
       {po.indent_requisition_id && (
         <Group gap="xs">
           <Text size="sm">Linked Indent:</Text>
-          <Badge variant="light" color="info">
-            {linkedIndent?.indent_number ?? po.indent_requisition_id}
-          </Badge>
+          <Badge tone="info">{linkedIndent?.indent_number ?? po.indent_requisition_id}</Badge>
           {linkedIndent && (
-            <Badge variant="outline" size="sm">
+            <Badge tone="neutral" variant="outline" size="sm">
               {linkedIndent.status.replace(/_/g, " ")}
             </Badge>
           )}
@@ -1216,7 +1241,7 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
       </Table>
 
       <Button
-        variant="outline"
+        tone="secondary"
         size="xs"
         leftSection={<IconPlus size={14} />}
         onClick={addItem}
@@ -1225,7 +1250,7 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
         Add Item
       </Button>
 
-      <Button loading={mutation.isPending} type="submit">
+      <Button tone="primary" loading={mutation.isPending} type="submit">
         Create PO
       </Button>
     </Stack>
@@ -1305,7 +1330,7 @@ function GrnPanel({ canCreate }: { canCreate: boolean }) {
     <>
       {canCreate && (
         <Group justify="flex-end" mb="md">
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             New GRN
           </Button>
         </Group>
@@ -1364,7 +1389,7 @@ function GrnDetailView({ id }: { id: string }) {
   return (
     <Stack>
       <Group>
-        <Badge color={grnStatusColors[data.grn.status]} variant="filled">
+        <Badge tone={colorToBadgeTone(grnStatusColors[data.grn.status])} variant="filled">
           {data.grn.status}
         </Badge>
         <Text size="sm" c="dimmed">
@@ -1600,7 +1625,7 @@ function CreateGrnForm({ onSuccess }: { onSuccess: () => void }) {
         </Table.Tbody>
       </Table>
 
-      <Button loading={mutation.isPending} type="submit">
+      <Button tone="primary" loading={mutation.isPending} type="submit">
         Create GRN
       </Button>
     </Stack>
@@ -1646,7 +1671,7 @@ function RateContractPanel({ canManage }: { canManage: boolean }) {
     <>
       {canManage && (
         <Group justify="flex-end" mb="md">
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             New Contract
           </Button>
         </Group>
@@ -1803,11 +1828,11 @@ function CreateRcForm({ onSuccess }: { onSuccess: () => void }) {
           </ActionIcon>
         </Group>
       ))}
-      <Button variant="outline" size="xs" onClick={() => append(emptyRcItem())} w="fit-content">
+      <Button tone="secondary" size="xs" onClick={() => append(emptyRcItem())} w="fit-content">
         Add Item
       </Button>
 
-      <Button loading={mutation.isPending} type="submit">
+      <Button tone="primary" loading={mutation.isPending} type="submit">
         Create Contract
       </Button>
     </Stack>
@@ -1925,7 +1950,7 @@ function StoreLocationPanel({ canManage }: { canManage: boolean }) {
     <>
       {canManage && (
         <Group justify="flex-end" mb="md">
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Add Location
           </Button>
         </Group>
@@ -2015,7 +2040,7 @@ function StoreLocationForm({ onSuccess }: { onSuccess: () => void }) {
         )}
       />
       <Textarea label="Address" error={errors.address?.message} {...register("address")} />
-      <Button loading={mutation.isPending} type="submit">
+      <Button tone="primary" loading={mutation.isPending} type="submit">
         Create Location
       </Button>
     </Stack>
@@ -2051,12 +2076,8 @@ function VendorPerformancePanel() {
       label: "On-Time %",
       render: (row: VendorPerformanceRow) => {
         const pct = Number(row.on_time_pct);
-        const color = pct >= 80 ? "success" : pct >= 60 ? "warning" : "danger";
-        return (
-          <Badge color={color} variant="light">
-            {row.on_time_pct}%
-          </Badge>
-        );
+        const tone = pct >= 80 ? "success" : pct >= 60 ? "warning" : "danger";
+        return <Badge tone={tone}>{row.on_time_pct}%</Badge>;
       },
     },
     {
@@ -2064,12 +2085,8 @@ function VendorPerformancePanel() {
       label: "Rejection Rate",
       render: (row: VendorPerformanceRow) => {
         const rate = Number(row.rejection_rate);
-        const color = rate <= 5 ? "success" : rate <= 15 ? "warning" : "danger";
-        return (
-          <Badge color={color} variant="light">
-            {row.rejection_rate}%
-          </Badge>
-        );
+        const tone = rate <= 5 ? "success" : rate <= 15 ? "warning" : "danger";
+        return <Badge tone={tone}>{row.rejection_rate}%</Badge>;
       },
     },
     {
@@ -2082,7 +2099,7 @@ function VendorPerformancePanel() {
   return (
     <>
       <Group justify="flex-end" mb="md">
-        <Button variant="outline" leftSection={<IconChartBar size={16} />} onClick={openCompare}>
+        <Button tone="secondary" leftSection={<IconChartBar size={16} />} onClick={openCompare}>
           Compare Vendors
         </Button>
       </Group>
@@ -2153,9 +2170,9 @@ function VendorComparisonView({
       render: (row: VendorComparisonRow) => {
         if (row.rejection_rate == null) return "-";
         const rate = Number(row.rejection_rate);
-        const color = rate <= 5 ? "success" : rate <= 15 ? "warning" : "danger";
+        const tone = rate <= 5 ? "success" : rate <= 15 ? "warning" : "danger";
         return (
-          <Badge color={color} variant="light" size="sm">
+          <Badge tone={tone} size="sm">
             {row.rejection_rate}%
           </Badge>
         );
@@ -2264,7 +2281,7 @@ function SupplierPaymentsPanel({ canManage }: { canManage: boolean }) {
     <>
       {canManage && (
         <Group justify="flex-end" mb="md">
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             New Payment
           </Button>
         </Group>
@@ -2448,7 +2465,7 @@ function CreatePaymentForm({ onSuccess }: { onSuccess: () => void }) {
         {...register("reference_number")}
       />
       <Textarea label="Notes" error={errors.notes?.message} {...register("notes")} />
-      <Button loading={mutation.isPending} type="submit">
+      <Button tone="primary" loading={mutation.isPending} type="submit">
         Record Payment
       </Button>
     </Stack>

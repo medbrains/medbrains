@@ -2,9 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Alert,
-  Badge,
   Box,
-  Button,
   Card,
   Checkbox,
   Drawer,
@@ -180,6 +178,7 @@ import { PatientContextBanner } from "@/components/Patient/PatientContextBanner"
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, type BadgeTone, Button, type ButtonTone } from "@/components/ui";
 import { WardSelect } from "@/components/WardSelect";
 import { ALL_TEMPLATES, type ChecklistTemplate } from "@/data/checklist-templates";
 import {
@@ -248,6 +247,16 @@ const bedStatusColors: Record<string, string> = {
   occupied_transfer_pending: "orange",
   reserved: "orange",
   maintenance: "slate",
+  blocked: "danger",
+};
+
+const bedStatusBadgeTones: Record<string, BadgeTone> = {
+  vacant_clean: "success",
+  vacant_dirty: "warning",
+  occupied: "primary",
+  occupied_transfer_pending: "warning",
+  reserved: "warning",
+  maintenance: "neutral",
   blocked: "danger",
 };
 
@@ -530,15 +539,25 @@ function ActionRailActionButton({
   const disabledReason = actionRailDisabledReason(t, action);
   const statusLabel = actionRailStatusLabel(t, action);
   const tooltipLabel = disabledReason ?? actionRailActionLabel(t, action);
+  const isDanger = color === "danger";
+  const tone: ButtonTone =
+    variant === "subtle"
+      ? "ghost"
+      : variant === "filled"
+        ? isDanger
+          ? "danger"
+          : "primary"
+        : isDanger
+          ? "subtle-danger"
+          : "secondary";
 
   return (
     <Stack gap={3}>
       <Tooltip label={tooltipLabel}>
         <span className={classes.actionRailButtonTarget}>
           <Button
+            tone={tone}
             size="xs"
-            variant={variant}
-            color={color}
             leftSection={leftSection}
             disabled={!action.enabled}
             loading={loading}
@@ -778,7 +797,11 @@ function AdmissionsTab() {
           w={180}
         />
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={() => navigate("/ipd/new")}>
+          <Button
+            tone="primary"
+            leftSection={<IconPlus size={16} />}
+            onClick={() => navigate("/ipd/new")}
+          >
             New Admission
           </Button>
         )}
@@ -993,11 +1016,11 @@ function AdmissionForm({ initialPatientId = "", onCancel, onCreated }: Admission
       />
       <Group justify="flex-end">
         {onCancel && (
-          <Button variant="subtle" onClick={onCancel}>
+          <Button tone="ghost" onClick={onCancel}>
             Cancel
           </Button>
         )}
-        <Button type="submit" loading={createMutation.isPending}>
+        <Button tone="primary" type="submit" loading={createMutation.isPending}>
           Admit Patient
         </Button>
       </Group>
@@ -1021,7 +1044,7 @@ export function IpdNewAdmissionPage() {
           icon={<IconBed size={20} stroke={1.5} />}
           color="primary"
           actions={
-            <Button variant="subtle" onClick={() => navigate("/ipd")}>
+            <Button tone="ghost" onClick={() => navigate("/ipd")}>
               Back to IPD
             </Button>
           }
@@ -1059,7 +1082,7 @@ export function IpdAdmissionDetailPage() {
             icon={<IconBed size={20} stroke={1.5} />}
             color="primary"
             actions={
-              <Button variant="subtle" onClick={() => navigate("/ipd")}>
+              <Button tone="ghost" onClick={() => navigate("/ipd")}>
                 Back to IPD
               </Button>
             }
@@ -1081,7 +1104,7 @@ export function IpdAdmissionDetailPage() {
           icon={<IconBed size={20} stroke={1.5} />}
           color="primary"
           actions={
-            <Button variant="subtle" onClick={() => navigate("/ipd")}>
+            <Button tone="ghost" onClick={() => navigate("/ipd")}>
               Back to IPD
             </Button>
           }
@@ -1387,20 +1410,18 @@ function AdmissionDetail({
                 />
               </Group>
               <Group gap="xs">
-                <Badge variant="light" color="slate">
+                <Badge tone="neutral">
                   {t("admissionContext.admittedAt", {
                     date: new Date(adm.admitted_at).toLocaleDateString(),
                   })}
                 </Badge>
                 {adm.admission_source && (
-                  <Badge variant="light" color="slate">
+                  <Badge tone="neutral">
                     {t("admissionContext.source", { source: adm.admission_source })}
                   </Badge>
                 )}
                 {adm.provisional_diagnosis && (
-                  <Badge variant="light" color="indigo">
-                    {t("admissionContext.diagnosisLinked")}
-                  </Badge>
+                  <Badge tone="primary">{t("admissionContext.diagnosisLinked")}</Badge>
                 )}
               </Group>
             </Stack>
@@ -1416,9 +1437,8 @@ function AdmissionDetail({
               {canCreateDischargeSummary && admissionIsActive && (
                 <Tooltip label={t("label.generateDischargeSummary")}>
                   <Button
+                    tone="secondary"
                     size="xs"
-                    variant="light"
-                    color="teal"
                     leftSection={<IconFileDescription size={14} />}
                     onClick={openDischargeSummary}
                   >
@@ -1429,9 +1449,8 @@ function AdmissionDetail({
               {canManageBeds && admissionIsActive && (
                 <Tooltip label={t("label.transferBed")}>
                   <Button
+                    tone="secondary"
                     size="xs"
-                    variant="light"
-                    color="primary"
                     leftSection={<IconArrowsTransferDown size={14} />}
                     onClick={openBedTransfer}
                   >
@@ -1510,11 +1529,11 @@ function AdmissionDetail({
             </Text>
             {focusedModeledActions > 0 && (
               <Group gap={4}>
-                <Badge size="xs" color="green" variant="light">
+                <Badge size="xs" tone="success">
                   {t("actionRail.readyCount", { count: focusedReadyActions })}
                 </Badge>
                 {focusedBlockedActions > 0 && (
-                  <Badge size="xs" color="orange" variant="light">
+                  <Badge size="xs" tone="warning">
                     {t("actionRail.blockedCount", { count: focusedBlockedActions })}
                   </Badge>
                 )}
@@ -1525,9 +1544,8 @@ function AdmissionDetail({
             {IPD_WORKSPACE_SECTIONS.map((section) => (
               <Button
                 key={section}
+                tone={activeWorkspaceSection === section ? "primary" : "secondary"}
                 size="xs"
-                variant={activeWorkspaceSection === section ? "filled" : "light"}
-                color={activeWorkspaceSection === section ? "primary" : "slate"}
                 onClick={() => setActiveWorkspaceTab(firstIpdWorkspaceTabForSection(section))}
               >
                 {ipdWorkspaceSectionLabel(t, section)}
@@ -1567,9 +1585,8 @@ function AdmissionDetail({
                       return (
                         <Tooltip key={tab.value} label={tooltipLabel} position="right">
                           <Button
+                            tone={activeWorkspaceTab === tab.value ? "secondary" : "ghost"}
                             size="xs"
-                            variant={activeWorkspaceTab === tab.value ? "light" : "subtle"}
-                            color={activeWorkspaceTab === tab.value ? "primary" : "slate"}
                             onClick={() => setActiveWorkspaceTab(tab.value)}
                             rightSection={actionRailReadinessBadge(readiness, t)}
                             fullWidth
@@ -1703,17 +1720,17 @@ function AdmissionDetail({
                   </Text>
                   <Group gap={4} mt={4}>
                     {focusedActionRailSections.map((section) => (
-                      <Badge key={section} size="xs" color="primary" variant="light">
+                      <Badge key={section} size="xs" tone="primary">
                         {actionRailSectionLabel(t, section)}
                       </Badge>
                     ))}
                     {focusedModeledActions > 0 && (
                       <>
-                        <Badge size="xs" color="green" variant="light">
+                        <Badge size="xs" tone="success">
                           {t("actionRail.readyCount", { count: focusedReadyActions })}
                         </Badge>
                         {focusedBlockedActions > 0 && (
-                          <Badge size="xs" color="orange" variant="light">
+                          <Badge size="xs" tone="warning">
                             {t("actionRail.blockedCount", { count: focusedBlockedActions })}
                           </Badge>
                         )}
@@ -1782,9 +1799,8 @@ function AdmissionDetail({
                     summary={actionRailSectionSummary("finance")}
                   />
                   <Button
+                    tone={activeWorkspaceTab === "billing-tab" ? "primary" : "secondary"}
                     size="xs"
-                    variant={activeWorkspaceTab === "billing-tab" ? "filled" : "light"}
-                    color="orange"
                     leftSection={<IconArrowRight size={14} />}
                     onClick={() => setActiveWorkspaceTab("billing-tab")}
                     fullWidth
@@ -1802,9 +1818,8 @@ function AdmissionDetail({
                     }
                   />
                   <Button
+                    tone={activeWorkspaceTab === "insurance-pa" ? "primary" : "ghost"}
                     size="xs"
-                    variant={activeWorkspaceTab === "insurance-pa" ? "filled" : "subtle"}
-                    color="orange"
                     leftSection={<IconArrowRight size={14} />}
                     onClick={() => setActiveWorkspaceTab("insurance-pa")}
                     fullWidth
@@ -1890,9 +1905,8 @@ function AdmissionDetail({
                     summary={actionRailSectionSummary("discharge")}
                   />
                   <Button
+                    tone={activeWorkspaceTab === "discharge-summary" ? "primary" : "secondary"}
                     size="xs"
-                    variant={activeWorkspaceTab === "discharge-summary" ? "filled" : "light"}
-                    color="teal"
                     leftSection={<IconFileDescription size={14} />}
                     onClick={() => setActiveWorkspaceTab("discharge-summary")}
                     fullWidth
@@ -1900,9 +1914,8 @@ function AdmissionDetail({
                     {t("actionRail.nav.summaryTab")}
                   </Button>
                   <Button
+                    tone={activeWorkspaceTab === "discharge" ? "primary" : "secondary"}
                     size="xs"
-                    variant={activeWorkspaceTab === "discharge" ? "filled" : "light"}
-                    color="teal"
                     leftSection={<IconClipboardList size={14} />}
                     onClick={() => setActiveWorkspaceTab("discharge")}
                     fullWidth
@@ -1979,7 +1992,12 @@ function OverviewTab({
     <Stack>
       {canCreate && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={formHandlers.toggle}>
+          <Button
+            tone="primary"
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={formHandlers.toggle}
+          >
             Add Task
           </Button>
         </Group>
@@ -2013,7 +2031,7 @@ function OverviewTab({
             {...register("assigned_to")}
           />
           <TextInput label="Notes" error={errors.notes?.message} {...register("notes")} />
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save Task
           </Button>
         </Stack>
@@ -2093,7 +2111,12 @@ function ProgressNotesTab({ admissionId }: { admissionId: string }) {
   return (
     <Stack>
       {canCreate && (
-        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={formHandlers.toggle}>
+        <Button
+          tone="primary"
+          size="xs"
+          leftSection={<IconPlus size={14} />}
+          onClick={formHandlers.toggle}
+        >
           Add Note
         </Button>
       )}
@@ -2133,10 +2156,10 @@ function ProgressNotesTab({ admissionId }: { admissionId: string }) {
             render={({ field }) => <Textarea label="Plan" {...field} />}
           />
           <Group>
-            <Button size="xs" type="submit" loading={mutation.isPending}>
+            <Button tone="primary" size="xs" type="submit" loading={mutation.isPending}>
               Save
             </Button>
-            <Button size="xs" variant="subtle" onClick={closeForm}>
+            <Button tone="ghost" size="xs" onClick={closeForm}>
               Cancel
             </Button>
           </Group>
@@ -2182,9 +2205,7 @@ function ProgressNotesTab({ admissionId }: { admissionId: string }) {
                 >
                   <Group justify="space-between" gap="xs">
                     <Group gap="xs">
-                      <Badge size="xs" variant="light">
-                        {n.note_type}
-                      </Badge>
+                      <Badge size="xs">{n.note_type}</Badge>
                       <Text size="xs" c="dimmed" ff="monospace">
                         {new Date(n.created_at).toLocaleTimeString([], {
                           hour: "2-digit",
@@ -2193,7 +2214,7 @@ function ProgressNotesTab({ admissionId }: { admissionId: string }) {
                       </Text>
                     </Group>
                     {n.is_addendum && (
-                      <Badge size="xs" color="orange" variant="light">
+                      <Badge size="xs" tone="warning">
                         addendum
                       </Badge>
                     )}
@@ -2271,12 +2292,12 @@ function AssessmentsTab({ admissionId }: { admissionId: string }) {
     },
   });
 
-  const riskColors: Record<string, string> = {
+  const riskColors: Record<string, BadgeTone> = {
     "no risk": "success",
     low: "success",
-    mild: "teal",
+    mild: "success",
     moderate: "warning",
-    high: "orange",
+    high: "warning",
     severe: "danger",
     critical: "danger",
   };
@@ -2285,6 +2306,7 @@ function AssessmentsTab({ admissionId }: { admissionId: string }) {
     <Stack>
       {canCreate && (
         <Button
+          tone="primary"
           size="xs"
           leftSection={<IconPlus size={14} />}
           onClick={() => formHandlers.toggle()}
@@ -2367,7 +2389,7 @@ function AssessmentsTab({ admissionId }: { admissionId: string }) {
                 />
               </SimpleGrid>
               <Group>
-                <Badge color={riskColors[bradenRisk] ?? "slate"} size="lg">
+                <Badge tone={riskColors[bradenRisk] ?? "neutral"} size="lg">
                   Braden {bradenTotal} · {bradenRisk}
                 </Badge>
                 <Text size="xs" c="dimmed">
@@ -2476,7 +2498,7 @@ function AssessmentsTab({ admissionId }: { admissionId: string }) {
               />
             </>
           )}
-          <Button size="xs" type="submit" loading={mutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={mutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -2499,7 +2521,7 @@ function AssessmentsTab({ admissionId }: { admissionId: string }) {
               <Table.Td>{a.score_value ?? "—"}</Table.Td>
               <Table.Td>
                 {a.risk_level ? (
-                  <Badge color={riskColors[a.risk_level] ?? "slate"} size="sm">
+                  <Badge tone={riskColors[a.risk_level] ?? "neutral"} size="sm">
                     {a.risk_level}
                   </Badge>
                 ) : (
@@ -2525,13 +2547,13 @@ function MarTab({ admissionId }: { admissionId: string }) {
     queryFn: () => ipdService.listMar(admissionId),
   });
 
-  const marStatusColors: Record<string, string> = {
+  const marStatusColors: Record<string, BadgeTone> = {
     scheduled: "primary",
     given: "success",
     held: "warning",
-    refused: "orange",
+    refused: "warning",
     missed: "danger",
-    self_administered: "teal",
+    self_administered: "success",
   };
 
   const rows = (data ?? []) as IpdMedicationAdministration[];
@@ -2559,7 +2581,7 @@ function MarTab({ admissionId }: { admissionId: string }) {
                   </Text>
                   {m.is_high_alert && (
                     <Tooltip label="High-Alert Medication — requires double-check">
-                      <Badge color="danger" size="xs" leftSection={<IconAlertTriangle size={10} />}>
+                      <Badge tone="danger" size="xs" leftSection={<IconAlertTriangle size={10} />}>
                         HIGH ALERT
                       </Badge>
                     </Tooltip>
@@ -2576,22 +2598,22 @@ function MarTab({ admissionId }: { admissionId: string }) {
                 <Text size="xs">{new Date(m.scheduled_at).toLocaleString()}</Text>
               </Table.Td>
               <Table.Td>
-                <Badge color={marStatusColors[m.status] ?? "slate"} size="sm">
+                <Badge tone={marStatusColors[m.status] ?? "neutral"} size="sm">
                   {m.status}
                 </Badge>
                 {m.is_high_alert && m.status === "given" && !m.double_checked_by && (
-                  <Badge color="orange" size="xs" ml={4}>
+                  <Badge tone="warning" size="xs" ml={4}>
                     Needs witness
                   </Badge>
                 )}
               </Table.Td>
               <Table.Td>
                 {m.double_checked_by ? (
-                  <Badge color="success" size="xs" variant="light">
+                  <Badge tone="success" size="xs">
                     Verified
                   </Badge>
                 ) : m.is_high_alert ? (
-                  <Badge color="slate" size="xs" variant="light">
+                  <Badge tone="neutral" size="xs">
                     Pending
                   </Badge>
                 ) : null}
@@ -2673,13 +2695,13 @@ function IoChartTab({ admissionId }: { admissionId: string }) {
     <Stack>
       {balance && (
         <Group gap="lg">
-          <Badge color="primary" size="lg">
+          <Badge tone="primary" size="lg">
             Intake: {balance.total_intake_ml} ml
           </Badge>
-          <Badge color="orange" size="lg">
+          <Badge tone="warning" size="lg">
             Output: {balance.total_output_ml} ml
           </Badge>
-          <Badge color={Number(balance.balance_ml) >= 0 ? "success" : "danger"} size="lg">
+          <Badge tone={Number(balance.balance_ml) >= 0 ? "success" : "danger"} size="lg">
             Balance: {balance.balance_ml} ml
           </Badge>
         </Group>
@@ -2698,7 +2720,7 @@ function IoChartTab({ admissionId }: { admissionId: string }) {
           {rows.map((r) => (
             <Table.Tr key={r.id}>
               <Table.Td>
-                <Badge color={r.is_intake ? "primary" : "orange"} size="sm">
+                <Badge tone={r.is_intake ? "primary" : "warning"} size="sm">
                   {r.is_intake ? "Intake" : "Output"}
                 </Badge>
               </Table.Td>
@@ -2746,9 +2768,8 @@ function NursingTab({ admissionId }: { admissionId: string }) {
     <Stack>
       <Group justify="flex-end">
         <Button
+          tone="secondary"
           size="xs"
-          variant="light"
-          color="orange"
           leftSection={<IconAlertTriangle size={14} />}
           component="a"
           href="/quality"
@@ -2774,8 +2795,8 @@ function NursingTab({ admissionId }: { admissionId: string }) {
             </Text>
             <Badge
               size="xs"
-              color={
-                cp.status === "active" ? "success" : cp.status === "resolved" ? "slate" : "danger"
+              tone={
+                cp.status === "active" ? "success" : cp.status === "resolved" ? "neutral" : "danger"
               }
             >
               {cp.status}
@@ -2807,7 +2828,7 @@ function NursingTab({ admissionId }: { admissionId: string }) {
               {h.handover_date}
             </Text>
             {h.acknowledged_at && (
-              <Badge size="xs" color="success">
+              <Badge size="xs" tone="success">
                 Acknowledged
               </Badge>
             )}
@@ -2883,6 +2904,7 @@ function AttendersTab({ admissionId, canCreate }: { admissionId: string; canCrea
     <Stack>
       {canCreate && (
         <Button
+          tone="primary"
           size="xs"
           leftSection={<IconPlus size={14} />}
           onClick={() => formHandlers.toggle()}
@@ -2964,7 +2986,7 @@ function AttendersTab({ admissionId, canCreate }: { admissionId: string; canCrea
               />
             )}
           />
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -2993,7 +3015,7 @@ function AttendersTab({ admissionId, canCreate }: { admissionId: string; canCrea
               </Table.Td>
               <Table.Td>
                 {a.is_primary && (
-                  <Badge size="xs" color="primary">
+                  <Badge size="xs" tone="primary">
                     Primary
                   </Badge>
                 )}
@@ -3105,14 +3127,14 @@ function DischargeSummaryTab({
     return (
       <Stack>
         <Group justify="space-between">
-          <Badge size="lg" color={summary.status === "finalized" ? "success" : "warning"}>
+          <Badge size="lg" tone={summary.status === "finalized" ? "success" : "warning"}>
             {summary.status}
           </Badge>
           <Group>
             {summary.status === "draft" && canCreate && (
               <Button
+                tone="secondary"
                 size="xs"
-                variant="light"
                 leftSection={<IconPencil size={14} />}
                 onClick={() => {
                   setFinalDiagnosis(summary.final_diagnosis ?? "");
@@ -3133,8 +3155,8 @@ function DischargeSummaryTab({
             )}
             {summary.status === "draft" && canFinalize && (
               <Button
+                tone="primary"
                 size="xs"
-                color="success"
                 onClick={() => finalizeMutation.mutate()}
                 loading={finalizeMutation.isPending}
               >
@@ -3293,11 +3315,15 @@ function DischargeSummaryTab({
         onChange={(e) => setWarningSigns(e.currentTarget.value)}
       />
       <Group>
-        <Button onClick={handleSave} loading={createMutation.isPending || updateMutation.isPending}>
+        <Button
+          tone="primary"
+          onClick={handleSave}
+          loading={createMutation.isPending || updateMutation.isPending}
+        >
           Save
         </Button>
         {editing && (
-          <Button variant="subtle" onClick={() => setEditing(false)}>
+          <Button tone="ghost" onClick={() => setEditing(false)}>
             Cancel
           </Button>
         )}
@@ -3372,6 +3398,7 @@ function TransferTab({
             onChange={(e) => setNotes(e.currentTarget.value)}
           />
           <Button
+            tone="primary"
             leftSection={<IconBed size={16} />}
             onClick={() => transferMutation.mutate()}
             loading={transferMutation.isPending}
@@ -3453,11 +3480,11 @@ function DischargeTab({
               <Text size="sm">{it.item_label}</Text>
               <Badge
                 size="xs"
-                color={
+                tone={
                   it.status === "completed"
                     ? "success"
                     : it.status === "not_applicable"
-                      ? "slate"
+                      ? "neutral"
                       : "warning"
                 }
               >
@@ -3484,7 +3511,7 @@ function DischargeTab({
             minRows={3}
           />
           <Button
-            color="danger"
+            tone="danger"
             leftSection={<IconDoor size={16} />}
             onClick={() => dischargeMutation.mutate()}
             loading={dischargeMutation.isPending}
@@ -3537,11 +3564,7 @@ function WardsTab() {
     {
       key: "ward_type",
       label: "Type",
-      render: (row: WardListRow) => (
-        <Badge size="sm" variant="light">
-          {row.ward_type}
-        </Badge>
-      ),
+      render: (row: WardListRow) => <Badge size="sm">{row.ward_type}</Badge>,
     },
     {
       key: "beds",
@@ -3556,7 +3579,7 @@ function WardsTab() {
       key: "is_active",
       label: "Active",
       render: (row: WardListRow) => (
-        <Badge size="xs" color={row.is_active ? "success" : "slate"}>
+        <Badge size="xs" tone={row.is_active ? "success" : "neutral"}>
           {row.is_active ? "Yes" : "No"}
         </Badge>
       ),
@@ -3587,7 +3610,12 @@ function WardsTab() {
     <Stack>
       {canManage && (
         <Group justify="flex-end">
-          <Button size="sm" leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button
+            tone="primary"
+            size="sm"
+            leftSection={<IconPlus size={16} />}
+            onClick={openCreate}
+          >
             New Ward
           </Button>
         </Group>
@@ -3667,6 +3695,7 @@ function CreateWardDrawer({ opened, onClose }: { opened: boolean; onClose: () =>
           onChange={(v) => setGenderRestriction(v ?? "any")}
         />
         <Button
+          tone="primary"
           onClick={() =>
             mutation.mutate({
               code,
@@ -3734,6 +3763,7 @@ function EditWardDrawer({ ward, onClose }: { ward: WardListRow | null; onClose: 
           onChange={(e) => setIsActive(e.currentTarget.checked)}
         />
         <Button
+          tone="primary"
           onClick={() =>
             mutation.mutate({
               name: name || undefined,
@@ -3802,6 +3832,7 @@ function WardBedsPanel({ wardId, canManage }: { wardId: string; canManage: boole
             onChange={(e) => setBedTypeId(e.currentTarget.value)}
           />
           <Button
+            tone="primary"
             size="sm"
             onClick={() => assignMutation.mutate()}
             loading={assignMutation.isPending}
@@ -3834,7 +3865,7 @@ function WardBedsPanel({ wardId, canManage }: { wardId: string; canManage: boole
                   <Text size="sm">{b.bed_type_name ?? "—"}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge size="xs" color={bedStatusColors[b.status] ?? "slate"}>
+                  <Badge size="xs" tone={bedStatusBadgeTones[b.status] ?? "neutral"}>
                     {b.status}
                   </Badge>
                 </Table.Td>
@@ -3933,7 +3964,7 @@ function IpTypeConfigSection() {
         onClick={() => setExpanded((v) => !v)}
       >
         <Text fw={600}>IP Type Configurations</Text>
-        <Badge variant="light">{expanded ? "Hide" : "Show"}</Badge>
+        <Badge>{expanded ? "Hide" : "Show"}</Badge>
       </Group>
       {expanded && (
         <Stack p="sm" pt={0}>
@@ -3961,9 +3992,7 @@ function IpTypeConfigSection() {
                 {configs.map((c) => (
                   <Table.Tr key={c.id}>
                     <Table.Td>
-                      <Badge size="sm" variant="light">
-                        {c.ip_type}
-                      </Badge>
+                      <Badge size="sm">{c.ip_type}</Badge>
                     </Table.Td>
                     <Table.Td>
                       <Text size="sm">{c.label}</Text>
@@ -3997,7 +4026,7 @@ function IpTypeConfigSection() {
                           onChange={(e) => setEditAutoBilling(e.currentTarget.checked)}
                         />
                       ) : (
-                        <Badge size="xs" color={c.auto_billing_enabled ? "success" : "slate"}>
+                        <Badge size="xs" tone={c.auto_billing_enabled ? "success" : "neutral"}>
                           {c.auto_billing_enabled ? "On" : "Off"}
                         </Badge>
                       )}
@@ -4006,6 +4035,7 @@ function IpTypeConfigSection() {
                       {editingId === c.id ? (
                         <Group gap={4}>
                           <Button
+                            tone="primary"
                             size="xs"
                             onClick={() =>
                               updateMutation.mutate({
@@ -4020,7 +4050,7 @@ function IpTypeConfigSection() {
                           >
                             Save
                           </Button>
-                          <Button size="xs" variant="subtle" onClick={() => setEditingId(null)}>
+                          <Button tone="ghost" size="xs" onClick={() => setEditingId(null)}>
                             Cancel
                           </Button>
                         </Group>
@@ -4215,7 +4245,7 @@ function BedDashboardTab() {
           w={200}
         />
         <Button
-          variant={showTurnaround ? "filled" : "light"}
+          tone={showTurnaround ? "primary" : "secondary"}
           size="sm"
           onClick={() => setShowTurnaround((v) => !v)}
         >
@@ -4283,8 +4313,8 @@ function BedDashboardTab() {
                 )}
                 {canViewAdmissions && admissionId && (
                   <Button
+                    tone="ghost"
                     size="compact-xs"
-                    variant="subtle"
                     mt={6}
                     leftSection={<IconEye size={12} />}
                     onClick={() => navigate(ipdAdmissionWorkspaceTabRoute(admissionId, "overview"))}
@@ -4703,6 +4733,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
         />
         {canCreate && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             size="sm"
             onClick={() => formHandlers.open()}
@@ -4835,7 +4866,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
                   Vitals: baseline + q15min x4 + q30min. Adverse reactions (CTCAE grade 1-5),
                   extravasation check.
                 </Text>
-                <Badge size="xs" color="danger" variant="light" mt={4}>
+                <Badge size="xs" tone="danger" mt={4}>
                   Requires chemo certification verification
                 </Badge>
               </Card>
@@ -4847,6 +4878,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
             />
             <Group>
               <Button
+                tone="primary"
                 size="sm"
                 onClick={() =>
                   createMutation.mutate({
@@ -4860,7 +4892,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
               >
                 Save
               </Button>
-              <Button size="sm" variant="subtle" onClick={() => formHandlers.close()}>
+              <Button tone="ghost" size="sm" onClick={() => formHandlers.close()}>
                 Cancel
               </Button>
             </Group>
@@ -4889,9 +4921,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
             {rows.map((doc: IpdClinicalDocumentation) => (
               <Table.Tr key={doc.id}>
                 <Table.Td>
-                  <Badge size="sm" variant="light">
-                    {doc.doc_type.replace(/_/g, " ")}
-                  </Badge>
+                  <Badge size="sm">{doc.doc_type.replace(/_/g, " ")}</Badge>
                 </Table.Td>
                 <Table.Td>
                   <Text size="sm">{doc.title}</Text>
@@ -4901,11 +4931,11 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
                 </Table.Td>
                 <Table.Td>
                   {doc.is_resolved ? (
-                    <Badge color="success" size="sm">
+                    <Badge tone="success" size="sm">
                       Resolved
                     </Badge>
                   ) : (
-                    <Badge color="warning" size="sm">
+                    <Badge tone="warning" size="sm">
                       Active
                     </Badge>
                   )}
@@ -4924,7 +4954,11 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
                     )}
                     {doc.doc_type === "restraint" && !doc.is_resolved && (
                       <>
-                        <Button size="xs" variant="light" onClick={() => setRestraintDocId(doc.id)}>
+                        <Button
+                          tone="secondary"
+                          size="xs"
+                          onClick={() => setRestraintDocId(doc.id)}
+                        >
                           Log Check
                         </Button>
                         <RestraintChecksSummary admissionId={admissionId} docId={doc.id} />
@@ -4958,6 +4992,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
             />
             <Group>
               <Button
+                tone="primary"
                 size="sm"
                 onClick={() =>
                   restraintMutation.mutate({
@@ -4971,7 +5006,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
               >
                 Record Check
               </Button>
-              <Button size="sm" variant="subtle" onClick={() => setRestraintDocId(null)}>
+              <Button tone="ghost" size="sm" onClick={() => setRestraintDocId(null)}>
                 Cancel
               </Button>
             </Group>
@@ -5065,6 +5100,7 @@ function ChecklistTab({ admissionId }: { admissionId: string }) {
               w={150}
             />
             <Button
+              tone="primary"
               size="sm"
               onClick={() => createMutation.mutate()}
               disabled={!newLabel}
@@ -5075,8 +5111,8 @@ function ChecklistTab({ admissionId }: { admissionId: string }) {
             <Menu shadow="md" position="bottom-end">
               <Menu.Target>
                 <Button
+                  tone="secondary"
                   size="sm"
-                  variant="light"
                   loading={seedTemplateMutation.isPending}
                   leftSection={<IconPlus size={14} />}
                 >
@@ -5196,6 +5232,7 @@ function TransferLogTab({ admissionId }: { admissionId: string }) {
         <Text fw={500}>Transfer History</Text>
         {canCreate && (
           <Button
+            tone="primary"
             size="sm"
             leftSection={<IconPlus size={16} />}
             onClick={() => formHandlers.open()}
@@ -5227,6 +5264,7 @@ function TransferLogTab({ admissionId }: { admissionId: string }) {
             />
             <Group>
               <Button
+                tone="primary"
                 size="sm"
                 onClick={() => {
                   if (!transferType || !reason.trim()) return;
@@ -5241,7 +5279,7 @@ function TransferLogTab({ admissionId }: { admissionId: string }) {
               >
                 Save
               </Button>
-              <Button size="sm" variant="subtle" onClick={() => formHandlers.close()}>
+              <Button tone="ghost" size="sm" onClick={() => formHandlers.close()}>
                 Cancel
               </Button>
             </Group>
@@ -5345,7 +5383,12 @@ function DischargeTatTab({ admissionId }: { admissionId: string }) {
         <Text c="dimmed" size="sm">
           Discharge TAT tracking has not been initiated for this admission.
         </Text>
-        <Button size="sm" onClick={() => initMutation.mutate()} loading={initMutation.isPending}>
+        <Button
+          tone="primary"
+          size="sm"
+          onClick={() => initMutation.mutate()}
+          loading={initMutation.isPending}
+        >
           Start Discharge TAT Tracking
         </Button>
       </Stack>
@@ -5373,7 +5416,7 @@ function DischargeTatTab({ admissionId }: { admissionId: string }) {
     <Stack>
       <Text fw={500}>Discharge TAT Timeline</Text>
       {log.total_tat_minutes != null && (
-        <Badge size="lg" color="primary" variant="light">
+        <Badge size="lg" tone="primary">
           Total TAT: {log.total_tat_minutes} minutes
         </Badge>
       )}
@@ -5387,11 +5430,11 @@ function DischargeTatTab({ admissionId }: { admissionId: string }) {
           >
             <Group>
               {m.value ? (
-                <Badge color="success" size="sm" variant="dot">
+                <Badge tone="success" size="sm" variant="dot">
                   Done
                 </Badge>
               ) : (
-                <Badge color="slate" size="sm" variant="dot">
+                <Badge tone="neutral" size="sm" variant="dot">
                   Pending
                 </Badge>
               )}
@@ -5403,8 +5446,8 @@ function DischargeTatTab({ admissionId }: { admissionId: string }) {
               </Text>
             ) : (
               <Button
+                tone="secondary"
                 size="xs"
-                variant="light"
                 onClick={() => updateMutation.mutate({ [m.key]: new Date().toISOString() })}
                 loading={updateMutation.isPending}
               >
@@ -5450,16 +5493,16 @@ function InvestigationsTab({
         {canOrder && (
           <Group gap="xs">
             <Button
+              tone="secondary"
               size="xs"
-              variant="light"
               leftSection={<IconFlask size={14} />}
               onClick={onOrderLab}
             >
               Order lab
             </Button>
             <Button
+              tone="secondary"
               size="xs"
-              variant="light"
               leftSection={<IconEye size={14} />}
               onClick={onOrderRadiology}
             >
@@ -5492,9 +5535,7 @@ function InvestigationsTab({
                     <Text size="xs">{new Date(lo.ordered_at).toLocaleDateString()}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Badge size="sm" variant="light">
-                      {lo.status}
-                    </Badge>
+                    <Badge size="sm">{lo.status}</Badge>
                   </Table.Td>
                   <Table.Td>
                     {results.length > 0 ? (
@@ -5514,7 +5555,7 @@ function InvestigationsTab({
                               </Text>
                             )}
                             {r.is_abnormal && (
-                              <Badge color="danger" size="xs">
+                              <Badge tone="danger" size="xs">
                                 Abnormal
                               </Badge>
                             )}
@@ -5565,9 +5606,7 @@ function InvestigationsTab({
                   <Text size="xs">{new Date(ro.ordered_at).toLocaleDateString()}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge size="sm" variant="light">
-                    {ro.status}
-                  </Badge>
+                  <Badge size="sm">{ro.status}</Badge>
                 </Table.Td>
                 <Table.Td>
                   <Text size="xs">{ro.findings ?? "Pending"}</Text>
@@ -5659,13 +5698,13 @@ function BillingTab({ admissionId }: { admissionId: string }) {
             </div>
           </SimpleGrid>
           <Group mt="xs">
-            <Badge size="lg" color="primary" variant="light">
+            <Badge size="lg" tone="primary">
               Room: {cost.room_total}
             </Badge>
-            <Badge size="lg" color="teal" variant="light">
+            <Badge size="lg" tone="success">
               Nursing: {cost.nursing_total}
             </Badge>
-            <Badge size="lg" color="primary" variant="filled">
+            <Badge size="lg" tone="primary" variant="filled">
               Total Est.: {cost.total_estimated}
             </Badge>
           </Group>
@@ -5704,15 +5743,13 @@ function BillingTab({ admissionId }: { admissionId: string }) {
             </Text>
           )}
           <Group mt="sm">
-            <Badge size="lg" variant="light">
-              Charges: {billing.total_charges}
-            </Badge>
-            <Badge size="lg" color="success" variant="light">
+            <Badge size="lg">Charges: {billing.total_charges}</Badge>
+            <Badge size="lg" tone="success">
               Payments: {billing.total_payments}
             </Badge>
             <Badge
               size="lg"
-              color={billing.outstanding_balance > 0 ? "danger" : "success"}
+              tone={billing.outstanding_balance > 0 ? "danger" : "success"}
               variant="filled"
             >
               Outstanding: {billing.outstanding_balance}
@@ -5766,14 +5803,14 @@ function InsurancePaTab({ admissionId }: { admissionId: string }) {
     queryFn: () => ipdService.getAdmissionPriorAuth(admissionId),
   });
 
-  const paStatusColors: Record<string, string> = {
-    draft: "slate",
+  const paStatusColors: Record<string, BadgeTone> = {
+    draft: "neutral",
     submitted: "primary",
     approved: "success",
     partially_approved: "warning",
     denied: "danger",
-    cancelled: "dark",
-    expired: "orange",
+    cancelled: "neutral",
+    expired: "warning",
   };
 
   const rows = data ?? [];
@@ -5806,14 +5843,12 @@ function InsurancePaTab({ admissionId }: { admissionId: string }) {
                   <Text size="sm">{pa.service_type}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge color={paStatusColors[pa.status] ?? "slate"} size="sm">
+                  <Badge tone={paStatusColors[pa.status] ?? "neutral"} size="sm">
                     {pa.status}
                   </Badge>
                 </Table.Td>
                 <Table.Td>
-                  <Badge size="sm" variant="light">
-                    {pa.urgency}
-                  </Badge>
+                  <Badge size="sm">{pa.urgency}</Badge>
                 </Table.Td>
                 <Table.Td>
                   <Text size="xs">
@@ -5926,6 +5961,7 @@ function MlcTab({ admissionId, canCreate }: { admissionId: string; canCreate: bo
                 w={300}
               />
               <Button
+                tone="primary"
                 size="sm"
                 leftSection={<IconLink size={16} />}
                 onClick={() => linkMutation.mutate(mlcIdInput)}
@@ -5949,15 +5985,15 @@ function DietTab({ admissionId }: { admissionId: string }) {
   });
 
   const rows = (data ?? []) as DietOrder[];
-  const dietTypeColors: Record<string, string> = {
+  const dietTypeColors: Record<string, BadgeTone> = {
     regular: "primary",
-    soft: "teal",
+    soft: "success",
     liquid: "info",
     npo: "danger",
-    diabetic: "orange",
-    renal: "violet",
+    diabetic: "warning",
+    renal: "accent",
     cardiac: "danger",
-    custom: "slate",
+    custom: "neutral",
   };
 
   return (
@@ -5980,18 +6016,16 @@ function DietTab({ admissionId }: { admissionId: string }) {
             {rows.map((d) => (
               <Table.Tr key={d.id}>
                 <Table.Td>
-                  <Badge color={dietTypeColors[d.diet_type] ?? "slate"} size="sm">
+                  <Badge tone={dietTypeColors[d.diet_type] ?? "neutral"} size="sm">
                     {d.diet_type}
                   </Badge>
                 </Table.Td>
                 <Table.Td>
-                  <Badge variant="light" size="sm">
-                    {d.status}
-                  </Badge>
+                  <Badge size="sm">{d.status}</Badge>
                 </Table.Td>
                 <Table.Td>
                   {d.is_npo ? (
-                    <Badge color="danger" size="xs">
+                    <Badge tone="danger" size="xs">
                       NPO
                     </Badge>
                   ) : (
@@ -6024,12 +6058,12 @@ function ConsentsTab({ admissionId }: { admissionId: string }) {
   });
 
   const rows = (data ?? []) as ProcedureConsent[];
-  const consentStatusColors: Record<string, string> = {
+  const consentStatusColors: Record<string, BadgeTone> = {
     pending: "warning",
     signed: "success",
     refused: "danger",
-    withdrawn: "orange",
-    expired: "slate",
+    withdrawn: "warning",
+    expired: "neutral",
   };
 
   return (
@@ -6057,12 +6091,10 @@ function ConsentsTab({ admissionId }: { admissionId: string }) {
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge size="sm" variant="light">
-                    {c.consent_type}
-                  </Badge>
+                  <Badge size="sm">{c.consent_type}</Badge>
                 </Table.Td>
                 <Table.Td>
-                  <Badge color={consentStatusColors[c.status] ?? "slate"} size="sm">
+                  <Badge tone={consentStatusColors[c.status] ?? "neutral"} size="sm">
                     {c.status}
                   </Badge>
                 </Table.Td>
@@ -6145,8 +6177,8 @@ function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
   if (!printing) {
     return (
       <Button
+        tone="secondary"
         size="xs"
-        variant="light"
         leftSection={<IconPrinter size={14} />}
         onClick={() => setPrinting(true)}
       >
@@ -6167,7 +6199,7 @@ function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
       <Stack p="md">
         <Group gap={6}>
           {IPD_ADMISSION_PRINT_COPIES.map((copy) => (
-            <Badge key={copy.label} color="violet" variant="light">
+            <Badge key={copy.label} tone="accent">
               {printCopyRouteLabel(copy)}
             </Badge>
           ))}
@@ -6251,7 +6283,12 @@ function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
             </div>
           )}
         </Stack>
-        <Button mt="md" leftSection={<IconPrinter size={16} />} onClick={handlePrint}>
+        <Button
+          tone="primary"
+          mt="md"
+          leftSection={<IconPrinter size={16} />}
+          onClick={handlePrint}
+        >
           Print admission packet
         </Button>
       </Stack>
@@ -6283,7 +6320,7 @@ function BedTurnaroundView() {
       <Group justify="space-between" mb="xs">
         <Text fw={600}>Bed Turnaround Log</Text>
         {avgTat > 0 && (
-          <Badge size="lg" color="primary" variant="light">
+          <Badge size="lg" tone="primary">
             Avg TAT: {avgTat} min
           </Badge>
         )}
@@ -6326,11 +6363,11 @@ function BedTurnaroundView() {
                 </Table.Td>
                 <Table.Td>
                   {r.turnaround_minutes != null ? (
-                    <Badge color={r.turnaround_minutes <= 60 ? "success" : "orange"} size="sm">
+                    <Badge tone={r.turnaround_minutes <= 60 ? "success" : "warning"} size="sm">
                       {r.turnaround_minutes}
                     </Badge>
                   ) : (
-                    <Badge color="warning" size="sm">
+                    <Badge tone="warning" size="sm">
                       In progress
                     </Badge>
                   )}
@@ -6367,20 +6404,18 @@ function RestraintChecksSummary({ admissionId, docId }: { admissionId: string; d
 
   return (
     <Group gap={4}>
-      <Badge size="xs" variant="light">
-        {checks.length} checks
-      </Badge>
+      <Badge size="xs">{checks.length} checks</Badge>
       {lastCheck && (
         <Tooltip
           label={`Last: ${new Date(lastCheck.check_time).toLocaleString()} — ${lastCheck.status.replace(/_/g, " ")}`}
         >
-          <Badge size="xs" color={isOverdue ? "danger" : "success"} variant="filled">
+          <Badge size="xs" tone={isOverdue ? "danger" : "success"} variant="filled">
             {isOverdue ? "OVERDUE" : "OK"}
           </Badge>
         </Tooltip>
       )}
       {!lastCheck && (
-        <Badge size="xs" color="danger" variant="filled">
+        <Badge size="xs" tone="danger" variant="filled">
           No checks
         </Badge>
       )}
@@ -6492,12 +6527,12 @@ function DeathSummaryTab({
               </Text>
               <Group gap={4}>
                 {summary.autopsy_requested && (
-                  <Badge size="xs" color="orange">
+                  <Badge size="xs" tone="warning">
                     Autopsy Requested
                   </Badge>
                 )}
                 {summary.is_medico_legal && (
-                  <Badge size="xs" color="danger">
+                  <Badge size="xs" tone="danger">
                     Medico-Legal
                   </Badge>
                 )}
@@ -6523,6 +6558,7 @@ function DeathSummaryTab({
         <Text fw={600}>Death Summary</Text>
         {canCreate && status === "deceased" && !formOpened && (
           <Button
+            tone="primary"
             size="sm"
             leftSection={<IconPlus size={16} />}
             onClick={() => formHandlers.open()}
@@ -6612,6 +6648,7 @@ function DeathSummaryTab({
             />
             <Group>
               <Button
+                tone="primary"
                 size="sm"
                 onClick={() =>
                   createMutation.mutate({
@@ -6634,7 +6671,7 @@ function DeathSummaryTab({
               >
                 Save Death Summary
               </Button>
-              <Button size="sm" variant="subtle" onClick={() => formHandlers.close()}>
+              <Button tone="ghost" size="sm" onClick={() => formHandlers.close()}>
                 Cancel
               </Button>
             </Group>
@@ -6707,6 +6744,7 @@ function BirthRecordsTab({
         <Text fw={600}>Birth Records</Text>
         {canCreate && (
           <Button
+            tone="primary"
             size="sm"
             leftSection={<IconPlus size={16} />}
             onClick={() => formHandlers.open()}
@@ -6809,6 +6847,7 @@ function BirthRecordsTab({
             />
             <Group>
               <Button
+                tone="primary"
                 size="sm"
                 onClick={() =>
                   createMutation.mutate({
@@ -6833,7 +6872,7 @@ function BirthRecordsTab({
               >
                 Save
               </Button>
-              <Button size="sm" variant="subtle" onClick={() => formHandlers.close()}>
+              <Button tone="ghost" size="sm" onClick={() => formHandlers.close()}>
                 Cancel
               </Button>
             </Group>
@@ -6871,8 +6910,8 @@ function BirthRecordsTab({
                 <Table.Td>
                   <Badge
                     size="sm"
-                    color={
-                      r.gender === "male" ? "primary" : r.gender === "female" ? "danger" : "slate"
+                    tone={
+                      r.gender === "male" ? "primary" : r.gender === "female" ? "danger" : "neutral"
                     }
                   >
                     {r.gender ?? "—"}
@@ -6891,11 +6930,11 @@ function BirthRecordsTab({
                 </Table.Td>
                 <Table.Td>
                   {r.is_live_birth ? (
-                    <Badge color="success" size="xs">
+                    <Badge tone="success" size="xs">
                       Yes
                     </Badge>
                   ) : (
-                    <Badge color="danger" size="xs">
+                    <Badge tone="danger" size="xs">
                       No
                     </Badge>
                   )}
@@ -6962,18 +7001,18 @@ function SurgeonCaseloadReport({ from, to }: { from: string; to: string }) {
                 </Table.Td>
                 <Table.Td>
                   {r.complication_count > 0 ? (
-                    <Badge color="danger" size="sm">
+                    <Badge tone="danger" size="sm">
                       {r.complication_count}
                     </Badge>
                   ) : (
-                    <Badge color="success" size="sm">
+                    <Badge tone="success" size="sm">
                       0
                     </Badge>
                   )}
                 </Table.Td>
                 <Table.Td>
                   {r.cancellation_count > 0 ? (
-                    <Badge color="orange" size="sm">
+                    <Badge tone="warning" size="sm">
                       {r.cancellation_count}
                     </Badge>
                   ) : (
@@ -7037,7 +7076,11 @@ function GenerateDischargeSummaryModal({
     <Modal opened={opened} onClose={onClose} title="Discharge Summary" size="lg">
       <Stack>
         {!summary && !isLoading && (
-          <Button onClick={() => generateMutation.mutate()} loading={generateMutation.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => generateMutation.mutate()}
+            loading={generateMutation.isPending}
+          >
             Generate Discharge Summary
           </Button>
         )}
@@ -7062,7 +7105,7 @@ function GenerateDischargeSummaryModal({
               <Stack gap={2}>
                 <Text fw={600}>Diagnoses:</Text>
                 {summary.diagnoses.map((d) => (
-                  <Badge key={d} variant="light" size="sm">
+                  <Badge key={d} size="sm">
                     {d}
                   </Badge>
                 ))}
@@ -7072,7 +7115,7 @@ function GenerateDischargeSummaryModal({
               <Stack gap={2}>
                 <Text fw={600}>Procedures:</Text>
                 {summary.procedures.map((p) => (
-                  <Badge key={p} variant="light" color="primary" size="sm">
+                  <Badge key={p} tone="primary" size="sm">
                     {p}
                   </Badge>
                 ))}
@@ -7082,7 +7125,7 @@ function GenerateDischargeSummaryModal({
               <Stack gap={2}>
                 <Text fw={600}>Medications at Discharge:</Text>
                 {summary.medications.map((m) => (
-                  <Badge key={m} variant="light" color="success" size="sm">
+                  <Badge key={m} tone="success" size="sm">
                     {m}
                   </Badge>
                 ))}
@@ -7246,8 +7289,7 @@ function ExpectedDischargesTab() {
       label: "Days Admitted",
       render: (row: ExpectedDischargeRow) => (
         <Badge
-          color={row.days_admitted > 14 ? "danger" : row.days_admitted > 7 ? "orange" : "primary"}
-          variant="light"
+          tone={row.days_admitted > 14 ? "danger" : row.days_admitted > 7 ? "warning" : "primary"}
           size="sm"
         >
           {row.days_admitted} days
@@ -7331,16 +7373,14 @@ function AnesthesiaComplicationsReport({ from, to }: { from: string; to: string 
                     <Text size="sm">{r.procedure_name}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Badge size="sm" variant="light">
-                      {r.anesthesia_type}
-                    </Badge>
+                    <Badge size="sm">{r.anesthesia_type}</Badge>
                   </Table.Td>
                   <Table.Td>
                     <Text size="sm" c="danger" lineClamp={2}>
                       {r.complications ?? "—"}
                     </Text>
                     {r.adverse_events != null && typeof r.adverse_events === "object" ? (
-                      <Badge size="xs" color="danger" variant="light" mt={2}>
+                      <Badge size="xs" tone="danger" mt={2}>
                         Has adverse events
                       </Badge>
                     ) : null}

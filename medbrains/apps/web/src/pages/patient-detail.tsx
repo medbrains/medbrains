@@ -2,9 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Alert,
-  Badge,
   Box,
-  Button,
   Card,
   Divider,
   Grid,
@@ -94,7 +92,6 @@ import { type ReactNode, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { PrescriptionViews } from "@/components/Clinical";
-import { statusColor } from "@/lib/status-colors";
 import { ClinicalEventProvider, useClinicalEmit } from "@/components/ClinicalEventProvider";
 import { NotesPanel } from "@/components/crdt/NotesPanel";
 import { DrugSearchSelect } from "@/components/DrugSearchSelect";
@@ -111,6 +108,7 @@ import { deriveCampJourneyCompletedEvents } from "@/components/Patient/patient-j
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { ShareDrawer } from "@/components/Sharing/ShareDrawer";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   DEFAULT_PATIENT_ALLERGY_FORM_VALUES,
   DEFAULT_PATIENT_DOCUMENT_FORM_VALUES,
@@ -128,6 +126,7 @@ import {
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { usePatientContext } from "@/hooks/usePatientContext";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { statusColor } from "@/lib/status-colors";
 import { patientDetailService } from "@/services/patientDetail.service";
 import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "@/utils/printCopies";
 import classes from "./patient-detail.module.scss";
@@ -144,19 +143,19 @@ import {
 
 // ── Helpers ────────────────────────────────────────────────
 
-const STATUS_COLORS: Record<string, string> = {
+const STATUS_COLORS: Record<string, BadgeTone> = {
   open: "primary",
   in_progress: "warning",
   completed: "success",
   cancelled: "danger",
 };
 
-const LAB_STATUS_COLORS: Record<string, string> = {
+const LAB_STATUS_COLORS: Record<string, BadgeTone> = {
   ordered: "primary",
   sample_collected: "info",
   processing: "warning",
   completed: "success",
-  verified: "teal",
+  verified: "success",
   cancelled: "danger",
 };
 
@@ -168,24 +167,54 @@ const ACTIVE_ER_VISIT_STATUSES = new Set<ErVisit["status"]>([
   "observation",
 ]);
 
-const INVOICE_STATUS_COLORS: Record<string, string> = {
-  draft: "gray",
+const INVOICE_STATUS_COLORS: Record<string, BadgeTone> = {
+  draft: "neutral",
   issued: "primary",
   partially_paid: "warning",
   paid: "success",
   cancelled: "danger",
-  refunded: "orange",
+  refunded: "warning",
 };
 
-const APPT_STATUS_COLORS: Record<string, string> = {
+const APPT_STATUS_COLORS: Record<string, BadgeTone> = {
   scheduled: "primary",
   confirmed: "info",
   checked_in: "warning",
-  in_consultation: "orange",
+  in_consultation: "warning",
   completed: "success",
   cancelled: "danger",
-  no_show: "gray",
+  no_show: "neutral",
 };
+
+function statusBadgeTone(color: string): BadgeTone {
+  switch (color) {
+    case "primary":
+      return "primary";
+    case "success":
+    case "green":
+    case "teal":
+    case "lime":
+      return "success";
+    case "warning":
+    case "yellow":
+    case "orange":
+      return "warning";
+    case "danger":
+    case "red":
+      return "danger";
+    case "info":
+    case "blue":
+    case "cyan":
+    case "indigo":
+      return "info";
+    case "violet":
+    case "grape":
+    case "pink":
+      return "accent";
+    default:
+      return "neutral";
+  }
+}
 
 function formatDate(d: string | null): string {
   if (!d) return "-";
@@ -309,14 +338,13 @@ function OverviewTab({ patient }: { patient: Patient }) {
               {allergies.map((a: PatientAllergy) => (
                 <Group key={a.id} gap="xs">
                   <Badge
-                    color={
+                    tone={
                       a.severity === "severe" || a.severity === "life_threatening"
                         ? "danger"
                         : a.severity === "moderate"
-                          ? "orange"
+                          ? "warning"
                           : "warning"
                     }
-                    variant="light"
                     size="sm"
                   >
                     {a.severity}
@@ -340,18 +368,10 @@ function OverviewTab({ patient }: { patient: Patient }) {
               Flags
             </Title>
             <Group gap="xs">
-              {patient.is_vip && (
-                <Badge color="violet" variant="light">
-                  VIP
-                </Badge>
-              )}
-              {patient.is_medico_legal && (
-                <Badge color="danger" variant="light">
-                  Medico-Legal
-                </Badge>
-              )}
+              {patient.is_vip && <Badge tone="accent">VIP</Badge>}
+              {patient.is_medico_legal && <Badge tone="danger">Medico-Legal</Badge>}
               {patient.is_deceased && (
-                <Badge color="gray" variant="filled">
+                <Badge tone="neutral" variant="filled">
                   Deceased
                 </Badge>
               )}
@@ -377,7 +397,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 // ── Allergies Tab ─────────────────────────────────────────
-
 
 function AllergiesTab({ patient }: { patient: Patient }) {
   const canUpdate = useHasPermission(P.PATIENTS.UPDATE);
@@ -443,7 +462,7 @@ function AllergiesTab({ patient }: { patient: Patient }) {
 
       {canUpdate && (
         <Group justify="flex-end">
-          <Button leftSection={<IconPlus size={14} />} size="sm" onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={14} />} size="sm" onClick={open}>
             Add Allergy
           </Button>
         </Group>
@@ -473,13 +492,11 @@ function AllergiesTab({ patient }: { patient: Patient }) {
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge variant="light" size="sm">
-                    {a.allergy_type.replace(/_/g, " ")}
-                  </Badge>
+                  <Badge size="sm">{a.allergy_type.replace(/_/g, " ")}</Badge>
                 </Table.Td>
                 <Table.Td>
                   {a.severity ? (
-                    <Badge color={statusColor(a.severity) ?? "gray"} variant="light" size="sm">
+                    <Badge tone={statusBadgeTone(statusColor(a.severity))} size="sm">
                       {a.severity.replace(/_/g, " ")}
                     </Badge>
                   ) : (
@@ -596,10 +613,10 @@ function AllergiesTab({ patient }: { patient: Patient }) {
             )}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={handleClose}>
+            <Button tone="ghost" onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="submit" loading={createMutation.isPending}>
+            <Button tone="primary" type="submit" loading={createMutation.isPending}>
               Add Allergy
             </Button>
           </Group>
@@ -651,7 +668,7 @@ function VisitsTab({ patientId }: { patientId: string }) {
               </Text>
             </Table.Td>
             <Table.Td>
-              <Badge variant="light" size="sm" tt="uppercase">
+              <Badge size="sm" tt="uppercase">
                 {v.encounter_type}
               </Badge>
             </Table.Td>
@@ -682,7 +699,7 @@ function VisitsTab({ patientId }: { patientId: string }) {
               </Text>
             </Table.Td>
             <Table.Td>
-              <Badge color={STATUS_COLORS[v.status] ?? "gray"} variant="light" size="sm">
+              <Badge tone={STATUS_COLORS[v.status] ?? "neutral"} size="sm">
                 {v.status.replace(/_/g, " ")}
               </Badge>
             </Table.Td>
@@ -774,16 +791,15 @@ function LabOrdersTab({ patientId }: { patientId: string }) {
               </Text>
             </Table.Td>
             <Table.Td>
-              <Badge color={LAB_STATUS_COLORS[o.status] ?? "gray"} variant="light" size="sm">
+              <Badge tone={LAB_STATUS_COLORS[o.status] ?? "neutral"} size="sm">
                 {o.status.replace(/_/g, " ")}
               </Badge>
             </Table.Td>
             <Table.Td>
               <Badge
-                color={
-                  o.priority === "stat" ? "danger" : o.priority === "urgent" ? "orange" : "gray"
+                tone={
+                  o.priority === "stat" ? "danger" : o.priority === "urgent" ? "warning" : "neutral"
                 }
-                variant="light"
                 size="sm"
               >
                 {o.priority}
@@ -851,9 +867,7 @@ function ImagingTab({ patientId }: { patientId: string }) {
               </Text>
             </Table.Td>
             <Table.Td>
-              <Badge size="sm" variant="light">
-                {study.modality}
-              </Badge>
+              <Badge size="sm">{study.modality}</Badge>
             </Table.Td>
             <Table.Td>
               <Text size="sm">
@@ -870,12 +884,12 @@ function ImagingTab({ patientId }: { patientId: string }) {
                 <Group gap="xs" wrap="nowrap">
                   {study.viewer_url ? (
                     <Button
+                      tone="secondary"
                       component="a"
                       href={study.viewer_url}
                       target="_blank"
                       rel="noreferrer"
                       size="xs"
-                      variant="light"
                       leftSection={<IconEye size={14} />}
                     >
                       Viewer
@@ -883,12 +897,12 @@ function ImagingTab({ patientId }: { patientId: string }) {
                   ) : null}
                   {study.pacs_url ? (
                     <Button
+                      tone="ghost"
                       component="a"
                       href={study.pacs_url}
                       target="_blank"
                       rel="noreferrer"
                       size="xs"
-                      variant="subtle"
                     >
                       DICOM
                     </Button>
@@ -1091,8 +1105,8 @@ function BillingTab({ patientId }: { patientId: string }) {
           here.
         </Text>
         <Button
+          tone="secondary"
           size="xs"
-          variant="light"
           leftSection={<IconPrinter size={14} />}
           onClick={handlePrintPatientLedger}
           loading={printingPatientLedger}
@@ -1172,11 +1186,7 @@ function BillingTab({ patientId }: { patientId: string }) {
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge
-                    color={INVOICE_STATUS_COLORS[inv.status] ?? "gray"}
-                    variant="light"
-                    size="sm"
-                  >
+                  <Badge tone={INVOICE_STATUS_COLORS[inv.status] ?? "neutral"} size="sm">
                     {inv.status.replace(/_/g, " ")}
                   </Badge>
                 </Table.Td>
@@ -1274,9 +1284,7 @@ function AppointmentsTab({ patientId }: { patientId: string }) {
               </Group>
             </Table.Td>
             <Table.Td>
-              <Badge variant="light" size="sm">
-                {a.appointment_type.replace(/_/g, " ")}
-              </Badge>
+              <Badge size="sm">{a.appointment_type.replace(/_/g, " ")}</Badge>
             </Table.Td>
             <Table.Td>
               <Text size="sm">{a.doctor_name ?? "-"}</Text>
@@ -1290,7 +1298,7 @@ function AppointmentsTab({ patientId }: { patientId: string }) {
               </Text>
             </Table.Td>
             <Table.Td>
-              <Badge color={APPT_STATUS_COLORS[a.status] ?? "gray"} variant="light" size="sm">
+              <Badge tone={APPT_STATUS_COLORS[a.status] ?? "neutral"} size="sm">
                 {a.status.replace(/_/g, " ")}
               </Badge>
             </Table.Td>
@@ -1373,7 +1381,7 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
     <Stack gap="md">
       {canUpdate && (
         <Group justify="flex-end">
-          <Button leftSection={<IconPlus size={14} />} size="sm" onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={14} />} size="sm" onClick={open}>
             Link Family Member
           </Button>
         </Group>
@@ -1399,9 +1407,7 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
             {links.map((l) => (
               <Table.Tr key={l.id}>
                 <Table.Td>
-                  <Badge size="sm" variant="light">
-                    {l.relationship}
-                  </Badge>
+                  <Badge size="sm">{l.relationship}</Badge>
                 </Table.Td>
                 <Table.Td>
                   <Text size="sm" fw={500}>
@@ -1449,7 +1455,7 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
               onChange={(e) => setSearchTerm(e.currentTarget.value)}
               style={{ flex: 1 }}
             />
-            <Button size="sm" onClick={handleSearch}>
+            <Button tone="primary" size="sm" onClick={handleSearch}>
               Search
             </Button>
           </Group>
@@ -1515,10 +1521,15 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
             )}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={handleClose}>
+            <Button tone="ghost" onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="submit" loading={createMutation.isPending} disabled={!selectedRelated}>
+            <Button
+              tone="primary"
+              type="submit"
+              loading={createMutation.isPending}
+              disabled={!selectedRelated}
+            >
               Link
             </Button>
           </Group>
@@ -1577,7 +1588,7 @@ function DetailDocumentsTab({ patientId }: { patientId: string }) {
     <Stack gap="md">
       {canUpdate && (
         <Group justify="flex-end">
-          <Button leftSection={<IconPlus size={14} />} size="sm" onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={14} />} size="sm" onClick={open}>
             Add Document
           </Button>
         </Group>
@@ -1602,9 +1613,7 @@ function DetailDocumentsTab({ patientId }: { patientId: string }) {
             {documents.map((d) => (
               <Table.Tr key={d.id}>
                 <Table.Td>
-                  <Badge size="sm" variant="light">
-                    {d.document_type}
-                  </Badge>
+                  <Badge size="sm">{d.document_type}</Badge>
                 </Table.Td>
                 <Table.Td>
                   <Text size="sm" fw={500}>
@@ -1707,10 +1716,10 @@ function DetailDocumentsTab({ patientId }: { patientId: string }) {
             )}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={handleClose}>
+            <Button tone="ghost" onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="submit" loading={createMutation.isPending}>
+            <Button tone="primary" type="submit" loading={createMutation.isPending}>
               Add
             </Button>
           </Group>
@@ -1817,7 +1826,7 @@ function MergeTab({ patient }: { patient: Patient }) {
                     <Text size="sm">{h.merge_reason}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Badge size="sm" color={h.unmerged_at ? "gray" : "success"}>
+                    <Badge size="sm" tone={h.unmerged_at ? "neutral" : "success"}>
                       {h.unmerged_at ? "Unmerged" : "Active"}
                     </Badge>
                   </Table.Td>
@@ -1825,9 +1834,8 @@ function MergeTab({ patient }: { patient: Patient }) {
                     <Table.Td>
                       {!h.unmerged_at && (
                         <Button
+                          tone="secondary"
                           size="xs"
-                          variant="light"
-                          color="orange"
                           onClick={() => unmergeMutation.mutate(h.id)}
                         >
                           Undo
@@ -1901,7 +1909,7 @@ function MergeTab({ patient }: { patient: Patient }) {
                 </Text>
                 <SimpleGrid cols={2}>
                   <Stack gap={4}>
-                    <Badge color="success" variant="light" size="sm" mb={4}>
+                    <Badge tone="success" size="sm" mb={4}>
                       Surviving Record (this patient)
                     </Badge>
                     <Group gap="xs">
@@ -1942,13 +1950,11 @@ function MergeTab({ patient }: { patient: Patient }) {
                       <Text size="xs" c="dimmed" w={60}>
                         Category
                       </Text>
-                      <Badge size="xs" variant="light">
-                        {patient.category}
-                      </Badge>
+                      <Badge size="xs">{patient.category}</Badge>
                     </Group>
                   </Stack>
                   <Stack gap={4}>
-                    <Badge color="warning" variant="light" size="sm" mb={4}>
+                    <Badge tone="warning" size="sm" mb={4}>
                       Duplicate (will be deactivated)
                     </Badge>
                     <Group gap="xs">
@@ -1989,9 +1995,7 @@ function MergeTab({ patient }: { patient: Patient }) {
                       <Text size="xs" c="dimmed" w={60}>
                         Category
                       </Text>
-                      <Badge size="xs" variant="light">
-                        {selectedTarget.category}
-                      </Badge>
+                      <Badge size="xs">{selectedTarget.category}</Badge>
                     </Group>
                   </Stack>
                 </SimpleGrid>
@@ -2017,8 +2021,8 @@ function MergeTab({ patient }: { patient: Patient }) {
               />
               <Group justify="flex-end">
                 <Button
+                  tone="ghost"
                   type="button"
-                  variant="subtle"
                   onClick={() => {
                     setSelectedTarget(null);
                     reset(DEFAULT_PATIENT_MERGE_FORM_VALUES);
@@ -2026,7 +2030,7 @@ function MergeTab({ patient }: { patient: Patient }) {
                 >
                   Cancel
                 </Button>
-                <Button type="submit" color="warning">
+                <Button tone="primary" type="submit">
                   Merge Records
                 </Button>
               </Group>
@@ -2042,11 +2046,11 @@ function MergeTab({ patient }: { patient: Patient }) {
           can be undone later.
         </Alert>
         <Group justify="flex-end">
-          <Button variant="subtle" onClick={confirmHandlers.close}>
+          <Button tone="ghost" onClick={confirmHandlers.close}>
             Cancel
           </Button>
           <Button
-            color="danger"
+            tone="danger"
             loading={mergeMutation.isPending}
             onClick={() => {
               if (selectedTarget) {
@@ -2219,13 +2223,13 @@ const EVENT_COLORS: Record<string, string> = {
   held: "#fab005",
 };
 
-const ENROLLMENT_STATUS_COLORS: Record<string, string> = {
+const ENROLLMENT_STATUS_COLORS: Record<string, BadgeTone> = {
   active: "success",
-  completed: "teal",
-  discontinued: "orange",
+  completed: "success",
+  discontinued: "warning",
   transferred: "primary",
   lost_to_followup: "danger",
-  deceased: "dark",
+  deceased: "neutral",
 };
 
 function ChronicCareTab({ patientId }: { patientId: string }) {
@@ -2310,7 +2314,7 @@ function DrugOGramSegment({ patientId }: { patientId: string }) {
         <Group gap="xs">
           {summary && (
             <Button
-              variant="light"
+              tone="secondary"
               size="xs"
               leftSection={<IconPrinter size={14} />}
               onClick={() => printTreatmentSummary(summary)}
@@ -2332,11 +2336,11 @@ function DrugOGramSegment({ patientId }: { patientId: string }) {
             {activeAlerts.map((a) => (
               <Group key={a.id} gap="xs">
                 <Badge
-                  color={
+                  tone={
                     a.severity === "contraindicated"
                       ? "danger"
                       : a.severity === "major"
-                        ? "orange"
+                        ? "warning"
                         : "warning"
                   }
                   size="sm"
@@ -2589,7 +2593,7 @@ function DrugSwimLane({ data }: { data: DrugTimelineWithLabsResponse }) {
                       {series.parameter_name}
                     </Text>
                     {atTarget !== null && (
-                      <Badge color={atTarget ? "success" : "danger"} size="xs">
+                      <Badge tone={atTarget ? "success" : "danger"} size="xs">
                         {atTarget ? "At Target" : "Off Target"}
                       </Badge>
                     )}
@@ -2669,7 +2673,7 @@ function OutcomesSegment({ patientId }: { patientId: string }) {
                     {t.target.parameter_name}
                   </Text>
                   {t.at_target !== null && (
-                    <Badge color={t.at_target ? "success" : "danger"} size="xs">
+                    <Badge tone={t.at_target ? "success" : "danger"} size="xs">
                       {t.at_target ? "At Target" : "Off Target"}
                     </Badge>
                   )}
@@ -2741,7 +2745,7 @@ function AdherenceSegment({ patientId }: { patientId: string }) {
                   Enrolled: {e.enrollment_date}
                 </Text>
               </div>
-              <Badge color={ENROLLMENT_STATUS_COLORS[e.status] ?? "gray"}>
+              <Badge tone={ENROLLMENT_STATUS_COLORS[e.status] ?? "neutral"}>
                 {e.status.replace(/_/g, " ")}
               </Badge>
             </Group>
@@ -2771,15 +2775,9 @@ function AdherenceSegment({ patientId }: { patientId: string }) {
                 Doses
               </Text>
               <Group gap="xs" mt="xs">
-                <Badge color="success" variant="light">
-                  {summary.doses_taken} taken
-                </Badge>
-                <Badge color="danger" variant="light">
-                  {summary.doses_missed} missed
-                </Badge>
-                <Badge color="warning" variant="light">
-                  {summary.doses_late} late
-                </Badge>
+                <Badge tone="success">{summary.doses_taken} taken</Badge>
+                <Badge tone="danger">{summary.doses_missed} missed</Badge>
+                <Badge tone="warning">{summary.doses_late} late</Badge>
               </Group>
             </Card>
             <Card withBorder padding="md">
@@ -2787,12 +2785,8 @@ function AdherenceSegment({ patientId }: { patientId: string }) {
                 Appointments
               </Text>
               <Group gap="xs" mt="xs">
-                <Badge color="success" variant="light">
-                  {summary.appointments_attended} attended
-                </Badge>
-                <Badge color="danger" variant="light">
-                  {summary.appointments_missed} missed
-                </Badge>
+                <Badge tone="success">{summary.appointments_attended} attended</Badge>
+                <Badge tone="danger">{summary.appointments_missed} missed</Badge>
               </Group>
             </Card>
           </SimpleGrid>
@@ -3155,7 +3149,7 @@ function PatientDetailPageInner() {
         subtitle={`UHID: ${displayUhid} | ${patient.gender} | ${displayAge} | ${displayPhone}`}
         actions={
           canListPatients ? (
-            <Button variant="light" onClick={() => navigate("/patients")}>
+            <Button tone="secondary" onClick={() => navigate("/patients")}>
               Patient Directory
             </Button>
           ) : undefined
@@ -3186,44 +3180,24 @@ function PatientDetailPageInner() {
             <Stack gap={4}>
               <Group gap="xs">
                 <Text fw={700}>{displayName}</Text>
-                <Badge color="primary" variant="light">
-                  {patient.category}
-                </Badge>
-                <Badge color="gray" variant="light">
-                  {patient.financial_class}
-                </Badge>
-                {patient.blood_group && (
-                  <Badge color="danger" variant="light">
-                    {patient.blood_group}
-                  </Badge>
-                )}
-                {patient.is_vip && (
-                  <Badge color="violet" variant="light">
-                    VIP
-                  </Badge>
-                )}
+                <Badge tone="primary">{patient.category}</Badge>
+                <Badge tone="neutral">{patient.financial_class}</Badge>
+                {patient.blood_group && <Badge tone="danger">{patient.blood_group}</Badge>}
+                {patient.is_vip && <Badge tone="accent">VIP</Badge>}
                 {patient.is_medico_legal && (
-                  <Badge color="danger" variant="filled">
+                  <Badge tone="danger" variant="filled">
                     MLC
                   </Badge>
                 )}
-                {hasEmergencyVisit && (
-                  <Badge color="red" variant="light">
-                    ER linked
-                  </Badge>
-                )}
+                {hasEmergencyVisit && <Badge tone="danger">ER linked</Badge>}
                 {hasCampRegistration && (
-                  <Badge color={hasCampScreeningCompleted ? "teal" : "cyan"} variant="light">
+                  <Badge tone={hasCampScreeningCompleted ? "success" : "info"}>
                     {hasCampScreeningCompleted ? "Camp screened" : "Camp linked"}
                   </Badge>
                 )}
-                {hasClinicalOrder && (
-                  <Badge color="teal" variant="light">
-                    Order handoff
-                  </Badge>
-                )}
+                {hasClinicalOrder && <Badge tone="success">Order handoff</Badge>}
                 {pendingInvoiceCount > 0 && (
-                  <Badge color="orange" variant="light">
+                  <Badge tone="warning">
                     {pendingInvoiceCount} pending bill{pendingInvoiceCount === 1 ? "" : "s"}
                   </Badge>
                 )}
@@ -3327,18 +3301,10 @@ function PatientDetailPageInner() {
                   </Text>
                 </Stack>
                 <Group gap="xs">
-                  {activeEncounter && (
-                    <Badge color="teal" variant="light">
-                      Active OPD
-                    </Badge>
-                  )}
-                  {activeAdmission && (
-                    <Badge color="primary" variant="light">
-                      Active IPD
-                    </Badge>
-                  )}
+                  {activeEncounter && <Badge tone="success">Active OPD</Badge>}
+                  {activeAdmission && <Badge tone="primary">Active IPD</Badge>}
                   {patient.is_deceased && (
-                    <Badge color="dark" variant="filled">
+                    <Badge tone="neutral" variant="filled">
                       Deceased
                     </Badge>
                   )}
@@ -3358,9 +3324,8 @@ function PatientDetailPageInner() {
                         .map((tab) => (
                           <Button
                             key={tab.value}
+                            tone={activeDetailTab === tab.value ? "primary" : "secondary"}
                             size="xs"
-                            variant={activeDetailTab === tab.value ? "filled" : "light"}
-                            color={activeDetailTab === tab.value ? "primary" : "slate"}
                             leftSection={tab.icon}
                             onClick={() => setActivePatientTab(tab.value)}
                             fullWidth
@@ -3390,9 +3355,8 @@ function PatientDetailPageInner() {
                   />
                   {canViewBillingLedger && (
                     <Button
+                      tone="secondary"
                       size="xs"
-                      variant="light"
-                      color="orange"
                       leftSection={<IconReceipt size={14} />}
                       onClick={() => navigate(`/billing?tab=invoices&patient_id=${patient.id}`)}
                       fullWidth

@@ -1,7 +1,5 @@
 import {
   ActionIcon,
-  Badge,
-  Button,
   Drawer,
   Grid,
   Group,
@@ -51,44 +49,45 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { insuranceService } from "@/services/insurance.service";
 
 // ── Color maps ─────────────────────────────────────────
 
-const verificationColors: Record<string, string> = {
+const verificationColors: Record<string, BadgeTone> = {
   pending: "warning",
   active: "success",
-  inactive: "slate",
-  unknown: "orange",
+  inactive: "neutral",
+  unknown: "warning",
   error: "danger",
 };
 
-const paStatusColors: Record<string, string> = {
-  draft: "slate",
+const paStatusColors: Record<string, BadgeTone> = {
+  draft: "neutral",
   pending_info: "warning",
   submitted: "primary",
   in_review: "primary",
   approved: "success",
-  partially_approved: "lime",
+  partially_approved: "success",
   denied: "danger",
-  expired: "orange",
-  cancelled: "dimmed",
+  expired: "warning",
+  cancelled: "neutral",
 };
 
-const urgencyColors: Record<string, string> = {
+const urgencyColors: Record<string, BadgeTone> = {
   standard: "primary",
   urgent: "danger",
-  retrospective: "orange",
+  retrospective: "warning",
 };
 
-const appealStatusColors: Record<string, string> = {
-  draft: "slate",
+const appealStatusColors: Record<string, BadgeTone> = {
+  draft: "neutral",
   submitted: "primary",
   in_review: "warning",
   upheld: "danger",
   overturned: "success",
-  withdrawn: "dimmed",
+  withdrawn: "neutral",
 };
 
 function canViewSensitiveField(access: FieldAccessLevel) {
@@ -207,7 +206,7 @@ function VerificationTab() {
         subtitle="Run and review insurance eligibility checks"
         actions={
           canCreate ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
               Run Verification
             </Button>
           ) : undefined
@@ -246,7 +245,7 @@ function VerificationTab() {
             key: "status",
             label: "Status",
             render: (r: InsuranceVerification) => (
-              <Badge color={verificationColors[r.status] ?? "slate"}>{r.status}</Badge>
+              <Badge tone={verificationColors[r.status] ?? "neutral"}>{r.status}</Badge>
             ),
           },
           {
@@ -258,7 +257,9 @@ function VerificationTab() {
             key: "scheme_type",
             label: "Scheme",
             render: (r: InsuranceVerification) => (
-              <Badge variant="outline">{r.scheme_type ?? "N/A"}</Badge>
+              <Badge variant="outline" tone="neutral">
+                {r.scheme_type ?? "N/A"}
+              </Badge>
             ),
           },
           {
@@ -310,7 +311,7 @@ function VerificationTab() {
             value={form.trigger_point}
             onChange={(v) => setForm({ ...form, trigger_point: v ?? "manual" })}
           />
-          <Button loading={runMut.isPending} onClick={() => runMut.mutate(form)}>
+          <Button tone="primary" loading={runMut.isPending} onClick={() => runMut.mutate(form)}>
             Verify
           </Button>
         </Stack>
@@ -327,10 +328,14 @@ function VerificationTab() {
         {detail && (
           <Stack gap="sm">
             <Group>
-              <Badge size="lg" color={verificationColors[detail.status] ?? "slate"}>
+              <Badge size="lg" tone={verificationColors[detail.status] ?? "neutral"}>
                 {detail.status}
               </Badge>
-              {detail.scheme_type && <Badge variant="outline">{detail.scheme_type}</Badge>}
+              {detail.scheme_type && (
+                <Badge variant="outline" tone="neutral">
+                  {detail.scheme_type}
+                </Badge>
+              )}
             </Group>
             <Grid>
               <Grid.Col span={6}>
@@ -519,8 +524,8 @@ function PriorAuthTab() {
       notifications.show({ title: "Error", message: "Response failed", color: "danger" }),
   });
 
-  const tatColor = (pa: PriorAuthRequestRow) => {
-    if (!pa.submitted_at || !pa.expected_tat_hours) return "gray";
+  const tatColor = (pa: PriorAuthRequestRow): BadgeTone => {
+    if (!pa.submitted_at || !pa.expected_tat_hours) return "neutral";
     const elapsed = (Date.now() - new Date(pa.submitted_at).getTime()) / 3_600_000;
     const ratio = elapsed / pa.expected_tat_hours;
     if (ratio > 1) return "danger";
@@ -563,7 +568,7 @@ function PriorAuthTab() {
         subtitle="Manage prior authorization requests"
         actions={
           canCreate ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
               New PA Request
             </Button>
           ) : undefined
@@ -621,7 +626,7 @@ function PriorAuthTab() {
             key: "status",
             label: "Status",
             render: (r: PriorAuthRequestRow) => (
-              <Badge color={paStatusColors[r.status] ?? "slate"}>
+              <Badge tone={paStatusColors[r.status] ?? "neutral"}>
                 {r.status.replace(/_/g, " ")}
               </Badge>
             ),
@@ -630,7 +635,7 @@ function PriorAuthTab() {
             key: "urgency",
             label: "Urgency",
             render: (r: PriorAuthRequestRow) => (
-              <Badge variant="outline" color={urgencyColors[r.urgency] ?? "primary"}>
+              <Badge variant="outline" tone={urgencyColors[r.urgency] ?? "primary"}>
                 {r.urgency}
               </Badge>
             ),
@@ -639,7 +644,7 @@ function PriorAuthTab() {
             key: "tat",
             label: "TAT",
             render: (r: PriorAuthRequestRow) => (
-              <Badge variant="dot" color={tatColor(r)}>
+              <Badge variant="dot" tone={tatColor(r)}>
                 {r.expected_tat_hours ? `${r.expected_tat_hours}h` : "—"}
               </Badge>
             ),
@@ -649,7 +654,7 @@ function PriorAuthTab() {
             label: "Escalated",
             render: (r: PriorAuthRequestRow) =>
               r.escalated ? (
-                <Badge color="danger" size="sm">
+                <Badge tone="danger" size="sm">
                   Yes
                 </Badge>
               ) : (
@@ -744,7 +749,11 @@ function PriorAuthTab() {
               setForm({ ...form, estimated_cost: typeof v === "number" ? v : undefined })
             }
           />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+          <Button
+            tone="primary"
+            loading={createMut.isPending}
+            onClick={() => createMut.mutate(form)}
+          >
             Create PA Request
           </Button>
         </Stack>
@@ -762,13 +771,10 @@ function PriorAuthTab() {
           <Stack gap="md">
             <Group>
               <Title order={4}>{detail.prior_auth.pa_number}</Title>
-              <Badge color={paStatusColors[detail.prior_auth.status] ?? "slate"} size="lg">
+              <Badge tone={paStatusColors[detail.prior_auth.status] ?? "neutral"} size="lg">
                 {detail.prior_auth.status.replace(/_/g, " ")}
               </Badge>
-              <Badge
-                variant="outline"
-                color={urgencyColors[detail.prior_auth.urgency] ?? "primary"}
-              >
+              <Badge variant="outline" tone={urgencyColors[detail.prior_auth.urgency] ?? "primary"}>
                 {detail.prior_auth.urgency}
               </Badge>
             </Group>
@@ -843,7 +849,7 @@ function PriorAuthTab() {
             <Stack gap="xs">
               {detail.status_log.map((log) => (
                 <Group key={log.id} gap="sm">
-                  <Badge size="xs" color={paStatusColors[log.to_status] ?? "slate"}>
+                  <Badge size="xs" tone={paStatusColors[log.to_status] ?? "neutral"}>
                     {log.to_status.replace(/_/g, " ")}
                   </Badge>
                   <Text size="xs" c="dimmed">
@@ -873,11 +879,7 @@ function PriorAuthTab() {
             {/* Actions */}
             <Group>
               {canUpdate && detail.prior_auth.status === "submitted" && (
-                <Button
-                  variant="filled"
-                  color="success"
-                  onClick={() => setRespondId(detail.prior_auth.id)}
-                >
+                <Button tone="primary" onClick={() => setRespondId(detail.prior_auth.id)}>
                   Record Response
                 </Button>
               )}
@@ -885,8 +887,7 @@ function PriorAuthTab() {
                 (detail.prior_auth.status === "draft" ||
                   detail.prior_auth.status === "pending_info") && (
                   <Button
-                    variant="filled"
-                    color="primary"
+                    tone="primary"
                     leftSection={<IconSend size={16} />}
                     loading={submitMut.isPending}
                     onClick={() => submitMut.mutate(detail.prior_auth.id)}
@@ -898,8 +899,7 @@ function PriorAuthTab() {
                 detail.prior_auth.status !== "cancelled" &&
                 detail.prior_auth.status !== "expired" && (
                   <Button
-                    variant="outline"
-                    color="danger"
+                    tone="subtle-danger"
                     loading={cancelMut.isPending}
                     onClick={() => cancelMut.mutate(detail.prior_auth.id)}
                   >
@@ -1011,6 +1011,7 @@ function PriorAuthTab() {
             }
           />
           <Button
+            tone="primary"
             loading={respondMut.isPending}
             onClick={handleRespondPriorAuth}
             disabled={responseBlockedByFieldAccess}
@@ -1071,7 +1072,7 @@ function AppealsTab() {
         subtitle="Manage appeals for denied prior authorizations"
         actions={
           canCreate ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
               New Appeal
             </Button>
           ) : undefined
@@ -1111,13 +1112,17 @@ function AppealsTab() {
           {
             key: "level",
             label: "Level",
-            render: (r: PriorAuthAppeal) => <Badge variant="outline">{r.level}</Badge>,
+            render: (r: PriorAuthAppeal) => (
+              <Badge variant="outline" tone="neutral">
+                {r.level}
+              </Badge>
+            ),
           },
           {
             key: "status",
             label: "Status",
             render: (r: PriorAuthAppeal) => (
-              <Badge color={appealStatusColors[r.status] ?? "slate"}>
+              <Badge tone={appealStatusColors[r.status] ?? "neutral"}>
                 {r.status.replace(/_/g, " ")}
               </Badge>
             ),
@@ -1200,7 +1205,11 @@ function AppealsTab() {
               setForm({ ...form, letter_content: e.currentTarget.value || undefined })
             }
           />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+          <Button
+            tone="primary"
+            loading={createMut.isPending}
+            onClick={() => createMut.mutate(form)}
+          >
             Create Appeal
           </Button>
         </Stack>
@@ -1249,7 +1258,7 @@ function RulesTab() {
         subtitle="Configure when prior authorization is required"
         actions={
           canManage ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
               Add Rule
             </Button>
           ) : undefined
@@ -1304,7 +1313,11 @@ function RulesTab() {
           {
             key: "priority",
             label: "Priority",
-            render: (r: PaRequirementRule) => <Badge variant="outline">{r.priority}</Badge>,
+            render: (r: PaRequirementRule) => (
+              <Badge variant="outline" tone="neutral">
+                {r.priority}
+              </Badge>
+            ),
           },
           {
             key: "is_active",
@@ -1318,7 +1331,7 @@ function RulesTab() {
                   }
                 />
               ) : (
-                <Badge color={r.is_active ? "success" : "slate"}>
+                <Badge tone={r.is_active ? "success" : "neutral"}>
                   {r.is_active ? "Yes" : "No"}
                 </Badge>
               ),
@@ -1405,7 +1418,11 @@ function RulesTab() {
             value={form.priority ?? 0}
             onChange={(v) => setForm({ ...form, priority: typeof v === "number" ? v : undefined })}
           />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+          <Button
+            tone="primary"
+            loading={createMut.isPending}
+            onClick={() => createMut.mutate(form)}
+          >
             Create Rule
           </Button>
         </Stack>
@@ -1488,17 +1505,17 @@ function DashboardTab() {
         </Title>
         <Group gap="lg">
           <Group gap="xs">
-            <Badge color="success" variant="dot" />
+            <Badge tone="success" variant="dot" />
             <Text size="sm">
               Approved: {d.approved_prior_auths} ({approvalRate.toFixed(1)}%)
             </Text>
           </Group>
           <Group gap="xs">
-            <Badge color="danger" variant="dot" />
+            <Badge tone="danger" variant="dot" />
             <Text size="sm">Denied: {d.denied_prior_auths}</Text>
           </Group>
           <Group gap="xs">
-            <Badge color="primary" variant="dot" />
+            <Badge tone="primary" variant="dot" />
             <Text size="sm">Pending: {d.pending_prior_auths}</Text>
           </Group>
         </Group>
@@ -1538,7 +1555,9 @@ function DashboardTab() {
               {d.top_denial_reasons.map((r) => (
                 <Group key={r.reason} justify="space-between">
                   <Text size="sm">{r.reason}</Text>
-                  <Badge variant="outline">{r.count}</Badge>
+                  <Badge variant="outline" tone="neutral">
+                    {r.count}
+                  </Badge>
                 </Group>
               ))}
             </Stack>

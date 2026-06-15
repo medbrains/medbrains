@@ -1,7 +1,5 @@
 import {
   ActionIcon,
-  Badge,
-  Button,
   Divider,
   Drawer,
   Group,
@@ -65,10 +63,11 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable, PageHeader, StatusDot } from "@/components";
-import { statusColor } from "@/lib/status-colors";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { statusColor } from "@/lib/status-colors";
 import { bloodBankService } from "@/services/bloodBank.service";
 
 type UpdateBbLookbackPayload = { id: string } & UpdateBbLookbackRequest;
@@ -214,11 +213,7 @@ function DonorsTab() {
     {
       key: "blood_group" as const,
       label: "Blood Group",
-      render: (d: BloodDonor) => (
-        <Badge variant="light" color="danger">
-          {d.blood_group}
-        </Badge>
-      ),
+      render: (d: BloodDonor) => <Badge tone="danger">{d.blood_group}</Badge>,
     },
     {
       key: "total_donations" as const,
@@ -230,9 +225,9 @@ function DonorsTab() {
       label: "Status",
       render: (d: BloodDonor) =>
         d.is_deferred ? (
-          <Badge color="orange">Deferred</Badge>
+          <Badge tone="warning">Deferred</Badge>
         ) : (
-          <Badge color="success">Active</Badge>
+          <Badge tone="success">Active</Badge>
         ),
     },
     {
@@ -260,7 +255,7 @@ function DonorsTab() {
           w={160}
         />
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Register Donor
           </Button>
         )}
@@ -353,6 +348,7 @@ function CreateDonorForm({
       />
       <TextInput label="Phone" value={phone} onChange={(e) => setPhone(e.currentTarget.value)} />
       <Button
+        tone="primary"
         onClick={() => {
           if (!donorNumber || !firstName || !lastName || !bloodGroup) return;
           onSubmit({
@@ -434,10 +430,8 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
         <Text fw={700}>
           {donor.first_name} {donor.last_name}
         </Text>
-        <Badge color="danger" variant="light">
-          {donor.blood_group}
-        </Badge>
-        {donor.is_deferred && <Badge color="orange">Deferred until {donor.deferral_until}</Badge>}
+        <Badge tone="danger">{donor.blood_group}</Badge>
+        {donor.is_deferred && <Badge tone="warning">Deferred until {donor.deferral_until}</Badge>}
       </Group>
       <Table>
         <Table.Tbody>
@@ -463,7 +457,7 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
       </Table>
 
       {canCreate && (
-        <Button leftSection={<IconDroplet size={16} />} variant="light" onClick={openDonate}>
+        <Button tone="secondary" leftSection={<IconDroplet size={16} />} onClick={openDonate}>
           Record Donation
         </Button>
       )}
@@ -497,11 +491,7 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
                       <Tooltip
                         label={`${reactionTypeLabels[reaction.reaction_type] ?? reaction.reaction_type} — ${reaction.severity} — ${reaction.outcome}`}
                       >
-                        <Badge
-                          color="danger"
-                          variant="light"
-                          leftSection={<IconAlertTriangle size={12} />}
-                        >
+                        <Badge tone="danger" leftSection={<IconAlertTriangle size={12} />}>
                           Adverse Reaction
                         </Badge>
                       </Tooltip>
@@ -515,9 +505,8 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
                     <Table.Td>
                       {!reaction && (
                         <Button
+                          tone="subtle-danger"
                           size="compact-xs"
-                          variant="light"
-                          color="danger"
                           leftSection={<IconAlertTriangle size={12} />}
                           onClick={() => setReactionDonation(d)}
                         >
@@ -616,6 +605,7 @@ function CreateDonationForm({
       />
       <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
       <Button
+        tone="primary"
         onClick={() => {
           if (!bagNumber) return;
           onSubmit({
@@ -710,7 +700,7 @@ function AdverseReactionForm({
         onChange={setOutcome}
       />
       <Button
-        color="danger"
+        tone="danger"
         onClick={() => {
           if (!reactionType || !severity || !description || !treatmentGiven || !outcome) return;
           onSubmit({
@@ -820,11 +810,7 @@ function InventoryTab() {
     {
       key: "blood_group" as const,
       label: "Group",
-      render: (c: BloodComponent) => (
-        <Badge variant="light" color="danger">
-          {c.blood_group}
-        </Badge>
-      ),
+      render: (c: BloodComponent) => <Badge tone="danger">{c.blood_group}</Badge>,
     },
     {
       key: "volume_ml" as const,
@@ -852,8 +838,8 @@ function InventoryTab() {
               <Group gap={4}>
                 {c.status === "collected" && (
                   <Button
+                    tone="secondary"
                     size="compact-xs"
-                    variant="light"
                     onClick={() => statusMut.mutate({ id: c.id, status: "available" })}
                   >
                     Mark Available
@@ -861,9 +847,8 @@ function InventoryTab() {
                 )}
                 {c.status === "available" && (
                   <Button
+                    tone="secondary"
                     size="compact-xs"
-                    variant="light"
-                    color="orange"
                     onClick={() => statusMut.mutate({ id: c.id, status: "reserved" })}
                   >
                     Reserve
@@ -899,11 +884,7 @@ function InventoryTab() {
     {
       key: "blood_group" as const,
       label: "Group",
-      render: (c: BloodComponent) => (
-        <Badge variant="light" color="danger">
-          {c.blood_group}
-        </Badge>
-      ),
+      render: (c: BloodComponent) => <Badge tone="danger">{c.blood_group}</Badge>,
     },
     {
       key: "volume_ml" as const,
@@ -914,7 +895,7 @@ function InventoryTab() {
       key: "discard_reason" as const,
       label: "Reason",
       render: (c: BloodComponent) => (
-        <Badge color="dark" variant="light">
+        <Badge tone="neutral">
           {discardReasonLabels[c.discard_reason ?? ""] ?? c.discard_reason ?? "—"}
         </Badge>
       ),
@@ -982,7 +963,7 @@ function InventoryTab() {
               w={160}
             />
             {canManage && (
-              <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+              <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
                 Add Component
               </Button>
             )}
@@ -1146,6 +1127,7 @@ function CreateComponentForm({ onSubmit }: { onSubmit: (d: CreateComponentReques
         onChange={(e) => setStorageLocation(e.currentTarget.value)}
       />
       <Button
+        tone="primary"
         onClick={() => {
           if (!donationId || !componentType || !bagNumber || !bloodGroup || !expiryAt) return;
           onSubmit({
@@ -1215,7 +1197,7 @@ function DiscardComponentForm({
         minRows={3}
       />
       <Button
-        color="danger"
+        tone="danger"
         leftSection={<IconTrash size={16} />}
         onClick={() => {
           if (!reason) return;
@@ -1276,11 +1258,7 @@ function CrossmatchTab() {
     {
       key: "blood_group" as const,
       label: "Group",
-      render: (r: CrossmatchRequest) => (
-        <Badge variant="light" color="danger">
-          {r.blood_group}
-        </Badge>
-      ),
+      render: (r: CrossmatchRequest) => <Badge tone="danger">{r.blood_group}</Badge>,
     },
     {
       key: "component_type" as const,
@@ -1314,8 +1292,8 @@ function CrossmatchTab() {
               <Group gap={4}>
                 {r.status === "requested" && (
                   <Button
+                    tone="secondary"
                     size="compact-xs"
-                    variant="light"
                     onClick={() => updateMut.mutate({ id: r.id, status: "testing" })}
                   >
                     Start Testing
@@ -1324,9 +1302,8 @@ function CrossmatchTab() {
                 {r.status === "testing" && (
                   <>
                     <Button
+                      tone="secondary"
                       size="compact-xs"
-                      variant="light"
-                      color="success"
                       onClick={() =>
                         updateMut.mutate({ id: r.id, status: "compatible", result: "compatible" })
                       }
@@ -1334,9 +1311,8 @@ function CrossmatchTab() {
                       Compatible
                     </Button>
                     <Button
+                      tone="subtle-danger"
                       size="compact-xs"
-                      variant="light"
-                      color="danger"
                       onClick={() =>
                         updateMut.mutate({
                           id: r.id,
@@ -1360,7 +1336,7 @@ function CrossmatchTab() {
     <Stack mt="md">
       <Group>
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             New Crossmatch Request
           </Button>
         )}
@@ -1428,6 +1404,7 @@ function CreateCrossmatchForm({
         onChange={(e) => setIndication(e.currentTarget.value)}
       />
       <Button
+        tone="primary"
         onClick={() => {
           if (!patientId || !bloodGroup) return;
           onSubmit({
@@ -1525,9 +1502,9 @@ function TransfusionsTab() {
       label: "Reaction",
       render: (t: TransfusionRecord) =>
         t.has_reaction ? (
-          <Badge color="danger">Yes — {t.reaction_severity}</Badge>
+          <Badge tone="danger">Yes — {t.reaction_severity}</Badge>
         ) : (
-          <Badge color="success">None</Badge>
+          <Badge tone="success">None</Badge>
         ),
     },
     {
@@ -1545,9 +1522,8 @@ function TransfusionsTab() {
               <Group gap={4}>
                 {!t.has_reaction && (
                   <Button
+                    tone="subtle-danger"
                     size="compact-xs"
-                    variant="light"
-                    color="danger"
                     onClick={() => setReactionId(t.id)}
                   >
                     Report Reaction
@@ -1564,7 +1540,7 @@ function TransfusionsTab() {
     <Stack mt="md">
       <Group>
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Record Transfusion
           </Button>
         )}
@@ -1636,6 +1612,7 @@ function CreateTransfusionForm({
         placeholder="Optional crossmatch UUID"
       />
       <Button
+        tone="primary"
         onClick={() => {
           if (!patientId || !componentId) return;
           onSubmit({
@@ -1696,7 +1673,7 @@ function RecordReactionForm({
         onChange={(e) => setDetails(e.currentTarget.value)}
       />
       <Button
-        color="danger"
+        tone="danger"
         onClick={() => {
           if (!reactionType || !severity) return;
           onSubmit({
@@ -1717,11 +1694,11 @@ function RecordReactionForm({
 //  Reports Tab (TTI + Hemovigilance)
 // ══════════════════════════════════════════════════════════
 
-const ttiStatusColors: Record<string, string> = {
+const ttiStatusColors: Record<string, BadgeTone> = {
   tested: "success",
   pending: "warning",
   reactive: "danger",
-  non_reactive: "teal",
+  non_reactive: "success",
 };
 
 function ReportsTab() {
@@ -1768,7 +1745,7 @@ function TtiReportView() {
       key: "tti_status" as const,
       label: "TTI Status",
       render: (r: TtiReportRow) => (
-        <Badge color={ttiStatusColors[r.tti_status] ?? "slate"}>
+        <Badge tone={ttiStatusColors[r.tti_status] ?? "neutral"}>
           {r.tti_status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -1833,11 +1810,11 @@ function HemovigilanceView() {
       render: (r: HemovigilanceRow) =>
         r.severity ? (
           <Badge
-            color={
+            tone={
               r.severity === "severe" || r.severity === "fatal"
                 ? "danger"
                 : r.severity === "moderate"
-                  ? "orange"
+                  ? "warning"
                   : "warning"
             }
           >
@@ -1976,7 +1953,7 @@ function ReturnsAndMsbosTab() {
       key: "is_active" as const,
       label: "Active",
       render: (r: BbMsbosGuidelineRow) =>
-        r.is_active ? <Badge color="success">Yes</Badge> : <Badge color="slate">No</Badge>,
+        r.is_active ? <Badge tone="success">Yes</Badge> : <Badge tone="neutral">No</Badge>,
     },
   ];
 
@@ -1996,7 +1973,7 @@ function ReturnsAndMsbosTab() {
         <Stack>
           <Group>
             {canManage && (
-              <Button leftSection={<IconPlus size={16} />} onClick={openReturn}>
+              <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openReturn}>
                 New Return
               </Button>
             )}
@@ -2037,6 +2014,7 @@ function ReturnsAndMsbosTab() {
                 onChange={(v) => setReturnTimeOut(v === "" ? undefined : Number(v))}
               />
               <Button
+                tone="primary"
                 onClick={() => {
                   if (!returnComponentId) return;
                   createReturnMut.mutate({
@@ -2059,7 +2037,7 @@ function ReturnsAndMsbosTab() {
         <Stack>
           <Group>
             {canCreateXm && (
-              <Button leftSection={<IconPlus size={16} />} onClick={openMsbos}>
+              <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openMsbos}>
                 Add MSBOS Guideline
               </Button>
             )}
@@ -2124,6 +2102,7 @@ function ReturnsAndMsbosTab() {
                 onChange={(e) => setMsbosNotes(e.currentTarget.value)}
               />
               <Button
+                tone="primary"
                 onClick={() => {
                   if (!msbosName || !msbosCode || !msbosType) return;
                   createMsbosMut.mutate({
@@ -2151,9 +2130,9 @@ function ReturnsAndMsbosTab() {
 //  Cold Chain Tab
 // ══════════════════════════════════════════════════════════
 
-const alertLevelColors: Record<string, string> = {
+const alertLevelColors: Record<string, BadgeTone> = {
   normal: "success",
-  warning: "orange",
+  warning: "warning",
   critical: "danger",
 };
 
@@ -2238,9 +2217,9 @@ function ColdChainTab() {
       label: "Alert",
       render: (d: BbColdChainDeviceRow) =>
         d.alert_level ? (
-          <Badge color={alertLevelColors[d.alert_level] ?? "slate"}>{d.alert_level}</Badge>
+          <Badge tone={alertLevelColors[d.alert_level] ?? "neutral"}>{d.alert_level}</Badge>
         ) : (
-          <Badge color="slate">N/A</Badge>
+          <Badge tone="neutral">N/A</Badge>
         ),
     },
     {
@@ -2253,7 +2232,7 @@ function ColdChainTab() {
       key: "id" as const,
       label: "",
       render: (d: BbColdChainDeviceRow) => (
-        <Button size="compact-xs" variant="light" onClick={() => setSelectedDevice(d)}>
+        <Button tone="secondary" size="compact-xs" onClick={() => setSelectedDevice(d)}>
           Readings
         </Button>
       ),
@@ -2281,7 +2260,7 @@ function ColdChainTab() {
       label: "Alert",
       render: (r: BbColdChainReadingRow) =>
         r.alert_level ? (
-          <Badge color={alertLevelColors[r.alert_level] ?? "slate"}>{r.alert_level}</Badge>
+          <Badge tone={alertLevelColors[r.alert_level] ?? "neutral"}>{r.alert_level}</Badge>
         ) : (
           <Text size="sm" c="dimmed">
             —
@@ -2295,10 +2274,10 @@ function ColdChainTab() {
       <Group>
         {canManage && (
           <>
-            <Button leftSection={<IconSnowflake size={16} />} onClick={openDevice}>
+            <Button tone="primary" leftSection={<IconSnowflake size={16} />} onClick={openDevice}>
               Add Device
             </Button>
-            <Button leftSection={<IconPlus size={16} />} variant="light" onClick={openReading}>
+            <Button tone="secondary" leftSection={<IconPlus size={16} />} onClick={openReading}>
               Log Reading
             </Button>
           </>
@@ -2376,6 +2355,7 @@ function ColdChainTab() {
             onChange={(v) => setDevMaxTemp(v === "" ? undefined : Number(v))}
           />
           <Button
+            tone="primary"
             onClick={() => {
               if (!devName || !devType) return;
               createDeviceMut.mutate({
@@ -2422,6 +2402,7 @@ function ColdChainTab() {
             onChange={(v) => setReadingHumidity(v === "" ? undefined : Number(v))}
           />
           <Button
+            tone="primary"
             onClick={() => {
               if (!readingDeviceId) return;
               addReadingMut.mutate({
@@ -2444,7 +2425,6 @@ function ColdChainTab() {
 //  Compliance Tab (Lookback, SBTC, Recruitment)
 // ══════════════════════════════════════════════════════════
 
-
 function ComplianceTab() {
   const [compView, setCompView] = useState("lookback");
 
@@ -2465,6 +2445,30 @@ function ComplianceTab() {
       {compView === "recruitment" && <RecruitmentSection />}
     </Stack>
   );
+}
+
+const STATUS_COLOR_TO_BADGE_TONE: Record<string, BadgeTone> = {
+  success: "success",
+  green: "success",
+  teal: "success",
+  warning: "warning",
+  yellow: "warning",
+  orange: "warning",
+  danger: "danger",
+  red: "danger",
+  info: "info",
+  blue: "info",
+  cyan: "info",
+  primary: "primary",
+  violet: "accent",
+  grape: "accent",
+  indigo: "accent",
+  pink: "accent",
+  lime: "accent",
+};
+
+function lookbackStatusTone(status: string): BadgeTone {
+  return STATUS_COLOR_TO_BADGE_TONE[statusColor(status)] ?? "neutral";
 }
 
 function LookbackSection() {
@@ -2521,7 +2525,7 @@ function LookbackSection() {
       key: "status" as const,
       label: "Status",
       render: (r: BbLookbackEventRow) => (
-        <Badge color={statusColor(r.status) ?? "slate"}>{r.status}</Badge>
+        <Badge tone={lookbackStatusTone(r.status)}>{r.status}</Badge>
       ),
     },
     {
@@ -2538,8 +2542,8 @@ function LookbackSection() {
               <Group gap={4}>
                 {r.status === "detected" && (
                   <Button
+                    tone="secondary"
                     size="compact-xs"
-                    variant="light"
                     onClick={() => updateMut.mutate({ id: r.id, status: "investigating" })}
                   >
                     Investigate
@@ -2547,9 +2551,8 @@ function LookbackSection() {
                 )}
                 {r.status === "investigating" && (
                   <Button
+                    tone="secondary"
                     size="compact-xs"
-                    variant="light"
-                    color="info"
                     onClick={() => updateMut.mutate({ id: r.id, status: "notified" })}
                   >
                     Mark Notified
@@ -2557,9 +2560,8 @@ function LookbackSection() {
                 )}
                 {r.status === "notified" && (
                   <Button
+                    tone="secondary"
                     size="compact-xs"
-                    variant="light"
-                    color="success"
                     onClick={() => updateMut.mutate({ id: r.id, status: "closed" })}
                   >
                     Close
@@ -2576,7 +2578,7 @@ function LookbackSection() {
     <Stack>
       <Group>
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             New Lookback Event
           </Button>
         )}
@@ -2621,6 +2623,7 @@ function LookbackSection() {
             onChange={(e) => setInvNotes(e.currentTarget.value)}
           />
           <Button
+            tone="primary"
             onClick={() => {
               if (!infectionType || !detectionDate) return;
               createMut.mutate({
@@ -2658,7 +2661,7 @@ function SbtcSection() {
 
   return (
     <Stack>
-      <Button onClick={fetchReport} loading={loading} w={200}>
+      <Button tone="primary" onClick={fetchReport} loading={loading} w={200}>
         Generate SBTC Report
       </Button>
       {report && (
@@ -2777,7 +2780,9 @@ function RecruitmentSection() {
       label: "Status",
       render: (r: BbRecruitmentCampaignRow) => (
         <Badge
-          color={r.status === "completed" ? "success" : r.status === "active" ? "primary" : "slate"}
+          tone={
+            r.status === "completed" ? "success" : r.status === "active" ? "primary" : "neutral"
+          }
         >
           {r.status}
         </Badge>
@@ -2792,8 +2797,8 @@ function RecruitmentSection() {
               <Group gap={4}>
                 {r.status === "planned" && (
                   <Button
+                    tone="secondary"
                     size="compact-xs"
-                    variant="light"
                     onClick={() => updateMut.mutate({ id: r.id, status: "active" })}
                   >
                     Activate
@@ -2801,9 +2806,8 @@ function RecruitmentSection() {
                 )}
                 {r.status === "active" && (
                   <Button
+                    tone="secondary"
                     size="compact-xs"
-                    variant="light"
-                    color="success"
                     onClick={() => updateMut.mutate({ id: r.id, status: "completed" })}
                   >
                     Complete
@@ -2820,7 +2824,7 @@ function RecruitmentSection() {
     <Stack>
       <Group>
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             New Campaign
           </Button>
         )}
@@ -2884,6 +2888,7 @@ function RecruitmentSection() {
             onChange={(e) => setCampNotes(e.currentTarget.value)}
           />
           <Button
+            tone="primary"
             onClick={() => {
               if (!campName || !campType || !startDate) return;
               createMut.mutate({

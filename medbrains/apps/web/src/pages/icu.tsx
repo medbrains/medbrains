@@ -3,8 +3,6 @@ import "@mantine/charts/styles.css";
 import { LineChart } from "@mantine/charts";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Checkbox,
   Drawer,
@@ -75,6 +73,7 @@ import { useMemo, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, Button } from "@/components/ui";
 import {
   DEFAULT_ICU_BUNDLE_CHECK_FORM_VALUES,
   DEFAULT_ICU_DEVICE_FORM_VALUES,
@@ -299,8 +298,8 @@ function InfusionTracker({
         </Text>
         {canCreate && (
           <Button
+            tone="secondary"
             size="xs"
-            variant="light"
             leftSection={<IconPlus size={14} />}
             onClick={() => setAdding(true)}
           >
@@ -383,6 +382,7 @@ function InfusionTracker({
           </Group>
           <Group>
             <Button
+              tone="primary"
               size="xs"
               loading={saveMut.isPending}
               onClick={() => saveMut.mutate({ ...infForm, start_time: new Date().toISOString() })}
@@ -390,8 +390,8 @@ function InfusionTracker({
               Save Infusion
             </Button>
             <Button
+              tone="ghost"
               size="xs"
-              variant="subtle"
               onClick={() => {
                 setAdding(false);
                 setInfForm({});
@@ -493,7 +493,7 @@ function FlowsheetsTab({ admissionId }: { admissionId: string }) {
     <Stack>
       <Group justify="flex-end">
         {canCreate && admissionId && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
             Record Vitals
           </Button>
         )}
@@ -692,7 +692,7 @@ function FlowsheetsTab({ admissionId }: { admissionId: string }) {
             name="notes"
             render={({ field }) => <Textarea label="Notes" {...field} />}
           />
-          <Button loading={createMut.isPending} type="submit">
+          <Button tone="primary" loading={createMut.isPending} type="submit">
             Save
           </Button>
         </Stack>
@@ -782,7 +782,7 @@ function VentilatorTab({ admissionId }: { admissionId: string }) {
     <Stack>
       <Group justify="flex-end">
         {canCreate && admissionId && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
             Record Ventilator
           </Button>
         )}
@@ -997,7 +997,7 @@ function VentilatorTab({ admissionId }: { admissionId: string }) {
             name="notes"
             render={({ field }) => <Textarea label="Notes" {...field} />}
           />
-          <Button loading={createMut.isPending} type="submit">
+          <Button tone="primary" loading={createMut.isPending} type="submit">
             Save
           </Button>
         </Stack>
@@ -1173,7 +1173,7 @@ function ScoresTab({ admissionId }: { admissionId: string }) {
     <Stack>
       <Group justify="flex-end">
         {canCreate && admissionId && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
             Record Score
           </Button>
         )}
@@ -1241,7 +1241,7 @@ function ScoresTab({ admissionId }: { admissionId: string }) {
             name="notes"
             render={({ field }) => <Textarea label="Notes" {...field} />}
           />
-          <Button loading={createMut.isPending} type="submit">
+          <Button tone="primary" loading={createMut.isPending} type="submit">
             Save
           </Button>
         </Stack>
@@ -1340,7 +1340,7 @@ function DevicesTab({ admissionId }: { admissionId: string }) {
       key: "is_active",
       label: "Status",
       render: (d: IcuDevice) =>
-        d.is_active ? <Badge color="success">Active</Badge> : <Badge color="slate">Removed</Badge>,
+        d.is_active ? <Badge tone="success">Active</Badge> : <Badge tone="neutral">Removed</Badge>,
     },
     {
       key: "id",
@@ -1380,7 +1380,7 @@ function DevicesTab({ admissionId }: { admissionId: string }) {
     <Stack>
       <Group justify="flex-end">
         {canManage && admissionId && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
             Add Device
           </Button>
         )}
@@ -1427,7 +1427,7 @@ function DevicesTab({ admissionId }: { admissionId: string }) {
             name="notes"
             render={({ field }) => <Textarea label="Notes" {...field} />}
           />
-          <Button loading={createMut.isPending} type="submit">
+          <Button tone="primary" loading={createMut.isPending} type="submit">
             Save
           </Button>
         </Stack>
@@ -1457,9 +1457,9 @@ function DevicesTab({ admissionId }: { admissionId: string }) {
                     <Table.Td>{new Date(bc.checked_at).toLocaleString()}</Table.Td>
                     <Table.Td>
                       {bc.is_compliant ? (
-                        <Badge color="success">Yes</Badge>
+                        <Badge tone="success">Yes</Badge>
                       ) : (
-                        <Badge color="danger">No</Badge>
+                        <Badge tone="danger">No</Badge>
                       )}
                     </Table.Td>
                     <Table.Td>{bc.still_needed ? "Yes" : "No"}</Table.Td>
@@ -1503,7 +1503,7 @@ function DevicesTab({ admissionId }: { admissionId: string }) {
                 name="notes"
                 render={({ field }) => <Textarea label="Notes" {...field} />}
               />
-              <Button loading={bundleMut.isPending} type="submit">
+              <Button tone="primary" loading={bundleMut.isPending} type="submit">
                 Save Check
               </Button>
             </Stack>
@@ -1586,7 +1586,7 @@ function NutritionTab({ admissionId }: { admissionId: string }) {
     <Stack>
       <Group justify="flex-end">
         {canCreate && admissionId && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
             Record Nutrition
           </Button>
         )}
@@ -1688,7 +1688,7 @@ function NutritionTab({ admissionId }: { admissionId: string }) {
             name="notes"
             render={({ field }) => <Textarea label="Notes" {...field} />}
           />
-          <Button loading={createMut.isPending} type="submit">
+          <Button tone="primary" loading={createMut.isPending} type="submit">
             Save
           </Button>
         </Stack>
@@ -1765,7 +1765,11 @@ function BilirubinPhototherapyPanel({ records }: { records: IcuNeonatalRecord[] 
           <Text size="xs" c="dimmed" tt="uppercase" fw={700}>
             Phototherapy Status
           </Text>
-          <Badge size="lg" color={phototherapySummary.currentlyActive ? "warning" : "slate"} mt={4}>
+          <Badge
+            size="lg"
+            tone={phototherapySummary.currentlyActive ? "warning" : "neutral"}
+            mt={4}
+          >
             {phototherapySummary.currentlyActive ? "Active" : "Completed / Off"}
           </Badge>
         </Card>
@@ -1953,9 +1957,9 @@ function NeonatalTab({ admissionId }: { admissionId: string }) {
       label: "Phototherapy",
       render: (r: IcuNeonatalRecord) =>
         r.phototherapy_active ? (
-          <Badge color="warning">Active</Badge>
+          <Badge tone="warning">Active</Badge>
         ) : (
-          <Badge color="slate">Off</Badge>
+          <Badge tone="neutral">Off</Badge>
         ),
     },
     { key: "notes", label: "Notes", render: (r: IcuNeonatalRecord) => r.notes ?? "" },
@@ -1965,7 +1969,7 @@ function NeonatalTab({ admissionId }: { admissionId: string }) {
     <Stack>
       <Group justify="flex-end">
         {canCreate && admissionId && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
             Record NICU Data
           </Button>
         )}
@@ -2153,7 +2157,7 @@ function NeonatalTab({ admissionId }: { admissionId: string }) {
             name="notes"
             render={({ field }) => <Textarea label="Notes" {...field} />}
           />
-          <Button loading={createMut.isPending} type="submit">
+          <Button tone="primary" loading={createMut.isPending} type="submit">
             Save
           </Button>
         </Stack>

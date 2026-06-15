@@ -1,8 +1,6 @@
 import {
   ActionIcon,
   Alert,
-  Badge,
-  Button,
   Card,
   Divider,
   Grid,
@@ -64,6 +62,7 @@ import {
   PatientRegisterForm,
   type PatientRegistrationLinkedServicesOptions,
 } from "@/components/Patient/PatientRegisterForm";
+import { Badge, Button } from "@/components/ui";
 import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
@@ -415,7 +414,7 @@ function PatientsPageInner() {
         }
         return (
           <Tooltip label={t("directory.paymentPendingTooltip", { count: pendingCount || 1 })}>
-            <Badge color="danger" variant="light" leftSection={<IconCash size={12} />}>
+            <Badge tone="danger" leftSection={<IconCash size={12} />}>
               {t("directory.paymentPending", { amount: formatMoney(balance) })}
             </Badge>
           </Tooltip>
@@ -469,17 +468,13 @@ function PatientsPageInner() {
               {t("directory.commandTitle")}
             </Text>
             <Group gap="xs">
-              <Badge color="teal" variant="light">
+              <Badge tone="success">
                 {data?.total == null
                   ? t("directory.loadingRecords")
                   : t("directory.recordCount", { count: data.total })}
               </Badge>
-              <Badge color="blue" variant="light">
-                {t("directory.badge.permissionedFields")}
-              </Badge>
-              <Badge color="orange" variant="light">
-                {t("directory.badge.pacedSearch")}
-              </Badge>
+              <Badge tone="info">{t("directory.badge.permissionedFields")}</Badge>
+              <Badge tone="warning">{t("directory.badge.pacedSearch")}</Badge>
             </Group>
           </Stack>
           <Group gap="xs" className={classes.directoryControls}>
@@ -492,7 +487,11 @@ function PatientsPageInner() {
               className={classes.directorySearch}
             />
             {canCreate && (
-              <Button leftSection={<IconUserPlus size={16} />} onClick={openRegister}>
+              <Button
+                tone="primary"
+                leftSection={<IconUserPlus size={16} />}
+                onClick={openRegister}
+              >
                 {t("actions.registerPatient")}
               </Button>
             )}
@@ -807,7 +806,7 @@ function PatientRegisterPageInner() {
         ]}
         actions={
           <Button
-            variant="light"
+            tone="secondary"
             leftSection={<IconArrowLeft size={16} />}
             onClick={() => navigate(backTarget)}
           >
@@ -839,7 +838,7 @@ function PatientRegisterPageInner() {
           <Card withBorder className={classes.registrationRail}>
             <Stack gap="sm">
               <Group gap="xs">
-                <Badge color={isCampRegistration ? "green" : "primary"} variant="light">
+                <Badge tone={isCampRegistration ? "success" : "primary"}>
                   {registrationModeLabel}
                 </Badge>
                 {isCampRegistration && selectedCamp?.venue_name && (
@@ -934,7 +933,7 @@ function PatientRegisterPageInner() {
                   <Text size="sm">{m.phone || "—"}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge size="sm" color={m.score >= 0.8 ? "danger" : "orange"}>
+                  <Badge size="sm" tone={m.score >= 0.8 ? "danger" : "warning"}>
                     {Math.round(m.score * 100)}%
                   </Badge>
                 </Table.Td>
@@ -957,7 +956,7 @@ function PatientRegisterPageInner() {
         </Table>
         <Group justify="flex-end" mt="md">
           <Button
-            variant="subtle"
+            tone="ghost"
             onClick={() => {
               dupModalHandlers.close();
               pendingRegistrationRef.current = null;
@@ -965,7 +964,7 @@ function PatientRegisterPageInner() {
           >
             {t("cancel")}
           </Button>
-          <Button color="orange" onClick={handleCreateAnyway}>
+          <Button tone="primary" onClick={handleCreateAnyway}>
             {t("createAnyway")}
           </Button>
         </Group>

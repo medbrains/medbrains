@@ -2,8 +2,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Alert,
-  Badge,
-  Button,
   Card,
   Drawer,
   Group,
@@ -151,7 +149,7 @@ import {
 import { PharmacyDispensingView } from "@/components/Pharmacy/PharmacyDispensingView";
 import { PharmacyLabel } from "@/components/Pharmacy/PharmacyLabel";
 import { StoreIndentsTab } from "@/components/Pharmacy/StoreIndentsTab";
-import { SignatureHero } from "@/components/ui";
+import { Badge, type BadgeTone, Button, SignatureHero } from "@/components/ui";
 import {
   awareCategoryOptions,
   drugScheduleOptions,
@@ -179,6 +177,26 @@ const statusColors: Record<string, string> = {
   refunded: "indigo",
   returned: "orange",
 };
+
+const SHARED_COLOR_BADGE_TONES: Record<string, BadgeTone> = {
+  success: "success",
+  primary: "primary",
+  danger: "danger",
+  warning: "warning",
+  info: "info",
+  indigo: "accent",
+  orange: "warning",
+  yellow: "warning",
+  green: "success",
+  teal: "success",
+  blue: "info",
+  red: "danger",
+  gray: "neutral",
+};
+
+function sharedColorBadgeTone(color: string | undefined): BadgeTone {
+  return (color ? SHARED_COLOR_BADGE_TONES[color] : undefined) ?? "neutral";
+}
 
 const dispensingTypeLabels: Record<string, string> = {
   prescription: "Rx",
@@ -870,7 +888,7 @@ export function PharmacyOrderCreatePage() {
           color="success"
           actions={
             <Button
-              variant="light"
+              tone="secondary"
               leftSection={<IconArrowLeft size={14} />}
               onClick={() => navigate(ordersPath())}
             >
@@ -909,7 +927,7 @@ export function PharmacyOrderDetailPage() {
           actions={
             <Group gap="xs">
               <Button
-                variant="light"
+                tone="secondary"
                 leftSection={<IconArrowLeft size={14} />}
                 onClick={() => navigate("/pharmacy?tab=orders")}
               >
@@ -917,6 +935,7 @@ export function PharmacyOrderDetailPage() {
               </Button>
               {canDispense && (
                 <Button
+                  tone="primary"
                   leftSection={<IconPlus size={14} />}
                   onClick={() => navigate("/pharmacy/orders/new")}
                 >
@@ -1182,8 +1201,7 @@ function PharmacyPageInner() {
                     <>
                       <Button
                         size="xs"
-                        variant="light"
-                        color="orange"
+                        tone="secondary"
                         leftSection={<IconAlertTriangle size={14} />}
                         onClick={openInteractionModal}
                       >
@@ -1191,8 +1209,7 @@ function PharmacyPageInner() {
                       </Button>
                       <Button
                         size="xs"
-                        variant="light"
-                        color="info"
+                        tone="secondary"
                         leftSection={<IconShieldCheck size={14} />}
                         onClick={openFormularyModal}
                       >
@@ -1510,6 +1527,7 @@ function PharmacyOrdersTab({
             <>
               <Button
                 size="xs"
+                tone="primary"
                 leftSection={<IconPlus size={14} />}
                 onClick={() =>
                   navigate(
@@ -1523,8 +1541,7 @@ function PharmacyOrdersTab({
               </Button>
               <Button
                 size="xs"
-                variant="light"
-                color="teal"
+                tone="secondary"
                 leftSection={<IconShoppingCart size={14} />}
                 onClick={openOtc}
               >
@@ -1554,7 +1571,7 @@ function PharmacyOrdersTab({
                   {firstDispensableOrder && canDispense && (
                     <Button
                       size="xs"
-                      color="teal"
+                      tone="primary"
                       leftSection={<IconCheck size={14} />}
                       loading={dispenseMutation.isPending}
                       onClick={() => dispenseMutation.mutate(firstDispensableOrder.id)}
@@ -1565,14 +1582,14 @@ function PharmacyOrdersTab({
                   {firstDispensableOrder && canViewOrderDetail && (
                     <Button
                       size="xs"
-                      variant="light"
+                      tone="secondary"
                       leftSection={<IconEye size={14} />}
                       onClick={() => navigate(`/pharmacy/orders/${firstDispensableOrder.id}`)}
                     >
                       Open Order
                     </Button>
                   )}
-                  <Button size="xs" variant="subtle" onClick={clearPharmacyHandoff}>
+                  <Button size="xs" tone="ghost" onClick={clearPharmacyHandoff}>
                     Dismiss
                   </Button>
                 </Group>
@@ -1763,13 +1780,13 @@ function PharmacyReturnsTab({
   );
   const requestReturnAction = canRequest ? (
     canViewPatientRecord ? (
-      <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCreate}>
+      <Button size="xs" tone="primary" leftSection={<IconPlus size={14} />} onClick={openCreate}>
         Request Return
       </Button>
     ) : (
       <Tooltip label="Patient record access is required to pick the return order">
         <span>
-          <Button size="xs" leftSection={<IconLock size={14} />} disabled>
+          <Button size="xs" tone="primary" leftSection={<IconLock size={14} />} disabled>
             Request Return
           </Button>
         </span>
@@ -1819,7 +1836,7 @@ function PharmacyReturnsTab({
       key: "status",
       label: "Status",
       render: (row: PharmacyReturn) => (
-        <Badge size="xs" variant="light" color={returnStatusColors[row.status]}>
+        <Badge size="xs" tone={sharedColorBadgeTone(returnStatusColors[row.status])}>
           {returnStatusLabels[row.status]}
         </Badge>
       ),
@@ -2105,7 +2122,7 @@ function CreatePharmacyReturnModal({
             Patient record access is required to select the dispensed medicine for a return.
           </Alert>
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={handleClose}>
+            <Button tone="ghost" onClick={handleClose}>
               Close
             </Button>
           </Group>
@@ -2167,15 +2184,15 @@ function CreatePharmacyReturnModal({
                         {returnableItem?.drugName ?? "Selected medicine"}
                       </Text>
                       <Group gap="xs">
-                        <Badge size="xs" variant="light" color="blue">
+                        <Badge size="xs" tone="info">
                           {returnableItem
                             ? new Date(returnableItem.orderDate).toLocaleDateString()
                             : "Order"}
                         </Badge>
-                        <Badge size="xs" variant="light" color="gray">
+                        <Badge size="xs" tone="neutral">
                           Batch {returnableItem?.batchNumber ?? "not captured"}
                         </Badge>
-                        <Badge size="xs" variant="light" color="teal">
+                        <Badge size="xs" tone="success">
                           Remaining {returnableItem?.remainingQuantity ?? 0}/
                           {returnableItem?.quantity ?? 0}
                         </Badge>
@@ -2228,10 +2245,11 @@ function CreatePharmacyReturnModal({
             );
           })}
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={handleClose}>
+            <Button tone="ghost" onClick={handleClose}>
               Cancel
             </Button>
             <Button
+              tone="primary"
               type="submit"
               loading={createMutation.isPending}
               disabled={selectedReturnItems.length === 0}
@@ -2291,7 +2309,7 @@ function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => vo
         <Group>
           <Button
             size="xs"
-            variant="light"
+            tone="secondary"
             leftSection={<IconPlus size={14} />}
             onClick={() => setItems([...items, newDraftPharmacyOrderItem()])}
           >
@@ -2299,7 +2317,7 @@ function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => vo
           </Button>
           <Button
             size="xs"
-            color="teal"
+            tone="primary"
             onClick={() =>
               createMutation.mutate({
                 items: draftPharmacyOrderItemsPayload(items),
@@ -2488,7 +2506,7 @@ function PharmacyOrderForm({
         <Group justify="space-between">
           <Button
             size="xs"
-            variant="light"
+            tone="secondary"
             leftSection={<IconPlus size={14} />}
             onClick={() => append(newPharmacyOrderFormItem())}
           >
@@ -2505,10 +2523,10 @@ function PharmacyOrderForm({
           </Stack>
         </Group>
         <Group justify="flex-end">
-          <Button variant="default" onClick={onCancel}>
+          <Button tone="secondary" onClick={onCancel}>
             Cancel
           </Button>
-          <Button type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" type="submit" loading={createMutation.isPending}>
             Place Order
           </Button>
         </Group>
@@ -2647,7 +2665,7 @@ function PharmacyOrderDetail({
       <Group justify="space-between">
         <Text fw={700}>Order: {detail.order.id.slice(0, 8)}...</Text>
         <Group gap="xs">
-          <Badge color={statusColors[detail.order.status] ?? "gray"} variant="light" size="lg">
+          <Badge tone={sharedColorBadgeTone(statusColors[detail.order.status])} size="lg">
             {detail.order.status}
           </Badge>
           <Badge variant="outline" size="sm">
@@ -2688,7 +2706,7 @@ function PharmacyOrderDetail({
               {isAwaitingDispense && canDispense && (
                 <Button
                   size="xs"
-                  color="teal"
+                  tone="primary"
                   leftSection={<IconCheck size={14} />}
                   loading={dispenseMutation.isPending}
                   onClick={() => dispenseMutation.mutate()}
@@ -2696,7 +2714,7 @@ function PharmacyOrderDetail({
                   {t("button.dispenseOrder")}
                 </Button>
               )}
-              <Button size="xs" variant="subtle" onClick={clearDispenseHandoff}>
+              <Button size="xs" tone="ghost" onClick={clearDispenseHandoff}>
                 {t("button.dismiss")}
               </Button>
             </Group>
@@ -2826,7 +2844,7 @@ function PharmacyOrderDetail({
 
       <Group gap="xs">
         <Button
-          variant="light"
+          tone="secondary"
           size="xs"
           leftSection={<IconClipboardList size={14} />}
           onClick={() => setShowAudit(!showAudit)}
@@ -2834,7 +2852,7 @@ function PharmacyOrderDetail({
           {showAudit ? "Hide" : "Show"} Prescription Audit Trail
         </Button>
         {canPrintMedicationLabels && (
-          <Button variant="light" size="xs" color="teal" onClick={() => setShowLabels(!showLabels)}>
+          <Button tone="secondary" size="xs" onClick={() => setShowLabels(!showLabels)}>
             {showLabels ? "Hide" : "Print"} Medication Labels
           </Button>
         )}
@@ -2943,9 +2961,7 @@ function PrescriptionAuditTrail({ prescriptionId }: { prescriptionId: string }) 
         {(entries as PrescriptionAuditEntry[]).map((entry) => (
           <Table.Tr key={`${entry.changed_at}-${entry.action}-${entry.field_name}`}>
             <Table.Td>
-              <Badge size="xs" variant="light">
-                {entry.action}
-              </Badge>
+              <Badge size="xs">{entry.action}</Badge>
             </Table.Td>
             <Table.Td>
               <Text size="sm">{entry.field_name}</Text>
@@ -3010,6 +3026,7 @@ function DrugInteractionModal({
           required
         />
         <Button
+          tone="primary"
           onClick={() => checkMutation.mutate({ patient_id: patientId, drug_id: drugId })}
           loading={checkMutation.isPending}
           disabled={!patientId.trim() || !drugId.trim()}
@@ -3030,7 +3047,7 @@ function DrugInteractionModal({
                 title={r.interacting_drug}
               >
                 <Group gap="xs" mb={4}>
-                  <Badge color={severityColors[r.severity] ?? "gray"} size="sm">
+                  <Badge tone={sharedColorBadgeTone(severityColors[r.severity])} size="sm">
                     {r.severity}
                   </Badge>
                   <Badge variant="outline" size="sm">
@@ -3069,6 +3086,7 @@ function FormularyCheckModal({ opened, onClose }: { opened: boolean; onClose: ()
       <Stack>
         <DrugSearchSelect value={drugId} onChange={(id) => setDrugId(id)} label="Drug" required />
         <Button
+          tone="primary"
           onClick={() => checkMutation.mutate({ drug_id: drugId })}
           loading={checkMutation.isPending}
           disabled={!drugId.trim()}
@@ -3081,7 +3099,7 @@ function FormularyCheckModal({ opened, onClose }: { opened: boolean; onClose: ()
             <Stack gap="xs">
               <Group justify="space-between">
                 <Text fw={600}>{result.drug_name}</Text>
-                <Badge color={result.is_formulary ? "success" : "danger"} variant="filled">
+                <Badge tone={result.is_formulary ? "success" : "danger"} variant="filled">
                   {result.is_formulary ? "In Formulary" : "Not in Formulary"}
                 </Badge>
               </Group>
@@ -3097,7 +3115,7 @@ function FormularyCheckModal({ opened, onClose }: { opened: boolean; onClose: ()
                   </Text>
                   <Group gap={4}>
                     {result.alternative_drugs.map((alt) => (
-                      <Badge key={alt} variant="light" color="primary" size="sm">
+                      <Badge key={alt} tone="primary" size="sm">
                         {alt}
                       </Badge>
                     ))}
@@ -3248,12 +3266,11 @@ function PharmacyCatalogTab({
           {compliance.show_schedule_badges && row.drug_schedule && (
             <Badge
               size="xs"
-              variant="light"
-              color={
+              tone={
                 row.drug_schedule === "X" || row.drug_schedule === "NDPS"
                   ? "danger"
                   : row.drug_schedule === "H1"
-                    ? "orange"
+                    ? "warning"
                     : "primary"
               }
             >
@@ -3261,28 +3278,23 @@ function PharmacyCatalogTab({
             </Badge>
           )}
           {compliance.show_controlled_warnings && row.is_controlled && (
-            <Badge size="xs" variant="filled" color="danger">
+            <Badge size="xs" variant="filled" tone="danger">
               CTRL
             </Badge>
           )}
           {compliance.show_formulary_status && row.formulary_status !== "approved" && (
-            <Badge
-              size="xs"
-              variant="light"
-              color={row.formulary_status === "restricted" ? "warning" : "gray"}
-            >
+            <Badge size="xs" tone={row.formulary_status === "restricted" ? "warning" : "neutral"}>
               {row.formulary_status === "restricted" ? "Restricted" : "Non-Formulary"}
             </Badge>
           )}
           {compliance.show_aware_category && row.aware_category && (
             <Badge
               size="xs"
-              variant="light"
-              color={
+              tone={
                 row.aware_category === "reserve"
                   ? "danger"
                   : row.aware_category === "watch"
-                    ? "orange"
+                    ? "warning"
                     : "success"
               }
             >
@@ -3308,14 +3320,19 @@ function PharmacyCatalogTab({
     <Stack>
       <Group>
         {canManage && (
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={formHandlers.toggle}>
+          <Button
+            size="xs"
+            tone="primary"
+            leftSection={<IconPlus size={14} />}
+            onClick={formHandlers.toggle}
+          >
             Add formulary medicine
           </Button>
         )}
         {canManage && (
           <Button
             size="xs"
-            variant="light"
+            tone="secondary"
             leftSection={<IconUpload size={14} />}
             onClick={importHandlers.open}
           >
@@ -3516,7 +3533,7 @@ function PharmacyCatalogTab({
               />
             )}
           />
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button size="xs" tone="primary" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -3690,7 +3707,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
         return (
           <Button
             size="compact-xs"
-            variant="light"
+            tone="secondary"
             leftSection={<IconEye size={12} />}
             onClick={() => {
               setSelectedStockItem(row);
@@ -3716,6 +3733,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
         <Group>
           <Button
             size="xs"
+            tone="primary"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
               resetBulkRows();
@@ -3957,7 +3975,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
                         {row.catalog_item_id ? (
                           <Badge
                             variant={isBatchLineBelowReorder(row) ? "filled" : "light"}
-                            color={isBatchLineBelowReorder(row) ? "danger" : "success"}
+                            tone={isBatchLineBelowReorder(row) ? "danger" : "success"}
                           >
                             {isBatchLineBelowReorder(row) ? "Reorder" : "OK"} {row.current_stock}/
                             {row.reorder_level}
@@ -4116,7 +4134,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
               </Table>
               <Stack gap="xs">
                 <Button
-                  variant="light"
+                  tone="secondary"
                   fullWidth
                   leftSection={<IconPlus size={14} />}
                   onClick={() => setBulkRows((rows) => [...rows, newBulkBatchLine()])}
@@ -4124,10 +4142,14 @@ function StockTab({ canManage }: { canManage: boolean }) {
                   Add another batch line
                 </Button>
                 <Group justify="flex-end">
-                  <Button variant="default" onClick={bulkBatchHandlers.close}>
+                  <Button tone="secondary" onClick={bulkBatchHandlers.close}>
                     Cancel
                   </Button>
-                  <Button disabled={!canVerifyBulkRows} onClick={() => setBulkStep("verify")}>
+                  <Button
+                    tone="primary"
+                    disabled={!canVerifyBulkRows}
+                    onClick={() => setBulkStep("verify")}
+                  >
                     Verify {readyBulkRows.length} row{readyBulkRows.length === 1 ? "" : "s"}
                   </Button>
                 </Group>
@@ -4182,10 +4204,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
                     <Table.Tr key={row.id}>
                       <Table.Td>{row.product_name || row.catalog_item_id}</Table.Td>
                       <Table.Td>
-                        <Badge
-                          color={isBatchLineBelowReorder(row) ? "danger" : "success"}
-                          variant="light"
-                        >
+                        <Badge tone={isBatchLineBelowReorder(row) ? "danger" : "success"}>
                           {isBatchLineBelowReorder(row) ? "Below reorder" : "Above reorder"}
                         </Badge>
                       </Table.Td>
@@ -4233,10 +4252,11 @@ function StockTab({ canManage }: { canManage: boolean }) {
                 </Table.Tbody>
               </Table>
               <Group justify="space-between">
-                <Button variant="default" onClick={() => setBulkStep("edit")}>
+                <Button tone="secondary" onClick={() => setBulkStep("edit")}>
                   Back to edit
                 </Button>
                 <Button
+                  tone="primary"
                   leftSection={<IconCheck size={14} />}
                   loading={bulkBatchMutation.isPending}
                   onClick={() => bulkBatchMutation.mutate(readyBulkRows)}
@@ -4332,12 +4352,12 @@ function NdpsRegisterTab() {
     });
   };
 
-  const actionColors: Record<string, string> = {
+  const actionColors: Record<string, BadgeTone> = {
     receipt: "success",
     dispensed: "primary",
     destroyed: "danger",
-    transferred: "orange",
-    adjustment: "gray",
+    transferred: "warning",
+    adjustment: "neutral",
   };
 
   const columns = [
@@ -4345,7 +4365,7 @@ function NdpsRegisterTab() {
       key: "action",
       label: "Action",
       render: (row: NdpsRegisterEntry) => (
-        <Badge size="xs" color={actionColors[row.action] ?? "gray"}>
+        <Badge size="xs" tone={actionColors[row.action] ?? "neutral"}>
           {row.action}
         </Badge>
       ),
@@ -4396,12 +4416,7 @@ function NdpsRegisterTab() {
       {balance?.entries && balance.entries.length > 0 && (
         <Group gap="sm">
           {balance.entries.map((b) => (
-            <Badge
-              key={b.catalog_item_id}
-              size="lg"
-              variant="light"
-              leftSection={<IconLock size={12} />}
-            >
+            <Badge key={b.catalog_item_id} size="lg" leftSection={<IconLock size={12} />}>
               {b.drug_name}: {renderPharmacySensitiveNumber(balanceAccess, b.balance)}
             </Badge>
           ))}
@@ -4409,7 +4424,12 @@ function NdpsRegisterTab() {
       )}
       {canManage && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={formHandlers.toggle}>
+          <Button
+            size="xs"
+            tone="primary"
+            leftSection={<IconPlus size={14} />}
+            onClick={formHandlers.toggle}
+          >
             Manual Entry
           </Button>
         </Group>
@@ -4464,7 +4484,7 @@ function NdpsRegisterTab() {
             />
           )}
           <TextInput label="Notes" {...register("notes")} />
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button size="xs" tone="primary" type="submit" loading={createMutation.isPending}>
             Record
           </Button>
         </Stack>
@@ -4547,7 +4567,7 @@ function BatchLedgerView() {
       key: "quantity_on_hand",
       label: "On Hand",
       render: (row: PharmacyBatch) => (
-        <Badge size="sm" color={row.quantity_on_hand <= 0 ? "danger" : "success"} variant="light">
+        <Badge size="sm" tone={row.quantity_on_hand <= 0 ? "danger" : "success"}>
           {row.quantity_on_hand}
         </Badge>
       ),
@@ -4673,11 +4693,11 @@ function NearExpiryView() {
       render: (row: NearExpiryRow) => (
         <Badge
           size="sm"
-          color={
+          tone={
             row.days_until_expiry < 30
               ? "danger"
               : row.days_until_expiry < 60
-                ? "orange"
+                ? "warning"
                 : "warning"
           }
         >
@@ -4737,7 +4757,7 @@ function DeadStockView() {
       key: "days_idle",
       label: "Days Idle",
       render: (row: PharmacyDeadStockRow) => (
-        <Badge size="sm" color="orange">
+        <Badge size="sm" tone="warning">
           {row.days_idle ?? "N/A"}
         </Badge>
       ),
@@ -4805,7 +4825,7 @@ function PharmacyLocationsView({ canViewStores }: { canViewStores: boolean }) {
       label: "Central",
       render: (row: PharmacyStoreAssignment) =>
         row.is_central ? (
-          <Badge color="primary" size="xs">
+          <Badge tone="primary" size="xs">
             Central
           </Badge>
         ) : (
@@ -5011,8 +5031,8 @@ function AbcVedView() {
     queryFn: () => pharmacyService.getPharmacyAbcVed(),
   });
 
-  const abcColors: Record<string, string> = { A: "danger", B: "orange", C: "success" };
-  const vedColors: Record<string, string> = { V: "danger", E: "orange", D: "success" };
+  const abcColors: Record<string, BadgeTone> = { A: "danger", B: "warning", C: "success" };
+  const vedColors: Record<string, BadgeTone> = { V: "danger", E: "warning", D: "success" };
 
   const columns = [
     {
@@ -5031,7 +5051,7 @@ function AbcVedView() {
       key: "abc_class",
       label: "ABC",
       render: (row: PharmacyAbcVedRow) => (
-        <Badge size="xs" color={abcColors[row.abc_class] ?? "gray"}>
+        <Badge size="xs" tone={abcColors[row.abc_class] ?? "neutral"}>
           {row.abc_class}
         </Badge>
       ),
@@ -5041,7 +5061,7 @@ function AbcVedView() {
       label: "VED",
       render: (row: PharmacyAbcVedRow) =>
         row.ved_class ? (
-          <Badge size="xs" color={vedColors[row.ved_class] ?? "gray"}>
+          <Badge size="xs" tone={vedColors[row.ved_class] ?? "neutral"}>
             {row.ved_class}
           </Badge>
         ) : (
@@ -5079,11 +5099,11 @@ function UtilizationView() {
         row.aware_category ? (
           <Badge
             size="xs"
-            color={
+            tone={
               row.aware_category === "reserve"
                 ? "danger"
                 : row.aware_category === "watch"
-                  ? "orange"
+                  ? "warning"
                   : "success"
             }
           >
@@ -5472,7 +5492,7 @@ function RxQueueTab({
         <Alert color="teal" variant="light" title={t("handoff.prescriptionReview.title")}>
           <Group justify="space-between" align="center" gap="sm">
             <Text size="sm">{t("handoff.prescriptionReview.message")}</Text>
-            <Button size="xs" variant="subtle" onClick={clearRxQueueHandoff}>
+            <Button size="xs" tone="ghost" onClick={clearRxQueueHandoff}>
               {t("button.clearHandoff")}
             </Button>
           </Group>
@@ -5665,7 +5685,7 @@ function RxDetailView({
         >
           <Group gap={6}>
             {allergyNames.map((a) => (
-              <Badge key={a} color="danger" size="sm">
+              <Badge key={a} tone="danger" size="sm">
                 {a}
               </Badge>
             ))}
@@ -5693,7 +5713,7 @@ function RxDetailView({
             <>
               <Button
                 size="xs"
-                color="success"
+                tone="primary"
                 leftSection={<IconCheck size={14} />}
                 onClick={() => onReview("approved")}
               >
@@ -5701,8 +5721,7 @@ function RxDetailView({
               </Button>
               <Button
                 size="xs"
-                color="warning"
-                variant="light"
+                tone="secondary"
                 leftSection={<IconClock size={14} />}
                 onClick={() => onReview("on_hold")}
               >
@@ -5710,8 +5729,7 @@ function RxDetailView({
               </Button>
               <Button
                 size="xs"
-                color="danger"
-                variant="light"
+                tone="subtle-danger"
                 leftSection={<IconX size={14} />}
                 onClick={() => onReview("rejected")}
               >
@@ -5720,7 +5738,7 @@ function RxDetailView({
             </>
           )}
           {status === "approved" && (
-            <Button size="xs" color="primary" leftSection={<IconShoppingCart size={14} />}>
+            <Button size="xs" tone="primary" leftSection={<IconShoppingCart size={14} />}>
               {t("rxQueue.actions.createDispenseOrder")}
             </Button>
           )}
@@ -5748,9 +5766,7 @@ function RxDetailView({
                 <Table.Td fw={600}>{it.drug_name}</Table.Td>
                 <Table.Td c="primary">{it.dosage}</Table.Td>
                 <Table.Td>
-                  <Badge size="xs" variant="light">
-                    {it.frequency}
-                  </Badge>
+                  <Badge size="xs">{it.frequency}</Badge>
                 </Table.Td>
                 <Table.Td>{it.duration}</Table.Td>
                 <Table.Td>{it.route ?? "—"}</Table.Td>
@@ -6386,11 +6402,7 @@ function PosCounterTab({
     {
       key: "payment_mode",
       label: "Payment",
-      render: (row: PharmacyPosSale) => (
-        <Badge size="xs" variant="light">
-          {row.payment_mode}
-        </Badge>
-      ),
+      render: (row: PharmacyPosSale) => <Badge size="xs">{row.payment_mode}</Badge>,
     },
     {
       key: "billing_invoice_id",
@@ -6398,7 +6410,7 @@ function PosCounterTab({
       render: (row: PharmacyPosSale) =>
         row.billing_invoice_id ? (
           <Stack gap={2}>
-            <Badge size="xs" color="success" variant="light">
+            <Badge size="xs" tone="success">
               Posted
             </Badge>
             {row.billing_posted_at && (
@@ -6409,7 +6421,7 @@ function PosCounterTab({
             {canViewBillingInvoice && (
               <Button
                 size="compact-xs"
-                variant="subtle"
+                tone="ghost"
                 leftSection={<IconReceipt size={12} />}
                 onClick={() => navigate(`/billing/invoices/${row.billing_invoice_id}`)}
               >
@@ -6418,7 +6430,7 @@ function PosCounterTab({
             )}
           </Stack>
         ) : (
-          <Badge size="xs" color="gray" variant="light">
+          <Badge size="xs" tone="neutral">
             POS only
           </Badge>
         ),
@@ -6431,7 +6443,7 @@ function PosCounterTab({
         const refundAmount = Number(row.refund_amount ?? 0);
         return (
           <Stack gap={2}>
-            <Badge size="xs" color={statusColors[saleStatus] ?? "gray"} variant="light">
+            <Badge size="xs" tone={sharedColorBadgeTone(statusColors[saleStatus])}>
               {saleStatus.replace(/_/g, " ")}
             </Badge>
             {refundAmount > 0 && (
@@ -6731,7 +6743,7 @@ function PosCounterTab({
                   )}
                   <Button
                     size="xs"
-                    color="primary"
+                    tone="primary"
                     loading={createMutation.isPending}
                     type="submit"
                     disabled={
@@ -6834,7 +6846,7 @@ function PosCounterTab({
                         </Text>
                       </Table.Td>
                       <Table.Td>
-                        <Badge variant="light">{formIntegerOrFallback(item.max_qty, 0)}</Badge>
+                        <Badge>{formIntegerOrFallback(item.max_qty, 0)}</Badge>
                       </Table.Td>
                       <Table.Td>
                         <Controller
@@ -6892,11 +6904,11 @@ function PosCounterTab({
               Refund: {renderPharmacySensitiveCurrency(priceAccess, returnRefundTotal)}
             </Text>
             <Group>
-              <Button variant="default" onClick={closeReturnSale}>
+              <Button tone="secondary" onClick={closeReturnSale}>
                 Keep sale
               </Button>
               <Button
-                color="orange"
+                tone="primary"
                 type="submit"
                 loading={returnItemsMutation.isPending}
                 disabled={returnItemsLoading || returnFields.length === 0}
@@ -6933,11 +6945,11 @@ function PosCounterTab({
             placeholder="Wrong item, duplicate bill, payment void, or other approved reason"
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={closeCancelSale}>
+            <Button tone="secondary" onClick={closeCancelSale}>
               Keep sale
             </Button>
             <Button
-              color="danger"
+              tone="danger"
               loading={cancelSaleMutation.isPending}
               disabled={!saleToCancel || cancelReason.trim().length < 3}
               leftSection={<IconX size={14} />}

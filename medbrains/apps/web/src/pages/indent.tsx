@@ -1,7 +1,5 @@
 import {
   ActionIcon,
-  Badge,
-  Button,
   Drawer,
   Group,
   NumberInput,
@@ -75,9 +73,10 @@ import {
   useClinicalEmit,
 } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
-import { statusColor } from "@/lib/status-colors";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { statusColor } from "@/lib/status-colors";
 import { indentService } from "@/services/indent.service";
 
 type CreateIndentFormItem = CreateIndentItemInput & { row_key: string };
@@ -112,6 +111,35 @@ function toIndentPriority(value: string): IndentPriority {
 }
 
 // ── Status colors ─────────────────────────────────────────
+
+const colorToBadgeTone = (color: string | null | undefined): BadgeTone => {
+  switch (color) {
+    case "primary":
+      return "primary";
+    case "success":
+    case "green":
+    case "teal":
+    case "lime":
+      return "success";
+    case "warning":
+    case "yellow":
+    case "orange":
+      return "warning";
+    case "danger":
+    case "red":
+      return "danger";
+    case "info":
+    case "blue":
+    case "cyan":
+      return "info";
+    case "violet":
+    case "grape":
+    case "indigo":
+      return "accent";
+    default:
+      return "neutral";
+  }
+};
 
 const statusColors: Record<string, string> = {
   draft: "slate",
@@ -227,7 +255,11 @@ function IndentPageInner() {
         color="info"
         actions={
           canCreate ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={() => setActiveTab("create")}>
+            <Button
+              tone="primary"
+              leftSection={<IconPlus size={16} />}
+              onClick={() => setActiveTab("create")}
+            >
               New Indent
             </Button>
           ) : undefined
@@ -358,7 +390,7 @@ function IndentListPanel({ status, requestedBy }: { status?: string; requestedBy
       key: "indent_type",
       label: "Type",
       render: (row: IndentRequisition) => (
-        <Badge variant="light">{indentTypeLabels[row.indent_type] ?? row.indent_type}</Badge>
+        <Badge tone="neutral">{indentTypeLabels[row.indent_type] ?? row.indent_type}</Badge>
       ),
     },
     {
@@ -501,13 +533,13 @@ function IndentDetailView({ id, onClose }: { id: string; onClose: () => void }) 
       </Stepper>
 
       <Group>
-        <Badge color={statusColors[requisition.status] ?? "slate"} variant="filled">
+        <Badge tone={colorToBadgeTone(statusColors[requisition.status])} variant="filled">
           {requisition.status.replace(/_/g, " ")}
         </Badge>
-        <Badge color={priorityColors[requisition.priority] ?? "slate"} variant="outline">
+        <Badge tone={colorToBadgeTone(priorityColors[requisition.priority])} variant="outline">
           {requisition.priority}
         </Badge>
-        <Badge variant="light">
+        <Badge tone="neutral">
           {indentTypeLabels[requisition.indent_type] ?? requisition.indent_type}
         </Badge>
       </Group>
@@ -546,6 +578,7 @@ function IndentDetailView({ id, onClose }: { id: string; onClose: () => void }) 
         {requisition.status === "draft" && canCreate && (
           <>
             <Button
+              tone="primary"
               leftSection={<IconSend size={16} />}
               loading={submitMutation.isPending}
               onClick={() => submitMutation.mutate()}
@@ -553,8 +586,7 @@ function IndentDetailView({ id, onClose }: { id: string; onClose: () => void }) 
               Submit
             </Button>
             <Button
-              variant="outline"
-              color="danger"
+              tone="subtle-danger"
               leftSection={<IconX size={16} />}
               loading={cancelMutation.isPending}
               onClick={() => cancelMutation.mutate()}
@@ -568,8 +600,7 @@ function IndentDetailView({ id, onClose }: { id: string; onClose: () => void }) 
           <>
             <ApproveButton requisitionId={id} items={items} />
             <Button
-              variant="outline"
-              color="danger"
+              tone="subtle-danger"
               leftSection={<IconX size={16} />}
               loading={rejectMutation.isPending}
               onClick={() => rejectMutation.mutate()}
@@ -630,7 +661,7 @@ function ApproveButton({
 
   return (
     <>
-      <Button leftSection={<IconCheck size={16} />} color="success" onClick={open}>
+      <Button tone="primary" leftSection={<IconCheck size={16} />} onClick={open}>
         Approve
       </Button>
       <Drawer
@@ -659,7 +690,7 @@ function ApproveButton({
               </Text>
             </Group>
           ))}
-          <Button loading={mutation.isPending} onClick={() => mutation.mutate()}>
+          <Button tone="primary" loading={mutation.isPending} onClick={() => mutation.mutate()}>
             Confirm Approval
           </Button>
         </Stack>
@@ -711,7 +742,7 @@ function IssueButton({
 
   return (
     <>
-      <Button leftSection={<IconTruckDelivery size={16} />} color="violet" onClick={open}>
+      <Button tone="primary" leftSection={<IconTruckDelivery size={16} />} onClick={open}>
         Issue Items
       </Button>
       <Drawer opened={opened} onClose={close} title="Issue Indent Items" position="right" size="xl">
@@ -737,7 +768,7 @@ function IssueButton({
               </Group>
             );
           })}
-          <Button loading={mutation.isPending} onClick={() => mutation.mutate()}>
+          <Button tone="primary" loading={mutation.isPending} onClick={() => mutation.mutate()}>
             Confirm Issue
           </Button>
         </Stack>
@@ -823,12 +854,12 @@ function RecentIndentsList({
               </Text>
             </Table.Td>
             <Table.Td>
-              <Badge variant="light" size="sm">
+              <Badge tone="neutral" size="sm">
                 {indentTypeLabels[req.indent_type]}
               </Badge>
             </Table.Td>
             <Table.Td>
-              <Badge color={statusColors[req.status]} variant="filled" size="sm">
+              <Badge tone={colorToBadgeTone(statusColors[req.status])} variant="filled" size="sm">
                 {req.status.replace(/_/g, " ")}
               </Badge>
             </Table.Td>
@@ -976,9 +1007,7 @@ function WorkflowSidecarPanel({ sidecars }: { sidecars: ResolvedSidecar[] }) {
     <Stack gap="xs">
       <Group justify="space-between">
         <Text fw={600}>Workflow Sidecar</Text>
-        <Badge variant="light" color="violet">
-          {relevantSidecars.length} configured
-        </Badge>
+        <Badge tone="accent">{relevantSidecars.length} configured</Badge>
       </Group>
 
       {relevantSidecars.length === 0 ? (
@@ -999,22 +1028,22 @@ function WorkflowSidecarPanel({ sidecars }: { sidecars: ResolvedSidecar[] }) {
             {relevantSidecars.map((sidecar) => (
               <Table.Tr key={sidecar.id}>
                 <Table.Td>
-                  <Badge variant="light" size="sm">
+                  <Badge tone="neutral" size="sm">
                     {sidecar.trigger_event}
                   </Badge>
                 </Table.Td>
                 <Table.Td>{sidecar.name}</Table.Td>
                 <Table.Td>
                   {sidecar.pipeline_id ? (
-                    <Badge color="violet" variant="outline">
+                    <Badge tone="accent" variant="outline">
                       Pipeline
                     </Badge>
                   ) : sidecar.inline_action ? (
-                    <Badge color="teal" variant="outline">
+                    <Badge tone="success" variant="outline">
                       Inline Action
                     </Badge>
                   ) : (
-                    <Badge color="slate" variant="outline">
+                    <Badge tone="neutral" variant="outline">
                       Passive
                     </Badge>
                   )}
@@ -1039,9 +1068,7 @@ function LinkedPurchaseOrdersPanel({
     <Stack gap="xs">
       <Group justify="space-between">
         <Text fw={600}>Downstream Procurement</Text>
-        <Badge variant="light" color="info">
-          {purchaseOrders.length} linked
-        </Badge>
+        <Badge tone="info">{purchaseOrders.length} linked</Badge>
       </Group>
 
       {purchaseOrders.length === 0 ? (
@@ -1068,11 +1095,7 @@ function LinkedPurchaseOrdersPanel({
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge
-                    color={linkedPoStatusColors[po.status] ?? "slate"}
-                    variant="light"
-                    size="sm"
-                  >
+                  <Badge tone={colorToBadgeTone(linkedPoStatusColors[po.status])} size="sm">
                     {po.status.replace(/_/g, " ")}
                   </Badge>
                 </Table.Td>
@@ -1271,7 +1294,7 @@ function CreateIndentPanel({ onDone }: { onDone: () => void }) {
       </Table>
 
       <Button
-        variant="outline"
+        tone="secondary"
         size="xs"
         leftSection={<IconPlus size={14} />}
         onClick={addItem}
@@ -1282,13 +1305,14 @@ function CreateIndentPanel({ onDone }: { onDone: () => void }) {
 
       <Group>
         <Button
+          tone="primary"
           loading={mutation.isPending}
           onClick={() => mutation.mutate()}
           disabled={!departmentId || items.every((i) => !i.item_name)}
         >
           Create Indent
         </Button>
-        <Button variant="outline" onClick={onDone}>
+        <Button tone="secondary" onClick={onDone}>
           Cancel
         </Button>
       </Group>
@@ -1321,10 +1345,7 @@ function CatalogPanel() {
       key: "current_stock",
       label: "Stock",
       render: (row: StoreCatalog) => (
-        <Badge
-          color={row.current_stock <= row.reorder_level ? "danger" : "success"}
-          variant="light"
-        >
+        <Badge tone={row.current_stock <= row.reorder_level ? "danger" : "success"}>
           {row.current_stock}
         </Badge>
       ),
@@ -1355,7 +1376,7 @@ function CatalogPanel() {
   return (
     <>
       <Group justify="flex-end" mb="md">
-        <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+        <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
           Add Item
         </Button>
       </Group>
@@ -1486,6 +1507,7 @@ function CatalogForm({ initial, onSuccess }: { initial?: StoreCatalog; onSuccess
         min={0}
       />
       <Button
+        tone="primary"
         loading={initial ? updateMutation.isPending : createMutation.isPending}
         onClick={() => (initial ? updateMutation.mutate() : createMutation.mutate())}
       >
@@ -1515,10 +1537,9 @@ function StockPanel() {
       label: "Type",
       render: (row: StoreStockMovement) => (
         <Badge
-          color={
+          tone={
             row.movement_type === "receipt" || row.movement_type === "return" ? "success" : "danger"
           }
-          variant="light"
           size="sm"
         >
           {row.movement_type}
@@ -1542,7 +1563,7 @@ function StockPanel() {
   return (
     <>
       <Group justify="flex-end" mb="md">
-        <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+        <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
           Record Movement
         </Button>
       </Group>
@@ -1644,6 +1665,7 @@ function StockMovementForm({ onSuccess }: { onSuccess: () => void }) {
       />
       <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
       <Button
+        tone="primary"
         loading={mutation.isPending}
         onClick={() => mutation.mutate()}
         disabled={!catalogItemId}
@@ -1779,7 +1801,7 @@ function AbcView() {
     queryFn: () => indentService.getAbcAnalysis(),
   });
 
-  const abcColors: Record<string, string> = { A: "danger", B: "orange", C: "success" };
+  const abcColors: Record<string, BadgeTone> = { A: "danger", B: "warning", C: "success" };
 
   const columns = [
     { key: "item_name", label: "Item", render: (row: AbcAnalysisRow) => row.item_name },
@@ -1797,7 +1819,7 @@ function AbcView() {
       key: "abc_class",
       label: "Class",
       render: (row: AbcAnalysisRow) => (
-        <Badge color={abcColors[row.abc_class] ?? "slate"} variant="filled" size="sm">
+        <Badge tone={abcColors[row.abc_class] ?? "neutral"} variant="filled" size="sm">
           {row.abc_class}
         </Badge>
       ),
@@ -1823,7 +1845,6 @@ function VedView() {
     queryFn: () => indentService.getVedAnalysis(),
   });
 
-  
   const classified = (data ?? []).filter((r) => r.ved_class);
   const unclassified = (data ?? []).filter((r) => !r.ved_class);
 
@@ -1834,7 +1855,7 @@ function VedView() {
       label: "VED Class",
       render: (row: VedAnalysisRow) =>
         row.ved_class ? (
-          <Badge color={statusColor(row.ved_class) ?? "slate"} variant="filled" size="sm">
+          <Badge tone={colorToBadgeTone(statusColor(row.ved_class))} variant="filled" size="sm">
             {row.ved_class}
           </Badge>
         ) : (
@@ -1895,7 +1916,6 @@ function FsnView() {
     queryFn: () => indentService.getFsnAnalysis(params),
   });
 
-  
   const columns = [
     { key: "item_name", label: "Item", render: (row: FsnAnalysisRow) => row.item_name },
     {
@@ -1913,7 +1933,7 @@ function FsnView() {
       key: "fsn_class",
       label: "Class",
       render: (row: FsnAnalysisRow) => (
-        <Badge color={statusColor(row.fsn_class) ?? "slate"} variant="filled" size="sm">
+        <Badge tone={colorToBadgeTone(statusColor(row.fsn_class))} variant="filled" size="sm">
           {row.fsn_class.replace(/_/g, " ")}
         </Badge>
       ),
@@ -2115,7 +2135,7 @@ function ComplianceView() {
       key: "status",
       label: "Status",
       render: (row: ComplianceCheckRow) => (
-        <Badge color={row.status === "pass" ? "success" : "danger"} variant="filled" size="sm">
+        <Badge tone={row.status === "pass" ? "success" : "danger"} variant="filled" size="sm">
           {row.status}
         </Badge>
       ),
@@ -2181,10 +2201,9 @@ function PatientConsumablesPanel() {
       label: "Status",
       render: (row: PatientConsumableIssue) => (
         <Badge
-          color={
-            row.status === "issued" ? "primary" : row.status === "returned" ? "orange" : "success"
+          tone={
+            row.status === "issued" ? "primary" : row.status === "returned" ? "warning" : "success"
           }
-          variant="light"
           size="sm"
         >
           {row.status}
@@ -2196,7 +2215,7 @@ function PatientConsumablesPanel() {
       label: "Chargeable",
       render: (row: PatientConsumableIssue) =>
         row.is_chargeable ? (
-          <Badge color="violet" size="sm">
+          <Badge tone="accent" size="sm">
             Yes
           </Badge>
         ) : (
@@ -2216,7 +2235,7 @@ function PatientConsumablesPanel() {
     <>
       {canManage && (
         <Group justify="flex-end" mb="md">
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Issue to Patient
           </Button>
         </Group>
@@ -2311,6 +2330,7 @@ function IssueToPatientForm({ onSuccess }: { onSuccess: () => void }) {
       />
       <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
       <Button
+        tone="primary"
         loading={mutation.isPending}
         onClick={() => mutation.mutate()}
         disabled={!patientId || !catalogItemId}
@@ -2410,7 +2430,7 @@ function ImplantRegistryView() {
     <>
       {canManage && (
         <Group justify="flex-end" mb="md">
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Register Implant
           </Button>
         </Group>
@@ -2539,6 +2559,7 @@ function CreateImplantForm({ onSuccess }: { onSuccess: () => void }) {
       />
       <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
       <Button
+        tone="primary"
         loading={mutation.isPending}
         onClick={() => mutation.mutate()}
         disabled={!catalogItemId || !patientId || !implantDate}
@@ -2563,7 +2584,6 @@ function CondemnationsView() {
     queryFn: () => indentService.listCondemnations(),
   });
 
-  
   const columns = [
     {
       key: "condemnation_number",
@@ -2587,7 +2607,7 @@ function CondemnationsView() {
       key: "status",
       label: "Status",
       render: (row: EquipmentCondemnation) => (
-        <Badge color={statusColor(row.status) ?? "slate"} variant="filled" size="sm">
+        <Badge tone={colorToBadgeTone(statusColor(row.status))} variant="filled" size="sm">
           {row.status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -2639,7 +2659,7 @@ function CondemnationsView() {
     <>
       {canManage && (
         <Group justify="flex-end" mb="md">
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Initiate Condemnation
           </Button>
         </Group>
@@ -2754,6 +2774,7 @@ function CreateCondemnationForm({ onSuccess }: { onSuccess: () => void }) {
       />
       <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
       <Button
+        tone="primary"
         loading={mutation.isPending}
         onClick={() => mutation.mutate()}
         disabled={!catalogItemId || !reason}
@@ -2808,7 +2829,7 @@ function UpdateCondemnationStatusForm({
     <Stack>
       <Text size="sm" c="dimmed">
         Current status:{" "}
-        <Badge color="primary" size="sm">
+        <Badge tone="primary" size="sm">
           {item.status.replace(/_/g, " ")}
         </Badge>
       </Text>
@@ -2841,7 +2862,12 @@ function UpdateCondemnationStatusForm({
           onChange={(v) => setDisposalMethod(v ?? "")}
         />
       )}
-      <Button loading={mutation.isPending} onClick={() => mutation.mutate()} disabled={!newStatus}>
+      <Button
+        tone="primary"
+        loading={mutation.isPending}
+        onClick={() => mutation.mutate()}
+        disabled={!newStatus}
+      >
         Update Status
       </Button>
     </Stack>

@@ -2,8 +2,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Alert,
-  Badge,
-  Button,
   Card,
   Checkbox,
   Drawer,
@@ -89,6 +87,7 @@ import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   DEFAULT_OT_ANESTHESIA_RECORD_FORM_VALUES,
   DEFAULT_OT_BOOKING_FORM_VALUES,
@@ -136,6 +135,15 @@ const bookingStatusColors: Record<string, string> = {
   completed: "teal",
   cancelled: "danger",
   postponed: "orange",
+};
+
+const bookingStatusTones: Record<string, BadgeTone> = {
+  requested: "warning",
+  confirmed: "primary",
+  in_progress: "success",
+  completed: "success",
+  cancelled: "danger",
+  postponed: "warning",
 };
 
 function OtRestrictedValue() {
@@ -350,13 +358,12 @@ function ScheduleTab() {
               <Table.Td>
                 <Badge
                   size="sm"
-                  variant="light"
-                  color={
+                  tone={
                     b.priority === "emergency"
                       ? "danger"
                       : b.priority === "urgent"
-                        ? "orange"
-                        : "slate"
+                        ? "warning"
+                        : "neutral"
                   }
                 >
                   {b.priority}
@@ -453,9 +460,8 @@ function BookingsTab({ canCreate, canList }: { canCreate: boolean; canList: bool
       render: (r: OtBooking) => (
         <Badge
           size="sm"
-          variant="light"
-          color={
-            r.priority === "emergency" ? "danger" : r.priority === "urgent" ? "orange" : "slate"
+          tone={
+            r.priority === "emergency" ? "danger" : r.priority === "urgent" ? "warning" : "neutral"
           }
         >
           {r.priority}
@@ -507,7 +513,7 @@ function BookingsTab({ canCreate, canList }: { canCreate: boolean; canList: bool
           w={180}
         />
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             New Booking
           </Button>
         )}
@@ -739,7 +745,7 @@ function CreateBookingDrawer({
           name="notes"
           render={({ field }) => <Textarea label="Notes" {...field} />}
         />
-        <Button type="submit" loading={mutation.isPending}>
+        <Button tone="primary" type="submit" loading={mutation.isPending}>
           Create Booking
         </Button>
       </Stack>
@@ -842,7 +848,7 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
         <Text fw={700} size="lg">
           {b.procedure_name}
         </Text>
-        <Badge color={bookingStatusColors[b.status] ?? "slate"} variant="light" size="lg">
+        <Badge tone={bookingStatusTones[b.status] ?? "neutral"} size="lg">
           {b.status.replace("_", " ")}
         </Badge>
       </Group>
@@ -878,8 +884,8 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
           {b.status === "requested" && (
             <Group>
               <Button
+                tone="primary"
                 size="sm"
-                color="primary"
                 leftSection={<IconCheck size={14} />}
                 loading={statusMutation.isPending}
                 onClick={() => statusMutation.mutate({ status: "confirmed" })}
@@ -887,9 +893,8 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
                 Confirm
               </Button>
               <Button
+                tone="subtle-danger"
                 size="sm"
-                color="danger"
-                variant="light"
                 leftSection={<IconX size={14} />}
                 onClick={() => openStatusReasonEditor("cancel")}
               >
@@ -901,8 +906,8 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
           {b.status === "confirmed" && (
             <Group>
               <Button
+                tone="primary"
                 size="sm"
-                color="success"
                 leftSection={<IconPlayerPlay size={14} />}
                 loading={statusMutation.isPending}
                 onClick={() =>
@@ -915,18 +920,16 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
                 Start Surgery
               </Button>
               <Button
+                tone="secondary"
                 size="sm"
-                color="orange"
-                variant="light"
                 leftSection={<IconClock size={14} />}
                 onClick={() => openStatusReasonEditor("postpone")}
               >
                 Postpone
               </Button>
               <Button
+                tone="subtle-danger"
                 size="sm"
-                color="danger"
-                variant="light"
                 leftSection={<IconX size={14} />}
                 onClick={() => openStatusReasonEditor("cancel")}
               >
@@ -938,8 +941,8 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
           {b.status === "in_progress" && (
             <Group>
               <Button
+                tone="primary"
                 size="sm"
-                color="teal"
                 leftSection={<IconCircleCheck size={14} />}
                 loading={statusMutation.isPending}
                 onClick={() =>
@@ -952,9 +955,8 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
                 Complete Surgery
               </Button>
               <Button
+                tone="subtle-danger"
                 size="sm"
-                color="danger"
-                variant="light"
                 leftSection={<IconX size={14} />}
                 onClick={() => openStatusReasonEditor("cancel")}
               >
@@ -984,14 +986,14 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
               />
               <Group>
                 <Button
+                  tone={reasonAction === "cancel" ? "danger" : "primary"}
                   type="submit"
                   size="sm"
-                  color={reasonAction === "cancel" ? "danger" : "orange"}
                   loading={statusMutation.isPending}
                 >
                   Confirm {reasonAction === "cancel" ? "Cancellation" : "Postpone"}
                 </Button>
-                <Button size="sm" variant="subtle" onClick={closeStatusReasonEditor}>
+                <Button tone="ghost" size="sm" onClick={closeStatusReasonEditor}>
                   Back
                 </Button>
               </Group>
@@ -1091,7 +1093,7 @@ function PreopTab({ bookingId }: { bookingId: string }) {
         <Group justify="space-between">
           <Text fw={600}>Pre-Operative Assessment</Text>
           <Badge
-            color={
+            tone={
               a.clearance_status === "cleared"
                 ? "success"
                 : a.clearance_status === "not_cleared"
@@ -1125,8 +1127,8 @@ function PreopTab({ bookingId }: { bookingId: string }) {
         </Text>
         {canCreate && (
           <Button
+            tone="secondary"
             size="sm"
-            variant="light"
             onClick={() => {
               resetUpdate({
                 clearance_status: a.clearance_status,
@@ -1177,12 +1179,12 @@ function PreopTab({ bookingId }: { bookingId: string }) {
           )}
         />
         <Group>
-          <Button size="sm" type="submit" loading={updateMutation.isPending}>
+          <Button tone="primary" size="sm" type="submit" loading={updateMutation.isPending}>
             Save
           </Button>
           <Button
+            tone="ghost"
             size="sm"
-            variant="subtle"
             onClick={() => {
               closeEditing();
               resetUpdate(DEFAULT_OT_PREOP_UPDATE_FORM_VALUES);
@@ -1283,7 +1285,7 @@ function PreopTab({ bookingId }: { bookingId: string }) {
         name="conditions"
         render={({ field }) => <Textarea label="Conditions" {...field} />}
       />
-      <Button type="submit" loading={createMutation.isPending}>
+      <Button tone="primary" type="submit" loading={createMutation.isPending}>
         Save Assessment
       </Button>
     </Stack>
@@ -1393,17 +1395,17 @@ function ChecklistTab({ bookingId }: { bookingId: string }) {
                 <Text fw={500}>{phaseLabels[phase]}</Text>
               </Group>
               {completed && (
-                <Badge color="success" size="sm">
+                <Badge tone="success" size="sm">
                   Completed
                 </Badge>
               )}
               {checklist && !completed && (
-                <Badge color="warning" size="sm">
+                <Badge tone="warning" size="sm">
                   In Progress
                 </Badge>
               )}
               {!checklist && (
-                <Badge color="slate" size="sm">
+                <Badge tone="neutral" size="sm">
                   Not Started
                 </Badge>
               )}
@@ -1417,9 +1419,9 @@ function ChecklistTab({ bookingId }: { bookingId: string }) {
 
             {canCreate && !checklist && (
               <Button
+                tone="secondary"
                 size="xs"
                 mt="xs"
-                variant="light"
                 disabled={blocked}
                 loading={createMutation.isPending}
                 onClick={() => createMutation.mutate({ phase, items: {} })}
@@ -1432,9 +1434,9 @@ function ChecklistTab({ bookingId }: { bookingId: string }) {
 
             {canCreate && checklist && !completed && (
               <Button
+                tone="primary"
                 size="xs"
                 mt="xs"
-                color="success"
                 loading={completeMutation.isPending}
                 onClick={() => completeMutation.mutate({ id: checklist.id })}
               >
@@ -1707,7 +1709,7 @@ function CaseRecordTab({ bookingId }: { bookingId: string }) {
         render={({ field }) => <Textarea label="Notes" {...field} />}
       />
 
-      <Button type="submit" loading={createMutation.isPending}>
+      <Button tone="primary" type="submit" loading={createMutation.isPending}>
         Save Case Record
       </Button>
     </Stack>
@@ -1855,7 +1857,7 @@ function AnesthesiaTab({ bookingId }: { bookingId: string }) {
         name="notes"
         render={({ field }) => <Textarea label="Notes" {...field} />}
       />
-      <Button type="submit" loading={createMutation.isPending}>
+      <Button tone="primary" type="submit" loading={createMutation.isPending}>
         Save Anesthesia Record
       </Button>
     </Stack>
@@ -1931,12 +1933,12 @@ function PostopTab({ bookingId }: { bookingId: string }) {
         <Group justify="space-between">
           <Text fw={600}>Post-Op / PACU Recovery</Text>
           <Badge
-            color={
+            tone={
               record.recovery_status === "discharged" ||
               record.recovery_status === "shifted_to_ward"
                 ? "success"
                 : record.recovery_status === "shifted_to_icu"
-                  ? "orange"
+                  ? "warning"
                   : "primary"
             }
           >
@@ -1967,8 +1969,8 @@ function PostopTab({ bookingId }: { bookingId: string }) {
         )}
         {canCreate && (
           <Button
+            tone="secondary"
             size="sm"
-            variant="light"
             onClick={() => {
               resetUpdate({
                 recovery_status: record.recovery_status,
@@ -2039,12 +2041,12 @@ function PostopTab({ bookingId }: { bookingId: string }) {
           render={({ field }) => <Textarea label="Notes" {...field} />}
         />
         <Group>
-          <Button size="sm" type="submit" loading={updateMutation.isPending}>
+          <Button tone="primary" size="sm" type="submit" loading={updateMutation.isPending}>
             Save
           </Button>
           <Button
+            tone="ghost"
             size="sm"
-            variant="subtle"
             onClick={() => {
               closeEditing();
               resetUpdate(DEFAULT_OT_POSTOP_UPDATE_FORM_VALUES);
@@ -2115,7 +2117,7 @@ function PostopTab({ bookingId }: { bookingId: string }) {
         name="notes"
         render={({ field }) => <Textarea label="Notes" {...field} />}
       />
-      <Button type="submit" loading={createMutation.isPending}>
+      <Button tone="primary" type="submit" loading={createMutation.isPending}>
         Save Post-Op Record
       </Button>
     </Stack>
@@ -2166,9 +2168,7 @@ function RoomsTab({ canManage }: { canManage: boolean }) {
       key: "is_active",
       label: "Active",
       render: (r: OtRoom) => (
-        <Badge variant="light" color={r.is_active ? "success" : "slate"}>
-          {r.is_active ? "Yes" : "No"}
-        </Badge>
+        <Badge tone={r.is_active ? "success" : "neutral"}>{r.is_active ? "Yes" : "No"}</Badge>
       ),
     },
   ];
@@ -2177,7 +2177,7 @@ function RoomsTab({ canManage }: { canManage: boolean }) {
     <Stack>
       {canManage && (
         <Group>
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Add Room
           </Button>
         </Group>
@@ -2227,7 +2227,7 @@ function CreateRoomDrawer({ opened, onClose }: { opened: boolean; onClose: () =>
             <TextInput label="Code" required error={errors.code?.message} {...field} />
           )}
         />
-        <Button type="submit" loading={mutation.isPending}>
+        <Button tone="primary" type="submit" loading={mutation.isPending}>
           Create
         </Button>
       </Stack>
@@ -2280,7 +2280,7 @@ function PreferencesTab({ canManage }: { canManage: boolean }) {
     <Stack>
       {canManage && (
         <Group>
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Add Preference Card
           </Button>
         </Group>
@@ -2362,7 +2362,7 @@ function CreatePreferenceDrawer({ opened, onClose }: { opened: boolean; onClose:
           name="special_instructions"
           render={({ field }) => <Textarea label="Special Instructions" {...field} />}
         />
-        <Button type="submit" loading={mutation.isPending}>
+        <Button tone="primary" type="submit" loading={mutation.isPending}>
           Save
         </Button>
       </Stack>
@@ -2430,14 +2430,19 @@ function ConsumablesSubTab({ bookingId }: { bookingId: string }) {
       <Group justify="space-between">
         <Text fw={500}>Consumables Used</Text>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} size="sm" onClick={formHandlers.open}>
+          <Button
+            tone="primary"
+            leftSection={<IconPlus size={16} />}
+            size="sm"
+            onClick={formHandlers.open}
+          >
             Add Consumable
           </Button>
         )}
       </Group>
 
       {totalCost > 0 && (
-        <Badge size="lg" variant="light" color="primary">
+        <Badge tone="primary" size="lg">
           Total Cost: {totalCost.toFixed(2)}
         </Badge>
       )}
@@ -2518,6 +2523,7 @@ function ConsumablesSubTab({ bookingId }: { bookingId: string }) {
             </Group>
             <Group>
               <Button
+                tone="primary"
                 size="sm"
                 onClick={handleCreate}
                 loading={createMutation.isPending}
@@ -2525,7 +2531,7 @@ function ConsumablesSubTab({ bookingId }: { bookingId: string }) {
               >
                 Save
               </Button>
-              <Button size="sm" variant="subtle" onClick={closeForm}>
+              <Button tone="ghost" size="sm" onClick={closeForm}>
                 Cancel
               </Button>
             </Group>
@@ -2559,7 +2565,7 @@ function ConsumablesSubTab({ bookingId }: { bookingId: string }) {
                   <Text size="sm">{c.item_name}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge size="sm" variant="light">
+                  <Badge tone="neutral" size="sm">
                     {c.category.replace(/_/g, " ")}
                   </Badge>
                 </Table.Td>

@@ -2,9 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Alert,
-  Badge,
   Box,
-  Button,
   Card,
   Divider,
   Drawer,
@@ -202,6 +200,7 @@ import { PatientJourneyActions } from "@/components/Patient/PatientJourneyAction
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PaymentModal, type PaymentModalSettlement } from "@/components/PaymentModal";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   billingAdvancePurposeOptions,
   billingChargeSourceOptions,
@@ -245,13 +244,43 @@ import {
   billingInvoicePaymentRoute,
 } from "./billing-workspace";
 
-const statusColors: Record<string, string> = {
-  draft: "slate",
+const toBadgeTone = (color: string | undefined): BadgeTone => {
+  switch (color) {
+    case "primary":
+      return "primary";
+    case "success":
+    case "green":
+    case "teal":
+    case "lime":
+      return "success";
+    case "warning":
+    case "yellow":
+    case "orange":
+      return "warning";
+    case "danger":
+    case "red":
+      return "danger";
+    case "info":
+    case "blue":
+    case "cyan":
+    case "indigo":
+      return "info";
+    case "violet":
+    case "grape":
+    case "pink":
+      return "accent";
+    default:
+      return "neutral";
+  }
+};
+
+const statusColors: Record<string, BadgeTone> = {
+  draft: "neutral",
   issued: "primary",
   partially_paid: "warning",
   paid: "success",
   cancelled: "danger",
-  refunded: "orange",
+  refunded: "warning",
 };
 
 const BILLING_INVOICE_STATUS_OPTIONS = [
@@ -584,7 +613,7 @@ export function BillingInvoiceDetailPage() {
             title="Invoice"
             subtitle="Invoice route is missing an invoice identifier."
             actions={
-              <Button variant="subtle" onClick={() => navigate("/billing")}>
+              <Button tone="ghost" onClick={() => navigate("/billing")}>
                 Back to Billing
               </Button>
             }
@@ -602,7 +631,7 @@ export function BillingInvoiceDetailPage() {
           title="Invoice detail"
           subtitle="Charges, discounts, copay, payments, receipts, and audit context."
           actions={
-            <Button variant="subtle" onClick={() => navigate("/billing")}>
+            <Button tone="ghost" onClick={() => navigate("/billing")}>
               Back to Billing
             </Button>
           }
@@ -884,14 +913,14 @@ function BillingPageInner() {
         actions={
           <Group gap="xs">
             <Button
-              variant="subtle"
+              tone="ghost"
               leftSection={<IconListCheck size={16} />}
               onClick={() => navigate("/billing/worklist")}
             >
               Worklist
             </Button>
             <Button
-              variant="subtle"
+              tone="ghost"
               leftSection={<IconShieldHalf size={16} />}
               onClick={() => navigate("/billing/tpa-pipeline")}
             >
@@ -899,7 +928,7 @@ function BillingPageInner() {
             </Button>
             {canPay && (
               <Button
-                variant="light"
+                tone="secondary"
                 leftSection={<IconCash size={16} />}
                 onClick={() => navigate("/billing/counter")}
               >
@@ -907,7 +936,7 @@ function BillingPageInner() {
               </Button>
             )}
             {canCreate && (
-              <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+              <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
                 {t("button.newInvoice")}
               </Button>
             )}
@@ -929,7 +958,7 @@ function BillingPageInner() {
               compact
             />
             <Button
-              variant="subtle"
+              tone="ghost"
               size="xs"
               leftSection={<IconX size={14} />}
               onClick={clearPatientBillingFilter}
@@ -976,8 +1005,8 @@ function BillingPageInner() {
                 <Group gap="xs">
                   {activeHandoff === "payment" && firstPayableInvoice && canPay && (
                     <Button
+                      tone="primary"
                       size="xs"
-                      color="orange"
                       leftSection={<IconCash size={14} />}
                       onClick={() =>
                         navigate(`/billing/invoices/${firstPayableInvoice.id}?action=payment`)
@@ -987,11 +1016,11 @@ function BillingPageInner() {
                     </Button>
                   )}
                   {activeHandoff === "discharge_bill" && canCreate && (
-                    <Button size="xs" color="teal" onClick={openCreate}>
+                    <Button tone="primary" size="xs" onClick={openCreate}>
                       {t("button.newInvoice")}
                     </Button>
                   )}
-                  <Button size="xs" variant="subtle" onClick={clearBillingHandoff}>
+                  <Button tone="ghost" size="xs" onClick={clearBillingHandoff}>
                     {t("button.dismiss")}
                   </Button>
                 </Group>
@@ -1718,16 +1747,8 @@ function InvoiceDetail({
                   shape={invoiceSignal.shape}
                   tone={invoiceSignal.tone}
                 />
-                {inv.is_interim && (
-                  <Badge color="violet" variant="light">
-                    Interim #{inv.sequence_number}
-                  </Badge>
-                )}
-                {inv.is_er_deferred && (
-                  <Badge color="danger" variant="light">
-                    ER Deferred
-                  </Badge>
-                )}
+                {inv.is_interim && <Badge tone="accent">Interim #{inv.sequence_number}</Badge>}
+                {inv.is_er_deferred && <Badge tone="danger">ER Deferred</Badge>}
               </Group>
               <Group gap="md">
                 <Text size="sm">Total: {billingAmountText(inv.total_amount, amountAccess)}</Text>
@@ -1747,16 +1768,20 @@ function InvoiceDetail({
             </Stack>
             <Group gap="xs" justify="flex-end">
               {canRecordPayment && (
-                <Button size="xs" leftSection={<IconCash size={14} />} onClick={openPaymentForm}>
+                <Button
+                  tone="primary"
+                  size="xs"
+                  leftSection={<IconCash size={14} />}
+                  onClick={openPaymentForm}
+                >
                   {t("button.recordPayment")}
                 </Button>
               )}
               {canPay && displayStatus === "issued" && balance === 0 && (
                 <Tooltip label="No money to collect — record this free / scheme bill as settled">
                   <Button
+                    tone="secondary"
                     size="xs"
-                    variant="light"
-                    color="primary"
                     leftSection={<IconCheck size={14} />}
                     loading={closeZeroMutation.isPending}
                     onClick={() => closeZeroMutation.mutate()}
@@ -1774,9 +1799,8 @@ function InvoiceDetail({
                   }
                 >
                   <Button
+                    tone="secondary"
                     size="xs"
-                    variant="light"
-                    color="violet"
                     leftSection={<IconPrinter size={14} />}
                     loading={invoicePrintMutation.isPending}
                     disabled={inv.status === "draft"}
@@ -1792,8 +1816,8 @@ function InvoiceDetail({
               {canCreate && inv.status === "draft" && (
                 <>
                   <Button
+                    tone="primary"
                     size="xs"
-                    color="primary"
                     leftSection={<IconCheck size={14} />}
                     loading={issueMutation.isPending}
                     onClick={() => issueMutation.mutate()}
@@ -1801,9 +1825,8 @@ function InvoiceDetail({
                     Issue
                   </Button>
                   <Button
+                    tone="subtle-danger"
                     size="xs"
-                    color="danger"
-                    variant="light"
                     leftSection={<IconX size={14} />}
                     loading={cancelMutation.isPending}
                     onClick={() =>
@@ -1822,12 +1845,17 @@ function InvoiceDetail({
               )}
               {canRecordPayment && (
                 <>
-                  <Button size="xs" leftSection={<IconCash size={14} />} onClick={openPaymentForm}>
+                  <Button
+                    tone="primary"
+                    size="xs"
+                    leftSection={<IconCash size={14} />}
+                    onClick={openPaymentForm}
+                  >
                     {t("button.payment")}
                   </Button>
                   <Button
+                    tone="secondary"
                     size="xs"
-                    variant="light"
                     leftSection={<IconCreditCard size={14} />}
                     onClick={gatewayHandlers.open}
                   >
@@ -1854,12 +1882,17 @@ function InvoiceDetail({
             </Text>
             <Group gap="xs">
               {canRecordPayment && (
-                <Button size="xs" leftSection={<IconCash size={14} />} onClick={openPaymentForm}>
+                <Button
+                  tone="primary"
+                  size="xs"
+                  leftSection={<IconCash size={14} />}
+                  onClick={openPaymentForm}
+                >
                   {t("button.recordPayment")}
                 </Button>
               )}
               {onClearAction && (
-                <Button size="xs" variant="subtle" onClick={onClearAction}>
+                <Button tone="ghost" size="xs" onClick={onClearAction}>
                   {t("button.dismiss")}
                 </Button>
               )}
@@ -1878,7 +1911,7 @@ function InvoiceDetail({
                   {canPrintBillingDocs && (
                     <Group gap={4}>
                       {BILLING_INVOICE_PRINT_COPIES.map((copy) => (
-                        <Badge key={copy.label} color="violet" variant="light">
+                        <Badge key={copy.label} tone="accent">
                           {printCopyRouteLabel(copy)}
                         </Badge>
                       ))}
@@ -1889,17 +1922,17 @@ function InvoiceDetail({
                   Number(inv.sgst_amount ?? 0) > 0 ||
                   Number(inv.igst_amount ?? 0) > 0) && (
                   <Group gap="xs">
-                    <Badge variant="light" color="teal" size="sm">
+                    <Badge tone="success" size="sm">
                       CGST: {billingAmountText(inv.cgst_amount, amountAccess)}
                     </Badge>
-                    <Badge variant="light" color="teal" size="sm">
+                    <Badge tone="success" size="sm">
                       SGST: {billingAmountText(inv.sgst_amount, amountAccess)}
                     </Badge>
-                    <Badge variant="light" color="primary" size="sm">
+                    <Badge tone="primary" size="sm">
                       IGST: {billingAmountText(inv.igst_amount, amountAccess)}
                     </Badge>
                     {Number(inv.cess_amount ?? 0) > 0 && (
-                      <Badge variant="light" color="orange" size="sm">
+                      <Badge tone="warning" size="sm">
                         Cess: {billingAmountText(inv.cess_amount, amountAccess)}
                       </Badge>
                     )}
@@ -1925,8 +1958,8 @@ function InvoiceDetail({
                   <Text fw={700}>Items</Text>
                   {canCreate && inv.status === "draft" && (
                     <Button
+                      tone="secondary"
                       size="xs"
-                      variant="light"
                       leftSection={<IconPlus size={14} />}
                       onClick={addItemHandlers.toggle}
                     >
@@ -2053,7 +2086,12 @@ function InvoiceDetail({
                         )}
                       />
                     </Group>
-                    <Button size="xs" type="submit" loading={addItemMutation.isPending}>
+                    <Button
+                      tone="primary"
+                      size="xs"
+                      type="submit"
+                      loading={addItemMutation.isPending}
+                    >
                       Add
                     </Button>
                   </Stack>
@@ -2068,6 +2106,7 @@ function InvoiceDetail({
                   {canRecordPayment && (
                     <Group gap="xs">
                       <Button
+                        tone="primary"
                         size="xs"
                         leftSection={<IconCash size={14} />}
                         onClick={openPaymentForm}
@@ -2075,8 +2114,8 @@ function InvoiceDetail({
                         {paymentOpened ? t("label.close") : t("button.recordPayment")}
                       </Button>
                       <Button
+                        tone="secondary"
                         size="xs"
-                        variant="light"
                         leftSection={<IconCreditCard size={14} />}
                         onClick={gatewayHandlers.open}
                       >
@@ -2180,8 +2219,8 @@ function InvoiceDetail({
                   <Text fw={700}>Discounts</Text>
                   {canCreate && inv.status === "draft" && (
                     <Button
+                      tone="secondary"
                       size="xs"
-                      variant="light"
                       leftSection={<IconDiscount2 size={14} />}
                       onClick={discountHandlers.toggle}
                     >
@@ -2203,7 +2242,7 @@ function InvoiceDetail({
                       {discounts.map((d: InvoiceDiscount) => (
                         <Table.Tr key={d.id}>
                           <Table.Td>
-                            <Badge variant="light">{d.discount_type}</Badge>
+                            <Badge tone="neutral">{d.discount_type}</Badge>
                           </Table.Td>
                           <Table.Td>
                             {d.discount_type === "percentage"
@@ -2282,7 +2321,12 @@ function InvoiceDetail({
                       error={discountErrors.reason?.message}
                       {...registerDiscount("reason")}
                     />
-                    <Button size="xs" type="submit" loading={addDiscountMutation.isPending}>
+                    <Button
+                      tone="primary"
+                      size="xs"
+                      type="submit"
+                      loading={addDiscountMutation.isPending}
+                    >
                       Apply Discount
                     </Button>
                   </Stack>
@@ -2345,9 +2389,8 @@ function InvoiceDetail({
                   Navigate
                 </Text>
                 <Button
+                  tone="secondary"
                   size="xs"
-                  variant="light"
-                  color="slate"
                   component="a"
                   href="#billing-summary"
                   leftSection={<IconFileInvoice size={14} />}
@@ -2356,9 +2399,8 @@ function InvoiceDetail({
                   Summary
                 </Button>
                 <Button
+                  tone="secondary"
                   size="xs"
-                  variant="light"
-                  color="slate"
                   component="a"
                   href="#billing-items"
                   leftSection={<IconTags size={14} />}
@@ -2367,9 +2409,8 @@ function InvoiceDetail({
                   Items
                 </Button>
                 <Button
+                  tone="secondary"
                   size="xs"
-                  variant="light"
-                  color="slate"
                   component="a"
                   href="#billing-payments"
                   leftSection={<IconReceipt size={14} />}
@@ -2378,9 +2419,8 @@ function InvoiceDetail({
                   Payments
                 </Button>
                 <Button
+                  tone="secondary"
                   size="xs"
-                  variant="light"
-                  color="slate"
                   component="a"
                   href="#billing-discounts"
                   leftSection={<IconDiscount2 size={14} />}
@@ -2397,6 +2437,7 @@ function InvoiceDetail({
                 {canRecordPayment && (
                   <>
                     <Button
+                      tone="primary"
                       size="xs"
                       leftSection={<IconCash size={14} />}
                       onClick={openPaymentForm}
@@ -2405,8 +2446,8 @@ function InvoiceDetail({
                       {t("button.recordPayment")}
                     </Button>
                     <Button
+                      tone="secondary"
                       size="xs"
-                      variant="light"
                       leftSection={<IconCreditCard size={14} />}
                       onClick={gatewayHandlers.open}
                       fullWidth
@@ -2418,8 +2459,8 @@ function InvoiceDetail({
                 {canCreate && inv.status === "draft" && (
                   <>
                     <Button
+                      tone="secondary"
                       size="xs"
-                      variant="light"
                       leftSection={<IconPlus size={14} />}
                       onClick={addItemHandlers.toggle}
                       fullWidth
@@ -2427,8 +2468,8 @@ function InvoiceDetail({
                       Add Item
                     </Button>
                     <Button
+                      tone="secondary"
                       size="xs"
-                      variant="light"
                       leftSection={<IconDiscount2 size={14} />}
                       onClick={discountHandlers.toggle}
                       fullWidth
@@ -2438,9 +2479,8 @@ function InvoiceDetail({
                   </>
                 )}
                 <Button
+                  tone="secondary"
                   size="xs"
-                  variant="light"
-                  color="teal"
                   leftSection={<IconShieldCheck size={14} />}
                   onClick={copayHandlers.toggle}
                   fullWidth
@@ -2448,9 +2488,8 @@ function InvoiceDetail({
                   {copayOpened ? "Close Co-pay" : "Calculate Co-pay"}
                 </Button>
                 <Button
+                  tone="secondary"
                   size="xs"
-                  variant="light"
-                  color="orange"
                   leftSection={<IconFileInvoice size={14} />}
                   onClick={() => navigate(`/billing?tab=invoices&patient_id=${inv.patient_id}`)}
                   fullWidth
@@ -2606,6 +2645,7 @@ function ChargeMasterTab({ canCreate }: { canCreate: boolean }) {
       {canCreate && (
         <Group>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => setShowForm(!showForm)}
@@ -2689,7 +2729,7 @@ function ChargeMasterTab({ canCreate }: { canCreate: boolean }) {
               )}
             />
           </Group>
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -2721,6 +2761,7 @@ function CopayBreakdown({ invoiceId }: { invoiceId: string }) {
     <Card withBorder p="sm">
       {!copay && !isLoading && (
         <Button
+          tone="primary"
           size="xs"
           onClick={() => calculateMutation.mutate()}
           loading={calculateMutation.isPending}
@@ -2936,6 +2977,7 @@ function PackagesTab({ canCreate }: { canCreate: boolean }) {
       {canCreate && (
         <Group>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => setShowForm(!showForm)}
@@ -3063,15 +3105,15 @@ function PackagesTab({ canCreate }: { canCreate: boolean }) {
               )}
             />
             <Button
+              tone="secondary"
               size="xs"
               type="button"
-              variant="light"
               onClick={handleSubmitPackageItem(addPkgItem)}
             >
               + Item
             </Button>
           </Group>
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save Package
           </Button>
         </Stack>
@@ -3174,7 +3216,7 @@ function RatePlansTab({ canCreate }: { canCreate: boolean }) {
       label: "Default",
       render: (row: RatePlan) =>
         row.is_default ? (
-          <Badge size="xs" color="primary">
+          <Badge size="xs" tone="primary">
             Default
           </Badge>
         ) : null,
@@ -3217,6 +3259,7 @@ function RatePlansTab({ canCreate }: { canCreate: boolean }) {
       {canCreate && (
         <Group>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => setShowForm(!showForm)}
@@ -3305,15 +3348,15 @@ function RatePlansTab({ canCreate }: { canCreate: boolean }) {
               )}
             />
             <Button
+              tone="secondary"
               size="xs"
               type="button"
-              variant="light"
               onClick={handleSubmitRatePlanItem(addRpItem)}
             >
               + Override
             </Button>
           </Group>
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save Rate Plan
           </Button>
         </Stack>
@@ -3488,8 +3531,7 @@ function RefundsCreditsTab({
       label: "Status",
       render: (row: BadDebtWriteOff) => (
         <Badge
-          variant="light"
-          color={
+          tone={
             row.status === "approved" ? "success" : row.status === "rejected" ? "danger" : "warning"
           }
         >
@@ -3551,7 +3593,7 @@ function RefundsCreditsTab({
     {
       key: "mode",
       label: "Mode",
-      render: (row: Refund) => <Badge variant="light">{row.mode}</Badge>,
+      render: (row: Refund) => <Badge tone="neutral">{row.mode}</Badge>,
     },
     {
       key: "refunded_at",
@@ -3583,8 +3625,7 @@ function RefundsCreditsTab({
       label: "Status",
       render: (row: CreditNote) => (
         <Badge
-          variant="light"
-          color={row.status === "active" ? "success" : row.status === "used" ? "primary" : "danger"}
+          tone={row.status === "active" ? "success" : row.status === "used" ? "primary" : "danger"}
         >
           {row.status}
         </Badge>
@@ -3596,8 +3637,8 @@ function RefundsCreditsTab({
       render: (row: CreditNote) =>
         row.status === "active" && canCreate ? (
           <Button
+            tone="secondary"
             size="compact-xs"
-            variant="light"
             onClick={() => {
               const invoiceId = prompt("Enter Invoice ID to apply credit note:");
               if (invoiceId) applyMutation.mutate({ noteId: row.id, invoiceId });
@@ -3615,6 +3656,7 @@ function RefundsCreditsTab({
       {canCreate && (
         <>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => setShowRefund(!showRefund)}
@@ -3670,7 +3712,7 @@ function RefundsCreditsTab({
                 error={refundErrors.reference_number?.message}
                 {...registerRefund("reference_number")}
               />
-              <Button size="xs" type="submit" loading={refundMutation.isPending}>
+              <Button tone="primary" size="xs" type="submit" loading={refundMutation.isPending}>
                 Process Refund
               </Button>
             </Stack>
@@ -3685,6 +3727,7 @@ function RefundsCreditsTab({
       {canCreate && (
         <>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => setShowCredit(!showCredit)}
@@ -3720,7 +3763,7 @@ function RefundsCreditsTab({
                 error={creditErrors.reason?.message}
                 {...registerCredit("reason")}
               />
-              <Button size="xs" type="submit" loading={creditMutation.isPending}>
+              <Button tone="primary" size="xs" type="submit" loading={creditMutation.isPending}>
                 Issue Credit Note
               </Button>
             </Stack>
@@ -3735,6 +3778,7 @@ function RefundsCreditsTab({
       {canWriteOff && (
         <>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => setShowWriteOff(!showWriteOff)}
@@ -3775,7 +3819,7 @@ function RefundsCreditsTab({
                 error={writeOffErrors.notes?.message}
                 {...registerWriteOff("notes")}
               />
-              <Button size="xs" type="submit" loading={writeOffMutation.isPending}>
+              <Button tone="primary" size="xs" type="submit" loading={writeOffMutation.isPending}>
                 Submit Write-Off
               </Button>
             </Stack>
@@ -3904,7 +3948,7 @@ function InsuranceClaimsTab({
     {
       key: "scheme_type",
       label: "Scheme",
-      render: (row: TpaRateCard) => <Badge variant="light">{row.scheme_type ?? "—"}</Badge>,
+      render: (row: TpaRateCard) => <Badge tone="neutral">{row.scheme_type ?? "—"}</Badge>,
     },
     {
       key: "valid_from",
@@ -3920,7 +3964,7 @@ function InsuranceClaimsTab({
       key: "is_active",
       label: "Active",
       render: (row: TpaRateCard) => (
-        <Badge color={row.is_active ? "success" : "slate"}>{row.is_active ? "Yes" : "No"}</Badge>
+        <Badge tone={row.is_active ? "success" : "neutral"}>{row.is_active ? "Yes" : "No"}</Badge>
       ),
     },
     {
@@ -3950,10 +3994,10 @@ function InsuranceClaimsTab({
     },
   ];
 
-  const claimStatusColors: Record<string, string> = {
-    initiated: "slate",
+  const claimStatusColors: Record<string, BadgeTone> = {
+    initiated: "neutral",
     pre_auth_requested: "primary",
-    pre_auth_approved: "teal",
+    pre_auth_approved: "success",
     pre_auth_rejected: "danger",
     claim_submitted: "primary",
     claim_approved: "success",
@@ -4003,13 +4047,13 @@ function InsuranceClaimsTab({
     {
       key: "claim_type",
       label: "Type",
-      render: (row: InsuranceClaim) => <Badge variant="light">{row.claim_type}</Badge>,
+      render: (row: InsuranceClaim) => <Badge tone="neutral">{row.claim_type}</Badge>,
     },
     {
       key: "status",
       label: "Status",
       render: (row: InsuranceClaim) => (
-        <Badge variant="light" color={claimStatusColors[row.status] ?? "slate"}>
+        <Badge tone={claimStatusColors[row.status] ?? "neutral"}>
           {row.status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -4041,8 +4085,8 @@ function InsuranceClaimsTab({
       render: (row: InsuranceClaim) =>
         canCreate && row.status === "initiated" ? (
           <Button
+            tone="secondary"
             size="compact-xs"
-            variant="light"
             onClick={() => updateMutation.mutate({ id: row.id, status: "pre_auth_requested" })}
           >
             Request Pre-Auth
@@ -4056,6 +4100,7 @@ function InsuranceClaimsTab({
       {canCreate && (
         <>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -4197,7 +4242,7 @@ function InsuranceClaimsTab({
                 error={claimErrors.notes?.message}
                 {...registerClaim("notes")}
               />
-              <Button size="xs" type="submit" loading={createMutation.isPending}>
+              <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
                 Create Claim
               </Button>
             </Stack>
@@ -4224,6 +4269,7 @@ function InsuranceClaimsTab({
       {canCreate && (
         <>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -4296,7 +4342,7 @@ function InsuranceClaimsTab({
                   />
                 )}
               />
-              <Button size="xs" type="submit" loading={tpaMutation.isPending}>
+              <Button tone="primary" size="xs" type="submit" loading={tpaMutation.isPending}>
                 Save TPA Rate Card
               </Button>
             </Stack>
@@ -4367,7 +4413,7 @@ function ClaimDetailDrawer({
         claim ? (
           <Group gap="xs">
             <Text fw={600}>{claim.insurance_provider}</Text>
-            <Badge size="sm" variant="light">
+            <Badge size="sm" tone="neutral">
               {claim.claim_number ?? claim.id.slice(0, 8)}
             </Badge>
           </Group>
@@ -4483,7 +4529,7 @@ function ClaimDetailDrawer({
               <Text fw={600} size="sm">
                 Webhook callbacks
               </Text>
-              <Badge variant="light">{callbacks.length}</Badge>
+              <Badge tone="neutral">{callbacks.length}</Badge>
             </Group>
             {callbacks.length === 0 ? (
               <Text size="sm" c="dimmed">
@@ -4508,8 +4554,7 @@ function ClaimDetailDrawer({
                       <Table.Td>
                         <Badge
                           size="xs"
-                          variant="light"
-                          color={cb.verification_status === "verified" ? "green" : "orange"}
+                          tone={cb.verification_status === "verified" ? "success" : "warning"}
                         >
                           {cb.verification_status}
                         </Badge>
@@ -4767,7 +4812,7 @@ function AdvancesTab() {
     {
       key: "purpose",
       label: "Purpose",
-      render: (row: PatientAdvance) => <Badge variant="light">{row.purpose}</Badge>,
+      render: (row: PatientAdvance) => <Badge tone="neutral">{row.purpose}</Badge>,
     },
     {
       key: "payment_mode",
@@ -4778,9 +4823,7 @@ function AdvancesTab() {
       key: "status",
       label: "Status",
       render: (row: PatientAdvance) => (
-        <Badge variant="light" color={statusColor(row.status) ?? "slate"}>
-          {row.status.replace(/_/g, " ")}
-        </Badge>
+        <Badge tone={toBadgeTone(statusColor(row.status))}>{row.status.replace(/_/g, " ")}</Badge>
       ),
     },
     {
@@ -4798,17 +4841,12 @@ function AdvancesTab() {
         return (
           <Group gap={4}>
             {canAdjust && (
-              <Button size="compact-xs" variant="light" onClick={() => setAdjustId(row.id)}>
+              <Button tone="secondary" size="compact-xs" onClick={() => setAdjustId(row.id)}>
                 Adjust
               </Button>
             )}
             {canRefund && (
-              <Button
-                size="compact-xs"
-                variant="light"
-                color="orange"
-                onClick={() => setRefundId(row.id)}
-              >
+              <Button tone="secondary" size="compact-xs" onClick={() => setRefundId(row.id)}>
                 Refund
               </Button>
             )}
@@ -4860,6 +4898,7 @@ function AdvancesTab() {
       {canCreate && (
         <Group>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => setShowForm(!showForm)}
@@ -4938,7 +4977,7 @@ function AdvancesTab() {
             error={advanceErrors.notes?.message}
             {...registerAdvance("notes")}
           />
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save Advance
           </Button>
         </Stack>
@@ -4980,7 +5019,7 @@ function AdvancesTab() {
             error={adjustmentErrors.notes?.message}
             {...registerAdjustment("notes")}
           />
-          <Button type="submit" loading={adjustMutation.isPending}>
+          <Button tone="primary" type="submit" loading={adjustMutation.isPending}>
             Apply Adjustment
           </Button>
         </Stack>
@@ -5033,7 +5072,7 @@ function AdvancesTab() {
             error={advanceRefundErrors.reference_number?.message}
             {...registerAdvanceRefund("reference_number")}
           />
-          <Button type="submit" loading={refundMutation.isPending}>
+          <Button tone="primary" type="submit" loading={refundMutation.isPending}>
             Process Refund
           </Button>
         </Stack>
@@ -5178,6 +5217,7 @@ function CorporateTab() {
       {canCreate && (
         <Group>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -5267,7 +5307,7 @@ function CorporateTab() {
               )}
             />
           </Group>
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save Client
           </Button>
         </Stack>
@@ -5423,7 +5463,7 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
         <Text fw={700} size="lg">
           {corporate.name}
         </Text>
-        <Badge size="lg" variant="light" color={corporate.is_active ? "success" : "danger"}>
+        <Badge size="lg" tone={corporate.is_active ? "success" : "danger"}>
           {corporate.is_active ? "Active" : "Inactive"}
         </Badge>
       </Group>
@@ -5441,7 +5481,7 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
 
       {canUpdate && (
         <>
-          <Button size="xs" variant="light" onClick={toggleEdit}>
+          <Button tone="secondary" size="xs" onClick={toggleEdit}>
             {editing ? "Cancel Edit" : "Edit Client"}
           </Button>
           {editing && (
@@ -5531,7 +5571,7 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
                   )}
                 />
               </Group>
-              <Button size="xs" type="submit" loading={updateMutation.isPending}>
+              <Button tone="primary" size="xs" type="submit" loading={updateMutation.isPending}>
                 Save Changes
               </Button>
             </Stack>
@@ -5580,8 +5620,8 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
       {canUpdate && (
         <>
           <Button
+            tone="secondary"
             size="xs"
-            variant="light"
             leftSection={<IconPlus size={14} />}
             onClick={() => setShowEnroll(!showEnroll)}
           >
@@ -5622,7 +5662,7 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
                   {...registerEnrollment("department")}
                 />
               </Group>
-              <Button size="xs" type="submit" loading={enrollMutation.isPending}>
+              <Button tone="primary" size="xs" type="submit" loading={enrollMutation.isPending}>
                 Enroll
               </Button>
             </Stack>
@@ -5648,7 +5688,7 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
               <Table.Tr key={inv.id}>
                 <Table.Td>{inv.invoice_number}</Table.Td>
                 <Table.Td>
-                  <Badge variant="light" color={statusColors[inv.status] ?? "slate"}>
+                  <Badge tone={statusColors[inv.status] ?? "neutral"}>
                     {inv.status.replace(/_/g, " ")}
                   </Badge>
                 </Table.Td>
@@ -5806,12 +5846,11 @@ function ReportsTab() {
                 <Table.Tr key={b.bucket}>
                   <Table.Td>
                     <Badge
-                      variant="light"
-                      color={
+                      tone={
                         b.bucket.includes("90")
                           ? "danger"
                           : b.bucket.includes("60")
-                            ? "orange"
+                            ? "warning"
                             : b.bucket.includes("30")
                               ? "warning"
                               : "success"
@@ -5953,9 +5992,7 @@ function ReportsTab() {
                   <Table.Td>₹{row.total_approved}</Table.Td>
                   <Table.Td>₹{row.total_settled}</Table.Td>
                   <Table.Td>
-                    <Badge color="warning" variant="light">
-                      {row.pending_count}
-                    </Badge>
+                    <Badge tone="warning">{row.pending_count}</Badge>
                   </Table.Td>
                 </Table.Tr>
               ))}
@@ -6002,7 +6039,7 @@ function ReportsTab() {
               Status
             </Text>
             <Badge
-              color={
+              tone={
                 reconciliation.status === "verified"
                   ? "success"
                   : reconciliation.status === "discrepancy"
@@ -6286,9 +6323,7 @@ function DayCloseTab() {
       key: "status",
       label: "Status",
       render: (row: DayEndClose) => (
-        <Badge color={statusColor(row.status) ?? "slate"} variant="light">
-          {row.status}
-        </Badge>
+        <Badge tone={toBadgeTone(statusColor(row.status))}>{row.status}</Badge>
       ),
     },
     {
@@ -6297,9 +6332,8 @@ function DayCloseTab() {
       render: (row: DayEndClose) =>
         row.status === "open" && canVerify ? (
           <Button
+            tone="secondary"
             size="compact-xs"
-            variant="light"
-            color="success"
             leftSection={<IconCheck size={14} />}
             onClick={() => {
               setVerifyTarget(row);
@@ -6316,6 +6350,7 @@ function DayCloseTab() {
     <Stack>
       <Group>
         <Button
+          tone="primary"
           size="xs"
           leftSection={<IconPlus size={14} />}
           onClick={() => {
@@ -6391,7 +6426,7 @@ function DayCloseTab() {
                   value={notes}
                   onChange={(e) => setNotes(e.currentTarget.value)}
                 />
-                <Button loading={createMutation.isPending} onClick={submitDayClose}>
+                <Button tone="primary" loading={createMutation.isPending} onClick={submitDayClose}>
                   Submit day close · counted ₹{money(countedCash)}
                 </Button>
               </Stack>
@@ -6429,10 +6464,11 @@ function DayCloseTab() {
               onChange={(e) => setVerifyNotes(e.currentTarget.value)}
             />
             <Group justify="flex-end">
-              <Button variant="subtle" color="gray" onClick={() => setVerifyTarget(null)}>
+              <Button tone="ghost" onClick={() => setVerifyTarget(null)}>
                 Cancel
               </Button>
               <Button
+                tone="primary"
                 loading={verifyMutation.isPending}
                 onClick={() => verifyMutation.mutate({ id: verifyTarget.id, note: verifyNotes })}
               >
@@ -6472,7 +6508,7 @@ function AuditLogTab() {
       key: "action",
       label: "Action",
       render: (row: BillingAuditEntry) => (
-        <Badge size="sm" variant="light" color={statusColor(row.action) ?? "slate"}>
+        <Badge size="sm" tone={toBadgeTone(statusColor(row.action))}>
           {row.action.replace(/_/g, " ")}
         </Badge>
       ),
@@ -6607,11 +6643,11 @@ function CreditPatientsTab() {
       notifications.show({ title: "Error", message: "Update failed", color: "danger" }),
   });
 
-  const creditStatusColors: Record<string, string> = {
+  const creditStatusColors: Record<string, BadgeTone> = {
     active: "success",
     overdue: "danger",
-    suspended: "orange",
-    closed: "slate",
+    suspended: "warning",
+    closed: "neutral",
   };
 
   const columns = [
@@ -6628,7 +6664,7 @@ function CreditPatientsTab() {
       key: "status",
       label: "Status",
       render: (r: CreditPatient) => (
-        <Badge size="sm" color={creditStatusColors[r.status] ?? "slate"}>
+        <Badge size="sm" tone={creditStatusColors[r.status] ?? "neutral"}>
           {r.status}
         </Badge>
       ),
@@ -6742,7 +6778,7 @@ function CreditPatientsTab() {
       key: "status",
       label: "Status",
       render: (r: CreditAgingRow) => (
-        <Badge size="sm" color={creditStatusColors[r.status] ?? "slate"}>
+        <Badge size="sm" tone={creditStatusColors[r.status] ?? "neutral"}>
           {r.status}
         </Badge>
       ),
@@ -6779,12 +6815,13 @@ function CreditPatientsTab() {
             clearable
             w={160}
           />
-          <Button variant="light" onClick={() => setShowAging(!showAging)}>
+          <Button tone="secondary" onClick={() => setShowAging(!showAging)}>
             {showAging ? "Hide Aging" : "Show Aging Report"}
           </Button>
         </Group>
         {canManage && (
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               setEditId(null);
@@ -6895,7 +6932,7 @@ function CreditPatientsTab() {
               )}
             />
           )}
-          <Button type="submit" loading={createMut.isPending || updateMut.isPending}>
+          <Button tone="primary" type="submit" loading={createMut.isPending || updateMut.isPending}>
             {editId ? "Update" : "Create"}
           </Button>
         </Stack>

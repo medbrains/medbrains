@@ -4,8 +4,6 @@ import { LineChart } from "@mantine/charts";
 import {
   ActionIcon,
   Alert,
-  Badge,
-  Button,
   Card,
   Drawer,
   Group,
@@ -120,10 +118,10 @@ import {
   IconFlask,
   IconLock,
   IconPlus,
-  IconUpload,
   IconPrinter,
   IconRefresh,
   IconRobot,
+  IconUpload,
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -132,20 +130,20 @@ import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import {
   ClinicalEventProvider,
+  CsvImportModal,
   DataTable,
+  DocumentActions,
   PageHeader,
   StatusDot,
   useClinicalEmit,
-  CsvImportModal,
-  DocumentActions,
 } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
-import { statusColor } from "@/lib/status-colors";
 import { EncounterSelect } from "@/components/EncounterSelect";
 import { LabTestSearchSelect } from "@/components/LabTestSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   labB2bClientTypeOptions,
   labBethesdaCategoryOptions,
@@ -162,6 +160,7 @@ import {
   labSampleTypeOptions,
 } from "@/forms/lab.form";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { statusColor } from "@/lib/status-colors";
 import { labService } from "@/services/lab.service";
 import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "@/utils/printCopies";
 
@@ -174,6 +173,27 @@ const statusColors: Record<string, string> = {
   cancelled: "danger",
 };
 
+const BADGE_TONE_BY_COLOR: Record<string, BadgeTone> = {
+  primary: "primary",
+  info: "info",
+  success: "success",
+  warning: "warning",
+  danger: "danger",
+  accent: "accent",
+  neutral: "neutral",
+  gray: "neutral",
+  slate: "neutral",
+  teal: "success",
+  green: "success",
+  orange: "warning",
+  yellow: "warning",
+  blue: "info",
+  violet: "accent",
+};
+
+function toBadgeTone(color: string | null | undefined): BadgeTone {
+  return (color && BADGE_TONE_BY_COLOR[color]) || "neutral";
+}
 
 function toLabPriority(value: string | null): LabPriority {
   if (value === "urgent" || value === "stat") return value;
@@ -194,22 +214,20 @@ function toLabResultFlag(value: string | null): LabResultFlag | undefined {
   }
 }
 
-const flagColors: Record<string, string> = {
+const flagColors: Record<string, BadgeTone> = {
   normal: "success",
   low: "primary",
-  high: "orange",
+  high: "warning",
   critical_low: "danger",
   critical_high: "danger",
   abnormal: "warning",
 };
 
-
-
-const phlebotomyStatusColors: Record<string, string> = {
+const phlebotomyStatusColors: Record<string, BadgeTone> = {
   waiting: "warning",
   in_progress: "primary",
   completed: "success",
-  skipped: "slate",
+  skipped: "neutral",
 };
 
 const LAB_REPORT_PRINT_COPIES = PRINT_COPY_PACKETS.labReport;
@@ -438,7 +456,7 @@ function LabPageInner() {
       label: "Report",
       render: (row: LabOrder) =>
         row.report_status ? (
-          <Badge size="xs" variant="light" color={row.is_report_locked ? "danger" : "primary"}>
+          <Badge size="xs" tone={row.is_report_locked ? "danger" : "primary"}>
             {row.report_status}
             {row.is_report_locked ? " (locked)" : ""}
           </Badge>
@@ -519,7 +537,7 @@ function LabPageInner() {
         >
           <Group gap="xs" wrap="wrap">
             {unacknowledgedAlerts.slice(0, 5).map((a: LabCriticalAlert) => (
-              <Badge key={a.id} color="danger" variant="filled" size="sm">
+              <Badge key={a.id} tone="danger" variant="filled" size="sm">
                 {a.parameter_name}: {a.value} ({a.flag.replace(/_/g, " ")})
               </Badge>
             ))}
@@ -590,7 +608,7 @@ function LabPageInner() {
             rowKey={(row) => row.id}
             tableActions={
               canCreateOrder ? (
-                <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+                <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
                   New Order
                 </Button>
               ) : undefined
@@ -790,6 +808,7 @@ function CreateLabOrderDrawer({ opened, onClose }: { opened: boolean; onClose: (
           onChange={(e) => setClinicalNotes(e.currentTarget.value)}
         />
         <Button
+          tone="primary"
           onClick={() =>
             createMutation.mutate({
               patient_id: patientId,
@@ -994,33 +1013,33 @@ function LabOrderDetail({
     <Stack>
       <Group justify="space-between">
         <Text fw={700}>Order: {order.id.slice(0, 8)}...</Text>
-        <Badge color={statusColors[order.status] ?? "slate"} variant="light" size="lg">
+        <Badge tone={toBadgeTone(statusColors[order.status])} size="lg">
           {order.status.replace(/_/g, " ")}
         </Badge>
       </Group>
       <PatientContextBanner patientId={order.patient_id} hideLoadingState />
       <Group>
-        <Badge color={statusColor(order.priority) ?? "slate"} variant="dot">
+        <Badge tone={toBadgeTone(statusColor(order.priority))} variant="dot">
           Priority: {order.priority}
         </Badge>
         {order.report_status && (
-          <Badge color={order.is_report_locked ? "danger" : "primary"} variant="light" size="sm">
+          <Badge tone={order.is_report_locked ? "danger" : "primary"} size="sm">
             Report: {order.report_status}
             {order.is_report_locked ? " (locked)" : ""}
           </Badge>
         )}
         {order.is_outsourced && (
-          <Badge color="violet" variant="light" size="sm">
+          <Badge tone="accent" size="sm">
             Outsourced
           </Badge>
         )}
         {order.parent_order_id && (
-          <Badge color="primary" variant="light" size="sm">
+          <Badge tone="primary" size="sm">
             Add-on
           </Badge>
         )}
         {crossmatchData && crossmatchData.crossmatch_requests.length > 0 && (
-          <Badge color="danger" variant="light" size="sm" leftSection={<IconDroplet size={12} />}>
+          <Badge tone="danger" size="sm" leftSection={<IconDroplet size={12} />}>
             Crossmatch ({crossmatchData.crossmatch_requests.length})
           </Badge>
         )}
@@ -1039,9 +1058,8 @@ function LabOrderDetail({
                 {a.parameter_name}: {a.value} ({a.flag.replace(/_/g, " ")})
               </Text>
               <Button
+                tone="subtle-danger"
                 size="xs"
-                color="danger"
-                variant="light"
                 onClick={() => acknowledgeMutation.mutate(a.id)}
               >
                 Acknowledge
@@ -1052,7 +1070,7 @@ function LabOrderDetail({
       )}
 
       {order.rejection_reason && (
-        <Badge color="danger" variant="light" size="lg">
+        <Badge tone="danger" size="lg">
           Rejected: {order.rejection_reason}
         </Badge>
       )}
@@ -1061,27 +1079,22 @@ function LabOrderDetail({
       {canCreateResult && (
         <Group>
           {order.status === "ordered" && (
-            <Button size="xs" onClick={() => collectMutation.mutate()}>
+            <Button tone="primary" size="xs" onClick={() => collectMutation.mutate()}>
               {t("collectSample")}
             </Button>
           )}
           {order.status === "sample_collected" && (
-            <Button size="xs" onClick={() => processMutation.mutate()}>
+            <Button tone="primary" size="xs" onClick={() => processMutation.mutate()}>
               {t("startProcessing")}
             </Button>
           )}
           {order.status === "processing" && (
-            <Button size="xs" color="orange" onClick={() => completeMutation.mutate()}>
+            <Button tone="primary" size="xs" onClick={() => completeMutation.mutate()}>
               {t("complete")}
             </Button>
           )}
           {order.status === "ordered" && (
-            <Button
-              size="xs"
-              color="danger"
-              variant="light"
-              onClick={() => cancelMutation.mutate()}
-            >
+            <Button tone="subtle-danger" size="xs" onClick={() => cancelMutation.mutate()}>
               {t("cancel")}
             </Button>
           )}
@@ -1095,8 +1108,8 @@ function LabOrderDetail({
                 w={200}
               />
               <Button
+                tone="danger"
                 size="xs"
-                color="danger"
                 disabled={!rejectionReason}
                 onClick={() => rejectMutation.mutate(rejectionReason)}
                 loading={rejectMutation.isPending}
@@ -1108,15 +1121,14 @@ function LabOrderDetail({
         </Group>
       )}
       {canVerify && order.status === "completed" && (
-        <Button size="xs" color="success" onClick={() => verifyMutation.mutate()}>
+        <Button tone="primary" size="xs" onClick={() => verifyMutation.mutate()}>
           {t("verifyResults")}
         </Button>
       )}
       {canPrintReports && order.status === "verified" && (
         <Button
+          tone="secondary"
           size="xs"
-          color="teal"
-          variant="light"
           leftSection={<IconPrinter size={14} />}
           onClick={() => {
             void printLabReportPacket(order.id);
@@ -1135,24 +1147,18 @@ function LabOrderDetail({
         !order.is_report_locked && (
           <Group>
             <Button
+              tone="secondary"
               size="xs"
-              variant="light"
               onClick={() => reportStatusMutation.mutate("preliminary")}
             >
               {t("setPreliminary")}
             </Button>
-            <Button
-              size="xs"
-              variant="light"
-              color="success"
-              onClick={() => reportStatusMutation.mutate("final")}
-            >
+            <Button tone="secondary" size="xs" onClick={() => reportStatusMutation.mutate("final")}>
               {t("setFinal")}
             </Button>
             <Button
+              tone="subtle-danger"
               size="xs"
-              variant="light"
-              color="danger"
               leftSection={<IconLock size={14} />}
               onClick={() => lockReportMutation.mutate()}
             >
@@ -1186,7 +1192,7 @@ function LabOrderDetail({
               <Table.Td>{r.normal_range ?? "—"}</Table.Td>
               <Table.Td>
                 {r.flag ? (
-                  <Badge color={flagColors[r.flag] ?? "slate"} variant="light" size="sm">
+                  <Badge tone={flagColors[r.flag] ?? "neutral"} size="sm">
                     {r.flag.replace(/_/g, " ")}
                   </Badge>
                 ) : (
@@ -1195,7 +1201,7 @@ function LabOrderDetail({
               </Table.Td>
               <Table.Td>
                 {r.is_delta_flagged ? (
-                  <Badge color="danger" variant="light" size="sm">
+                  <Badge tone="danger" size="sm">
                     Δ {r.delta_percent ? `${Number(r.delta_percent).toFixed(1)}%` : "flagged"}
                   </Badge>
                 ) : r.delta_percent ? (
@@ -1265,6 +1271,7 @@ function LabOrderDetail({
           />
           <Group>
             <Button
+              tone="primary"
               size="xs"
               disabled={!amendData.reason}
               onClick={() =>
@@ -1278,7 +1285,7 @@ function LabOrderDetail({
             >
               Save Amendment
             </Button>
-            <Button size="xs" variant="light" color="slate" onClick={() => setAmendData(null)}>
+            <Button tone="secondary" size="xs" onClick={() => setAmendData(null)}>
               Cancel
             </Button>
           </Group>
@@ -1290,8 +1297,8 @@ function LabOrderDetail({
         (order.status === "processing" || order.status === "sample_collected") && (
           <>
             <Button
+              tone="secondary"
               size="xs"
-              variant="light"
               leftSection={<IconPlus size={14} />}
               onClick={resultFormHandlers.toggle}
             >
@@ -1344,8 +1351,8 @@ function LabOrderDetail({
                 ))}
                 <Group>
                   <Button
+                    tone="secondary"
                     size="xs"
-                    variant="light"
                     onClick={() =>
                       setResultInputs([...resultInputs, { parameter_name: "", value: "" }])
                     }
@@ -1353,6 +1360,7 @@ function LabOrderDetail({
                     Add Row
                   </Button>
                   <Button
+                    tone="primary"
                     size="xs"
                     onClick={() => addResultsMutation.mutate()}
                     loading={addResultsMutation.isPending}
@@ -1394,9 +1402,8 @@ function AddOnTestSection({
         w={250}
       />
       <Button
+        tone="secondary"
         size="xs"
-        variant="light"
-        color="primary"
         disabled={!testId}
         loading={isPending}
         onClick={() => {
@@ -1539,6 +1546,7 @@ function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
       {canCreate && (
         <Group>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -1549,8 +1557,8 @@ function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
             Add Test
           </Button>
           <Button
+            tone="secondary"
             size="xs"
-            variant="light"
             leftSection={<IconUpload size={14} />}
             onClick={importHandlers.open}
           >
@@ -1724,7 +1732,7 @@ function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
               )}
             />
           </Group>
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -1865,6 +1873,7 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
       {canCreate && (
         <Group>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -1925,7 +1934,7 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
               onChange={(id) => setTestIdInput(id)}
               label={t("label.addTestId")}
             />
-            <Button size="xs" variant="light" mt={24} onClick={addTestId}>
+            <Button tone="secondary" size="xs" mt={24} onClick={addTestId}>
               Add
             </Button>
           </Group>
@@ -1939,7 +1948,6 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
               {selectedTestIds.map((tid, i) => (
                 <Badge
                   key={tid}
-                  variant="light"
                   rightSection={
                     <ActionIcon
                       size="xs"
@@ -1956,7 +1964,7 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
               ))}
             </Group>
           )}
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save Panel
           </Button>
         </Stack>
@@ -2013,7 +2021,7 @@ function PhlebotomyTab() {
       key: "status",
       label: "Status",
       render: (row: LabPhlebotomyQueueItem) => (
-        <Badge color={phlebotomyStatusColors[row.status] ?? "slate"} variant="light" size="sm">
+        <Badge tone={phlebotomyStatusColors[row.status] ?? "neutral"} size="sm">
           {row.status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -2033,8 +2041,8 @@ function PhlebotomyTab() {
           <Group gap="xs">
             {row.status === "waiting" && (
               <Button
+                tone="secondary"
                 size="xs"
-                variant="light"
                 onClick={() => statusMutation.mutate({ id: row.id, status: "in_progress" })}
               >
                 Start
@@ -2042,9 +2050,8 @@ function PhlebotomyTab() {
             )}
             {row.status === "in_progress" && (
               <Button
+                tone="secondary"
                 size="xs"
-                variant="light"
-                color="success"
                 onClick={() => statusMutation.mutate({ id: row.id, status: "completed" })}
               >
                 Complete
@@ -2052,9 +2059,8 @@ function PhlebotomyTab() {
             )}
             {(row.status === "waiting" || row.status === "in_progress") && (
               <Button
+                tone="secondary"
                 size="xs"
-                variant="light"
-                color="slate"
                 onClick={() => statusMutation.mutate({ id: row.id, status: "skipped" })}
               >
                 Skip
@@ -2206,7 +2212,7 @@ function ReagentLotsSection() {
         if (!row.expiry_date) return <Text size="sm">—</Text>;
         const isExpired = new Date(row.expiry_date) < new Date();
         return (
-          <Badge color={isExpired ? "danger" : "success"} variant="light" size="sm">
+          <Badge tone={isExpired ? "danger" : "success"} size="sm">
             {row.expiry_date}
           </Badge>
         );
@@ -2236,6 +2242,7 @@ function ReagentLotsSection() {
       {canCreate && (
         <Group>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -2315,7 +2322,7 @@ function ReagentLotsSection() {
             />
           </Group>
           <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             {t("save")}
           </Button>
         </Stack>
@@ -2417,7 +2424,7 @@ function QcResultsSection() {
       key: "status",
       label: "Status",
       render: (row: LabQcResult) => (
-        <Badge color={statusColor(row.status) ?? "slate"} variant="light" size="sm">
+        <Badge tone={toBadgeTone(statusColor(row.status))} size="sm">
           {row.status}
         </Badge>
       ),
@@ -2427,7 +2434,7 @@ function QcResultsSection() {
       label: "Westgard",
       render: (row: LabQcResult) =>
         row.westgard_violations?.length ? (
-          <Badge color="danger" variant="light" size="sm">
+          <Badge tone="danger" size="sm">
             {row.westgard_violations.join(", ")}
           </Badge>
         ) : (
@@ -2448,6 +2455,7 @@ function QcResultsSection() {
       {canCreate && (
         <Group>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -2550,7 +2558,7 @@ function QcResultsSection() {
             error={errors.reviewer_notes?.message}
             {...register("reviewer_notes")}
           />
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -2651,27 +2659,21 @@ function LeveyJenningsChart({
       {selectedLotId && hasData && (
         <Stack gap="xs">
           <Group gap="lg">
-            <Badge variant="light" color="primary">
-              Mean: {mean.toFixed(2)}
-            </Badge>
-            <Badge variant="light" color="success">
-              SD: {sd.toFixed(2)}
-            </Badge>
-            <Badge variant="light" color="slate">
-              {chartData.length} points
-            </Badge>
+            <Badge tone="primary">Mean: {mean.toFixed(2)}</Badge>
+            <Badge tone="success">SD: {sd.toFixed(2)}</Badge>
+            <Badge tone="neutral">{chartData.length} points</Badge>
           </Group>
           <Group gap="xs">
-            <Badge size="xs" color="success" variant="dot">
+            <Badge size="xs" tone="success" variant="dot">
               Within 1SD
             </Badge>
-            <Badge size="xs" color="warning" variant="dot">
+            <Badge size="xs" tone="warning" variant="dot">
               1-2 SD
             </Badge>
-            <Badge size="xs" color="orange" variant="dot">
+            <Badge size="xs" tone="warning" variant="dot">
               2-3 SD
             </Badge>
-            <Badge size="xs" color="danger" variant="dot">
+            <Badge size="xs" tone="danger" variant="dot">
               Beyond 3SD
             </Badge>
           </Group>
@@ -2786,6 +2788,7 @@ function CalibrationsSection() {
       {canCreate && (
         <Group>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -2849,7 +2852,7 @@ function CalibrationsSection() {
             )}
           />
           <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -2942,7 +2945,7 @@ function OutsourcedTab() {
       key: "status",
       label: "Status",
       render: (row: LabOutsourcedOrder) => (
-        <Badge color={statusColor(row.status) ?? "slate"} variant="light" size="sm">
+        <Badge tone={toBadgeTone(statusColor(row.status))} size="sm">
           {row.status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -2970,8 +2973,8 @@ function OutsourcedTab() {
           <Group gap="xs">
             {row.status === "pending_send" && (
               <Button
+                tone="secondary"
                 size="xs"
-                variant="light"
                 onClick={() => updateMutation.mutate({ id: row.id, status: "sent" })}
               >
                 Mark Sent
@@ -2979,9 +2982,8 @@ function OutsourcedTab() {
             )}
             {row.status === "sent" && (
               <Button
+                tone="secondary"
                 size="xs"
-                variant="light"
-                color="success"
                 onClick={() => updateMutation.mutate({ id: row.id, status: "result_received" })}
               >
                 Result Received
@@ -3001,6 +3003,7 @@ function OutsourcedTab() {
       {canManage && (
         <Group>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -3063,7 +3066,7 @@ function OutsourcedTab() {
             )}
           />
           <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -3077,16 +3080,15 @@ function OutsourcedTab() {
 //  Sample Management Tab (Phase 3)
 // ══════════════════════════════════════════════════════════
 
-const homeCollectionStatusColors: Record<string, string> = {
+const homeCollectionStatusColors: Record<string, BadgeTone> = {
   scheduled: "primary",
   assigned: "info",
-  in_transit: "orange",
+  in_transit: "warning",
   arrived: "warning",
   collected: "success",
-  returned_to_lab: "teal",
+  returned_to_lab: "success",
   cancelled: "danger",
 };
-
 
 function SampleManagementTab() {
   const [subTab, setSubTab] = useState("home-collections");
@@ -3200,7 +3202,7 @@ function HomeCollectionsSection() {
       key: "status",
       label: "Status",
       render: (row: LabHomeCollection) => (
-        <Badge color={homeCollectionStatusColors[row.status] ?? "slate"} variant="light" size="sm">
+        <Badge tone={homeCollectionStatusColors[row.status] ?? "neutral"} size="sm">
           {row.status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -3219,11 +3221,7 @@ function HomeCollectionsSection() {
       {stats.length > 0 && (
         <Group gap="md" mb="xs">
           {stats.map((s: HomeCollectionStatsRow) => (
-            <Badge
-              key={s.status}
-              color={homeCollectionStatusColors[s.status] ?? "slate"}
-              variant="light"
-            >
+            <Badge key={s.status} tone={homeCollectionStatusColors[s.status] ?? "neutral"}>
               {s.status.replace(/_/g, " ")}: {s.count}
             </Badge>
           ))}
@@ -3232,6 +3230,7 @@ function HomeCollectionsSection() {
       {canManage && (
         <Group>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -3296,7 +3295,7 @@ function HomeCollectionsSection() {
             error={errors.special_instructions?.message}
             {...register("special_instructions")}
           />
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -3378,11 +3377,7 @@ function CollectionCentersSection() {
     {
       key: "center_type",
       label: "Type",
-      render: (row: LabCollectionCenter) => (
-        <Badge variant="light" size="sm">
-          {row.center_type}
-        </Badge>
-      ),
+      render: (row: LabCollectionCenter) => <Badge size="sm">{row.center_type}</Badge>,
     },
     {
       key: "city",
@@ -3411,6 +3406,7 @@ function CollectionCentersSection() {
       {canManage && (
         <Group>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -3471,7 +3467,7 @@ function CollectionCentersSection() {
             {...register("address")}
           />
           <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -3555,7 +3551,7 @@ function SampleArchiveSection() {
       key: "status",
       label: "Status",
       render: (row: LabSampleArchive) => (
-        <Badge color={statusColor(row.status) ?? "slate"} variant="light" size="sm">
+        <Badge tone={toBadgeTone(statusColor(row.status))} size="sm">
           {row.status}
         </Badge>
       ),
@@ -3572,7 +3568,7 @@ function SampleArchiveSection() {
       label: "Actions",
       render: (row: LabSampleArchive) =>
         canManage && row.status === "stored" ? (
-          <Button size="xs" variant="light" onClick={() => retrieveMutation.mutate(row.id)}>
+          <Button tone="secondary" size="xs" onClick={() => retrieveMutation.mutate(row.id)}>
             {t("retrieve")}
           </Button>
         ) : (
@@ -3588,6 +3584,7 @@ function SampleArchiveSection() {
       {canManage && (
         <Group>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -3632,7 +3629,7 @@ function SampleArchiveSection() {
             />
             <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
           </Group>
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -3646,11 +3643,11 @@ function SampleArchiveSection() {
 //  QC Phase 3 Sections (EQAS, Proficiency, NABL, Consumption)
 // ══════════════════════════════════════════════════════════
 
-const eqasColors: Record<string, string> = {
+const eqasColors: Record<string, BadgeTone> = {
   acceptable: "success",
   marginal: "warning",
   unacceptable: "danger",
-  pending: "slate",
+  pending: "neutral",
 };
 
 function EqasSection() {
@@ -3744,7 +3741,7 @@ function EqasSection() {
       key: "evaluation",
       label: "Evaluation",
       render: (row: LabEqasResult) => (
-        <Badge color={eqasColors[row.evaluation] ?? "slate"} variant="light" size="sm">
+        <Badge tone={eqasColors[row.evaluation] ?? "neutral"} size="sm">
           {row.evaluation}
         </Badge>
       ),
@@ -3768,6 +3765,7 @@ function EqasSection() {
       {canCreate && (
         <Group>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -3894,7 +3892,7 @@ function EqasSection() {
             />
             <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
           </Group>
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -4005,7 +4003,7 @@ function ProficiencyTestingSection() {
       label: "Result",
       render: (row: LabProficiencyTest) =>
         row.is_acceptable != null ? (
-          <Badge color={row.is_acceptable ? "success" : "danger"} variant="light" size="sm">
+          <Badge tone={row.is_acceptable ? "success" : "danger"} size="sm">
             {row.is_acceptable ? "Pass" : "Fail"}
           </Badge>
         ) : (
@@ -4021,6 +4019,7 @@ function ProficiencyTestingSection() {
       {canCreate && (
         <Group>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -4149,7 +4148,7 @@ function ProficiencyTestingSection() {
             />
             <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
           </Group>
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -4233,11 +4232,7 @@ function NablDocumentsSection() {
     {
       key: "version",
       label: "Version",
-      render: (row: LabNablDocument) => (
-        <Badge variant="light" size="sm">
-          {row.version ?? "—"}
-        </Badge>
-      ),
+      render: (row: LabNablDocument) => <Badge size="sm">{row.version ?? "—"}</Badge>,
     },
     {
       key: "effective_date",
@@ -4266,6 +4261,7 @@ function NablDocumentsSection() {
       {canManage && (
         <Group>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -4348,7 +4344,7 @@ function NablDocumentsSection() {
             />
           </Group>
           <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -4408,11 +4404,11 @@ function ReagentConsumptionSection() {
             </Text>
           );
         return row.quantity <= row.reorder_level ? (
-          <Badge color="danger" variant="light" size="sm">
+          <Badge tone="danger" size="sm">
             Below Reorder
           </Badge>
         ) : (
-          <Badge color="success" variant="light" size="sm">
+          <Badge tone="success" size="sm">
             OK
           </Badge>
         );
@@ -4425,7 +4421,7 @@ function ReagentConsumptionSection() {
         if (!row.expiry_date) return <Text size="sm">—</Text>;
         const isExpired = new Date(row.expiry_date) < new Date();
         return (
-          <Badge color={isExpired ? "danger" : "success"} variant="light" size="sm">
+          <Badge tone={isExpired ? "danger" : "success"} size="sm">
             {row.expiry_date}
           </Badge>
         );
@@ -4495,9 +4491,10 @@ function TatAnalyticsSection() {
       render: (row: LabTatAnalyticsRow) => {
         const rate =
           row.total_orders > 0 ? ((row.within_sla / row.total_orders) * 100).toFixed(1) : "0.0";
-        const color = Number(rate) >= 90 ? "success" : Number(rate) >= 70 ? "warning" : "danger";
+        const tone: BadgeTone =
+          Number(rate) >= 90 ? "success" : Number(rate) >= 70 ? "warning" : "danger";
         return (
-          <Badge color={color} variant="light" size="sm">
+          <Badge tone={tone} size="sm">
             {rate}% ({row.within_sla}/{row.total_orders})
           </Badge>
         );
@@ -4659,6 +4656,7 @@ function HistopathSection() {
 
       {canCreate && (
         <Button
+          tone="primary"
           size="xs"
           leftSection={<IconPlus size={14} />}
           onClick={() => {
@@ -4767,7 +4765,7 @@ function HistopathSection() {
             />
           </Group>
           <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             {t("saveReport")}
           </Button>
         </Stack>
@@ -4880,6 +4878,7 @@ function CytologySection() {
 
       {canCreate && (
         <Button
+          tone="primary"
           size="xs"
           leftSection={<IconPlus size={14} />}
           onClick={() => {
@@ -4988,7 +4987,7 @@ function CytologySection() {
             />
           </Group>
           <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save Report
           </Button>
         </Stack>
@@ -5102,6 +5101,7 @@ function MolecularSection() {
 
       {canCreate && (
         <Button
+          tone="primary"
           size="xs"
           leftSection={<IconPlus size={14} />}
           onClick={() => {
@@ -5217,7 +5217,7 @@ function MolecularSection() {
             />
           </Group>
           <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save Report
           </Button>
         </Stack>
@@ -5358,6 +5358,7 @@ function B2bClientsSection() {
       {canManage && (
         <Group>
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -5453,7 +5454,7 @@ function B2bClientsSection() {
               )}
             />
           </Group>
-          <Button size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -5565,6 +5566,7 @@ function B2bRatesSection() {
           {canManage && (
             <Group>
               <Button
+                tone="primary"
                 size="xs"
                 leftSection={<IconPlus size={14} />}
                 onClick={() => {
@@ -5635,7 +5637,7 @@ function B2bRatesSection() {
                   {...register("effective_to")}
                 />
               </Group>
-              <Button size="xs" type="submit" loading={createMutation.isPending}>
+              <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
                 Save
               </Button>
             </Stack>

@@ -2,9 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Alert,
-  Badge,
   Box,
-  Button,
   Card,
   Checkbox,
   Divider,
@@ -137,6 +135,7 @@ import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator"
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   emergencyArrivalModeOptions,
   emergencyCodeDeactivateOutcomeOptions,
@@ -597,22 +596,22 @@ function visitStatusIcon(status: string) {
   }
 }
 
-function resuscitationLogColor(logType: string): string {
+function resuscitationLogColor(logType: string): BadgeTone {
   switch (logType) {
     case "medication":
-      return "violet";
+      return "accent";
     case "fluid":
-      return "cyan";
+      return "info";
     case "procedure":
     case "airway":
-      return "orange";
+      return "warning";
     case "cpr":
     case "defibrillation":
       return "danger";
     case "vitals":
-      return "teal";
+      return "success";
     default:
-      return "gray";
+      return "neutral";
   }
 }
 
@@ -1063,7 +1062,7 @@ export function EmergencyVisitCreatePage() {
           subtitle="Create an emergency visit with patient context, MLC flagging, and triage-ready status."
           actions={
             <Button
-              variant="light"
+              tone="secondary"
               leftSection={<IconArrowLeft size={14} />}
               onClick={() => navigate(visitsPath())}
             >
@@ -1209,7 +1208,7 @@ export function EmergencyVisitDetailPage() {
         actions={
           <Group gap="xs">
             <Button
-              variant="light"
+              tone="secondary"
               leftSection={<IconArrowLeft size={14} />}
               onClick={() => navigate("/emergency?tab=visits")}
             >
@@ -1217,7 +1216,7 @@ export function EmergencyVisitDetailPage() {
             </Button>
             {canUpdateVisit && (
               <Button
-                variant="light"
+                tone="secondary"
                 leftSection={<IconPlus size={14} />}
                 onClick={() => navigate("/emergency/visits/new")}
               >
@@ -1226,8 +1225,7 @@ export function EmergencyVisitDetailPage() {
             )}
             {canCreateInvoice && visit && (
               <Button
-                variant="light"
-                color="danger"
+                tone="subtle-danger"
                 leftSection={<IconReceipt size={14} />}
                 loading={erInvoiceMutation.isPending}
                 onClick={() => erInvoiceMutation.mutate()}
@@ -1483,9 +1481,7 @@ function ResuscitationTab({
       key: "log_type",
       label: "Type",
       render: (row: ErResuscitationLog) => (
-        <Badge color={resuscitationLogColor(row.log_type)} variant="light">
-          {row.log_type.replace(/_/g, " ")}
-        </Badge>
+        <Badge tone={resuscitationLogColor(row.log_type)}>{row.log_type.replace(/_/g, " ")}</Badge>
       ),
     },
     {
@@ -1662,6 +1658,7 @@ function ResuscitationTab({
             />
             <Group justify="flex-end">
               <Button
+                tone="primary"
                 type="submit"
                 leftSection={<IconPlus size={16} />}
                 loading={mutation.isPending}
@@ -1836,10 +1833,10 @@ function EmergencyVisitForm({
           render={({ field }) => <Textarea label={t("label.notes")} {...field} />}
         />
         <Group justify="flex-end">
-          <Button variant="default" onClick={onCancel}>
+          <Button tone="secondary" onClick={onCancel}>
             {t("label.cancel")}
           </Button>
-          <Button type="submit" loading={mutation.isPending}>
+          <Button tone="primary" type="submit" loading={mutation.isPending}>
             {t("register")}
           </Button>
         </Group>
@@ -1966,7 +1963,7 @@ function EmergencyVisitCommandBar({
           </Stack>
           {canShowAdmit && (
             <Button
-              color="teal"
+              tone="primary"
               leftSection={<IconBuildingHospital size={14} />}
               onClick={admitHandlers.open}
             >
@@ -2067,9 +2064,8 @@ function EmergencyVisitContextRail({
             {t("workspace.navigate")}
           </Text>
           <Button
+            tone="secondary"
             size="xs"
-            variant="light"
-            color="primary"
             leftSection={<IconHeartbeat size={14} />}
             component="a"
             href="#er-triage"
@@ -2079,9 +2075,8 @@ function EmergencyVisitContextRail({
             {t("workspace.triage")}
           </Button>
           <Button
+            tone="secondary"
             size="xs"
-            variant="light"
-            color="teal"
             leftSection={<IconFirstAidKit size={14} />}
             component="a"
             href="#er-resuscitation"
@@ -2091,9 +2086,8 @@ function EmergencyVisitContextRail({
             {t("workspace.resuscitation")}
           </Button>
           <Button
+            tone="secondary"
             size="xs"
-            variant="light"
-            color="slate"
             leftSection={<IconUrgent size={14} />}
             onClick={() => navigate("/emergency?tab=visits")}
             fullWidth
@@ -2102,9 +2096,8 @@ function EmergencyVisitContextRail({
           </Button>
           {visit.is_mlc && (
             <Button
+              tone="subtle-danger"
               size="xs"
-              variant="light"
-              color="danger"
               leftSection={<IconGavel size={14} />}
               component="a"
               href="#mlc"
@@ -2116,9 +2109,8 @@ function EmergencyVisitContextRail({
           )}
           {visit.admission_id && (
             <Button
+              tone="secondary"
               size="xs"
-              variant="light"
-              color="teal"
               leftSection={<IconBuildingHospital size={14} />}
               onClick={() => navigate(`/ipd/admissions/${visit.admission_id}#overview`)}
               fullWidth
@@ -2254,9 +2246,7 @@ function ResuscitationVisitPanel({
       key: "log_type",
       label: "Type",
       render: (row: ErResuscitationLog) => (
-        <Badge color={resuscitationLogColor(row.log_type)} variant="light">
-          {row.log_type.replace(/_/g, " ")}
-        </Badge>
+        <Badge tone={resuscitationLogColor(row.log_type)}>{row.log_type.replace(/_/g, " ")}</Badge>
       ),
     },
     {
@@ -2413,6 +2403,7 @@ function ResuscitationVisitPanel({
               />
               <Group justify="flex-end">
                 <Button
+                  tone="primary"
                   type="submit"
                   leftSection={<IconPlus size={16} />}
                   loading={mutation.isPending}
@@ -2581,9 +2572,8 @@ function VisitsTab({
             {canShowAdmit && (
               <Tooltip label={t("actions.openVisitToAdmit")}>
                 <Button
+                  tone="secondary"
                   size="xs"
-                  variant="light"
-                  color="teal"
                   leftSection={<IconBuildingHospital size={14} />}
                   onClick={() => navigate(`/emergency/visits/${r.id}`)}
                 >
@@ -2602,6 +2592,7 @@ function VisitsTab({
       {canCreate && (
         <Group justify="flex-end">
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() =>
               navigate(
@@ -2663,7 +2654,7 @@ function CrashCartChecklist({
           <IconFirstAidKit size={20} />
           <Title order={5}>Crash Cart Checklist</Title>
         </Group>
-        <Badge color={allChecked ? "success" : "orange"} variant="light">
+        <Badge tone={allChecked ? "success" : "warning"}>
           {checkedCount}/{CRASH_CART_ITEMS.length}
         </Badge>
       </Group>
@@ -2898,8 +2889,8 @@ function CodesTab({
       {canCreate && (
         <Group justify="flex-end">
           <Button
+            tone="danger"
             leftSection={<IconAlertTriangle size={16} />}
-            color="danger"
             onClick={() => {
               reset(contextCodeDefaults);
               open();
@@ -2961,7 +2952,7 @@ function CodesTab({
           />
           <Divider />
           <CrashCartChecklist value={crashCart} onChange={setCrashCart} />
-          <Button color="danger" type="submit" loading={createMut.isPending}>
+          <Button tone="danger" type="submit" loading={createMut.isPending}>
             Activate Code
           </Button>
         </Stack>
@@ -3012,10 +3003,10 @@ function CodesTab({
             )}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={handleCloseDeactivate}>
+            <Button tone="ghost" onClick={handleCloseDeactivate}>
               Cancel
             </Button>
-            <Button color="success" type="submit" loading={deactivateMut.isPending}>
+            <Button tone="primary" type="submit" loading={deactivateMut.isPending}>
               Close Code
             </Button>
           </Group>
@@ -3034,17 +3025,17 @@ function CodesTab({
           <Stack>
             <Group>
               <Badge
-                color={selectedCode.code_type === "code_blue" ? "primary" : "orange"}
+                tone={selectedCode.code_type === "code_blue" ? "primary" : "warning"}
                 size="xl"
               >
                 CODE {selectedCode.code_type.toUpperCase()}
               </Badge>
               {selectedCode.deactivated_at ? (
-                <Badge color="success" size="lg">
+                <Badge tone="success" size="lg">
                   Resolved
                 </Badge>
               ) : (
-                <Badge color="danger" size="lg">
+                <Badge tone="danger" size="lg">
                   Active
                 </Badge>
               )}
@@ -3976,16 +3967,16 @@ function MlcCaseDetail({
             <Title order={5}>{mlcCase.mlc_number}</Title>
             <Group gap="xs">
               {mlcCase.is_pocso && (
-                <Badge color="danger" size="lg">
+                <Badge tone="danger" size="lg">
                   POCSO
                 </Badge>
               )}
               {mlcCase.is_death_case && (
-                <Badge color="dark" size="lg">
+                <Badge tone="neutral" size="lg">
                   Death Case
                 </Badge>
               )}
-              <Badge color={mlcCase.status === "closed" ? "success" : "orange"} size="lg">
+              <Badge tone={mlcCase.status === "closed" ? "success" : "warning"} size="lg">
                 {mlcCase.status}
               </Badge>
             </Group>
@@ -4081,48 +4072,36 @@ function MlcCaseDetail({
           <Group>
             {canCreateSbar && (
               <Button
+                tone="secondary"
                 leftSection={<IconShieldCheck size={16} />}
-                variant="light"
                 onClick={openSbar}
               >
                 SBAR Handover
               </Button>
             )}
             {canCreateAgeEstimation && (
-              <Button
-                leftSection={<IconScale size={16} />}
-                variant="light"
-                color="violet"
-                onClick={openAgeEst}
-              >
+              <Button tone="secondary" leftSection={<IconScale size={16} />} onClick={openAgeEst}>
                 Age Estimation
               </Button>
             )}
             {canCreatePocsoReport && (
               <Button
+                tone="subtle-danger"
                 leftSection={<IconAlertOctagon size={16} />}
-                variant="light"
-                color="danger"
                 onClick={openPocso}
               >
                 POCSO Report
               </Button>
             )}
             {canCreateCourtSummons && (
-              <Button
-                leftSection={<IconGavel size={16} />}
-                variant="light"
-                color="warning"
-                onClick={openSummons}
-              >
+              <Button tone="secondary" leftSection={<IconGavel size={16} />} onClick={openSummons}>
                 Add Court Summons
               </Button>
             )}
             {canRecordPoliceIntimation && (
               <Button
+                tone="secondary"
                 leftSection={<IconBell size={16} />}
-                variant="light"
-                color="primary"
                 onClick={() => {
                   resetPoliceIntimation({
                     ...EMPTY_POLICE_INTIMATION,
@@ -4138,9 +4117,8 @@ function MlcCaseDetail({
               <Menu position="bottom-end" withinPortal shadow="md">
                 <Menu.Target>
                   <Button
+                    tone="secondary"
                     leftSection={<IconPrinter size={16} />}
-                    variant="light"
-                    color="teal"
                     loading={mlcPrintMut.isPending}
                   >
                     Print MLC
@@ -4161,8 +4139,8 @@ function MlcCaseDetail({
             )}
             {canReprintMlcPacket && (
               <Button
+                tone="secondary"
                 leftSection={<IconPrinter size={16} />}
-                variant="default"
                 disabled={mlcPrintMut.isPending}
                 onClick={() => {
                   mlcReprintForm.reset(EMPTY_MLC_PRINT_REPRINT);
@@ -4182,7 +4160,7 @@ function MlcCaseDetail({
             <Group justify="space-between" mb="xs">
               <Title order={6}>Police Intimations</Title>
               {canReviewPoliceIntimations && (
-                <Badge variant="light">{policeIntimations.length} record(s)</Badge>
+                <Badge tone="neutral">{policeIntimations.length} record(s)</Badge>
               )}
             </Group>
             {canReviewPoliceIntimations ? (
@@ -4238,7 +4216,7 @@ function MlcCaseDetail({
                       label: "Receipt",
                       render: (row: MlcPoliceIntimation) => (
                         <Stack gap={0}>
-                          <Badge color={row.receipt_confirmed ? "success" : "orange"} size="sm">
+                          <Badge tone={row.receipt_confirmed ? "success" : "warning"} size="sm">
                             {row.receipt_confirmed ? "Confirmed" : "Pending"}
                           </Badge>
                           {row.receipt_number && (
@@ -4474,7 +4452,7 @@ function MlcCaseDetail({
         <Box>
           <Group justify="space-between" mb="xs">
             <Title order={6}>Court Summons</Title>
-            <Badge variant="light">{courtSummonsDocs.length} record(s)</Badge>
+            <Badge tone="neutral">{courtSummonsDocs.length} record(s)</Badge>
           </Group>
           {courtSummonsDocs.length > 0 ? (
             <Paper withBorder>
@@ -4504,16 +4482,16 @@ function MlcCaseDetail({
                     render: (d: MlcDocument) => {
                       const status = mlcDocumentText(d.content, "status");
                       const s = status === "---" ? "pending" : status;
-                      const color =
+                      const tone: BadgeTone =
                         s === "attended"
                           ? "success"
                           : s === "adjourned"
                             ? "warning"
                             : s === "pending"
                               ? "primary"
-                              : "slate";
+                              : "neutral";
                       return (
-                        <Badge color={color} size="sm">
+                        <Badge tone={tone} size="sm">
                           {s}
                         </Badge>
                       );
@@ -4586,7 +4564,7 @@ function MlcCaseDetail({
             </Alert>
             <Group justify="flex-end">
               <Button
-                variant="default"
+                tone="secondary"
                 onClick={() => {
                   closeMlcReprint();
                   mlcReprintForm.reset(EMPTY_MLC_PRINT_REPRINT);
@@ -4594,7 +4572,7 @@ function MlcCaseDetail({
               >
                 Cancel
               </Button>
-              <Button type="submit" loading={mlcPrintMut.isPending}>
+              <Button tone="primary" type="submit" loading={mlcPrintMut.isPending}>
                 Prepare reprint
               </Button>
             </Group>
@@ -4634,10 +4612,10 @@ function MlcCaseDetail({
               Police intimation reprints are audited and require a reason.
             </Alert>
             <Group justify="flex-end">
-              <Button variant="default" onClick={closePoliceIntimationReprintModal}>
+              <Button tone="secondary" onClick={closePoliceIntimationReprintModal}>
                 Cancel
               </Button>
-              <Button type="submit" loading={policeIntimationPrintMut.isPending}>
+              <Button tone="primary" type="submit" loading={policeIntimationPrintMut.isPending}>
                 Prepare reprint
               </Button>
             </Group>
@@ -4671,7 +4649,7 @@ function MlcCaseDetail({
                     </Text>
                   </Box>
                   {lastMlcPrintAction === "reprint" && (
-                    <Badge className="duplicate" color="orange" variant="light">
+                    <Badge className="duplicate" tone="warning">
                       Duplicate
                     </Badge>
                   )}
@@ -4687,16 +4665,17 @@ function MlcCaseDetail({
             </Box>
             <Group gap={6}>
               {mlcActivePrintCopies.map((copy) => (
-                <Badge key={copy.label} color="violet" variant="light">
+                <Badge key={copy.label} tone="accent">
                   {printCopyRouteLabel(copy)}
                 </Badge>
               ))}
             </Group>
             <Group justify="flex-end">
-              <Button variant="default" onClick={closeMlcPrintPreviewModal}>
+              <Button tone="secondary" onClick={closeMlcPrintPreviewModal}>
                 Close
               </Button>
               <Button
+                tone="primary"
                 leftSection={<IconPrinter size={14} />}
                 onClick={() =>
                   printHtmlElement(mlcPrintPreviewTitle, mlcPrintRef.current, mlcActivePrintCopies)
@@ -4757,7 +4736,7 @@ function MlcCaseDetail({
             minRows={3}
             required
           />
-          <Button type="submit" loading={createDocMut.isPending}>
+          <Button tone="primary" type="submit" loading={createDocMut.isPending}>
             Save SBAR Handover
           </Button>
         </Stack>
@@ -4818,7 +4797,7 @@ function MlcCaseDetail({
             minRows={3}
             required
           />
-          <Button color="violet" type="submit" loading={createDocMut.isPending}>
+          <Button tone="primary" type="submit" loading={createDocMut.isPending}>
             Save Age Estimation
           </Button>
         </Stack>
@@ -4882,7 +4861,7 @@ function MlcCaseDetail({
               />
             )}
           />
-          <Button color="danger" type="submit" loading={createDocMut.isPending}>
+          <Button tone="danger" type="submit" loading={createDocMut.isPending}>
             Save POCSO Report
           </Button>
         </Stack>
@@ -4942,7 +4921,7 @@ function MlcCaseDetail({
             error={summonsErrors.notes?.message}
             {...registerSummons("notes")}
           />
-          <Button color="warning" type="submit" loading={createDocMut.isPending}>
+          <Button tone="primary" type="submit" loading={createDocMut.isPending}>
             Save Court Summons
           </Button>
         </Stack>
@@ -5015,7 +4994,7 @@ function MlcCaseDetail({
             {...registerPoliceIntimation("notes")}
             minRows={3}
           />
-          <Button type="submit" loading={createPoliceIntimationMut.isPending}>
+          <Button tone="primary" type="submit" loading={createPoliceIntimationMut.isPending}>
             Save Police Intimation
           </Button>
         </Stack>
@@ -5046,10 +5025,10 @@ function MlcCaseDetail({
             minRows={3}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={closeReceiptConfirmation}>
+            <Button tone="ghost" onClick={closeReceiptConfirmation}>
               Cancel
             </Button>
-            <Button color="success" type="submit" loading={confirmPoliceReceiptMut.isPending}>
+            <Button tone="primary" type="submit" loading={confirmPoliceReceiptMut.isPending}>
               Confirm Receipt
             </Button>
           </Group>
@@ -5373,6 +5352,7 @@ function MlcTab({
       {canCreate && (
         <Group justify="flex-end">
           <Button
+            tone="primary"
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               reset(contextMlcDefaults);
@@ -5501,10 +5481,10 @@ function MlcTab({
             />
           )}
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={handleCloseUpdateCase}>
+            <Button tone="ghost" onClick={handleCloseUpdateCase}>
               Cancel
             </Button>
-            <Button type="submit" loading={updateMutation.isPending}>
+            <Button tone="primary" type="submit" loading={updateMutation.isPending}>
               Save Update
             </Button>
           </Group>
@@ -5655,7 +5635,7 @@ function MlcTab({
               />
             )}
           />
-          <Button type="submit" loading={mutation.isPending}>
+          <Button tone="primary" type="submit" loading={mutation.isPending}>
             Register MLC Case
           </Button>
         </Stack>
@@ -5915,8 +5895,8 @@ function MassCasualtyTab({
       {canCreate && (
         <Group justify="flex-end">
           <Button
+            tone="danger"
             leftSection={<IconBell size={16} />}
-            color="danger"
             onClick={() => {
               reset(emptyMassCasualtyEventForm);
               open();
@@ -5995,10 +5975,10 @@ function MassCasualtyTab({
             )}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={handleCloseUpdate}>
+            <Button tone="ghost" onClick={handleCloseUpdate}>
               Cancel
             </Button>
-            <Button type="submit" loading={updateMutation.isPending}>
+            <Button tone="primary" type="submit" loading={updateMutation.isPending}>
               Save Update
             </Button>
           </Group>
@@ -6061,7 +6041,7 @@ function MassCasualtyTab({
             control={control}
             render={({ field }) => <Textarea label="Notes" {...field} />}
           />
-          <Button color="danger" type="submit" loading={mutation.isPending}>
+          <Button tone="danger" type="submit" loading={mutation.isPending}>
             Activate Mass Casualty
           </Button>
         </Stack>

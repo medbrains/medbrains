@@ -5,8 +5,6 @@ import { LineChart } from "@mantine/charts";
 import {
   ActionIcon,
   Alert,
-  Badge,
-  Button,
   Card,
   Group,
   Modal,
@@ -73,6 +71,7 @@ import { useTranslation } from "react-i18next";
 import { type Column, DataTable, OperationalSignal, useClinicalEmit } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   DEFAULT_OPD_CONSENT_FORM_VALUES,
   DEFAULT_OPD_FEEDBACK_FORM_VALUES,
@@ -134,9 +133,7 @@ export function RxHistoryTab({ patientId }: { patientId: string }) {
       {(history as PrescriptionHistoryItem[]).map((h) => (
         <Card key={h.prescription.id} padding="sm" radius="md" withBorder>
           <Group gap={8} mb="xs">
-            <Badge size="xs" variant="light">
-              {new Date(h.encounter_date).toLocaleDateString()}
-            </Badge>
+            <Badge size="xs">{new Date(h.encounter_date).toLocaleDateString()}</Badge>
             {h.doctor_name && (
               <Text size="xs" c="dimmed">
                 Dr. {h.doctor_name}
@@ -168,9 +165,7 @@ export function RxHistoryTab({ patientId }: { patientId: string }) {
                   </Table.Td>
                   <Table.Td>{item.dosage}</Table.Td>
                   <Table.Td>
-                    <Badge size="xs" variant="light">
-                      {item.frequency}
-                    </Badge>
+                    <Badge size="xs">{item.frequency}</Badge>
                   </Table.Td>
                   <Table.Td>{item.duration}</Table.Td>
                   <Table.Td>{item.route ?? "—"}</Table.Td>
@@ -279,7 +274,12 @@ export function CertificatesTab({
     <Stack gap="sm">
       {canUpdate && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCertificateForm}>
+          <Button
+            tone="primary"
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={openCertificateForm}
+          >
             New Certificate
           </Button>
         </Group>
@@ -290,9 +290,7 @@ export function CertificatesTab({
           <Group justify="space-between" mb="xs">
             <Group gap={8}>
               <IconCertificate size={16} color="var(--mantine-color-blue-5)" />
-              <Badge size="sm" variant="light">
-                {cert.certificate_type.replace(/_/g, " ")}
-              </Badge>
+              <Badge size="sm">{cert.certificate_type.replace(/_/g, " ")}</Badge>
               {cert.certificate_number && (
                 <Text size="xs" c="dimmed" ff="monospace">
                   {cert.certificate_number}
@@ -427,10 +425,11 @@ export function CertificatesTab({
             )}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={closeCertificateForm}>
+            <Button tone="ghost" onClick={closeCertificateForm}>
               Cancel
             </Button>
             <Button
+              tone="primary"
               onClick={handleCreate}
               loading={createMutation.isPending}
               disabled={!certificateType}
@@ -708,7 +707,7 @@ export function TimelineTab({ patientId }: { patientId: string }) {
             {item.counts && (
               <Group gap={4} mt={2}>
                 {item.counts.split(", ").map((c) => (
-                  <Badge key={c} size="xs" variant="dot" color="primary">
+                  <Badge key={c} size="xs" variant="dot" tone="primary">
                     {c}
                   </Badge>
                 ))}
@@ -723,13 +722,44 @@ export function TimelineTab({ patientId }: { patientId: string }) {
 
 // ── Procedures Tab ──────────────────────────────────────
 
-const PROC_STATUS_COLORS: Record<string, string> = {
+const PROC_STATUS_COLORS: Record<string, BadgeTone> = {
   ordered: "primary",
   scheduled: "info",
-  in_progress: "orange",
+  in_progress: "warning",
   completed: "success",
   cancelled: "danger",
 };
+
+// Maps the Mantine color strings returned by the shared `statusColor` helper
+// to the ui Badge `tone` vocabulary at the call site (helper feeds other
+// components, so it is left untouched).
+const STATUS_COLOR_TO_BADGE_TONE: Record<string, BadgeTone> = {
+  success: "success",
+  warning: "warning",
+  danger: "danger",
+  info: "info",
+  primary: "primary",
+  neutral: "neutral",
+  green: "success",
+  teal: "success",
+  lime: "success",
+  orange: "warning",
+  yellow: "warning",
+  red: "danger",
+  blue: "info",
+  cyan: "info",
+  violet: "accent",
+  grape: "accent",
+  indigo: "accent",
+  pink: "accent",
+  slate: "neutral",
+  gray: "neutral",
+  dark: "neutral",
+};
+
+function statusColorToBadgeTone(color: string): BadgeTone {
+  return STATUS_COLOR_TO_BADGE_TONE[color] ?? "neutral";
+}
 
 export function ProceduresTab({
   encounterId,
@@ -842,7 +872,12 @@ export function ProceduresTab({
     <Stack>
       {canUpdate && !formOpened && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={formHandlers.open}>
+          <Button
+            tone="primary"
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={formHandlers.open}
+          >
             Order Procedure
           </Button>
         </Group>
@@ -910,7 +945,7 @@ export function ProceduresTab({
             />
             <Group justify="flex-end" gap="xs">
               <Button
-                variant="subtle"
+                tone="ghost"
                 size="sm"
                 onClick={() => {
                   formHandlers.close();
@@ -921,6 +956,7 @@ export function ProceduresTab({
                 Cancel
               </Button>
               <Button
+                tone="primary"
                 size="sm"
                 leftSection={<IconMedicalCross size={14} />}
                 onClick={handleOrder}
@@ -959,16 +995,12 @@ export function ProceduresTab({
                   )}
                 </Table.Td>
                 <Table.Td>
-                  <Badge size="xs" color={statusColor(order.priority) ?? "slate"}>
+                  <Badge size="xs" tone={statusColorToBadgeTone(statusColor(order.priority))}>
                     {order.priority.toUpperCase()}
                   </Badge>
                 </Table.Td>
                 <Table.Td>
-                  <Badge
-                    size="xs"
-                    variant="light"
-                    color={PROC_STATUS_COLORS[order.status] ?? "slate"}
-                  >
+                  <Badge size="xs" tone={PROC_STATUS_COLORS[order.status] ?? "neutral"}>
                     {order.status.replace(/_/g, " ")}
                   </Badge>
                 </Table.Td>
@@ -1008,18 +1040,18 @@ export function ProceduresTab({
 
 // ── Referrals Tab ───────────────────────────────────────
 
-const URGENCY_COLORS: Record<string, string> = {
+const URGENCY_COLORS: Record<string, BadgeTone> = {
   routine: "primary",
-  urgent: "orange",
+  urgent: "warning",
   emergency: "danger",
 };
 
-const REFERRAL_STATUS_COLORS: Record<string, string> = {
+const REFERRAL_STATUS_COLORS: Record<string, BadgeTone> = {
   pending: "warning",
   accepted: "success",
   declined: "danger",
-  completed: "teal",
-  cancelled: "slate",
+  completed: "success",
+  cancelled: "neutral",
 };
 
 export function ReferralsTab({
@@ -1103,7 +1135,12 @@ export function ReferralsTab({
     <Stack gap="sm">
       {canUpdate && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCreate}>
+          <Button
+            tone="primary"
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={openCreate}
+          >
             New Referral
           </Button>
         </Group>
@@ -1117,14 +1154,10 @@ export function ReferralsTab({
               <Text size="sm" fw={500}>
                 {ref.from_department_name ?? "—"} → {ref.to_department_name ?? "—"}
               </Text>
-              <Badge size="xs" color={URGENCY_COLORS[ref.urgency] ?? "slate"}>
+              <Badge size="xs" tone={URGENCY_COLORS[ref.urgency] ?? "neutral"}>
                 {ref.urgency}
               </Badge>
-              <Badge
-                size="xs"
-                variant="light"
-                color={REFERRAL_STATUS_COLORS[ref.status] ?? "slate"}
-              >
+              <Badge size="xs" tone={REFERRAL_STATUS_COLORS[ref.status] ?? "neutral"}>
                 {ref.status}
               </Badge>
             </Group>
@@ -1207,10 +1240,11 @@ export function ReferralsTab({
             minRows={2}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={closeCreate}>
+            <Button tone="ghost" onClick={closeCreate}>
               Cancel
             </Button>
             <Button
+              tone="primary"
               onClick={handleCreate}
               loading={createMutation.isPending}
               disabled={!toDeptId || !reason.trim()}
@@ -1288,19 +1322,19 @@ export function RemindersTab({
     reset(DEFAULT_OPD_REMINDER_FORM_VALUES);
   };
 
-  const priorityColors: Record<string, string> = {
-    low: "slate",
+  const priorityColors: Record<string, BadgeTone> = {
+    low: "neutral",
     normal: "primary",
-    high: "orange",
+    high: "warning",
     urgent: "danger",
   };
 
-  const statusColors: Record<string, string> = {
+  const statusColors: Record<string, BadgeTone> = {
     pending: "primary",
     sent: "info",
-    acknowledged: "teal",
+    acknowledged: "success",
     completed: "success",
-    cancelled: "slate",
+    cancelled: "neutral",
     overdue: "danger",
   };
 
@@ -1308,7 +1342,12 @@ export function RemindersTab({
     <Stack>
       {canUpdate && (
         <Group justify="flex-end">
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={formHandlers.open}>
+          <Button
+            tone="primary"
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={formHandlers.open}
+          >
             Add Reminder
           </Button>
         </Group>
@@ -1335,18 +1374,16 @@ export function RemindersTab({
               <Table.Tr key={r.id}>
                 <Table.Td>{r.title}</Table.Td>
                 <Table.Td>
-                  <Badge variant="light" size="sm">
-                    {r.reminder_type.replace(/_/g, " ")}
-                  </Badge>
+                  <Badge size="sm">{r.reminder_type.replace(/_/g, " ")}</Badge>
                 </Table.Td>
                 <Table.Td>{r.reminder_date}</Table.Td>
                 <Table.Td>
-                  <Badge color={priorityColors[r.priority] ?? "primary"} size="sm">
+                  <Badge tone={priorityColors[r.priority] ?? "primary"} size="sm">
                     {r.priority}
                   </Badge>
                 </Table.Td>
                 <Table.Td>
-                  <Badge color={statusColors[r.status] ?? "slate"} size="sm">
+                  <Badge tone={statusColors[r.status] ?? "neutral"} size="sm">
                     {r.status}
                   </Badge>
                 </Table.Td>
@@ -1437,10 +1474,11 @@ export function RemindersTab({
             render={({ field }) => <Textarea label="Description" autosize minRows={2} {...field} />}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={closeForm}>
+            <Button tone="ghost" onClick={closeForm}>
               Cancel
             </Button>
             <Button
+              tone="primary"
               onClick={handleCreate}
               loading={createMutation.isPending}
               disabled={!reminderValues.title.trim() || !reminderValues.reminder_date}
@@ -1509,8 +1547,8 @@ export function FeedbackTab({
     reset(DEFAULT_OPD_FEEDBACK_FORM_VALUES);
   };
 
-  const ratingColor = (val: number | null) => {
-    if (!val) return "gray";
+  const ratingColor = (val: number | null): BadgeTone => {
+    if (!val) return "neutral";
     if (val >= 4) return "success";
     if (val >= 3) return "warning";
     return "danger";
@@ -1520,7 +1558,12 @@ export function FeedbackTab({
     <Stack>
       {canUpdate && (
         <Group justify="flex-end">
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={formHandlers.open}>
+          <Button
+            tone="primary"
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={formHandlers.open}
+          >
             Collect Feedback
           </Button>
         </Group>
@@ -1538,16 +1581,12 @@ export function FeedbackTab({
                 <Text size="sm" c="dimmed">
                   {new Date(fb.submitted_at).toLocaleDateString()}
                 </Text>
-                {fb.is_anonymous && (
-                  <Badge size="xs" variant="light">
-                    Anonymous
-                  </Badge>
-                )}
+                {fb.is_anonymous && <Badge size="xs">Anonymous</Badge>}
               </Group>
               <Group gap="md" mb="xs">
                 {fb.rating != null && (
                   <Badge
-                    color={ratingColor(fb.rating)}
+                    tone={ratingColor(fb.rating)}
                     size="sm"
                     leftSection={<IconStar size={10} />}
                   >
@@ -1555,17 +1594,17 @@ export function FeedbackTab({
                   </Badge>
                 )}
                 {fb.wait_time_rating != null && (
-                  <Badge color={ratingColor(fb.wait_time_rating)} variant="light" size="sm">
+                  <Badge tone={ratingColor(fb.wait_time_rating)} size="sm">
                     Wait: {fb.wait_time_rating}/5
                   </Badge>
                 )}
                 {fb.staff_rating != null && (
-                  <Badge color={ratingColor(fb.staff_rating)} variant="light" size="sm">
+                  <Badge tone={ratingColor(fb.staff_rating)} size="sm">
                     Staff: {fb.staff_rating}/5
                   </Badge>
                 )}
                 {fb.cleanliness_rating != null && (
-                  <Badge color={ratingColor(fb.cleanliness_rating)} variant="light" size="sm">
+                  <Badge tone={ratingColor(fb.cleanliness_rating)} size="sm">
                     Clean: {fb.cleanliness_rating}/5
                   </Badge>
                 )}
@@ -1648,10 +1687,10 @@ export function FeedbackTab({
             render={({ field }) => <Textarea label="Suggestions" autosize minRows={2} {...field} />}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={closeForm}>
+            <Button tone="ghost" onClick={closeForm}>
               Cancel
             </Button>
-            <Button onClick={handleCreate} loading={createMutation.isPending}>
+            <Button tone="primary" onClick={handleCreate} loading={createMutation.isPending}>
               Submit Feedback
             </Button>
           </Group>
@@ -1741,19 +1780,24 @@ export function ConsentsTab({
     reset(DEFAULT_OPD_CONSENT_FORM_VALUES);
   };
 
-  const consentStatusColors: Record<string, string> = {
+  const consentStatusColors: Record<string, BadgeTone> = {
     pending: "warning",
     signed: "success",
     refused: "danger",
-    withdrawn: "slate",
-    expired: "orange",
+    withdrawn: "neutral",
+    expired: "warning",
   };
 
   return (
     <Stack>
       {canUpdate && (
         <Group justify="flex-end">
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={formHandlers.open}>
+          <Button
+            tone="primary"
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={formHandlers.open}
+          >
             New Consent
           </Button>
         </Group>
@@ -1780,12 +1824,10 @@ export function ConsentsTab({
               <Table.Tr key={c.id}>
                 <Table.Td>{c.procedure_name}</Table.Td>
                 <Table.Td>
-                  <Badge variant="light" size="sm">
-                    {c.consent_type.replace(/_/g, " ")}
-                  </Badge>
+                  <Badge size="sm">{c.consent_type.replace(/_/g, " ")}</Badge>
                 </Table.Td>
                 <Table.Td>
-                  <Badge color={consentStatusColors[c.status] ?? "slate"} size="sm">
+                  <Badge tone={consentStatusColors[c.status] ?? "neutral"} size="sm">
                     {c.status}
                   </Badge>
                 </Table.Td>
@@ -1877,10 +1919,11 @@ export function ConsentsTab({
             render={({ field }) => <TextInput label="Witness Name" {...field} />}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={closeForm}>
+            <Button tone="ghost" onClick={closeForm}>
               Cancel
             </Button>
             <Button
+              tone="primary"
               onClick={handleCreate}
               loading={createMutation.isPending}
               disabled={!procedureName.trim()}
@@ -1935,9 +1978,9 @@ export function DocketTab() {
           style={{ width: 200 }}
         />
         <Button
+          tone="secondary"
           mt={24}
           size="sm"
-          variant="light"
           onClick={() => generateMutation.mutate(selectedDate || undefined)}
           loading={generateMutation.isPending}
         >
@@ -1965,7 +2008,7 @@ export function DocketTab() {
               <Table.Tr>
                 <Table.Td fw={500}>New Patients</Table.Td>
                 <Table.Td>
-                  <Badge color="primary" size="lg">
+                  <Badge tone="primary" size="lg">
                     {d.new_patients}
                   </Badge>
                 </Table.Td>
@@ -1973,7 +2016,7 @@ export function DocketTab() {
               <Table.Tr>
                 <Table.Td fw={500}>Follow-ups</Table.Td>
                 <Table.Td>
-                  <Badge color="teal" size="lg">
+                  <Badge tone="success" size="lg">
                     {d.follow_ups}
                   </Badge>
                 </Table.Td>
@@ -1981,7 +2024,7 @@ export function DocketTab() {
               <Table.Tr>
                 <Table.Td fw={500}>Referrals Made</Table.Td>
                 <Table.Td>
-                  <Badge color="orange" size="lg">
+                  <Badge tone="warning" size="lg">
                     {d.referrals_made}
                   </Badge>
                 </Table.Td>
@@ -1989,7 +2032,7 @@ export function DocketTab() {
               <Table.Tr>
                 <Table.Td fw={500}>Procedures Done</Table.Td>
                 <Table.Td>
-                  <Badge color="violet" size="lg">
+                  <Badge tone="accent" size="lg">
                     {d.procedures_done}
                   </Badge>
                 </Table.Td>
@@ -2079,7 +2122,7 @@ export function PreAuthTab({
     });
   };
 
-  const statusColor = (s: string) => {
+  const statusColor = (s: string): BadgeTone => {
     switch (s) {
       case "approved":
         return "success";
@@ -2088,7 +2131,7 @@ export function PreAuthTab({
       case "submitted":
         return "primary";
       case "expired":
-        return "gray";
+        return "neutral";
       default:
         return "warning";
     }
@@ -2098,7 +2141,7 @@ export function PreAuthTab({
     <Stack gap="sm">
       {canUpdate && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={open}>
+          <Button tone="primary" size="xs" leftSection={<IconPlus size={14} />} onClick={open}>
             New Pre-Auth Request
           </Button>
         </Group>
@@ -2129,7 +2172,7 @@ export function PreAuthTab({
                   <Text size="sm">{r.policy_number ?? "—"}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge color={statusColor(r.status)} size="sm">
+                  <Badge tone={statusColor(r.status)} size="sm">
                     {r.status}
                   </Badge>
                 </Table.Td>
@@ -2206,10 +2249,11 @@ export function PreAuthTab({
             minRows={2}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={close}>
+            <Button tone="ghost" onClick={close}>
               Cancel
             </Button>
             <Button
+              tone="primary"
               onClick={handleCreate}
               loading={createMutation.isPending}
               disabled={!insurer.trim()}
@@ -2238,7 +2282,7 @@ export function ReferralTrackingTab() {
       opdService.opdReferralTracking(filterStatus ? { status: filterStatus } : undefined),
   });
 
-  const refStatusColors: Record<string, string> = {
+  const refStatusColors: Record<string, BadgeTone> = {
     pending: "warning",
     accepted: "primary",
     declined: "danger",
@@ -2281,7 +2325,7 @@ export function ReferralTrackingTab() {
       key: "status",
       label: "Status",
       render: (row: ReferralWithNames) => (
-        <Badge color={refStatusColors[row.status] ?? "slate"} variant="filled" size="sm">
+        <Badge tone={refStatusColors[row.status] ?? "neutral"} variant="filled" size="sm">
           {row.status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -2289,7 +2333,7 @@ export function ReferralTrackingTab() {
     {
       key: "urgency",
       label: "Urgency",
-      render: (row: ReferralWithNames) => <Badge variant="light">{row.urgency}</Badge>,
+      render: (row: ReferralWithNames) => <Badge>{row.urgency}</Badge>,
     },
     {
       key: "responded_at",
@@ -2371,7 +2415,7 @@ export function FollowupComplianceTab() {
       label: "Days Overdue",
       render: (row: FollowupComplianceRow) => (
         <Badge
-          color={row.days_overdue > 14 ? "danger" : row.days_overdue > 7 ? "orange" : "warning"}
+          tone={row.days_overdue > 14 ? "danger" : row.days_overdue > 7 ? "warning" : "warning"}
           variant="filled"
           size="sm"
         >

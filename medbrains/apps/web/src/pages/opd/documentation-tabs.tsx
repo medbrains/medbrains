@@ -1,4 +1,4 @@
-import { Button, Group, Stack } from "@mantine/core";
+import { Group, Stack } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type {
   Consultation,
@@ -14,6 +14,7 @@ import type {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PhysicalExamPanel, ReviewOfSystems, StructuredHistory } from "@/components";
+import { Button } from "@/components/ui";
 import { opdService } from "@/services/opd.service";
 import { toCreateConsultationPayload } from "./consultation-utils";
 
@@ -140,6 +141,7 @@ export function ROSTab({ encounterId, canUpdate }: EncounterTabProps) {
       {canUpdate && (
         <Group justify="flex-end">
           <Button
+            tone="primary"
             onClick={handleSave}
             loading={createMutation.isPending || updateMutation.isPending}
             disabled={!dirty}
