@@ -90,10 +90,16 @@ Import our primitives, **not** raw `@mantine/core`, for these:
 | Need | Use | Notes |
 |------|-----|-------|
 | Button | `ui/Button` | `tone="primary\|secondary\|ghost\|danger\|subtle-danger"` — never raw `variant`+`color` |
+| Icon button | `ui/IconButton` | `tone="default\|primary\|danger\|success"`; `aria-label` **required** |
 | Status chip | `ui/Badge` | `tone="neutral\|primary\|success\|warning\|danger\|info\|accent"` |
+| Inline notice | `ui/Alert` | `tone="info\|success\|warning\|danger\|neutral"` |
 | Surface | `ui/Card` | border-first, no resting shadow |
 | Text input | `ui/Input` `NumberField` `PasswordField` `TextArea` | |
 | Select | `ui/Select` | |
+| Toggle | `ui/Switch` | sm by default |
+| Tooltip | `ui/Tooltip` | a hint, never the only place info lives |
+| Modal | `ui/Modal` | short self-contained tasks; centered, dimmed |
+| Drawer | `ui/Drawer` | work *alongside* content (order basket); right by default |
 | Titled section | `ui/Panel` | eyebrow title + content |
 | Hero header | `ui/SignatureHero` | flagship clinical writers ONLY |
 
