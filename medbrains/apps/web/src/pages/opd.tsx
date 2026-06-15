@@ -118,6 +118,7 @@ import {
   ClinicalEventProvider,
   type Column,
   DataTable,
+  type DataTableFilter,
   DiagnosisPanel,
   DoctorSearchSelect,
   OperationalSignal,
@@ -1172,6 +1173,10 @@ function OpdPageInner() {
     {
       key: "token_number",
       label: t("queueColumns.token"),
+      sortable: true,
+      searchable: true,
+      sortValue: (row: QueueEntry) => row.token_number,
+      accessor: (row: QueueEntry) => formatQueueToken(row.token_number),
       render: (row: QueueEntry) => (
         <OperationalSignal
           label={t("queueSignals.token")}
@@ -1184,6 +1189,8 @@ function OpdPageInner() {
     {
       key: "patient_name",
       label: t("queueColumns.patient"),
+      sortable: true,
+      searchable: true,
       fieldAccessKeys: PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
       accessor: (row: QueueEntry) => row.patient_name ?? row.uhid,
       fieldKind: "name",
@@ -1215,6 +1222,8 @@ function OpdPageInner() {
     {
       key: "queue_date",
       label: t("queueColumns.date"),
+      sortable: true,
+      accessor: (row: QueueEntry) => row.queue_date,
       render: (row: QueueEntry) => <Text size="sm">{row.queue_date}</Text>,
     },
     {
@@ -1231,6 +1240,15 @@ function OpdPageInner() {
       ),
     },
   ] satisfies Column<QueueEntry>[];
+
+  const queueFilters: DataTableFilter<QueueEntry>[] = [
+    {
+      key: "status",
+      label: t("queueColumns.status"),
+      options: queueStatusOptions,
+      matches: (row, value) => row.status === value,
+    },
+  ];
 
   return (
     <div>
@@ -1354,6 +1372,11 @@ function OpdPageInner() {
             data={queue}
             loading={isLoading}
             rowKey={(row) => row.id}
+            searchable
+            searchPlaceholder={t("queue.searchPlaceholder", "Search patient or token")}
+            filters={queueFilters}
+            exportable
+            exportFileName="opd-queue"
             virtualized="auto"
             virtualizeAt={40}
             virtualRowHeight={58}
