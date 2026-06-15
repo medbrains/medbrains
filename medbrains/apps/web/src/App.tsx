@@ -90,6 +90,9 @@ const BillingCounterPage = lazy(() =>
 const BillingWorklistPage = lazy(() =>
   import("./pages/billing-worklist").then((m) => ({ default: m.BillingWorklistPage })),
 );
+const BillingTpaPipelinePage = lazy(() =>
+  import("./pages/billing-tpa-pipeline").then((m) => ({ default: m.BillingTpaPipelinePage })),
+);
 const BillingInvoiceDetailPage = lazy(() =>
   import("./pages/billing").then((m) => ({ default: m.BillingInvoiceDetailPage })),
 );
@@ -340,6 +343,7 @@ export function App() {
               <Route path="billing" element={<BillingPage />} />
               <Route path="billing/counter" element={<BillingCounterPage />} />
               <Route path="billing/worklist" element={<BillingWorklistPage />} />
+              <Route path="billing/tpa-pipeline" element={<BillingTpaPipelinePage />} />
               <Route path="billing/invoices/:invoiceId" element={<BillingInvoiceDetailPage />} />
               <Route path="indent/*" element={<IndentPage />} />
               <Route path="procurement" element={<ProcurementPage />} />

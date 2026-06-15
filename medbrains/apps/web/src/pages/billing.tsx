@@ -196,6 +196,7 @@ import {
   IconScale,
   IconSettings,
   IconShieldCheck,
+  IconShieldHalf,
   IconTags,
   IconTransferIn,
   IconTrash,
@@ -911,6 +912,13 @@ function BillingPageInner() {
               onClick={() => navigate("/billing/worklist")}
             >
               Worklist
+            </Button>
+            <Button
+              variant="subtle"
+              leftSection={<IconShieldHalf size={16} />}
+              onClick={() => navigate("/billing/tpa-pipeline")}
+            >
+              TPA pipeline
             </Button>
             {canPay && (
               <Button
