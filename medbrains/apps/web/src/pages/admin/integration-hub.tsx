@@ -1,9 +1,9 @@
-import { Alert, Card, Group, Stack, Table, Text } from "@mantine/core";
+import { Alert, Card, Group, Stack, Text } from "@mantine/core";
 import { P } from "@medbrains/types";
 import { IconInfoCircle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
-import { Badge } from "@/components/ui";
+import { Badge, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { integrationService } from "@/services/integration.service";
 

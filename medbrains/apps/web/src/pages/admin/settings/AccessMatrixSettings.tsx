@@ -8,7 +8,6 @@ import {
   Select,
   SimpleGrid,
   Stack,
-  Table,
   Tabs,
   Text,
   TextInput,
@@ -48,7 +47,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
 import { OperationalSignal } from "@/components/OperationalSignal";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { NAV_GROUPS } from "@/config/navigation";
 import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
 import { adminAccessService } from "@/services/adminAccess.service";

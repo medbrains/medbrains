@@ -4,7 +4,6 @@ import {
   Modal,
   Select,
   Stack,
-  Table,
   Tabs,
   Text,
   Textarea,
@@ -26,7 +25,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { pgLogbookService } from "@/services/pgLogbook.service";
 

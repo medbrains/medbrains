@@ -15,7 +15,6 @@ import {
   Select,
   SimpleGrid,
   Stack,
-  Table,
   Tabs,
   Text,
   Textarea,
@@ -108,7 +107,7 @@ import { deriveCampJourneyCompletedEvents } from "@/components/Patient/patient-j
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { ShareDrawer } from "@/components/Sharing/ShareDrawer";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import {
   DEFAULT_PATIENT_ALLERGY_FORM_VALUES,
   DEFAULT_PATIENT_DOCUMENT_FORM_VALUES,

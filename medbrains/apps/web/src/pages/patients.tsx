@@ -7,7 +7,6 @@ import {
   Group,
   Modal,
   Stack,
-  Table,
   Text,
   TextInput,
   ThemeIcon,
@@ -62,7 +61,7 @@ import {
   PatientRegisterForm,
   type PatientRegistrationLinkedServicesOptions,
 } from "@/components/Patient/PatientRegisterForm";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Table } from "@/components/ui";
 import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";

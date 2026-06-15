@@ -13,7 +13,6 @@ import {
   Select,
   SimpleGrid,
   Stack,
-  Table,
   Tabs,
   Text,
   Textarea,
@@ -73,7 +72,7 @@ import { useMemo, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Table } from "@/components/ui";
 import {
   DEFAULT_ICU_BUNDLE_CHECK_FORM_VALUES,
   DEFAULT_ICU_DEVICE_FORM_VALUES,

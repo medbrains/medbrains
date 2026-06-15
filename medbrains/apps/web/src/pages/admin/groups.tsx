@@ -15,7 +15,6 @@ import {
   MultiSelect,
   Select,
   Stack,
-  Table,
   Text,
   Textarea,
   TextInput,
@@ -33,7 +32,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "@/components";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Table } from "@/components/ui";
 import {
   accessGroupFormToRequest,
   accessGroupMemberFormToRequest,

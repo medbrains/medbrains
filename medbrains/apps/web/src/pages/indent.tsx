@@ -8,7 +8,6 @@ import {
   Stack,
   Stepper,
   Switch,
-  Table,
   Tabs,
   Text,
   Textarea,
@@ -74,7 +73,7 @@ import {
 } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { indentService } from "@/services/indent.service";

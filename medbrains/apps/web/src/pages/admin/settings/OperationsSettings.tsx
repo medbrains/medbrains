@@ -6,7 +6,6 @@ import {
   Loader,
   NumberInput,
   Stack,
-  Table,
   Text,
   TextInput,
   Title,
@@ -15,7 +14,7 @@ import { notifications } from "@mantine/notifications";
 import { IconCheck, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Button } from "@/components/ui";
+import { Button, Table } from "@/components/ui";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 interface HolidayEntry {

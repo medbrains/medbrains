@@ -15,7 +15,6 @@ import {
   Select,
   SimpleGrid,
   Stack,
-  Table,
   Tabs,
   Text,
   Textarea,
@@ -178,7 +177,7 @@ import { PatientContextBanner } from "@/components/Patient/PatientContextBanner"
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, type ButtonTone } from "@/components/ui";
+import { Badge, type BadgeTone, Button, type ButtonTone, Table } from "@/components/ui";
 import { WardSelect } from "@/components/WardSelect";
 import { ALL_TEMPLATES, type ChecklistTemplate } from "@/data/checklist-templates";
 import {

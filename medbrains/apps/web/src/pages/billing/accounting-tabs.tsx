@@ -13,7 +13,6 @@ import {
   Select,
   SimpleGrid,
   Stack,
-  Table,
   Text,
   Textarea,
   TextInput,
@@ -66,7 +65,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import {
   billingErpExportTypeOptions,
   billingErpTargetSystemOptions,

@@ -12,7 +12,6 @@ import {
   Select,
   Stack,
   Switch,
-  Table,
   Tabs,
   Text,
   Textarea,
@@ -71,7 +70,7 @@ import { DataTable, IpdContextStrip, ipdContextFromSearchParams, PageHeader } fr
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { infectionControlService } from "@/services/infectionControl.service";

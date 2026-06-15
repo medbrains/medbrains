@@ -6,7 +6,6 @@ import {
   Select,
   Stack,
   Switch,
-  Table,
   Text,
   Textarea,
   TextInput,
@@ -22,7 +21,7 @@ import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Table } from "@/components/ui";
 import { clinicalTemplatesService } from "@/services/clinicalTemplates.service";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 

@@ -1,15 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  ActionIcon,
-  Group,
-  Menu,
-  Modal,
-  Select,
-  Stack,
-  Table,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { ActionIcon, Group, Menu, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { AdminCreateRoleFormInput, EditRoleFormInput } from "@medbrains/schemas";
 import { adminCreateRoleFormSchema, editRoleFormSchema } from "@medbrains/schemas";
@@ -23,7 +13,7 @@ import { Controller, useForm } from "react-hook-form";
 import { useNavigate } from "react-router";
 import { PageHeader } from "@/components";
 import { OfflineWriteBanner } from "@/components/OfflineWriteBanner";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminAccessService } from "@/services/adminAccess.service";
 

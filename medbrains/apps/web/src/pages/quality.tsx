@@ -17,7 +17,6 @@ import {
   SimpleGrid,
   Stack,
   Switch,
-  Table,
   Tabs,
   Text,
   Textarea,
@@ -89,7 +88,7 @@ import { DataTable, PageHeader } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { qualityService } from "@/services/quality.service";

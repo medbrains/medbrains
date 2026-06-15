@@ -5,7 +5,6 @@ import {
   Select,
   SimpleGrid,
   Stack,
-  Table,
   Tabs,
   Text,
   TextInput,
@@ -32,7 +31,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { lmsService } from "@/services/lms.service";
 

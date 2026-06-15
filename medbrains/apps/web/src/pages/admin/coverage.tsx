@@ -10,7 +10,6 @@ import {
   Select,
   Stack,
   Switch,
-  Table,
   Text,
   Textarea,
   Tooltip,
@@ -22,7 +21,7 @@ import { IconPlus, IconTrash, IconUserCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminDoctorsService } from "@/services/adminDoctors.service";
 

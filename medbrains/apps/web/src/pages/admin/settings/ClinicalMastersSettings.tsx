@@ -7,7 +7,6 @@ import {
   NumberInput,
   Select,
   Stack,
-  Table,
   Tabs,
   Text,
   TextInput,
@@ -37,7 +36,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import {
   type CreateMasterItemInput,
   clinicalMastersService,

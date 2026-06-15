@@ -11,7 +11,6 @@ import {
   SimpleGrid,
   Stack,
   Switch,
-  Table,
   Text,
   Textarea,
   TextInput,
@@ -19,7 +18,7 @@ import {
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Table } from "@/components/ui";
 import "@mantine/schedule/styles.css";
 import type { ScheduleEventData } from "@mantine/schedule";
 import { WeekView } from "@mantine/schedule";

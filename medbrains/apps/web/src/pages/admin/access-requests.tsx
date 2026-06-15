@@ -9,7 +9,6 @@ import {
   Select,
   SimpleGrid,
   Stack,
-  Table,
   Text,
   Textarea,
   Title,
@@ -34,7 +33,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminAccessService } from "@/services/adminAccess.service";
 

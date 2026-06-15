@@ -9,7 +9,6 @@ import {
   NumberInput,
   Select,
   Stack,
-  Table,
   Tabs,
   Text,
   Textarea,
@@ -87,7 +86,7 @@ import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import {
   DEFAULT_OT_ANESTHESIA_RECORD_FORM_VALUES,
   DEFAULT_OT_BOOKING_FORM_VALUES,

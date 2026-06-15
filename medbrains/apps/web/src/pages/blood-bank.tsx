@@ -9,7 +9,6 @@ import {
   Select,
   SimpleGrid,
   Stack,
-  Table,
   Tabs,
   Text,
   Textarea,
@@ -65,7 +64,7 @@ import { useMemo, useState } from "react";
 import { DataTable, PageHeader, StatusDot } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { bloodBankService } from "@/services/bloodBank.service";

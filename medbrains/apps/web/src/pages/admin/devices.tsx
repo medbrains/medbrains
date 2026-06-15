@@ -7,7 +7,6 @@ import {
   SimpleGrid,
   Stack,
   Stepper,
-  Table,
   Tabs,
   Text,
   Textarea,
@@ -30,7 +29,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminDevicesService } from "@/services/adminDevices.service";
 

@@ -5,7 +5,6 @@ import {
   SimpleGrid,
   Slider,
   Stack,
-  Table,
   Tabs,
   Text,
   Textarea,
@@ -47,7 +46,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { PageHeader } from "@/components/PageHeader";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { bedsideService } from "@/services/bedside.service";
 

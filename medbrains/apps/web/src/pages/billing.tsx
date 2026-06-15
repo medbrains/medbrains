@@ -15,7 +15,6 @@ import {
   SimpleGrid,
   Stack,
   Switch,
-  Table,
   Tabs,
   Text,
   Textarea,
@@ -200,7 +199,7 @@ import { PatientJourneyActions } from "@/components/Patient/PatientJourneyAction
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PaymentModal, type PaymentModalSettlement } from "@/components/PaymentModal";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import {
   billingAdvancePurposeOptions,
   billingChargeSourceOptions,

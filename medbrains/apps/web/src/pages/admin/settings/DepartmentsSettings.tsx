@@ -6,7 +6,6 @@ import {
   Modal,
   Select,
   Stack,
-  Table,
   Text,
   TextInput,
 } from "@mantine/core";
@@ -16,7 +15,7 @@ import { IconCheck, IconClock, IconPencil, IconPlus, IconTrash } from "@tabler/i
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { CreateDepartmentModal, SelectLabel } from "@/components";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { useCreateInline } from "@/hooks/useCreateInline";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 

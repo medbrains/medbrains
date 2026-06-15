@@ -13,7 +13,6 @@ import {
   SimpleGrid,
   Stack,
   Switch,
-  Table,
   Tabs,
   Text,
   Textarea,
@@ -65,7 +64,7 @@ import { useSearchParams } from "react-router";
 import { DataTable, IpdContextStrip, ipdContextFromSearchParams, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import type { BadgeTone } from "@/components/ui";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { bmeService } from "@/services/bme.service";
 

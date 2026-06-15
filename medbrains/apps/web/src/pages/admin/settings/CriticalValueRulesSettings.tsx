@@ -6,7 +6,6 @@ import {
   NumberInput,
   Select,
   Stack,
-  Table,
   Text,
   Textarea,
   TextInput,
@@ -20,7 +19,7 @@ import { P } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
-import { Button } from "@/components/ui";
+import { Button, Table } from "@/components/ui";
 import {
   CRITICAL_VALUE_GENDER_OPTIONS,
   DEFAULT_CRITICAL_VALUE_RULE_FORM_VALUES,

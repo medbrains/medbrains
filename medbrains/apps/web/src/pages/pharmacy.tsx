@@ -13,7 +13,6 @@ import {
   Select,
   Stack,
   Switch,
-  Table,
   Tabs,
   Text,
   Textarea,
@@ -149,7 +148,7 @@ import {
 import { PharmacyDispensingView } from "@/components/Pharmacy/PharmacyDispensingView";
 import { PharmacyLabel } from "@/components/Pharmacy/PharmacyLabel";
 import { StoreIndentsTab } from "@/components/Pharmacy/StoreIndentsTab";
-import { Badge, type BadgeTone, Button, SignatureHero } from "@/components/ui";
+import { Badge, type BadgeTone, Button, SignatureHero, Table } from "@/components/ui";
 import {
   awareCategoryOptions,
   drugScheduleOptions,

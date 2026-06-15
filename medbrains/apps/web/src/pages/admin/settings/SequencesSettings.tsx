@@ -6,7 +6,6 @@ import {
   Modal,
   NumberInput,
   Stack,
-  Table,
   Text,
   TextInput,
 } from "@mantine/core";
@@ -17,7 +16,7 @@ import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Button } from "@/components/ui";
+import { Button, Table } from "@/components/ui";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
 // ── Helpers ──────────────────────────────────────────────

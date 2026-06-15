@@ -8,7 +8,6 @@ import {
   NumberInput,
   Select,
   Stack,
-  Table,
   Tabs,
   Text,
   Textarea,
@@ -71,7 +70,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import {
   cssdIndicatorTypeOptions,
   cssdInstrumentCategoryOptions,

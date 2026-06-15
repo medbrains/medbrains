@@ -1,7 +1,7 @@
-import { Card, SimpleGrid, Stack, Table, Text } from "@mantine/core";
+import { Card, SimpleGrid, Stack, Text } from "@mantine/core";
 import type { ActionCount, ModuleCount, UserActionCount } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import { Badge, type BadgeTone } from "@/components/ui";
+import { Badge, type BadgeTone, Table } from "@/components/ui";
 import { statusColor } from "@/lib/status-colors";
 import { auditService } from "@/services/audit.service";
 

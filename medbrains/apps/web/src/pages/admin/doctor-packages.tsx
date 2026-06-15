@@ -11,7 +11,6 @@ import {
   Select,
   Stack,
   Switch,
-  Table,
   Text,
   Textarea,
   TextInput,
@@ -27,7 +26,7 @@ import { IconList, IconPackage, IconPlus, IconTrash } from "@tabler/icons-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { patientPackagesService } from "@/services/patientPackages.service";
 

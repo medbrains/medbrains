@@ -9,7 +9,6 @@ import {
   Select,
   Stack,
   Switch,
-  Table,
   Tabs,
   Text,
   Textarea,
@@ -66,7 +65,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { DataTable, PageHeader, TableValueBadge, VendorSearchSelect } from "@/components";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { procurementService } from "@/services/procurement.service";

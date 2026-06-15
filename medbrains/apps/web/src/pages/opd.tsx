@@ -10,7 +10,6 @@ import {
   SimpleGrid,
   Stack,
   Switch,
-  Table,
   Tabs,
   Text,
   Textarea,
@@ -143,7 +142,7 @@ import {
 } from "@/components/OrderBasket/OrderBasketWorkspace";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import {
   DEFAULT_OPD_FOLLOW_UP_FORM_VALUES,
   DEFAULT_OPD_LAB_ORDER_FORM_VALUES,

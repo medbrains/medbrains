@@ -8,7 +8,6 @@ import {
   Select,
   Stack,
   Switch,
-  Table,
   Tabs,
   Text,
   Textarea,
@@ -52,7 +51,7 @@ import {
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { radiologyOptionalText, radiologyPriorityOptions } from "@/forms/radiology.form";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";

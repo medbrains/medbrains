@@ -6,7 +6,6 @@ import {
   Modal,
   Select,
   Stack,
-  Table,
   Text,
   Textarea,
   Tooltip,
@@ -50,7 +49,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "@/components/PageHeader";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { parseDate, toDateString, todayDateString } from "@/lib/date-utils";
 import { appointmentsService } from "@/services/appointments.service";

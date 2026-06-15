@@ -10,7 +10,6 @@ import {
   Modal,
   Select,
   Stack,
-  Table,
   Text,
   Textarea,
   TextInput,
@@ -71,7 +70,7 @@ import { useTranslation } from "react-i18next";
 import { type Column, DataTable, OperationalSignal, useClinicalEmit } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { PatientNameCell } from "@/components/PatientNameCell";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import {
   DEFAULT_OPD_CONSENT_FORM_VALUES,
   DEFAULT_OPD_FEEDBACK_FORM_VALUES,
