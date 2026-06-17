@@ -70,11 +70,15 @@ def epic_numbers() -> dict[str, int]:
 
 
 def existing_titles() -> set[str]:
-    out = subprocess.run(["gh", "issue", "list", "--state", "all", "--limit", "5000", "--json", "title"],
-                         capture_output=True, text=True, cwd=ROOT)
+    # Paginated REST is authoritative; `gh issue list --limit` truncates
+    # silently on a mid-pagination network blip, which would cause duplicates.
+    out = subprocess.run(
+        ["gh", "api", "--paginate",
+         "/repos/{owner}/{repo}/issues?state=all&per_page=100", "--jq", ".[].title"],
+        capture_output=True, text=True, cwd=ROOT)
     if out.returncode != 0:
         return set()
-    return {i["title"] for i in json.loads(out.stdout or "[]")}
+    return {ln for ln in out.stdout.splitlines() if ln.strip()}
 
 
 def labels_for(row_get) -> list[str]:
