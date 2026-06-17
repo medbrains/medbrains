@@ -1,9 +1,43 @@
-// Signature Spectrum alert — a clean console notice: a bold tone accent bar
-// on the left edge, a hairline border, squared corners. The tone colour comes
-// from Mantine's --alert-color; text colour is left to Mantine's variant so
-// contrast stays correct (e.g. dark-red on light-red for danger).
+// Signature Spectrum alert — "clinical instrument panel" look.
+// Near-white card (so text contrast is always correct), a tone icon in a soft
+// tinted badge, a bold tone accent rail on the left, hairline border, squared.
+// Tone colour comes from Mantine's --alert-color.
 .alert {
+  --tone: var(--alert-color, var(--mb-brand, #5b4bc4));
+
   border: 1px solid var(--mb-border, #d5dbdb);
-  border-left: 3px solid var(--alert-color, var(--mb-brand, #5b4bc4));
+  border-left: 3px solid var(--tone);
   border-radius: var(--mantine-radius-sm);
+  // Override Mantine's tinted variant bg with a near-white wash — keeps text
+  // dark-on-light (no harsh black-on-red), tone lives in the badge + rail.
+  background: color-mix(in srgb, var(--tone) 4%, #ffffff) !important;
+  padding: 12px 14px;
+
+  // Tone icon in a soft rounded badge.
+  :global(.mantine-Alert-icon) {
+    width: 30px;
+    height: 30px;
+    margin-right: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--tone) 14%, transparent);
+    color: var(--tone);
+    flex-shrink: 0;
+  }
+
+  :global(.mantine-Alert-title) {
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--mb-text-primary, #1a1a2e);
+    margin-bottom: 2px;
+  }
+
+  :global(.mantine-Alert-message) {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--mb-text-secondary, #5f6b7a);
+  }
 }

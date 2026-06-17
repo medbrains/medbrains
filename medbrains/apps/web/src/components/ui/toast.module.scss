@@ -1,10 +1,58 @@
-// Toast card chrome (border, radius, shadow, title) is themed globally on the
-// Notification component (design-system mantine.ts). Here we only tune the
-// icon spacing for the ECG glyph.
+// Signature Spectrum toast — card chrome (border/radius/shadow/title) is themed
+// globally on the Notification component (design-system mantine.ts). Here:
+// the ECG glyph in a soft tone badge + a thin tone auto-dismiss progress line.
+// Tone colour comes from Mantine's --notification-color.
+
+.root {
+  position: relative;
+  overflow: hidden;
+
+  // Auto-dismiss progress line (matches the 4s default autoClose).
+  &::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 2px;
+    width: 100%;
+    background: var(--notification-color, var(--mb-brand, #5b4bc4));
+    opacity: 0.55;
+    transform-origin: left center;
+    animation: mb-toast-progress 4s linear forwards;
+  }
+}
+
+// ECG glyph in a soft rounded tone badge (replaces Mantine's solid circle).
 .icon {
+  width: 32px;
+  height: 32px;
   margin-right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--notification-color, #5b4bc4) 14%, transparent) !important;
+  color: var(--notification-color, #5b4bc4) !important;
 }
 
 .description {
+  font-size: 13px;
+  line-height: 1.45;
   color: var(--mb-text-secondary, #5f6b7a);
+}
+
+@keyframes mb-toast-progress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root::after {
+    animation: none;
+    opacity: 0;
+  }
 }
