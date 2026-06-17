@@ -1269,8 +1269,10 @@ import type {
   PatientFlowSnapshot,
   PatientIdentifier,
   PatientInvoiceRow,
+  NotificationListResponse,
   PatientLabOrderRow,
   PatientListResponse,
+  UnreadCountResponse,
   PatientMergeHistory,
   PatientOutcomeTarget,
   PatientReminder,
@@ -3004,6 +3006,19 @@ export const api = {
     const query = qs.toString();
     return request<PatientListResponse>(`/patients${query ? `?${query}` : ""}`);
   },
+  // ── Notification centre ──
+  listNotifications: (params?: { unread?: boolean; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.unread) qs.set("unread", "true");
+    if (params?.limit) qs.set("limit", String(params.limit));
+    const query = qs.toString();
+    return request<NotificationListResponse>(`/notifications${query ? `?${query}` : ""}`);
+  },
+  notificationsUnreadCount: () => request<UnreadCountResponse>("/notifications/unread-count"),
+  markNotificationRead: (id: string) =>
+    request<UnreadCountResponse>(`/notifications/${id}/read`, { method: "POST" }),
+  markAllNotificationsRead: () =>
+    request<UnreadCountResponse>("/notifications/read-all", { method: "POST" }),
   getPatient: (id: string) => request<Patient>(`/patients/${id}`),
   getPatientContext: (id: string) => request<PatientContext>(`/patients/${id}/context`),
   createPatient: (data: CreatePatientRequest) =>

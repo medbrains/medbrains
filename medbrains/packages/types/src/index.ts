@@ -31133,3 +31133,27 @@ export interface UpdateSimulatorScheduleRequest {
 export interface SimulatorRunNowResponse {
   run_id: string;
 }
+
+// ── Notification centre (in-app feed) ──
+export interface AppNotification {
+  id: string;
+  kind: string;
+  title: string;
+  body?: string | null;
+  category?: string | null;
+  entity_type?: string | null;
+  entity_id?: string | null;
+  action_url?: string | null;
+  is_read: boolean;
+  read_at?: string | null;
+  created_at: string;
+}
+
+export interface NotificationListResponse {
+  notifications: AppNotification[];
+  unread_count: number;
+}
+
+export interface UnreadCountResponse {
+  unread_count: number;
+}

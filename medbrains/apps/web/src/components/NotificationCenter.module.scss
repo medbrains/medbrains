@@ -1,0 +1,44 @@
+.header {
+  border-bottom: 1px solid var(--mb-border, #d5dbdb);
+}
+
+.item {
+  display: block;
+  width: 100%;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--mb-border-subtle, #eceef0);
+  transition: background-color 120ms ease;
+
+  &:hover {
+    background: var(--mb-bg-subtle, #f4f5f8);
+  }
+
+  &[data-unread] {
+    background: color-mix(in srgb, var(--mb-brand, #5b4bc4) 4%, transparent);
+  }
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+}
+
+// Tone dot, aligned with the title row.
+.dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: var(--mb-info-fg, #2563a8);
+
+  &[data-tone="success"] {
+    background: var(--mb-success-fg, #2f9e44);
+  }
+  &[data-tone="warning"] {
+    background: var(--mb-warning-fg, #d9820b);
+  }
+  &[data-tone="danger"] {
+    background: var(--mb-danger-fg, #d63a3a);
+  }
+}

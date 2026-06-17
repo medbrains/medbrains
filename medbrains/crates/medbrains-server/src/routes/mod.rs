@@ -73,6 +73,7 @@ pub mod nurse_handoff;
 pub mod nurse_mar;
 pub mod nurse_vitals;
 pub mod occ_health;
+pub mod notifications;
 pub mod onboarding;
 pub mod opd;
 pub mod orchestration;
@@ -707,6 +708,20 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/masters/relations",
             get(patients::list_relations),
+        )
+        // Notification centre — per-user in-app feed
+        .route("/api/notifications", get(notifications::list_notifications))
+        .route(
+            "/api/notifications/unread-count",
+            get(notifications::notifications_unread_count),
+        )
+        .route(
+            "/api/notifications/{id}/read",
+            post(notifications::mark_notification_read),
+        )
+        .route(
+            "/api/notifications/read-all",
+            post(notifications::mark_all_notifications_read),
         )
         // Dashboards — user-facing
         .route("/api/dashboards", get(dashboard::list_dashboards))

@@ -7,7 +7,6 @@ import {
   Burger,
   Divider,
   Group,
-  Indicator,
   Kbd,
   Menu,
   NavLink,
@@ -20,7 +19,6 @@ import { useDisclosure } from "@mantine/hooks";
 import { spotlight } from "@mantine/spotlight";
 import { useAuthStore, usePermissionStore } from "@medbrains/stores";
 import {
-  Bell,
   ChevronRight,
   Languages,
   LogOut,
@@ -36,6 +34,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
+import { NotificationCenter } from "@/components/NotificationCenter";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { buildPathLabels, NAV_GROUPS, type NavItemConfig, resolveIcon } from "@/config/navigation";
 import { preloadRoute } from "@/lib/route-preload";
@@ -448,11 +447,7 @@ export function AppLayout() {
               <AnimatedIcon icon={Search} size={18} motion="float" />
             </ActionIcon>
 
-            <Indicator size={6} color="danger" offset={3} processing>
-              <ActionIcon size="md" color="slate" variant="subtle" aria-label="Notifications">
-                <AnimatedIcon icon={Bell} size={18} motion="pulse" />
-              </ActionIcon>
-            </Indicator>
+            <NotificationCenter />
 
             <Menu shadow="md" width={160} position="bottom-end">
               <Menu.Target>
