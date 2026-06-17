@@ -13,6 +13,7 @@ use crate::{
     error::AppError,
     middleware::auth::Claims,
     middleware::authorization::{is_bypass_role, require_permission},
+    routes::notifications::{NewNotification, create_notification},
     state::AppState,
 };
 
@@ -241,6 +242,37 @@ pub async fn book_appointment(
         if first_row.is_none() {
             first_row = Some(row);
         }
+    }
+
+    // Notify the doctor in-app (once for the series), unless they booked it
+    // themselves. doctor_id references users.id directly.
+    if body.doctor_id != claims.sub
+        && let Some(appt) = first_row.as_ref()
+    {
+        let patient_name: String = sqlx::query_scalar(
+            "SELECT COALESCE(NULLIF(TRIM(CONCAT(first_name, ' ', last_name)), ''), uhid) \
+             FROM patients WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(body.patient_id)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        let summary = format!("{patient_name} — {} {}", appt.appointment_date, appt.slot_start);
+        create_notification(
+            &mut tx,
+            claims.tenant_id,
+            NewNotification {
+                user_id: body.doctor_id,
+                kind: "info",
+                title: "New appointment booked",
+                body: Some(&summary),
+                category: Some("Appointments"),
+                entity_type: Some("appointment"),
+                entity_id: Some(appt.id),
+                action_url: Some("/appointments"),
+            },
+        )
+        .await?;
     }
 
     tx.commit().await?;
