@@ -22,3 +22,6 @@ Thumbs.db
 *.tfstate.*
 *.tfplan
 __pycache__/
+# CocoIndex Code (ccc) — ignore index DBs, keep the shared settings
+/.cocoindex_code/*
+!/.cocoindex_code/settings.yml
