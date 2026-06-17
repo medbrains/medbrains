@@ -489,6 +489,20 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
         },
       },
 
+      // Signature Spectrum toast look — applies to EVERY notification
+      // (toast.* helper AND raw notifications.show). Theme-level so it is
+      // layer-safe (Mantine's notification classes are hashed + layered).
+      Notification: {
+        defaultProps: {
+          withBorder: true,
+          radius: "md",
+        },
+        styles: {
+          root: { boxShadow: "0 10px 30px rgba(26, 26, 46, 0.14)" },
+          title: { fontWeight: 600, letterSpacing: "-0.01em" },
+        },
+      },
+
       Tooltip: {
         defaultProps: {
           withArrow: true,
