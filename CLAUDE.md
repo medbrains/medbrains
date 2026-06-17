@@ -431,6 +431,14 @@ For role/user permission editing, use the `PermissionGroupNode` component patter
 
 ---
 
+## Ticket / Story Execution Workflow
+
+When picking up a ticket or story (incl. the generated stories in `medbrains/docs/backlog/stories/`), do NOT jump straight to code. Always:
+
+1. **Research first** — read the relevant RFC(s), the existing code paths (use `ccc search` for semantic lookup), the regulatory norms for the domain, and how similar features are already built. Confirm what exists vs what's missing (many backlog tickets are already partly done).
+2. **Expand the acceptance criteria** — the generated stories carry only module-tailored AC. Rewrite them into concrete, feature-specific, testable criteria for THIS ticket (exact endpoints, entities, fields, permissions, UI states, regulatory rules, edge cases) before coding. Agree them if non-trivial (plan mode).
+3. **Then start** — implement to the expanded AC, following the Module Build Workflow below; verify against each criterion; ship one focused PR.
+
 ## Module Build Workflow
 
 Every module follows this. No skipping.
