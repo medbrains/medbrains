@@ -136,3 +136,41 @@ pub async fn mark_all_notifications_read(
     tx.commit().await?;
     Ok(Json(UnreadCountResponse { unread_count: 0 }))
 }
+
+// ── Producer helper ──────────────────────────────────────────────
+/// A notification to insert for a recipient user. Use via `create_notification`.
+pub struct NewNotification<'a> {
+    pub user_id: Uuid,
+    pub kind: &'a str,
+    pub title: &'a str,
+    pub body: Option<&'a str>,
+    pub category: Option<&'a str>,
+    pub entity_type: Option<&'a str>,
+    pub entity_id: Option<Uuid>,
+    pub action_url: Option<&'a str>,
+}
+
+/// Insert a notification row (call inside a tenant-scoped transaction).
+pub async fn create_notification(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    notification: NewNotification<'_>,
+) -> Result<(), AppError> {
+    sqlx::query(
+        "INSERT INTO notifications \
+         (tenant_id, user_id, kind, title, body, category, entity_type, entity_id, action_url) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+    )
+    .bind(tenant_id)
+    .bind(notification.user_id)
+    .bind(notification.kind)
+    .bind(notification.title)
+    .bind(notification.body)
+    .bind(notification.category)
+    .bind(notification.entity_type)
+    .bind(notification.entity_id)
+    .bind(notification.action_url)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}

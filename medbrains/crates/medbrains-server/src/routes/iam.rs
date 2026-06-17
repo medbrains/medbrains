@@ -21,6 +21,7 @@ use crate::{
         auth::Claims,
         authorization::{is_bypass_role, require_permission},
     },
+    routes::notifications::{NewNotification, create_notification},
     state::AppState,
 };
 
@@ -296,6 +297,22 @@ pub async fn approve_access_request(
     .execute(&mut *tx)
     .await?;
 
+    create_notification(
+        &mut tx,
+        claims.tenant_id,
+        NewNotification {
+            user_id: row.requester_id,
+            kind: "success",
+            title: "Access request approved",
+            body: Some(row.reason.as_str()),
+            category: Some("Access"),
+            entity_type: Some("access_request"),
+            entity_id: Some(row.id),
+            action_url: Some("/admin/access-requests"),
+        },
+    )
+    .await?;
+
     let updated = fetch_access_request(&mut tx, claims.tenant_id, id).await?;
     tx.commit().await?;
     Ok(Json(updated))
@@ -332,6 +349,22 @@ pub async fn reject_access_request(
     .bind(claims.sub)
     .bind(body.note.as_deref())
     .execute(&mut *tx)
+    .await?;
+
+    create_notification(
+        &mut tx,
+        claims.tenant_id,
+        NewNotification {
+            user_id: row.requester_id,
+            kind: "warning",
+            title: "Access request rejected",
+            body: body.note.as_deref().or(Some(row.reason.as_str())),
+            category: Some("Access"),
+            entity_type: Some("access_request"),
+            entity_id: Some(row.id),
+            action_url: Some("/admin/access-requests"),
+        },
+    )
     .await?;
 
     let updated = fetch_access_request(&mut tx, claims.tenant_id, id).await?;
