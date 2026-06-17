@@ -39,7 +39,22 @@ MODULE_ROLE = {
     "CMS & Blog": "content editor",
 }
 
-INCLUDE_STATUS = {"pending", "partial"}
+# Module-specific regulatory / domain acceptance line (from CLAUDE.md norms).
+MODULE_REGULATORY = {
+    "Onboarding & Setup": "7-layer config hierarchy respected; masters/seed validated; tenant isolation from creation.",
+    "Clinical": "Clinical coding applied (ICD-10/11, SNOMED) and IPSG safety enforced (2-ID, allergy/LASA, consent).",
+    "Diagnostics & Support": "Diagnostics norms met: LOINC + critical-value reporting (NABL); DICOM/AERB/PCPNDT for imaging; critical results routed to the ordering clinician.",
+    "Admin & Operations": "Domain norms where relevant (NDPS/Schedule H/INN/AWaRe for pharmacy; GST/CGHS/TPA for billing); DTC/formulary + audit controls.",
+    "Specialty & Academic": "Specialty statutes honoured (e.g. Mental Healthcare Act 2017, MTP/PCPNDT) with consent + NABH documentation.",
+    "IT, Security & Infrastructure": "Security/privacy enforced: RBAC least-privilege, audit trail, encryption at rest, data-retention; no PHI in logs.",
+    "TV Displays & Queue": "Public-display privacy (no full PHI); fixed emergency-code colour layer per spec.",
+    "Printing & Forms": "Regulatory fields on output (UHID/MLC/Schedule badges); document audit (who printed, reprint count).",
+    "Mobile Apps": "Offline-safe PHI handling, device auth, and sync conflict resolution.",
+    "Technical Infrastructure": "Multi-tenant isolation (RLS), observability (tracing), and graceful degradation.",
+    "Regulatory & Compliance": "Maps to the applicable norm (NABH/JCI/NDPS/D&C/PNDT/…) with evidence captured for accreditation.",
+    "Multi-Hospital & Vendors": "Cross-tenant data boundaries enforced; vendor / head-office scoping respected.",
+    "CMS & Blog": "Content governance: medical-content review/approval workflow; no PHI in public content.",
+}
 
 
 def slugify(text: str) -> str:
@@ -48,6 +63,40 @@ def slugify(text: str) -> str:
 
 def cell(value) -> str:
     return "" if value is None else str(value).strip()
+
+
+def acceptance_criteria(story: dict, module: str, role: str) -> list[str]:
+    """Module-tailored AC checklist derived from the project's module-build
+    workflow + regulatory domains. Done features render checked."""
+    done = story["status"].lower() == "done"
+    box = "[x]" if done else "[ ]"
+    feature = story["feature"]
+    verb_phrase = feature[0].lower() + feature[1:] if feature else feature
+    platforms = story["platforms"]
+
+    items = [
+        f"The {role} can {verb_phrase} from the relevant screen, with clear loading / empty / error states.",
+        "Backend: tenant-scoped endpoint(s) with RLS (`set_tenant_context`) and typed errors; new entities get a migration with `tenant_id` + RLS + indexes; `cargo clippy` clean.",
+    ]
+    if "Web" in platforms or not platforms:
+        items.append(
+            "Web: built from the `@/components/ui` seam, page-guarded via `useRequirePermission`, data through TanStack Query, inputs Zod-validated."
+        )
+    if "Mobile" in platforms:
+        items.append("Mobile: React Native Paper screen with WatermelonDB offline support + sync.")
+    if "TV" in platforms:
+        items.append("TV: D-pad focus navigation, large-format layout, WebSocket realtime updates.")
+    items.append(
+        "Access is permission-gated (`P.<module>.<action>`) at page and element level; unauthorized users are redirected/hidden."
+    )
+    reg = MODULE_REGULATORY.get(module)
+    if reg:
+        items.append(reg)
+    items.append("Mutations are audit-logged (who / when / what); PHI access is audited where applicable.")
+    items.append(
+        "Tests: CRUD + integration; `make check-all` (check-api / check-ui-api / check-types) passes; smoke test for any new endpoint."
+    )
+    return [f"- {box} {item}" for item in items]
 
 
 def main() -> int:
@@ -76,11 +125,9 @@ def main() -> int:
             if not r or not any(x is not None and cell(x) for x in r):
                 continue
             status = cell(r[ci("status")]) if ci("status") is not None else ""
-            if status.lower() not in INCLUDE_STATUS:
-                continue
             feature = cell(r[ci("feature")]) if ci("feature") is not None else ""
             if not feature:
-                continue
+                continue  # every feature becomes a story, regardless of status
             sub = (cell(r[ci("sub-module")]) if ci("sub-module") is not None else "") or "General"
             platforms = ", ".join(
                 label
@@ -109,9 +156,9 @@ def main() -> int:
         lines = [
             f"# {name} — stories",
             "",
-            f"_Auto-generated from `MedBrains_Features.xlsx` (Pending + Partial features). "
-            f"{count} stories. Source of truth is the xlsx; regenerate via "
-            f"`python3 scripts/generate_stories.py`._",
+            f"_Auto-generated from `MedBrains_Features.xlsx` — every feature as a story "
+            f"with module-tailored acceptance criteria. {count} stories (✅ = Done). "
+            f"Source of truth is the xlsx; regenerate via `python3 scripts/generate_stories.py`._",
             "",
         ]
         for sub in sorted(by_sub):
@@ -129,10 +176,14 @@ def main() -> int:
                     )
                     if p
                 )
-                lines.append(f"### {s['feature']}")
+                mark = "✅ " if s["status"].lower() == "done" else ""
+                lines.append(f"### {mark}{s['feature']}")
                 lines.append(f"> As a **{role}**, I want **{s['feature'].lower()}**.")
                 lines.append("")
                 lines.append(f"`{meta}`")
+                lines.append("")
+                lines.append("**Acceptance criteria**")
+                lines.extend(acceptance_criteria(s, name, role))
                 lines.append("")
         out.write_text("\n".join(lines) + "\n", encoding="utf-8")
         index_lines.append(f"| [{name}]({slug}.md) | {count} |")
@@ -141,9 +192,10 @@ def main() -> int:
     index = OUT_DIR / "README.md"
     index.write_text(
         "# Backlog stories (generated from features)\n\n"
-        "Auto-generated from `MedBrains_Features.xlsx` — every Pending/Partial "
-        "feature as a story, grouped by module → sub-module. The xlsx is the "
-        "source of truth; regenerate via `python3 scripts/generate_stories.py`.\n\n"
+        "Auto-generated from `MedBrains_Features.xlsx` — **every feature** as a story "
+        "with module-tailored acceptance criteria, grouped by module → sub-module "
+        "(✅ = already Done). The xlsx is the source of truth; regenerate via "
+        "`python3 scripts/generate_stories.py`.\n\n"
         f"**{grand_total} stories** across {len(index_lines)} modules.\n\n"
         "| Module | Stories |\n|--------|--------:|\n" + "\n".join(index_lines) + "\n",
         encoding="utf-8",
