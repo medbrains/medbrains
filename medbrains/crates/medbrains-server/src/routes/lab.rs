@@ -24,6 +24,7 @@ use crate::{
         auth::Claims,
         authorization::{is_bypass_role, require_any_permission, require_permission},
     },
+    routes::notifications::{NewNotification, create_notification},
     state::AppState,
 };
 
@@ -1138,6 +1139,35 @@ pub async fn add_results(
                 .bind(order.encounter_id)
                 .bind(order.ordered_by)
                 .execute(&mut *tx)
+                .await?;
+
+                // In-app notification to the responsible clinician (encounter
+                // doctor, else the ordering provider) — same recipient rule as
+                // the alert, atomic with it.
+                let recipient: Uuid = sqlx::query_scalar(
+                    "SELECT COALESCE( \
+                       (SELECT doctor_id FROM encounters WHERE id = $1 AND tenant_id = $2), $3)",
+                )
+                .bind(order.encounter_id)
+                .bind(claims.tenant_id)
+                .bind(order.ordered_by)
+                .fetch_one(&mut *tx)
+                .await?;
+                let body = format!("{}: {} ({})", r.parameter_name, r.value, flag_str);
+                create_notification(
+                    &mut tx,
+                    claims.tenant_id,
+                    NewNotification {
+                        user_id: recipient,
+                        kind: "danger",
+                        title: "Critical lab value",
+                        body: Some(&body),
+                        category: Some("Lab"),
+                        entity_type: Some("lab_order"),
+                        entity_id: Some(order_id),
+                        action_url: Some("/lab"),
+                    },
+                )
                 .await?;
             }
         }
