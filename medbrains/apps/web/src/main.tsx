@@ -2,7 +2,7 @@
 import "./i18n";
 import { DirectionProvider, MantineProvider } from "@mantine/core";
 import { ModalsProvider } from "@mantine/modals";
-import { Notifications, notifications } from "@mantine/notifications";
+import { Notifications } from "@mantine/notifications";
 import { createMedBrainsTheme, cssVariableResolver } from "@medbrains/design-system";
 import { createQueryClient } from "@medbrains/stores";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -11,6 +11,7 @@ import { createRoot } from "react-dom/client";
 import { useTranslation } from "react-i18next";
 import { App } from "./App";
 import { EcgLoader } from "./components/EcgLoader";
+import { toast } from "./components/ui";
 import i18n, { RTL_LANGUAGES } from "./i18n";
 import {
   defaultDesktopApiBase,
@@ -127,10 +128,8 @@ const queryClient = createQueryClient({
   // Safety net: any mutation without its own onError surfaces here
   // instead of failing silently (audit P0 #18).
   onMutationError: (error) => {
-    notifications.show({
+    toast.error(error.message || i18n.t("common:notifications.tryAgain", "Please try again."), {
       title: i18n.t("common:notifications.actionFailed", "Action failed"),
-      message: error.message || i18n.t("common:notifications.tryAgain", "Please try again."),
-      color: "danger",
     });
   },
 });

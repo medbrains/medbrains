@@ -28,6 +28,7 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user_feed
 
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS tenant_isolation_notifications ON public.notifications;
 CREATE POLICY tenant_isolation_notifications ON public.notifications
     USING (((tenant_id)::text = current_setting('app.tenant_id'::text, true)))
     WITH CHECK (((tenant_id)::text = current_setting('app.tenant_id'::text, true)));
