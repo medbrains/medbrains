@@ -16,7 +16,6 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import {
   type CreatePrinterFormInput,
   createPrinterFormSchema,
@@ -62,7 +61,7 @@ import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import { DocumentPreviewModal } from "@/components/DocumentPreview/DocumentPreviewModal";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { documentsService } from "@/services/documents.service";
 
@@ -509,16 +508,12 @@ function TemplatesTab() {
       documentsService.createDocumentTemplate(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-templates"] });
-      notifications.show({
-        title: "Template Created",
-        message: "Document template created",
-        color: "success",
-      });
+      toast.success("Document template created", { title: "Template Created" });
       closeDrawer();
       resetForm();
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to create template", color: "danger" });
+      toast.error("Failed to create template", { title: "Error" });
     },
   });
 
@@ -527,16 +522,12 @@ function TemplatesTab() {
       documentsService.updateDocumentTemplate(id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-templates"] });
-      notifications.show({
-        title: "Template Updated",
-        message: "Document template updated",
-        color: "success",
-      });
+      toast.success("Document template updated", { title: "Template Updated" });
       closeDrawer();
       resetForm();
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to update template", color: "danger" });
+      toast.error("Failed to update template", { title: "Error" });
     },
   });
 
@@ -544,11 +535,7 @@ function TemplatesTab() {
     mutationFn: (id: string) => documentsService.deleteDocumentTemplate(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-templates"] });
-      notifications.show({
-        title: "Template Deleted",
-        message: "Document template deleted",
-        color: "orange",
-      });
+      toast.warning("Document template deleted", { title: "Template Deleted" });
     },
   });
 
@@ -556,11 +543,7 @@ function TemplatesTab() {
     mutationFn: (id: string) => documentsService.setDefaultTemplate(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-templates"] });
-      notifications.show({
-        title: "Default Set",
-        message: "Template set as default",
-        color: "success",
-      });
+      toast.success("Template set as default", { title: "Default Set" });
     },
   });
 
@@ -1043,11 +1026,7 @@ function OutputsTab() {
       documentsService.voidDocumentOutput(id, { reason: "Voided by user" }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-outputs"] });
-      notifications.show({
-        title: "Document Voided",
-        message: "Document has been voided",
-        color: "orange",
-      });
+      toast.warning("Document has been voided", { title: "Document Voided" });
     },
   });
 
@@ -1217,15 +1196,11 @@ function ReviewScheduleTab() {
     mutationFn: (data: CreateReviewScheduleRequest) => documentsService.createReviewSchedule(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-review-schedule"] });
-      notifications.show({
-        title: "Schedule Created",
-        message: "Review schedule added",
-        color: "success",
-      });
+      toast.success("Review schedule added", { title: "Schedule Created" });
       closeDrawer();
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to create schedule", color: "danger" });
+      toast.error("Failed to create schedule", { title: "Error" });
     },
   });
 
@@ -1233,11 +1208,7 @@ function ReviewScheduleTab() {
     mutationFn: (id: string) => documentsService.markReviewed(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-review-schedule"] });
-      notifications.show({
-        title: "Reviewed",
-        message: "Schedule marked as reviewed",
-        color: "success",
-      });
+      toast.success("Schedule marked as reviewed", { title: "Reviewed" });
     },
   });
 
@@ -1624,11 +1595,7 @@ function PrintQueueTab() {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["print-jobs"] });
-      notifications.show({
-        title: "Print job updated",
-        message: "Print job status changed",
-        color: "success",
-      });
+      toast.success("Print job status changed", { title: "Print job updated" });
     },
   });
 
@@ -1823,11 +1790,7 @@ function PrintersTab() {
     mutationFn: (payload: CreatePrinterRequest) => documentsService.createPrinter(payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["printers"] });
-      notifications.show({
-        title: "Printer created",
-        message: "Printer profile is ready for document routing",
-        color: "success",
-      });
+      toast.success("Printer profile is ready for document routing", { title: "Printer created" });
       reset(DEFAULT_PRINTER_FORM);
       closeDrawer();
     },

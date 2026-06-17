@@ -16,7 +16,6 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AttendanceRecord,
@@ -49,7 +48,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { hrService } from "@/services/hr.service";
@@ -243,14 +242,9 @@ function EmployeesTab({
         designation_id: "",
         date_of_joining: "",
       });
-      notifications.show({
-        title: "Employee Created",
-        message: "Employee record added",
-        color: "success",
-      });
+      toast.success("Employee record added", { title: "Employee Created" });
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Failed to create employee", color: "danger" }),
+    onError: () => toast.error("Failed to create employee", { title: "Error" }),
   });
 
   // ── Designation form ──
@@ -272,11 +266,7 @@ function EmployeesTab({
       void qc.invalidateQueries({ queryKey: ["hr-designations"] });
       closeDesig();
       setDesigForm({ code: "", name: "", level: 1, category: "clinical" });
-      notifications.show({
-        title: "Designation Created",
-        message: "Designation added",
-        color: "success",
-      });
+      toast.success("Designation added", { title: "Designation Created" });
     },
   });
 
@@ -586,11 +576,7 @@ function EmployeeDetailDrawer({
         state_code: "",
         expiry_date: "",
       });
-      notifications.show({
-        title: "Credential Added",
-        message: "Credential recorded",
-        color: "success",
-      });
+      toast.success("Credential recorded", { title: "Credential Added" });
     },
   });
 
@@ -893,18 +879,9 @@ function AttendanceTab({ canManage }: { canManage: boolean }) {
         status: "present",
         source: "manual",
       });
-      notifications.show({
-        title: "Attendance Recorded",
-        message: "Attendance marked",
-        color: "success",
-      });
+      toast.success("Attendance marked", { title: "Attendance Recorded" });
     },
-    onError: () =>
-      notifications.show({
-        title: "Error",
-        message: "Failed to record attendance",
-        color: "danger",
-      }),
+    onError: () => toast.error("Failed to record attendance", { title: "Error" }),
   });
 
   return (
@@ -1124,14 +1101,9 @@ function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApprove: b
         is_half_day: false,
         reason: "",
       });
-      notifications.show({
-        title: "Leave Applied",
-        message: "Leave request submitted",
-        color: "success",
-      });
+      toast.success("Leave request submitted", { title: "Leave Applied" });
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Failed to submit leave", color: "danger" }),
+    onError: () => toast.error("Failed to submit leave", { title: "Error" }),
   });
 
   const actionMut = useMutation({
@@ -1139,11 +1111,7 @@ function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApprove: b
       hrService.leaveAction(id, { action }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["hr-leaves"] });
-      notifications.show({
-        title: "Leave Updated",
-        message: "Leave status updated",
-        color: "success",
-      });
+      toast.success("Leave status updated", { title: "Leave Updated" });
     },
   });
 
@@ -1151,11 +1119,7 @@ function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApprove: b
     mutationFn: (id: string) => hrService.cancelLeave(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["hr-leaves"] });
-      notifications.show({
-        title: "Leave Cancelled",
-        message: "Leave request cancelled",
-        color: "orange",
-      });
+      toast.warning("Leave request cancelled", { title: "Leave Cancelled" });
     },
   });
 
@@ -1410,11 +1374,7 @@ function RosterTab({
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["hr-shifts"] });
       closeShift();
-      notifications.show({
-        title: "Shift Created",
-        message: "Shift definition added",
-        color: "success",
-      });
+      toast.success("Shift definition added", { title: "Shift Created" });
     },
   });
 
@@ -1437,18 +1397,9 @@ function RosterTab({
       void qc.invalidateQueries({ queryKey: ["hr-rosters"] });
       closeRoster();
       setRosterForm({ employee_id: "", shift_id: "", roster_date: "", is_on_call: false });
-      notifications.show({
-        title: "Roster Entry Added",
-        message: "Duty roster updated",
-        color: "success",
-      });
+      toast.success("Duty roster updated", { title: "Roster Entry Added" });
     },
-    onError: () =>
-      notifications.show({
-        title: "Error",
-        message: "Failed to create roster entry",
-        color: "danger",
-      }),
+    onError: () => toast.error("Failed to create roster entry", { title: "Error" }),
   });
 
   // ── Create on-call ──
@@ -1481,29 +1432,16 @@ function RosterTab({
         is_primary: true,
         contact_number: "",
       });
-      notifications.show({
-        title: "On-Call Scheduled",
-        message: "On-call schedule added",
-        color: "success",
-      });
+      toast.success("On-call schedule added", { title: "On-Call Scheduled" });
     },
-    onError: () =>
-      notifications.show({
-        title: "Error",
-        message: "Failed to create on-call entry",
-        color: "danger",
-      }),
+    onError: () => toast.error("Failed to create on-call entry", { title: "Error" }),
   });
 
   const swapMut = useMutation({
     mutationFn: (id: string) => hrService.approveSwap(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["hr-rosters"] });
-      notifications.show({
-        title: "Swap Approved",
-        message: "Shift swap approved",
-        color: "success",
-      });
+      toast.success("Shift swap approved", { title: "Swap Approved" });
     },
   });
 
@@ -1989,11 +1927,7 @@ function TrainingTab({ canManage }: { canManage: boolean }) {
         frequency_months: 12,
         duration_hours: 2,
       });
-      notifications.show({
-        title: "Program Created",
-        message: "Training program added",
-        color: "success",
-      });
+      toast.success("Training program added", { title: "Program Created" });
     },
   });
 
@@ -2029,11 +1963,7 @@ function TrainingTab({ canManage }: { canManage: boolean }) {
         certificate_no: "",
         trainer_name: "",
       });
-      notifications.show({
-        title: "Training Recorded",
-        message: "Training record added",
-        color: "success",
-      });
+      toast.success("Training record added", { title: "Training Recorded" });
     },
   });
 
@@ -2424,11 +2354,7 @@ function ComplianceTab({
         strengths: "",
         improvements: "",
       });
-      notifications.show({
-        title: "Appraisal Created",
-        message: "Appraisal record added",
-        color: "success",
-      });
+      toast.success("Appraisal record added", { title: "Appraisal Created" });
     },
   });
 
@@ -2458,11 +2384,7 @@ function ComplianceTab({
         compliance_date: "",
         expiry_date: "",
       });
-      notifications.show({
-        title: "Record Added",
-        message: "Statutory record created",
-        color: "success",
-      });
+      toast.success("Statutory record created", { title: "Record Added" });
     },
   });
 

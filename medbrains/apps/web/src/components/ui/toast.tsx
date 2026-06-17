@@ -1,20 +1,17 @@
 import { notifications } from "@mantine/notifications";
-import {
-  IconAlertTriangle,
-  IconCircleCheck,
-  IconExclamationCircle,
-  IconInfoCircle,
-} from "@tabler/icons-react";
 import type { ReactNode } from "react";
+import { EcgGlyph } from "./EcgGlyph";
 import styles from "./toast.module.scss";
 
 type ToastTone = "success" | "error" | "warning" | "info";
 
+// One signature ECG glyph for every toast — the tone is carried by colour
+// (Mantine tints the icon chip per `color`), the brand by the heartbeat.
 const TONE: Record<ToastTone, { color: string; icon: ReactNode }> = {
-  success: { color: "success", icon: <IconCircleCheck size={18} /> },
-  error: { color: "danger", icon: <IconExclamationCircle size={18} /> },
-  warning: { color: "warning", icon: <IconAlertTriangle size={18} /> },
-  info: { color: "info", icon: <IconInfoCircle size={18} /> },
+  success: { color: "success", icon: <EcgGlyph /> },
+  error: { color: "danger", icon: <EcgGlyph /> },
+  warning: { color: "warning", icon: <EcgGlyph /> },
+  info: { color: "info", icon: <EcgGlyph /> },
 };
 
 export interface ToastOptions {

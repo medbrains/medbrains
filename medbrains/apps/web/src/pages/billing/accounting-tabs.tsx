@@ -18,7 +18,6 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import {
   type BillingErpExportFormInput,
   type BillingGstrFormInput,
@@ -63,7 +62,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
-import { Alert, Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   billingErpExportTypeOptions,
   billingErpTargetSystemOptions,
@@ -158,20 +157,18 @@ function GstrSubView({ canManage }: { canManage: boolean }) {
       void queryClient.invalidateQueries({ queryKey: ["gstr-summaries"] });
       closeGen();
       reset(gstrDefaults);
-      notifications.show({ title: "Generated", message: "GSTR summary created", color: "success" });
+      toast.success("GSTR summary created", { title: "Generated" });
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Failed to generate", color: "danger" }),
+    onError: () => toast.error("Failed to generate", { title: "Error" }),
   });
 
   const fileMut = useMutation({
     mutationFn: (id: string) => billingService.fileGstr(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["gstr-summaries"] });
-      notifications.show({ title: "Filed", message: "GSTR marked as filed", color: "success" });
+      toast.success("GSTR marked as filed", { title: "Filed" });
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Filing failed", color: "danger" }),
+    onError: () => toast.error("Filing failed", { title: "Error" }),
   });
 
   const gstrStatusColors: Record<string, BadgeTone> = {
@@ -361,9 +358,9 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
       void queryClient.invalidateQueries({ queryKey: ["tds-deductions"] });
       close();
       reset(tdsDefaults);
-      notifications.show({ title: "Created", message: "TDS deduction recorded", color: "success" });
+      toast.success("TDS deduction recorded", { title: "Created" });
     },
-    onError: () => notifications.show({ title: "Error", message: "Failed", color: "danger" }),
+    onError: () => toast.error("Failed", { title: "Error" }),
   });
 
   const depositMut = useMutation({
@@ -374,7 +371,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["tds-deductions"] });
-      notifications.show({ title: "Deposited", message: "TDS challan recorded", color: "success" });
+      toast.success("TDS challan recorded", { title: "Deposited" });
     },
   });
 
@@ -386,7 +383,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["tds-deductions"] });
-      notifications.show({ title: "Issued", message: "Certificate recorded", color: "success" });
+      toast.success("Certificate recorded", { title: "Issued" });
     },
   });
 
@@ -795,41 +792,27 @@ export function JournalEntriesTab() {
       void queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
       close();
       reset(journalDefaults);
-      notifications.show({ title: "Created", message: "Journal entry created", color: "success" });
+      toast.success("Journal entry created", { title: "Created" });
     },
-    onError: () =>
-      notifications.show({
-        title: "Error",
-        message: "Failed — ensure debits equal credits",
-        color: "danger",
-      }),
+    onError: () => toast.error("Failed — ensure debits equal credits", { title: "Error" }),
   });
 
   const postMut = useMutation({
     mutationFn: (id: string) => billingService.postJournalEntry(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
-      notifications.show({
-        title: "Posted",
-        message: "Journal entry posted to ledger",
-        color: "success",
-      });
+      toast.success("Journal entry posted to ledger", { title: "Posted" });
     },
-    onError: () => notifications.show({ title: "Error", message: "Post failed", color: "danger" }),
+    onError: () => toast.error("Post failed", { title: "Error" }),
   });
 
   const reverseMut = useMutation({
     mutationFn: (id: string) => billingService.reverseJournalEntry(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
-      notifications.show({
-        title: "Reversed",
-        message: "Reversal entry created",
-        color: "success",
-      });
+      toast.success("Reversal entry created", { title: "Reversed" });
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Reversal failed", color: "danger" }),
+    onError: () => toast.error("Reversal failed", { title: "Error" }),
   });
 
   const columns = [
@@ -1124,28 +1107,18 @@ export function BankReconTab() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
       closeImport();
-      notifications.show({
-        title: "Imported",
-        message: "Bank transactions imported",
-        color: "success",
-      });
+      toast.success("Bank transactions imported", { title: "Imported" });
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Import failed", color: "danger" }),
+    onError: () => toast.error("Import failed", { title: "Error" }),
   });
 
   const autoReconMut = useMutation({
     mutationFn: () => billingService.autoReconcile(),
     onSuccess: (res) => {
       void queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
-      notifications.show({
-        title: "Auto-Reconciled",
-        message: `${res.matched_count ?? 0} transactions matched`,
-        color: "success",
-      });
+      toast.success(`${res.matched_count ?? 0} transactions matched`, { title: "Auto-Reconciled" });
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Auto-reconcile failed", color: "danger" }),
+    onError: () => toast.error("Auto-reconcile failed", { title: "Error" }),
   });
 
   // TPA recon (priority #4) — matches unmatched credits to insurance_claims
@@ -1155,14 +1128,12 @@ export function BankReconTab() {
     onSuccess: (res) => {
       void queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
       void queryClient.invalidateQueries({ queryKey: ["insurance-receivables-aging"] });
-      notifications.show({
-        title: "TPA Auto-match",
-        message: `${res.matched} matched · ${res.variance_flagged} variance · ${res.still_unmatched} unmatched`,
-        color: "success",
-      });
+      toast.success(
+        `${res.matched} matched · ${res.variance_flagged} variance · ${res.still_unmatched} unmatched`,
+        { title: "TPA Auto-match" },
+      );
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "TPA auto-match failed", color: "danger" }),
+    onError: () => toast.error("TPA auto-match failed", { title: "Error" }),
   });
 
   const { data: insAging = [] } = useQuery({
@@ -1632,10 +1603,9 @@ export function ErpExportTab() {
     mutationFn: (data: ErpExportRequest) => billingService.exportToErp(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["erp-exports"] });
-      notifications.show({ title: "Exported", message: "Data exported to ERP", color: "success" });
+      toast.success("Data exported to ERP", { title: "Exported" });
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Export failed", color: "danger" }),
+    onError: () => toast.error("Export failed", { title: "Error" }),
   });
 
   const handleExportToErp = (values: BillingErpExportFormInput) => {
@@ -1801,7 +1771,7 @@ export function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
     mutationFn: (id: string) => billingService.approveConcession(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["billing", "concessions"] });
-      notifications.show({ title: "Approved", message: "Concession approved", color: "success" });
+      toast.success("Concession approved", { title: "Approved" });
     },
   });
 
@@ -1809,7 +1779,7 @@ export function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
     mutationFn: (id: string) => billingService.rejectConcession(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["billing", "concessions"] });
-      notifications.show({ title: "Rejected", message: "Concession rejected", color: "danger" });
+      toast.error("Concession rejected", { title: "Rejected" });
     },
   });
 
@@ -1821,18 +1791,9 @@ export function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["billing", "concessions", "auto-rules"] });
-      notifications.show({
-        title: "Saved",
-        message: "Auto-concession rules updated",
-        color: "success",
-      });
+      toast.success("Auto-concession rules updated", { title: "Saved" });
     },
-    onError: () =>
-      notifications.show({
-        title: "Error",
-        message: "Invalid JSON or save failed",
-        color: "danger",
-      }),
+    onError: () => toast.error("Invalid JSON or save failed", { title: "Error" }),
   });
 
   const statusColors: Record<string, BadgeTone> = {

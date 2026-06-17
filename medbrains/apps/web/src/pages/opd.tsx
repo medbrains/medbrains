@@ -16,7 +16,6 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDebouncedValue, useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import type {
   OpdFollowUpAppointmentFormInput,
   OpdLabOrderFormInput,
@@ -141,7 +140,7 @@ import {
 } from "@/components/OrderBasket/OrderBasketWorkspace";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
-import { Alert, Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   DEFAULT_OPD_FOLLOW_UP_FORM_VALUES,
   DEFAULT_OPD_LAB_ORDER_FORM_VALUES,
@@ -517,11 +516,7 @@ function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: OpdVisitFo
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
-      notifications.show({
-        title: "Visit created",
-        message: "Patient added to queue",
-        color: "success",
-      });
+      toast.success("Patient added to queue", { title: "Visit created" });
       emit("opd.encounter.created", {
         encounter_id: result.encounter.id,
         patient_id: result.encounter.patient_id,
@@ -538,7 +533,7 @@ function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: OpdVisitFo
       onCreated(result);
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to create visit", color: "danger" });
+      toast.error("Failed to create visit", { title: "Error" });
     },
   });
 
@@ -726,20 +721,17 @@ export function OpdVitalsPage() {
         source_record_id: vital.id,
         vital_id: vital.id,
       });
-      notifications.show({
-        title: t("vitals.notify.recorded"),
-        message: t("vitals.notify.saved", {
+      toast.success(
+        t("vitals.notify.saved", {
           patient: entryIdentity?.name ?? t("queueFallback.patient"),
         }),
-        color: "success",
-      });
+        { title: t("vitals.notify.recorded") },
+      );
       navigate("/opd");
     },
     onError: () => {
-      notifications.show({
+      toast.error(t("vitals.notify.permissionCheck"), {
         title: t("vitals.notify.unableToRecord"),
-        message: t("vitals.notify.permissionCheck"),
-        color: "danger",
       });
     },
   });
@@ -1003,10 +995,8 @@ function OpdPageInner() {
       void queryClient.invalidateQueries({ queryKey: ["appointments"] });
       const protectedName = fieldAccessText(patientNameAccess, appointment.patient_name, "name");
       const patientName = protectedName === "—" ? t("queueFallback.patient") : protectedName;
-      notifications.show({
+      toast.success(t("notify.appointmentAddedToOpdQueue", { patient: patientName }), {
         title: t("notify.appointmentMovedToOpd"),
-        message: t("notify.appointmentAddedToOpdQueue", { patient: patientName }),
-        color: "success",
       });
       emit("opd.encounter.created", {
         appointment_id: appointment.id,
@@ -1020,10 +1010,8 @@ function OpdPageInner() {
       });
     },
     onError: () => {
-      notifications.show({
+      toast.error(t("notify.appointmentMoveBlocked"), {
         title: t("notify.unableToMoveAppointment"),
-        message: t("notify.appointmentMoveBlocked"),
-        color: "danger",
       });
     },
   });
@@ -1743,17 +1731,13 @@ export function EncounterDetail({
         source_record_id: packet.id,
       });
       void queryClient.invalidateQueries({ queryKey: ["mrd-case-sheets"] });
-      notifications.show({
+      toast.success(`${packet.packet_number} is available in MRD case sheets`, {
         title: "Sent to MRD",
-        message: `${packet.packet_number} is available in MRD case sheets`,
-        color: "success",
       });
     },
     onError: () => {
-      notifications.show({
+      toast.error("Unable to generate the OPD case-sheet packet", {
         title: "MRD handoff failed",
-        message: "Unable to generate the OPD case-sheet packet",
-        color: "danger",
       });
     },
   });
@@ -2775,11 +2759,7 @@ function InvestigationsTab({
     mutationFn: opdService.createLabOrder,
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["lab-orders", encounterId] });
-      notifications.show({
-        title: "Investigation ordered",
-        message: "Lab order placed successfully",
-        color: "success",
-      });
+      toast.success("Lab order placed successfully", { title: "Investigation ordered" });
       emit("order.created", {
         encounter_id: result.encounter_id,
         order_id: result.id,
@@ -2793,7 +2773,7 @@ function InvestigationsTab({
       formHandlers.close();
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to place lab order", color: "danger" });
+      toast.error("Failed to place lab order", { title: "Error" });
     },
   });
 
@@ -2801,11 +2781,7 @@ function InvestigationsTab({
     mutationFn: (id: string) => opdService.cancelLabOrder(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-orders", encounterId] });
-      notifications.show({
-        title: "Order cancelled",
-        message: "Lab order has been cancelled",
-        color: "warning",
-      });
+      toast.warning("Lab order has been cancelled", { title: "Order cancelled" });
     },
   });
 
@@ -3252,10 +3228,8 @@ function FollowUpTab({
     onSuccess: (appointment) => {
       void queryClient.invalidateQueries({ queryKey: ["appointments"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
-      notifications.show({
+      toast.success(`Appointment booked for ${appointment.appointment_date}`, {
         title: "Follow-up scheduled",
-        message: `Appointment booked for ${appointment.appointment_date}`,
-        color: "success",
       });
       emit("opd.followup.scheduled", {
         appointment_date: appointment.appointment_date,
@@ -3269,7 +3243,7 @@ function FollowUpTab({
       setBooked(true);
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to book follow-up", color: "danger" });
+      toast.error("Failed to book follow-up", { title: "Error" });
     },
   });
 
@@ -3491,10 +3465,8 @@ function PrescriptionsTab({
         prescription_id: variables.prescriptionId,
         source_record_id: variables.prescriptionId,
       });
-      notifications.show({
+      toast.success("Pharmacy review and billing will use the revised prescription", {
         title: "Prescription updated",
-        message: "Pharmacy review and billing will use the revised prescription",
-        color: "teal",
       });
     },
   });
@@ -3600,24 +3572,19 @@ function AdmitToIpdButton({
           source_record_id: result.admission.id,
         });
       }
-      notifications.show({
-        title: t("notify.patientAdmittedToIpd"),
-        message: t("notify.patientAdmittedToIpdDetail", {
+      toast.success(
+        t("notify.patientAdmittedToIpdDetail", {
           diagnoses: result.diagnoses_copied,
           patient: patientName,
           prescriptions: result.prescriptions_copied,
           vitals: result.vitals_copied,
         }),
-        color: "success",
-      });
+        { title: t("notify.patientAdmittedToIpd") },
+      );
       close();
     },
     onError: () => {
-      notifications.show({
-        title: t("notify.error"),
-        message: t("notify.admissionFailed"),
-        color: "danger",
-      });
+      toast.error(t("notify.admissionFailed"), { title: t("notify.error") });
     },
   });
 
@@ -3784,20 +3751,14 @@ function GroupAppointmentModal({ patientId }: { patientId: string }) {
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["appointments"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
-      notifications.show({
+      toast.success(`${result.length} appointments created`, {
         title: "Group appointment booked",
-        message: `${result.length} appointments created`,
-        color: "success",
       });
       close();
       setRows([createGroupSlotRow(), createGroupSlotRow()]);
     },
     onError: () => {
-      notifications.show({
-        title: "Error",
-        message: "Failed to book group appointment",
-        color: "danger",
-      });
+      toast.error("Failed to book group appointment", { title: "Error" });
     },
   });
 

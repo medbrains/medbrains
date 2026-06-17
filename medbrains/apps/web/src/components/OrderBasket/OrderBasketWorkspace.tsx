@@ -29,6 +29,7 @@ import {
   IconStack2,
 } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "@/components/ui";
 import { orderBasketService } from "@/services/orderBasket.service";
 import { BasketItemRow } from "./BasketItemRow";
 import { DrugPickerForm } from "./pickers/DrugPickerForm";
@@ -133,11 +134,7 @@ export function OrderBasketWorkspace({
           exceeds_preauth: costRes.exceeds_preauth,
         });
       } catch (err) {
-        notifications.show({
-          title: "Check failed",
-          message: (err as Error).message,
-          color: "danger",
-        });
+        toast.error((err as Error).message, { title: "Check failed" });
       } finally {
         basket.setChecking(false);
       }
@@ -164,10 +161,8 @@ export function OrderBasketWorkspace({
         const draft = await orderBasketService.getBasketDraft(encounterId);
         if (!cancelled && draft && Array.isArray(draft.items) && draft.items.length > 0) {
           basket.loadDraft(draft.items as BasketItem[]);
-          notifications.show({
+          toast.info(`${draft.items.length} item(s) loaded from saved draft`, {
             title: "Draft loaded",
-            message: `${draft.items.length} item(s) loaded from saved draft`,
-            color: "info",
           });
         }
       } catch {
@@ -214,10 +209,8 @@ export function OrderBasketWorkspace({
 
   const handleSaveDraft = async () => {
     if (!canUseDraft) {
-      notifications.show({
+      toast.warning("You do not have permission to save order basket drafts.", {
         title: "Draft blocked",
-        message: "You do not have permission to save order basket drafts.",
-        color: "orange",
       });
       return;
     }
@@ -225,17 +218,9 @@ export function OrderBasketWorkspace({
       await orderBasketService.saveBasketDraft(encounterId, {
         items: basket.items,
       });
-      notifications.show({
-        title: "Draft saved",
-        message: "Basket saved — resume later from any device",
-        color: "info",
-      });
+      toast.info("Basket saved — resume later from any device", { title: "Draft saved" });
     } catch (err) {
-      notifications.show({
-        title: "Save failed",
-        message: (err as Error).message,
-        color: "danger",
-      });
+      toast.error((err as Error).message, { title: "Save failed" });
     }
   };
 
@@ -256,10 +241,8 @@ export function OrderBasketWorkspace({
   const addPermittedItems = (items: BasketItem[]) => {
     const permitted = items.filter((item) => allowedBasketKinds.has(item.kind));
     if (permitted.length < items.length) {
-      notifications.show({
+      toast.warning("Your role cannot add every item type from this source.", {
         title: "Some orders skipped",
-        message: "Your role cannot add every item type from this source.",
-        color: "orange",
       });
     }
     permitted.forEach(basket.addItem);
@@ -483,11 +466,7 @@ function OrderSetPickerModal({
         const list = await orderBasketService.listOrderSetTemplates({ is_active: true });
         setTemplates(list.map((t) => ({ id: t.id, name: t.name })));
       } catch (err) {
-        notifications.show({
-          title: "Failed to load order sets",
-          message: (err as Error).message,
-          color: "danger",
-        });
+        toast.error((err as Error).message, { title: "Failed to load order sets" });
       }
     })();
   }, [opened]);
@@ -501,26 +480,14 @@ function OrderSetPickerModal({
         .map((it) => orderSetItemToBasket(it))
         .filter((x): x is BasketItem => !!x);
       if (items.length === 0) {
-        notifications.show({
-          title: "Empty template",
-          message: "This order set has no convertible items.",
-          color: "warning",
-        });
+        toast.warning("This order set has no convertible items.", { title: "Empty template" });
       } else {
         onAddItems(items);
-        notifications.show({
-          title: "Order set applied",
-          message: `${items.length} item(s) added to basket`,
-          color: "success",
-        });
+        toast.success(`${items.length} item(s) added to basket`, { title: "Order set applied" });
       }
       onClose();
     } catch (err) {
-      notifications.show({
-        title: "Apply failed",
-        message: (err as Error).message,
-        color: "danger",
-      });
+      toast.error((err as Error).message, { title: "Apply failed" });
     } finally {
       setLoading(false);
     }
@@ -618,11 +585,7 @@ function CarryForwardModal({
           })),
         );
       } catch (err) {
-        notifications.show({
-          title: "Carry forward failed",
-          message: (err as Error).message,
-          color: "danger",
-        });
+        toast.error((err as Error).message, { title: "Carry forward failed" });
       } finally {
         setLoading(false);
       }
@@ -637,11 +600,7 @@ function CarryForwardModal({
     const picked = rows.filter((r) => r.checked).map((r) => r.item as BasketItem);
     if (picked.length === 0) return;
     onAddItems(picked);
-    notifications.show({
-      title: "Carried forward",
-      message: `${picked.length} item(s) added`,
-      color: "success",
-    });
+    toast.success(`${picked.length} item(s) added`, { title: "Carried forward" });
     onClose();
   };
 

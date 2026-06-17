@@ -133,7 +133,7 @@ import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator"
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import {
   emergencyArrivalModeOptions,
   emergencyCodeDeactivateOutcomeOptions,
@@ -1162,19 +1162,11 @@ export function EmergencyVisitDetailPage() {
       });
     },
     onSuccess: (invoice) => {
-      notifications.show({
-        title: "ER invoice created",
-        message: `Invoice ${invoice.invoice_number} created.`,
-        color: "success",
-      });
+      toast.success(`Invoice ${invoice.invoice_number} created.`, { title: "ER invoice created" });
       navigate(billingInvoiceWorkspaceRoute(invoice.id));
     },
     onError: (error: Error) => {
-      notifications.show({
-        title: "Could not create ER invoice",
-        message: error.message,
-        color: "danger",
-      });
+      toast.error(error.message, { title: "Could not create ER invoice" });
     },
   });
   const { data: mlcCases = [], isLoading: mlcCasesLoading } = useQuery({
@@ -1423,10 +1415,8 @@ function ResuscitationTab({
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["er-resuscitation-logs", selectedVisitId] });
       reset({ ...emptyResuscitationLogForm, er_visit_id: selectedVisitId });
-      notifications.show({
+      toast.success("The ER resuscitation log has been updated.", {
         title: "Resuscitation entry saved",
-        message: "The ER resuscitation log has been updated.",
-        color: "success",
       });
     },
   });
@@ -1729,11 +1719,7 @@ function EmergencyVisitForm({
         triage_level: visit.triage_level,
       });
       reset({ ...emptyErVisitForm, patient_id: initialPatientId });
-      notifications.show({
-        title: t("notify.erVisitRegistered"),
-        message: t("notify.erVisitReadyForTriage"),
-        color: "success",
-      });
+      toast.success(t("notify.erVisitReadyForTriage"), { title: t("notify.erVisitRegistered") });
       onSuccess(visit);
     },
   });
@@ -1901,11 +1887,7 @@ function EmergencyVisitCommandBar({
       void qc.invalidateQueries({ queryKey: ["admission-detail", result.admission_id] });
       void qc.invalidateQueries({ queryKey: ["ipd-bed-dashboard-summary"] });
       void qc.invalidateQueries({ queryKey: ["ipd-bed-dashboard-beds"] });
-      notifications.show({
-        title: t("notify.patientAdmitted"),
-        message: t("notify.erVisitLinkedToIpd"),
-        color: "success",
-      });
+      toast.success(t("notify.erVisitLinkedToIpd"), { title: t("notify.patientAdmitted") });
       reset(emptyErAdmitForm);
       admitHandlers.close();
     },
@@ -2203,10 +2185,8 @@ function ResuscitationVisitPanel({
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["er-resuscitation-logs", visitId] });
       reset({ ...emptyResuscitationLogForm, er_visit_id: visitId });
-      notifications.show({
+      toast.success("The ER resuscitation log has been updated.", {
         title: "Resuscitation entry saved",
-        message: "The ER resuscitation log has been updated.",
-        color: "success",
       });
     },
   });
@@ -2720,11 +2700,7 @@ function CodesTab({
       emitCodeBlueLifecycleEvent(emit, "emergency.code_blue.activated", row);
       close();
       setCrashCart({});
-      notifications.show({
-        title: "Code Activated",
-        message: `${row.code_type.toUpperCase()} activated`,
-        color: "danger",
-      });
+      toast.error(`${row.code_type.toUpperCase()} activated`, { title: "Code Activated" });
     },
   });
 
@@ -3760,10 +3736,8 @@ function MlcCaseDetail({
       });
     },
     onError: (error) => {
-      notifications.show({
+      toast.error(error instanceof Error ? error.message : "Unable to prepare MLC print packet", {
         title: "MLC print failed",
-        message: error instanceof Error ? error.message : "Unable to prepare MLC print packet",
-        color: "red",
       });
     },
   });
@@ -3798,12 +3772,10 @@ function MlcCaseDetail({
       });
     },
     onError: (error) => {
-      notifications.show({
-        title: "Police intimation print failed",
-        message:
-          error instanceof Error ? error.message : "Unable to prepare police intimation print",
-        color: "red",
-      });
+      toast.error(
+        error instanceof Error ? error.message : "Unable to prepare police intimation print",
+        { title: "Police intimation print failed" },
+      );
     },
   });
 
@@ -5689,11 +5661,7 @@ function MassCasualtyTab({
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["mass-casualty"] });
       close();
-      notifications.show({
-        title: "Code Yellow",
-        message: "Mass casualty event activated",
-        color: "danger",
-      });
+      toast.error("Mass casualty event activated", { title: "Code Yellow" });
     },
   });
   const updateMutation = useMutation({
@@ -5704,11 +5672,7 @@ function MassCasualtyTab({
       closeUpdate();
       setEventToUpdate(null);
       resetUpdate(emptyMassCasualtyEventUpdateForm);
-      notifications.show({
-        title: "Mass Casualty Updated",
-        message: "Mass casualty event status updated",
-        color: "success",
-      });
+      toast.success("Mass casualty event status updated", { title: "Mass Casualty Updated" });
     },
   });
 

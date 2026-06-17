@@ -21,7 +21,6 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import type {
   BillingAdvanceAdjustmentFormInput,
   BillingAdvanceFormInput,
@@ -198,7 +197,7 @@ import { PatientJourneyActions } from "@/components/Patient/PatientJourneyAction
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PaymentModal, type PaymentModalSettlement } from "@/components/PaymentModal";
-import { Alert, Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   billingAdvancePurposeOptions,
   billingChargeSourceOptions,
@@ -751,14 +750,9 @@ function BillingPageInner() {
     mutationFn: (id: string) => billingService.cloneInvoice(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      notifications.show({
-        title: "Cloned",
-        message: "Invoice duplicated as draft",
-        color: "success",
-      });
+      toast.success("Invoice duplicated as draft", { title: "Cloned" });
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Failed to clone invoice", color: "danger" }),
+    onError: () => toast.error("Failed to clone invoice", { title: "Error" }),
   });
 
   const columns = [
@@ -1303,10 +1297,8 @@ function CreateInvoiceDrawer({
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       void queryClient.invalidateQueries({ queryKey: ["patient-invoices", result.patient_id] });
-      notifications.show({
+      toast.success(t("notification.draftInvoiceCreated"), {
         title: t("notification.invoiceCreatedTitle"),
-        message: t("notification.draftInvoiceCreated"),
-        color: "success",
       });
       emit("billing.invoice.created", {
         admission_id: result.admission_id,
@@ -1319,10 +1311,8 @@ function CreateInvoiceDrawer({
       reset(invoiceDefaults);
     },
     onError: (error: Error) => {
-      notifications.show({
+      toast.error(createInvoiceErrorMessage(error), {
         title: t("notification.errorTitle"),
-        message: createInvoiceErrorMessage(error),
-        color: "danger",
       });
     },
   });
@@ -1514,14 +1504,10 @@ function InvoiceDetail({
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      notifications.show({
-        title: "Invoice closed",
-        message: "Zero-balance bill settled.",
-        color: "success",
-      });
+      toast.success("Zero-balance bill settled.", { title: "Invoice closed" });
     },
     onError: (error: Error) => {
-      notifications.show({ title: "Could not close", message: error.message, color: "danger" });
+      toast.error(error.message, { title: "Could not close" });
     },
   });
 
@@ -1531,10 +1517,8 @@ function InvoiceDetail({
       printInvoicePacket(printData, billingDisplayAccess);
     },
     onError: (error) => {
-      notifications.show({
+      toast.error(error instanceof Error ? error.message : "Unable to prepare invoice packet", {
         title: "Invoice print failed",
-        message: error instanceof Error ? error.message : "Unable to prepare invoice packet",
-        color: "danger",
       });
     },
   });
@@ -1608,17 +1592,13 @@ function InvoiceDetail({
     onSuccess: ({ printData }) => {
       printReceiptPacket(printData, billingDisplayAccess);
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
-      notifications.show({
+      toast.success("Customer and office copies are ready to print", {
         title: "Receipt generated",
-        message: "Customer and office copies are ready to print",
-        color: "success",
       });
     },
     onError: (error) => {
-      notifications.show({
+      toast.error(error instanceof Error ? error.message : "Unable to prepare receipt packet", {
         title: "Receipt print failed",
-        message: error instanceof Error ? error.message : "Unable to prepare receipt packet",
-        color: "danger",
       });
     },
   });
@@ -4742,7 +4722,7 @@ function BillingSettingsTab() {
       void queryClient.invalidateQueries({ queryKey: ["tenant-settings", "billing"] });
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to update setting", color: "danger" });
+      toast.error("Failed to update setting", { title: "Error" });
     },
   });
 
@@ -4901,16 +4881,11 @@ function AdvancesTab() {
     mutationFn: (data: CreateAdvanceRequest) => billingService.createAdvance(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["advances"] });
-      notifications.show({
-        title: "Advance created",
-        message: "Patient advance recorded",
-        color: "success",
-      });
+      toast.success("Patient advance recorded", { title: "Advance created" });
       setShowForm(false);
       resetAdvance(advanceDefaults);
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Failed to create advance", color: "danger" }),
+    onError: () => toast.error("Failed to create advance", { title: "Error" }),
   });
 
   const adjustMutation = useMutation({
@@ -4918,16 +4893,11 @@ function AdvancesTab() {
       billingService.adjustAdvance(id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["advances"] });
-      notifications.show({
-        title: "Adjusted",
-        message: "Advance adjusted against invoice",
-        color: "success",
-      });
+      toast.success("Advance adjusted against invoice", { title: "Adjusted" });
       setAdjustId(null);
       resetAdjustment(adjustmentDefaults);
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Failed to adjust advance", color: "danger" }),
+    onError: () => toast.error("Failed to adjust advance", { title: "Error" }),
   });
 
   const refundMutation = useMutation({
@@ -4935,12 +4905,11 @@ function AdvancesTab() {
       billingService.refundAdvance(id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["advances"] });
-      notifications.show({ title: "Refunded", message: "Advance refunded", color: "success" });
+      toast.success("Advance refunded", { title: "Refunded" });
       setRefundId(null);
       resetAdvanceRefund(advanceRefundDefaults);
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Failed to refund advance", color: "danger" }),
+    onError: () => toast.error("Failed to refund advance", { title: "Error" }),
   });
 
   const columns = [
@@ -5300,20 +5269,11 @@ function CorporateTab() {
     mutationFn: (data: CreateCorporateRequest) => billingService.createCorporate(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["corporates"] });
-      notifications.show({
-        title: "Created",
-        message: "Corporate client created",
-        color: "success",
-      });
+      toast.success("Corporate client created", { title: "Created" });
       setShowForm(false);
       reset(corporateDefaults);
     },
-    onError: () =>
-      notifications.show({
-        title: "Error",
-        message: "Failed to create corporate client",
-        color: "danger",
-      }),
+    onError: () => toast.error("Failed to create corporate client", { title: "Error" }),
   });
 
   const handleCreateCorporate = (values: BillingCorporateFormInput) => {
@@ -6421,10 +6381,9 @@ function DayCloseTab() {
       void queryClient.invalidateQueries({ queryKey: ["day-closes"] });
       setShowForm(false);
       resetForm();
-      notifications.show({ title: "Day closed", message: "Tally recorded.", color: "success" });
+      toast.success("Tally recorded.", { title: "Day closed" });
     },
-    onError: (error: Error) =>
-      notifications.show({ title: "Error", message: error.message, color: "danger" }),
+    onError: (error: Error) => toast.error(error.message, { title: "Error" }),
   });
 
   const submitDayClose = () => {
@@ -6449,14 +6408,11 @@ function DayCloseTab() {
       void queryClient.invalidateQueries({ queryKey: ["day-closes"] });
       setVerifyTarget(null);
       setVerifyNotes("");
-      notifications.show({
-        title: result.status === "verified" ? "Verified" : "Logged as discrepancy",
-        message:
-          result.status === "verified"
-            ? "Tally balanced and signed off."
-            : "Variance recorded for follow-up.",
-        color: result.status === "verified" ? "success" : "warning",
-      });
+      if (result.status === "verified") {
+        toast.success("Tally balanced and signed off.", { title: "Verified" });
+      } else {
+        toast.warning("Variance recorded for follow-up.", { title: "Logged as discrepancy" });
+      }
     },
   });
 
@@ -6841,10 +6797,9 @@ function CreditPatientsTab() {
       void queryClient.invalidateQueries({ queryKey: ["credit-patients"] });
       close();
       reset(creditPatientDefaults);
-      notifications.show({ title: "Created", message: "Credit patient added", color: "success" });
+      toast.success("Credit patient added", { title: "Created" });
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Failed to create", color: "danger" }),
+    onError: () => toast.error("Failed to create", { title: "Error" }),
   });
 
   const updateMut = useMutation({
@@ -6855,10 +6810,9 @@ function CreditPatientsTab() {
       close();
       setEditId(null);
       reset(creditPatientDefaults);
-      notifications.show({ title: "Updated", message: "Credit patient updated", color: "success" });
+      toast.success("Credit patient updated", { title: "Updated" });
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Update failed", color: "danger" }),
+    onError: () => toast.error("Update failed", { title: "Error" }),
   });
 
   const creditStatusColors: Record<string, BadgeTone> = {

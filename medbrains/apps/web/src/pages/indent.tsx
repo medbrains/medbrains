@@ -15,7 +15,6 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import { useAuthStore, useHasPermission } from "@medbrains/stores";
 import type {
   AbcAnalysisRow,
@@ -72,7 +71,7 @@ import {
 } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { indentService } from "@/services/indent.service";
@@ -484,11 +483,7 @@ function IndentDetailView({ id, onClose }: { id: string; onClose: () => void }) 
   const submitMutation = useMutation({
     mutationFn: () => indentService.submitIndentRequisition(id),
     onSuccess: (result) => {
-      notifications.show({
-        title: "Submitted",
-        message: "Indent submitted for approval",
-        color: "success",
-      });
+      toast.success("Indent submitted for approval", { title: "Submitted" });
       emit("indent.requisition.submitted", indentWorkflowPayload(result, "requested_by"));
       void queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
       void queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
@@ -498,7 +493,7 @@ function IndentDetailView({ id, onClose }: { id: string; onClose: () => void }) 
   const rejectMutation = useMutation({
     mutationFn: () => indentService.rejectIndentRequisition(id),
     onSuccess: () => {
-      notifications.show({ title: "Rejected", message: "Indent rejected", color: "danger" });
+      toast.error("Indent rejected", { title: "Rejected" });
       void queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
       void queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
     },
@@ -507,7 +502,7 @@ function IndentDetailView({ id, onClose }: { id: string; onClose: () => void }) 
   const cancelMutation = useMutation({
     mutationFn: () => indentService.cancelIndentRequisition(id),
     onSuccess: () => {
-      notifications.show({ title: "Cancelled", message: "Indent cancelled", color: "orange" });
+      toast.warning("Indent cancelled", { title: "Cancelled" });
       void queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
       void queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
       onClose();
@@ -640,7 +635,7 @@ function ApproveButton({
       return indentService.approveIndentRequisition(requisitionId, { items: approveItems });
     },
     onSuccess: (result) => {
-      notifications.show({ title: "Approved", message: "Indent approved", color: "success" });
+      toast.success("Indent approved", { title: "Approved" });
       emit(
         "indent.requisition.approved",
         indentWorkflowPayload(
@@ -722,11 +717,7 @@ function IssueButton({
       return indentService.issueIndentRequisition(requisitionId, { items: issueItems });
     },
     onSuccess: (result) => {
-      notifications.show({
-        title: "Issued",
-        message: "Items issued and stock updated",
-        color: "success",
-      });
+      toast.success("Items issued and stock updated", { title: "Issued" });
       emit(
         "indent.requisition.issued",
         indentWorkflowPayload(result.requisition, "issued_by", userId, result.items.length),
@@ -1146,16 +1137,12 @@ function CreateIndentPanel({ onDone }: { onDone: () => void }) {
         })),
       }),
     onSuccess: () => {
-      notifications.show({
-        title: "Created",
-        message: "Indent requisition created",
-        color: "success",
-      });
+      toast.success("Indent requisition created", { title: "Created" });
       void queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
       onDone();
     },
     onError: (err: Error) => {
-      notifications.show({ title: "Error", message: err.message, color: "danger" });
+      toast.error(err.message, { title: "Error" });
     },
   });
 
@@ -1435,11 +1422,11 @@ function CatalogForm({ initial, onSuccess }: { initial?: StoreCatalog; onSuccess
         reorder_level: reorderLevel,
       } as CreateStoreCatalogRequest),
     onSuccess: () => {
-      notifications.show({ title: "Created", message: "Catalog item created", color: "success" });
+      toast.success("Catalog item created", { title: "Created" });
       onSuccess();
     },
     onError: (err: Error) => {
-      notifications.show({ title: "Error", message: err.message, color: "danger" });
+      toast.error(err.message, { title: "Error" });
     },
   });
 
@@ -1455,11 +1442,11 @@ function CatalogForm({ initial, onSuccess }: { initial?: StoreCatalog; onSuccess
       } as UpdateStoreCatalogRequest);
     },
     onSuccess: () => {
-      notifications.show({ title: "Updated", message: "Catalog item updated", color: "success" });
+      toast.success("Catalog item updated", { title: "Updated" });
       onSuccess();
     },
     onError: (err: Error) => {
-      notifications.show({ title: "Error", message: err.message, color: "danger" });
+      toast.error(err.message, { title: "Error" });
     },
   });
 
@@ -1609,15 +1596,11 @@ function StockMovementForm({ onSuccess }: { onSuccess: () => void }) {
         notes: notes || undefined,
       }),
     onSuccess: () => {
-      notifications.show({
-        title: "Recorded",
-        message: "Stock movement recorded",
-        color: "success",
-      });
+      toast.success("Stock movement recorded", { title: "Recorded" });
       onSuccess();
     },
     onError: (err: Error) => {
-      notifications.show({ title: "Error", message: err.message, color: "danger" });
+      toast.error(err.message, { title: "Error" });
     },
   });
 
@@ -2280,15 +2263,11 @@ function IssueToPatientForm({ onSuccess }: { onSuccess: () => void }) {
       return indentService.issueToPatient(payload);
     },
     onSuccess: () => {
-      notifications.show({
-        title: "Issued",
-        message: "Consumable issued to patient",
-        color: "success",
-      });
+      toast.success("Consumable issued to patient", { title: "Issued" });
       onSuccess();
     },
     onError: (err: Error) => {
-      notifications.show({ title: "Error", message: err.message, color: "danger" });
+      toast.error(err.message, { title: "Error" });
     },
   });
 
@@ -2485,15 +2464,11 @@ function CreateImplantForm({ onSuccess }: { onSuccess: () => void }) {
       return indentService.createImplantEntry(payload);
     },
     onSuccess: () => {
-      notifications.show({
-        title: "Registered",
-        message: "Implant registered successfully",
-        color: "success",
-      });
+      toast.success("Implant registered successfully", { title: "Registered" });
       onSuccess();
     },
     onError: (err: Error) => {
-      notifications.show({ title: "Error", message: err.message, color: "danger" });
+      toast.error(err.message, { title: "Error" });
     },
   });
 
@@ -2720,11 +2695,11 @@ function CreateCondemnationForm({ onSuccess }: { onSuccess: () => void }) {
       return indentService.createCondemnation(payload);
     },
     onSuccess: () => {
-      notifications.show({ title: "Created", message: "Condemnation initiated", color: "success" });
+      toast.success("Condemnation initiated", { title: "Created" });
       onSuccess();
     },
     onError: (err: Error) => {
-      notifications.show({ title: "Error", message: err.message, color: "danger" });
+      toast.error(err.message, { title: "Error" });
     },
   });
 
@@ -2803,15 +2778,11 @@ function UpdateCondemnationStatusForm({
       return indentService.updateCondemnationStatus(item.id, payload);
     },
     onSuccess: () => {
-      notifications.show({
-        title: "Updated",
-        message: "Condemnation status updated",
-        color: "success",
-      });
+      toast.success("Condemnation status updated", { title: "Updated" });
       onSuccess();
     },
     onError: (err: Error) => {
-      notifications.show({ title: "Error", message: err.message, color: "danger" });
+      toast.error(err.message, { title: "Error" });
     },
   });
 

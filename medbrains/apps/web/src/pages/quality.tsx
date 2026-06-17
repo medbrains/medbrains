@@ -23,7 +23,6 @@ import {
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AccreditationBodyType,
@@ -86,7 +85,7 @@ import { DataTable, PageHeader } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { qualityService } from "@/services/quality.service";
@@ -263,7 +262,7 @@ function IndicatorsTab() {
       qualityService.createQualityIndicator(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-indicators"] });
-      notifications.show({ title: "Indicator created", message: "", color: "success" });
+      toast.success("", { title: "Indicator created" });
       close();
       setForm({ code: "", name: "", category: "", frequency: "monthly" });
     },
@@ -274,18 +273,10 @@ function IndicatorsTab() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-indicators"] });
       void qc.invalidateQueries({ queryKey: ["quality-indicator-values"] });
-      notifications.show({
-        title: "Indicator calculated",
-        message: "Value auto-computed",
-        color: "teal",
-      });
+      toast.success("Value auto-computed", { title: "Indicator calculated" });
     },
     onError: () => {
-      notifications.show({
-        title: "Calculation failed",
-        message: "Could not auto-calculate indicator",
-        color: "danger",
-      });
+      toast.error("Could not auto-calculate indicator", { title: "Calculation failed" });
     },
   });
 
@@ -312,7 +303,7 @@ function IndicatorsTab() {
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-indicator-values"] });
-      notifications.show({ title: "Value recorded", message: "", color: "success" });
+      toast.success("", { title: "Value recorded" });
       closeRecord();
     },
   });
@@ -783,7 +774,7 @@ function DocumentsTab() {
     mutationFn: (data: CreateQualityDocumentRequest) => qualityService.createQualityDocument(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-documents"] });
-      notifications.show({ title: "Document created", message: "", color: "success" });
+      toast.success("", { title: "Document created" });
       close();
       setForm({ document_number: "", title: "", category: "" });
     },
@@ -794,14 +785,14 @@ function DocumentsTab() {
       qualityService.updateDocumentStatus(id, { status }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-documents"] });
-      notifications.show({ title: "Status updated", message: "", color: "success" });
+      toast.success("", { title: "Status updated" });
     },
   });
 
   const acknowledgeMut = useMutation({
     mutationFn: (id: string) => qualityService.acknowledgeDocument(id),
     onSuccess: () => {
-      notifications.show({ title: "Document acknowledged", message: "", color: "success" });
+      toast.success("", { title: "Document acknowledged" });
     },
   });
 
@@ -1185,7 +1176,7 @@ function IncidentsTab() {
     mutationFn: (data: CreateQualityIncidentRequest) => qualityService.createQualityIncident(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-incidents"] });
-      notifications.show({ title: "Incident reported", message: "", color: "success" });
+      toast.success("", { title: "Incident reported" });
       closeCreate();
       setForm({
         title: "",
@@ -1211,7 +1202,7 @@ function IncidentsTab() {
       qualityService.updateQualityIncident(id, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-incidents"] });
-      notifications.show({ title: "Incident updated", message: "", color: "success" });
+      toast.success("", { title: "Incident updated" });
     },
   });
 
@@ -1228,7 +1219,7 @@ function IncidentsTab() {
     mutationFn: (data: CreateMortalityReviewRequest) => qualityService.createMortalityReview(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-incidents"] });
-      notifications.show({ title: "Mortality review created", message: "", color: "success" });
+      toast.success("", { title: "Mortality review created" });
       closeMortality();
       setMortalityForm({ patient_id: "", death_date: "", primary_diagnosis: "" });
       setMortalityIcd11Code("");
@@ -1246,7 +1237,7 @@ function IncidentsTab() {
     mutationFn: (data: CreateCapaRequest) => qualityService.createCapa(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-capa"] });
-      notifications.show({ title: "CAPA created", message: "", color: "success" });
+      toast.success("", { title: "CAPA created" });
       setCapaForm({ incident_id: "", capa_type: "corrective", assigned_to: "", due_date: "" });
     },
   });
@@ -1939,7 +1930,7 @@ function CommitteesTab() {
       qualityService.createQualityCommittee(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-committees"] });
-      notifications.show({ title: "Committee created", message: "", color: "success" });
+      toast.success("", { title: "Committee created" });
       closeCommittee();
       setCommitteeForm({ name: "", code: "", committee_type: "", meeting_frequency: "monthly" });
     },
@@ -1954,7 +1945,7 @@ function CommitteesTab() {
     mutationFn: (data: CreateMeetingRequest) => qualityService.createCommitteeMeeting(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-meetings"] });
-      notifications.show({ title: "Meeting scheduled", message: "", color: "success" });
+      toast.success("", { title: "Meeting scheduled" });
       closeMeeting();
       setMeetingForm({ committee_id: "", scheduled_date: "" });
     },
@@ -1965,18 +1956,10 @@ function CommitteesTab() {
       qualityService.autoScheduleMeetings(committeeId, { months_ahead: 6 }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-meetings"] });
-      notifications.show({
-        title: "Meetings auto-scheduled",
-        message: "Scheduled for the next 6 months",
-        color: "teal",
-      });
+      toast.success("Scheduled for the next 6 months", { title: "Meetings auto-scheduled" });
     },
     onError: () => {
-      notifications.show({
-        title: "Auto-schedule failed",
-        message: "Could not generate meeting schedule",
-        color: "danger",
-      });
+      toast.error("Could not generate meeting schedule", { title: "Auto-schedule failed" });
     },
   });
 
@@ -2386,11 +2369,7 @@ function AccreditationTab() {
       openEvidenceModal();
     },
     onError: () => {
-      notifications.show({
-        title: "Error",
-        message: "Failed to compile evidence",
-        color: "danger",
-      });
+      toast.error("Failed to compile evidence", { title: "Error" });
     },
   });
 
@@ -2420,7 +2399,7 @@ function AccreditationTab() {
       qualityService.createAccreditationStandard(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-standards"] });
-      notifications.show({ title: "Standard added", message: "", color: "success" });
+      toast.success("", { title: "Standard added" });
       closeStandard();
       setStandardForm({ body: "nabh", standard_code: "", standard_name: "" });
     },
@@ -2436,7 +2415,7 @@ function AccreditationTab() {
       qualityService.updateAccreditationCompliance(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-compliance"] });
-      notifications.show({ title: "Compliance updated", message: "", color: "success" });
+      toast.success("", { title: "Compliance updated" });
       closeCompliance();
     },
   });
@@ -2920,7 +2899,7 @@ function AuditsTab() {
     mutationFn: (data: CreateQualityAuditRequest) => qualityService.createQualityAudit(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-audits"] });
-      notifications.show({ title: "Audit created", message: "", color: "success" });
+      toast.success("", { title: "Audit created" });
       closeCreate();
       setForm({
         audit_type: "internal",
@@ -2943,11 +2922,7 @@ function AuditsTab() {
     mutationFn: (data: ScheduleAuditsRequest) => qualityService.scheduleAudits(data),
     onSuccess: (result) => {
       void qc.invalidateQueries({ queryKey: ["quality-audits"] });
-      notifications.show({
-        title: "Audits scheduled",
-        message: `${result.count} audit(s) created`,
-        color: "teal",
-      });
+      toast.success(`${result.count} audit(s) created`, { title: "Audits scheduled" });
       closeSchedule();
     },
   });
@@ -2974,7 +2949,7 @@ function AuditsTab() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-audit-findings", selectedAudit?.id] });
       void qc.invalidateQueries({ queryKey: ["quality-audits"] });
-      notifications.show({ title: "Finding added", message: "", color: "success" });
+      toast.success("", { title: "Finding added" });
       closeFinding();
       setFindingForm({ finding_type: "non_conformity", description: "", severity: "minor" });
     },

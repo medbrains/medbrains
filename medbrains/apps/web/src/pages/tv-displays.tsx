@@ -19,7 +19,6 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import {
   type QueueTokenFormInput,
   queueTokenFormSchema,
@@ -59,7 +58,7 @@ import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import {
   defaultQueueTokenFormValues,
   defaultTvAnnouncementFormValues,
@@ -567,11 +566,11 @@ function DisplaysTab({
     mutationFn: (data: CreateTvDisplayRequest) => tvDisplaysService.createTvDisplay(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["tv-displays"] });
-      notifications.show({ title: "Success", message: "Display created", color: "success" });
+      toast.success("Display created", { title: "Success" });
       close();
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to create display", color: "danger" });
+      toast.error("Failed to create display", { title: "Error" });
     },
   });
 
@@ -580,11 +579,11 @@ function DisplaysTab({
       tvDisplaysService.updateTvDisplay(id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["tv-displays"] });
-      notifications.show({ title: "Success", message: "Display updated", color: "success" });
+      toast.success("Display updated", { title: "Success" });
       close();
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to update display", color: "danger" });
+      toast.error("Failed to update display", { title: "Error" });
     },
   });
 
@@ -592,10 +591,10 @@ function DisplaysTab({
     mutationFn: (id: string) => tvDisplaysService.deleteTvDisplay(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["tv-displays"] });
-      notifications.show({ title: "Success", message: "Display deleted", color: "success" });
+      toast.success("Display deleted", { title: "Success" });
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to delete display", color: "danger" });
+      toast.error("Failed to delete display", { title: "Error" });
     },
   });
 
@@ -1031,15 +1030,13 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
     mutationFn: (data: CreateQueueTokenRequest) => tvDisplaysService.createQueueToken(data),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
-      notifications.show({
+      toast.success(`Token ${result.token_number} created successfully`, {
         title: "Token Generated",
-        message: `Token ${result.token_number} created successfully`,
-        color: "success",
       });
       closeGenerate();
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to generate token", color: "danger" });
+      toast.error("Failed to generate token", { title: "Error" });
     },
   });
 
@@ -1048,7 +1045,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
       void queryClient.invalidateQueries({ queryKey: ["queue-state"] });
-      notifications.show({ title: "Success", message: "Token called", color: "success" });
+      toast.success("Token called", { title: "Success" });
     },
   });
 
@@ -1057,7 +1054,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
       void queryClient.invalidateQueries({ queryKey: ["queue-state"] });
-      notifications.show({ title: "Success", message: "Token completed", color: "success" });
+      toast.success("Token completed", { title: "Success" });
     },
   });
 
@@ -1066,11 +1063,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
       void queryClient.invalidateQueries({ queryKey: ["queue-state"] });
-      notifications.show({
-        title: "Success",
-        message: "Token marked as no-show",
-        color: "warning",
-      });
+      toast.warning("Token marked as no-show", { title: "Success" });
     },
   });
 
@@ -1496,19 +1489,13 @@ function AnnouncementsTab({ canBroadcast }: { canBroadcast: boolean }) {
     mutationFn: (data: BroadcastAnnouncementRequest) =>
       tvDisplaysService.broadcastAnnouncement(data),
     onSuccess: () => {
-      notifications.show({
+      toast.success("Announcement has been broadcast to all displays", {
         title: "Announcement Sent",
-        message: "Announcement has been broadcast to all displays",
-        color: "success",
       });
       announcementForm.reset(defaultTvAnnouncementFormValues);
     },
     onError: () => {
-      notifications.show({
-        title: "Error",
-        message: "Failed to broadcast announcement",
-        color: "danger",
-      });
+      toast.error("Failed to broadcast announcement", { title: "Error" });
     },
   });
 

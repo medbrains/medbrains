@@ -15,7 +15,6 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import {
   type OpdMedicalCertificateFormInput,
   opdFeedbackFormSchema,
@@ -68,7 +67,7 @@ import { useTranslation } from "react-i18next";
 import { type Column, DataTable, OperationalSignal, useClinicalEmit } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { PatientNameCell } from "@/components/PatientNameCell";
-import { Alert, Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   DEFAULT_OPD_CONSENT_FORM_VALUES,
   DEFAULT_OPD_FEEDBACK_FORM_VALUES,
@@ -228,20 +227,12 @@ export function CertificatesTab({
         source_record_id: certificate.id,
       });
       void queryClient.invalidateQueries({ queryKey: ["patient-certificates", patientId] });
-      notifications.show({
-        title: "Certificate created",
-        message: "Medical certificate generated",
-        color: "success",
-      });
+      toast.success("Medical certificate generated", { title: "Certificate created" });
       closeCreate();
       reset(defaultCertificateFormValues());
     },
     onError: () => {
-      notifications.show({
-        title: "Error",
-        message: "Failed to create certificate",
-        color: "danger",
-      });
+      toast.error("Failed to create certificate", { title: "Error" });
     },
   });
 
@@ -826,11 +817,7 @@ export function ProceduresTab({
     mutationFn: opdService.createProcedureOrder,
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["procedure-orders", encounterId] });
-      notifications.show({
-        title: "Procedure ordered",
-        message: "Procedure order placed",
-        color: "success",
-      });
+      toast.success("Procedure order placed", { title: "Procedure ordered" });
       emit("order.created", {
         encounter_id: result.encounter_id,
         order_id: result.id,
@@ -845,7 +832,7 @@ export function ProceduresTab({
       formHandlers.close();
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to order procedure", color: "danger" });
+      toast.error("Failed to order procedure", { title: "Error" });
     },
   });
 
@@ -853,11 +840,7 @@ export function ProceduresTab({
     mutationFn: (id: string) => opdService.cancelProcedureOrder(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["procedure-orders", encounterId] });
-      notifications.show({
-        title: "Cancelled",
-        message: "Procedure order cancelled",
-        color: "warning",
-      });
+      toast.warning("Procedure order cancelled", { title: "Cancelled" });
     },
   });
 
@@ -1091,11 +1074,7 @@ export function ReferralsTab({
     mutationFn: (data: CreateReferralRequest) => opdService.createReferral(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patient-referrals", patientId] });
-      notifications.show({
-        title: "Referral created",
-        message: "Patient referred successfully",
-        color: "success",
-      });
+      toast.success("Patient referred successfully", { title: "Referral created" });
       closeCreate();
       setToDeptId(null);
       setUrgency("routine");
@@ -1103,7 +1082,7 @@ export function ReferralsTab({
       setClinicalNotes("");
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to create referral", color: "danger" });
+      toast.error("Failed to create referral", { title: "Error" });
     },
   });
 
@@ -1290,12 +1269,12 @@ export function RemindersTab({
     mutationFn: opdService.createReminder,
     onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["reminders", patientId] });
-      notifications.show({ title: "Reminder created", message: variables.title, color: "success" });
+      toast.success(variables.title, { title: "Reminder created" });
       formHandlers.close();
       reset(DEFAULT_OPD_REMINDER_FORM_VALUES);
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to create reminder", color: "danger" });
+      toast.error("Failed to create reminder", { title: "Error" });
     },
   });
 
@@ -1521,16 +1500,12 @@ export function FeedbackTab({
     mutationFn: opdService.createFeedback,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["feedback", patientId] });
-      notifications.show({
-        title: "Feedback recorded",
-        message: "Thank you for the feedback",
-        color: "success",
-      });
+      toast.success("Thank you for the feedback", { title: "Feedback recorded" });
       formHandlers.close();
       reset(DEFAULT_OPD_FEEDBACK_FORM_VALUES);
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to submit feedback", color: "danger" });
+      toast.error("Failed to submit feedback", { title: "Error" });
     },
   });
 
@@ -1732,16 +1707,12 @@ export function ConsentsTab({
     mutationFn: opdService.createProcedureConsent,
     onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["consents", patientId] });
-      notifications.show({
-        title: "Consent created",
-        message: variables.procedure_name,
-        color: "success",
-      });
+      toast.success(variables.procedure_name, { title: "Consent created" });
       formHandlers.close();
       reset(DEFAULT_OPD_CONSENT_FORM_VALUES);
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to create consent", color: "danger" });
+      toast.error("Failed to create consent", { title: "Error" });
     },
   });
 
@@ -1759,11 +1730,7 @@ export function ConsentsTab({
         status: consent.status,
       });
       void queryClient.invalidateQueries({ queryKey: ["consents", patientId] });
-      notifications.show({
-        title: "Consent signed",
-        message: "Consent has been signed",
-        color: "success",
-      });
+      toast.success("Consent has been signed", { title: "Consent signed" });
     },
   });
 
@@ -1950,14 +1917,10 @@ export function DocketTab() {
     mutationFn: (date?: string) => opdService.generateDoctorDocket(date),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["docket", selectedDate] });
-      notifications.show({
-        title: "Docket generated",
-        message: `Summary for ${selectedDate}`,
-        color: "success",
-      });
+      toast.success(`Summary for ${selectedDate}`, { title: "Docket generated" });
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to generate docket", color: "danger" });
+      toast.error("Failed to generate docket", { title: "Error" });
     },
   });
 
@@ -2078,11 +2041,7 @@ export function PreAuthTab({
     mutationFn: (data: CreatePreAuthRequest) => opdService.createPreAuthRequest(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pre-auth", patientId] });
-      notifications.show({
-        title: "Submitted",
-        message: "Pre-authorization request submitted",
-        color: "success",
-      });
+      toast.success("Pre-authorization request submitted", { title: "Submitted" });
       close();
       setInsurer("");
       setPolicyNo("");

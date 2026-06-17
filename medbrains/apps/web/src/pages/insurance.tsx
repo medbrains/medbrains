@@ -15,7 +15,6 @@ import {
   Title,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import type {
   CreateAppealRequest,
@@ -48,7 +47,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { insuranceService } from "@/services/insurance.service";
 
@@ -185,15 +184,10 @@ function VerificationTab() {
     mutationFn: (d: RunVerificationRequest) => insuranceService.runVerification(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-verifications"] });
-      notifications.show({
-        title: "Verification",
-        message: "Verification completed",
-        color: "success",
-      });
+      toast.success("Verification completed", { title: "Verification" });
       close();
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Verification failed", color: "danger" }),
+    onError: () => toast.error("Verification failed", { title: "Error" }),
   });
 
   const detail = data.find((v) => v.id === detailId);
@@ -471,15 +465,10 @@ function PriorAuthTab() {
     mutationFn: (d: CreatePriorAuthRequestBody) => insuranceService.createPriorAuth(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-prior-auths"] });
-      notifications.show({
-        title: "Prior Auth",
-        message: "Created successfully",
-        color: "success",
-      });
+      toast.success("Created successfully", { title: "Prior Auth" });
       close();
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Creation failed", color: "danger" }),
+    onError: () => toast.error("Creation failed", { title: "Error" }),
   });
 
   const submitMut = useMutation({
@@ -487,14 +476,9 @@ function PriorAuthTab() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-prior-auths"] });
       void qc.invalidateQueries({ queryKey: ["insurance-prior-auth-detail"] });
-      notifications.show({
-        title: "Prior Auth",
-        message: "Submitted successfully",
-        color: "success",
-      });
+      toast.success("Submitted successfully", { title: "Prior Auth" });
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Submit failed", color: "danger" }),
+    onError: () => toast.error("Submit failed", { title: "Error" }),
   });
 
   const cancelMut = useMutation({
@@ -502,7 +486,7 @@ function PriorAuthTab() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-prior-auths"] });
       void qc.invalidateQueries({ queryKey: ["insurance-prior-auth-detail"] });
-      notifications.show({ title: "Prior Auth", message: "Cancelled", color: "warning" });
+      toast.warning("Cancelled", { title: "Prior Auth" });
     },
   });
 
@@ -516,11 +500,10 @@ function PriorAuthTab() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-prior-auths"] });
       void qc.invalidateQueries({ queryKey: ["insurance-prior-auth-detail"] });
-      notifications.show({ title: "Prior Auth", message: "Response recorded", color: "success" });
+      toast.success("Response recorded", { title: "Prior Auth" });
       setRespondId(null);
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Response failed", color: "danger" }),
+    onError: () => toast.error("Response failed", { title: "Error" }),
   });
 
   const tatColor = (pa: PriorAuthRequestRow): BadgeTone => {
@@ -1041,11 +1024,10 @@ function AppealsTab() {
     mutationFn: (d: CreateAppealRequest) => insuranceService.createAppeal(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-appeals"] });
-      notifications.show({ title: "Appeal", message: "Created successfully", color: "success" });
+      toast.success("Created successfully", { title: "Appeal" });
       close();
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Creation failed", color: "danger" }),
+    onError: () => toast.error("Creation failed", { title: "Error" }),
   });
 
   const updateMut = useMutation({
@@ -1053,10 +1035,9 @@ function AppealsTab() {
       insuranceService.updateAppeal(d.id, d.body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-appeals"] });
-      notifications.show({ title: "Appeal", message: "Updated", color: "success" });
+      toast.success("Updated", { title: "Appeal" });
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Update failed", color: "danger" }),
+    onError: () => toast.error("Update failed", { title: "Error" }),
   });
 
   return (
@@ -1231,11 +1212,10 @@ function RulesTab() {
     mutationFn: (d: CreatePaRuleRequest) => insuranceService.createPaRule(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-rules"] });
-      notifications.show({ title: "PA Rule", message: "Created", color: "success" });
+      toast.success("Created", { title: "PA Rule" });
       close();
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Creation failed", color: "danger" }),
+    onError: () => toast.error("Creation failed", { title: "Error" }),
   });
 
   const toggleMut = useMutation({

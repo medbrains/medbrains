@@ -18,7 +18,6 @@ import {
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import type {
   SchedulingBlockFormInput,
   SchedulingOverbookingRuleFormInput,
@@ -66,7 +65,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import {
   schedulingInteger,
   schedulingNumber,
@@ -246,18 +245,10 @@ function PredictionsTab({ canScore }: { canScore: boolean }) {
     mutationFn: () => schedulingService.scoreBatch({ appointment_ids: [] }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["scheduling-predictions"] });
-      notifications.show({
-        title: "Batch Scoring Complete",
-        message: "Today's appointments have been scored",
-        color: "success",
-      });
+      toast.success("Today's appointments have been scored", { title: "Batch Scoring Complete" });
     },
     onError: () => {
-      notifications.show({
-        title: "Scoring Failed",
-        message: "Failed to score appointments",
-        color: "danger",
-      });
+      toast.error("Failed to score appointments", { title: "Scoring Failed" });
     },
   });
 
@@ -266,11 +257,7 @@ function PredictionsTab({ canScore }: { canScore: boolean }) {
       schedulingService.scoreAppointment({ appointment_id: appointmentId }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["scheduling-predictions"] });
-      notifications.show({
-        title: "Scored",
-        message: "Appointment prediction scored",
-        color: "success",
-      });
+      toast.success("Appointment prediction scored", { title: "Scored" });
     },
   });
 
@@ -416,7 +403,7 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
       void qc.invalidateQueries({ queryKey: ["scheduling-waitlist"] });
       closeCreate();
       reset(emptyWaitlistForm);
-      notifications.show({ title: "Created", message: "Waitlist entry created", color: "success" });
+      toast.success("Waitlist entry created", { title: "Created" });
     },
   });
 
@@ -428,11 +415,7 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
       closeOffer();
       setOfferTarget(null);
       setOfferedAppointmentId("");
-      notifications.show({
-        title: "Offered",
-        message: "Slot offered to patient",
-        color: "primary",
-      });
+      toast.info("Slot offered to patient", { title: "Offered" });
     },
   });
 
@@ -441,11 +424,11 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
       schedulingService.respondToOffer(id, { accept }),
     onSuccess: (_data, variables) => {
       void qc.invalidateQueries({ queryKey: ["scheduling-waitlist"] });
-      notifications.show({
-        title: variables.accept ? "Accepted" : "Declined",
-        message: variables.accept ? "Offer accepted, slot booked" : "Offer declined",
-        color: variables.accept ? "success" : "orange",
-      });
+      if (variables.accept) {
+        toast.success("Offer accepted, slot booked", { title: "Accepted" });
+      } else {
+        toast.warning("Offer declined", { title: "Declined" });
+      }
     },
   });
 
@@ -453,18 +436,10 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
     mutationFn: () => schedulingService.autoFillSlots(),
     onSuccess: (result: AutoFillResult) => {
       void qc.invalidateQueries({ queryKey: ["scheduling-waitlist"] });
-      notifications.show({
-        title: "Auto-Fill Complete",
-        message: result.message,
-        color: "success",
-      });
+      toast.success(result.message, { title: "Auto-Fill Complete" });
     },
     onError: () => {
-      notifications.show({
-        title: "Auto-Fill Failed",
-        message: "Could not auto-fill slots",
-        color: "danger",
-      });
+      toast.error("Could not auto-fill slots", { title: "Auto-Fill Failed" });
     },
   });
 
@@ -780,11 +755,7 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
       void qc.invalidateQueries({ queryKey: ["scheduling-overbooking-rules"] });
       close();
       reset(emptyOverbookingForm);
-      notifications.show({
-        title: "Created",
-        message: "Overbooking rule created",
-        color: "success",
-      });
+      toast.success("Overbooking rule created", { title: "Created" });
     },
   });
 
@@ -796,11 +767,7 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
       close();
       setEditing(null);
       reset(emptyOverbookingForm);
-      notifications.show({
-        title: "Updated",
-        message: "Overbooking rule updated",
-        color: "success",
-      });
+      toast.success("Overbooking rule updated", { title: "Updated" });
     },
   });
 
@@ -808,11 +775,7 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
     mutationFn: (id: string) => schedulingService.deleteOverbookingRule(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["scheduling-overbooking-rules"] });
-      notifications.show({
-        title: "Deleted",
-        message: "Overbooking rule removed",
-        color: "danger",
-      });
+      toast.error("Overbooking rule removed", { title: "Deleted" });
     },
   });
 
@@ -1152,15 +1115,11 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
     onSuccess: (result) => {
       closeRecurring();
       resetRecurring(emptyRecurringForm);
-      notifications.show({
-        title: "Recurring Created",
-        message: `${result.created} recurring slot(s) created`,
-        color: "success",
-      });
+      toast.success(`${result.created} recurring slot(s) created`, { title: "Recurring Created" });
       void qc.invalidateQueries({ queryKey: ["scheduling-conflicts"] });
     },
     onError: (err: Error) => {
-      notifications.show({ title: "Error", message: err.message, color: "danger" });
+      toast.error(err.message, { title: "Error" });
     },
   });
 
@@ -1179,14 +1138,10 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
     onSuccess: () => {
       closeBlock();
       resetBlock(emptyBlockForm);
-      notifications.show({
-        title: "Block Created",
-        message: "Schedule block created successfully",
-        color: "success",
-      });
+      toast.success("Schedule block created successfully", { title: "Block Created" });
     },
     onError: (err: Error) => {
-      notifications.show({ title: "Error", message: err.message, color: "danger" });
+      toast.error(err.message, { title: "Error" });
     },
   });
 
@@ -1196,17 +1151,15 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
     mutationFn: () => schedulingService.promoteWaitlist({ slot_id: promoteSlotId }),
     onSuccess: (result) => {
       setPromoteSlotId("");
-      notifications.show({
-        title: result.promoted ? "Promoted" : "No Promotion",
-        message: result.promoted
-          ? "Waitlist entry promoted to the slot"
-          : "No eligible waitlist entry found for this slot",
-        color: result.promoted ? "success" : "warning",
-      });
+      if (result.promoted) {
+        toast.success("Waitlist entry promoted to the slot", { title: "Promoted" });
+      } else {
+        toast.warning("No eligible waitlist entry found for this slot", { title: "No Promotion" });
+      }
       void qc.invalidateQueries({ queryKey: ["scheduling-waitlist"] });
     },
     onError: (err: Error) => {
-      notifications.show({ title: "Error", message: err.message, color: "danger" });
+      toast.error(err.message, { title: "Error" });
     },
   });
 

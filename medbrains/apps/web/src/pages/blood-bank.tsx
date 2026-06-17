@@ -16,7 +16,6 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AddBbReadingRequest,
@@ -63,7 +62,7 @@ import { useMemo, useState } from "react";
 import { DataTable, PageHeader, StatusDot } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { bloodBankService } from "@/services/bloodBank.service";
@@ -193,11 +192,7 @@ function DonorsTab() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "donors"] });
       closeCreate();
-      notifications.show({
-        title: "Donor registered",
-        message: "New blood donor added",
-        color: "success",
-      });
+      toast.success("New blood donor added", { title: "Donor registered" });
     },
   });
 
@@ -400,11 +395,7 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank"] });
       closeDonate();
-      notifications.show({
-        title: "Donation recorded",
-        message: "Blood donation has been recorded",
-        color: "success",
-      });
+      toast.success("Blood donation has been recorded", { title: "Donation recorded" });
     },
   });
 
@@ -414,11 +405,7 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "donations", donor.id] });
       setReactionDonation(null);
-      notifications.show({
-        title: "Reaction documented",
-        message: "Adverse reaction has been recorded",
-        color: "orange",
-      });
+      toast.warning("Adverse reaction has been recorded", { title: "Reaction documented" });
     },
   });
 
@@ -788,11 +775,7 @@ function InventoryTab() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "components"] });
       setDiscardComponent(null);
-      notifications.show({
-        title: "Status updated",
-        message: "Component status changed",
-        color: "success",
-      });
+      toast.success("Component status changed", { title: "Status updated" });
     },
   });
 
@@ -1024,11 +1007,7 @@ function InventoryTab() {
             bloodBankService.createBloodComponent(d).then(() => {
               void qc.invalidateQueries({ queryKey: ["blood-bank", "components"] });
               closeCreate();
-              notifications.show({
-                title: "Component added",
-                message: "Blood component registered",
-                color: "success",
-              });
+              toast.success("Blood component registered", { title: "Component added" });
             });
           }}
         />
@@ -1227,11 +1206,7 @@ function CrossmatchTab() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "crossmatch"] });
       closeCreate();
-      notifications.show({
-        title: "Request created",
-        message: "Crossmatch request submitted",
-        color: "success",
-      });
+      toast.success("Crossmatch request submitted", { title: "Request created" });
     },
   });
 
@@ -1243,11 +1218,7 @@ function CrossmatchTab() {
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "crossmatch"] });
-      notifications.show({
-        title: "Updated",
-        message: "Crossmatch request updated",
-        color: "success",
-      });
+      toast.success("Crossmatch request updated", { title: "Updated" });
     },
   });
 
@@ -1441,11 +1412,7 @@ function TransfusionsTab() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank"] });
       closeCreate();
-      notifications.show({
-        title: "Transfusion recorded",
-        message: "Blood transfusion started",
-        color: "success",
-      });
+      toast.success("Blood transfusion started", { title: "Transfusion recorded" });
     },
   });
 
@@ -1468,11 +1435,7 @@ function TransfusionsTab() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "transfusions"] });
       setReactionId(null);
-      notifications.show({
-        title: "Reaction recorded",
-        message: "Transfusion reaction has been reported",
-        color: "orange",
-      });
+      toast.warning("Transfusion reaction has been reported", { title: "Reaction recorded" });
     },
   });
 
@@ -1901,11 +1864,7 @@ function ReturnsAndMsbosTab() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank"] });
       closeReturn();
-      notifications.show({
-        title: "Return created",
-        message: "Blood return recorded",
-        color: "success",
-      });
+      toast.success("Blood return recorded", { title: "Return created" });
     },
   });
 
@@ -1921,7 +1880,7 @@ function ReturnsAndMsbosTab() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "msbos"] });
       closeMsbos();
-      notifications.show({ title: "MSBOS added", message: "Guideline saved", color: "success" });
+      toast.success("Guideline saved", { title: "MSBOS added" });
     },
   });
 
@@ -2163,11 +2122,7 @@ function ColdChainTab() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "cold-chain-devices"] });
       closeDevice();
-      notifications.show({
-        title: "Device added",
-        message: "Cold chain device registered",
-        color: "success",
-      });
+      toast.success("Cold chain device registered", { title: "Device added" });
     },
   });
 
@@ -2180,11 +2135,7 @@ function ColdChainTab() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "cold-chain"] });
       closeReading();
-      notifications.show({
-        title: "Reading logged",
-        message: "Temperature reading recorded",
-        color: "success",
-      });
+      toast.success("Temperature reading recorded", { title: "Reading logged" });
     },
   });
 
@@ -2489,11 +2440,7 @@ function LookbackSection() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "lookback"] });
       closeCreate();
-      notifications.show({
-        title: "Lookback created",
-        message: "Lookback event recorded",
-        color: "success",
-      });
+      toast.success("Lookback event recorded", { title: "Lookback created" });
     },
   });
 
@@ -2502,7 +2449,7 @@ function LookbackSection() {
       bloodBankService.updateBbLookback(id, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "lookback"] });
-      notifications.show({ title: "Updated", message: "Lookback event updated", color: "success" });
+      toast.success("Lookback event updated", { title: "Updated" });
     },
   });
 
@@ -2725,11 +2672,7 @@ function RecruitmentSection() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "campaigns"] });
       closeCreate();
-      notifications.show({
-        title: "Campaign created",
-        message: "Recruitment campaign added",
-        color: "success",
-      });
+      toast.success("Recruitment campaign added", { title: "Campaign created" });
     },
   });
 
@@ -2738,11 +2681,7 @@ function RecruitmentSection() {
       bloodBankService.updateBbCampaign(id, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "campaigns"] });
-      notifications.show({
-        title: "Updated",
-        message: "Campaign status updated",
-        color: "success",
-      });
+      toast.success("Campaign status updated", { title: "Updated" });
     },
   });
 

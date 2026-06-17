@@ -39,7 +39,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "@/components/PageHeader";
-import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { parseDate, toDateString, todayDateString } from "@/lib/date-utils";
 import { appointmentsService } from "@/services/appointments.service";
@@ -203,11 +203,7 @@ function BookAppointmentModal({ opened, onClose }: { opened: boolean; onClose: (
       handleClose();
     },
     onError: (err: Error) => {
-      notifications.show({
-        title: "Booking failed",
-        message: err.message,
-        color: "danger",
-      });
+      toast.error(err.message, { title: "Booking failed" });
     },
   });
 
@@ -222,10 +218,8 @@ function BookAppointmentModal({ opened, onClose }: { opened: boolean; onClose: (
     values.patient_id && values.doctor_id && values.department_id && values.appointment_date;
   const submitBooking = handleSubmit((formValues) => {
     if (!selectedSlot) {
-      notifications.show({
+      toast.warning("Select an available slot before confirming the booking.", {
         title: "Slot required",
-        message: "Select an available slot before confirming the booking.",
-        color: "warning",
       });
       return;
     }
@@ -481,11 +475,7 @@ export function AppointmentsPage() {
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
     },
     onError: (err: Error) => {
-      notifications.show({
-        title: "Check-in failed",
-        message: err.message,
-        color: "danger",
-      });
+      toast.error(err.message, { title: "Check-in failed" });
     },
   });
 
@@ -501,30 +491,18 @@ export function AppointmentsPage() {
       void queryClient.invalidateQueries({ queryKey: ["appointments"] });
     },
     onError: (err: Error) => {
-      notifications.show({
-        title: "Complete failed",
-        message: err.message,
-        color: "danger",
-      });
+      toast.error(err.message, { title: "Complete failed" });
     },
   });
 
   const noShowMutation = useMutation({
     mutationFn: (id: string) => appointmentsService.markAppointmentNoShow(id),
     onSuccess: () => {
-      notifications.show({
-        title: "Marked No-Show",
-        message: "Appointment marked as no-show.",
-        color: "warning",
-      });
+      toast.warning("Appointment marked as no-show.", { title: "Marked No-Show" });
       void queryClient.invalidateQueries({ queryKey: ["appointments"] });
     },
     onError: (err: Error) => {
-      notifications.show({
-        title: "Failed",
-        message: err.message,
-        color: "danger",
-      });
+      toast.error(err.message, { title: "Failed" });
     },
   });
 
@@ -547,11 +525,7 @@ export function AppointmentsPage() {
       cancelForm.reset({ cancel_reason: "" });
     },
     onError: (err: Error) => {
-      notifications.show({
-        title: "Cancel failed",
-        message: err.message,
-        color: "danger",
-      });
+      toast.error(err.message, { title: "Cancel failed" });
     },
   });
 
@@ -583,20 +557,14 @@ export function AppointmentsPage() {
       setRescheduleSlot(null);
     },
     onError: (err: Error) => {
-      notifications.show({
-        title: "Reschedule failed",
-        message: err.message,
-        color: "danger",
-      });
+      toast.error(err.message, { title: "Reschedule failed" });
     },
   });
   const submitCancel = cancelForm.handleSubmit((formValues) => cancelMutation.mutate(formValues));
   const submitReschedule = rescheduleForm.handleSubmit((formValues) => {
     if (!formValues.appointment_date || !rescheduleSlot) {
-      notifications.show({
+      toast.warning("Select a new date and available slot before confirming.", {
         title: "Slot required",
-        message: "Select a new date and available slot before confirming.",
-        color: "warning",
       });
       return;
     }

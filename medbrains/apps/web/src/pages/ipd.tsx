@@ -20,7 +20,6 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import type {
   IpdAdmissionFormInput,
   IpdAttenderFormInput,
@@ -183,6 +182,7 @@ import {
   type ButtonTone,
   IconButton,
   Table,
+  toast,
 } from "@/components/ui";
 import { WardSelect } from "@/components/WardSelect";
 import { ALL_TEMPLATES, type ChecklistTemplate } from "@/data/checklist-templates";
@@ -864,11 +864,7 @@ function AdmissionForm({ initialPatientId = "", onCancel, onCreated }: Admission
       ipdService.createAdmission(toCreateAdmissionRequest(values)),
     onSuccess: (result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
-      notifications.show({
-        title: "Admitted",
-        message: "Patient admitted successfully",
-        color: "success",
-      });
+      toast.success("Patient admitted successfully", { title: "Admitted" });
       emit("ipd.admission.created", {
         admission_id: result.admission.id,
         patient_id: variables.patient_id,
@@ -891,11 +887,7 @@ function AdmissionForm({ initialPatientId = "", onCancel, onCreated }: Admission
       onCreated?.(result);
     },
     onError: () => {
-      notifications.show({
-        title: "Error",
-        message: "Failed to create admission",
-        color: "danger",
-      });
+      toast.error("Failed to create admission", { title: "Error" });
     },
   });
 
@@ -1252,19 +1244,16 @@ function AdmissionDetail({
         source_record_id: packet.id,
       });
       void queryClient.invalidateQueries({ queryKey: ["mrd-case-sheets"] });
-      notifications.show({
-        title: t("notifications.mrdHandoffSent.title"),
-        message: t("notifications.mrdHandoffSent.message", {
+      toast.success(
+        t("notifications.mrdHandoffSent.message", {
           packetNumber: packet.packet_number,
         }),
-        color: "success",
-      });
+        { title: t("notifications.mrdHandoffSent.title") },
+      );
     },
     onError: () => {
-      notifications.show({
+      toast.error(t("notifications.mrdHandoffFailed.message"), {
         title: t("notifications.mrdHandoffFailed.title"),
-        message: t("notifications.mrdHandoffFailed.message"),
-        color: "danger",
       });
     },
   });
@@ -3117,11 +3106,7 @@ function DischargeSummaryTab({
         summary_id: summary.id,
       });
       void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-summary", admissionId] });
-      notifications.show({
-        title: "Finalized",
-        message: "Discharge summary finalized",
-        color: "success",
-      });
+      toast.success("Discharge summary finalized", { title: "Finalized" });
     },
   });
 
@@ -3365,11 +3350,7 @@ function TransferTab({
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
       void queryClient.invalidateQueries({ queryKey: ["bed-dashboard"] });
       void queryClient.invalidateQueries({ queryKey: ["ipd-transfers", admissionId] });
-      notifications.show({
-        title: t("notify.transferred"),
-        message: t("notify.bedTransferRecorded"),
-        color: "success",
-      });
+      toast.success(t("notify.bedTransferRecorded"), { title: t("notify.transferred") });
       emitIpdBedMovementEvent(emit, response, patientId, notes.trim());
       setBedId("");
       setNotes("");
@@ -3450,7 +3431,7 @@ function DischargeTab({
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
-      notifications.show({ title: "Discharged", message: "Patient discharged", color: "success" });
+      toast.success("Patient discharged", { title: "Discharged" });
       emit("ipd.discharge.completed", {
         admission_id: admissionId,
         discharge_type: result.discharge_type ?? dischargeType,
@@ -3946,11 +3927,7 @@ function IpTypeConfigSection() {
     }) => ipdService.updateIpType(id, rest),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-ip-types"] });
-      notifications.show({
-        title: "Updated",
-        message: "IP type configuration updated",
-        color: "success",
-      });
+      toast.success("IP type configuration updated", { title: "Updated" });
       setEditingId(null);
     },
   });
@@ -4680,11 +4657,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
     mutationFn: (data: CreateClinicalDocRequest) => ipdService.createClinicalDoc(admissionId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-clinical-docs", admissionId] });
-      notifications.show({
-        title: "Created",
-        message: "Clinical documentation saved",
-        color: "success",
-      });
+      toast.success("Clinical documentation saved", { title: "Created" });
       formHandlers.close();
       setDocType(null);
       setTitle("");
@@ -4696,11 +4669,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
     mutationFn: (docId: string) => ipdService.resolveClinicalDoc(admissionId, docId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-clinical-docs", admissionId] });
-      notifications.show({
-        title: "Resolved",
-        message: "Documentation marked as resolved",
-        color: "success",
-      });
+      toast.success("Documentation marked as resolved", { title: "Resolved" });
     },
   });
 
@@ -4709,11 +4678,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
       ipdService.createRestraintCheck(admissionId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-clinical-docs", admissionId] });
-      notifications.show({
-        title: "Recorded",
-        message: "Restraint check logged",
-        color: "success",
-      });
+      toast.success("Restraint check logged", { title: "Recorded" });
       setRestraintDocId(null);
       setRestraintStatus(null);
       setRestraintNotes("");
@@ -5041,7 +5006,7 @@ function ChecklistTab({ admissionId }: { admissionId: string }) {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-checklist", admissionId] });
-      notifications.show({ title: "Added", message: "Checklist item added", color: "success" });
+      toast.success("Checklist item added", { title: "Added" });
       setNewLabel("");
       setNewCategory("");
     },
@@ -5052,10 +5017,8 @@ function ChecklistTab({ admissionId }: { admissionId: string }) {
       ipdService.createAdmissionChecklist(admissionId, { items: template.items }),
     onSuccess: (_data, template) => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-checklist", admissionId] });
-      notifications.show({
+      toast.success(`${template.title} — ${template.items.length} items added`, {
         title: "Template loaded",
-        message: `${template.title} — ${template.items.length} items added`,
-        color: "success",
       });
     },
   });
@@ -5218,7 +5181,7 @@ function TransferLogTab({ admissionId }: { admissionId: string }) {
     mutationFn: (data: CreateTransferRequest) => ipdService.createTransfer(admissionId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-transfers", admissionId] });
-      notifications.show({ title: "Recorded", message: "Transfer logged", color: "success" });
+      toast.success("Transfer logged", { title: "Recorded" });
       formHandlers.close();
       setTransferType(null);
       setReason("");
@@ -5349,11 +5312,7 @@ function DischargeTatTab({ admissionId }: { admissionId: string }) {
     mutationFn: () => ipdService.initiateDischargeTat(admissionId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-tat", admissionId] });
-      notifications.show({
-        title: "Initiated",
-        message: "Discharge TAT tracking started",
-        color: "success",
-      });
+      toast.success("Discharge TAT tracking started", { title: "Initiated" });
     },
   });
 
@@ -5361,11 +5320,7 @@ function DischargeTatTab({ admissionId }: { admissionId: string }) {
     mutationFn: (data: Record<string, string>) => ipdService.updateDischargeTat(admissionId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-tat", admissionId] });
-      notifications.show({
-        title: "Updated",
-        message: "Discharge milestone recorded",
-        color: "success",
-      });
+      toast.success("Discharge milestone recorded", { title: "Updated" });
     },
   });
 
@@ -5884,11 +5839,7 @@ function MlcTab({ admissionId, canCreate }: { admissionId: string; canCreate: bo
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-mlc", admissionId] });
       void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
-      notifications.show({
-        title: "Linked",
-        message: "MLC case linked to admission",
-        color: "success",
-      });
+      toast.success("MLC case linked to admission", { title: "Linked" });
       setMlcIdInput("");
     },
   });
@@ -6462,7 +6413,7 @@ function DeathSummaryTab({
     mutationFn: (d: CreateDeathSummaryRequest) => ipdService.createDeathSummary(admissionId, d),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-death-summary", admissionId] });
-      notifications.show({ title: "Created", message: "Death summary recorded", color: "success" });
+      toast.success("Death summary recorded", { title: "Created" });
       formHandlers.close();
     },
   });
@@ -6721,7 +6672,7 @@ function BirthRecordsTab({
     mutationFn: (d: CreateBirthRecordRequest) => ipdService.createBirthRecord(admissionId, d),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-birth-records", admissionId] });
-      notifications.show({ title: "Created", message: "Birth record saved", color: "success" });
+      toast.success("Birth record saved", { title: "Created" });
       formHandlers.close();
       setDob("");
       setTob("");
@@ -7054,18 +7005,10 @@ function GenerateDischargeSummaryModal({
     mutationFn: () => ipdService.generateDischargeSummary(admissionId),
     onSuccess: () => {
       refetch();
-      notifications.show({
-        title: "Generated",
-        message: "Discharge summary generated",
-        color: "success",
-      });
+      toast.success("Discharge summary generated", { title: "Generated" });
     },
     onError: () => {
-      notifications.show({
-        title: "Error",
-        message: "Failed to generate discharge summary",
-        color: "danger",
-      });
+      toast.error("Failed to generate discharge summary", { title: "Error" });
     },
   });
 
@@ -7181,11 +7124,7 @@ function BedTransferModal({
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
       void queryClient.invalidateQueries({ queryKey: ["bed-dashboard"] });
       void queryClient.invalidateQueries({ queryKey: ["ipd-transfers", admissionId] });
-      notifications.show({
-        title: t("notify.transferred"),
-        message: t("notify.bedTransferCompleted"),
-        color: "success",
-      });
+      toast.success(t("notify.bedTransferCompleted"), { title: t("notify.transferred") });
       emitIpdBedMovementEvent(emit, response, patientId, notes.trim());
       onClose();
       setToBedId("");
@@ -7193,11 +7132,7 @@ function BedTransferModal({
       setNotes("");
     },
     onError: () => {
-      notifications.show({
-        title: t("notify.error"),
-        message: t("notify.bedTransferFailed"),
-        color: "danger",
-      });
+      toast.error(t("notify.bedTransferFailed"), { title: t("notify.error") });
     },
   });
 

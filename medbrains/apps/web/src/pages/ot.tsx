@@ -16,7 +16,6 @@ import {
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import type {
   OtAnesthesiaRecordFormInput,
   OtBookingFormInput,
@@ -84,7 +83,7 @@ import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   DEFAULT_OT_ANESTHESIA_RECORD_FORM_VALUES,
   DEFAULT_OT_BOOKING_FORM_VALUES,
@@ -600,12 +599,11 @@ function CreateBookingDrawer({
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-bookings"] });
       void queryClient.invalidateQueries({ queryKey: ["ot-schedule"] });
-      notifications.show({ title: "Created", message: "OT booking created", color: "success" });
+      toast.success("OT booking created", { title: "Created" });
       onClose();
       reset(defaultValues);
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Failed to create booking", color: "danger" }),
+    onError: () => toast.error("Failed to create booking", { title: "Error" }),
   });
 
   return (
@@ -832,11 +830,10 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
       void queryClient.invalidateQueries({ queryKey: ["ot-booking", b.id] });
       void queryClient.invalidateQueries({ queryKey: ["ot-bookings"] });
       void queryClient.invalidateQueries({ queryKey: ["ot-schedule"] });
-      notifications.show({ title: "Updated", message: "Booking status updated", color: "success" });
+      toast.success("Booking status updated", { title: "Updated" });
       closeStatusReasonEditor();
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Status update failed", color: "danger" }),
+    onError: () => toast.error("Status update failed", { title: "Error" }),
   });
 
   return (
@@ -1047,15 +1044,10 @@ function PreopTab({ bookingId }: { bookingId: string }) {
       otService.createPreopAssessment(bookingId, toCreatePreopAssessmentRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-preop", bookingId] });
-      notifications.show({
-        title: "Saved",
-        message: "Pre-op assessment recorded",
-        color: "success",
-      });
+      toast.success("Pre-op assessment recorded", { title: "Saved" });
       reset(DEFAULT_OT_PREOP_ASSESSMENT_FORM_VALUES);
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Failed to save assessment", color: "danger" }),
+    onError: () => toast.error("Failed to save assessment", { title: "Error" }),
   });
 
   const {
@@ -1073,12 +1065,11 @@ function PreopTab({ bookingId }: { bookingId: string }) {
       otService.updatePreopAssessment(bookingId, toUpdatePreopAssessmentRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-preop", bookingId] });
-      notifications.show({ title: "Updated", message: "Assessment updated", color: "success" });
+      toast.success("Assessment updated", { title: "Updated" });
       closeEditing();
       resetUpdate(DEFAULT_OT_PREOP_UPDATE_FORM_VALUES);
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Update failed", color: "danger" }),
+    onError: () => toast.error("Update failed", { title: "Error" }),
   });
 
   if (isLoading) return <Text c="dimmed">Loading...</Text>;
@@ -1322,18 +1313,9 @@ function ChecklistTab({ bookingId }: { bookingId: string }) {
     mutationFn: (d: CreateSafetyChecklistRequest) => otService.createSafetyChecklist(bookingId, d),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-checklists", bookingId] });
-      notifications.show({
-        title: "Created",
-        message: "Checklist phase started",
-        color: "success",
-      });
+      toast.success("Checklist phase started", { title: "Created" });
     },
-    onError: () =>
-      notifications.show({
-        title: "Error",
-        message: "Failed to create checklist",
-        color: "danger",
-      }),
+    onError: () => toast.error("Failed to create checklist", { title: "Error" }),
   });
 
   const completeMutation = useMutation({
@@ -1341,10 +1323,9 @@ function ChecklistTab({ bookingId }: { bookingId: string }) {
       otService.updateSafetyChecklist(bookingId, id, { completed: true }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-checklists", bookingId] });
-      notifications.show({ title: "Completed", message: "Phase completed", color: "success" });
+      toast.success("Phase completed", { title: "Completed" });
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Failed to complete phase", color: "danger" }),
+    onError: () => toast.error("Failed to complete phase", { title: "Error" }),
   });
 
   if (isLoading) return <Text c="dimmed">Loading...</Text>;
@@ -1477,15 +1458,10 @@ function CaseRecordTab({ bookingId }: { bookingId: string }) {
       otService.createCaseRecord(bookingId, toCreateCaseRecordRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-case-record", bookingId] });
-      notifications.show({ title: "Saved", message: "Case record created", color: "success" });
+      toast.success("Case record created", { title: "Saved" });
       reset(DEFAULT_OT_CASE_RECORD_FORM_VALUES);
     },
-    onError: () =>
-      notifications.show({
-        title: "Error",
-        message: "Failed to save case record",
-        color: "danger",
-      }),
+    onError: () => toast.error("Failed to save case record", { title: "Error" }),
   });
 
   if (isLoading) return <Text c="dimmed">Loading...</Text>;
@@ -1739,19 +1715,10 @@ function AnesthesiaTab({ bookingId }: { bookingId: string }) {
       otService.createAnesthesiaRecord(bookingId, toCreateAnesthesiaRecordRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-anesthesia", bookingId] });
-      notifications.show({
-        title: "Saved",
-        message: "Anesthesia record created",
-        color: "success",
-      });
+      toast.success("Anesthesia record created", { title: "Saved" });
       reset(DEFAULT_OT_ANESTHESIA_RECORD_FORM_VALUES);
     },
-    onError: () =>
-      notifications.show({
-        title: "Error",
-        message: "Failed to save anesthesia record",
-        color: "danger",
-      }),
+    onError: () => toast.error("Failed to save anesthesia record", { title: "Error" }),
   });
 
   if (isLoading) return <Text c="dimmed">Loading...</Text>;
@@ -1887,15 +1854,10 @@ function PostopTab({ bookingId }: { bookingId: string }) {
       otService.createPostopRecord(bookingId, toCreatePostopRecordRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-postop", bookingId] });
-      notifications.show({ title: "Saved", message: "Post-op record created", color: "success" });
+      toast.success("Post-op record created", { title: "Saved" });
       reset(DEFAULT_OT_POSTOP_RECORD_FORM_VALUES);
     },
-    onError: () =>
-      notifications.show({
-        title: "Error",
-        message: "Failed to save post-op record",
-        color: "danger",
-      }),
+    onError: () => toast.error("Failed to save post-op record", { title: "Error" }),
   });
 
   const [editing, { open: openEditing, close: closeEditing }] = useDisclosure(false);
@@ -1914,12 +1876,11 @@ function PostopTab({ bookingId }: { bookingId: string }) {
       otService.updatePostopRecord(bookingId, toUpdatePostopRecordRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-postop", bookingId] });
-      notifications.show({ title: "Updated", message: "Post-op record updated", color: "success" });
+      toast.success("Post-op record updated", { title: "Updated" });
       closeEditing();
       resetUpdate(DEFAULT_OT_POSTOP_UPDATE_FORM_VALUES);
     },
-    onError: () =>
-      notifications.show({ title: "Error", message: "Update failed", color: "danger" }),
+    onError: () => toast.error("Update failed", { title: "Error" }),
   });
 
   if (isLoading) return <Text c="dimmed">Loading...</Text>;
@@ -2201,7 +2162,7 @@ function CreateRoomDrawer({ opened, onClose }: { opened: boolean; onClose: () =>
     mutationFn: (values: OtRoomFormInput) => otService.createOtRoom(toCreateOtRoomRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-rooms"] });
-      notifications.show({ title: "Created", message: "OT room created", color: "success" });
+      toast.success("OT room created", { title: "Created" });
       onClose();
       reset(DEFAULT_OT_ROOM_FORM_VALUES);
     },
@@ -2305,7 +2266,7 @@ function CreatePreferenceDrawer({ opened, onClose }: { opened: boolean; onClose:
       otService.createSurgeonPreference(toCreateSurgeonPreferenceRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-surgeon-preferences"] });
-      notifications.show({ title: "Created", message: "Preference card saved", color: "success" });
+      toast.success("Preference card saved", { title: "Created" });
       onClose();
       reset(DEFAULT_OT_SURGEON_PREFERENCE_FORM_VALUES);
     },
@@ -2398,7 +2359,7 @@ function ConsumablesSubTab({ bookingId }: { bookingId: string }) {
       otService.createOtConsumable(bookingId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-consumables", bookingId] });
-      notifications.show({ title: "Added", message: "Consumable recorded", color: "success" });
+      toast.success("Consumable recorded", { title: "Added" });
       formHandlers.close();
       reset(DEFAULT_OT_CONSUMABLE_FORM_VALUES);
     },
@@ -2408,7 +2369,7 @@ function ConsumablesSubTab({ bookingId }: { bookingId: string }) {
     mutationFn: (itemId: string) => otService.deleteOtConsumable(bookingId, itemId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-consumables", bookingId] });
-      notifications.show({ title: "Removed", message: "Consumable removed", color: "success" });
+      toast.success("Consumable removed", { title: "Removed" });
     },
   });
 

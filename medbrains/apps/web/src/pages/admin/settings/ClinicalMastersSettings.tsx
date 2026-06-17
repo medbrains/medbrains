@@ -35,7 +35,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   type CreateMasterItemInput,
   clinicalMastersService,
@@ -109,11 +109,7 @@ function MasterItemModal({
       onClose();
     },
     onError: (err: Error) => {
-      notifications.show({
-        title: "Create failed",
-        message: err.message,
-        color: "danger",
-      });
+      toast.error(err.message, { title: "Create failed" });
     },
   });
 
@@ -133,11 +129,7 @@ function MasterItemModal({
       onClose();
     },
     onError: (err: Error) => {
-      notifications.show({
-        title: "Update failed",
-        message: err.message,
-        color: "danger",
-      });
+      toast.error(err.message, { title: "Update failed" });
     },
   });
 
@@ -252,11 +244,7 @@ function MasterTable({
       setDeleteTarget(null);
     },
     onError: (err: Error) => {
-      notifications.show({
-        title: "Delete failed",
-        message: err.message,
-        color: "danger",
-      });
+      toast.error(err.message, { title: "Delete failed" });
     },
   });
 
@@ -521,11 +509,7 @@ function InsuranceProviderModal({
       onClose();
     },
     onError: (err: Error) => {
-      notifications.show({
-        title: "Create failed",
-        message: err.message,
-        color: "danger",
-      });
+      toast.error(err.message, { title: "Create failed" });
     },
   });
 
@@ -545,11 +529,7 @@ function InsuranceProviderModal({
       onClose();
     },
     onError: (err: Error) => {
-      notifications.show({
-        title: "Update failed",
-        message: err.message,
-        color: "danger",
-      });
+      toast.error(err.message, { title: "Update failed" });
     },
   });
 
@@ -666,11 +646,7 @@ function InsuranceProvidersTable() {
       setDeleteTarget(null);
     },
     onError: (err: Error) => {
-      notifications.show({
-        title: "Delete failed",
-        message: err.message,
-        color: "danger",
-      });
+      toast.error(err.message, { title: "Delete failed" });
     },
   });
 

@@ -15,7 +15,6 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import {
   type ProcurementGrnFormInput,
   type ProcurementPurchaseOrderFormInput,
@@ -64,7 +63,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { DataTable, PageHeader, TableValueBadge, VendorSearchSelect } from "@/components";
-import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { procurementService } from "@/services/procurement.service";
@@ -593,11 +592,11 @@ function VendorForm({ onSuccess }: { onSuccess: () => void }) {
         product_lines: optionalText(values.product_lines),
       }),
     onSuccess: () => {
-      notifications.show({ title: "Created", message: "Vendor registered", color: "success" });
+      toast.success("Vendor registered", { title: "Created" });
       onSuccess();
     },
     onError: (err: Error) => {
-      notifications.show({ title: "Error", message: err.message, color: "danger" });
+      toast.error(err.message, { title: "Error" });
     },
   });
 
@@ -724,11 +723,7 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
   const approveMutation = useMutation({
     mutationFn: (id: string) => procurementService.approvePurchaseOrder(id),
     onSuccess: () => {
-      notifications.show({
-        title: "Approved",
-        message: "Purchase order approved",
-        color: "success",
-      });
+      toast.success("Purchase order approved", { title: "Approved" });
       void queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
     },
   });
@@ -736,7 +731,7 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
   const sendMutation = useMutation({
     mutationFn: (id: string) => procurementService.sendPurchaseOrder(id),
     onSuccess: () => {
-      notifications.show({ title: "Sent", message: "PO sent to vendor", color: "success" });
+      toast.success("PO sent to vendor", { title: "Sent" });
       void queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
     },
   });
@@ -1019,11 +1014,11 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
         items: values.items.map(toPoItemInput),
       }),
     onSuccess: () => {
-      notifications.show({ title: "Created", message: "Purchase order created", color: "success" });
+      toast.success("Purchase order created", { title: "Created" });
       onSuccess();
     },
     onError: (err: Error) => {
-      notifications.show({ title: "Error", message: err.message, color: "danger" });
+      toast.error(err.message, { title: "Error" });
     },
   });
 
@@ -1069,11 +1064,7 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to load linked indent";
-      notifications.show({
-        title: "Indent sync failed",
-        message,
-        color: "danger",
-      });
+      toast.error(message, { title: "Indent sync failed" });
     } finally {
       setIsSyncingIndent(false);
     }
@@ -1465,15 +1456,11 @@ function CreateGrnForm({ onSuccess }: { onSuccess: () => void }) {
         items: values.items.map(toGrnItemInput),
       }),
     onSuccess: () => {
-      notifications.show({
-        title: "Created",
-        message: "GRN created and stock updated",
-        color: "success",
-      });
+      toast.success("GRN created and stock updated", { title: "Created" });
       onSuccess();
     },
     onError: (err: Error) => {
-      notifications.show({ title: "Error", message: err.message, color: "danger" });
+      toast.error(err.message, { title: "Error" });
     },
   });
 
@@ -1512,7 +1499,7 @@ function CreateGrnForm({ onSuccess }: { onSuccess: () => void }) {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to load purchase order";
-      notifications.show({ title: "PO load failed", message, color: "danger" });
+      toast.error(message, { title: "PO load failed" });
     }
   };
 
@@ -1731,11 +1718,11 @@ function CreateRcForm({ onSuccess }: { onSuccess: () => void }) {
         items: values.items.map(toRcItemInput),
       }),
     onSuccess: () => {
-      notifications.show({ title: "Created", message: "Rate contract created", color: "success" });
+      toast.success("Rate contract created", { title: "Created" });
       onSuccess();
     },
     onError: (err: Error) => {
-      notifications.show({ title: "Error", message: err.message, color: "danger" });
+      toast.error(err.message, { title: "Error" });
     },
   });
 
@@ -2001,11 +1988,11 @@ function StoreLocationForm({ onSuccess }: { onSuccess: () => void }) {
         address: optionalText(values.address),
       }),
     onSuccess: () => {
-      notifications.show({ title: "Created", message: "Store location created", color: "success" });
+      toast.success("Store location created", { title: "Created" });
       onSuccess();
     },
     onError: (err: Error) => {
-      notifications.show({ title: "Error", message: err.message, color: "danger" });
+      toast.error(err.message, { title: "Error" });
     },
   });
 
@@ -2348,11 +2335,11 @@ function CreatePaymentForm({ onSuccess }: { onSuccess: () => void }) {
         notes: optionalText(values.notes),
       }),
     onSuccess: () => {
-      notifications.show({ title: "Created", message: "Payment recorded", color: "success" });
+      toast.success("Payment recorded", { title: "Created" });
       onSuccess();
     },
     onError: (err: Error) => {
-      notifications.show({ title: "Error", message: err.message, color: "danger" });
+      toast.error(err.message, { title: "Error" });
     },
   });
 

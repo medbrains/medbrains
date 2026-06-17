@@ -18,7 +18,6 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import type {
   PharmacyCatalogFormInput,
   PharmacyNdpsEntryFormInput,
@@ -157,6 +156,7 @@ import {
   IconButton,
   SignatureHero,
   Table,
+  toast,
 } from "@/components/ui";
 import {
   awareCategoryOptions,
@@ -1359,10 +1359,8 @@ function PharmacyOrdersTab({
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       void queryClient.invalidateQueries({ queryKey: ["invoice"] });
       void queryClient.invalidateQueries({ queryKey: ["patient-invoices", order.patient_id] });
-      notifications.show({
+      toast.success("Order dispensed and linked billing charges refreshed", {
         title: "Dispensed",
-        message: "Order dispensed and linked billing charges refreshed",
-        color: "success",
       });
       emit("pharmacy.order.dispensed", {
         admission_id: admissionId,
@@ -1773,17 +1771,21 @@ function PharmacyReturnsTab({
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-order-detail"] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-credit-notes"] });
-      notifications.show({
-        title: returnStatusLabels[variables.status],
-        message: "Return queue updated",
-        color: returnStatusColors[variables.status],
-      });
+      const returnToastTitle = returnStatusLabels[variables.status];
+      const returnToastColor = returnStatusColors[variables.status];
+      if (returnToastColor === "green") {
+        toast.success("Return queue updated", { title: returnToastTitle });
+      } else if (returnToastColor === "red") {
+        toast.error("Return queue updated", { title: returnToastTitle });
+      } else if (returnToastColor === "yellow") {
+        toast.warning("Return queue updated", { title: returnToastTitle });
+      } else {
+        toast.info("Return queue updated", { title: returnToastTitle });
+      }
     },
     onError: (error) => {
-      notifications.show({
+      toast.error(error instanceof Error ? error.message : "Unable to update return", {
         title: "Return action failed",
-        message: error instanceof Error ? error.message : "Unable to update return",
-        color: "danger",
       });
     },
   });
@@ -2078,19 +2080,16 @@ function CreatePharmacyReturnModal({
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-returns"] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-order-detail"] });
-      notifications.show({
-        title: "Return requested",
-        message: `${rows.length} return ${rows.length === 1 ? "line is" : "lines are"} waiting for approval`,
-        color: "success",
-      });
+      toast.success(
+        `${rows.length} return ${rows.length === 1 ? "line is" : "lines are"} waiting for approval`,
+        { title: "Return requested" },
+      );
       reset({ patient_id: "", items: [] });
       onClose();
     },
     onError: (error) => {
-      notifications.show({
+      toast.error(error instanceof Error ? error.message : "Unable to request return", {
         title: "Return request failed",
-        message: error instanceof Error ? error.message : "Unable to request return",
-        color: "danger",
       });
     },
   });
@@ -2294,13 +2293,13 @@ function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => vo
     mutationFn: (data: CreateOtcSaleRequest) => pharmacyService.createOtcSale(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
-      notifications.show({ title: "OTC Sale", message: "Walk-in sale recorded", color: "teal" });
+      toast.success("Walk-in sale recorded", { title: "OTC Sale" });
       onClose();
       setNotes("");
       setItems([newDraftPharmacyOrderItem()]);
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to record OTC sale", color: "danger" });
+      toast.error("Failed to record OTC sale", { title: "Error" });
     },
   });
 
@@ -2397,10 +2396,8 @@ function PharmacyOrderForm({
       void queryClient.invalidateQueries({
         queryKey: ["patient-invoices", detail.order.patient_id],
       });
-      notifications.show({
+      toast.success("Pharmacy order placed and draft billing indent updated", {
         title: "Order created",
-        message: "Pharmacy order placed and draft billing indent updated",
-        color: "success",
       });
       emit("order.created", {
         admission_id: detail.admission_id,
@@ -2416,10 +2413,8 @@ function PharmacyOrderForm({
       onSuccess(detail);
     },
     onError: (error) => {
-      notifications.show({
+      toast.error(error instanceof Error ? error.message : "Failed to create order", {
         title: "Order blocked",
-        message: error instanceof Error ? error.message : "Failed to create order",
-        color: "danger",
       });
     },
   });
@@ -2606,10 +2601,8 @@ function PharmacyOrderDetail({
       queryClient.setQueryData(["pharmacy-order-detail", orderId], next);
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      notifications.show({
+      toast.success("Order item and draft billing line were updated", {
         title: "Quantity updated",
-        message: "Order item and draft billing line were updated",
-        color: "green",
       });
     },
   });
@@ -2620,10 +2613,8 @@ function PharmacyOrderDetail({
       queryClient.setQueryData(["pharmacy-order-detail", orderId], next);
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      notifications.show({
+      toast.success("Order item was removed and the draft billing line was reversed", {
         title: "Item removed",
-        message: "Order item was removed and the draft billing line was reversed",
-        color: "green",
       });
     },
   });
@@ -2645,10 +2636,8 @@ function PharmacyOrderDetail({
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       void queryClient.invalidateQueries({ queryKey: ["invoice"] });
       void queryClient.invalidateQueries({ queryKey: ["patient-invoices", order.patient_id] });
-      notifications.show({
+      toast.success("Order dispensed and linked billing charges refreshed", {
         title: "Dispensed",
-        message: "Order dispensed and linked billing charges refreshed",
-        color: "success",
       });
       emit("pharmacy.order.dispensed", {
         admission_id: admissionId,
@@ -3686,10 +3675,8 @@ function StockTab({ canManage }: { canManage: boolean }) {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-stock"] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-catalog"] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-batches"] });
-      notifications.show({
+      toast.success(`${created.length} batch row(s) verified and posted`, {
         title: "Batches added",
-        message: `${created.length} batch row(s) verified and posted`,
-        color: "success",
       });
       emit("pharmacy.stock.movement.created", {
         batch_count: created.length,
@@ -4395,11 +4382,7 @@ function NdpsRegisterTab() {
       });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-ndps"] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-ndps-balance"] });
-      notifications.show({
-        title: "NDPS Entry",
-        message: "Register entry recorded",
-        color: "success",
-      });
+      toast.success("Register entry recorded", { title: "NDPS Entry" });
       formHandlers.close();
       reset({
         catalog_item_id: "",
@@ -5037,11 +5020,7 @@ function TransfersView({
     mutationFn: (id: string) => pharmacyService.approvePharmacyTransfer(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-transfers"] });
-      notifications.show({
-        title: "Transfer Approved",
-        message: "Transfer request approved",
-        color: "success",
-      });
+      toast.success("Transfer request approved", { title: "Transfer Approved" });
     },
   });
 
@@ -5477,14 +5456,12 @@ function RxQueueTab({
       closeReview();
       setActiveRxQueueId(null);
       resetReviewForm(DEFAULT_RX_REVIEW_FORM_VALUES);
-      notifications.show({
-        title: t("notify.prescriptionReviewed"),
-        message:
-          reviewAction === "approved"
-            ? t("notify.pharmacyOrderAndBillingIndentCreated")
-            : t("notify.rxQueueStatusUpdated"),
-        color: "green",
-      });
+      toast.success(
+        reviewAction === "approved"
+          ? t("notify.pharmacyOrderAndBillingIndentCreated")
+          : t("notify.rxQueueStatusUpdated"),
+        { title: t("notify.prescriptionReviewed") },
+      );
     },
   });
 
@@ -6375,14 +6352,12 @@ function PosCounterTab({
       }
       reset(posSaleDefaults);
       setDrugSelectValue("");
-      notifications.show({
-        title: "Sale Complete",
-        message:
-          patientId && billingInvoiceId
-            ? "Pharmacy sale recorded and linked to the Billing invoice workbench"
-            : "Walk-in sale recorded in Pharmacy POS",
-        color: "green",
-      });
+      toast.success(
+        patientId && billingInvoiceId
+          ? "Pharmacy sale recorded and linked to the Billing invoice workbench"
+          : "Walk-in sale recorded in Pharmacy POS",
+        { title: "Sale Complete" },
+      );
     },
   });
 
@@ -6395,17 +6370,13 @@ function PosCounterTab({
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-pos-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       closeCancelSale();
-      notifications.show({
+      toast.success("Stock reversal and POS refund entry were recorded", {
         title: "Sale cancelled",
-        message: "Stock reversal and POS refund entry were recorded",
-        color: "green",
       });
     },
     onError: () => {
-      notifications.show({
+      toast.error("The sale may already be cancelled, refunded, or locked by finance controls", {
         title: "Unable to cancel sale",
-        message: "The sale may already be cancelled, refunded, or locked by finance controls",
-        color: "danger",
       });
     },
   });
@@ -6427,17 +6398,13 @@ function PosCounterTab({
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-pos-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       closeReturnSale();
-      notifications.show({
+      toast.success("Partial return, stock reversal, and POS refund entry were recorded", {
         title: "Items returned",
-        message: "Partial return, stock reversal, and POS refund entry were recorded",
-        color: "green",
       });
     },
     onError: () => {
-      notifications.show({
+      toast.error("The sale may already be refunded, cancelled, or locked by finance controls", {
         title: "Unable to return items",
-        message: "The sale may already be refunded, cancelled, or locked by finance controls",
-        color: "danger",
       });
     },
   });
@@ -6542,10 +6509,8 @@ function PosCounterTab({
           })),
       });
     } catch {
-      notifications.show({
+      toast.error("Check POS return permission and try again", {
         title: "Unable to load sale items",
-        message: "Check POS return permission and try again",
-        color: "danger",
       });
     } finally {
       setReturnItemsLoading(false);

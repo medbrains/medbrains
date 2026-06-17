@@ -22,7 +22,6 @@ import {
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AdrReport,
@@ -66,7 +65,7 @@ import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { regulatoryService } from "@/services/regulatory.service";
@@ -443,7 +442,7 @@ function SelfAssessmentView() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["accreditation-compliance"] });
       void qc.invalidateQueries({ queryKey: ["regulatory-dashboard"] });
-      notifications.show({ title: "Assessment updated", message: "", color: "success" });
+      toast.success("", { title: "Assessment updated" });
     },
   });
 
@@ -653,7 +652,7 @@ function ChecklistsTab() {
     mutationFn: (data: CreateChecklistRequest) => regulatoryService.createChecklist(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-checklists"] });
-      notifications.show({ title: "Checklist created", message: "", color: "success" });
+      toast.success("", { title: "Checklist created" });
       close();
     },
   });
@@ -784,18 +783,10 @@ function ChecklistListView({
     mutationFn: (id: string) => regulatoryService.autoPopulateChecklist(id),
     onSuccess: (result) => {
       void qc.invalidateQueries({ queryKey: ["regulatory-checklists"] });
-      notifications.show({
-        title: "Auto-populated",
-        message: `${result.updated} item(s) updated`,
-        color: "teal",
-      });
+      toast.success(`${result.updated} item(s) updated`, { title: "Auto-populated" });
     },
     onError: () => {
-      notifications.show({
-        title: "Auto-populate failed",
-        message: "Could not auto-populate checklist",
-        color: "danger",
-      });
+      toast.error("Could not auto-populate checklist", { title: "Auto-populate failed" });
     },
   });
 
@@ -1123,7 +1114,7 @@ function AdrTab() {
     mutationFn: (data: CreateAdrRequest) => regulatoryService.createAdrReport(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-adr"] });
-      notifications.show({ title: "ADR Report created", message: "", color: "success" });
+      toast.success("", { title: "ADR Report created" });
       closeAdr();
     },
   });
@@ -1132,11 +1123,7 @@ function AdrTab() {
     mutationFn: (data: CreateMvRequest) => regulatoryService.createMvReport(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-mv"] });
-      notifications.show({
-        title: "Materiovigilance Report created",
-        message: "",
-        color: "success",
-      });
+      toast.success("", { title: "Materiovigilance Report created" });
       closeMv();
     },
   });
@@ -1145,7 +1132,7 @@ function AdrTab() {
     mutationFn: (id: string) => regulatoryService.submitAdrToPvpi(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-adr"] });
-      notifications.show({ title: "Submitted to PvPI", message: "", color: "primary" });
+      toast.info("", { title: "Submitted to PvPI" });
     },
   });
 
@@ -1153,7 +1140,7 @@ function AdrTab() {
     mutationFn: (id: string) => regulatoryService.submitMvToCdsco(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-mv"] });
-      notifications.show({ title: "Submitted to CDSCO", message: "", color: "primary" });
+      toast.info("", { title: "Submitted to CDSCO" });
     },
   });
 
@@ -1520,11 +1507,7 @@ function PcpndtTab() {
     mutationFn: (data: CreatePcpndtRequest) => regulatoryService.createPcpndtForm(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-pcpndt"] });
-      notifications.show({
-        title: "PCPNDT Form created",
-        message: "Gender disclosure blocked by default",
-        color: "success",
-      });
+      toast.success("Gender disclosure blocked by default", { title: "PCPNDT Form created" });
       close();
     },
   });
@@ -1725,7 +1708,7 @@ function CalendarTab() {
     mutationFn: (data: CreateCalendarEventRequest) => regulatoryService.createCalendarEvent(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-calendar"] });
-      notifications.show({ title: "Calendar event created", message: "", color: "success" });
+      toast.success("", { title: "Calendar event created" });
       close();
     },
   });
@@ -1734,7 +1717,7 @@ function CalendarTab() {
     mutationFn: (id: string) => regulatoryService.updateCalendarEvent(id, { status: "completed" }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-calendar"] });
-      notifications.show({ title: "Marked complete", message: "", color: "success" });
+      toast.success("", { title: "Marked complete" });
     },
   });
 
@@ -2281,7 +2264,7 @@ function SubmissionsTab() {
       regulatoryService.createRegulatorySubmission(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-submissions"] });
-      notifications.show({ title: "Submission recorded", message: "", color: "success" });
+      toast.success("", { title: "Submission recorded" });
       close();
       setForm({
         submission_type: "",
@@ -2459,7 +2442,7 @@ function MockSurveysTab() {
     mutationFn: (data: CreateChecklistRequest) => regulatoryService.createMockSurvey(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-mock-surveys"] });
-      notifications.show({ title: "Mock survey created", message: "", color: "success" });
+      toast.success("", { title: "Mock survey created" });
       close();
     },
   });
