@@ -1,6 +1,6 @@
 // Signature Spectrum toast — card chrome (border/radius/shadow/title) is themed
 // globally on the Notification component (design-system mantine.ts). Here:
-// the ECG glyph in a soft tone badge + a thin tone auto-dismiss progress line.
+// the ECG glyph badge, a thin tone auto-dismiss line, action/progress layouts.
 // Tone colour comes from Mantine's --notification-color.
 
 .root {
@@ -22,6 +22,11 @@
   }
 }
 
+// Persistent toasts (actions / progress / autoClose:false) have no countdown.
+.persistent::after {
+  display: none;
+}
+
 // ECG glyph in a soft rounded tone badge (replaces Mantine's solid circle).
 .icon {
   width: 32px;
@@ -39,6 +44,36 @@
   font-size: 13px;
   line-height: 1.45;
   color: var(--mb-text-secondary, #5f6b7a);
+}
+
+// ── Progress toast ──
+.progress {
+  min-width: 230px;
+}
+
+.progressTrack {
+  height: 4px;
+  margin-bottom: 9px;
+  border-radius: 999px;
+  background: var(--mb-bg-subtle, #f4f5f8);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--notification-color, var(--mb-brand, #5b4bc4));
+  transition: width 0.3s ease;
+}
+
+.progressLabel {
+  color: var(--mb-text-secondary, #5f6b7a);
+}
+
+.progressPct {
+  font-weight: 700;
+  color: var(--mb-text-primary, #1a1a2e);
+  font-variant-numeric: tabular-nums;
 }
 
 @keyframes mb-toast-progress {
