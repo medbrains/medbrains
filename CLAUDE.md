@@ -435,9 +435,9 @@ For role/user permission editing, use the `PermissionGroupNode` component patter
 
 When picking up a ticket or story (incl. the generated stories in `medbrains/docs/backlog/stories/`), do NOT jump straight to code. Always:
 
-1. **Research first** — read the relevant RFC(s), the existing code paths (use `ccc search` for semantic lookup), the regulatory norms for the domain, and how similar features are already built. Confirm what exists vs what's missing (many backlog tickets are already partly done).
-2. **Expand the acceptance criteria** — the generated stories carry only module-tailored AC. Rewrite them into concrete, feature-specific, testable criteria for THIS ticket (exact endpoints, entities, fields, permissions, UI states, regulatory rules, edge cases) before coding. Agree them if non-trivial (plan mode).
-3. **Then start** — implement to the expanded AC, following the Module Build Workflow below; verify against each criterion; ship one focused PR.
+1. **Research the real-world scenario first** — who actually uses this, in what hospital workflow, and what are the real business rules and edge cases? Read the relevant RFC(s), the existing code paths (`ccc search`), the regulatory norms, and how similar features behave. Confirm what exists vs what's missing (many backlog tickets are already partly done).
+2. **Expand into scenario-based, business-logic acceptance criteria** — the generated stories carry only generic module-tailored AC. Rewrite them as concrete **Given/When/Then scenarios** grounded in real-world use, covering the actual business logic and edge cases: happy path, conflict/error states, permission-denied, the regulatory rule, boundary values, and what the system does to which records/users. Not a generic checklist — real scenarios (e.g. "Given a Schedule-X drug with no duplicate record, When the pharmacist dispenses, Then the system blocks it and logs the attempt"). Agree them if non-trivial (plan mode).
+3. **Then start** — implement to the scenario AC, following the Module Build Workflow below; verify each scenario; ship one focused PR.
 
 ## Module Build Workflow
 
