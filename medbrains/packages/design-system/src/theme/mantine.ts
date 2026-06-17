@@ -495,11 +495,11 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
       Notification: {
         defaultProps: {
           withBorder: true,
-          radius: "md",
+          radius: "lg",
         },
         styles: {
-          root: { boxShadow: "0 10px 30px rgba(26, 26, 46, 0.14)" },
-          title: { fontWeight: 600, letterSpacing: "-0.01em" },
+          root: { boxShadow: "0 8px 24px rgba(26, 26, 46, 0.12)" },
+          title: { fontWeight: 600, fontSize: "14px", letterSpacing: "-0.01em" },
         },
       },
 

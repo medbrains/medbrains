@@ -1,38 +1,40 @@
-// Signature Spectrum alert — "clinical instrument panel" look.
-// Near-white card (so text contrast is always correct), a tone icon in a soft
-// tinted badge, a bold tone accent rail on the left, hairline border, squared.
-// Tone colour comes from Mantine's --alert-color.
+// Signature Spectrum alert — reference style: a solid tone icon circle, a clean
+// rounded white card, hairline border, ink title + secondary message. Tone
+// colour comes from Mantine's --alert-color.
 .alert {
   --tone: var(--alert-color, var(--mb-brand, #5b4bc4));
 
-  border: 1px solid var(--mb-border, #d5dbdb);
-  border-left: 3px solid var(--tone);
-  border-radius: var(--mantine-radius-sm);
-  // Override Mantine's tinted variant bg with a near-white wash — keeps text
-  // dark-on-light (no harsh black-on-red), tone lives in the badge + rail.
-  background: color-mix(in srgb, var(--tone) 4%, #ffffff) !important;
-  padding: 12px 14px;
+  border: 1px solid var(--mb-border, #e4e7ea);
+  border-radius: 12px;
+  background: var(--mb-bg-default, #ffffff) !important;
+  padding: 14px 15px;
+  box-shadow: 0 6px 20px rgba(26, 26, 46, 0.06);
 
-  // Tone icon in a soft rounded badge.
+  // Solid tone icon circle with a white glyph.
   :global(.mantine-Alert-icon) {
-    width: 30px;
-    height: 30px;
+    width: 24px;
+    height: 24px;
     margin-right: 12px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--tone) 14%, transparent);
-    color: var(--tone);
+    border-radius: 50%;
+    background: var(--tone);
+    color: #ffffff;
     flex-shrink: 0;
+
+    svg {
+      width: 15px;
+      height: 15px;
+    }
   }
 
   :global(.mantine-Alert-title) {
-    font-size: 13.5px;
+    font-size: 14px;
     font-weight: 600;
     letter-spacing: -0.01em;
     color: var(--mb-text-primary, #1a1a2e);
-    margin-bottom: 2px;
+    margin-bottom: 1px;
   }
 
   :global(.mantine-Alert-message) {

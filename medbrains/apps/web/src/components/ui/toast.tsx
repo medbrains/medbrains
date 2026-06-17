@@ -1,19 +1,24 @@
 import { Group, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import {
+  IconAlertTriangle,
+  IconCircleCheck,
+  IconCircleX,
+  IconInfoCircle,
+} from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { Button } from "./Button";
-import { EcgGlyph } from "./EcgGlyph";
 import styles from "./toast.module.scss";
 
 type ToastTone = "success" | "error" | "warning" | "info";
 
-// One signature ECG glyph for every toast — tone is carried by colour, the
-// brand by the heartbeat.
+// Tone-semantic glyph in a solid tone circle (reference style). The progress
+// toast keeps the ECG loader for the live "in progress" feel.
 const TONE: Record<ToastTone, { color: string; icon: ReactNode }> = {
-  success: { color: "success", icon: <EcgGlyph /> },
-  error: { color: "danger", icon: <EcgGlyph /> },
-  warning: { color: "warning", icon: <EcgGlyph /> },
-  info: { color: "info", icon: <EcgGlyph /> },
+  success: { color: "success", icon: <IconCircleCheck size={15} /> },
+  error: { color: "danger", icon: <IconCircleX size={15} /> },
+  warning: { color: "warning", icon: <IconAlertTriangle size={15} /> },
+  info: { color: "info", icon: <IconInfoCircle size={15} /> },
 };
 
 /** An inline action button in a toast. */

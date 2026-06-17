@@ -2,7 +2,7 @@ import { Alert as MantineAlert, type AlertProps as MantineAlertProps } from "@ma
 import {
   IconAlertTriangle,
   IconCircleCheck,
-  IconExclamationCircle,
+  IconCircleX,
   IconInfoCircle,
 } from "@tabler/icons-react";
 import type { ReactNode } from "react";
@@ -19,13 +19,13 @@ const TONE_COLOR: Record<AlertTone, string> = {
   neutral: "gray",
 };
 
-/** Default tone icon, so every alert leads with a clean tinted badge. */
+/** Default tone glyph — shown white inside the solid tone icon circle. */
 const TONE_ICON: Record<AlertTone, ReactNode> = {
-  info: <IconInfoCircle size={18} />,
-  success: <IconCircleCheck size={18} />,
-  warning: <IconAlertTriangle size={18} />,
-  danger: <IconExclamationCircle size={18} />,
-  neutral: <IconInfoCircle size={18} />,
+  info: <IconInfoCircle size={15} />,
+  success: <IconCircleCheck size={15} />,
+  warning: <IconAlertTriangle size={15} />,
+  danger: <IconCircleX size={15} />,
+  neutral: <IconInfoCircle size={15} />,
 };
 
 export interface AlertProps extends Omit<MantineAlertProps, "color"> {
