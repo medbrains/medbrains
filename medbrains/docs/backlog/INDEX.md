@@ -85,3 +85,6 @@
 | #231 | story | Build ophthalmology module | P2-medium | M4 — Weeks 9-12: Compliance & platform |
 | #232 | story | Implement CMS content handlers (replace 501s) | P2-medium | M4 — Weeks 9-12: Compliance & platform |
 | #233 | story | Decide marketing/CRM scope | P2-medium | M4 — Weeks 9-12: Compliance & platform |
+| #234 | epic | Epic: External-tool integrations (attendance hardware + OPD case sheets) | P2-medium | M-later |
+| #235 | story | Biometric attendance sidecar (ZKTeco Rust core → HR bulk-ingest) | P2-medium | M-later |
+| #236 | story | OPD case-sheet template (printed) for the document-render engine | P2-medium | M-later |
