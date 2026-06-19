@@ -70,15 +70,18 @@ def epic_numbers() -> dict[str, int]:
 
 
 def existing_titles() -> set[str]:
-    # Paginated REST is authoritative; `gh issue list --limit` truncates
-    # silently on a mid-pagination network blip, which would cause duplicates.
-    out = subprocess.run(
-        ["gh", "api", "--paginate",
-         "/repos/{owner}/{repo}/issues?state=all&per_page=100", "--jq", ".[].title"],
-        capture_output=True, text=True, cwd=ROOT)
-    if out.returncode != 0:
-        return set()
-    return {ln for ln in out.stdout.splitlines() if ln.strip()}
+    # A single paginated pass can truncate on a network blip (dropping titles
+    # -> false "missing" -> duplicates). Union over a few passes: a title seen
+    # in ANY pass exists, so the union recovers anything a single pass dropped.
+    union: set[str] = set()
+    for _ in range(3):
+        out = subprocess.run(
+            ["gh", "api", "--paginate",
+             "/repos/{owner}/{repo}/issues?state=all&per_page=100", "--jq", ".[].title"],
+            capture_output=True, text=True, cwd=ROOT)
+        union |= {ln for ln in out.stdout.splitlines() if ln.strip()}
+        time.sleep(1)
+    return union
 
 
 def labels_for(row_get) -> list[str]:
