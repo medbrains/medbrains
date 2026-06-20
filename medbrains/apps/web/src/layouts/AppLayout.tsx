@@ -396,7 +396,7 @@ export function AppLayout() {
     >
       {/* ── Header ── */}
       <AppShell.Header>
-        <Group h="100%" px="md" gap="md" wrap="nowrap">
+        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
           <Group gap="sm" wrap="nowrap">
             <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
             <Group gap={8} className={classes.logoArea} onClick={() => navigate("/dashboard")}>
@@ -421,12 +421,11 @@ export function AppLayout() {
             </Group>
           </Group>
 
-          <Box visibleFrom="md" style={{ flex: 1, minWidth: 0, height: "100%" }}>
-            <NewsMarquee />
-          </Box>
-
           <Group gap="sm" wrap="nowrap">
             <HeaderWidgets />
+            <Box visibleFrom="lg" style={{ height: "100%" }}>
+              <NewsMarquee />
+            </Box>
             <Divider orientation="vertical" size="sm" visibleFrom="sm" />
             {/* Spotlight trigger */}
             <UnstyledButton

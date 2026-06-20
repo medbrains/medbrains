@@ -54,13 +54,13 @@ function sourcesAsHeadlines(sources: NewsSource[]): Headline[] {
   return sources.map((source) => ({ title: source.name, link: source.url }));
 }
 
-const ROTATE_MS = 5000;
+const ROTATE_MS = 3200;
 
 /**
- * Header news ticker — a role-aware, vertical fold rotator showing one live,
- * direct medical article at a time (curated free-magazine fallback only if all
- * feeds fail). Each headline folds in from the top, one by one. Pauses on
- * hover/focus (Mantine hooks) and honours reduced-motion; items link out.
+ * Header news ticker — a role-aware, vertical fold rotator that cycles live,
+ * direct medical articles one at a time (curated free-magazine fallback only if
+ * all feeds fail). Each article folds in from the top; pauses on hover/focus
+ * (Mantine hooks); honours reduced-motion; each item links out to the article.
  */
 export function NewsMarquee() {
   const role = useAuthStore((s) => s.user?.role);
@@ -76,7 +76,7 @@ export function NewsMarquee() {
   const headlines = data ?? sourcesAsHeadlines(news.sources);
   const [index, setIndex] = useState(0);
 
-  // Pause rotation while the user is reading (hover) or tabbed in (focus).
+  // Pause rotation while reading (hover) or tabbed in (focus).
   const { hovered, ref: hoverRef } = useHover<HTMLElement>();
   const { focused, ref: focusRef } = useFocusWithin<HTMLElement>();
   const sectionRef = useMergedRef(hoverRef, focusRef);
@@ -94,17 +94,12 @@ export function NewsMarquee() {
   if (!item) return null;
 
   return (
-    <section
-      ref={sectionRef}
-      className={styles.marquee}
-      aria-label={`${news.topic} news`}
-      aria-live="polite"
-    >
+    <section ref={sectionRef} className={styles.marquee} aria-label={`${news.topic} news`}>
       <div className={styles.topic}>
         <Newspaper size={13} aria-hidden />
         <span>{news.topic}</span>
       </div>
-      <div className={styles.stage}>
+      <div className={styles.stage} aria-live="polite">
         {/* key forces a remount each change so the fold-in animation replays */}
         <a
           key={index}
