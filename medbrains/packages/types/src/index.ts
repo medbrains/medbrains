@@ -29965,6 +29965,22 @@ export interface RazorpayStatusResponse {
   webhook_configured: boolean;
 }
 
+export interface PaymentProviderInfo {
+  provider: string;
+  label: string;
+  configured: boolean;
+  active: boolean;
+  has_adapter: boolean;
+  mode?: string;
+  webhook_configured: boolean;
+  methods: string[];
+}
+
+export interface PaymentProvidersResponse {
+  active_provider: string;
+  providers: PaymentProviderInfo[];
+}
+
 // ══════════════════════════════════════════════════════════════
 //  Orchestration Engine
 // ══════════════════════════════════════════════════════════════

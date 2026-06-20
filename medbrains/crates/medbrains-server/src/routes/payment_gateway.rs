@@ -202,6 +202,180 @@ pub async fn razorpay_status(
 }
 
 // ══════════════════════════════════════════════════════════
+//  Multi-provider seam (additive — Razorpay logic unchanged)
+// ══════════════════════════════════════════════════════════
+
+/// Known payment providers and the methods each can settle. `has_adapter`
+/// marks whether a worker adapter exists yet — only adapter-backed providers
+/// may be selected as `active_provider` so `create_order` never queues an
+/// event the outbox worker cannot handle.
+struct ProviderSpec {
+    code: &'static str,
+    label: &'static str,
+    methods: &'static [&'static str],
+    has_adapter: bool,
+}
+
+const KNOWN_PROVIDERS: &[ProviderSpec] = &[
+    ProviderSpec {
+        code: "razorpay",
+        label: "Razorpay",
+        methods: &["card", "upi", "upi_qr", "netbanking", "wallet"],
+        has_adapter: true,
+    },
+    ProviderSpec {
+        code: "cashfree",
+        label: "Cashfree",
+        methods: &["card", "upi", "upi_qr", "netbanking"],
+        has_adapter: false,
+    },
+    ProviderSpec {
+        code: "paytm",
+        label: "Paytm",
+        methods: &["card", "upi", "wallet"],
+        has_adapter: false,
+    },
+    ProviderSpec {
+        code: "pinelabs",
+        label: "Pine Labs (POS)",
+        methods: &["card", "upi_qr"],
+        has_adapter: false,
+    },
+];
+
+fn provider_spec(code: &str) -> Option<&'static ProviderSpec> {
+    KNOWN_PROVIDERS.iter().find(|p| p.code == code)
+}
+
+/// Resolve the tenant's active payment provider. Defaults to `razorpay` for
+/// back-compat (existing tenants only ever had `razorpay_config`).
+async fn resolve_active_provider(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+) -> Result<String, AppError> {
+    let row = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'payments' AND key = 'active_provider'",
+    )
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    let provider = row
+        .and_then(|v| v.as_str().map(ToOwned::to_owned))
+        .filter(|p| provider_spec(p).is_some())
+        .unwrap_or_else(|| "razorpay".to_owned());
+    Ok(provider)
+}
+
+#[derive(Debug, Serialize)]
+struct PaymentProviderInfo {
+    provider: String,
+    label: String,
+    configured: bool,
+    active: bool,
+    has_adapter: bool,
+    mode: Option<String>,
+    webhook_configured: bool,
+    methods: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PaymentProvidersResponse {
+    active_provider: String,
+    providers: Vec<PaymentProviderInfo>,
+}
+
+/// Read a generic `<provider>_config` blob and report configured / mode /
+/// webhook without binding to a specific provider's typed struct.
+async fn peek_provider_config(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    provider: &str,
+) -> Result<(bool, Option<String>, bool), AppError> {
+    let key = format!("{provider}_config");
+    let row = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'payments' AND key = $2",
+    )
+    .bind(tenant_id)
+    .bind(&key)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    let Some(cfg) = row else {
+        return Ok((false, None, false));
+    };
+    // A provider is "configured" once it has a credential id (key_id / app_id).
+    let configured = cfg.get("key_id").and_then(serde_json::Value::as_str).is_some()
+        || cfg.get("app_id").and_then(serde_json::Value::as_str).is_some();
+    let mode = cfg
+        .get("mode")
+        .and_then(serde_json::Value::as_str)
+        .map(ToOwned::to_owned);
+    let webhook_configured = cfg
+        .get("webhook_secret")
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|s| !s.is_empty());
+    Ok((configured, mode, webhook_configured))
+}
+
+/// GET /api/payments/providers — list every known provider with its
+/// configured/active/mode state so admin + the payment modal can show what's
+/// live and which are in sandbox.
+pub async fn list_payment_providers(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<PaymentProvidersResponse>, AppError> {
+    require_permission(&claims, permissions::billing::payments::CREATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let active = resolve_active_provider(&mut tx, &claims.tenant_id).await?;
+
+    let mut providers = Vec::with_capacity(KNOWN_PROVIDERS.len());
+    for spec in KNOWN_PROVIDERS {
+        // Razorpay keeps its typed resolver (incl. env fallback + key-id mode
+        // detection); other providers use the generic peek.
+        let (configured, mode, webhook_configured) = if spec.code == "razorpay" {
+            match resolve_razorpay_config(&mut tx, &claims.tenant_id).await? {
+                Some(resolved) => {
+                    let mode = if resolved.config.key_id.starts_with("rzp_test_") {
+                        Some("test".to_owned())
+                    } else if resolved.config.key_id.starts_with("rzp_live_") {
+                        Some("live".to_owned())
+                    } else {
+                        Some("unknown".to_owned())
+                    };
+                    (true, mode, resolved.config.webhook_secret.is_some())
+                }
+                None => (false, None, false),
+            }
+        } else {
+            peek_provider_config(&mut tx, &claims.tenant_id, spec.code).await?
+        };
+
+        providers.push(PaymentProviderInfo {
+            provider: spec.code.to_owned(),
+            label: spec.label.to_owned(),
+            configured,
+            active: spec.code == active,
+            has_adapter: spec.has_adapter,
+            mode,
+            webhook_configured,
+            methods: spec.methods.iter().map(|m| (*m).to_owned()).collect(),
+        });
+    }
+
+    tx.commit().await?;
+    Ok(Json(PaymentProvidersResponse {
+        active_provider: active,
+        providers,
+    }))
+}
+
+// ══════════════════════════════════════════════════════════
 //  POST /api/payments/create-order
 // ══════════════════════════════════════════════════════════
 

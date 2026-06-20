@@ -1538,6 +1538,10 @@ pub fn build_router(state: AppState) -> Router {
             "/api/payments/razorpay/status",
             get(payment_gateway::razorpay_status),
         )
+        .route(
+            "/api/payments/providers",
+            get(payment_gateway::list_payment_providers),
+        )
         // ── Lab ──────────────────────────────────────────
         // Phase 3 static routes (MUST be before /orders/{id})
         .route(

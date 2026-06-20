@@ -8,4 +8,5 @@ export const paymentsService = {
   createPaymentOrder: (data: CreatePaymentOrderInput) => api.createPaymentOrder(data),
   verifyPayment: (data: VerifyPaymentInput) => api.verifyPayment(data),
   generateUpiQr: (data: GenerateUpiQrInput) => api.generateUpiQr(data),
+  listPaymentProviders: () => api.listPaymentProviders(),
 };

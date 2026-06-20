@@ -1286,6 +1286,7 @@ import type {
   Payment,
   PaymentGatewayTransaction,
   PaymentMethodRow,
+  PaymentProvidersResponse,
   PaymentStatusResponse,
   PcpndtForm,
   PcpndtQuarterlySummary,
@@ -12784,6 +12785,7 @@ export const api = {
     }),
   getPaymentStatus: (id: string) => request<PaymentStatusResponse>(`/payments/${id}/status`),
   getRazorpayStatus: () => request<RazorpayStatusResponse>("/payments/razorpay/status"),
+  listPaymentProviders: () => request<PaymentProvidersResponse>("/payments/providers"),
   generateUpiQr: (data: GenerateUpiQrRequest) =>
     request<UpiQrResponse>("/payments/upi-qr", {
       method: "POST",
