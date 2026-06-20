@@ -1,0 +1,11 @@
+// Full-screen TV / waiting-area token display — no app chrome, large + airy.
+.display {
+  min-height: 100vh;
+  background: var(--mb-bg-canvas, #fff);
+  padding: 32px 40px;
+
+  // Scale the board up for across-the-room legibility.
+  :global(.mantine-Text-root) {
+    line-height: 1.15;
+  }
+}

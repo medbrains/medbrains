@@ -137,6 +137,9 @@ const TokenBoardPage = lazy(() =>
 const TokenConsolePage = lazy(() =>
   import("./pages/token-console").then((m) => ({ default: m.TokenConsolePage })),
 );
+const TokenDisplayPage = lazy(() =>
+  import("./pages/token-display").then((m) => ({ default: m.TokenDisplayPage })),
+);
 const HousekeepingPage = lazy(() =>
   import("./pages/housekeeping").then((m) => ({ default: m.HousekeepingPage })),
 );
@@ -308,6 +311,16 @@ export function App() {
             <Route path="/force-password-change" element={<ForcePasswordChangePage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/mfa-enroll" element={<MfaEnrollPage />} />
+
+            {/* Full-screen TV / waiting-area display (authed, no app shell) */}
+            <Route
+              path="/token-display"
+              element={
+                <ProtectedRoute>
+                  <TokenDisplayPage />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Protected */}
             <Route

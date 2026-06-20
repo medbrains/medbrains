@@ -18,13 +18,17 @@ const STATUS_LABEL: Record<string, string> = {
   serving: "In progress",
 };
 
-function toItem(token: ModuleToken): TokenItem {
+function toItem(token: ModuleToken, publicMode: boolean): TokenItem {
+  // Public (TV) boards are token-number-only — no patient name (PHI).
+  const primary = publicMode
+    ? (token.counter_label ?? token.scope_label ?? undefined)
+    : (token.counter_label ?? token.scope_label ?? token.patient_name ?? undefined);
   return {
     id: token.id,
     tokenNumber: token.number,
     status: STATUS_LABEL[token.status] ?? token.status,
     tone: STATUS_TONE[token.status] ?? "neutral",
-    primary: token.counter_label ?? token.scope_label ?? token.patient_name ?? undefined,
+    primary,
     meta: token.priority !== "normal" ? token.priority : undefined,
     active: token.status === "called" || token.status === "serving",
   };
@@ -46,6 +50,8 @@ export interface TokenBoardLiveProps {
   module: string;
   scope?: string;
   scopeId?: string;
+  /** Public/TV mode — token-number-only (no patient name). */
+  publicMode?: boolean;
 }
 
 /**
@@ -53,7 +59,13 @@ export interface TokenBoardLiveProps {
  * queue WebSocket for instant refresh + a voice call-out on each "token called"
  * event. Maps ModuleToken[] into the presentational TokenDashboard. Web/mobile/TV.
  */
-export function TokenBoardLive({ title, module, scope, scopeId }: TokenBoardLiveProps) {
+export function TokenBoardLive({
+  title,
+  module,
+  scope,
+  scopeId,
+  publicMode = false,
+}: TokenBoardLiveProps) {
   const queryClient = useQueryClient();
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(muted);
@@ -88,7 +100,7 @@ export function TokenBoardLive({ title, module, scope, scopeId }: TokenBoardLive
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scopeId, module, scope, queryClient]);
 
-  const tokens = (data ?? []).map(toItem);
+  const tokens = (data ?? []).map((token) => toItem(token, publicMode));
   return (
     <TokenDashboard
       title={title}
