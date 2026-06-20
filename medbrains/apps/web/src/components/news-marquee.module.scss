@@ -51,7 +51,8 @@
   height: 6px;
   border-radius: 50%;
   flex: none;
-  background: var(--mb-interactive, #0f62fe);
+  // Vital-green news indicator (brand second colour / ECG beat).
+  background: var(--mb-accent-emphasis, #42be65);
 }
 
 // ── Hover card: full article heading (blue) + readable snippet + source ──

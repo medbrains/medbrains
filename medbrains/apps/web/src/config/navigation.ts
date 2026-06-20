@@ -23,6 +23,7 @@ import {
   IconFirstAidKit,
   IconFlask,
   IconForms,
+  IconHeadset,
   IconHeartbeat,
   IconHeartHandshake,
   IconHeartPlus,
@@ -30,9 +31,11 @@ import {
   IconHistory,
   IconIdBadge2,
   IconLayoutDashboard,
+  IconLayoutGrid,
   IconListDetails,
   IconMessage,
   IconMicroscope,
+  IconNews,
   IconPackage,
   IconPill,
   IconPlug,
@@ -87,6 +90,9 @@ export interface NavGroupConfig {
 // ── Icon Map ──
 
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: number }>> = {
+  IconLayoutGrid,
+  IconHeadset,
+  IconNews,
   IconAmbulance,
   IconAppWindow,
   IconMessage,
@@ -234,6 +240,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         i18nKey: "dashboard",
         path: "/dashboard",
         icon: "IconDashboard",
+        requiredPermission: "dashboard.view",
+      },
+      {
+        i18nKey: "healthPulse",
+        path: "/health-pulse",
+        icon: "IconNews",
         requiredPermission: "dashboard.view",
       },
       {
