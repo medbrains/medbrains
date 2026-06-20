@@ -136,6 +136,7 @@ import {
   VitalsRecorder,
 } from "@/components";
 import { BedSelect } from "@/components/BedSelect";
+import { PatientBillingModal } from "@/components/Billing/PatientBillingModal";
 import { OrderBasketChip } from "@/components/OrderBasket/OrderBasketChip";
 import {
   type OrderBasketTab,
@@ -1652,6 +1653,7 @@ export function EncounterDetail({
   const [summaryOpened, { open: openSummary, close: closeSummary }] = useDisclosure(false);
   // Controlled so the Patient Flow "IPD" chip can open the same Admit modal.
   const admitControl = useDisclosure(false);
+  const billingControl = useDisclosure(false);
   const [activeEncounterTab, setActiveEncounterTab] = useHashTabs(
     "consultation",
     OPD_ENCOUNTER_TAB_VALUES,
@@ -1824,8 +1826,17 @@ export function EncounterDetail({
             admitControl[1].open();
             return true;
           }
+          if (stage === "billing") {
+            billingControl[1].open();
+            return true;
+          }
           return false;
         }}
+      />
+      <PatientBillingModal
+        patientId={patientId}
+        encounterId={encounterId}
+        control={billingControl}
       />
 
       {/* Encounter action toolbar — lives in the header, above the rail/content split. */}
