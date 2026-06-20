@@ -102,6 +102,26 @@
         "ordinal": 19,
         "name": "updated_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 20,
+        "name": "company_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 21,
+        "name": "deleted_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 22,
+        "name": "deleted_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 23,
+        "name": "delete_reason",
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -146,7 +166,11 @@
       false,
       false,
       false,
-      false
+      false,
+      true,
+      true,
+      true,
+      true
     ]
   },
   "hash": "fccb9d2ce13aaf853a9b508cc339ccee6e4a53121ead87475018b8e86f9e466b"

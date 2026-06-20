@@ -361,6 +361,9 @@ pub struct Patient {
 /// PAN, passport, ABHA, NHS number, SSN, Emirates ID, and more.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct PatientIdentifier {
+    pub deleted_at: Option<DateTime<Utc>>,
+    pub deleted_by: Option<Uuid>,
+    pub delete_reason: Option<String>,
     pub id: Uuid,
     pub tenant_id: Uuid,
     pub patient_id: Uuid,
@@ -388,6 +391,9 @@ pub struct PatientIdentifier {
 /// and `geo_districts` for standardized geographic data.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct PatientAddress {
+    pub deleted_at: Option<DateTime<Utc>>,
+    pub deleted_by: Option<Uuid>,
+    pub delete_reason: Option<String>,
     pub id: Uuid,
     pub tenant_id: Uuid,
     pub patient_id: Uuid,
@@ -414,6 +420,9 @@ pub struct PatientAddress {
 /// Maps to `patient_contacts` table. Multiple contacts are ordered by `priority`.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct PatientContact {
+    pub deleted_at: Option<DateTime<Utc>>,
+    pub deleted_by: Option<Uuid>,
+    pub delete_reason: Option<String>,
     pub id: Uuid,
     pub tenant_id: Uuid,
     pub patient_id: Uuid,
@@ -438,6 +447,10 @@ pub struct PatientContact {
 /// with TPA (Third Party Administrator) details.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct PatientInsurance {
+    pub deleted_at: Option<DateTime<Utc>>,
+    pub deleted_by: Option<Uuid>,
+    pub delete_reason: Option<String>,
+    pub company_id: Option<Uuid>,
     pub id: Uuid,
     pub tenant_id: Uuid,
     pub patient_id: Uuid,
@@ -468,6 +481,9 @@ pub struct PatientInsurance {
 /// Maps to `patient_allergies` table. Allergens may reference SNOMED CT or `RxNorm` codes.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct PatientAllergy {
+    pub deleted_at: Option<DateTime<Utc>>,
+    pub deleted_by: Option<Uuid>,
+    pub delete_reason: Option<String>,
     pub id: Uuid,
     pub tenant_id: Uuid,
     pub patient_id: Uuid,
@@ -518,6 +534,9 @@ pub struct PatientConsent {
 /// of the merged record for auditability and potential unmerge.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct PatientMergeHistory {
+    pub deleted_at: Option<DateTime<Utc>>,
+    pub deleted_by: Option<Uuid>,
+    pub delete_reason: Option<String>,
     pub id: Uuid,
     pub tenant_id: Uuid,
     /// The patient record that survives the merge.
@@ -561,6 +580,9 @@ pub struct PatientDocument {
 /// demographics, and insurance propagation.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct PatientFamilyLink {
+    pub deleted_at: Option<DateTime<Utc>>,
+    pub deleted_by: Option<Uuid>,
+    pub delete_reason: Option<String>,
     pub id: Uuid,
     pub tenant_id: Uuid,
     pub patient_id: Uuid,
@@ -609,6 +631,9 @@ pub struct PatientAbhaLink {
 /// available to all tenants.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct MasterReligion {
+    pub deleted_at: Option<DateTime<Utc>>,
+    pub deleted_by: Option<Uuid>,
+    pub delete_reason: Option<String>,
     pub id: Uuid,
     pub tenant_id: Option<Uuid>,
     pub code: String,
@@ -622,6 +647,9 @@ pub struct MasterReligion {
 /// Maps to `master_occupations` table. `tenant_id = None` indicates a global default.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct MasterOccupation {
+    pub deleted_at: Option<DateTime<Utc>>,
+    pub deleted_by: Option<Uuid>,
+    pub delete_reason: Option<String>,
     pub id: Uuid,
     pub tenant_id: Option<Uuid>,
     pub code: String,
@@ -635,6 +663,9 @@ pub struct MasterOccupation {
 /// Maps to `master_relations` table. `tenant_id = None` indicates a global default.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct MasterRelation {
+    pub deleted_at: Option<DateTime<Utc>>,
+    pub deleted_by: Option<Uuid>,
+    pub delete_reason: Option<String>,
     pub id: Uuid,
     pub tenant_id: Option<Uuid>,
     pub code: String,

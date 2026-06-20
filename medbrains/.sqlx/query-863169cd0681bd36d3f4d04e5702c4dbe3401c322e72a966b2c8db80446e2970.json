@@ -52,6 +52,21 @@
         "ordinal": 9,
         "name": "created_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "deleted_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "deleted_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 12,
+        "name": "delete_reason",
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -69,7 +84,10 @@
       false,
       true,
       true,
-      false
+      false,
+      true,
+      true,
+      true
     ]
   },
   "hash": "863169cd0681bd36d3f4d04e5702c4dbe3401c322e72a966b2c8db80446e2970"
