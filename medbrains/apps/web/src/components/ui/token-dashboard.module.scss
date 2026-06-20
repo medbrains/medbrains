@@ -53,6 +53,7 @@
   font-size: 52px;
   font-weight: 700;
   line-height: 1;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
   color: var(--mb-brand-fg, #0f62fe);
 }
@@ -79,6 +80,7 @@
   font-size: 24px;
   font-weight: 700;
   line-height: 1.1;
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
   color: var(--mb-text-primary, #161616);
 }
