@@ -1,0 +1,12 @@
+# Run the news ingest every 30 minutes (and shortly after boot).
+[Unit]
+Description=Run MedBrains medical-news ingest on a schedule
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=30min
+Persistent=true
+Unit=medbrains-news-ingest.service
+
+[Install]
+WantedBy=timers.target

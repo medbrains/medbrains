@@ -1,0 +1,16 @@
+# Ingest medical news into news_feed_articles (paired with the .timer).
+# Install: copy both unit files to /etc/systemd/system/, set the EnvironmentFile
+# path + WorkingDirectory, then: systemctl enable --now medbrains-news-ingest.timer
+[Unit]
+Description=MedBrains medical-news ingest (newspaper4k worker)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Repo root (contains pyproject.toml + scripts/news_ingest.py)
+WorkingDirectory=/opt/medbrains
+# DATABASE_URL (and optional NEWS_FULLTEXT=1) live here
+EnvironmentFile=/etc/medbrains/news.env
+ExecStart=/usr/local/bin/uv run python scripts/news_ingest.py
+Nice=10
