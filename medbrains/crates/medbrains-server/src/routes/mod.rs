@@ -714,6 +714,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/tokens/issue", post(tokens::issue_token))
         .route("/api/tokens/board", get(tokens::list_board))
         .route("/api/tokens/mine", get(tokens::my_tokens))
+        .route("/api/tokens/call-next", post(tokens::call_next))
+        .route("/api/tokens/{id}/advance", post(tokens::advance_token))
         .route("/api/tokens/{id}/call", post(tokens::call_token))
         .route("/api/tokens/{id}/serve", post(tokens::serve_token))
         .route("/api/tokens/{id}/complete", post(tokens::complete_token))

@@ -57,6 +57,27 @@ fn token_prefix(module: &str) -> &'static str {
     }
 }
 
+/// Tokens default ON; an admin disables a module via tenant_settings
+/// (category 'tokens', key '<module>_enabled' -> {"enabled": false}) — so
+/// "for some days token may not be needed" is a single toggle.
+async fn module_tokens_enabled(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    module: &str,
+) -> Result<bool, AppError> {
+    let value: Option<serde_json::Value> = sqlx::query_scalar(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'tokens' AND key = $2",
+    )
+    .bind(tenant_id)
+    .bind(format!("{module}_enabled"))
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(value
+        .and_then(|setting| setting.get("enabled").and_then(serde_json::Value::as_bool))
+        .unwrap_or(true))
+}
+
 async fn broadcast_status(state: &AppState, token: &Token) {
     if let Some(scope_id) = token.scope_id {
         state
@@ -98,6 +119,10 @@ pub async fn issue_token(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    if !module_tokens_enabled(&mut tx, claims.tenant_id, &body.module).await? {
+        return Err(AppError::Forbidden);
+    }
 
     let seq: i32 = sqlx::query_scalar(
         "SELECT COALESCE(MAX(seq), 0) + 1 FROM tokens \
@@ -297,4 +322,65 @@ pub async fn no_show_token(
 ) -> Result<Json<Token>, AppError> {
     require_permission(&claims, permissions::front_office::queue::MANAGE)?;
     Ok(Json(transition(&state, &claims, id, "no_show", None).await?))
+}
+
+// ── Generic advance + call-next (drives the per-module workflow console) ──
+#[derive(Debug, Deserialize)]
+pub struct AdvanceTokenInput {
+    pub status: String,
+    pub counter_label: Option<String>,
+}
+
+/// POST /api/tokens/{id}/advance — set any workflow status (the per-module
+/// workflow config decides which transitions a role may perform).
+pub async fn advance_token(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<AdvanceTokenInput>,
+) -> Result<Json<Token>, AppError> {
+    require_permission(&claims, permissions::front_office::queue::MANAGE)?;
+    Ok(Json(transition(&state, &claims, id, &body.status, body.counter_label).await?))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CallNextInput {
+    pub module: String,
+    pub scope: Option<String>,
+    pub scope_id: Option<Uuid>,
+    pub counter_label: Option<String>,
+}
+
+/// POST /api/tokens/call-next — call the next waiting token in a scope (the
+/// staff "Call next"); returns null when the queue is empty.
+pub async fn call_next(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CallNextInput>,
+) -> Result<Json<Option<Token>>, AppError> {
+    require_permission(&claims, permissions::front_office::queue::MANAGE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let next_id: Option<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM tokens \
+         WHERE module = $1 AND token_date = CURRENT_DATE AND status = 'waiting' \
+           AND ($2::text IS NULL OR scope = $2) AND ($3::uuid IS NULL OR scope_id = $3) \
+         ORDER BY CASE priority WHEN 'stat' THEN 0 WHEN 'urgent' THEN 1 ELSE 2 END, seq ASC \
+         LIMIT 1",
+    )
+    .bind(&body.module)
+    .bind(&body.scope)
+    .bind(body.scope_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    match next_id {
+        Some(id) => {
+            let token = transition(&state, &claims, id, "called", body.counter_label).await?;
+            Ok(Json(Some(token)))
+        }
+        None => Ok(Json(None)),
+    }
 }

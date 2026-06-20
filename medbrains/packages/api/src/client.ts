@@ -1037,6 +1037,7 @@ import type {
   IssueCredentialRequest,
   IssueIndentRequest,
   IssueMrdRecordRequest,
+  IssueTokenInput,
   IssueToPatientRequest,
   ItSecurityOnboardingProgress,
   JobListResponse,
@@ -1148,6 +1149,7 @@ import type {
   ModuleConfig,
   ModuleEntitySchema,
   ModuleSummary,
+  ModuleToken,
   MonthlySurveillanceReport,
   MortuaryRecord,
   MpiMatchRequest,
@@ -1184,6 +1186,7 @@ import type {
   // Scheduling
   NoshowPredictionScore,
   NoshowRateRow,
+  NotificationListResponse,
   NuclearMedAdministration,
   NuclearMedSource,
   NursingAssessmentPrintData,
@@ -1269,12 +1272,8 @@ import type {
   PatientFlowSnapshot,
   PatientIdentifier,
   PatientInvoiceRow,
-  IssueTokenInput,
-  ModuleToken,
-  NotificationListResponse,
   PatientLabOrderRow,
   PatientListResponse,
-  UnreadCountResponse,
   PatientMergeHistory,
   PatientOutcomeTarget,
   PatientReminder,
@@ -1589,6 +1588,7 @@ import type {
   // TV Displays & Queue
   TvDisplay,
   UnifiedAsset,
+  UnreadCountResponse,
   UpdateAdmissionRequest,
   UpdateAdrRequest,
   UpdateAlertThresholdRequest,
@@ -3039,6 +3039,21 @@ export const api = {
   serveToken: (id: string) => request<ModuleToken>(`/tokens/${id}/serve`, { method: "POST" }),
   completeToken: (id: string) => request<ModuleToken>(`/tokens/${id}/complete`, { method: "POST" }),
   noShowToken: (id: string) => request<ModuleToken>(`/tokens/${id}/no-show`, { method: "POST" }),
+  advanceToken: (id: string, status: string, counterLabel?: string) =>
+    request<ModuleToken>(`/tokens/${id}/advance`, {
+      method: "POST",
+      body: JSON.stringify({ status, counter_label: counterLabel ?? null }),
+    }),
+  callNextToken: (input: {
+    module: string;
+    scope?: string;
+    scope_id?: string;
+    counter_label?: string;
+  }) =>
+    request<ModuleToken | null>("/tokens/call-next", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   getPatient: (id: string) => request<Patient>(`/patients/${id}`),
   getPatientContext: (id: string) => request<PatientContext>(`/patients/${id}/context`),
   createPatient: (data: CreatePatientRequest) =>

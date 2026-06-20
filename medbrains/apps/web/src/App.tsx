@@ -134,6 +134,9 @@ const FrontOfficePage = lazy(() =>
 const TokenBoardPage = lazy(() =>
   import("./pages/token-board").then((m) => ({ default: m.TokenBoardPage })),
 );
+const TokenConsolePage = lazy(() =>
+  import("./pages/token-console").then((m) => ({ default: m.TokenConsolePage })),
+);
 const HousekeepingPage = lazy(() =>
   import("./pages/housekeeping").then((m) => ({ default: m.HousekeepingPage })),
 );
@@ -347,6 +350,7 @@ export function App() {
               <Route path="quality" element={<QualityPage />} />
               <Route path="front-office" element={<FrontOfficePage />} />
               <Route path="token-board" element={<TokenBoardPage />} />
+              <Route path="token-console" element={<TokenConsolePage />} />
               <Route path="housekeeping" element={<HousekeepingPage />} />
               <Route path="hr" element={<HrPage />} />
               <Route path="bme" element={<BmePage />} />

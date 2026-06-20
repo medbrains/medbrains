@@ -61,5 +61,13 @@
       "radiology": "Radiology",
       "dispatch": "Dispatch"
     }
+  },
+  "tokenConsole": {
+    "title": "Token console",
+    "subtitle": "Call and process queue tokens",
+    "counter": "Counter / room",
+    "counterPlaceholder": "e.g. Counter 2",
+    "callNext": "Call next",
+    "empty": "No tokens in the queue"
   }
 }

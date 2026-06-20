@@ -242,6 +242,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         icon: "IconLayoutGrid",
         requiredPermission: "front_office.queue.list",
       },
+      {
+        i18nKey: "tokenConsole",
+        path: "/token-console",
+        icon: "IconHeadset",
+        requiredPermission: "front_office.queue.manage",
+      },
     ],
   },
   {
