@@ -25,7 +25,7 @@ import {
   IconCreditCard,
   IconQrcode,
 } from "@tabler/icons-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { paymentsService } from "@/services/payments.service";
@@ -66,6 +66,19 @@ export function PaymentModal({
 }: PaymentModalProps) {
   const [qrData, setQrData] = useState<UpiQrResponse | null>(null);
   const canCreatePayment = useHasPermission(P.BILLING.PAYMENTS_CREATE);
+
+  // Surface which online provider settles gateway/UPI here + sandbox warning.
+  const { data: providersResp } = useQuery({
+    queryKey: ["payment-providers"],
+    queryFn: paymentsService.listPaymentProviders,
+    enabled: opened,
+    staleTime: 300_000,
+  });
+  const activeProvider = useMemo(
+    () => providersResp?.providers.find((p) => p.active),
+    [providersResp],
+  );
+  const isSandbox = activeProvider?.mode === "sandbox" || activeProvider?.mode === "test";
   const paymentSchema = useMemo(() => createPaymentFormSchema(amount), [amount]);
   const {
     control,
@@ -307,6 +320,22 @@ export function PaymentModal({
           <Text size="sm" c="dimmed">
             Patient: {patientName}
           </Text>
+        )}
+
+        {activeProvider && (
+          <Group gap="xs">
+            <Text size="xs" c="dimmed">
+              Gateway:
+            </Text>
+            <Badge size="sm" color="primary" variant="light">
+              {activeProvider.label}
+            </Badge>
+            {isSandbox && (
+              <Badge size="sm" color="warning" variant="filled">
+                SANDBOX — test mode
+              </Badge>
+            )}
+          </Group>
         )}
 
         {paymentBlocked && (
