@@ -113,6 +113,23 @@ body {
 
 ::-webkit-scrollbar-corner { background: var(--mb-scrollbar-track); }
 
+// Mantine ScrollArea renders its own custom thumb (not the native scrollbar),
+// so theme it to the same thin primary-blue accent.
+.mantine-ScrollArea-scrollbar[data-orientation="vertical"] {
+  width: 8px;
+  background: transparent;
+}
+.mantine-ScrollArea-scrollbar[data-orientation="horizontal"] {
+  height: 8px;
+  background: transparent;
+}
+.mantine-ScrollArea-thumb {
+  background-color: var(--mb-scrollbar-thumb) !important;
+}
+.mantine-ScrollArea-thumb:hover {
+  background-color: var(--mb-scrollbar-thumb-hover) !important;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // ── TYPOGRAPHY — clinical readability over display styling ───
 // ═══════════════════════════════════════════════════════════════
