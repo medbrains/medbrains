@@ -35,9 +35,13 @@ export function StepConfigPopover({ step, onUpdate, onDelete, children }: StepCo
       shadow="md"
     >
       <Popover.Target>
-        <span onClick={() => setOpened((v) => !v)} style={{ cursor: "pointer" }}>
+        <button
+          type="button"
+          onClick={() => setOpened((v) => !v)}
+          style={{ all: "unset", cursor: "pointer" }}
+        >
           {children}
-        </span>
+        </button>
       </Popover.Target>
       <Popover.Dropdown>
         <Stack gap="xs">

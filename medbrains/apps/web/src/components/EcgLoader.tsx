@@ -26,7 +26,7 @@ export const EcgLoader: MantineLoaderComponent = forwardRef(({ style, ...others 
       viewBox="0 0 120 24"
       preserveAspectRatio="none"
       fill="none"
-      role="status"
+      role="img"
       aria-label="Loading"
       style={{
         width: "var(--loader-size, 96px)",

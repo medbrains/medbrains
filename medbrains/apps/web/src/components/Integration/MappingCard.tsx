@@ -152,6 +152,7 @@ function SortableSourceChip({
   const isGroup = source.children && source.children.length > 0;
 
   return (
+    // biome-ignore lint/a11y/useSemanticElements: cannot be a <button> — this is a dnd-kit sortable node (setNodeRef) that wraps nested interactive controls (drag grip, badge, action icons); keyboard access is provided via tabIndex + onKeyDown
     <div
       ref={setNodeRef}
       className={`${isGroup ? styles.sourceChipGroup : styles.sourceChip} ${isSelected ? styles.sourceChipSelected : ""}`}
@@ -160,7 +161,15 @@ function SortableSourceChip({
         transition,
         opacity: isDragging ? 0.4 : 1,
       }}
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(source.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect(source.id);
+        }
+      }}
     >
       {isGroup ? (
         /* ── Expanded group view ── */

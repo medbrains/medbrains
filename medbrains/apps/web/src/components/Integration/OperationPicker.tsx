@@ -45,9 +45,13 @@ export function OperationPicker({ onSelect, children }: OperationPickerProps) {
       shadow="md"
     >
       <Popover.Target>
-        <span onClick={() => setOpened((v) => !v)} style={{ cursor: "pointer" }}>
+        <button
+          type="button"
+          onClick={() => setOpened((v) => !v)}
+          style={{ all: "unset", cursor: "pointer" }}
+        >
           {children}
-        </span>
+        </button>
       </Popover.Target>
       <Popover.Dropdown p={0}>
         <Stack gap={0}>

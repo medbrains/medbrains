@@ -136,6 +136,8 @@ export function FreeformMapperCanvas({
   return (
     <div
       ref={reactFlowWrapper}
+      role="application"
+      aria-label="Field mapping canvas"
       style={{ width: "100%", height: "100%" }}
       onDragOver={handleDragOver}
       onDrop={handleDrop}

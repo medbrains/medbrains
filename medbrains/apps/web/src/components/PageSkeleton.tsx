@@ -80,7 +80,7 @@ export function PageSkeleton() {
   return (
     <Center h="100vh" className={styles.wrapper}>
       <div className={styles.container}>
-        <svg className={styles.ecg} viewBox="0 0 200 40" fill="none">
+        <svg className={styles.ecg} viewBox="0 0 200 40" fill="none" aria-hidden="true">
           <defs>
             <mask id="pageSkelMask">
               <rect className={styles.sweepRect} x="0" y="0" width="0" height="40" fill="white" />

@@ -210,34 +210,35 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
       // Enterprise-console typography is all-sans — no editorial serif.
       fontFamily: fontFamily.sans,
       fontWeight: fontWeight.semibold,
+      // Carbon productive heading scale — a clear, distinct step per level.
       sizes: {
         h1: {
-          fontSize: rem(fontSize["3xl"]),
+          fontSize: rem(fontSize["4xl"]), // 28
           lineHeight: lineHeight.tight,
           fontWeight: fontWeight.bold,
         },
         h2: {
-          fontSize: rem(fontSize["2xl"]),
+          fontSize: rem(fontSize["3xl"]), // 24
           lineHeight: lineHeight.tight,
           fontWeight: fontWeight.semibold,
         },
         h3: {
-          fontSize: rem(fontSize["2xl"]),
-          lineHeight: lineHeight.tight,
+          fontSize: rem(fontSize["2xl"]), // 20
+          lineHeight: lineHeight.snug,
           fontWeight: fontWeight.semibold,
         },
         h4: {
-          fontSize: rem(fontSize.xl),
+          fontSize: rem(fontSize.xl), // 18
           lineHeight: lineHeight.snug,
           fontWeight: fontWeight.semibold,
         },
         h5: {
-          fontSize: rem(fontSize.lg),
+          fontSize: rem(fontSize.lg), // 16
           lineHeight: lineHeight.snug,
           fontWeight: fontWeight.semibold,
         },
         h6: {
-          fontSize: rem(fontSize.md),
+          fontSize: rem(fontSize.md), // 14
           lineHeight: lineHeight.snug,
           fontWeight: fontWeight.semibold,
         },
