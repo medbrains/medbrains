@@ -194,6 +194,7 @@ import {
   opdEncounterWorkspaceTabRoute,
   opdOrderBasketTabFromSearchParams,
 } from "./opd-workspace";
+import railStyles from "./opd-encounter.module.scss";
 
 type OpdTranslate = ReturnType<typeof useTranslation>["t"];
 
@@ -1815,6 +1816,11 @@ export function EncounterDetail({
         onChange={setActiveEncounterTab}
         keepMounted={false}
         orientation="vertical"
+        classNames={{
+          tab: railStyles.railTab,
+          tabSection: railStyles.railTabSection,
+          tabLabel: railStyles.railTabLabel,
+        }}
         style={{ display: "flex", height: "100%", width: "100%", minWidth: 0 }}
       >
         {/* ── Left Sidebar: Patient + Nav ── */}

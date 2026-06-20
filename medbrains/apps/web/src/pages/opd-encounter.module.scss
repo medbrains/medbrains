@@ -1,0 +1,49 @@
+// OPD encounter — left tab-rail item design (Carbon-clean rows).
+.railTab {
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--mb-text-secondary, #525252);
+  transition: background 100ms ease, color 100ms ease;
+}
+
+.railTab:hover {
+  background: var(--mb-bg-hover, #f4f4f4);
+  color: var(--mb-text-primary, #161616);
+}
+
+.railTab:focus-visible {
+  outline: 2px solid var(--mb-interactive, #0f62fe);
+  outline-offset: -2px;
+}
+
+// Active row — blue-tinted with an inset accent edge + brand text.
+.railTab[data-active] {
+  background: var(--mb-brand-bg, #edf5ff);
+  color: var(--mb-interactive, #0f62fe);
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--mb-interactive, #0f62fe);
+}
+
+.railTab[data-active]:hover {
+  background: var(--mb-brand-bg-hover, #d0e2ff);
+}
+
+// Icon tracks the row's text colour.
+.railTabSection {
+  color: currentColor;
+  opacity: 0.85;
+  margin-right: 0;
+}
+
+// Label sits flush next to the icon (left-aligned), fills the row.
+.railTabLabel {
+  flex: 1;
+  text-align: left;
+}
