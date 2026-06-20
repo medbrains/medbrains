@@ -3165,7 +3165,6 @@ function PatientDetailPageInner() {
 
       <Card className={classes.commandBar}>
         <Stack gap="xs">
-          <PatientContextBanner patientId={patient.id} />
           <PatientFlowNavigator
             patientId={patient.id}
             active="patient"
@@ -3224,6 +3223,7 @@ function PatientDetailPageInner() {
                 {displayPhone && displayPhone !== "-" && (
                   <Badge tone="neutral">{displayPhone}</Badge>
                 )}
+                <PatientContextBanner patientId={patient.id} inline />
               </Group>
             </Stack>
             <PatientJourneyActions

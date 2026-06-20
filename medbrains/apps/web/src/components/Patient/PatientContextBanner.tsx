@@ -47,6 +47,9 @@ interface PatientContextBannerProps {
    * screen already shows a header skeleton. */
   hideLoadingState?: boolean;
   variant?: PatientContextVariant;
+  /** Render the signal chips only (no Alert frame, no identity line) so they
+   * can sit inline next to a header's identity chips. */
+  inline?: boolean;
 }
 
 interface PatientContextChip {
@@ -111,6 +114,7 @@ export function PatientContextBanner({
   patientId,
   hideLoadingState = false,
   variant = "clinical",
+  inline = false,
 }: PatientContextBannerProps) {
   const { t } = useTranslation("patients");
   const { data, isLoading, isError } = usePatientContext(patientId);
@@ -285,6 +289,17 @@ export function PatientContextBanner({
     variant === "financial" ? chips.filter((chip) => chip.scope === "all") : chips;
 
   if (visibleChips.length === 0) return null;
+
+  // Inline mode: just the chips, to embed next to a header's identity chips.
+  if (inline) {
+    return (
+      <Group gap="xs" wrap="wrap" align="center">
+        {visibleChips.map((chip) => (
+          <span key={chip.key}>{chip.node}</span>
+        ))}
+      </Group>
+    );
+  }
 
   // Use the highest severity present to colour the alert frame.
   const alertColor = visibleChips.some((chip) => chip.severity === "critical")
