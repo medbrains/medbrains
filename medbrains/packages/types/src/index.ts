@@ -31181,6 +31181,31 @@ export interface ModuleToken {
   created_at: string;
 }
 
+/** Hospital-authored blog post (tenant-scoped — `blog_posts`). */
+export interface BlogPost {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  body_html: string;
+  cover_image_url: string | null;
+  status: "draft" | "published" | "archived";
+  author_id: string | null;
+  author_name: string | null;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpsertBlogInput {
+  title: string;
+  slug?: string;
+  excerpt?: string | null;
+  body_html?: string;
+  cover_image_url?: string | null;
+  status?: "draft" | "published" | "archived";
+}
+
 /** Ingested medical news article (global feed — `news_feed_articles`). */
 export interface NewsFeedArticle {
   id: string;

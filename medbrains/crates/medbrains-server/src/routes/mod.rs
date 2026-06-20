@@ -13,6 +13,7 @@ pub mod audit;
 pub mod auth;
 pub mod bedside_portal;
 pub mod billing;
+pub mod blog;
 pub mod blood_bank;
 pub mod bme;
 pub mod camp;
@@ -6708,6 +6709,12 @@ pub fn build_router(state: AppState) -> Router {
             get(admin_simulator::get_run),
         )
         // Medical news feed — global ingested articles (list/search + reader).
+        // Hospital blog — published reads + author CRUD.
+        .route("/api/blog", get(blog::list_blog).post(blog::create_blog))
+        .route(
+            "/api/blog/{id}",
+            get(blog::get_blog).put(blog::update_blog).delete(blog::delete_blog),
+        )
         .route("/api/news-feed", get(news_feed::list_news_feed))
         .route(
             "/api/news-feed/{id}",

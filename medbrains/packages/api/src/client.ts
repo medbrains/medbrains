@@ -158,6 +158,7 @@ import type {
   BillingThresholdStatus,
   BiowasteRecord,
   BirthRegisterPrintData,
+  BlogPost,
   BloodComponent,
   BloodDonation,
   BloodDonor,
@@ -1151,7 +1152,6 @@ import type {
   ModuleSummary,
   ModuleToken,
   MonthlySurveillanceReport,
-  NewsFeedArticle,
   MortuaryRecord,
   MpiMatchRequest,
   MpiMatchResult,
@@ -1182,6 +1182,7 @@ import type {
   NearExpiryRow,
   NeedleStickIncident,
   NewbornRecord,
+  NewsFeedArticle,
   NmcComplianceReportPrintData,
   NmcNarfAssessmentPrintData,
   // Scheduling
@@ -1769,6 +1770,7 @@ import type {
   UpdateWardRequest,
   UpiQrResponse,
   UpsertAssetClassificationRequest,
+  UpsertBlogInput,
   UpsertCampRemoteSetupRequest,
   UpsertDisplayConfigRequest,
   UpsertParLevelRequest,
@@ -3064,6 +3066,15 @@ export const api = {
     return request<NewsFeedArticle[]>(`/news-feed${suffix ? `?${suffix}` : ""}`);
   },
   getNewsFeedArticle: (id: string) => request<NewsFeedArticle>(`/news-feed/${id}`),
+  listBlog: (params?: { include_drafts?: boolean }) =>
+    request<BlogPost[]>(`/blog${params?.include_drafts ? "?include_drafts=true" : ""}`),
+  getBlogPost: (id: string) => request<BlogPost>(`/blog/${id}`),
+  createBlogPost: (input: UpsertBlogInput) =>
+    request<BlogPost>("/blog", { method: "POST", body: JSON.stringify(input) }),
+  updateBlogPost: (id: string, input: UpsertBlogInput) =>
+    request<BlogPost>(`/blog/${id}`, { method: "PUT", body: JSON.stringify(input) }),
+  deleteBlogPost: (id: string) =>
+    request<{ deleted: boolean }>(`/blog/${id}`, { method: "DELETE" }),
   getPatient: (id: string) => request<Patient>(`/patients/${id}`),
   getPatientContext: (id: string) => request<PatientContext>(`/patients/${id}/context`),
   createPatient: (data: CreatePatientRequest) =>
