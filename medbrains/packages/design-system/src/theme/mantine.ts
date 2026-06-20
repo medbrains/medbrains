@@ -465,7 +465,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
             fontWeight: 400,
             fontSize: "14px",
             color: "var(--mb-text-secondary)",
-            padding: "12px 16px",
+            padding: "8px 16px",
             borderBottomWidth: "2px",
           },
         },

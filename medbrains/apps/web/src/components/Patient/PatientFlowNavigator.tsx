@@ -10,6 +10,7 @@ import {
   buildPatientFlowReadiness,
   patientFlowJourneyContext,
   patientFlowReadinessSignal,
+  PERMISSIONS,
 } from "@medbrains/types";
 import {
   IconBed,
@@ -78,48 +79,53 @@ function FlowTooltip({ item }: { item: PatientFlowReadinessItem }) {
   const blockedLabel = journeyBlockedReasonLabel(t, item.blockedReason);
 
   return (
-    <Stack gap={5}>
-      <Text size="xs" fw={700}>
+    <Stack gap={6}>
+      <Text size="xs" fw={700} c="white">
         {item.enabled
           ? patientFlowItemDescription(t, item)
           : patientFlowItemDisabledReason(t, item)}
       </Text>
       {blockedLabel && (
-        <Badge size="xs" color="orange" variant="light">
+        <Badge size="xs" color="orange" variant="filled">
           {t("patientJourney.tooltip.blockedBy", { reason: blockedLabel })}
         </Badge>
       )}
       <Group gap={4}>
         {item.activationEvents.length > 0 ? (
           item.activationEvents.map((eventName) => (
-            <Badge key={eventName} size="xs" color="blue" variant="light">
+            <Badge key={eventName} size="xs" color="blue" variant="filled">
               {t("patientJourney.badges.afterEvent", {
                 event: clinicalEventLabel(t, eventName),
               })}
             </Badge>
           ))
         ) : (
-          <Badge size="xs" color="gray" variant="light">
+          <Badge size="xs" color="blue" variant="filled">
             {t("patientJourney.badges.always")}
           </Badge>
         )}
       </Group>
       {item.emittedEvent && (
-        <Badge size="xs" color="green" variant="light">
+        <Badge size="xs" color="blue" variant="filled">
           {t("patientJourney.badges.emitsEvent", {
             event: clinicalEventLabel(t, item.emittedEvent),
           })}
         </Badge>
       )}
       {item.requiredPermissions.length > 0 && (
-        <Text size="xs" c="dimmed">
+        <Text size="xs" c="gray.4">
           {t("patientJourney.tooltip.permissions", {
-            permissions: item.requiredPermissions.join(" / "),
+            permissions: item.requiredPermissions.map(flowPermissionLabel).join(" / "),
           })}
         </Text>
       )}
     </Stack>
   );
+}
+
+/** Human label for a permission code (falls back to the code). */
+function flowPermissionLabel(code: string): string {
+  return PERMISSIONS.find((permission) => permission.code === code)?.label ?? code;
 }
 
 export function PatientFlowNavigator({
