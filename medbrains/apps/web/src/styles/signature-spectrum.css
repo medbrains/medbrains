@@ -80,3 +80,17 @@
 .mantine-Tabs-tab[data-active] {
   color: var(--mb-text-primary) !important;
 }
+
+/* Icon affordance — on hover, an icon-only button's glyph shifts to the brand
+   blue (default / subtle / transparent variants). Filled + tone-coloured icons
+   keep their own colour. Applies everywhere (nav rail, toolbars, tables). */
+.mantine-ActionIcon-root[data-variant="subtle"]:hover svg,
+.mantine-ActionIcon-root[data-variant="default"]:hover svg,
+.mantine-ActionIcon-root[data-variant="transparent"]:hover svg {
+  color: var(--mb-brand-emphasis, #0f62fe);
+}
+
+/* Nav rail items: the icon follows the item's hover/active text colour. */
+.mantine-NavLink-root:hover .mantine-NavLink-icon svg {
+  color: var(--mb-brand-emphasis, #0f62fe);
+}
