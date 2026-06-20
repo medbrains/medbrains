@@ -45,5 +45,21 @@
   "tokenBoards.surfaces.opd.flow": "OPD",
   "tokenBoards.surfaces.pharmacy.flow": "Dispensing",
   "tokenBoards.surfaces.radiology.flow": "Modality",
-  "tokenBoards.workspaceDescription": "Workstation view of public queue feeds. {{notice}} Reception, lab, radiology, ER, pharmacy and billing operations stay linked to the same token state."
+  "tokenBoards.workspaceDescription": "Workstation view of public queue feeds. {{notice}} Reception, lab, radiology, ER, pharmacy and billing operations stay linked to the same token state.",
+  "tokenBoard": {
+    "title": "Token board",
+    "subtitle": "Live queue display",
+    "module": "Module",
+    "department": "Department",
+    "allDepartments": "All departments",
+    "modules": {
+      "registration": "Registration",
+      "opd": "OPD",
+      "pharmacy": "Pharmacy",
+      "billing": "Billing",
+      "lab": "Laboratory",
+      "radiology": "Radiology",
+      "dispatch": "Dispatch"
+    }
+  }
 }

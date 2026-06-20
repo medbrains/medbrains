@@ -1,41 +1,78 @@
 import { Card, Group, Stack } from "@mantine/core";
+import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/components";
 import { TokenBoardLive } from "@/components/TokenBoardLive";
 import { Select } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 
-const MODULES = [
-  { value: "registration", label: "Registration" },
-  { value: "opd", label: "OPD" },
-  { value: "pharmacy", label: "Pharmacy" },
-  { value: "billing", label: "Billing" },
-  { value: "lab", label: "Laboratory" },
-  { value: "radiology", label: "Radiology" },
-  { value: "dispatch", label: "Dispatch" },
-];
+const MODULE_VALUES = [
+  "registration",
+  "opd",
+  "pharmacy",
+  "billing",
+  "lab",
+  "radiology",
+  "dispatch",
+] as const;
 
-/** Live token board — pick a module and watch its queue update in real time. */
+/** Live token board — pick a module + (optionally) a department scope. */
 export function TokenBoardPage() {
   useRequirePermission(P.FRONT_OFFICE.QUEUE_LIST);
-  const [module, setModule] = useState("opd");
-  const label = MODULES.find((entry) => entry.value === module)?.label ?? module;
+  const { t } = useTranslation("frontOffice");
+  const [module, setModule] = useState<string>("opd");
+  const [departmentId, setDepartmentId] = useState<string | null>(null);
+
+  const { data: departments } = useQuery({
+    queryKey: ["setup-departments"],
+    queryFn: () => api.listDepartments(),
+    staleTime: 600_000,
+  });
+
+  const moduleOptions = MODULE_VALUES.map((value) => ({
+    value,
+    label: t(`tokenBoard.modules.${value}`),
+  }));
+  const departmentOptions = (departments ?? []).map((dept) => ({
+    value: dept.id,
+    label: dept.name,
+  }));
+  const moduleLabel = t(`tokenBoard.modules.${module}`);
+  const departmentName = departments?.find((dept) => dept.id === departmentId)?.name;
+  const boardTitle = departmentName ? `${moduleLabel} · ${departmentName}` : moduleLabel;
 
   return (
     <Stack>
-      <PageHeader title="Token board" subtitle="Live queue display — any module" />
-      <Group>
+      <PageHeader title={t("tokenBoard.title")} subtitle={t("tokenBoard.subtitle")} />
+      <Group align="flex-end">
         <Select
-          label="Module"
-          data={MODULES}
+          label={t("tokenBoard.module")}
+          data={moduleOptions}
           value={module}
           onChange={(value) => setModule(value ?? "opd")}
-          style={{ width: 220 }}
+          style={{ width: 200 }}
+        />
+        <Select
+          label={t("tokenBoard.department")}
+          placeholder={t("tokenBoard.allDepartments")}
+          data={departmentOptions}
+          value={departmentId}
+          onChange={setDepartmentId}
+          searchable
+          clearable
+          style={{ width: 240 }}
         />
       </Group>
       <Card withBorder>
-        <TokenBoardLive title={`${label} Queue`} module={module} />
+        <TokenBoardLive
+          title={boardTitle}
+          module={module}
+          scope={departmentId ? "department" : undefined}
+          scopeId={departmentId ?? undefined}
+        />
       </Card>
     </Stack>
   );
