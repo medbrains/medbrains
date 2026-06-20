@@ -39,6 +39,8 @@ export const clinicalMastersService = {
   deleteRelation: (id: string) => api.adminDeleteRelation(id),
 
   listInsuranceProviders: () => api.adminListInsuranceProviders(),
+  importInsuranceProviders: (data: Parameters<typeof api.adminImportInsuranceProviders>[0]) =>
+    api.adminImportInsuranceProviders(data),
   createInsuranceProvider: (data: CreateInsuranceProviderInput) =>
     api.adminCreateInsuranceProvider(data),
   updateInsuranceProvider: (id: string, data: UpdateInsuranceProviderInput) =>

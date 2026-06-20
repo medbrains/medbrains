@@ -3265,6 +3265,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  adminImportInsuranceProviders: (data: CsvImportRequest) =>
+    request<CsvImportResult>("/setup/masters/insurance-providers/import", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   adminUpdateInsuranceProvider: (id: string, data: UpdateInsuranceProviderRequest) =>
     request<InsuranceProvider>(`/setup/masters/insurance-providers/${id}`, {
       method: "PUT",

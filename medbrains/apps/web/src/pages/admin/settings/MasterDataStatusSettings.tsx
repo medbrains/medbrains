@@ -1909,6 +1909,13 @@ export function MasterDataStatusSettings() {
         canView: canViewClinicalMasters,
         isError: queryError(insuranceProvidersQuery),
         location: "settings",
+        csvImport: {
+          title: "Import insurance / TPA providers",
+          requiredColumns: ["code", "name", "provider_type"],
+          optionalColumns: ["contact_phone", "contact_email", "website"],
+          invalidateKey: ["admin-insurance-providers"],
+          run: (data) => clinicalMastersService.importInsuranceProviders(data),
+        },
       }),
     ];
   }, [

@@ -541,6 +541,10 @@ pub fn build_router(state: AppState) -> Router {
             get(setup::list_insurance_providers).post(setup::create_insurance_provider),
         )
         .route(
+            "/api/setup/masters/insurance-providers/import",
+            post(catalog_import::import_insurance_providers),
+        )
+        .route(
             "/api/setup/masters/insurance-providers/{id}",
             put(setup::update_insurance_provider).delete(setup::delete_insurance_provider),
         )
