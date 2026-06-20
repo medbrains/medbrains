@@ -1,4 +1,32 @@
 // Health Pulse news center — article cards + reader.
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+// Sticky header: title + search/filter stay pinned while the grid scrolls.
+.stickyHeader {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: var(--mb-bg-content, #fff);
+  padding-bottom: 12px;
+}
+
+// Sticky bottom pagination bar.
+.pagerBar {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  display: flex;
+  justify-content: center;
+  margin-top: auto;
+  padding: 12px 0;
+  background: var(--mb-bg-content, #fff);
+  border-top: 1px solid var(--mb-border-default, #e0e0e0);
+}
+
 .card {
   cursor: pointer;
   transition: border-color 120ms ease, box-shadow 120ms ease;

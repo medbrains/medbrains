@@ -245,7 +245,7 @@
     width: 4px;
     z-index: 2;
     border-radius: 0 999px 999px 0;
-    background: var(--mb-accent-gradient, var(--mb-accent-primary));
+    background: var(--mb-brand-emphasis, var(--mb-interactive));
   }
 
   &:hover {

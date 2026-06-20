@@ -1,4 +1,4 @@
-import { Center, Group, Pagination, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Group, Pagination, SimpleGrid, Stack, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
@@ -61,38 +61,40 @@ export function HealthPulsePage() {
   });
 
   return (
-    <div>
-      <PageHeader
-        title="Health Pulse"
-        subtitle="Live medical news, curated by specialty"
-        breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Health Pulse" }]}
-      />
+    <div className={styles.page}>
+      <div className={styles.stickyHeader}>
+        <PageHeader
+          title="Health Pulse"
+          subtitle="Live medical news, curated by specialty"
+          breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Health Pulse" }]}
+        />
 
-      <Group gap="sm" mb="md" wrap="wrap">
-        <Input
-          value={search}
-          onChange={(event) => {
-            setSearch(event.currentTarget.value);
-            setPage(1);
-          }}
-          placeholder="Search articles…"
-          leftSection={<Search size={15} />}
-          style={{ flex: 1, minWidth: 220 }}
-          aria-label="Search news"
-        />
-        <Select
-          value={topic}
-          onChange={(value) => {
-            setTopic(value);
-            setPage(1);
-          }}
-          data={TOPICS.map((value) => ({ value, label: value }))}
-          placeholder="All specialties"
-          clearable
-          style={{ width: 220 }}
-          aria-label="Filter by specialty"
-        />
-      </Group>
+        <Group gap="sm" wrap="wrap">
+          <Input
+            value={search}
+            onChange={(event) => {
+              setSearch(event.currentTarget.value);
+              setPage(1);
+            }}
+            placeholder="Search articles…"
+            leftSection={<Search size={15} />}
+            style={{ flex: 1, minWidth: 220 }}
+            aria-label="Search news"
+          />
+          <Select
+            value={topic}
+            onChange={(value) => {
+              setTopic(value);
+              setPage(1);
+            }}
+            data={TOPICS.map((value) => ({ value, label: value }))}
+            placeholder="All specialties"
+            clearable
+            style={{ width: 220 }}
+            aria-label="Filter by specialty"
+          />
+        </Group>
+      </div>
 
       {isLoading ? (
         <Text c="dimmed" size="sm">
@@ -132,9 +134,9 @@ export function HealthPulsePage() {
       )}
 
       {totalPages > 1 && (
-        <Center mt="lg">
+        <div className={styles.pagerBar}>
           <Pagination total={totalPages} value={page} onChange={setPage} size="sm" />
-        </Center>
+        </div>
       )}
 
       <Drawer
