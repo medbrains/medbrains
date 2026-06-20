@@ -1201,6 +1201,114 @@ async fn get_cashfree_signing_secret(
         .ok_or_else(|| AppError::ServiceUnavailable("Cashfree signing secret missing".to_owned()))
 }
 
+// ══════════════════════════════════════════════════════════
+//  Reverse-reconciliation exceptions (unmatched inbound credits)
+// ══════════════════════════════════════════════════════════
+
+/// Park an inbound webhook that couldn't be settled (unknown order / amount
+/// mismatch / bad signature) for human review — never silently dropped.
+async fn log_webhook_exception(
+    pool: &sqlx::PgPool,
+    provider: &str,
+    order_ref: Option<&str>,
+    reason: &str,
+    payload: &serde_json::Value,
+) -> Result<(), AppError> {
+    sqlx::query(
+        // allow-raw-sql: global ops table, no tenant context on unmatched credit
+        "INSERT INTO payment_webhook_exceptions (provider, order_ref, reason, raw_payload) \
+         VALUES ($1, $2, $3, $4)",
+    )
+    .bind(provider)
+    .bind(order_ref)
+    .bind(reason)
+    .bind(payload)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct PaymentWebhookException {
+    pub id: Uuid,
+    pub tenant_id: Option<Uuid>,
+    pub provider: String,
+    pub order_ref: Option<String>,
+    pub reason: String,
+    pub amount: Option<Decimal>,
+    pub raw_payload: serde_json::Value,
+    pub status: String,
+    pub notes: Option<String>,
+    pub resolved_by: Option<Uuid>,
+    pub resolved_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExceptionsQuery {
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ResolveExceptionRequest {
+    pub status: String,
+    pub notes: Option<String>,
+}
+
+/// GET /api/payments/exceptions?status=open — the reverse-recon worklist.
+pub async fn list_payment_exceptions(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<ExceptionsQuery>,
+) -> Result<Json<Vec<PaymentWebhookException>>, AppError> {
+    require_permission(&claims, permissions::billing::payments::CREATE)?;
+
+    let rows = sqlx::query_as::<_, PaymentWebhookException>(
+        "SELECT * FROM payment_webhook_exceptions \
+         WHERE ($1::text IS NULL OR status = $1) \
+         ORDER BY created_at DESC LIMIT 500",
+    )
+    .bind(q.status.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .fetch_all(&state.db)
+    .await?;
+
+    Ok(Json(rows))
+}
+
+/// PUT /api/payments/exceptions/{id} — mark resolved/ignored after review.
+pub async fn resolve_payment_exception(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ResolveExceptionRequest>,
+) -> Result<Json<PaymentWebhookException>, AppError> {
+    require_permission(&claims, permissions::billing::payments::CREATE)?;
+
+    let status = body.status.trim();
+    if !matches!(status, "open" | "resolved" | "ignored") {
+        return Err(AppError::BadRequest(
+            "status must be open, resolved, or ignored".to_owned(),
+        ));
+    }
+
+    let row = sqlx::query_as::<_, PaymentWebhookException>(
+        "UPDATE payment_webhook_exceptions SET \
+         status = $1, notes = COALESCE($2, notes), \
+         resolved_by = CASE WHEN $1 = 'open' THEN NULL ELSE $3 END, \
+         resolved_at = CASE WHEN $1 = 'open' THEN NULL ELSE now() END \
+         WHERE id = $4 RETURNING *",
+    )
+    .bind(status)
+    .bind(body.notes.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(claims.sub)
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    Ok(Json(row))
+}
+
 /// Reverse reconciliation for Cashfree: the inbound webhook (the money already
 /// moved) is matched back to the originating txn by `order_id` (= our txn id),
 /// signature-verified, deduped, then posted to the invoice. Mirrors the
@@ -1240,6 +1348,8 @@ pub async fn cashfree_webhook(
 
     let Some(txn_row) = txn_row else {
         tracing::warn!(order_id, "cashfree webhook for unknown order");
+        log_webhook_exception(&state.db, "cashfree", Some(order_id), "unknown_order", &payload)
+            .await?;
         return Ok(Json(serde_json::json!({ "status": "unknown_order" })));
     };
 

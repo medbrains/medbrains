@@ -1290,6 +1290,7 @@ import type {
   PaymentProvidersResponse,
   PaymentStatusResponse,
   PaymentTerminal,
+  PaymentWebhookException,
   PcpndtForm,
   PcpndtQuarterlySummary,
   PcpndtReportPrintData,
@@ -1454,6 +1455,7 @@ import type {
   ResearchProposalFormPrintData,
   ResolveCommAlertRequest,
   ResolveCommComplaintRequest,
+  ResolveExceptionRequest,
   ResolveIssueRequest,
   ResolveSecurityTagAlertRequest,
   RespondPriorAuthRequest,
@@ -12796,6 +12798,15 @@ export const api = {
   getPaymentStatus: (id: string) => request<PaymentStatusResponse>(`/payments/${id}/status`),
   getRazorpayStatus: () => request<RazorpayStatusResponse>("/payments/razorpay/status"),
   listPaymentProviders: () => request<PaymentProvidersResponse>("/payments/providers"),
+  listPaymentExceptions: (params?: { status?: string }) => {
+    const qs = params?.status ? `?${new URLSearchParams({ status: params.status })}` : "";
+    return request<PaymentWebhookException[]>(`/payments/exceptions${qs}`);
+  },
+  resolvePaymentException: (id: string, data: ResolveExceptionRequest) =>
+    request<PaymentWebhookException>(`/payments/exceptions/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   listPaymentTerminals: (params?: { counter_id?: string; active_only?: boolean }) => {
     const qs = params
       ? `?${new URLSearchParams(

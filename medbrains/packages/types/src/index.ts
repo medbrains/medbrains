@@ -29994,6 +29994,26 @@ export interface PosSaleResponse {
   status: string;
 }
 
+export interface PaymentWebhookException {
+  id: string;
+  tenant_id?: string | null;
+  provider: string;
+  order_ref?: string | null;
+  reason: string;
+  amount?: number | null;
+  raw_payload: unknown;
+  status: string;
+  notes?: string | null;
+  resolved_by?: string | null;
+  resolved_at?: string | null;
+  created_at: string;
+}
+
+export interface ResolveExceptionRequest {
+  status: string;
+  notes?: string;
+}
+
 export interface PaymentTerminal {
   id: string;
   tenant_id: string;
