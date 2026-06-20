@@ -35,9 +35,7 @@
   padding: var(--mantine-spacing-sm);
   border: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
   border-radius: var(--mantine-radius-md);
-  background:
-    linear-gradient(180deg, light-dark(var(--mantine-color-red-0), rgba(250, 82, 82, 0.14)), transparent 38%),
-    light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+  background: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
 }
 
 @media (max-width: 992px) {

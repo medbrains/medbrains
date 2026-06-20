@@ -40,7 +40,7 @@ function getTrace(w: number): string {
 
 const SCAN_W = 60;
 const DURATION = 3500;
-const TRACE_COLOR = "#5b4bc4";
+const TRACE_COLOR = "#0f62fe";
 
 // ── Component ──────────────────────────────────────────────────
 

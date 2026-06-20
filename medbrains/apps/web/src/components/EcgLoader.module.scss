@@ -15,7 +15,7 @@
 
 .trace {
   fill: none;
-  stroke: var(--ss-brand, #3a2e8c);
+  stroke: var(--ss-brand, #0f62fe);
   stroke-width: 1.75;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -27,7 +27,7 @@
 }
 
 .beacon {
-  fill: var(--ss-accent, #e8895a);
+  fill: var(--ss-accent, #0f62fe);
   opacity: 0;
   transform-box: fill-box;
   transform-origin: center;

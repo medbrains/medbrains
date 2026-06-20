@@ -87,11 +87,11 @@ export function PageSkeleton() {
             </mask>
           </defs>
           {/* Dim baseline */}
-          <line x1="0" y1="20" x2="200" y2="20" stroke="#5b4bc4" strokeWidth="1" opacity="0.1" />
+          <line x1="0" y1="20" x2="200" y2="20" stroke="#0f62fe" strokeWidth="1" opacity="0.1" />
           {/* Ghost trace */}
           <polyline
             className={styles.shadowLine}
-            stroke="#5b4bc4"
+            stroke="#0f62fe"
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -100,7 +100,7 @@ export function PageSkeleton() {
           {/* Active bright trace */}
           <polyline
             className={styles.mainLine}
-            stroke="#5b4bc4"
+            stroke="#0f62fe"
             strokeWidth="2.5"
             strokeLinecap="round"
             strokeLinejoin="round"

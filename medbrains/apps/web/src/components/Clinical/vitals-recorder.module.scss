@@ -4,7 +4,7 @@
   padding: 10px;
   border-radius: var(--mantine-radius-md);
   border: 1px solid var(--mb-border);
-  background: linear-gradient(135deg, var(--mb-card-bg) 0%, var(--mb-bg-content) 100%);
+  background: var(--mb-card-bg);
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.18s ease;
 
   &::before {
@@ -14,7 +14,7 @@
     left: 0;
     width: 3px;
     border-radius: 0 999px 999px 0;
-    background: var(--mb-accent-gradient);
+    background: var(--mb-accent-primary);
     content: "";
     opacity: 0.7;
   }
@@ -26,33 +26,33 @@
 
   &[data-level="normal"] {
     border-color: var(--mantine-color-green-3);
-    background: linear-gradient(135deg, var(--mb-card-bg) 0%, var(--mb-normal-bg) 100%);
+    background: var(--mb-normal-bg);
     box-shadow: 0 0 0 1px var(--mantine-color-green-1);
 
     &::before {
-      background: linear-gradient(180deg, var(--mb-normal-border), var(--mb-normal-text));
+      background: var(--mb-normal-border);
     }
   }
 
   &[data-level="borderline"] {
     border-color: var(--mantine-color-yellow-4);
-    background: linear-gradient(135deg, var(--mb-card-bg) 0%, var(--mb-abnormal-bg) 100%);
+    background: var(--mb-abnormal-bg);
     box-shadow: 0 0 0 1px var(--mantine-color-yellow-1);
 
     &::before {
-      background: linear-gradient(180deg, var(--mb-abnormal-border), var(--mb-warning-accent));
+      background: var(--mb-abnormal-border);
       opacity: 1;
     }
   }
 
   &[data-level="critical"] {
     border-color: var(--mantine-color-red-4);
-    background: linear-gradient(135deg, var(--mb-card-bg) 0%, var(--mb-critical-bg) 100%);
+    background: var(--mb-critical-bg);
     box-shadow: 0 0 0 2px var(--mantine-color-red-1);
     animation: criticalPulse 2s ease-in-out infinite;
 
     &::before {
-      background: linear-gradient(180deg, var(--mb-critical-border), var(--mb-danger-accent));
+      background: var(--mb-critical-border);
       opacity: 1;
     }
   }
@@ -69,7 +69,7 @@
   overflow: hidden;
   padding: 8px 14px;
   border-radius: var(--mantine-radius-md);
-  background: linear-gradient(135deg, var(--mb-card-bg) 0%, var(--mb-accent-gradient-soft) 100%);
+  background: var(--mb-card-bg);
   border: 1px solid var(--mb-border-subtle);
   display: flex;
   flex-direction: column;
@@ -82,7 +82,7 @@
     left: 0;
     width: 3px;
     border-radius: 0 999px 999px 0;
-    background: var(--mb-accent-gradient);
+    background: var(--mb-accent-primary);
     content: "";
   }
 }

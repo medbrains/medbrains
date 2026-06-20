@@ -36,9 +36,7 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  background:
-    linear-gradient(180deg, light-dark(var(--mantine-color-teal-0), rgba(18, 184, 134, 0.14)), transparent 42%),
-    light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+  background: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
 }
 
 @media (max-width: 992px) {

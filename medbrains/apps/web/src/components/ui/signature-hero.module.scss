@@ -1,32 +1,21 @@
 .hero {
   position: relative;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 2px;
   padding: 16px 20px;
   background: var(--mb-signature-spectrum);
   color: #fff;
-  box-shadow: 0 8px 28px rgba(58, 46, 140, 0.22);
   isolation: isolate;
 }
 
 .hero[data-compact] {
   padding: 12px 16px;
-  border-radius: 10px;
+  border-radius: 2px;
 }
 
-// Soft diagonal sheen for a premium, lit feel.
+// Carbon: flat, no gloss sheen.
 .sheen {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    115deg,
-    rgba(255, 255, 255, 0.18) 0%,
-    rgba(255, 255, 255, 0) 38%,
-    rgba(255, 255, 255, 0) 70%,
-    rgba(255, 255, 255, 0.1) 100%
-  );
-  pointer-events: none;
-  z-index: -1;
+  display: none;
 }
 
 .inner {

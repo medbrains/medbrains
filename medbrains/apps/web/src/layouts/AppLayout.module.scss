@@ -104,7 +104,7 @@
   box-shadow: var(--mb-nav-active-shadow, 0 10px 26px rgba(20, 184, 166, 0.22));
 
   &::after {
-    background: var(--mb-nav-active-bg, linear-gradient(135deg, #ccfbf1 0%, #dbeafe 100%));
+    background: var(--mb-nav-active-bg, var(--mb-bg-subtle));
     opacity: 1;
     transform: scale(1);
   }
@@ -118,7 +118,7 @@
     width: 3px;
     z-index: 2;
     border-radius: 2px;
-    background: var(--mb-accent-gradient, linear-gradient(180deg, #14b8a6, #f59e0b));
+    background: var(--mb-accent-gradient, var(--mb-accent-primary));
     animation: indicatorSlideIn 200ms ease-out;
   }
 
@@ -231,7 +231,7 @@
   box-shadow: var(--mb-nav-active-shadow, 0 10px 26px rgba(20, 184, 166, 0.2));
 
   &::after {
-    background: var(--mb-nav-active-bg, linear-gradient(135deg, #ccfbf1 0%, #e0f2fe 100%));
+    background: var(--mb-nav-active-bg, var(--mb-bg-subtle));
     opacity: 1;
     transform: scaleX(1);
   }
@@ -245,7 +245,7 @@
     width: 4px;
     z-index: 2;
     border-radius: 0 999px 999px 0;
-    background: var(--mb-accent-gradient, linear-gradient(180deg, #14b8a6, #f59e0b));
+    background: var(--mb-accent-gradient, var(--mb-accent-primary));
   }
 
   &:hover {
@@ -476,7 +476,7 @@
     content: "";
     position: absolute;
     inset: -40%;
-    background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.42), transparent 70%);
+    background: transparent;
     transform: translateX(-70%) rotate(18deg);
     animation: workspaceShine 2.8s ease-in-out infinite;
   }

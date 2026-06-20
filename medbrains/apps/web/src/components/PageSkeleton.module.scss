@@ -3,11 +3,7 @@
 $trace: #5b4bc4;
 
 .wrapper {
-  background: radial-gradient(
-    ellipse at center,
-    rgba($trace, 0.03) 0%,
-    transparent 70%
-  );
+  background: var(--mb-bg-subtle);
 }
 
 .container {

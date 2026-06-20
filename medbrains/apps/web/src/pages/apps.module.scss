@@ -29,7 +29,7 @@
     position: absolute;
     inset: 0 0 auto;
     height: 5px;
-    background: var(--workspace-gradient);
+    background: var(--mb-brand-emphasis);
   }
 
   &::after {
@@ -39,7 +39,7 @@
     width: 150px;
     height: 150px;
     border-radius: 999px;
-    background: var(--workspace-gradient);
+    background: var(--mb-brand-emphasis);
     opacity: 0.1;
     filter: blur(4px);
     transition:
@@ -69,14 +69,14 @@
   justify-content: center;
   border-radius: 14px;
   color: white;
-  background: var(--workspace-gradient);
+  background: var(--mb-brand-emphasis);
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
 
   &::after {
     content: "";
     position: absolute;
     inset: -45%;
-    background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.45), transparent 70%);
+    background: transparent;
     transform: translateX(-70%) rotate(18deg);
     animation: appCardShine 3s ease-in-out infinite;
   }

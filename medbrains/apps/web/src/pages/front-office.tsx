@@ -412,10 +412,7 @@ export function FrontOfficePage() {
       <Box
         mih="100vh"
         p={{ base: "md", lg: "xl" }}
-        style={{
-          background:
-            "linear-gradient(180deg, var(--mantine-color-gray-0), var(--mantine-color-white))",
-        }}
+        style={{ background: "var(--mb-bg-default)" }}
       >
         <TokenBoardsTab
           canViewOpdQueue={canViewOpdQueue}

@@ -276,11 +276,11 @@ h3,
   &[data-variant="filled"][data-color="blue"] {
     // Signature Spectrum, held in the indigo range so white text stays
     // legible (the rose/coral end is reserved for hero surfaces).
-    background-image: linear-gradient(120deg, #3a2e8c 0%, #5b4bc4 100%);
+    background-image: var(--mb-brand-emphasis);
     border: none;
 
     &:hover:not(:disabled) {
-      background-image: linear-gradient(120deg, #332883 0%, #5443ba 100%);
+      background-image: var(--mb-brand-emphasis);
     }
   }
 
@@ -395,7 +395,7 @@ h3,
 
   &[data-variant="subtle"] {
     &:hover:not(:disabled) {
-      background: linear-gradient(135deg, var(--mb-glass-from), var(--mb-glass-to)), var(--mb-component-accent);
+      background: var(--mb-component-accent);
       color: var(--mb-active-text);
       transform: scale(1.05);
     }
@@ -491,8 +491,7 @@ h3,
   border: 1px solid var(--mb-border);
   background:
     linear-gradient(var(--mb-selected-edge), var(--mb-selected-edge)) top / 100% 3px no-repeat,
-    linear-gradient(180deg, var(--mb-brand-tint), transparent 38%),
-    var(--mb-panel-bg);
+    var(--mb-brand-tint);
   color: var(--mb-text-body);
   box-shadow: var(--mb-float-shadow);
 }
@@ -563,8 +562,7 @@ h3,
 
   :where(button[data-in-range]:not([data-selected]), [data-picker-control][data-in-range]:not([data-selected])) {
     border-radius: 0;
-    background:
-      linear-gradient(90deg, var(--mb-brand-tint), var(--mb-accent-tint));
+    background: var(--mb-brand-tint);
     color: var(--mb-text-primary);
   }
 
@@ -739,9 +737,7 @@ a[href]:not(.mantine-Button-root) {
 
 .quick-action-card {
   border-radius: var(--mantine-radius-lg);
-  background:
-    linear-gradient(135deg, var(--mb-glass-from), var(--mb-glass-to)),
-    var(--mb-accent-gradient-soft);
+  background: var(--mb-bg-subtle);
   border: 1px solid var(--mb-border-subtle);
   box-shadow: var(--mb-shadow-sm);
 
@@ -972,12 +968,7 @@ a[href]:not(.mantine-Button-root) {
   // ── Active: enterprise selection gradient ──
   &[data-active] {
     color: var(--mb-brand-on-emphasis) !important;
-    background:
-      linear-gradient(
-        135deg,
-        var(--mb-brand-emphasis) 0%,
-        var(--mb-brand-emphasis-hover) 100%
-      );
+    background: var(--mb-brand-emphasis);
     border-color: var(--mb-brand-emphasis-pressed);
     box-shadow:
       var(--mb-shadow-sm),
@@ -1006,7 +997,7 @@ a[href]:not(.mantine-Button-root) {
   // Optional per-color override (data-color="success" etc) — applies to
   // the active gradient when the host explicitly themes the tab.
   &[data-active][data-color="success"] {
-    background: linear-gradient(135deg, var(--mb-success-accent) 0%, var(--mb-success-border) 100%);
+    background: var(--mb-success-accent);
     border-color: var(--mb-success-accent);
     box-shadow:
       var(--mb-shadow-sm),
@@ -1015,7 +1006,7 @@ a[href]:not(.mantine-Button-root) {
   }
 
   &[data-active][data-color="warning"] {
-    background: linear-gradient(135deg, var(--mb-warning-accent) 0%, var(--mb-warning-border) 100%);
+    background: var(--mb-warning-accent);
     border-color: var(--mb-warning-accent);
     box-shadow:
       var(--mb-shadow-sm),
@@ -1025,7 +1016,7 @@ a[href]:not(.mantine-Button-root) {
 
   &[data-active][data-color="danger"],
   &[data-active][data-color="red"] {
-    background: linear-gradient(135deg, var(--mb-danger-accent) 0%, var(--mb-danger-border) 100%);
+    background: var(--mb-danger-accent);
     border-color: var(--mb-danger-accent);
     box-shadow:
       var(--mb-shadow-sm),
@@ -1035,7 +1026,7 @@ a[href]:not(.mantine-Button-root) {
 
   &[data-active][data-color="info"],
   &[data-active][data-color="blue"] {
-    background: linear-gradient(135deg, var(--mb-info-accent) 0%, var(--mb-info-border) 100%);
+    background: var(--mb-info-accent);
     border-color: var(--mb-info-accent);
     box-shadow:
       var(--mb-shadow-sm),

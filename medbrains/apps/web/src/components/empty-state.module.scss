@@ -22,9 +22,7 @@
   width: 200px;
   height: 200px;
   border-radius: 50%;
-  background:
-    radial-gradient(circle, var(--mb-icon-glow) 0%, transparent 58%),
-    var(--mb-accent-gradient-soft);
+  background: var(--mb-bg-subtle);
   opacity: 0.72;
   animation: glowBreathe 3.4s ease-in-out infinite;
 }

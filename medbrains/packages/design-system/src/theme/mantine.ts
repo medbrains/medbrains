@@ -453,11 +453,21 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
         },
       },
 
+      // Carbon line tabs — text + icon, blue underline on active, no fill.
       Tabs: {
         defaultProps: {
-          variant: "pills",
-          radius: "md",
+          variant: "default",
+          radius: 0,
           keepMounted: true,
+        },
+        styles: {
+          tab: {
+            fontWeight: 400,
+            fontSize: "14px",
+            color: "var(--mb-text-secondary)",
+            padding: "12px 16px",
+            borderBottomWidth: "2px",
+          },
         },
       },
 
@@ -770,17 +780,15 @@ function buildSchemePalette(scheme: typeof lightScheme, name: SchemeName) {
     "--mb-gender-unknown-text": isLight ? "#78350F" : "#FFF8D6",
     "--mb-gender-unknown-border": "#FACC15",
 
-    // ── Accent gradients (component-level semantic accents) ──────
-    "--mb-accent-primary": isLight
-      ? `linear-gradient(135deg, ${scheme.brand.emphasis} 0%, ${scheme.brand.fg} 100%)`
-      : `linear-gradient(135deg, ${scheme.brand.emphasis} 0%, ${scheme.brand.tintStrong} 100%)`,
-    "--mb-accent-success": `linear-gradient(135deg, ${scheme.status.success.emphasis} 0%, ${scheme.status.success.border} 100%)`,
-    "--mb-accent-warning": `linear-gradient(135deg, ${scheme.status.warning.emphasis} 0%, ${scheme.status.warning.border} 100%)`,
-    "--mb-accent-danger": `linear-gradient(135deg, ${scheme.status.danger.emphasis} 0%, ${scheme.status.danger.border} 100%)`,
-    "--mb-accent-info": `linear-gradient(135deg, ${scheme.status.info.emphasis} 0%, ${scheme.status.info.border} 100%)`,
-    "--mb-accent-orange": `linear-gradient(135deg, ${scheme.status.orange.emphasis} 0%, ${scheme.status.orange.border} 100%)`,
-    "--mb-accent-violet": `linear-gradient(135deg, ${scheme.status.violet.emphasis} 0%, ${scheme.status.violet.border} 100%)`,
-    "--mb-accent-neutral": `linear-gradient(135deg, ${scheme.status.neutral.emphasis} 0%, ${scheme.status.neutral.border} 100%)`,
+    // ── Accent fills (flat Carbon solids — no gradients) ─────────
+    "--mb-accent-primary": scheme.brand.emphasis,
+    "--mb-accent-success": scheme.status.success.emphasis,
+    "--mb-accent-warning": scheme.status.warning.emphasis,
+    "--mb-accent-danger": scheme.status.danger.emphasis,
+    "--mb-accent-info": scheme.status.info.emphasis,
+    "--mb-accent-orange": scheme.status.orange.emphasis,
+    "--mb-accent-violet": scheme.status.violet.emphasis,
+    "--mb-accent-neutral": scheme.status.neutral.emphasis,
 
     // ── Indicators (raw, mode-agnostic safety colors) ────────────
     "--mb-indicator-primary": sharedReferences.indicators.primary,
@@ -883,20 +891,13 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
       "--mb-component-underline": "var(--mb-accent-primary)",
       "--mb-selected-edge": "var(--mb-accent-primary)",
       // Page header background composed at consume time using mode-specific bgs
-      "--mb-page-header-bg": "linear-gradient(135deg, var(--mb-bg-default), var(--mb-bg-subtle))",
+      "--mb-page-header-bg": "var(--mb-bg-default)",
       "--mb-table-toolbar-bg": "var(--mb-bg-default)",
-      // Signature Spectrum — indigo-deep → indigo → rose → coral. The
-      // brand gradient across the whole system.
-      "--mb-accent-gradient":
-        "linear-gradient(100deg, #3A2E8C 0%, #5B4BC4 40%, #C85B7E 78%, #E8895A 100%)",
-      "--mb-accent-gradient-soft":
-        "linear-gradient(100deg, #EFEDFA 0%, #FBEEF2 100%)",
-      // Hero alias for flagship clinical surfaces (prescription writer,
-      // pharmacy workspace) — same Signature Spectrum.
-      "--mb-signature-spectrum":
-        "linear-gradient(120deg, #3A2E8C 0%, #5B4BC4 38%, #C85B7E 74%, #E8895A 100%)",
-      "--mb-signature-spectrum-soft":
-        "linear-gradient(120deg, rgba(58,46,140,0.10) 0%, rgba(200,91,126,0.08) 60%, rgba(232,137,90,0.08) 100%)",
+      // Carbon — flat solids, no gradients. Brand surfaces use interactive blue.
+      "--mb-accent-gradient": "var(--mb-brand-emphasis)",
+      "--mb-accent-gradient-soft": "var(--mb-brand-bg)",
+      "--mb-signature-spectrum": "var(--mb-brand-emphasis)",
+      "--mb-signature-spectrum-soft": "var(--mb-brand-bg)",
 
       // ── Motion (mode-agnostic) ───────────────────────────────
       "--mb-duration-instant": duration.instant,
