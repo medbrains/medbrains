@@ -100,8 +100,8 @@
 .railItemActive {
   composes: railItem;
   background: transparent;
-  color: var(--mb-nav-active-text, #0f766e);
-  box-shadow: var(--mb-nav-active-shadow, 0 10px 26px rgba(20, 184, 166, 0.22));
+  color: var(--mb-nav-active-text, var(--mb-brand-fg));
+  box-shadow: var(--mb-nav-active-shadow, none);
 
   &::after {
     background: var(--mb-nav-active-bg, var(--mb-bg-subtle));
@@ -123,7 +123,7 @@
   }
 
   &:hover {
-    color: var(--mb-nav-active-text, #0f766e);
+    color: var(--mb-nav-active-text, var(--mb-brand-fg));
     transform: translateY(-1px);
   }
 }
@@ -226,9 +226,9 @@
   composes: expandedItem;
   position: relative;
   font-weight: 700;
-  color: var(--mb-nav-active-text, #0f766e);
+  color: var(--mb-nav-active-text, var(--mb-brand-fg));
   background: transparent;
-  box-shadow: var(--mb-nav-active-shadow, 0 10px 26px rgba(20, 184, 166, 0.2));
+  box-shadow: var(--mb-nav-active-shadow, none);
 
   &::after {
     background: var(--mb-nav-active-bg, var(--mb-bg-subtle));
@@ -249,7 +249,7 @@
   }
 
   &:hover {
-    color: var(--mb-nav-active-text, #0f766e);
+    color: var(--mb-nav-active-text, var(--mb-brand-fg));
     padding-left: 0;
   }
 }
@@ -337,7 +337,7 @@
 .expandedItemActive .navIcon,
 .expandedChildActive .navIcon {
   animation: navIconSpark 1.9s ease-in-out infinite;
-  filter: drop-shadow(0 0 8px var(--mb-icon-glow, rgba(20, 184, 166, 0.22)));
+  filter: none;
 }
 
 // ── Footer section ──

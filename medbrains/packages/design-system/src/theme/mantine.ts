@@ -513,12 +513,22 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
         },
       },
 
+      // Carbon tooltip — Gray 80 surface, white text, sharp.
       Tooltip: {
         defaultProps: {
           withArrow: true,
-          radius: "md",
+          radius: 0,
           fz: "xs",
           transitionProps: { duration: 150, transition: "fade" },
+        },
+        styles: {
+          tooltip: {
+            background: "#393939",
+            color: "#ffffff",
+            fontSize: "12px",
+            fontWeight: 400,
+            padding: "4px 8px",
+          },
         },
       },
 
