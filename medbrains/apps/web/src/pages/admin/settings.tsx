@@ -166,6 +166,11 @@ const SETTINGS_NAV_META: Record<
     description: "Regulatory and privacy toggles",
     kind: "support",
   },
+  "payment-terminals": {
+    group: "Operations",
+    description: "POS / QR / online payment devices per billing counter",
+    kind: "configuration",
+  },
   standards: {
     group: "Interoperability",
     description: "FHIR, ABDM, DICOM, ICD, SNOMED, LOINC readiness",

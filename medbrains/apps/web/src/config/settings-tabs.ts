@@ -7,6 +7,7 @@ import {
   IconChartBar,
   IconClockCog,
   IconCloudOff,
+  IconCreditCard,
   IconHash,
   IconHeartbeat,
   IconHeartRateMonitor,
@@ -47,12 +48,13 @@ import { MasterDataStatusSettings } from "@/pages/admin/settings/MasterDataStatu
 import { ModulesSettings } from "@/pages/admin/settings/ModulesSettings";
 import { OfflineModeSettings } from "@/pages/admin/settings/OfflineModeSettings";
 import { OperationsSettings } from "@/pages/admin/settings/OperationsSettings";
+import { PaymentTerminalsSettings } from "@/pages/admin/settings/PaymentTerminalsSettings";
 import { PrintTemplateSettings } from "@/pages/admin/settings/PrintTemplateSettings";
-import { TokensSettings } from "@/pages/admin/settings/TokensSettings";
 import { SequencesSettings } from "@/pages/admin/settings/SequencesSettings";
 import { ServicesSettings } from "@/pages/admin/settings/ServicesSettings";
 import { StandardsSettings } from "@/pages/admin/settings/StandardsSettings";
 import { SystemHealthSettings } from "@/pages/admin/settings/SystemHealthSettings";
+import { TokensSettings } from "@/pages/admin/settings/TokensSettings";
 import { UnitsLocaleSettings } from "@/pages/admin/settings/UnitsLocaleSettings";
 
 export interface SettingsTabConfig {
@@ -228,6 +230,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     component: BillingTaxSettings,
   },
   {
+    value: "payment-terminals",
+    i18nKey: "settings.paymentTerminals",
+    icon: "IconCreditCard",
+    requiredPermission: "billing.payments.create",
+    component: PaymentTerminalsSettings,
+  },
+  {
     value: "branding",
     i18nKey: "settings.branding",
     icon: "IconPalette",
@@ -328,6 +337,7 @@ export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number
   IconHeartbeat,
   IconBed,
   IconCash,
+  IconCreditCard,
   IconPalette,
   IconPlug,
   IconPrinter,
