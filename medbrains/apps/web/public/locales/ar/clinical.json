@@ -18,6 +18,7 @@
     }
   },
   "patientJourney": {
+    "actionsButton": "إجراءات",
     "actionSignals": {
       "blocked": "Blocked",
       "blockedByConfiguration": "Configuration needed",

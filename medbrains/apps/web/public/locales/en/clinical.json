@@ -79,6 +79,7 @@
     }
   },
   "patientJourney": {
+    "actionsButton": "Actions",
     "actions": {
       "patient": {
         "edit": {

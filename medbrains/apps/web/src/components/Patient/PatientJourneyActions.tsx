@@ -335,7 +335,7 @@ export function PatientJourneyActions({
   // Directory rows: one compact blue "Actions" button opening a keyboard-
   // accessible menu (Mantine Menu = arrow keys / Enter / Esc, ARIA built-in),
   // instead of a stack of colour-coded buttons.
-  const actionsLabel = t("patientJourney.actions", { defaultValue: "Actions" });
+  const actionsLabel = t("patientJourney.actionsButton", { defaultValue: "Actions" });
   return (
     <Menu position="bottom-end" withinPortal shadow="md" width={220}>
       <Menu.Target>

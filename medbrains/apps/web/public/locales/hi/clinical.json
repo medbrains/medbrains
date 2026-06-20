@@ -18,6 +18,7 @@
     }
   },
   "patientJourney": {
+    "actionsButton": "कार्रवाइयाँ",
     "actionSignals": {
       "blocked": "Blocked",
       "blockedByConfiguration": "Configuration needed",

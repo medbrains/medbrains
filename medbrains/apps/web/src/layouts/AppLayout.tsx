@@ -52,8 +52,9 @@ interface ResolvedNavItem {
   children?: ResolvedNavItem[];
 }
 
-const RAIL_WIDTH = 56;
-const EXPANDED_WIDTH = 240;
+// Carbon UI Shell side-nav widths: 48px icon rail, 256px expanded.
+const RAIL_WIDTH = 48;
+const EXPANDED_WIDTH = 256;
 const UUID_SEGMENT_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const GROUP_LABEL_KEYS = {

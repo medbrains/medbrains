@@ -18,6 +18,7 @@
     }
   },
   "patientJourney": {
+    "actionsButton": "செயல்கள்",
     "actionSignals": {
       "blocked": "Blocked",
       "blockedByConfiguration": "Configuration needed",
