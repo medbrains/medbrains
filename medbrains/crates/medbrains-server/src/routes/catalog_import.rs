@@ -276,3 +276,100 @@ pub async fn import_pharmacy_catalog(
         errors,
     }))
 }
+
+fn parse_bool(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "true" | "1" | "yes" | "y"
+    )
+}
+
+/// POST /api/opd/procedure-catalog/import
+///
+/// Columns: code*, name*, category, base_price, duration_minutes,
+/// requires_consent, requires_anaesthesia
+pub async fn import_procedure_catalog(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CsvImportRequest>,
+) -> Result<Json<CsvImportResult>, AppError> {
+    require_permission(&claims, permissions::opd::procedures::CREATE)?;
+
+    let col = |name: &str| {
+        body.headers
+            .iter()
+            .position(|h| h.eq_ignore_ascii_case(name))
+    };
+    let code_idx = col("code")
+        .ok_or_else(|| AppError::BadRequest("CSV must have a 'code' column".to_owned()))?;
+    let name_idx = col("name")
+        .ok_or_else(|| AppError::BadRequest("CSV must have a 'name' column".to_owned()))?;
+    let category_idx = col("category");
+    let price_idx = col("base_price");
+    let duration_idx = col("duration_minutes");
+    let consent_idx = col("requires_consent");
+    let anaes_idx = col("requires_anaesthesia").or_else(|| col("requires_anesthesia"));
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let mut imported = 0i64;
+    let mut skipped = 0i64;
+    let mut errors = Vec::new();
+
+    for (i, row) in body.rows.iter().enumerate() {
+        let row_num = i + 2;
+        let values = &row.values;
+        let code = cell(values, Some(code_idx));
+        let name = cell(values, Some(name_idx));
+        if code.is_empty() || name.is_empty() {
+            errors.push(format!("Row {row_num}: code and name are required"));
+            skipped += 1;
+            continue;
+        }
+        let base_price: Option<Decimal> = optional(cell(values, price_idx)).and_then(parse_decimal);
+        let duration: Option<i32> =
+            optional(cell(values, duration_idx)).and_then(|v| v.parse().ok());
+
+        let result = sqlx::query(
+            "INSERT INTO procedure_catalog \
+             (tenant_id, code, name, category, base_price, duration_minutes, \
+              requires_consent, requires_anesthesia) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+             ON CONFLICT (tenant_id, code) DO UPDATE SET \
+               name = EXCLUDED.name, \
+               category = COALESCE(EXCLUDED.category, procedure_catalog.category), \
+               base_price = COALESCE(EXCLUDED.base_price, procedure_catalog.base_price), \
+               duration_minutes = \
+                 COALESCE(EXCLUDED.duration_minutes, procedure_catalog.duration_minutes), \
+               requires_consent = EXCLUDED.requires_consent, \
+               requires_anesthesia = EXCLUDED.requires_anesthesia, \
+               is_active = true, updated_at = now()",
+        )
+        .bind(claims.tenant_id)
+        .bind(code)
+        .bind(name)
+        .bind(optional(cell(values, category_idx)))
+        .bind(base_price)
+        .bind(duration)
+        .bind(parse_bool(cell(values, consent_idx)))
+        .bind(parse_bool(cell(values, anaes_idx)))
+        .execute(&mut *tx)
+        .await;
+
+        match result {
+            Ok(_) => imported += 1,
+            Err(e) => {
+                errors.push(format!("Row {row_num} ({code}): {e}"));
+                skipped += 1;
+            }
+        }
+    }
+
+    tx.commit().await?;
+    Ok(Json(CsvImportResult {
+        imported,
+        skipped,
+        errors,
+    }))
+}

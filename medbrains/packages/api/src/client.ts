@@ -3631,6 +3631,11 @@ export const api = {
 
   // ── Procedure Catalog & Orders ──────────────────────────
   listProcedureCatalog: () => request<ProcedureCatalog[]>("/opd/procedure-catalog"),
+  importProcedureCatalog: (data: CsvImportRequest) =>
+    request<CsvImportResult>("/opd/procedure-catalog/import", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   listProcedureOrders: (encounterId: string) =>
     request<ProcedureOrderWithName[]>(`/opd/encounters/${encounterId}/procedure-orders`),
   createProcedureOrder: (data: CreateProcedureOrderRequest) =>

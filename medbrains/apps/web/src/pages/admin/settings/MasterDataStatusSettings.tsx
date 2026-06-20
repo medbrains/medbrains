@@ -11,6 +11,7 @@ import {
   ThemeIcon,
 } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
+import type { CsvImportRequest, CsvImportResult } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
   IconAlertCircle,
@@ -45,12 +46,14 @@ import {
   IconStethoscope,
   IconTemplate,
   IconTruckDelivery,
+  IconUpload,
   IconUserShield,
   IconUsers,
   IconWorld,
 } from "@tabler/icons-react";
-import { useQueries } from "@tanstack/react-query";
+import { type QueryKey, useQueries, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useMemo, useState } from "react";
+import { CsvImportModal } from "@/components";
 import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
 import { adminAccessService } from "@/services/adminAccess.service";
 import { adminDoctorsService } from "@/services/adminDoctors.service";
@@ -88,6 +91,16 @@ interface MasterDataItem {
   status: "ready" | "needs_setup" | "restricted" | "error";
   location: "settings" | "module";
   needsSetup: boolean;
+  /** When set, the card offers a CSV bulk-import (workbook sheet → live catalog). */
+  csvImport?: MasterDataCsvImport;
+}
+
+interface MasterDataCsvImport {
+  title: string;
+  requiredColumns: string[];
+  optionalColumns?: string[];
+  invalidateKey: QueryKey;
+  run: (data: CsvImportRequest) => Promise<CsvImportResult>;
 }
 
 interface MasterDataGapItem {
@@ -730,8 +743,10 @@ function colorToTone(color: string): BadgeTone {
 }
 
 export function MasterDataStatusSettings() {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<MasterDataFilter>("missing");
+  const [importItem, setImportItem] = useState<MasterDataItem | null>(null);
   const canManageGeneralSettings = useHasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
   const canViewFacilities = useHasPermission(P.ADMIN.SETTINGS.FACILITIES.LIST);
   const canViewPharmacyCatalog = useHasPermission(P.PHARMACY.PRESCRIPTIONS_LIST);
@@ -1496,6 +1511,19 @@ export function MasterDataStatusSettings() {
         canView: canViewProcedureCatalog,
         isError: queryError(procedureQuery),
         location: "module",
+        csvImport: {
+          title: "Import procedure catalog",
+          requiredColumns: ["code", "name"],
+          optionalColumns: [
+            "category",
+            "base_price",
+            "duration_minutes",
+            "requires_consent",
+            "requires_anaesthesia",
+          ],
+          invalidateKey: ["procedure-catalog"],
+          run: (data) => settingsSetupService.importProcedureCatalog(data),
+        },
       }),
       item({
         key: "store-catalog",
@@ -2509,15 +2537,27 @@ export function MasterDataStatusSettings() {
                   </Stack>
 
                   <Group justify="space-between" gap="xs">
-                    <Button
-                      tone="secondary"
-                      component="a"
-                      href={item.actionHref}
-                      size="xs"
-                      disabled={item.status === "restricted"}
-                    >
-                      {item.actionLabel}
-                    </Button>
+                    <Group gap="xs">
+                      <Button
+                        tone="secondary"
+                        component="a"
+                        href={item.actionHref}
+                        size="xs"
+                        disabled={item.status === "restricted"}
+                      >
+                        {item.actionLabel}
+                      </Button>
+                      {item.csvImport && item.status !== "restricted" && (
+                        <Button
+                          tone="ghost"
+                          size="xs"
+                          leftSection={<IconUpload size={14} />}
+                          onClick={() => setImportItem(item)}
+                        >
+                          Import CSV
+                        </Button>
+                      )}
+                    </Group>
                     {item.needsSetup && (
                       <Group gap={4}>
                         <IconAlertCircle size={14} color="var(--mantine-color-red-6)" />
@@ -2683,6 +2723,21 @@ export function MasterDataStatusSettings() {
           </SimpleGrid>
         </Stack>
       </Card>
+
+      {importItem?.csvImport && (
+        <CsvImportModal
+          opened
+          onClose={() => {
+            const key = importItem.csvImport?.invalidateKey;
+            setImportItem(null);
+            if (key) void queryClient.invalidateQueries({ queryKey: key });
+          }}
+          title={importItem.csvImport.title}
+          requiredColumns={importItem.csvImport.requiredColumns}
+          optionalColumns={importItem.csvImport.optionalColumns}
+          onImport={importItem.csvImport.run}
+        />
+      )}
     </Stack>
   );
 }

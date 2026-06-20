@@ -44,6 +44,8 @@ export const settingsSetupService = {
   updateService: (id: string, data: UpdateServiceInput) => api.updateService(id, data),
   deleteService: (id: string) => api.deleteService(id),
   listProcedureCatalog: () => api.listProcedureCatalog(),
+  importProcedureCatalog: (data: Parameters<typeof api.importProcedureCatalog>[0]) =>
+    api.importProcedureCatalog(data),
   listTaxCategories: () => api.listTaxCategories(),
   createTaxCategory: (data: CreateTaxCategoryInput) => api.createTaxCategory(data),
   updateTaxCategory: (id: string, data: UpdateTaxCategoryInput) => api.updateTaxCategory(id, data),

@@ -5,6 +5,7 @@ import {
   FileInput,
   Group,
   Modal,
+  Progress,
   ScrollArea,
   Stack,
   Table,
@@ -22,6 +23,15 @@ interface Props {
   requiredColumns: string[];
   optionalColumns?: string[];
   onImport: (data: CsvImportRequest) => Promise<CsvImportResult>;
+  /** Rows per background batch. Large files stream in chunks so the UI stays responsive. */
+  chunkSize?: number;
+}
+
+/** Yield to the event loop so the progress bar can repaint between batches. */
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
 }
 
 function parseCsv(text: string): { headers: string[]; rows: string[][] } {
@@ -43,12 +53,14 @@ export function CsvImportModal({
   requiredColumns,
   optionalColumns = [],
   onImport,
+  chunkSize = 100,
 }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [parsed, setParsed] = useState<{ headers: string[]; rows: string[][] } | null>(null);
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<CsvImportResult | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [processed, setProcessed] = useState(0);
 
   const handleFileChange = useCallback(
     (f: File | null) => {
@@ -88,18 +100,30 @@ export function CsvImportModal({
 
   const handleImport = async () => {
     if (!parsed) return;
+    const total = parsed.rows.length;
     setImporting(true);
+    setProcessed(0);
+    const agg: CsvImportResult = { imported: 0, skipped: 0, errors: [] };
     try {
-      const payload: CsvImportRequest = {
-        headers: parsed.headers,
-        rows: parsed.rows.map((r) => ({ values: r })),
-      };
-      const res = await onImport(payload);
-      setResult(res);
-      if (res.imported > 0) {
+      // Stream rows to the server in chunks so very large files report real
+      // progress and never block the UI thread on one giant request.
+      for (let start = 0; start < total; start += chunkSize) {
+        const slice = parsed.rows.slice(start, start + chunkSize);
+        const res = await onImport({
+          headers: parsed.headers,
+          rows: slice.map((r) => ({ values: r })),
+        });
+        agg.imported += res.imported;
+        agg.skipped += res.skipped;
+        agg.errors.push(...res.errors);
+        setProcessed(Math.min(start + slice.length, total));
+        await nextFrame();
+      }
+      setResult(agg);
+      if (agg.imported > 0) {
         notifications.show({
           title: "Import successful",
-          message: `Imported ${res.imported} records${res.skipped > 0 ? `, skipped ${res.skipped}` : ""}`,
+          message: `Imported ${agg.imported} records${agg.skipped > 0 ? `, skipped ${agg.skipped}` : ""}`,
           color: "success",
         });
       }
@@ -119,8 +143,12 @@ export function CsvImportModal({
     setParsed(null);
     setResult(null);
     setParseError(null);
+    setProcessed(0);
     onClose();
   };
+
+  const progressPct =
+    parsed && parsed.rows.length > 0 ? Math.round((processed / parsed.rows.length) * 100) : 0;
 
   return (
     <Modal opened={opened} onClose={handleClose} title={title} size="lg">
@@ -187,9 +215,21 @@ export function CsvImportModal({
               </Text>
             )}
 
-            <Button onClick={handleImport} loading={importing}>
-              Import {parsed.rows.length} rows
-            </Button>
+            {importing ? (
+              <Stack gap={6}>
+                <Group justify="space-between">
+                  <Text size="sm" fw={500}>
+                    Importing…
+                  </Text>
+                  <Text size="sm" c="dimmed" ff="monospace">
+                    {processed} / {parsed.rows.length} ({progressPct}%)
+                  </Text>
+                </Group>
+                <Progress value={progressPct} size="lg" striped animated radius={0} />
+              </Stack>
+            ) : (
+              <Button onClick={handleImport}>Import {parsed.rows.length} rows</Button>
+            )}
           </>
         )}
 

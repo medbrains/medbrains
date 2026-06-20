@@ -924,6 +924,10 @@ pub fn build_router(state: AppState) -> Router {
             get(opd::list_procedure_catalog),
         )
         .route(
+            "/api/opd/procedure-catalog/import",
+            post(catalog_import::import_procedure_catalog),
+        )
+        .route(
             "/api/opd/encounters/{id}/procedure-orders",
             get(opd::list_procedure_orders),
         )
