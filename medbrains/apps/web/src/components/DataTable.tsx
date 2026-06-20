@@ -12,7 +12,7 @@ import {
 import { usePermissionStore } from "@medbrains/stores";
 import { IconDownload } from "@tabler/icons-react";
 import { useCallback, useMemo } from "react";
-import { Checkbox, IconButton } from "@/components/ui";
+import { Checkbox, IconButton, Input } from "@/components/ui";
 import { DataTableBulkBar } from "./DataTableBulkBar";
 import { DataTableColumnsMenu } from "./DataTableColumnsMenu";
 import { DataTableHeader } from "./DataTableHeader";
@@ -24,6 +24,7 @@ import type {
   Column,
   ColumnAccessState,
   DataTableDensity,
+  DataTableFilter,
   DataTableProps,
 } from "./data-table-types";
 import { EmptyState } from "./EmptyState";
@@ -94,6 +95,59 @@ function spacerRow(height: number, columnCount: number, key: string) {
   );
 }
 
+/** Build toolbar filters automatically from columns that declare `filter`. */
+function deriveAutoFilters<T>(columns: Column<T>[]): DataTableFilter<T>[] {
+  const out: DataTableFilter<T>[] = [];
+  for (const column of columns) {
+    if (!column.filter) continue;
+    const get = column.filterValue ?? column.accessor;
+    const { type, options, placeholder } = column.filter;
+    const label = placeholder ?? column.label;
+    if (type === "select") {
+      out.push({
+        key: column.key,
+        label: column.label,
+        options,
+        placeholder: label,
+        matches: (row, value) => String(get?.(row) ?? "").toLowerCase() === value.toLowerCase(),
+      });
+      continue;
+    }
+    const isNumber = type === "number";
+    out.push({
+      key: column.key,
+      label: column.label,
+      placeholder: label,
+      render: (value, onChange) => (
+        <Input
+          size="xs"
+          type={isNumber ? "number" : "text"}
+          value={value}
+          placeholder={label}
+          aria-label={column.label}
+          onChange={(event) => onChange(event.currentTarget.value)}
+        />
+      ),
+      matches: (row, value) => {
+        const raw = String(get?.(row) ?? "").toLowerCase();
+        const needle = value.toLowerCase();
+        return isNumber ? raw === needle : raw.includes(needle);
+      },
+    });
+  }
+  return out;
+}
+
+/** Auto filters + explicit `filters`; an explicit filter wins on key clash. */
+function mergeFilters<T>(
+  auto: DataTableFilter<T>[],
+  explicit?: DataTableFilter<T>[],
+): DataTableFilter<T>[] {
+  if (!explicit?.length) return auto;
+  const taken = new Set(explicit.map((filter) => filter.key));
+  return [...auto.filter((filter) => !taken.has(filter.key)), ...explicit];
+}
+
 export function DataTable<T>({
   columns,
   data,
@@ -138,6 +192,9 @@ export function DataTable<T>({
   const hasAnyPermission = usePermissionStore((state) => state.hasAnyPermission);
   const getFieldAccess = usePermissionStore((state) => state.getFieldAccess);
 
+  // Auto basic filters from column `filter` configs, merged with explicit ones.
+  const allFilters = useMemo(() => mergeFilters(deriveAutoFilters(columns), filters), [columns, filters]);
+
   const {
     query,
     setQuery,
@@ -146,7 +203,7 @@ export function DataTable<T>({
     clearFilters,
     filteredData,
     activeFilterCount,
-  } = useDataTableFilter({ data, columns, searchable, filters });
+  } = useDataTableFilter({ data, columns, searchable, filters: allFilters });
 
   const {
     activeSort,
@@ -270,7 +327,7 @@ export function DataTable<T>({
       searchPlaceholder={searchPlaceholder}
       query={query}
       onQueryChange={setQuery}
-      filters={filters}
+      filters={allFilters}
       filterValues={filterValues}
       onFilterChange={setFilterValue}
       activeFilterCount={activeFilterCount}

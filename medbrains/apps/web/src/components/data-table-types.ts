@@ -45,6 +45,19 @@ export interface Column<T> {
   searchable?: boolean;
   /** Value matched by global search; falls back to `accessor`. */
   searchValue?: (row: T) => number | string | null | undefined;
+  // ── Auto filter (opt-in) ──────────────────────────────────────
+  /**
+   * Declare a basic filter for this column and DataTable renders it in the
+   * toolbar automatically (text = contains, select = exact from `options`,
+   * number = equals). Matching uses `filterValue` ?? `accessor`.
+   */
+  filter?: {
+    type: "text" | "select" | "number";
+    options?: { value: string; label: string }[];
+    placeholder?: string;
+  };
+  /** Value used for the auto filter; falls back to `accessor`. */
+  filterValue?: (row: T) => number | string | null | undefined;
 }
 
 /**
