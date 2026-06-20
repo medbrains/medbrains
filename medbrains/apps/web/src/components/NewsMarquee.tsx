@@ -1,6 +1,8 @@
 import { HoverCard, Text } from "@mantine/core";
 import { useFocusWithin, useHover, useInterval, useMergedRef } from "@mantine/hooks";
+import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
+import type { NewsFeedArticle } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 import { useState } from "react";
@@ -16,12 +18,7 @@ interface Headline {
   date?: string;
 }
 
-interface Rss2JsonResponse {
-  status: string;
-  items?: { title: string; link: string; description?: string; pubDate?: string }[];
-}
-
-/** Format an RSS pubDate to a readable, separate date label. */
+/** Format an ISO date to a readable, separate date label. */
 function formatDate(raw: string | null | undefined): string | undefined {
   if (!raw) return undefined;
   const time = Date.parse(raw);
@@ -33,56 +30,13 @@ function formatDate(raw: string | null | undefined): string | undefined {
   });
 }
 
-/** Strip HTML tags + collapse whitespace from a feed snippet for the tooltip. */
-function cleanSnippet(html: string | null | undefined): string | undefined {
-  if (!html) return undefined;
-  const text = html
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&[a-z]+;/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!text) return undefined;
-  return text.length > 220 ? `${text.slice(0, 220)}…` : text;
-}
-
-/** Parse an RSS XML string into headlines (fallback proxy path). */
-function parseRssXml(xml: string): Headline[] {
-  const doc = new DOMParser().parseFromString(xml, "application/xml");
-  return Array.from(doc.querySelectorAll("item"))
-    .slice(0, 12)
-    .map((node) => ({
-      title: node.querySelector("title")?.textContent?.trim() ?? "",
-      link: node.querySelector("link")?.textContent?.trim() ?? "",
-      description: cleanSnippet(node.querySelector("description")?.textContent),
-      date: formatDate(node.querySelector("pubDate")?.textContent),
-    }))
-    .filter((item) => item.title && item.link);
-}
-
-/** Fetch live, direct article headlines — rss2json first, allorigins fallback. */
-async function fetchHeadlines(feedUrl: string): Promise<Headline[]> {
-  const encoded = encodeURIComponent(feedUrl);
-  try {
-    const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encoded}&count=12`);
-    if (res.ok) {
-      const json: Rss2JsonResponse = await res.json();
-      if (json.status === "ok" && json.items?.length) {
-        return json.items.map((item) => ({
-          title: item.title,
-          link: item.link,
-          description: cleanSnippet(item.description),
-          date: formatDate(item.pubDate),
-        }));
-      }
-    }
-  } catch {
-    // proxy unreachable — fall through to the raw-XML proxy below
-  }
-  const res = await fetch(`https://api.allorigins.win/raw?url=${encoded}`);
-  if (!res.ok) throw new Error("news feed unavailable");
-  const items = parseRssXml(await res.text());
-  if (!items.length) throw new Error("news feed empty");
-  return items;
+function articleToHeadline(article: NewsFeedArticle): Headline {
+  return {
+    title: article.title,
+    link: article.url,
+    description: article.summary ?? undefined,
+    date: formatDate(article.published_at),
+  };
 }
 
 function sourcesAsHeadlines(sources: NewsSource[]): Headline[] {
@@ -101,25 +55,24 @@ function hostnameOf(url: string): string | undefined {
 const ROTATE_MS = 3200;
 
 /**
- * Header news ticker — a role-aware, vertical fold rotator that cycles live,
- * direct medical articles one at a time (curated free-magazine fallback only if
- * all feeds fail). Each article folds in from the top; pauses on hover/focus
- * (Mantine hooks); honours reduced-motion; each item links out to the article.
+ * Header news ticker — a role-aware, vertical fold rotator that cycles live
+ * medical articles one at a time. Articles come from the backend news-feed API
+ * (ingested into news_feed_articles), with the curated free-source list as a
+ * fallback only if the feed is empty. Pauses on hover/focus; reduced-motion safe.
  */
 export function NewsMarquee() {
   const role = useAuthStore((s) => s.user?.role);
   const news = newsForRole(role);
 
   const { data } = useQuery({
-    queryKey: ["medical-news", news.topic],
-    queryFn: () => fetchHeadlines(news.feedUrl),
-    staleTime: 1_800_000,
+    queryKey: ["news-feed", news.topic],
+    queryFn: () => api.listNewsFeed({ topic: news.topic, limit: 15 }),
+    staleTime: 600_000,
     retry: 1,
   });
 
-  // The marquee itself cycles everything: live articles first, then the
-  // curated free sources for this role (sources are always present).
-  const headlines = [...(data ?? []), ...sourcesAsHeadlines(news.sources)];
+  const articles = (data ?? []).map(articleToHeadline);
+  const headlines = articles.length > 0 ? articles : sourcesAsHeadlines(news.sources);
   const [index, setIndex] = useState(0);
 
   // Pause rotation while reading (hover) or tabbed in (focus).
