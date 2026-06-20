@@ -143,6 +143,7 @@ import {
   OrderBasketWorkspace,
 } from "@/components/OrderBasket/OrderBasketWorkspace";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PatientContextSummary } from "@/components/Patient/PatientContextSummary";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import {
@@ -1654,6 +1655,7 @@ export function EncounterDetail({
   // Controlled so the Patient Flow "IPD" chip can open the same Admit modal.
   const admitControl = useDisclosure(false);
   const billingControl = useDisclosure(false);
+  const [patientPeekOpened, patientPeek] = useDisclosure(false);
   const [activeEncounterTab, setActiveEncounterTab] = useHashTabs(
     "consultation",
     OPD_ENCOUNTER_TAB_VALUES,
@@ -1830,6 +1832,10 @@ export function EncounterDetail({
             billingControl[1].open();
             return true;
           }
+          if (stage === "patient") {
+            patientPeek.open();
+            return true;
+          }
           return false;
         }}
       />
@@ -1838,6 +1844,21 @@ export function EncounterDetail({
         encounterId={encounterId}
         control={billingControl}
       />
+      <Modal opened={patientPeekOpened} onClose={patientPeek.close} title="Patient" size="lg">
+        <Stack gap="sm">
+          <PatientContextSummary patientId={patientId} />
+          <Button
+            tone="primary"
+            size="xs"
+            onClick={() => {
+              patientPeek.close();
+              navigate(`/patients/${patientId}`);
+            }}
+          >
+            Open full patient record
+          </Button>
+        </Stack>
+      </Modal>
 
       {/* Encounter action toolbar — lives in the header, above the rail/content split. */}
       <Group
