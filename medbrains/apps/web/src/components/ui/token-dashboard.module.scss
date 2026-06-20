@@ -1,0 +1,57 @@
+// Module-agnostic token board — flat Carbon cards, large display-friendly token
+// numbers, blue left bar on the active token. Colour from theme tokens only.
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.header {
+  border-bottom: 1px solid var(--mb-border-default, #e0e0e0);
+  padding-bottom: 8px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--mb-text-primary, #161616);
+}
+
+.empty {
+  padding: 32px 0;
+  font-size: 13px;
+}
+
+.card {
+  border: 1px solid var(--mb-border-default, #e0e0e0);
+  border-radius: 2px;
+  background: var(--mb-bg-default, #fff);
+  padding: 14px 16px;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+
+  &[data-active] {
+    border-color: var(--mb-brand-emphasis, #0f62fe);
+    box-shadow: inset 3px 0 0 0 var(--mb-brand-emphasis, #0f62fe);
+  }
+}
+
+.token {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--mb-text-primary, #161616);
+}
+
+.primary {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--mb-text-primary, #161616);
+}
+
+.meta {
+  font-size: 12px;
+}
