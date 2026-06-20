@@ -12,6 +12,7 @@ mod locations;
 mod module_config;
 mod payment_methods;
 mod pharmacy_catalog;
+mod procedure_catalog;
 mod radiology_fixtures;
 mod role_dashboards;
 // Screen builder removed (see migration 123). seed/screens.rs retained as
@@ -136,6 +137,7 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     departments::seed_departments(pool, tenant_id).await?;
     lab_catalog::seed_lab_catalog(pool, tenant_id).await?;
     pharmacy_catalog::seed_pharmacy_catalog(pool, tenant_id).await?;
+    procedure_catalog::seed_procedure_catalog(pool, tenant_id).await?;
     charge_master::seed_charge_master(pool, tenant_id).await?;
     bed_types::seed_bed_types(pool, tenant_id).await?;
     tax_categories::seed_tax_categories(pool, tenant_id).await?;
