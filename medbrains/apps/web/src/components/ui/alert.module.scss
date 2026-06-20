@@ -2,7 +2,7 @@
 // rounded white card, hairline border, ink title + secondary message. Tone
 // colour comes from Mantine's --alert-color.
 .alert {
-  --tone: var(--alert-color, var(--mb-brand, #5b4bc4));
+  --tone: var(--alert-color, var(--mb-brand, #0f62fe));
 
   border: 1px solid var(--mb-border, #e4e7ea);
   border-radius: 12px;

@@ -22,49 +22,49 @@ import type { MantineColorsTuple } from "@mantine/core";
 // ── Color Ramps
 // ═══════════════════════════════════════════════════════════════════
 
-/** Indigo — Signature Spectrum brand. Anchor: blue[5] = #5B4BC4. */
+/** Blue — IBM Carbon interactive. Anchor: blue[5] = Blue 60 #0f62fe. */
 export const blue = [
-  "#EFEDFA", // 50
-  "#D7D2F2", // 100
-  "#B3ABE0", // 200 — dark-mode brand fg (--primary-2)
-  "#8E82D6", // 300
-  "#7160CC", // 400 — dark-mode brand emphasis
-  "#5B4BC4", // 500 — LIGHT brand (SS indigo)
-  "#463AA8", // 600 — link / light hover (AAA on white)
-  "#3A2E8C", // 700 — SS indigo-deep / pressed
-  "#2B2269", // 800
-  "#1D1747", // 900
+  "#edf5ff", // 10
+  "#d0e2ff", // 20
+  "#a6c8ff", // 30
+  "#78a9ff", // 40 — dark-mode brand fg
+  "#4589ff", // 50 — dark-mode brand emphasis
+  "#0f62fe", // 60 — LIGHT brand (Carbon interactive)
+  "#0043ce", // 70 — link hover / pressed
+  "#002d9c", // 80 — deep pressed
+  "#001d6c", // 90
+  "#001141", // 100
 ] as const satisfies readonly string[];
 
-/** Rose/Coral — Signature Spectrum accent. Anchor: cinnabar[5] = #C85B7E. */
+/** Purple — Carbon expressive accent (replaces the rose accent). Anchor [5] = Purple 60 #8a3ffc. */
 export const cinnabar = [
-  "#FBEEF2", // 50
-  "#F4CFDB", // 100
-  "#E8A3B8", // 200
-  "#DB7795", // 300 — dark-mode accent fg
-  "#D26687", // 400 — dark-mode accent emphasis
-  "#C85B7E", // 500 — LIGHT accent (SS rose)
-  "#A33E4F", // 600 — coral-text (AA on white)
-  "#84324F", // 700
-  "#5E2439", // 800
-  "#3D1726", // 900
+  "#f6f2ff", // 10
+  "#e8daff", // 20
+  "#d4bbff", // 30
+  "#be95ff", // 40
+  "#a56eff", // 50
+  "#8a3ffc", // 60 — Carbon purple accent
+  "#6929c4", // 70
+  "#491d8b", // 80
+  "#31135e", // 90
+  "#1c0f30", // 100
 ] as const satisfies readonly string[];
 
-/** Signature Spectrum stops — indigo-deep → indigo → rose → coral. */
-export const signatureSpectrumStops = ["#3A2E8C", "#5B4BC4", "#C85B7E", "#E8895A"] as const;
+/** Carbon brand gradient — Blue 90 → 60 → 50 → 30. */
+export const signatureSpectrumStops = ["#001d6c", "#0f62fe", "#4589ff", "#a6c8ff"] as const;
 
-/** Mint — Apple Health vital sign / success. Anchor: mint[4] = #34D69D. */
+/** Green — Carbon support-success. Anchor: mint[4] = Green 50 #24a148 (ECG/vital). */
 export const mint = [
-  "#E3FAF2", // 50
-  "#B4F1DC", // 100
-  "#84E5C3", // 200
-  "#54D6A8", // 300
-  "#34D69D", // 400 — VITAL anchor (ECG, normal sign)
-  "#1CB785", // 500 — SUCCESS anchor
-  "#149367", // 600
-  "#0F6F4D", // 700
-  "#094A33", // 800
-  "#042619", // 900
+  "#defbe6", // 10
+  "#a7f0ba", // 20
+  "#6fdc8c", // 30
+  "#42be65", // 40 — bright vital
+  "#24a148", // 50 — VITAL / ECG anchor (Carbon support-success)
+  "#198038", // 60 — SUCCESS emphasis
+  "#0e6027", // 70
+  "#044317", // 80
+  "#022d0d", // 90
+  "#08130b", // 100
 ] as const satisfies readonly string[];
 
 /**
@@ -73,19 +73,19 @@ export const mint = [
  */
 export const emerald = mint;
 
-/** Ink — Apple-warm neutral. Anchor: pure white at 0, near-black at 900. */
+/** Gray — IBM Carbon neutral. Pure white at 0 → Gray 100 #161616. */
 export const ink = [
   "#FFFFFF", // 0  — pure canvas (light)
-  "#F8F8F7", // 50 — paper
-  "#EDEDEC", // 100 — fog panel
-  "#D8D8D6", // 200 — hairline borders
-  "#B8B8B5", // 300 — strong borders, dividers
-  "#8A8A86", // 400 — faint fg
-  "#5B5B57", // 500 — subtle fg
-  "#3D3D3A", // 600 — muted fg
-  "#282826", // 700 — secondary
-  "#1A1A18", // 800 — body
-  "#0D0D0C", // 900 — primary fg, headings (LOCKED anchor)
+  "#f4f4f4", // 10 — paper / layer-01
+  "#e0e0e0", // 20 — hairline / border-subtle
+  "#c6c6c6", // 30 — divider
+  "#a8a8a8", // 40 — placeholder / faint fg
+  "#8d8d8d", // 50 — border-strong / subtle fg
+  "#6f6f6f", // 60 — helper / muted fg
+  "#525252", // 70 — secondary text
+  "#393939", // 80 — body emphasis
+  "#262626", // 90 — body
+  "#161616", // 100 — primary fg, headings (Carbon Gray 100)
 ] as const satisfies readonly string[];
 
 /**
@@ -106,46 +106,46 @@ export const inkDark = [
   "#000000", // 9  — bg canvas (Apple pure black)
 ] as const satisfies readonly string[];
 
-/** Amber — Apple system warning. Anchor: amber[5] = #FF9F0A. */
+/** Yellow — Carbon support-warning. Anchor: amber[5] = #f1c21b. */
 export const amber = [
-  "#FFF8E1",
-  "#FFECB3",
-  "#FFE082",
-  "#FFD54F",
-  "#FFCA28",
-  "#FF9F0A", // 5 — Apple system orange (warning)
-  "#D97706",
-  "#B45309",
-  "#92400E",
-  "#78350F",
+  "#fcf4d6",
+  "#fddc69",
+  "#f1c21b",
+  "#d2a106",
+  "#b28600",
+  "#f1c21b", // 5 — Carbon warning (dark text on top)
+  "#8e6a00",
+  "#684e00",
+  "#483700",
+  "#302400",
 ] as const satisfies readonly string[];
 
-/** Rose — Apple system critical. Anchor: rose[5] = #FF453A. */
+/** Red — Carbon support-error. Anchor: rose[5] = Red 60 #da1e28. */
 export const rose = [
-  "#FFE5E3",
-  "#FFCCC8",
-  "#FFA8A1",
-  "#FF8076",
-  "#FF6961",
-  "#FF453A", // 5 — Apple system red (critical alert)
-  "#D70015",
-  "#A30210",
-  "#75020B",
-  "#4D0107",
+  "#fff1f1",
+  "#ffd7d9",
+  "#ffb3b8",
+  "#ff8389",
+  "#fa4d56",
+  "#da1e28", // 5 — Carbon error
+  "#a2191f",
+  "#750e13",
+  "#520408",
+  "#2d0709",
 ] as const satisfies readonly string[];
 
-/** Sky — Apple system informational. Anchor: sky[5] = #0A84FF. */
+/** Cyan — Carbon support-info. Anchor: sky[5] = Cyan 60 #0072c3. */
 export const sky = [
-  "#E6F2FF",
-  "#BDE0FF",
-  "#90CBFF",
-  "#64B5FF",
-  "#3D9DFF",
-  "#0A84FF", // 5 — Apple system blue (info)
-  "#0066CC",
-  "#0052A3",
-  "#003E7A",
-  "#002B54",
+  "#e5f6ff",
+  "#bae6ff",
+  "#82cfff",
+  "#33b1ff",
+  "#1192e8",
+  "#0072c3", // 5 — Carbon info
+  "#00539a",
+  "#003a6d",
+  "#012749",
+  "#061727",
 ] as const satisfies readonly string[];
 
 /** Violet — Apple system premium / AI. Anchor: violet[5] = #5E5CE6. */
@@ -246,15 +246,16 @@ export const space = {
 // ── Radius — Apple-style continuous corners
 // ═══════════════════════════════════════════════════════════════════
 
+// IBM Carbon — sharp, functional corners.
 export const radius = {
   none: "0",
-  xs: "4px",
-  sm: "6px",
-  md: "8px",
-  lg: "12px",
-  xl: "16px",
-  "2xl": "20px",
-  "3xl": "28px",
+  xs: "0",
+  sm: "2px",
+  md: "2px",
+  lg: "4px",
+  xl: "6px",
+  "2xl": "8px",
+  "3xl": "12px",
   full: "9999px",
 } as const;
 
@@ -314,9 +315,9 @@ export const letterSpacing = {
 // ═══════════════════════════════════════════════════════════════════
 
 export const fontFamily = {
-  sans: "'Inter Tight Variable', 'Inter Tight', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', 'Noto Sans', 'Noto Sans Tamil', Roboto, sans-serif",
-  display: "'Fraunces Variable', 'Fraunces', 'SF Pro Display', Georgia, 'Times New Roman', serif",
-  mono: "'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace",
+  sans: "'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans', 'Noto Sans Tamil', sans-serif",
+  display: "'IBM Plex Sans', 'IBM Plex Serif', Georgia, serif",
+  mono: "'IBM Plex Mono', 'SF Mono', ui-monospace, Menlo, monospace",
 } as const;
 
 // ═══════════════════════════════════════════════════════════════════

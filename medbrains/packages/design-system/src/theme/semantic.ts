@@ -159,42 +159,42 @@ export interface StatusScale {
 
 export const lightScheme: SemanticScheme = {
   bg: {
-    canvas: "#FFFFFF",
+    canvas: "#FFFFFF", // Carbon background
     default: "#FFFFFF",
-    subtle: "#F4F5F8", // Experian cool panel
-    muted: "#ECEEF3", // fog panel
-    emphasis: blue[5], // Experian blue surface
-    inverse: "#1A1A2E",
-    overlay: "rgba(26, 26, 46, 0.36)",
+    subtle: "#f4f4f4", // Carbon layer-01
+    muted: "#e8e8e8", // layer hover
+    emphasis: blue[5], // interactive blue surface
+    inverse: "#161616", // Carbon Gray 100
+    overlay: "rgba(22, 22, 22, 0.5)",
   },
   fg: {
-    default: "#1A1A2E", // Experian near-black body text
-    muted: "#5F6B7A", // secondary gray
-    subtle: "#5F6B7A",
-    faint: "#9AA4B2", // placeholder
+    default: "#161616", // Carbon text-primary
+    muted: "#525252", // text-secondary
+    subtle: "#525252",
+    faint: "#a8a8a8", // text-placeholder
     onEmphasis: "#FFFFFF",
     onAccent: "#FFFFFF",
-    onInverse: "#F4F5F8",
-    link: blue[6], // #463AA8 — AAA link
-    linkHover: blue[7],
+    onInverse: "#f4f4f4",
+    link: blue[5], // #0f62fe — Carbon link-primary
+    linkHover: blue[6], // #0043ce
   },
   border: {
-    default: "#D5DBDB", // Experian hairline
-    muted: "#E7EAEF",
-    strong: "#B6BFC9",
+    default: "#e0e0e0", // Carbon border-subtle
+    muted: "#e0e0e0",
+    strong: "#8d8d8d", // border-strong
     focus: blue[5],
   },
   brand: {
-    fg: blue[6], // #0052A3 — readable on white
-    bg: blue[0], // #E6F1FF
-    emphasis: blue[5], // #0066CC LOCKED
-    emphasisHover: blue[6],
-    emphasisPressed: blue[7],
+    fg: blue[5], // #0f62fe — Carbon interactive
+    bg: blue[0], // #edf5ff — blue 10
+    emphasis: blue[5], // #0f62fe Carbon interactive
+    emphasisHover: blue[6], // #0043ce
+    emphasisPressed: blue[7], // #002d9c
     muted: blue[0],
     onEmphasis: "#FFFFFF",
-    tint: "#ECF1F8", // active nav pill (Experian blue tint)
-    tintStrong: blue[1],
-    outline: blue[2],
+    tint: "#edf5ff", // blue 10 — active nav pill
+    tintStrong: blue[1], // #d0e2ff
+    outline: blue[2], // #a6c8ff
   },
   accent: {
     fg: cinnabar[6], // #962623 readable on white
@@ -205,31 +205,31 @@ export const lightScheme: SemanticScheme = {
   },
   status: {
     success: {
-      fg: "#047857",
-      bg: "#D1FAE5",
+      fg: "#0e6027", // Carbon green 70 text
+      bg: "#defbe6", // green 10
       border: mint[2],
-      emphasis: mint[5], // #1CB785
+      emphasis: mint[5], // #198038
       onEmphasis: "#FFFFFF",
     },
     warning: {
-      fg: "#B45309",
-      bg: "#FEF3C7",
+      fg: "#684e00", // dark text for yellow
+      bg: "#fcf4d6", // yellow 10
       border: amber[2],
-      emphasis: amber[5], // #FF9F0A
-      onEmphasis: amber[9],
+      emphasis: amber[5], // #f1c21b
+      onEmphasis: "#161616", // dark on yellow
     },
     danger: {
-      fg: "#B91C1C",
-      bg: "#FEE2E2",
+      fg: "#a2191f", // Carbon red 70 text
+      bg: "#fff1f1", // red 10
       border: rose[2],
-      emphasis: rose[5], // #FF453A
+      emphasis: rose[5], // #da1e28
       onEmphasis: "#FFFFFF",
     },
     info: {
-      fg: "#0369A1",
-      bg: "#E0F2FE",
+      fg: "#00539a", // Carbon cyan 70 text
+      bg: "#e5f6ff", // cyan 10
       border: sky[2],
-      emphasis: sky[5], // #0A84FF
+      emphasis: sky[5], // #0072c3
       onEmphasis: "#FFFFFF",
     },
     neutral: {
@@ -259,7 +259,7 @@ export const lightScheme: SemanticScheme = {
     text: ink[6],
     hoverBg: ink[2],
     hoverText: blue[6],
-    activeBg: "#EEF4FC", // System Blue tint
+    activeBg: "#edf5ff", // Carbon blue 10 tint
     activeText: blue[6],
     activeShadow: `inset 3px 0 0 0 ${blue[5]}`,
     activeIndicator: blue[5],
@@ -268,14 +268,14 @@ export const lightScheme: SemanticScheme = {
     childActiveBorder: blue[5],
   },
   header: {
-    bg: "rgba(255, 255, 255, 0.78)", // Apple frosted glass
-    border: "#E7E7E3",
+    bg: "#FFFFFF",
+    border: "#e0e0e0",
     searchBg: ink[1],
   },
   input: {
-    bg: "#FFFFFF",
-    border: "#D8D8D6", // ink[2] strong border
-    borderHover: ink[4],
+    bg: ink[1], // Carbon field-01 #f4f4f4
+    border: "#8d8d8d", // Carbon strong field border
+    borderHover: ink[6],
     placeholder: ink[4],
     focusRing: blue[5],
     focusBorder: blue[5],
@@ -283,12 +283,12 @@ export const lightScheme: SemanticScheme = {
   table: {
     bg: "#FFFFFF",
     headerBg: ink[1],
-    headerText: ink[8],
-    text: ink[9],
-    textMuted: ink[5],
+    headerText: ink[10],
+    text: ink[10],
+    textMuted: ink[6],
     hover: ink[1],
-    selected: "#EEF4FC",
-    border: "#E7E7E3",
+    selected: "#e0e0e0", // Carbon selected
+    border: "#e0e0e0",
   },
   chip: {
     bg: ink[1],
@@ -302,15 +302,15 @@ export const lightScheme: SemanticScheme = {
     lg: shadowLight.lg,
     xl: shadowLight.xl,
     "2xl": shadowLight["2xl"],
-    cardHover: "0 10px 28px rgba(13, 13, 12, 0.10), 0 24px 54px rgba(0, 102, 204, 0.10)",
+    cardHover: "0 2px 6px rgba(22, 22, 22, 0.16), 0 8px 20px rgba(22, 22, 22, 0.10)",
   },
   shimmer: {
     from: ink[1],
     mid: ink[2],
   },
   selection: {
-    bg: "#EEF4FC",
-    text: ink[9],
+    bg: "#d0e2ff", // Carbon blue 20
+    text: ink[10],
   },
 };
 

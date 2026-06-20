@@ -5,13 +5,13 @@
 
 :root {
   /* spectrum */
-  --ss-indigo-deep: #3a2e8c;
-  --ss-indigo: #5b4bc4;
-  --ss-rose: #c85b7e;
-  --ss-coral: #e8895a;
+  --ss-indigo-deep: #002d9c;
+  --ss-indigo: #0f62fe;
+  --ss-rose: #8a3ffc;
+  --ss-coral: #78a9ff;
   --ss-coral-text: #a33e4f; /* AA on white */
   --ss-link: #463aa8;        /* AAA on white */
-  --ss-gradient: linear-gradient(100deg, #3a2e8c 0%, #5b4bc4 40%, #c85b7e 78%, #e8895a 100%);
+  --ss-gradient: linear-gradient(100deg, #002d9c 0%, #0f62fe 40%, #8a3ffc 78%, #78a9ff 100%);
 
   /* surfaces */
   --ss-zebra: #fafafd;
