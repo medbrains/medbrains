@@ -4,8 +4,8 @@ import {
   Button,
   Card,
   Divider,
-  Drawer,
   Group,
+  Modal,
   ScrollArea,
   SimpleGrid,
   Stack,
@@ -640,12 +640,11 @@ export function SOAPNotes({
         </Tabs>
       </Card>
 
-      <Drawer
+      <Modal
         opened={editorOpened && canEditSoap}
         onClose={handleCloseEditor}
         title="Add SOAP note"
-        position="right"
-        size="min(100%, 1180px)"
+        fullScreen
         classNames={{ body: styles.drawerBody }}
       >
         <form onSubmit={form.handleSubmit(handleSubmit)}>
@@ -841,7 +840,7 @@ export function SOAPNotes({
             </Stack>
           </div>
         </form>
-      </Drawer>
+      </Modal>
     </Stack>
   );
 }
