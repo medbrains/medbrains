@@ -125,6 +125,7 @@ pub mod specialty_maternity;
 pub mod specialty_other;
 pub mod specialty_psychiatry;
 pub mod storage;
+pub mod telemedicine;
 pub mod terminology;
 pub mod tokens;
 pub mod tv;
@@ -1521,6 +1522,24 @@ pub fn build_router(state: AppState) -> Router {
             post(payment_gateway::create_order),
         )
         .route("/api/payments/pos-sale", post(payment_gateway::pos_sale))
+        // ── Telemedicine ─────────────────────────────────
+        .route(
+            "/api/telemedicine/consultations",
+            get(telemedicine::list_tele_consultations)
+                .post(telemedicine::create_tele_consultation),
+        )
+        .route(
+            "/api/telemedicine/consultations/{id}",
+            get(telemedicine::get_tele_consultation),
+        )
+        .route(
+            "/api/telemedicine/consultations/{id}/join",
+            get(telemedicine::get_join_info),
+        )
+        .route(
+            "/api/telemedicine/consultations/{id}/status",
+            put(telemedicine::update_tele_status),
+        )
         .route(
             "/api/payments/virtual-account",
             post(payment_gateway::create_virtual_account),

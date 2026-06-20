@@ -689,6 +689,7 @@ import type {
   CreateTatBenchmarkRequest,
   CreateTatRecordRequest,
   CreateTdsRequest,
+  CreateTeleConsultationRequest,
   CreateTimelineEventRequest,
   CreateTpaRateCardRequest,
   CreateTrainingProgramRequest,
@@ -1571,6 +1572,8 @@ import type {
   TdsCertificatePrintData,
   TdsDeduction,
   TeachingConsentPrintData,
+  TeleConsultation,
+  TeleJoinInfo,
   TemplateWithItems,
   TenantSettingsRow,
   TenantSummary,
@@ -1770,6 +1773,7 @@ import type {
   UpdateSupplierPaymentRequest,
   UpdateSurgeonPreferenceRequest,
   UpdateTaskStatusRequest,
+  UpdateTeleStatusRequest,
   UpdateTpaRateCardRequest,
   UpdateTransferStatus,
   UpdateTransportRequest,
@@ -12807,6 +12811,33 @@ export const api = {
   getRazorpayStatus: () => request<RazorpayStatusResponse>("/payments/razorpay/status"),
   listPaymentProviders: () => request<PaymentProvidersResponse>("/payments/providers"),
   getReconSummary: () => request<ReconSummary>("/payments/recon-summary"),
+
+  // Telemedicine
+  listTeleConsultations: (params?: {
+    status?: string;
+    doctor_id?: string;
+    patient_id?: string;
+  }) => {
+    const qs = params
+      ? `?${new URLSearchParams(
+          Object.entries(params).filter(([, v]) => v !== undefined) as [string, string][],
+        )}`
+      : "";
+    return request<TeleConsultation[]>(`/telemedicine/consultations${qs}`);
+  },
+  createTeleConsultation: (data: CreateTeleConsultationRequest) =>
+    request<TeleConsultation>("/telemedicine/consultations", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getTeleConsultation: (id: string) =>
+    request<TeleConsultation>(`/telemedicine/consultations/${id}`),
+  getTeleJoinInfo: (id: string) => request<TeleJoinInfo>(`/telemedicine/consultations/${id}/join`),
+  updateTeleStatus: (id: string, data: UpdateTeleStatusRequest) =>
+    request<TeleConsultation>(`/telemedicine/consultations/${id}/status`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   listPaymentExceptions: (params?: { status?: string }) => {
     const qs = params?.status ? `?${new URLSearchParams({ status: params.status })}` : "";
     return request<PaymentWebhookException[]>(`/payments/exceptions${qs}`);

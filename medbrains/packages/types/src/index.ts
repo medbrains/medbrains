@@ -29981,6 +29981,48 @@ export interface PaymentProvidersResponse {
   providers: PaymentProviderInfo[];
 }
 
+export interface TeleConsultation {
+  id: string;
+  tenant_id: string;
+  appointment_id?: string | null;
+  encounter_id?: string | null;
+  patient_id: string;
+  doctor_id: string;
+  room_id: string;
+  provider: string;
+  status: string;
+  scheduled_at?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  doctor_notes?: string | null;
+  cancel_reason?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeleJoinInfo {
+  consultation_id: string;
+  room_id: string;
+  join_url: string;
+  display_name: string;
+  status: string;
+}
+
+export interface CreateTeleConsultationRequest {
+  patient_id: string;
+  doctor_id?: string;
+  appointment_id?: string;
+  encounter_id?: string;
+  scheduled_at?: string;
+}
+
+export interface UpdateTeleStatusRequest {
+  status: string;
+  doctor_notes?: string;
+  cancel_reason?: string;
+}
+
 export interface PosSaleRequest {
   terminal_id: string;
   invoice_id?: string;

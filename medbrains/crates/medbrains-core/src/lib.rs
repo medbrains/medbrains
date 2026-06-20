@@ -82,6 +82,7 @@ pub mod pharmacy;
 pub mod pharmacy_phase2;
 pub mod pharmacy_phase3;
 pub mod print_data;
+pub mod telemedicine;
 pub mod privacy;
 pub mod procurement;
 pub mod quality;
