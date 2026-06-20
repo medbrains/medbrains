@@ -110,7 +110,6 @@ export default defineConfig(async () => {
       include: [
         "@mantine/tiptap",
         "@tiptap/react",
-        "@tiptap/pm",
         "@tiptap/starter-kit",
         "@tiptap/extension-link",
       ],
