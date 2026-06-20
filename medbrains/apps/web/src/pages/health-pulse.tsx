@@ -1,4 +1,4 @@
-import { Group, Pagination, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Group, Pagination, SimpleGrid, Stack, Tabs, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, Search } from "lucide-react";
 import { useState } from "react";
 import { PageHeader } from "@/components";
+import { BlogSection } from "@/components/HealthPulse/BlogSection";
 import { Badge, Button, Card, Drawer, Input, Select } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import styles from "./health-pulse.module.scss";
@@ -38,6 +39,7 @@ export function HealthPulsePage() {
   const [debounced] = useDebouncedValue(search, 300);
   const [openId, setOpenId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [tab, setTab] = useState<string | null>("news");
   const pageSize = 12;
 
   const { data: articles, isLoading } = useQuery({
@@ -69,71 +71,83 @@ export function HealthPulsePage() {
           breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Health Pulse" }]}
         />
 
-        <Group gap="sm" wrap="wrap">
-          <Input
-            value={search}
-            onChange={(event) => {
-              setSearch(event.currentTarget.value);
-              setPage(1);
-            }}
-            placeholder="Search articles…"
-            leftSection={<Search size={15} />}
-            style={{ flex: 1, minWidth: 220 }}
-            aria-label="Search news"
-          />
-          <Select
-            value={topic}
-            onChange={(value) => {
-              setTopic(value);
-              setPage(1);
-            }}
-            data={TOPICS.map((value) => ({ value, label: value }))}
-            placeholder="All specialties"
-            clearable
-            style={{ width: 220 }}
-            aria-label="Filter by specialty"
-          />
-        </Group>
+        <Tabs value={tab} onChange={setTab}>
+          <Tabs.List>
+            <Tabs.Tab value="news">News</Tabs.Tab>
+            <Tabs.Tab value="blog">Our Blog</Tabs.Tab>
+          </Tabs.List>
+        </Tabs>
+
+        {tab === "news" && (
+          <Group gap="sm" wrap="wrap" mt="sm">
+            <Input
+              value={search}
+              onChange={(event) => {
+                setSearch(event.currentTarget.value);
+                setPage(1);
+              }}
+              placeholder="Search articles…"
+              leftSection={<Search size={15} />}
+              style={{ flex: 1, minWidth: 220 }}
+              aria-label="Search news"
+            />
+            <Select
+              value={topic}
+              onChange={(value) => {
+                setTopic(value);
+                setPage(1);
+              }}
+              data={TOPICS.map((value) => ({ value, label: value }))}
+              placeholder="All specialties"
+              clearable
+              style={{ width: 220 }}
+              aria-label="Filter by specialty"
+            />
+          </Group>
+        )}
       </div>
 
-      {isLoading ? (
-        <Text c="dimmed" size="sm">
-          Loading…
-        </Text>
-      ) : !articles?.length ? (
-        <Text c="dimmed" size="sm">
-          No articles found. Try a different search or specialty.
-        </Text>
-      ) : (
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-          {pageItems.map((item) => (
-            <Card
-              key={item.id}
-              withBorder
-              className={styles.card}
-              onClick={() => setOpenId(item.id)}
-            >
-              <Group justify="space-between" gap="xs" mb={6}>
-                <span className={styles.source}>{item.source}</span>
-                <Text size="xs" c="dimmed">
-                  {formatDate(item.published_at)}
-                </Text>
-              </Group>
-              <Text className={styles.cardTitle}>{item.title}</Text>
-              {item.summary && (
-                <Text size="sm" c="dimmed" lineClamp={3} mt={6}>
-                  {item.summary}
-                </Text>
-              )}
-              <Badge tone="success" mt="sm">
-                {item.topic}
-              </Badge>
-            </Card>
-          ))}
-        </SimpleGrid>
-      )}
+      {tab === "blog" && <BlogSection />}
 
-      {totalPages > 1 && (
+      {tab === "news" &&
+        (isLoading ? (
+          <Text c="dimmed" size="sm">
+            Loading…
+          </Text>
+        ) : !articles?.length ? (
+          <Text c="dimmed" size="sm">
+            No articles found. Try a different search or specialty.
+          </Text>
+        ) : (
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+            {pageItems.map((item) => (
+              <Card
+                key={item.id}
+                withBorder
+                className={styles.card}
+                onClick={() => setOpenId(item.id)}
+              >
+                <Group justify="space-between" gap="xs" mb={6}>
+                  <span className={styles.source}>{item.source}</span>
+                  <Text size="xs" c="dimmed">
+                    {formatDate(item.published_at)}
+                  </Text>
+                </Group>
+                <Text className={styles.cardTitle}>{item.title}</Text>
+                {item.summary && (
+                  <Text size="sm" c="dimmed" lineClamp={3} mt={6}>
+                    {item.summary}
+                  </Text>
+                )}
+                <Badge tone="success" mt="sm">
+                  {item.topic}
+                </Badge>
+              </Card>
+            ))}
+          </SimpleGrid>
+        ))}
+
+      {tab === "news" && totalPages > 1 && (
         <div className={styles.pagerBar}>
           <Pagination total={totalPages} value={page} onChange={setPage} size="sm" />
         </div>

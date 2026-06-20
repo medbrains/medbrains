@@ -110,6 +110,11 @@ function installConsoleErrorReporter() {
     }
     reportedConsoleMessages.add(reportKey);
 
+    // Don't ship crash reports during local development (no GitHub creds, noise).
+    if (!import.meta.env.PROD) {
+      return;
+    }
+
     void sessionService
       .reportClientError({
         message: message.slice(0, 500),
