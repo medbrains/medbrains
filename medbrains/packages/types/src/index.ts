@@ -29987,6 +29987,7 @@ export interface PaymentTerminal {
   provider: string;
   kind: string;
   terminal_code?: string | null;
+  acquiring_bank?: string | null;
   counter_id?: string | null;
   location_id?: string | null;
   label: string;
@@ -30001,6 +30002,7 @@ export interface CreatePaymentTerminalRequest {
   provider: string;
   kind?: string;
   terminal_code?: string;
+  acquiring_bank?: string;
   counter_id?: string;
   location_id?: string;
   label: string;
@@ -30010,6 +30012,7 @@ export interface CreatePaymentTerminalRequest {
 export interface UpdatePaymentTerminalRequest {
   kind?: string;
   terminal_code?: string;
+  acquiring_bank?: string;
   counter_id?: string;
   location_id?: string;
   label?: string;

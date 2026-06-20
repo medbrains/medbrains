@@ -44,6 +44,9 @@ pub struct PaymentTerminal {
     pub provider: String,
     pub kind: String,
     pub terminal_code: Option<String>,
+    /// Bank whose MID the device sits under (SBI / Canara / TMB / …). The
+    /// integration is `provider` (the TSP); this is just the acquiring bank.
+    pub acquiring_bank: Option<String>,
     pub counter_id: Option<String>,
     pub location_id: Option<Uuid>,
     pub label: String,

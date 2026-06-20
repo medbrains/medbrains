@@ -135,11 +135,18 @@ Owner directive: *"check actual apis sandboxes before implementations."* Endpoin
 All support **netbanking + card + UPI + wallet + EMI** as *methods* under one order — method is a field on the order/checkout, not a separate provider. So "netbanking and other modes" = enabling those methods on the chosen gateway, surfaced as tabs in the collect screen.
 
 ### 7.2 POS terminals (card machine at the counter)
-| Provider | UAT base | Flow |
-|---|---|---|
-| **Pine Labs Plutus** | `plutuscloudserviceuat.in:8201/API/CloudBasedIntegration/V1` | `UploadBilledTransaction` → poll `GetCloudBasedTxnStatus` (PTRID); `CancelTransaction` |
-| **Paytm EDC** | `securegw-stage.paytm.in/edc-integration-service` | push to machine → `txn/status?cpayId&storeId&txnDate` |
-| **Razorpay POS** | Razorpay test | order with terminal → webhook |
+**Important reality:** Indian **bank-branded POS (SBI, Canara, Indian Overseas Bank, Bank of Baroda, Karnataka Bank, …) are NOT direct bank APIs.** The bank issues the merchant id (MID), but the device + integration is a **TSP/acquirer** — Pine Labs, Mswipe, or Worldline (e.g. Karnataka Bank POS runs on Pine Labs + Mswipe). So we integrate the **acquirer's cloud-POS API** and record which **acquiring bank's MID** the terminal sits under. The registry models this as `provider` = acquirer (`pinelabs`/`mswipe`/`worldline`) + `acquiring_bank` = "SBI"/"Canara"/"IOB".
+
+| Acquirer (TSP) | UAT base | Flow | Banks seen on |
+|---|---|---|---|
+| **Pine Labs Plutus** | `plutuscloudserviceuat.in:8201/API/CloudBasedIntegration/V1` | `UploadBilledTransaction` → poll `GetCloudBasedTxnStatus` (PTRID); `CancelTransaction` | Karnataka Bank, many PSU/private |
+| **Mswipe** | Mswipe BankBox / cloud API (UAT on request) | push sale → status/webhook | Karnataka Bank, SBI tie-ups |
+| **Worldline** | Worldline cloud POS (UAT on request) | `initiate_payment` → webhook → `capture_payment` | SBI, large acquirers |
+| **Paytm EDC** | `securegw-stage.paytm.in/edc-integration-service` | push to machine → `txn/status?cpayId&storeId&txnDate` | Paytm acquiring |
+| **Razorpay POS** | Razorpay test | order with terminal → webhook | Razorpay acquiring |
+
+### 7.2.1 UPI apps (Google Pay / PhonePe / Paytm app)
+GPay, PhonePe and the Paytm consumer app are **UPI apps, not separate integrations.** The patient pays by scanning our **dynamic UPI QR** (or a UPI collect request) from *any* app — NPCI routes it. So "GPay / PhonePe / Paytm" support = the `kind='qr'` dynamic-QR path + UPI collect, settled via whichever PSP/acquirer issues the VPA. One QR, every app. No per-app API.
 
 ### 7.3 Direct bank / corporate APIs (collections, virtual accounts, reconciliation)
 "Actual bank APIs" — for hospitals that want bank-native collection + auto-reconciliation rather than (or alongside) a gateway:

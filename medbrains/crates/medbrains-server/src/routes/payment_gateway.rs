@@ -237,8 +237,38 @@ const KNOWN_PROVIDERS: &[ProviderSpec] = &[
     },
     ProviderSpec {
         code: "pinelabs",
-        label: "Pine Labs (POS)",
+        label: "Pine Labs (POS/TSP)",
         methods: &["card", "upi_qr"],
+        has_adapter: false,
+    },
+    ProviderSpec {
+        code: "mswipe",
+        label: "Mswipe (POS/TSP)",
+        methods: &["card", "upi_qr"],
+        has_adapter: false,
+    },
+    ProviderSpec {
+        code: "worldline",
+        label: "Worldline (POS/TSP)",
+        methods: &["card", "upi_qr"],
+        has_adapter: false,
+    },
+    ProviderSpec {
+        code: "phonepe",
+        label: "PhonePe",
+        methods: &["card", "upi", "upi_qr", "netbanking"],
+        has_adapter: false,
+    },
+    ProviderSpec {
+        code: "payu",
+        label: "PayU",
+        methods: &["card", "upi", "netbanking", "wallet", "emi"],
+        has_adapter: false,
+    },
+    ProviderSpec {
+        code: "ccavenue",
+        label: "CCAvenue",
+        methods: &["card", "upi", "netbanking", "wallet", "emi"],
         has_adapter: false,
     },
 ];
@@ -395,6 +425,7 @@ pub struct CreatePaymentTerminalRequest {
     pub provider: String,
     pub kind: Option<String>,
     pub terminal_code: Option<String>,
+    pub acquiring_bank: Option<String>,
     pub counter_id: Option<String>,
     pub location_id: Option<Uuid>,
     pub label: String,
@@ -405,6 +436,7 @@ pub struct CreatePaymentTerminalRequest {
 pub struct UpdatePaymentTerminalRequest {
     pub kind: Option<String>,
     pub terminal_code: Option<String>,
+    pub acquiring_bank: Option<String>,
     pub counter_id: Option<String>,
     pub location_id: Option<Uuid>,
     pub label: Option<String>,
@@ -492,15 +524,16 @@ pub async fn create_payment_terminal(
 
     let terminal = sqlx::query_as::<_, PaymentTerminal>(
         "INSERT INTO payment_terminals \
-         (tenant_id, provider, kind, terminal_code, counter_id, location_id, \
-          label, mode, created_by) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
+         (tenant_id, provider, kind, terminal_code, acquiring_bank, counter_id, \
+          location_id, label, mode, created_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(provider)
     .bind(kind)
     .bind(body.terminal_code.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(body.acquiring_bank.as_deref().map(str::trim).filter(|s| !s.is_empty()))
     .bind(body.counter_id.as_deref().map(str::trim).filter(|s| !s.is_empty()))
     .bind(body.location_id)
     .bind(label)
@@ -536,17 +569,19 @@ pub async fn update_payment_terminal(
         "UPDATE payment_terminals SET \
          kind = COALESCE($1, kind), \
          terminal_code = COALESCE($2, terminal_code), \
-         counter_id = COALESCE($3, counter_id), \
-         location_id = COALESCE($4, location_id), \
-         label = COALESCE($5, label), \
-         mode = COALESCE($6, mode), \
-         is_active = COALESCE($7, is_active), \
+         acquiring_bank = COALESCE($3, acquiring_bank), \
+         counter_id = COALESCE($4, counter_id), \
+         location_id = COALESCE($5, location_id), \
+         label = COALESCE($6, label), \
+         mode = COALESCE($7, mode), \
+         is_active = COALESCE($8, is_active), \
          updated_at = now() \
-         WHERE id = $8 AND tenant_id = $9 \
+         WHERE id = $9 AND tenant_id = $10 \
          RETURNING *",
     )
     .bind(body.kind.as_deref().map(str::trim).filter(|s| !s.is_empty()))
     .bind(body.terminal_code.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(body.acquiring_bank.as_deref().map(str::trim).filter(|s| !s.is_empty()))
     .bind(body.counter_id.as_deref().map(str::trim).filter(|s| !s.is_empty()))
     .bind(body.location_id)
     .bind(body.label.as_deref().map(str::trim).filter(|s| !s.is_empty()))
