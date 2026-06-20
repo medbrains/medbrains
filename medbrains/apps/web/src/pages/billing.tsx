@@ -1756,16 +1756,6 @@ function InvoiceDetail({
               />
             </Stack>
             <Group gap="xs" justify="flex-end">
-              {canRecordPayment && (
-                <Button
-                  tone="primary"
-                  size="xs"
-                  leftSection={<IconCash size={14} />}
-                  onClick={openPaymentForm}
-                >
-                  {t("button.recordPayment")}
-                </Button>
-              )}
               {canPay && displayStatus === "issued" && balance === 0 && (
                 <Tooltip label="No money to collect — record this free / scheme bill as settled">
                   <Button
@@ -1840,7 +1830,7 @@ function InvoiceDetail({
                     leftSection={<IconCash size={14} />}
                     onClick={openPaymentForm}
                   >
-                    {t("button.payment")}
+                    {t("button.recordPayment")}
                   </Button>
                   <Button
                     tone="secondary"
