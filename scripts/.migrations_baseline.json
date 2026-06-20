@@ -54,5 +54,15 @@
   "0053_multi_hospital.sql": 4,
   "0059_device_pairing.sql": 2,
   "0060_object_storage_lifecycle.sql": 2,
-  "0103_dlt_templates.sql": 1
+  "0103_dlt_templates.sql": 1,
+  "0117_camp_remote_operations.sql": 2,
+  "0120_iam_access_requests.sql": 2,
+  "0123_print_data_final_smoke_alignment.sql": 1,
+  "0124_clinical_corpus_entries.sql": 2,
+  "0134_mrd_case_sheet_packets.sql": 3,
+  "0135_unified_assets_and_camp_reservations.sql": 4,
+  "0146_account_lockout_password_reset.sql": 2,
+  "0149_public_booking_otps.sql": 2,
+  "0152_index_backfill.sql": 1,
+  "0155_jsonb_gin_indexes.sql": 1
 }
