@@ -1,9 +1,9 @@
-// Module-agnostic token board — flat Carbon cards, large display-friendly token
-// numbers, blue left bar on the active token. Colour from theme tokens only.
+// Module-agnostic token board — a large "Now serving" hero leads, a compact
+// "Up next" grid follows. Flat Carbon, display-friendly, theme tokens only.
 .board {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .header {
@@ -19,36 +19,67 @@
 }
 
 .empty {
-  padding: 32px 0;
+  padding: 40px 0;
   font-size: 13px;
 }
 
+// Eyebrow section label.
+.sectionLabel {
+  font-family: var(--mb-font-mono, "IBM Plex Mono", monospace);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mb-text-secondary, #525252);
+  margin-bottom: 8px;
+}
+
+// ── Now serving (hero) ──
+.hero {
+  position: relative;
+  border: 1px solid var(--mb-brand-emphasis, #0f62fe);
+  border-left-width: 4px;
+  border-radius: 2px;
+  background: var(--mb-brand-bg, #edf5ff);
+  padding: 16px 20px;
+  min-height: 116px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+
+.heroToken {
+  font-size: 52px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--mb-brand-fg, #0f62fe);
+}
+
+.heroPrimary {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--mb-text-primary, #161616);
+}
+
+.heroMeta {
+  font-size: 13px;
+}
+
+// ── Up next (compact) ──
 .card {
   border: 1px solid var(--mb-border-default, #e0e0e0);
   border-radius: 2px;
   background: var(--mb-bg-default, #fff);
-  padding: 14px 16px;
-  transition:
-    border-color 120ms ease,
-    box-shadow 120ms ease;
-
-  &[data-active] {
-    border-color: var(--mb-brand-emphasis, #0f62fe);
-    box-shadow: inset 3px 0 0 0 var(--mb-brand-emphasis, #0f62fe);
-  }
+  padding: 12px 14px;
 }
 
 .token {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
-  color: var(--mb-text-primary, #161616);
-}
-
-.primary {
-  font-size: 14px;
-  font-weight: 600;
   color: var(--mb-text-primary, #161616);
 }
 

@@ -12,11 +12,11 @@ export interface TokenItem {
   status: string;
   /** Semantic tone for the status. */
   tone: BadgeTone;
-  /** Primary line under the token — counter/room, or patient name where allowed. */
+  /** Primary line — counter/room, or patient name where allowed. */
   primary?: string;
-  /** Secondary meta line — department, priority, wait estimate. */
+  /** Secondary meta — department, priority, wait estimate. */
   meta?: string;
-  /** Emphasise (e.g. the token currently being called). */
+  /** Currently being served — shown large in the "Now serving" hero row. */
   active?: boolean;
 }
 
@@ -26,24 +26,27 @@ export interface TokenDashboardProps {
   tokens: TokenItem[];
   /** Right-side header slot — last-updated text, live badge, controls. */
   headerRight?: ReactNode;
-  /** Columns at the largest breakpoint (default 4). */
+  /** Columns for the "Up next" grid at the largest breakpoint (default 6). */
   columns?: number;
   emptyLabel?: string;
 }
 
 /**
- * Module-agnostic token board. Presentational only — feed it a `TokenItem[]`
- * from any queue (OPD, lab, radiology, pharmacy, billing, emergency, IPD…).
- * Large, display-friendly cards; the active token is emphasised. Carbon-clean,
- * driven entirely by theme tokens.
+ * Module-agnostic token board. Presentational — feed it a `TokenItem[]` from
+ * any queue (OPD, lab, radiology, pharmacy, billing, emergency, IPD…). Active
+ * tokens lead the board as a large "Now serving" hero; the rest follow as a
+ * compact "Up next" grid. Carbon-clean, display-friendly, driven by theme tokens.
  */
 export function TokenDashboard({
   title,
   tokens,
   headerRight,
-  columns = 4,
+  columns = 6,
   emptyLabel = "No tokens in the queue.",
 }: TokenDashboardProps) {
+  const serving = tokens.filter((token) => token.active);
+  const waiting = tokens.filter((token) => !token.active);
+
   return (
     <section className={styles.board} aria-label={title}>
       <Group justify="space-between" align="center" className={styles.header}>
@@ -56,26 +59,51 @@ export function TokenDashboard({
           {emptyLabel}
         </Text>
       ) : (
-        <SimpleGrid cols={{ base: 1, xs: 2, sm: 3, lg: columns }} spacing="sm">
-          {tokens.map((token) => (
-            <div key={token.id} className={styles.card} data-active={token.active || undefined}>
-              <Group justify="space-between" align="flex-start" wrap="nowrap">
-                <Text className={styles.token}>{token.tokenNumber}</Text>
-                <Badge tone={token.tone}>{token.status}</Badge>
-              </Group>
-              {(token.primary || token.meta) && (
-                <Stack gap={2} mt={6}>
-                  {token.primary && <Text className={styles.primary}>{token.primary}</Text>}
-                  {token.meta && (
-                    <Text className={styles.meta} c="dimmed">
-                      {token.meta}
-                    </Text>
-                  )}
-                </Stack>
-              )}
+        <Stack gap="lg">
+          {serving.length > 0 && (
+            <div>
+              <Text className={styles.sectionLabel}>Now serving</Text>
+              <SimpleGrid cols={{ base: 1, sm: 2, lg: Math.min(serving.length, 3) }} spacing="md">
+                {serving.map((token) => (
+                  <div key={token.id} className={styles.hero}>
+                    <Text className={styles.heroToken}>{token.tokenNumber}</Text>
+                    {(token.primary || token.meta) && (
+                      <Stack gap={2}>
+                        {token.primary && <Text className={styles.heroPrimary}>{token.primary}</Text>}
+                        {token.meta && (
+                          <Text className={styles.heroMeta} c="dimmed">
+                            {token.meta}
+                          </Text>
+                        )}
+                      </Stack>
+                    )}
+                  </div>
+                ))}
+              </SimpleGrid>
             </div>
-          ))}
-        </SimpleGrid>
+          )}
+
+          {waiting.length > 0 && (
+            <div>
+              <Text className={styles.sectionLabel}>Up next</Text>
+              <SimpleGrid cols={{ base: 2, xs: 3, sm: 4, lg: columns }} spacing="sm">
+                {waiting.map((token) => (
+                  <div key={token.id} className={styles.card}>
+                    <Group justify="space-between" align="center" wrap="nowrap">
+                      <Text className={styles.token}>{token.tokenNumber}</Text>
+                      <Badge tone={token.tone}>{token.status}</Badge>
+                    </Group>
+                    {(token.primary || token.meta) && (
+                      <Text className={styles.meta} c="dimmed" lineClamp={1} mt={4}>
+                        {token.primary ?? token.meta}
+                      </Text>
+                    )}
+                  </div>
+                ))}
+              </SimpleGrid>
+            </div>
+          )}
+        </Stack>
       )}
     </section>
   );

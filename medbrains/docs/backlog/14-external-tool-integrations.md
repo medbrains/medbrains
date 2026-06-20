@@ -48,3 +48,7 @@ Priority: P2 · Area: area:integration, area:hr · Milestone: M-later
 
 **Effort:** M (~0.5 day, once the document-render engine lands). **Depends on:** unified document-templating engine (separate plan).
 **Out of scope:** handwriting generation; OCR/handwriting recognition (sir does neither in production — it generates, not recognizes).
+
+## Later: "No doctors found" + lean into Mantine components
+
+When a doctor picker shows "No doctors found" (e.g. `DoctorSearchSelect`), audit the data source + empty state. More broadly: prefer Mantine's built-in components/patterns (Combobox/Select async, Spotlight, etc.) for the best solution wherever possible, per the custom-component rule in CLAUDE.md + `docs/ACCESSIBILITY.md`. Flagged 2026-06-20.
