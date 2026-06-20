@@ -180,6 +180,7 @@ import {
   TimelineTab,
   WaitTimeBadge,
 } from "./opd/workflow-tabs";
+import railStyles from "./opd-encounter.module.scss";
 import {
   type OpdQueueRowActionId,
   type OpdQueueRowActionPermissions,
@@ -197,7 +198,6 @@ import {
   opdEncounterWorkspaceTabRoute,
   opdOrderBasketTabFromSearchParams,
 } from "./opd-workspace";
-import railStyles from "./opd-encounter.module.scss";
 
 type OpdTranslate = ReturnType<typeof useTranslation>["t"];
 
