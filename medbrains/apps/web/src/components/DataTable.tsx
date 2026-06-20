@@ -11,8 +11,14 @@ import {
 } from "@mantine/core";
 import { usePermissionStore } from "@medbrains/stores";
 import { IconDownload } from "@tabler/icons-react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Checkbox, IconButton, Input } from "@/components/ui";
+import {
+  type AdvancedFilterState,
+  applyAdvancedFilter,
+  DataTableAdvancedFilter,
+  emptyAdvancedFilter,
+} from "./DataTableAdvancedFilter";
 import { DataTableBulkBar } from "./DataTableBulkBar";
 import { DataTableColumnsMenu } from "./DataTableColumnsMenu";
 import { DataTableHeader } from "./DataTableHeader";
@@ -187,13 +193,24 @@ export function DataTable<T>({
   searchable,
   searchPlaceholder,
   filters,
+  advancedFilter,
 }: DataTableProps<T>) {
   const hasAllPermissions = usePermissionStore((state) => state.hasAllPermissions);
   const hasAnyPermission = usePermissionStore((state) => state.hasAnyPermission);
   const getFieldAccess = usePermissionStore((state) => state.getFieldAccess);
 
   // Auto basic filters from column `filter` configs, merged with explicit ones.
-  const allFilters = useMemo(() => mergeFilters(deriveAutoFilters(columns), filters), [columns, filters]);
+  const allFilters = useMemo(
+    () => mergeFilters(deriveAutoFilters(columns), filters),
+    [columns, filters],
+  );
+
+  // Opt-in advanced (AND/OR) filter — applied before search + basic filters.
+  const [advancedState, setAdvancedState] = useState<AdvancedFilterState>(emptyAdvancedFilter);
+  const baseData = useMemo(
+    () => (advancedFilter ? applyAdvancedFilter(data, advancedState, columns) : data),
+    [advancedFilter, data, advancedState, columns],
+  );
 
   const {
     query,
@@ -203,7 +220,7 @@ export function DataTable<T>({
     clearFilters,
     filteredData,
     activeFilterCount,
-  } = useDataTableFilter({ data, columns, searchable, filters: allFilters });
+  } = useDataTableFilter({ data: baseData, columns, searchable, filters: allFilters });
 
   const {
     activeSort,
@@ -316,8 +333,15 @@ export function DataTable<T>({
     <DataTableToolbar
       toolbar={toolbar}
       actions={
-        tableActions || builtInActions ? (
+        tableActions || builtInActions || advancedFilter ? (
           <>
+            {advancedFilter && (
+              <DataTableAdvancedFilter
+                columns={columns}
+                state={advancedState}
+                onChange={setAdvancedState}
+              />
+            )}
             {tableActions}
             {builtInActions}
           </>

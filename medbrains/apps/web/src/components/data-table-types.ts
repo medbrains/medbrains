@@ -127,4 +127,6 @@ export interface DataTableProps<T> {
   searchPlaceholder?: string;
   /** Extensible toolbar filters — descriptor with options/render + matches. */
   filters?: DataTableFilter<T>[];
+  /** Opt in to the advanced multi-condition (AND/OR) filter builder. */
+  advancedFilter?: boolean;
 }
