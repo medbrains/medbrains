@@ -1,11 +1,45 @@
 // Full-screen TV / waiting-area token display — no app chrome, large + airy.
 .display {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
-  background: var(--mb-bg-canvas, #fff);
-  padding: 32px 40px;
+  background: var(--mb-bg-canvas, #f4f4f4);
+}
 
-  // Scale the board up for across-the-room legibility.
+// Top bar: brand + module/department pickers + clock. Dark for contrast.
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 14px 32px;
+  background: var(--mb-gray-90, #262626);
+  border-bottom: 2px solid var(--mb-interactive, #0f62fe);
+}
+
+.brand {
+  color: #fff;
+  font-weight: 600;
+  font-size: 18px;
+  letter-spacing: 0.01em;
+}
+
+.clock {
+  min-width: 78px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+// Board area: scale the dashboard up for across-the-room legibility.
+.board {
+  flex: 1;
+  padding: 28px 40px 40px;
+
+  // Now-serving hero number — push much larger on the big screen.
   :global(.mantine-Text-root) {
-    line-height: 1.15;
+    line-height: 1.12;
   }
 }
