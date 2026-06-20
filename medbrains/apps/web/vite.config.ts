@@ -104,6 +104,17 @@ export default defineConfig(async () => {
         },
       },
     },
+    // Pre-bundle the tiptap editor deps so adding them never triggers a
+    // late re-optimize / 504 "Outdated Optimize Dep" on the dev server.
+    optimizeDeps: {
+      include: [
+        "@mantine/tiptap",
+        "@tiptap/react",
+        "@tiptap/pm",
+        "@tiptap/starter-kit",
+        "@tiptap/extension-link",
+      ],
+    },
     server: {
       host: "127.0.0.1",
       port: devPort,
