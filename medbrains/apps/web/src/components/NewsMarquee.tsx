@@ -1,7 +1,6 @@
 import { useFocusWithin, useHover, useInterval, useMergedRef } from "@mantine/hooks";
 import { useAuthStore } from "@medbrains/stores";
 import { useQuery } from "@tanstack/react-query";
-import { Newspaper } from "lucide-react";
 import { useState } from "react";
 import { useEffectOnce } from "react-use";
 import { type NewsSource, newsForRole } from "@/config/medical-news-sources";
@@ -73,7 +72,9 @@ export function NewsMarquee() {
     retry: 1,
   });
 
-  const headlines = data ?? sourcesAsHeadlines(news.sources);
+  // The marquee itself cycles everything: live articles first, then the
+  // curated free sources for this role (sources are always present).
+  const headlines = [...(data ?? []), ...sourcesAsHeadlines(news.sources)];
   const [index, setIndex] = useState(0);
 
   // Pause rotation while reading (hover) or tabbed in (focus).
@@ -95,10 +96,6 @@ export function NewsMarquee() {
 
   return (
     <section ref={sectionRef} className={styles.marquee} aria-label={`${news.topic} news`}>
-      <div className={styles.topic}>
-        <Newspaper size={13} aria-hidden />
-        <span>{news.topic}</span>
-      </div>
       <div className={styles.stage} aria-live="polite">
         {/* key forces a remount each change so the fold-in animation replays */}
         <a

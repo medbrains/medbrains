@@ -18,13 +18,16 @@ export interface RoleNews {
   sources: NewsSource[];
 }
 
-// Reusable feeds (public RSS, keyless).
-const FEED_SCIENCEDAILY = "https://www.sciencedaily.com/rss/health_medicine.xml";
-const FEED_MNT = "https://www.medicalnewstoday.com/rss";
+// Live feeds — free, authoritative, keyless public RSS (per user direction):
+// MedlinePlus (NIH/NLM), CDC MMWR + Newsroom, WHO Disease Outbreak News.
+const FEED_MEDLINEPLUS = "https://medlineplus.gov/feeds/whatsnew_en.xml";
+const FEED_CDC_MMWR = "https://tools.cdc.gov/api/v2/resources/media/132608.rss";
+const FEED_CDC_NEWS = "https://tools.cdc.gov/api/v2/resources/media/316422.rss";
+const FEED_WHO_DON = "https://www.who.int/feeds/entity/csr/don/en/rss.xml";
 
 const CLINICAL: RoleNews = {
   topic: "Clinical medicine",
-  feedUrl: FEED_SCIENCEDAILY,
+  feedUrl: FEED_CDC_MMWR,
   sources: [
     { name: "The BMJ", url: "https://www.bmj.com/latest" },
     { name: "The Lancet", url: "https://www.thelancet.com" },
@@ -36,7 +39,7 @@ const CLINICAL: RoleNews = {
 
 const SURGERY: RoleNews = {
   topic: "Surgery",
-  feedUrl: FEED_SCIENCEDAILY,
+  feedUrl: FEED_MEDLINEPLUS,
   sources: [
     { name: "JAMA Surgery", url: "https://jamanetwork.com/journals/jamasurgery" },
     { name: "Annals of Surgery", url: "https://journals.lww.com/annalsofsurgery" },
@@ -47,7 +50,7 @@ const SURGERY: RoleNews = {
 
 const NURSING: RoleNews = {
   topic: "Nursing",
-  feedUrl: FEED_MNT,
+  feedUrl: FEED_MEDLINEPLUS,
   sources: [
     { name: "American Nurse Journal", url: "https://www.myamericannurse.com" },
     { name: "Nursing Times", url: "https://www.nursingtimes.net" },
@@ -58,7 +61,7 @@ const NURSING: RoleNews = {
 
 const PHARMACY: RoleNews = {
   topic: "Pharmacy",
-  feedUrl: FEED_MNT,
+  feedUrl: FEED_MEDLINEPLUS,
   sources: [
     { name: "Pharmacy Times", url: "https://www.pharmacytimes.com" },
     { name: "The Pharmaceutical Journal", url: "https://pharmaceutical-journal.com" },
@@ -72,7 +75,7 @@ const PHARMACY: RoleNews = {
 
 const LABORATORY: RoleNews = {
   topic: "Laboratory",
-  feedUrl: FEED_SCIENCEDAILY,
+  feedUrl: FEED_CDC_MMWR,
   sources: [
     { name: "Medical Laboratory Observer", url: "https://www.mlo-online.com" },
     { name: "The Pathologist", url: "https://thepathologist.com" },
@@ -83,7 +86,7 @@ const LABORATORY: RoleNews = {
 
 const RADIOLOGY: RoleNews = {
   topic: "Radiology",
-  feedUrl: FEED_SCIENCEDAILY,
+  feedUrl: FEED_MEDLINEPLUS,
   sources: [
     { name: "RSNA Radiology", url: "https://pubs.rsna.org/journal/radiology" },
     { name: "AuntMinnie", url: "https://www.auntminnie.com" },
@@ -94,7 +97,7 @@ const RADIOLOGY: RoleNews = {
 
 const MANAGEMENT: RoleNews = {
   topic: "Health management",
-  feedUrl: FEED_MNT,
+  feedUrl: FEED_CDC_NEWS,
   sources: [
     { name: "Modern Healthcare", url: "https://www.modernhealthcare.com" },
     { name: "Becker's Hospital Review", url: "https://www.beckershospitalreview.com" },
@@ -105,7 +108,7 @@ const MANAGEMENT: RoleNews = {
 
 const DENTAL: RoleNews = {
   topic: "Dentistry",
-  feedUrl: FEED_SCIENCEDAILY,
+  feedUrl: FEED_MEDLINEPLUS,
   sources: [
     { name: "Dental Tribune", url: "https://www.dental-tribune.com" },
     { name: "JADA", url: "https://jada.ada.org" },
@@ -116,7 +119,7 @@ const DENTAL: RoleNews = {
 // Medical college / students / faculty / continuing education.
 const LEARNING: RoleNews = {
   topic: "Learning & education",
-  feedUrl: FEED_SCIENCEDAILY,
+  feedUrl: FEED_MEDLINEPLUS,
   sources: [
     { name: "Osmosis Blog", url: "https://www.osmosis.org/blog" },
     { name: "Lecturio Magazine", url: "https://www.lecturio.com/magazine/" },
@@ -129,7 +132,7 @@ const LEARNING: RoleNews = {
 
 const GENERAL: RoleNews = {
   topic: "Health headlines",
-  feedUrl: FEED_SCIENCEDAILY,
+  feedUrl: FEED_WHO_DON,
   sources: [
     { name: "WHO News", url: "https://www.who.int/news" },
     { name: "MedlinePlus", url: "https://medlineplus.gov" },
