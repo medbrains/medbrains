@@ -1,4 +1,14 @@
-import { ActionIcon, Badge, Button, Group, Menu, Stack, Text, Tooltip } from "@mantine/core";
+import {
+  ActionIcon,
+  Badge,
+  Button,
+  Group,
+  Menu,
+  SimpleGrid,
+  Stack,
+  Text,
+  Tooltip,
+} from "@mantine/core";
 import { usePermissionStore } from "@medbrains/stores";
 import type {
   ClinicalJourneyActionId,
@@ -337,7 +347,7 @@ export function PatientJourneyActions({
   // instead of a stack of colour-coded buttons.
   const actionsLabel = t("patientJourney.actionsButton", { defaultValue: "Actions" });
   return (
-    <Menu position="bottom-end" withinPortal shadow="md" width={220}>
+    <Menu position="bottom-end" withinPortal shadow="md" width={280}>
       <Menu.Target>
         <Button
           variant="filled"
@@ -351,16 +361,23 @@ export function PatientJourneyActions({
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Label>{actionsLabel}</Menu.Label>
-        {visibleActions.map((action) => (
-          <Menu.Item
-            key={action.id}
-            leftSection={actionIcon(action.id)}
-            onClick={() => handleAction(action.id)}
-            disabled={!action.enabled}
-          >
-            {journeyActionLabel(t, action.id)}
-          </Menu.Item>
-        ))}
+        <SimpleGrid cols={3} spacing={4} p={4} w={264}>
+          {visibleActions.map((action) => (
+            <Menu.Item
+              key={action.id}
+              onClick={() => handleAction(action.id)}
+              disabled={!action.enabled}
+              style={{ height: 76 }}
+            >
+              <Stack gap={4} align="center" justify="center">
+                {actionIcon(action.id)}
+                <Text size="xs" ta="center" lineClamp={2}>
+                  {journeyActionLabel(t, action.id)}
+                </Text>
+              </Stack>
+            </Menu.Item>
+          ))}
+        </SimpleGrid>
       </Menu.Dropdown>
     </Menu>
   );
