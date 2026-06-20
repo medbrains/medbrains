@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { useEffectOnce } from "react-use";
+import { Button } from "@/components/ui";
 import { type NewsSource, newsForRole } from "@/config/medical-news-sources";
 import styles from "./news-marquee.module.scss";
 
@@ -175,15 +176,17 @@ export function NewsMarquee() {
             <Text className={styles.cardTitle}>{item.title}</Text>
             {item.description && <Text className={styles.cardDesc}>{item.description}</Text>}
             <div className={styles.cardDivider} />
-            <a
-              className={styles.cardCta}
+            <Button
+              component="a"
               href={item.link}
               target="_blank"
               rel="noopener noreferrer"
+              tone="primary"
+              size="xs"
+              rightSection={<ExternalLink size={13} aria-hidden />}
             >
-              {host ? `Read on ${host}` : "Read article"}
-              <ExternalLink size={12} aria-hidden />
-            </a>
+              {host ? `Read more on ${host}` : "Read full article"}
+            </Button>
           </HoverCard.Dropdown>
         </HoverCard>
       </div>

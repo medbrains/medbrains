@@ -88,21 +88,6 @@
   color: var(--mb-text-secondary, #525252);
 }
 
-.cardCta {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  width: fit-content;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--mb-interactive, #0f62fe);
-  text-decoration: none;
-}
-
-.cardCta:hover {
-  text-decoration: underline;
-}
-
 // Fold the next headline down from the top, like a flip-board row.
 @keyframes fold-in {
   0% {
