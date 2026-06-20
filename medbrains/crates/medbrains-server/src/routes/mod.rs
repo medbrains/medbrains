@@ -1519,6 +1519,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/payments/create-order",
             post(payment_gateway::create_order),
         )
+        .route("/api/payments/pos-sale", post(payment_gateway::pos_sale))
         .route(
             "/api/payments/verify",
             post(payment_gateway::verify_payment),

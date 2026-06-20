@@ -29981,6 +29981,19 @@ export interface PaymentProvidersResponse {
   providers: PaymentProviderInfo[];
 }
 
+export interface PosSaleRequest {
+  terminal_id: string;
+  invoice_id?: string;
+  pos_sale_id?: string;
+  amount: number;
+}
+
+export interface PosSaleResponse {
+  transaction_id: string;
+  provider: string;
+  status: string;
+}
+
 export interface PaymentTerminal {
   id: string;
   tenant_id: string;

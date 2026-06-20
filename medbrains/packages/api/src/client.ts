@@ -1341,6 +1341,8 @@ import type {
   PoListResponse,
   PolypharmacyInteractionAlert,
   PosDaySummary,
+  PosSaleRequest,
+  PosSaleResponse,
   PostnatalRecord,
   PostopOrdersPrintData,
   PreAuthorizationRequest,
@@ -12778,6 +12780,11 @@ export const api = {
   // ── Payment Gateway ──────────────────────────────────────
   createPaymentOrder: (data: CreatePaymentOrderRequest) =>
     request<CreatePaymentOrderResponse>("/payments/create-order", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  posSale: (data: PosSaleRequest) =>
+    request<PosSaleResponse>("/payments/pos-sale", {
       method: "POST",
       body: JSON.stringify(data),
     }),

@@ -761,6 +761,140 @@ pub async fn create_order(
 }
 
 // ══════════════════════════════════════════════════════════
+//  POST /api/payments/pos-sale  (drive a counter POS terminal)
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Deserialize)]
+pub struct PosSaleRequest {
+    pub terminal_id: Uuid,
+    pub invoice_id: Option<Uuid>,
+    pub pos_sale_id: Option<Uuid>,
+    pub amount: Decimal,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PosSaleResponse {
+    pub transaction_id: Uuid,
+    pub provider: String,
+    pub status: String,
+}
+
+/// POST /api/payments/pos-sale — push a billed sale to the card machine at the
+/// cashier's counter. Creates the gateway txn and queues the provider-specific
+/// POS event; the worker drives the terminal (push+poll) and settles on
+/// approval. The client polls /status. Currently Pine Labs Plutus.
+pub async fn pos_sale(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<PosSaleRequest>,
+) -> Result<Json<PosSaleResponse>, AppError> {
+    require_permission(&claims, permissions::billing::payments::CREATE)?;
+
+    if body.invoice_id.is_none() && body.pos_sale_id.is_none() {
+        return Err(AppError::BadRequest(
+            "either invoice_id or pos_sale_id is required".to_owned(),
+        ));
+    }
+    if body.amount <= Decimal::ZERO {
+        return Err(AppError::BadRequest("Amount must be greater than zero".to_owned()));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // Resolve the terminal (must be an active POS device at this tenant).
+    let terminal = sqlx::query_as::<_, PaymentTerminal>(
+        "SELECT * FROM payment_terminals WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(body.terminal_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if !terminal.is_active {
+        return Err(AppError::BadRequest("Terminal is inactive".to_owned()));
+    }
+    if terminal.kind != "pos" {
+        return Err(AppError::BadRequest(
+            "Terminal is not a POS card machine".to_owned(),
+        ));
+    }
+    // Only Pine Labs has a POS worker adapter today.
+    let event_type = match terminal.provider.as_str() {
+        "pinelabs" => "payment.pinelabs.pos_sale",
+        other => {
+            return Err(AppError::ServiceUnavailable(format!(
+                "POS provider '{other}' has no adapter yet"
+            )));
+        }
+    };
+    let api_base = if terminal.mode == "live" {
+        "https://www.plutuscloudservice.in:8201/API/CloudBasedIntegration/V1"
+    } else {
+        "https://www.plutuscloudserviceuat.in:8201/API/CloudBasedIntegration/V1"
+    };
+
+    let amount_paise = (body.amount * Decimal::from(100))
+        .to_string()
+        .parse::<i64>()
+        .map_err(|e| AppError::Internal(format!("amount conversion: {e}")))?;
+
+    let txn = sqlx::query_as::<_, PaymentGatewayTransaction>(
+        "INSERT INTO payment_gateway_transactions \
+         (tenant_id, invoice_id, pharmacy_pos_sale_id, gateway, gateway_order_id, \
+          amount, currency, status, created_by, idempotency_key) \
+         VALUES ($1, $2, $3, $4, '', $5, 'INR', 'pending_gateway', $6, $7) \
+         RETURNING *", // allow-raw-sql: gateway txn write inside outbox-coupled tx
+    )
+    .bind(claims.tenant_id)
+    .bind(body.invoice_id)
+    .bind(body.pos_sale_id)
+    .bind(&terminal.provider)
+    .bind(body.amount)
+    .bind(claims.sub)
+    .bind(Uuid::new_v4().to_string())
+    .fetch_one(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        // allow-raw-sql: backfill idempotency_key with txn.id
+        "UPDATE payment_gateway_transactions SET idempotency_key = $1 WHERE id = $1",
+    )
+    .bind(txn.id)
+    .execute(&mut *tx)
+    .await?;
+
+    medbrains_outbox::queue_in_tx(
+        &mut tx,
+        medbrains_outbox::OutboxRow {
+            tenant_id: claims.tenant_id,
+            aggregate_type: "payment_gateway_transaction",
+            aggregate_id: Some(txn.id),
+            event_type,
+            payload: serde_json::json!({
+                "internal_payment_id": txn.id,
+                "amount_paise": amount_paise,
+                "api_base": api_base,
+                "terminal_code": terminal.terminal_code,
+                "actor_context": { "user_id": claims.sub, "tenant_id": claims.tenant_id },
+            }),
+            idempotency_key: Some(txn.id.to_string()),
+        },
+    )
+    .await
+    .map_err(|e| AppError::Internal(format!("outbox queue failed: {e}")))?;
+
+    tx.commit().await?;
+
+    Ok(Json(PosSaleResponse {
+        transaction_id: txn.id,
+        provider: terminal.provider,
+        status: "pending_gateway".to_owned(),
+    }))
+}
+
+// ══════════════════════════════════════════════════════════
 //  POST /api/payments/verify
 // ══════════════════════════════════════════════════════════
 
