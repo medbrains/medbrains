@@ -3629,9 +3629,76 @@ pub async fn update_insurance_claim(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // Revenue-integrity gate: settlement amounts must stay sane, otherwise the
+    // patient-responsible residual (co-pay + disallowed items), computed
+    // everywhere as `invoice.total − settled`, can silently collapse and never
+    // get billed. Bound the amounts to the existing claim + its invoice total.
+    #[derive(sqlx::FromRow)]
+    struct ClaimSettleGate {
+        invoice_total: Decimal,
+        approved_amount: Option<Decimal>,
+        settled_amount: Option<Decimal>,
+    }
+
+    let gate = sqlx::query_as::<_, ClaimSettleGate>(
+        "SELECT i.total_amount AS invoice_total, ic.approved_amount, ic.settled_amount \
+         FROM insurance_claims ic \
+         JOIN invoices i ON i.id = ic.invoice_id AND i.tenant_id = ic.tenant_id \
+         WHERE ic.id = $1 AND ic.tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if body
+        .approved_amount
+        .is_some_and(|amount| amount < Decimal::ZERO)
+        || body
+            .settled_amount
+            .is_some_and(|amount| amount < Decimal::ZERO)
+    {
+        return Err(AppError::BadRequest(
+            "Approved and settled amounts cannot be negative".to_owned(),
+        ));
+    }
+
+    // Effective amounts after this update (incoming value wins, else current).
+    let effective_approved = body.approved_amount.or(gate.approved_amount);
+    let effective_settled = body.settled_amount.or(gate.settled_amount);
+
+    // The insurer cannot approve more than the hospital billed.
+    if let Some(approved) = effective_approved {
+        if approved > gate.invoice_total {
+            return Err(AppError::BadRequest(format!(
+                "Approved amount {approved} exceeds the invoice total {}",
+                gate.invoice_total
+            )));
+        }
+    }
+
+    // The insurer cannot settle (pay) more than it sanctioned (approved).
+    if let (Some(settled), Some(approved)) = (effective_settled, effective_approved) {
+        if settled > approved {
+            return Err(AppError::BadRequest(format!(
+                "Settled amount {settled} cannot exceed the approved amount {approved}"
+            )));
+        }
+    }
+
     // Handle settled_at based on status
     let set_settled = body.status.as_deref() == Some("settled")
         || body.status.as_deref() == Some("partially_settled");
+
+    // Closing a claim as settled with no settled amount would treat the insurer
+    // as having paid nothing while still marking the claim done — leaving the
+    // residual uncollected. Require an explicit settled amount to settle.
+    if set_settled && effective_settled.is_none() {
+        return Err(AppError::BadRequest(
+            "A settled amount is required to mark the claim settled".to_owned(),
+        ));
+    }
 
     let claim = sqlx::query_as::<_, InsuranceClaim>(
         "UPDATE insurance_claims SET \
