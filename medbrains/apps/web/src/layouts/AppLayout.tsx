@@ -235,6 +235,25 @@ export function AppLayout() {
     },
     [location.pathname],
   );
+
+  const leafPaths = useMemo(() => allLeafItems.map((item) => item.path), [allLeafItems]);
+
+  // Leaf active state — only the most specific matching leaf lights up, so a
+  // parent-prefix item (e.g. OPD Queue `/opd`) doesn't also highlight when a
+  // more specific sibling leaf (`/opd/appointments`) is the current page.
+  const isLeafActive = useCallback(
+    (path: string) => {
+      if (!isActive(path)) return false;
+      return !leafPaths.some(
+        (other) =>
+          other !== path &&
+          other.length > path.length &&
+          other.startsWith(`${path}/`) &&
+          (location.pathname === other || location.pathname.startsWith(`${other}/`)),
+      );
+    },
+    [isActive, leafPaths, location.pathname],
+  );
   const isAdminActive = isActive("/admin");
 
   // ── Filter nav items by permission only — the sidebar is a flat,
@@ -294,7 +313,7 @@ export function AppLayout() {
       );
     }
 
-    const active = isActive(item.path);
+    const active = isLeafActive(item.path);
     const pinned = favoriteSet.has(item.path);
     return (
       <NavLink
@@ -375,7 +394,7 @@ export function AppLayout() {
           const targetPath = visibleChildren?.[0]?.path ?? item.path;
           const active = visibleChildren
             ? visibleChildren.some((child) => isActive(child.path))
-            : isActive(item.path);
+            : isLeafActive(item.path);
           return renderRailItem({ ...item, path: targetPath }, active);
         })}
       </div>
