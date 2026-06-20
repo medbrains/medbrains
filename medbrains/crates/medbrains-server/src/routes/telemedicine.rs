@@ -34,6 +34,9 @@ pub struct CreateTeleConsultationRequest {
 
 /// Video platforms a consult can run on.
 const TELE_PROVIDERS: &[&str] = &["jitsi", "external", "google_meet", "zoom", "teams"];
+/// API-created providers that have a worker adapter today (others are
+/// rejected until built, mirroring the payment `has_adapter` gate).
+const TELE_API_PROVIDERS_WITH_ADAPTER: &[&str] = &["zoom"];
 
 #[derive(Debug, Deserialize)]
 pub struct ListTeleConsultationsQuery {
@@ -102,10 +105,20 @@ pub async fn create_tele_consultation(
         )));
     }
     let meeting_url = body.meeting_url.as_deref().map(str::trim).filter(|s| !s.is_empty());
-    // Non-Jitsi platforms must carry the externally-created join link.
-    if provider != "jitsi" && meeting_url.is_none() {
-        return Err(AppError::BadRequest(format!(
-            "A meeting_url is required for provider '{provider}'"
+    // Three provider shapes:
+    //  - jitsi:    auto room, no link needed.
+    //  - external: doctor pastes a link → meeting_url required now.
+    //  - API (zoom/google_meet/teams): the worker creates the meeting → no link
+    //    at create, but the provider must have an adapter.
+    let is_api_provider = matches!(provider, "zoom" | "google_meet" | "teams");
+    if provider == "external" && meeting_url.is_none() {
+        return Err(AppError::BadRequest(
+            "A meeting_url is required for an external meeting".to_owned(),
+        ));
+    }
+    if is_api_provider && !TELE_API_PROVIDERS_WITH_ADAPTER.contains(&provider) {
+        return Err(AppError::ServiceUnavailable(format!(
+            "Video provider '{provider}' has no adapter yet — connect it or paste an external link"
         )));
     }
 
@@ -128,6 +141,28 @@ pub async fn create_tele_consultation(
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
+
+    // API providers: the worker creates the meeting off-thread and writes the
+    // join link back to meeting_url (client polls GET /consultations/{id}).
+    if provider == "zoom" {
+        medbrains_outbox::queue_in_tx(
+            &mut tx,
+            medbrains_outbox::OutboxRow {
+                tenant_id: claims.tenant_id,
+                aggregate_type: "tele_consultation",
+                aggregate_id: Some(consult.id),
+                event_type: "meeting.zoom.create",
+                payload: serde_json::json!({
+                    "consultation_id": consult.id,
+                    "topic": "Tele-consultation",
+                    "actor_context": { "user_id": claims.sub, "tenant_id": claims.tenant_id },
+                }),
+                idempotency_key: Some(consult.id.to_string()),
+            },
+        )
+        .await
+        .map_err(|e| AppError::Internal(format!("outbox queue failed: {e}")))?;
+    }
 
     tx.commit().await?;
     Ok(Json(consult))

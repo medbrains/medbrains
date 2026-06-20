@@ -27,3 +27,4 @@ pub mod razorpayx;
 pub mod tpa_stub;
 pub mod twilio;
 pub mod whatsapp;
+pub mod zoom;
