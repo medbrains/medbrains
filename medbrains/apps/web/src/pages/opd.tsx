@@ -1811,6 +1811,72 @@ export function EncounterDetail({
         compact
       />
 
+      {/* Encounter action toolbar — lives in the header, above the rail/content split. */}
+      <Group
+        gap="xs"
+        wrap="wrap"
+        style={{
+          padding: "10px 0 12px",
+          marginTop: 4,
+          borderTop: "1px solid var(--mb-border-subtle)",
+        }}
+      >
+        {canOrder && <OrderBasketChip onClick={() => openOrderBasket("drug")} />}
+        {canOrder && (
+          <Button
+            tone="secondary"
+            size="xs"
+            leftSection={<IconFlask size={14} />}
+            onClick={() => openOrderBasket("lab")}
+          >
+            Lab
+          </Button>
+        )}
+        {canOrder && (
+          <Button
+            tone="secondary"
+            size="xs"
+            leftSection={<IconEye size={14} />}
+            onClick={() => openOrderBasket("radiology")}
+          >
+            Imaging
+          </Button>
+        )}
+        <AdmitToIpdButton encounterId={encounterId} patientName={patientName} />
+        <GroupAppointmentModal patientId={patientId} />
+        <Button
+          tone="secondary"
+          size="xs"
+          leftSection={<IconPrinter size={14} />}
+          onClick={openSummary}
+        >
+          Print
+        </Button>
+        {canGenerateMrdCaseSheet && (
+          <Button
+            tone="secondary"
+            size="xs"
+            leftSection={<IconClipboardList size={14} />}
+            onClick={() => generateMrdCaseSheetMutation.mutate()}
+            loading={generateMrdCaseSheetMutation.isPending}
+          >
+            {latestMrdCaseSheet ? "Update MRD" : "Send to MRD"}
+          </Button>
+        )}
+        {canViewMrdCaseSheets && latestMrdCaseSheet && (
+          <Button
+            tone="ghost"
+            size="xs"
+            leftSection={<IconArrowRight size={14} />}
+            onClick={() =>
+              navigate(`/mrd?packet_type=opd&encounter_id=${encounterId}#case-sheets`)
+            }
+          >
+            MRD Packet
+          </Button>
+        )}
+      </Group>
+
       <Tabs
         value={activeEncounterTab}
         onChange={setActiveEncounterTab}
@@ -1987,8 +2053,15 @@ export function EncounterDetail({
                 ],
               },
             ].map((section) => (
-              <div key={section.label} style={{ marginBottom: 10 }}>
-                <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb={4} px={4}>
+              <div key={section.label} style={{ marginBottom: 6 }}>
+                <Text
+                  fw={700}
+                  c="dimmed"
+                  tt="uppercase"
+                  mb={2}
+                  px={4}
+                  style={{ fontSize: 10, letterSpacing: "0.06em" }}
+                >
                   {section.label}
                 </Text>
                 <Tabs.List
@@ -2015,76 +2088,6 @@ export function EncounterDetail({
             padding: "16px 24px",
           }}
         >
-          <Group
-            gap="xs"
-            wrap="wrap"
-            style={{
-              position: "sticky",
-              top: 0,
-              zIndex: 5,
-              // Full-bleed sticky header — cover the panel's 16/24 padding so the
-              // bar pins flush to the top and its rule spans the full width.
-              margin: "-16px -24px 12px",
-              padding: "12px 24px",
-              background: "var(--mb-card-bg, #fff)",
-              borderBottom: "1px solid var(--mb-border-subtle)",
-            }}
-          >
-            {canOrder && <OrderBasketChip onClick={() => openOrderBasket("drug")} />}
-            {canOrder && (
-              <Button
-                tone="secondary"
-                size="xs"
-                leftSection={<IconFlask size={14} />}
-                onClick={() => openOrderBasket("lab")}
-              >
-                Lab
-              </Button>
-            )}
-            {canOrder && (
-              <Button
-                tone="secondary"
-                size="xs"
-                leftSection={<IconEye size={14} />}
-                onClick={() => openOrderBasket("radiology")}
-              >
-                Imaging
-              </Button>
-            )}
-            <AdmitToIpdButton encounterId={encounterId} patientName={patientName} />
-            <GroupAppointmentModal patientId={patientId} />
-            <Button
-              tone="secondary"
-              size="xs"
-              leftSection={<IconPrinter size={14} />}
-              onClick={openSummary}
-            >
-              Print
-            </Button>
-            {canGenerateMrdCaseSheet && (
-              <Button
-                tone="secondary"
-                size="xs"
-                leftSection={<IconClipboardList size={14} />}
-                onClick={() => generateMrdCaseSheetMutation.mutate()}
-                loading={generateMrdCaseSheetMutation.isPending}
-              >
-                {latestMrdCaseSheet ? "Update MRD" : "Send to MRD"}
-              </Button>
-            )}
-            {canViewMrdCaseSheets && latestMrdCaseSheet && (
-              <Button
-                tone="ghost"
-                size="xs"
-                leftSection={<IconArrowRight size={14} />}
-                onClick={() =>
-                  navigate(`/mrd?packet_type=opd&encounter_id=${encounterId}#case-sheets`)
-                }
-              >
-                MRD Packet
-              </Button>
-            )}
-          </Group>
           <Tabs.Panel value="vitals">
             <VitalsTab encounterId={encounterId} patientId={patientId} canUpdate={canUpdate} />
           </Tabs.Panel>

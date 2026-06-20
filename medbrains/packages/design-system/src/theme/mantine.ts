@@ -860,9 +860,10 @@ function buildSchemePalette(scheme: typeof lightScheme, name: SchemeName) {
     "--mb-glass-to": glassTo,
     "--mb-shadow-brand-tint": brandShadowTint,
     "--mb-shadow-accent-tint": accentShadowTint,
-    "--mb-scrollbar-track": isLight ? "rgba(15, 20, 18, 0.06)" : "rgba(126, 215, 215, 0.08)",
-    "--mb-scrollbar-thumb": isLight ? "rgba(31, 67, 50, 0.36)" : "rgba(52, 211, 153, 0.42)",
-    "--mb-scrollbar-thumb-hover": isLight ? "rgba(31, 67, 50, 0.56)" : "rgba(52, 211, 153, 0.62)",
+    "--mb-scrollbar-track": isLight ? "rgba(15, 98, 254, 0.06)" : "rgba(120, 169, 255, 0.08)",
+    // Primary-blue accent — lighter when idle, full brand blue on hover/active.
+    "--mb-scrollbar-thumb": isLight ? "rgba(15, 98, 254, 0.4)" : "rgba(120, 169, 255, 0.45)",
+    "--mb-scrollbar-thumb-hover": isLight ? "rgba(15, 98, 254, 0.75)" : "rgba(120, 169, 255, 0.8)",
 
     // ── Legacy brand/accent aliases (semantic, used across SCSS) ──
     "--fc-brand": scheme.brand.emphasis,
