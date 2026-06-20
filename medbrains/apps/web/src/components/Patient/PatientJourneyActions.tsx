@@ -1,4 +1,4 @@
-import { ActionIcon, Badge, Button, Group, Stack, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Badge, Button, Group, Menu, Stack, Text, Tooltip } from "@mantine/core";
 import { usePermissionStore } from "@medbrains/stores";
 import type {
   ClinicalJourneyActionId,
@@ -19,6 +19,7 @@ import {
   IconAlertTriangle,
   IconBed,
   IconBuildingStore,
+  IconChevronDown,
   IconEdit,
   IconFileInvoice,
   IconFlask,
@@ -323,27 +324,45 @@ export function PatientJourneyActions({
     );
   }
 
-  if (visibleActions.length === 0 && emptyLabel !== undefined) {
-    return (
+  if (visibleActions.length === 0) {
+    return emptyLabel !== undefined ? (
       <Text size="xs" c="dimmed">
         {emptyLabel}
       </Text>
-    );
+    ) : null;
   }
 
+  // Directory rows: one compact blue "Actions" button opening a keyboard-
+  // accessible menu (Mantine Menu = arrow keys / Enter / Esc, ARIA built-in),
+  // instead of a stack of colour-coded buttons.
+  const actionsLabel = t("patientJourney.actions", { defaultValue: "Actions" });
   return (
-    <Group gap={6} wrap="wrap" style={{ maxWidth: 320 }}>
-      {visibleActions.map((action) => (
-        <PatientJourneyActionButton
-          key={action.id}
-          action={action}
+    <Menu position="bottom-end" withinPortal shadow="md" width={220}>
+      <Menu.Target>
+        <Button
+          variant="filled"
+          color="blue"
           size={size}
-          layout={layout}
-          t={t}
-          onClick={() => handleAction(action.id)}
-        />
-      ))}
-    </Group>
+          rightSection={<IconChevronDown size={14} />}
+          aria-label={actionsLabel}
+        >
+          {actionsLabel}
+        </Button>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Label>{actionsLabel}</Menu.Label>
+        {visibleActions.map((action) => (
+          <Menu.Item
+            key={action.id}
+            leftSection={actionIcon(action.id)}
+            onClick={() => handleAction(action.id)}
+            disabled={!action.enabled}
+          >
+            {journeyActionLabel(t, action.id)}
+          </Menu.Item>
+        ))}
+      </Menu.Dropdown>
+    </Menu>
   );
 }
 
