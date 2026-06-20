@@ -20,6 +20,7 @@ pub mod cashfree;
 pub mod email_stub;
 pub mod hl7_stub;
 pub mod nhcx;
+pub mod pinelabs;
 pub mod pipeline_fallback;
 pub mod razorpay;
 pub mod tpa_stub;
