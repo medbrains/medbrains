@@ -34,6 +34,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
+import { HeaderWidgets } from "@/components/HeaderWidgets";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { buildPathLabels, NAV_GROUPS, type NavItemConfig, resolveIcon } from "@/config/navigation";
@@ -420,6 +421,8 @@ export function AppLayout() {
           </Group>
 
           <Group gap="sm">
+            <HeaderWidgets />
+            <Divider orientation="vertical" size="sm" visibleFrom="sm" />
             {/* Spotlight trigger */}
             <UnstyledButton
               onClick={spotlight.open}
