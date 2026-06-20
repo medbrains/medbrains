@@ -1,10 +1,27 @@
-import { ActionIcon, Box, Button, Group, NumberInput, Stack, Text, TextInput } from "@mantine/core";
+import {
+  ActionIcon,
+  Box,
+  Button,
+  Group,
+  NumberInput,
+  Select,
+  Stack,
+  Text,
+  TextInput,
+} from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { Payment, PaymentMode } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { type KeyboardEvent, useMemo, useState } from "react";
 import { billingService } from "@/services/billing.service";
+import { paymentsService } from "@/services/payments.service";
+
+/** Which terminal kinds settle a given tender mode at the counter. */
+const TERMINAL_KIND_FOR_MODE: Partial<Record<PaymentMode, string[]>> = {
+  card: ["pos"],
+  upi: ["qr", "pos", "online"],
+};
 
 /** Modes offered as one-key shortcuts, in shortcut order (1..n). */
 const QUICK_MODES: { mode: PaymentMode; label: string }[] = [
@@ -22,6 +39,8 @@ interface PaymentLine {
   amount: number | string;
   reference: string;
   tendered: number | string;
+  /** Selected counter terminal for the card/UPI leg (display/routing only). */
+  terminalId: string | null;
 }
 
 interface PaymentCollectPanelProps {
@@ -50,7 +69,14 @@ function money(value: number): string {
 let lineSeq = 0;
 function makeLine(amount: number, mode: PaymentMode = "cash"): PaymentLine {
   lineSeq += 1;
-  return { key: `line-${lineSeq}`, mode, amount, reference: "", tendered: amount };
+  return {
+    key: `line-${lineSeq}`,
+    mode,
+    amount,
+    reference: "",
+    tendered: amount,
+    terminalId: null,
+  };
 }
 
 /**
@@ -71,6 +97,26 @@ export function PaymentCollectPanel({
 }: PaymentCollectPanelProps) {
   const [lines, setLines] = useState<PaymentLine[]>(() => [makeLine(balance)]);
   const [printOnSave, setPrintOnSave] = useState(Boolean(onPrint));
+
+  // Devices physically at this counter — the card/UPI leg routes to one of them.
+  const trimmedCounter = counterId?.trim();
+  const { data: terminals } = useQuery({
+    queryKey: ["payment-terminals", trimmedCounter],
+    queryFn: () =>
+      paymentsService.listPaymentTerminals({ counter_id: trimmedCounter, active_only: true }),
+    enabled: Boolean(trimmedCounter),
+    staleTime: 300_000,
+  });
+  const terminalsForMode = (mode: PaymentMode) => {
+    const kinds = TERMINAL_KIND_FOR_MODE[mode];
+    if (!kinds || !terminals) return [];
+    return terminals
+      .filter((tnl) => kinds.includes(tnl.kind))
+      .map((tnl) => ({
+        value: tnl.id,
+        label: `${tnl.label}${tnl.acquiring_bank ? ` · ${tnl.acquiring_bank}` : ""} (${tnl.provider})`,
+      }));
+  };
 
   const total = useMemo(() => lines.reduce((sum, line) => sum + num(line.amount), 0), [lines]);
   const remaining = balance - total;
@@ -193,13 +239,32 @@ export function PaymentCollectPanel({
                     decimalScale={2}
                   />
                 ) : (
-                  <TextInput
-                    label={needsRef ? "Reference no." : "Reference (optional)"}
-                    value={line.reference}
-                    onChange={(event) =>
-                      updateLine(line.key, { reference: event.currentTarget.value })
-                    }
-                  />
+                  <Stack gap={4}>
+                    {terminalsForMode(line.mode).length > 0 && (
+                      <Select
+                        label="Terminal"
+                        placeholder="Counter device"
+                        data={terminalsForMode(line.mode)}
+                        value={line.terminalId}
+                        onChange={(value) => {
+                          const picked = terminals?.find((tnl) => tnl.id === value);
+                          updateLine(line.key, {
+                            terminalId: value,
+                            reference: picked && !line.reference ? picked.label : line.reference,
+                          });
+                        }}
+                        clearable
+                        searchable
+                      />
+                    )}
+                    <TextInput
+                      label={needsRef ? "Reference no." : "Reference (optional)"}
+                      value={line.reference}
+                      onChange={(event) =>
+                        updateLine(line.key, { reference: event.currentTarget.value })
+                      }
+                    />
+                  </Stack>
                 )}
               </Group>
               {line.mode === "cash" && (
