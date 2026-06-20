@@ -980,7 +980,7 @@ function AttendanceTab({ canManage }: { canManage: boolean }) {
             key: "source",
             label: "Source",
             render: (r: AttendanceRecord) => (
-              <Badge variant="outline" size="sm">
+              <Badge size="sm">
                 {r.source}
               </Badge>
             ),
@@ -1447,7 +1447,7 @@ function RosterTab({
 
   return (
     <>
-      <Tabs value={subTab} onChange={setSubTab} variant="outline">
+      <Tabs value={subTab} onChange={setSubTab}>
         <Tabs.List mb="md">
           <Tabs.Tab value="roster">Duty Roster</Tabs.Tab>
           <Tabs.Tab value="shifts">Shift Definitions</Tabs.Tab>
@@ -2389,7 +2389,7 @@ function ComplianceTab({
   });
 
   return (
-    <Tabs value={subTab} onChange={setSubTab} variant="outline">
+    <Tabs value={subTab} onChange={setSubTab}>
       <Tabs.List mb="md">
         <Tabs.Tab value="credentials" leftSection={<IconCertificate size={16} />}>
           Credential Expiry

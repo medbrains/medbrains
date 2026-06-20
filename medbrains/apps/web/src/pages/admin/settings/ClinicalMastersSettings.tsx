@@ -815,7 +815,7 @@ function InsuranceProvidersTable() {
 
 export function ClinicalMastersSettings() {
   return (
-    <Tabs defaultValue="religions" variant="outline">
+    <Tabs defaultValue="religions">
       <Tabs.List mb="md">
         <Tabs.Tab value="religions" leftSection={<IconHeart size={14} />}>
           Religions

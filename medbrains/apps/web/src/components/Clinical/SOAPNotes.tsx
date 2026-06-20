@@ -501,7 +501,7 @@ export function SOAPNotes({
               <Badge size="xs" color={hasSavedRecord ? "green" : "gray"} variant="light">
                 {hasSavedRecord ? "Saved" : "Draft"}
               </Badge>
-              <Badge size="xs" color="blue" variant="outline">
+              <Badge size="xs" color="blue">
                 {calendarEntries.length} timeline
               </Badge>
             </Group>
@@ -586,7 +586,7 @@ export function SOAPNotes({
             </Text>
           )}
         </Group>
-        <Tabs defaultValue="chief_complaint" variant="outline">
+        <Tabs defaultValue="chief_complaint">
           <Tabs.List>
             {SOAP_SECTIONS.map((section) => (
               <Tabs.Tab key={section.key} value={section.key} leftSection={section.icon}>
@@ -609,7 +609,7 @@ export function SOAPNotes({
                           <Text size="sm" fw={700}>
                             {entry.title}
                           </Text>
-                          <Badge size="xs" color="gray" variant="outline">
+                          <Badge size="xs" color="gray">
                             {entry.status}
                           </Badge>
                         </Group>
@@ -672,7 +672,7 @@ export function SOAPNotes({
                           </Group>
                           <Group gap={4} mt={6}>
                             {entry.sections.map((letter) => (
-                              <Badge key={`${entry.id}-${letter}`} size="xs" variant="outline">
+                              <Badge key={`${entry.id}-${letter}`} size="xs">
                                 {letter}
                               </Badge>
                             ))}
