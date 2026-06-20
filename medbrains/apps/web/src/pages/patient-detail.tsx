@@ -3132,7 +3132,6 @@ function PatientDetailPageInner() {
     <Stack className={classes.patientWorkspace}>
       <PageHeader
         title={displayName}
-        subtitle={`UHID: ${displayUhid} | ${patient.gender} | ${displayAge} | ${displayPhone}`}
         actions={
           canListPatients ? (
             <Button tone="secondary" onClick={() => navigate("/patients")}>
@@ -3163,9 +3162,8 @@ function PatientDetailPageInner() {
             compact
           />
           <Group justify="space-between" align="flex-start" gap="sm">
-            <Stack gap={4}>
+            <Stack gap={6}>
               <Group gap="xs">
-                <Text fw={700}>{displayName}</Text>
                 <Badge tone="primary">{patient.category}</Badge>
                 <Badge tone="neutral">{patient.financial_class}</Badge>
                 {patient.blood_group && <Badge tone="danger">{patient.blood_group}</Badge>}
@@ -3188,9 +3186,16 @@ function PatientDetailPageInner() {
                   </Badge>
                 )}
               </Group>
-              <Text size="xs" c="dimmed">
-                UHID {displayUhid} · {patient.gender} · {displayAge} · {displayPhone}
-              </Text>
+              <Group gap={6}>
+                <Badge tone="primary" variant="light">
+                  UHID {displayUhid}
+                </Badge>
+                {patient.gender && <Badge tone="neutral">{patient.gender}</Badge>}
+                {displayAge && displayAge !== "-" && <Badge tone="neutral">{displayAge}</Badge>}
+                {displayPhone && displayPhone !== "-" && (
+                  <Badge tone="neutral">{displayPhone}</Badge>
+                )}
+              </Group>
             </Stack>
             <PatientJourneyActions
               context={actionContext}
