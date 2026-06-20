@@ -3,6 +3,7 @@ import {
   Card,
   Group,
   Loader,
+  Menu,
   Modal,
   Select,
   SimpleGrid,
@@ -80,8 +81,10 @@ import {
   IconCertificate,
   IconChartLine,
   IconCheck,
+  IconChevronDown,
   IconClipboardList,
   IconClock,
+  IconDotsVertical,
   IconEye,
   IconFileCheck,
   IconFlask,
@@ -1842,39 +1845,46 @@ export function EncounterDetail({
             Imaging
           </Button>
         )}
-        <AdmitToIpdButton encounterId={encounterId} patientName={patientName} />
-        <GroupAppointmentModal patientId={patientId} />
-        <Button
-          tone="secondary"
-          size="xs"
-          leftSection={<IconPrinter size={14} />}
-          onClick={openSummary}
-        >
-          Print
-        </Button>
-        {canGenerateMrdCaseSheet && (
-          <Button
-            tone="secondary"
-            size="xs"
-            leftSection={<IconClipboardList size={14} />}
-            onClick={() => generateMrdCaseSheetMutation.mutate()}
-            loading={generateMrdCaseSheetMutation.isPending}
-          >
-            {latestMrdCaseSheet ? "Update MRD" : "Send to MRD"}
-          </Button>
-        )}
-        {canViewMrdCaseSheets && latestMrdCaseSheet && (
-          <Button
-            tone="ghost"
-            size="xs"
-            leftSection={<IconArrowRight size={14} />}
-            onClick={() =>
-              navigate(`/mrd?packet_type=opd&encounter_id=${encounterId}#case-sheets`)
-            }
-          >
-            MRD Packet
-          </Button>
-        )}
+        {/* Secondary actions collapsed into a single menu. keepMounted so the
+            Admit/Group modal components inside stay mounted when it closes. */}
+        <Menu shadow="md" width={224} position="bottom-start" keepMounted>
+          <Menu.Target>
+            <Button
+              tone="secondary"
+              size="xs"
+              rightSection={<IconChevronDown size={14} />}
+              leftSection={<IconDotsVertical size={14} />}
+            >
+              Actions
+            </Button>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <AdmitToIpdButton encounterId={encounterId} patientName={patientName} asMenuItem />
+            <GroupAppointmentModal patientId={patientId} asMenuItem />
+            <Menu.Item leftSection={<IconPrinter size={14} />} onClick={openSummary}>
+              Print
+            </Menu.Item>
+            {canGenerateMrdCaseSheet && (
+              <Menu.Item
+                leftSection={<IconClipboardList size={14} />}
+                onClick={() => generateMrdCaseSheetMutation.mutate()}
+                disabled={generateMrdCaseSheetMutation.isPending}
+              >
+                {latestMrdCaseSheet ? "Update MRD" : "Send to MRD"}
+              </Menu.Item>
+            )}
+            {canViewMrdCaseSheets && latestMrdCaseSheet && (
+              <Menu.Item
+                leftSection={<IconArrowRight size={14} />}
+                onClick={() =>
+                  navigate(`/mrd?packet_type=opd&encounter_id=${encounterId}#case-sheets`)
+                }
+              >
+                MRD Packet
+              </Menu.Item>
+            )}
+          </Menu.Dropdown>
+        </Menu>
       </Group>
 
       <Tabs
@@ -3528,9 +3538,11 @@ function PrescriptionsTab({
 function AdmitToIpdButton({
   encounterId,
   patientName,
+  asMenuItem = false,
 }: {
   encounterId: string;
   patientName: string;
+  asMenuItem?: boolean;
 }) {
   const { t } = useTranslation("opd");
   const [opened, { open, close }] = useDisclosure(false);
@@ -3612,14 +3624,20 @@ function AdmitToIpdButton({
 
   return (
     <>
-      <Button
-        tone="secondary"
-        size="xs"
-        leftSection={<IconMedicalCross size={14} />}
-        onClick={open}
-      >
-        {t("admission.admitToIpd")}
-      </Button>
+      {asMenuItem ? (
+        <Menu.Item leftSection={<IconMedicalCross size={14} />} onClick={open}>
+          {t("admission.admitToIpd")}
+        </Menu.Item>
+      ) : (
+        <Button
+          tone="secondary"
+          size="xs"
+          leftSection={<IconMedicalCross size={14} />}
+          onClick={open}
+        >
+          {t("admission.admitToIpd")}
+        </Button>
+      )}
       <Modal
         opened={opened}
         onClose={close}
@@ -3711,7 +3729,13 @@ function createGroupSlotRow(): GroupSlotRow {
   };
 }
 
-function GroupAppointmentModal({ patientId }: { patientId: string }) {
+function GroupAppointmentModal({
+  patientId,
+  asMenuItem = false,
+}: {
+  patientId: string;
+  asMenuItem?: boolean;
+}) {
   const [opened, { open, close }] = useDisclosure(false);
   const queryClient = useQueryClient();
   const [rows, setRows] = useState<GroupSlotRow[]>([createGroupSlotRow(), createGroupSlotRow()]);
@@ -3800,14 +3824,15 @@ function GroupAppointmentModal({ patientId }: { patientId: string }) {
 
   return (
     <>
-      <Button
-        tone="secondary"
-        size="xs"
-        leftSection={<IconUsers size={14} />}
-        onClick={open}
-      >
-        Group Appointment
-      </Button>
+      {asMenuItem ? (
+        <Menu.Item leftSection={<IconUsers size={14} />} onClick={open}>
+          Group Appointment
+        </Menu.Item>
+      ) : (
+        <Button tone="secondary" size="xs" leftSection={<IconUsers size={14} />} onClick={open}>
+          Group Appointment
+        </Button>
+      )}
       <Modal opened={opened} onClose={close} title="Book Multi-Doctor Appointment" size="lg">
         <Stack gap="sm">
           <Text size="sm" c="dimmed">
