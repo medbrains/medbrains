@@ -39,8 +39,20 @@
 }
 
 .title {
-  color: var(--mb-text-heading);
   margin: 0;
+  // Blue → vital-green brand gradient on the page title (mostly blue, green
+  // tail — keeps large-text contrast). Falls back to solid ink if unsupported.
+  color: var(--mb-text-heading);
+  background-image: var(--mb-gradient-text);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+@supports not ((-webkit-background-clip: text) or (background-clip: text)) {
+  .title {
+    -webkit-text-fill-color: var(--mb-text-heading);
+  }
 }
 
 .actions {

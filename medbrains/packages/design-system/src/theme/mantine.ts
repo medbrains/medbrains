@@ -904,11 +904,17 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
       // Page header background composed at consume time using mode-specific bgs
       "--mb-page-header-bg": "var(--mb-bg-default)",
       "--mb-table-toolbar-bg": "var(--mb-bg-default)",
-      // Carbon — flat solids, no gradients. Brand surfaces use interactive blue.
-      "--mb-accent-gradient": "var(--mb-brand-emphasis)",
+      // Blue → vital-green brand gradients (the new palette). The accent bar on
+      // page headers + CTAs use "signal"; soft tints/washes use "mist".
+      "--mb-gradient-signal": "linear-gradient(135deg, #0f62fe 0%, #42be65 100%)",
+      "--mb-gradient-lifeline": "linear-gradient(135deg, #0f62fe 0%, #4589ff 50%, #42be65 100%)",
+      "--mb-gradient-mist": "linear-gradient(135deg, #a6c8ff 0%, #e8f5ec 100%)",
+      "--mb-gradient-nightshift": "linear-gradient(160deg, #161616 0%, #0043ce 70%, #0f62fe 100%)",
+      "--mb-gradient-text": "linear-gradient(120deg, #0043ce 0%, #0f62fe 45%, #42be65 100%)",
+      "--mb-accent-gradient": "var(--mb-gradient-signal)",
       "--mb-accent-gradient-soft": "var(--mb-brand-bg)",
-      "--mb-signature-spectrum": "var(--mb-brand-emphasis)",
-      "--mb-signature-spectrum-soft": "var(--mb-brand-bg)",
+      "--mb-signature-spectrum": "var(--mb-gradient-signal)",
+      "--mb-signature-spectrum-soft": "var(--mb-gradient-mist)",
 
       // ── Motion (mode-agnostic) ───────────────────────────────
       "--mb-duration-instant": duration.instant,

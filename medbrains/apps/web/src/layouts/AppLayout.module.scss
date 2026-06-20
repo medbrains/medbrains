@@ -118,7 +118,7 @@
     width: 3px;
     z-index: 2;
     border-radius: 2px;
-    background: var(--mb-accent-gradient, var(--mb-accent-primary));
+    background: var(--mb-brand-emphasis, var(--mb-interactive));
     animation: indicatorSlideIn 200ms ease-out;
   }
 
