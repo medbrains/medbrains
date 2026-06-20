@@ -46,28 +46,22 @@
   "tokenBoards.surfaces.pharmacy.flow": "Dispensing",
   "tokenBoards.surfaces.radiology.flow": "Modality",
   "tokenBoards.workspaceDescription": "Workstation view of public queue feeds. {{notice}} Reception, lab, radiology, ER, pharmacy and billing operations stay linked to the same token state.",
-  "tokenBoard": {
-    "title": "Token board",
-    "subtitle": "Live queue display",
-    "module": "Module",
-    "department": "Department",
-    "allDepartments": "All departments",
-    "modules": {
-      "registration": "Registration",
-      "opd": "OPD",
-      "pharmacy": "Pharmacy",
-      "billing": "Billing",
-      "lab": "Laboratory",
-      "radiology": "Radiology",
-      "dispatch": "Dispatch"
-    }
-  },
-  "tokenConsole": {
-    "title": "Token console",
-    "subtitle": "Call and process queue tokens",
-    "counter": "Counter / room",
-    "counterPlaceholder": "e.g. Counter 2",
-    "callNext": "Call next",
-    "empty": "No tokens in the queue"
-  }
+  "tokenBoard.title": "Token board",
+  "tokenBoard.subtitle": "Live queue display",
+  "tokenBoard.module": "Module",
+  "tokenBoard.department": "Department",
+  "tokenBoard.allDepartments": "All departments",
+  "tokenBoard.modules.registration": "Registration",
+  "tokenBoard.modules.opd": "OPD",
+  "tokenBoard.modules.pharmacy": "Pharmacy",
+  "tokenBoard.modules.billing": "Billing",
+  "tokenBoard.modules.lab": "Laboratory",
+  "tokenBoard.modules.radiology": "Radiology",
+  "tokenBoard.modules.dispatch": "Dispatch",
+  "tokenConsole.title": "Token console",
+  "tokenConsole.subtitle": "Call and process queue tokens",
+  "tokenConsole.counter": "Counter / room",
+  "tokenConsole.counterPlaceholder": "e.g. Counter 2",
+  "tokenConsole.callNext": "Call next",
+  "tokenConsole.empty": "No tokens in the queue"
 }

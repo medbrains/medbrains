@@ -43,6 +43,9 @@ i18n
     defaultNS: "common",
     backend: {
       loadPath: "/locales/{{lng}}/{{ns}}.json",
+      // Never serve stale locale JSON from the browser HTTP cache — a reload
+      // always re-fetches, so newly-added keys never show as raw key strings.
+      requestOptions: { cache: "no-store" },
     },
     interpolation: {
       escapeValue: false,
