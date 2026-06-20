@@ -78,6 +78,67 @@ async fn module_tokens_enabled(
         .unwrap_or(true))
 }
 
+/// Fields for auto-issuing a token from a module's trigger handler.
+pub struct IssueToken<'a> {
+    pub module: &'a str,
+    pub scope: &'a str,
+    pub scope_id: Option<Uuid>,
+    pub scope_label: Option<&'a str>,
+    pub priority: &'a str,
+    pub patient_id: Option<Uuid>,
+    pub patient_name: Option<&'a str>,
+    pub entity_type: Option<&'a str>,
+    pub entity_id: Option<Uuid>,
+    pub issued_by: Option<Uuid>,
+}
+
+/// Issue a token inside an existing tenant-scoped transaction (auto-issuance
+/// from registration / check-in / order / payment). Silently skips when the
+/// module's tokens are disabled. Returns the token number (or None if skipped).
+pub async fn issue_token_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    input: IssueToken<'_>,
+) -> Result<Option<String>, AppError> {
+    if !module_tokens_enabled(tx, tenant_id, input.module).await? {
+        return Ok(None);
+    }
+    let seq: i32 = sqlx::query_scalar(
+        "SELECT COALESCE(MAX(seq), 0) + 1 FROM tokens \
+         WHERE tenant_id = $1 AND module = $2 AND scope = $3 \
+           AND scope_id IS NOT DISTINCT FROM $4 AND token_date = CURRENT_DATE",
+    )
+    .bind(tenant_id)
+    .bind(input.module)
+    .bind(input.scope)
+    .bind(input.scope_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    let number = format!("{}-{seq:03}", token_prefix(input.module));
+    sqlx::query(
+        "INSERT INTO tokens \
+         (tenant_id, module, scope, scope_id, scope_label, number, seq, priority, \
+          patient_id, patient_name, entity_type, entity_id, issued_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
+    )
+    .bind(tenant_id)
+    .bind(input.module)
+    .bind(input.scope)
+    .bind(input.scope_id)
+    .bind(input.scope_label)
+    .bind(&number)
+    .bind(seq)
+    .bind(input.priority)
+    .bind(input.patient_id)
+    .bind(input.patient_name)
+    .bind(input.entity_type)
+    .bind(input.entity_id)
+    .bind(input.issued_by)
+    .execute(&mut **tx)
+    .await?;
+    Ok(Some(number))
+}
+
 async fn broadcast_status(state: &AppState, token: &Token) {
     if let Some(scope_id) = token.scope_id {
         state

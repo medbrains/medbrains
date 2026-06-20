@@ -1508,6 +1508,26 @@ pub async fn create_patient(
     .with_patient(patient.id);
     crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
+    // Auto-issue a registration token (skipped if the module is disabled).
+    let patient_label = format!("{} {}", patient.first_name, patient.last_name);
+    crate::routes::tokens::issue_token_in_tx(
+        &mut tx,
+        claims.tenant_id,
+        crate::routes::tokens::IssueToken {
+            module: "registration",
+            scope: "global",
+            scope_id: None,
+            scope_label: Some("Registration"),
+            priority: "normal",
+            patient_id: Some(patient.id),
+            patient_name: Some(patient_label.trim()),
+            entity_type: Some("patient"),
+            entity_id: Some(patient.id),
+            issued_by: Some(claims.sub),
+        },
+    )
+    .await?;
+
     tx.commit().await?;
 
     let authz_ctx = crate::middleware::authorization::authz_context(&claims);

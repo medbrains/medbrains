@@ -535,6 +535,25 @@ pub async fn check_in_appointment(
         .broadcast_token_called(row.department_id, &queue_token)
         .await;
 
+    // Unified OPD token (department scope) for the new token boards / console.
+    crate::routes::tokens::issue_token_in_tx(
+        &mut tx,
+        claims.tenant_id,
+        crate::routes::tokens::IssueToken {
+            module: "opd",
+            scope: "department",
+            scope_id: Some(row.department_id),
+            scope_label: None,
+            priority: "normal",
+            patient_id: Some(row.patient_id),
+            patient_name: None,
+            entity_type: Some("appointment"),
+            entity_id: Some(row.id),
+            issued_by: Some(claims.sub),
+        },
+    )
+    .await?;
+
     tx.commit().await?;
     Ok(Json(row))
 }
