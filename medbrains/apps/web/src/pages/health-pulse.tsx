@@ -1,4 +1,4 @@
-import { Group, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Center, Group, Pagination, SimpleGrid, Stack, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
@@ -37,6 +37,8 @@ export function HealthPulsePage() {
   const [search, setSearch] = useState("");
   const [debounced] = useDebouncedValue(search, 300);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 12;
 
   const { data: articles, isLoading } = useQuery({
     queryKey: ["news-feed", "center", topic, debounced],
@@ -44,10 +46,13 @@ export function HealthPulsePage() {
       api.listNewsFeed({
         topic: topic ?? undefined,
         q: debounced.trim() || undefined,
-        limit: 40,
+        limit: 100,
       }),
     staleTime: 300_000,
   });
+
+  const totalPages = Math.max(1, Math.ceil((articles?.length ?? 0) / pageSize));
+  const pageItems = (articles ?? []).slice((page - 1) * pageSize, page * pageSize);
 
   const { data: article } = useQuery({
     queryKey: ["news-feed", "article", openId],
@@ -57,12 +62,19 @@ export function HealthPulsePage() {
 
   return (
     <div>
-      <PageHeader title="Health Pulse" subtitle="Live medical news, curated by specialty" />
+      <PageHeader
+        title="Health Pulse"
+        subtitle="Live medical news, curated by specialty"
+        breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Health Pulse" }]}
+      />
 
       <Group gap="sm" mb="md" wrap="wrap">
         <Input
           value={search}
-          onChange={(event) => setSearch(event.currentTarget.value)}
+          onChange={(event) => {
+            setSearch(event.currentTarget.value);
+            setPage(1);
+          }}
           placeholder="Search articles…"
           leftSection={<Search size={15} />}
           style={{ flex: 1, minWidth: 220 }}
@@ -70,7 +82,10 @@ export function HealthPulsePage() {
         />
         <Select
           value={topic}
-          onChange={setTopic}
+          onChange={(value) => {
+            setTopic(value);
+            setPage(1);
+          }}
           data={TOPICS.map((value) => ({ value, label: value }))}
           placeholder="All specialties"
           clearable
@@ -89,7 +104,7 @@ export function HealthPulsePage() {
         </Text>
       ) : (
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-          {articles.map((item) => (
+          {pageItems.map((item) => (
             <Card
               key={item.id}
               withBorder
@@ -114,6 +129,12 @@ export function HealthPulsePage() {
             </Card>
           ))}
         </SimpleGrid>
+      )}
+
+      {totalPages > 1 && (
+        <Center mt="lg">
+          <Pagination total={totalPages} value={page} onChange={setPage} size="sm" />
+        </Center>
       )}
 
       <Drawer
