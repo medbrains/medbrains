@@ -66,3 +66,10 @@
 
 /* Toast look is themed on the Notification component (design-system
    mantine.ts) — layer-safe; applies to every notification. */
+
+/* Carbon tooltip — force white text on the gray-80 surface (beats Mantine's
+   layered default + any nested label colour). */
+.mantine-Tooltip-tooltip,
+.mantine-Tooltip-tooltip * {
+  color: #ffffff !important;
+}
