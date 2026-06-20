@@ -31181,6 +31181,20 @@ export interface ModuleToken {
   created_at: string;
 }
 
+/** Ingested medical news article (global feed — `news_feed_articles`). */
+export interface NewsFeedArticle {
+  id: string;
+  topic: string;
+  source: string;
+  title: string;
+  summary: string | null;
+  content: string | null;
+  url: string;
+  image_url: string | null;
+  author: string | null;
+  published_at: string | null;
+}
+
 export interface IssueTokenInput {
   module: string;
   scope?: string;

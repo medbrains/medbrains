@@ -1151,6 +1151,7 @@ import type {
   ModuleSummary,
   ModuleToken,
   MonthlySurveillanceReport,
+  NewsFeedArticle,
   MortuaryRecord,
   MpiMatchRequest,
   MpiMatchResult,
@@ -3054,6 +3055,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify(input),
     }),
+  listNewsFeed: (params?: { topic?: string; q?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.topic) qs.set("topic", params.topic);
+    if (params?.q) qs.set("q", params.q);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    const suffix = qs.toString();
+    return request<NewsFeedArticle[]>(`/news-feed${suffix ? `?${suffix}` : ""}`);
+  },
+  getNewsFeedArticle: (id: string) => request<NewsFeedArticle>(`/news-feed/${id}`),
   getPatient: (id: string) => request<Patient>(`/patients/${id}`),
   getPatientContext: (id: string) => request<PatientContext>(`/patients/${id}/context`),
   createPatient: (data: CreatePatientRequest) =>

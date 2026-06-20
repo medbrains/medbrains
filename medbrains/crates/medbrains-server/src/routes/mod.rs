@@ -67,6 +67,7 @@ pub mod multi_hospital;
 pub mod nabh_evidence;
 pub mod nabh_indicators;
 pub mod news;
+pub mod news_feed;
 pub mod nhcx_callback;
 pub mod nurse_clinical;
 pub mod nurse_handoff;
@@ -6705,6 +6706,12 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/admin/simulator/runs/{id}",
             get(admin_simulator::get_run),
+        )
+        // Medical news feed — global ingested articles (list/search + reader).
+        .route("/api/news-feed", get(news_feed::list_news_feed))
+        .route(
+            "/api/news-feed/{id}",
+            get(news_feed::get_news_feed_article),
         )
         // News / health advisories — public list (any auth'd role), admin CRUD.
         .route("/api/news", get(news::list_active))
