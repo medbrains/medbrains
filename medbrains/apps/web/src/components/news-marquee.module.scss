@@ -60,6 +60,20 @@
   flex-direction: column;
 }
 
+.cardDate {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--mb-text-muted, #6f6f6f);
+  font-family: var(--mb-font-mono, "IBM Plex Mono", monospace);
+}
+
+.cardDivider {
+  height: 1px;
+  margin: 10px 0;
+  background: var(--mb-border-default, #e0e0e0);
+}
+
 .cardTitle {
   font-size: 15px;
   font-weight: 600;
@@ -79,7 +93,6 @@
   align-items: center;
   gap: 5px;
   width: fit-content;
-  margin-top: 12px;
   font-size: 12px;
   font-weight: 600;
   color: var(--mb-interactive, #0f62fe);

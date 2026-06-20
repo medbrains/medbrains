@@ -12,11 +12,24 @@ interface Headline {
   title: string;
   link: string;
   description?: string;
+  date?: string;
 }
 
 interface Rss2JsonResponse {
   status: string;
-  items?: { title: string; link: string; description?: string }[];
+  items?: { title: string; link: string; description?: string; pubDate?: string }[];
+}
+
+/** Format an RSS pubDate to a readable, separate date label. */
+function formatDate(raw: string | null | undefined): string | undefined {
+  if (!raw) return undefined;
+  const time = Date.parse(raw);
+  if (Number.isNaN(time)) return undefined;
+  return new Date(time).toLocaleDateString([], {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 /** Strip HTML tags + collapse whitespace from a feed snippet for the tooltip. */
@@ -40,6 +53,7 @@ function parseRssXml(xml: string): Headline[] {
       title: node.querySelector("title")?.textContent?.trim() ?? "",
       link: node.querySelector("link")?.textContent?.trim() ?? "",
       description: cleanSnippet(node.querySelector("description")?.textContent),
+      date: formatDate(node.querySelector("pubDate")?.textContent),
     }))
     .filter((item) => item.title && item.link);
 }
@@ -56,6 +70,7 @@ async function fetchHeadlines(feedUrl: string): Promise<Headline[]> {
           title: item.title,
           link: item.link,
           description: cleanSnippet(item.description),
+          date: formatDate(item.pubDate),
         }));
       }
     }
@@ -151,8 +166,15 @@ export function NewsMarquee() {
             </a>
           </HoverCard.Target>
           <HoverCard.Dropdown className={styles.card}>
+            {item.date && (
+              <>
+                <span className={styles.cardDate}>{item.date}</span>
+                <div className={styles.cardDivider} />
+              </>
+            )}
             <Text className={styles.cardTitle}>{item.title}</Text>
             {item.description && <Text className={styles.cardDesc}>{item.description}</Text>}
+            <div className={styles.cardDivider} />
             <a
               className={styles.cardCta}
               href={item.link}
