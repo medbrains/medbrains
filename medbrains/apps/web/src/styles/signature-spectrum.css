@@ -81,16 +81,16 @@
   color: var(--mb-text-primary) !important;
 }
 
-/* Icon affordance — on hover, an icon-only button's glyph shifts to the brand
-   blue (default / subtle / transparent variants). Filled + tone-coloured icons
-   keep their own colour. Applies everywhere (nav rail, toolbars, tables). */
+/* Icon affordance — on hover, an icon-only button fills brand blue and its
+   glyph turns white (subtle / default / transparent variants). Filled + tone-
+   coloured icon buttons keep their own colour. Everywhere (toolbars, tables). */
+.mantine-ActionIcon-root[data-variant="subtle"]:hover,
+.mantine-ActionIcon-root[data-variant="default"]:hover,
+.mantine-ActionIcon-root[data-variant="transparent"]:hover {
+  background: var(--mb-brand-emphasis, #0f62fe) !important;
+}
 .mantine-ActionIcon-root[data-variant="subtle"]:hover svg,
 .mantine-ActionIcon-root[data-variant="default"]:hover svg,
 .mantine-ActionIcon-root[data-variant="transparent"]:hover svg {
-  color: var(--mb-brand-emphasis, #0f62fe);
-}
-
-/* Nav rail items: the icon follows the item's hover/active text colour. */
-.mantine-NavLink-root:hover .mantine-NavLink-icon svg {
-  color: var(--mb-brand-emphasis, #0f62fe);
+  color: #ffffff !important;
 }
