@@ -15,6 +15,9 @@ interface PageHeaderProps {
   icon?: ReactNode;
   color?: string;
   breadcrumbs?: BreadcrumbItem[];
+  /** Show the bottom hairline rule. Off when the page's next element is its own
+   *  bordered surface (avoids a double divider). Default true. */
+  divider?: boolean;
 }
 
 /**
@@ -30,9 +33,10 @@ export function PageHeader({
   icon,
   color,
   breadcrumbs,
+  divider = true,
 }: PageHeaderProps) {
   return (
-    <header className={styles.card}>
+    <header className={divider ? styles.card : `${styles.card} ${styles.noDivider}`}>
       {breadcrumbs && breadcrumbs.length > 0 && (
         <Breadcrumbs className={styles.breadcrumbs} separator="/">
           {breadcrumbs.map((item) =>

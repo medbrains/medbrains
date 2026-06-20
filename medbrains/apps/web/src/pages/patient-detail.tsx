@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Box,
   Card,
   Grid,
   Group,
@@ -90,6 +89,8 @@ import { useNavigate, useParams, useSearchParams } from "react-router";
 import { PrescriptionViews } from "@/components/Clinical";
 import { ClinicalEventProvider, useClinicalEmit } from "@/components/ClinicalEventProvider";
 import { NotesPanel } from "@/components/crdt/NotesPanel";
+import type { Column } from "@/components/DataTable";
+import { DataTable } from "@/components/DataTable";
 import { DrugSearchSelect } from "@/components/DrugSearchSelect";
 import {
   type OrderBasketTab,
@@ -619,85 +620,94 @@ function AllergiesTab({ patient }: { patient: Patient }) {
 
 // ── Visits Tab ─────────────────────────────────────────────
 
+const VISIT_COLUMNS: Column<PatientVisitRow>[] = [
+  {
+    key: "date",
+    label: "Date",
+    sortable: true,
+    sortValue: (v) => v.encounter_date,
+    render: (v) => (
+      <Text size="sm" fw={500}>
+        {formatDate(v.encounter_date)}
+      </Text>
+    ),
+  },
+  {
+    key: "type",
+    label: "Type",
+    render: (v) => (
+      <Badge size="sm" tt="uppercase">
+        {v.encounter_type}
+      </Badge>
+    ),
+  },
+  { key: "doctor", label: "Doctor", render: (v) => <Text size="sm">{v.doctor_name ?? "-"}</Text> },
+  {
+    key: "department",
+    label: "Department",
+    render: (v) => <Text size="sm">{v.department_name ?? "-"}</Text>,
+  },
+  {
+    key: "chief",
+    label: "Chief Complaint",
+    render: (v) => (
+      <Text size="sm" lineClamp={1}>
+        {v.chief_complaint ?? "-"}
+      </Text>
+    ),
+  },
+  {
+    key: "dx",
+    label: "Dx",
+    render: (v) => (
+      <Text size="sm" ta="center">
+        {v.diagnosis_count ?? 0}
+      </Text>
+    ),
+  },
+  {
+    key: "rx",
+    label: "Rx",
+    render: (v) => (
+      <Text size="sm" ta="center">
+        {v.prescription_count ?? 0}
+      </Text>
+    ),
+  },
+  {
+    key: "lab",
+    label: "Lab",
+    render: (v) => (
+      <Text size="sm" ta="center">
+        {v.lab_order_count ?? 0}
+      </Text>
+    ),
+  },
+  {
+    key: "status",
+    label: "Status",
+    render: (v) => (
+      <Badge tone={STATUS_COLORS[v.status] ?? "neutral"} size="sm">
+        {v.status.replace(/_/g, " ")}
+      </Badge>
+    ),
+  },
+];
+
 function VisitsTab({ patientId }: { patientId: string }) {
   const { data: visits, isLoading } = useQuery({
     queryKey: ["patient-visits", patientId],
     queryFn: () => patientDetailService.listPatientVisits(patientId),
   });
 
-  if (isLoading) return <Loader size="sm" />;
-
-  if (!visits || visits.length === 0) {
-    return (
-      <Text c="dimmed" ta="center" py="xl">
-        No visit history found.
-      </Text>
-    );
-  }
-
   return (
-    <Table striped highlightOnHover>
-      <Table.Thead>
-        <Table.Tr>
-          <Table.Th>Date</Table.Th>
-          <Table.Th>Type</Table.Th>
-          <Table.Th>Doctor</Table.Th>
-          <Table.Th>Department</Table.Th>
-          <Table.Th>Chief Complaint</Table.Th>
-          <Table.Th>Dx</Table.Th>
-          <Table.Th>Rx</Table.Th>
-          <Table.Th>Lab</Table.Th>
-          <Table.Th>Status</Table.Th>
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>
-        {visits.map((v: PatientVisitRow) => (
-          <Table.Tr key={v.id}>
-            <Table.Td>
-              <Text size="sm" fw={500}>
-                {formatDate(v.encounter_date)}
-              </Text>
-            </Table.Td>
-            <Table.Td>
-              <Badge size="sm" tt="uppercase">
-                {v.encounter_type}
-              </Badge>
-            </Table.Td>
-            <Table.Td>
-              <Text size="sm">{v.doctor_name ?? "-"}</Text>
-            </Table.Td>
-            <Table.Td>
-              <Text size="sm">{v.department_name ?? "-"}</Text>
-            </Table.Td>
-            <Table.Td>
-              <Text size="sm" lineClamp={1}>
-                {v.chief_complaint ?? "-"}
-              </Text>
-            </Table.Td>
-            <Table.Td>
-              <Text size="sm" ta="center">
-                {v.diagnosis_count ?? 0}
-              </Text>
-            </Table.Td>
-            <Table.Td>
-              <Text size="sm" ta="center">
-                {v.prescription_count ?? 0}
-              </Text>
-            </Table.Td>
-            <Table.Td>
-              <Text size="sm" ta="center">
-                {v.lab_order_count ?? 0}
-              </Text>
-            </Table.Td>
-            <Table.Td>
-              <Badge tone={STATUS_COLORS[v.status] ?? "neutral"} size="sm">
-                {v.status.replace(/_/g, " ")}
-              </Badge>
-            </Table.Td>
-          </Table.Tr>
-        ))}
-      </Table.Tbody>
-    </Table>
+    <DataTable
+      columns={VISIT_COLUMNS}
+      data={visits ?? []}
+      loading={isLoading}
+      rowKey={(v) => v.id}
+      emptyTitle="No visit history found."
+    />
   );
 }
 
@@ -3132,16 +3142,28 @@ function PatientDetailPageInner() {
     <Stack className={classes.patientWorkspace}>
       <PageHeader
         title={displayName}
+        divider={false}
         actions={
-          canListPatients ? (
-            <Button tone="secondary" onClick={() => navigate("/patients")}>
-              Patient Directory
-            </Button>
-          ) : undefined
+          <Group gap="xs">
+            {canViewBillingLedger && (
+              <Button
+                tone="secondary"
+                leftSection={<IconReceipt size={14} />}
+                onClick={() => navigate(`/billing?tab=invoices&patient_id=${patient.id}`)}
+              >
+                Patient Ledger
+              </Button>
+            )}
+            {canListPatients && (
+              <Button tone="secondary" onClick={() => navigate("/patients")}>
+                Patient Directory
+              </Button>
+            )}
+          </Group>
         }
       />
 
-      <Card withBorder className={classes.commandBar}>
+      <Card className={classes.commandBar}>
         <Stack gap="xs">
           <PatientContextBanner patientId={patient.id} />
           <PatientFlowNavigator
@@ -3164,6 +3186,13 @@ function PatientDetailPageInner() {
           <Group justify="space-between" align="flex-start" gap="sm">
             <Stack gap={6}>
               <Group gap="xs">
+                {activeEncounter && <Badge tone="success">Active OPD</Badge>}
+                {activeAdmission && <Badge tone="primary">Active IPD</Badge>}
+                {patient.is_deceased && (
+                  <Badge tone="neutral" variant="filled">
+                    Deceased
+                  </Badge>
+                )}
                 <Badge tone="primary">{patient.category}</Badge>
                 <Badge tone="neutral">{patient.financial_class}</Badge>
                 {patient.blood_group && <Badge tone="danger">{patient.blood_group}</Badge>}
@@ -3222,7 +3251,7 @@ function PatientDetailPageInner() {
 
       <Tabs value={activeDetailTab} onChange={setActivePatientTab} keepMounted={false}>
         <Grid align="flex-start" className={classes.workspaceGrid}>
-          <Grid.Col span={{ base: 12, lg: 8 }}>
+          <Grid.Col span={12}>
             <Stack className={classes.workspaceMain}>
               <Tabs.List>
                 {detailTabs.map((tab) => (
@@ -3275,52 +3304,6 @@ function PatientDetailPageInner() {
                 <MergeTab patient={patient} />
               </Tabs.Panel>
             </Stack>
-          </Grid.Col>
-
-          <Grid.Col span={{ base: 12, lg: 4 }}>
-            <Box className={classes.contextRail}>
-              <Stack gap="sm">
-                {(activeEncounter || activeAdmission || patient.is_deceased) && (
-                  <Group gap="xs">
-                    {activeEncounter && <Badge tone="success">Active OPD</Badge>}
-                    {activeAdmission && <Badge tone="primary">Active IPD</Badge>}
-                    {patient.is_deceased && (
-                      <Badge tone="neutral" variant="filled">
-                        Deceased
-                      </Badge>
-                    )}
-                  </Group>
-                )}
-                <Stack gap="xs">
-                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-                    Actions
-                  </Text>
-                  <PatientJourneyActions
-                    context={actionContext}
-                    onEdit={() => navigate(`/patients/${patient.id}/edit`)}
-                    onOpenOrderBasket={openOrderBasket}
-                    onShare={openShare}
-                    onPrintPatientCard={() => {
-                      void printPatientCard();
-                    }}
-                    size="xs"
-                    layout="rail"
-                    emptyLabel="No patient actions available"
-                  />
-                  {canViewBillingLedger && (
-                    <Button
-                      tone="secondary"
-                      size="xs"
-                      leftSection={<IconReceipt size={14} />}
-                      onClick={() => navigate(`/billing?tab=invoices&patient_id=${patient.id}`)}
-                      fullWidth
-                    >
-                      Patient Ledger
-                    </Button>
-                  )}
-                </Stack>
-              </Stack>
-            </Box>
           </Grid.Col>
         </Grid>
       </Tabs>
