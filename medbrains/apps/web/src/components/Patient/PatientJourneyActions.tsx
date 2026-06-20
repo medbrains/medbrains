@@ -4,6 +4,7 @@ import {
   Button,
   Group,
   Menu,
+  ScrollArea,
   SimpleGrid,
   Stack,
   Text,
@@ -356,23 +357,26 @@ export function PatientJourneyActions({
       </Menu.Target>
       <Menu.Dropdown>
         <Menu.Label>{actionsLabel}</Menu.Label>
-        <SimpleGrid cols={3} spacing={4} p={4} w={264}>
-          {visibleActions.map((action) => (
-            <Menu.Item
-              key={action.id}
-              onClick={() => handleAction(action.id)}
-              disabled={!action.enabled}
-              style={{ height: 76 }}
-            >
-              <Stack gap={4} align="center" justify="center">
-                {actionIcon(action.id)}
-                <Text size="xs" ta="center" lineClamp={2}>
-                  {journeyActionLabel(t, action.id)}
-                </Text>
-              </Stack>
-            </Menu.Item>
-          ))}
-        </SimpleGrid>
+        {/* Cap to ~6 items (2 rows × 3); scroll beyond. */}
+        <ScrollArea.Autosize mah={172} type="auto">
+          <SimpleGrid cols={3} spacing={4} p={4} w={264}>
+            {visibleActions.map((action) => (
+              <Menu.Item
+                key={action.id}
+                onClick={() => handleAction(action.id)}
+                disabled={!action.enabled}
+                style={{ height: 76 }}
+              >
+                <Stack gap={4} align="center" justify="center">
+                  {actionIcon(action.id)}
+                  <Text size="xs" ta="center" lineClamp={2}>
+                    {journeyActionLabel(t, action.id)}
+                  </Text>
+                </Stack>
+              </Menu.Item>
+            ))}
+          </SimpleGrid>
+        </ScrollArea.Autosize>
       </Menu.Dropdown>
     </Menu>
   );
