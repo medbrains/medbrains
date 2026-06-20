@@ -11,7 +11,6 @@ import {
   Stack,
   Tabs,
   Text,
-  Textarea,
   ThemeIcon,
   Timeline,
   UnstyledButton,
@@ -43,6 +42,7 @@ import type { ReactNode } from "react";
 import { useMemo } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
+import { RichTextEditor } from "@/components/ui";
 import {
   type SoapKeywordSuggestion,
   type SoapSectionKey,
@@ -165,7 +165,13 @@ function normalizeSoapValues(values: Partial<SoapNoteFormInput>): SoapNoteFormIn
 }
 
 function textValue(value: string | null | undefined): string {
-  return value?.trim() ?? "";
+  if (!value) return "";
+  // Notes are now rich-text HTML — strip tags for plain-text previews/timeline.
+  return value
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&[a-z]+;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function formatNoteDate(value: string | null | undefined): string {
@@ -753,14 +759,17 @@ export function SOAPNotes({
                     name={section.key}
                     render={({ field, fieldState }) => (
                       <>
-                        <Textarea
-                          {...field}
-                          placeholder={t(section.placeholderKey)}
-                          error={fieldState.error?.message}
-                          autosize
-                          minRows={5}
-                          maxRows={16}
+                        <RichTextEditor
+                          ariaLabel={t(section.placeholderKey)}
+                          value={field.value ?? ""}
+                          onChange={field.onChange}
+                          minHeight={140}
                         />
+                        {fieldState.error?.message && (
+                          <Text size="xs" c="var(--mb-support-error, #da1e28)" mt={4}>
+                            {fieldState.error.message}
+                          </Text>
+                        )}
                         <KeywordSuggestions
                           suggestions={getKeywordSuggestions(
                             section.key,
@@ -799,14 +808,19 @@ export function SOAPNotes({
                   control={form.control}
                   name="notes"
                   render={({ field, fieldState }) => (
-                    <Textarea
-                      {...field}
-                      placeholder="Combined clinical note"
-                      error={fieldState.error?.message}
-                      autosize
-                      minRows={5}
-                      maxRows={14}
-                    />
+                    <>
+                      <RichTextEditor
+                        ariaLabel="Combined clinical note"
+                        value={field.value ?? ""}
+                        onChange={field.onChange}
+                        minHeight={160}
+                      />
+                      {fieldState.error?.message && (
+                        <Text size="xs" c="var(--mb-support-error, #da1e28)" mt={4}>
+                          {fieldState.error.message}
+                        </Text>
+                      )}
+                    </>
                   )}
                 />
                 {watchedValues.notes.trim().length === 0 && combinedPreview.length > 0 && (
