@@ -7,6 +7,7 @@ export type GenerateUpiQrInput = Parameters<typeof api.generateUpiQr>[0];
 export const paymentsService = {
   createPaymentOrder: (data: CreatePaymentOrderInput) => api.createPaymentOrder(data),
   posSale: (data: Parameters<typeof api.posSale>[0]) => api.posSale(data),
+  getPaymentStatus: (id: string) => api.getPaymentStatus(id),
   verifyPayment: (data: VerifyPaymentInput) => api.verifyPayment(data),
   generateUpiQr: (data: GenerateUpiQrInput) => api.generateUpiQr(data),
   listPaymentProviders: () => api.listPaymentProviders(),

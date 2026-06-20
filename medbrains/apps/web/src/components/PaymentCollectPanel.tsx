@@ -134,12 +134,43 @@ export function PaymentCollectPanel({
   const removeLine = (key: string) =>
     setLines((prev) => (prev.length === 1 ? prev : prev.filter((line) => line.key !== key)));
 
+  // Drive a POS card machine: push the sale, then poll until the customer
+  // completes. The worker settles the invoice on approval (no manual record).
+  const chargeOnTerminal = async (terminalId: string, amount: number) => {
+    const sale = await paymentsService.posSale({
+      terminal_id: terminalId,
+      invoice_id: invoiceId,
+      amount,
+    });
+    notifications.show({
+      title: "Card terminal",
+      message: "Waiting for the customer to tap / insert the card…",
+      color: "info",
+    });
+    for (let attempt = 0; attempt < 25; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      const res = await paymentsService.getPaymentStatus(sale.transaction_id);
+      const st = res.transaction.status;
+      if (st === "captured") return;
+      if (st === "failed") throw new Error("Card was declined at the terminal");
+    }
+    throw new Error("Terminal timed out — retry or check the device");
+  };
+
   const recordMutation = useMutation({
     mutationFn: async () => {
       const recorded: Payment[] = [];
       for (const line of lines) {
         const amount = num(line.amount);
         if (amount <= 0) continue;
+        const terminal = line.terminalId
+          ? terminals?.find((tnl) => tnl.id === line.terminalId)
+          : undefined;
+        // Card leg on a POS device → drive the terminal; worker settles it.
+        if (line.mode === "card" && terminal?.kind === "pos") {
+          await chargeOnTerminal(terminal.id, amount);
+          continue;
+        }
         const payment = await billingService.recordPayment(invoiceId, {
           amount,
           mode: line.mode,
@@ -152,11 +183,10 @@ export function PaymentCollectPanel({
       return recorded;
     },
     onSuccess: (recorded) => {
+      const legs = lines.filter((line) => num(line.amount) > 0).length;
       notifications.show({
         title: "Payment recorded",
-        message: `₹${money(total)} across ${recorded.length} ${
-          recorded.length === 1 ? "entry" : "entries"
-        }`,
+        message: `₹${money(total)} across ${legs} ${legs === 1 ? "tender" : "tenders"}`,
         color: "success",
       });
       onRecorded(recorded);
