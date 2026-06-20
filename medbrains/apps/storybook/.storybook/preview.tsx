@@ -15,6 +15,7 @@ import "@fontsource/ibm-plex-mono/500.css";
 // ─── Mantine + design-system styles ───
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
+import "@mantine/tiptap/styles.css";
 import "@mantine/dates/styles.css";
 import "@medbrains/design-system/styles/global.scss";
 

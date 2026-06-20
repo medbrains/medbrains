@@ -15,11 +15,12 @@ export { IconButton, type IconButtonProps, type IconButtonTone } from "./IconBut
 export { Input, NumberField, PasswordField, TextArea } from "./Input";
 export { Modal } from "./Modal";
 export { Panel, type PanelProps } from "./Panel";
+export { RichTextEditor, type RichTextEditorProps } from "./RichTextEditor";
 export { SegmentedControl } from "./SegmentedControl";
 export { Select, type SelectProps } from "./Select";
 export { SignatureHero, type SignatureHeroProps } from "./SignatureHero";
 export { Switch } from "./Switch";
 export { Table } from "./Table";
 export { ThemeIcon, type ThemeIconProps, type ThemeIconTone } from "./ThemeIcon";
-export { toast, type ToastOptions } from "./toast";
 export { Tooltip } from "./Tooltip";
+export { type ToastOptions, toast } from "./toast";
