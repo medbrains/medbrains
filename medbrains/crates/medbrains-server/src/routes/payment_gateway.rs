@@ -895,6 +895,196 @@ pub async fn pos_sale(
 }
 
 // ══════════════════════════════════════════════════════════
+//  POST /api/payments/virtual-account  (RazorpayX Smart Collect)
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Deserialize)]
+pub struct CreateVirtualAccountRequest {
+    pub invoice_id: Uuid,
+    pub amount: Option<Decimal>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CreateVirtualAccountResponse {
+    pub transaction_id: Uuid,
+    pub status: String,
+}
+
+/// POST /api/payments/virtual-account — mint a per-invoice bank virtual account
+/// (account no + IFSC + UPI VPA). The worker calls RazorpayX; the client polls
+/// /status for the receiver details to display; the credited webhook settles.
+pub async fn create_virtual_account(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateVirtualAccountRequest>,
+) -> Result<Json<CreateVirtualAccountResponse>, AppError> {
+    require_permission(&claims, permissions::billing::payments::CREATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let amount = body.amount.unwrap_or(Decimal::ZERO);
+    let amount_paise = if amount > Decimal::ZERO {
+        Some(
+            (amount * Decimal::from(100))
+                .to_string()
+                .parse::<i64>()
+                .map_err(|e| AppError::Internal(format!("amount conversion: {e}")))?,
+        )
+    } else {
+        None
+    };
+
+    let txn = sqlx::query_as::<_, PaymentGatewayTransaction>(
+        "INSERT INTO payment_gateway_transactions \
+         (tenant_id, invoice_id, gateway, gateway_order_id, amount, currency, status, \
+          created_by, idempotency_key) \
+         VALUES ($1, $2, 'razorpayx', '', $3, 'INR', 'pending_gateway', $4, $5) \
+         RETURNING *", // allow-raw-sql: gateway txn write inside outbox-coupled tx
+    )
+    .bind(claims.tenant_id)
+    .bind(body.invoice_id)
+    .bind(amount)
+    .bind(claims.sub)
+    .bind(Uuid::new_v4().to_string())
+    .fetch_one(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        // allow-raw-sql: backfill idempotency_key with txn.id
+        "UPDATE payment_gateway_transactions SET idempotency_key = $1 WHERE id = $1",
+    )
+    .bind(txn.id)
+    .execute(&mut *tx)
+    .await?;
+
+    medbrains_outbox::queue_in_tx(
+        &mut tx,
+        medbrains_outbox::OutboxRow {
+            tenant_id: claims.tenant_id,
+            aggregate_type: "payment_gateway_transaction",
+            aggregate_id: Some(txn.id),
+            event_type: "payment.razorpayx.create_va",
+            payload: serde_json::json!({
+                "internal_payment_id": txn.id,
+                "amount_paise": amount_paise,
+                "actor_context": { "user_id": claims.sub, "tenant_id": claims.tenant_id },
+            }),
+            idempotency_key: Some(txn.id.to_string()),
+        },
+    )
+    .await
+    .map_err(|e| AppError::Internal(format!("outbox queue failed: {e}")))?;
+
+    tx.commit().await?;
+
+    Ok(Json(CreateVirtualAccountResponse {
+        transaction_id: txn.id,
+        status: "pending_gateway".to_owned(),
+    }))
+}
+
+/// POST /api/webhooks/razorpayx — `virtual_account.credited` reverse-recon.
+/// Matches the credit by the VA id (= our gateway_order_id) and settles the
+/// invoice. Same HMAC scheme + idempotency as the Razorpay webhook.
+pub async fn razorpayx_webhook(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: String,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let signature = headers
+        .get("X-Razorpay-Signature")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| AppError::BadRequest("missing X-Razorpay-Signature header".to_owned()))?;
+    let event_id = headers
+        .get("X-Razorpay-Event-Id")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| AppError::BadRequest("missing X-Razorpay-Event-Id header".to_owned()))?
+        .to_owned();
+
+    let payload: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|e| AppError::BadRequest(format!("invalid webhook payload: {e}")))?;
+
+    let va_id = payload["payload"]["virtual_account"]["entity"]["id"].as_str();
+    let Some(va_id) = va_id else {
+        log_webhook_exception(&state.db, "razorpayx", None, "unknown_order", &payload).await?;
+        return Ok(Json(serde_json::json!({ "status": "ignored" })));
+    };
+
+    let txn_row = sqlx::query_as::<_, PaymentGatewayTransaction>(
+        // allow-raw-sql: webhook entry, tenant context not yet resolved
+        "SELECT * FROM payment_gateway_transactions WHERE gateway_order_id = $1 LIMIT 1",
+    )
+    .bind(va_id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    let Some(txn_row) = txn_row else {
+        log_webhook_exception(&state.db, "razorpayx", Some(va_id), "unknown_order", &payload).await?;
+        return Ok(Json(serde_json::json!({ "status": "unknown_order" })));
+    };
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &txn_row.tenant_id).await?;
+
+    verify_webhook_signature(&mut tx, &txn_row, &body, signature).await?;
+
+    let inserted: Option<(String,)> = sqlx::query_as(
+        // allow-raw-sql: webhook idempotency PK insert
+        "INSERT INTO processed_webhooks (provider, event_id, tenant_id, payload) \
+         VALUES ('razorpayx', $1, $2, $3) \
+         ON CONFLICT (provider, event_id) DO NOTHING \
+         RETURNING event_id",
+    )
+    .bind(&event_id)
+    .bind(txn_row.tenant_id)
+    .bind(&payload)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if inserted.is_none() {
+        tx.commit().await?;
+        return Ok(Json(
+            serde_json::json!({ "status": "duplicate", "event_id": event_id }),
+        ));
+    }
+
+    if payload["event"].as_str() == Some("virtual_account.credited") {
+        let payment = &payload["payload"]["payment"]["entity"];
+        let payment_id = payment["id"].as_str().unwrap_or(va_id);
+        sqlx::query(
+            "UPDATE payment_gateway_transactions SET \
+             status = 'captured', gateway_payment_id = $1, webhook_payload = $2, \
+             verified_at = now(), updated_at = now() \
+             WHERE gateway_order_id = $3 AND tenant_id = $4 AND status != 'captured'",
+        )
+        .bind(payment_id)
+        .bind(&payload)
+        .bind(va_id)
+        .bind(txn_row.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+
+        if let Some(invoice_id) = txn_row.invoice_id {
+            if txn_row.status != "captured" {
+                // Credit the actual amount received (paise → rupees).
+                let paise = payment["amount"].as_i64().unwrap_or(0);
+                let received = if paise > 0 {
+                    Decimal::from(paise) / Decimal::from(100)
+                } else {
+                    txn_row.amount
+                };
+                record_invoice_payment(&mut tx, txn_row.tenant_id, invoice_id, received, payment_id)
+                    .await?;
+            }
+        }
+    }
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({ "status": "ok" })))
+}
+
+// ══════════════════════════════════════════════════════════
 //  POST /api/payments/verify
 // ══════════════════════════════════════════════════════════
 

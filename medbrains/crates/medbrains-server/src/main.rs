@@ -513,8 +513,8 @@ async fn shutdown_signal() {
 fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     use medbrains_outbox::Registry;
     use medbrains_outbox::handlers::{
-        abdm_stub, cashfree, email_stub, hl7_stub, pinelabs, pipeline_fallback, razorpay, tpa_stub,
-        twilio, whatsapp,
+        abdm_stub, cashfree, email_stub, hl7_stub, pinelabs, pipeline_fallback, razorpay, razorpayx,
+        tpa_stub, twilio, whatsapp,
     };
 
     let mut registry = Registry::new();
@@ -527,6 +527,8 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     registry.register(cashfree::CashfreeRefundHandler::new());
     // Pine Labs Plutus — POS card machine (push+poll, runs only for payment.pinelabs.*)
     registry.register(pinelabs::PineLabsPosSaleHandler::new());
+    // RazorpayX Smart Collect — bank virtual account (runs only for payment.razorpayx.*)
+    registry.register(razorpayx::VirtualAccountCreateHandler::new());
 
     // Twilio per-event-type — distinct registrations for each sms.* code
     // so the registry's panic-on-duplicate catches accidental re-binds.

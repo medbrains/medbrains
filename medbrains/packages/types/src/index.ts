@@ -29994,6 +29994,16 @@ export interface PosSaleResponse {
   status: string;
 }
 
+export interface CreateVirtualAccountRequest {
+  invoice_id: string;
+  amount?: number;
+}
+
+export interface CreateVirtualAccountResponse {
+  transaction_id: string;
+  status: string;
+}
+
 export interface PaymentWebhookException {
   id: string;
   tenant_id?: string | null;

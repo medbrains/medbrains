@@ -705,6 +705,8 @@ import type {
   CreateUserHospitalAssignment,
   CreateVaccinationRequest,
   CreateVendorRequest,
+  CreateVirtualAccountRequest,
+  CreateVirtualAccountResponse,
   CreateVisitorPassRequest,
   CreateVisitorRequest,
   CreateVitalRequest,
@@ -12787,6 +12789,11 @@ export const api = {
     }),
   posSale: (data: PosSaleRequest) =>
     request<PosSaleResponse>("/payments/pos-sale", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  createVirtualAccount: (data: CreateVirtualAccountRequest) =>
+    request<CreateVirtualAccountResponse>("/payments/virtual-account", {
       method: "POST",
       body: JSON.stringify(data),
     }),

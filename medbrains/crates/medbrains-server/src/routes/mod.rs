@@ -234,7 +234,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/ws/queue", get(ws::queue_ws_handler_all))
         // Payment Gateway Webhooks (no auth — called by the provider)
         .route("/api/webhooks/razorpay", post(payment_gateway::razorpay_webhook))
-        .route("/api/webhooks/cashfree", post(payment_gateway::cashfree_webhook));
+        .route("/api/webhooks/cashfree", post(payment_gateway::cashfree_webhook))
+        .route("/api/webhooks/razorpayx", post(payment_gateway::razorpayx_webhook));
 
     // Protected routes (auth required)
     let protected = Router::new()
@@ -1520,6 +1521,10 @@ pub fn build_router(state: AppState) -> Router {
             post(payment_gateway::create_order),
         )
         .route("/api/payments/pos-sale", post(payment_gateway::pos_sale))
+        .route(
+            "/api/payments/virtual-account",
+            post(payment_gateway::create_virtual_account),
+        )
         .route(
             "/api/payments/verify",
             post(payment_gateway::verify_payment),

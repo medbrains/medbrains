@@ -23,6 +23,7 @@ pub mod nhcx;
 pub mod pinelabs;
 pub mod pipeline_fallback;
 pub mod razorpay;
+pub mod razorpayx;
 pub mod tpa_stub;
 pub mod twilio;
 pub mod whatsapp;
