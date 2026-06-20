@@ -227,7 +227,7 @@ const KNOWN_PROVIDERS: &[ProviderSpec] = &[
         code: "cashfree",
         label: "Cashfree",
         methods: &["card", "upi", "upi_qr", "netbanking"],
-        has_adapter: false,
+        has_adapter: true,
     },
     ProviderSpec {
         code: "paytm",
@@ -642,7 +642,15 @@ pub async fn create_order(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let config = get_razorpay_config(&mut tx, &claims.tenant_id).await?;
+    // Which provider settles this tenant's online orders. Only adapter-backed
+    // providers may be selected so we never queue an unhandlable event.
+    let provider = resolve_active_provider(&mut tx, &claims.tenant_id).await?;
+    if !provider_spec(&provider).is_some_and(|s| s.has_adapter) {
+        return Err(AppError::ServiceUnavailable(format!(
+            "Payment provider '{provider}' has no gateway adapter yet"
+        )));
+    }
+
     let currency = body.currency.as_deref().unwrap_or("INR");
 
     // Convert amount to paise (smallest unit)
@@ -656,25 +664,22 @@ pub async fn create_order(
         .clone()
         .unwrap_or_else(|| format!("rcpt_{}", Uuid::new_v4()));
 
-    // Sprint A.4 — async outbox flow. Insert the txn record with
-    // status='pending_gateway', then queue an outbox event so the worker
-    // hits Razorpay outside the request thread. Client receives a
-    // `pending` response in <100ms; frontend polls /status until
-    // `created` (gateway accepted) or `captured` (payment complete).
-    //
-    // idempotency_key = the txn UUID (also used as Razorpay `receipt`,
-    // so a worker retry never creates a second order at the gateway).
-
+    // Async outbox flow. Insert the txn (status='pending_gateway') under the
+    // active provider, then queue a provider-specific outbox event so the
+    // worker hits the gateway off-thread. Client polls /status until the
+    // worker reports `created`. idempotency_key = txn UUID (also the gateway
+    // receipt / order_id) so a worker retry never double-creates an order.
     let txn = sqlx::query_as::<_, PaymentGatewayTransaction>(
         "INSERT INTO payment_gateway_transactions \
          (tenant_id, invoice_id, pharmacy_pos_sale_id, gateway, gateway_order_id, \
           amount, currency, status, created_by, idempotency_key) \
-         VALUES ($1, $2, $3, 'razorpay', '', $4, $5, 'pending_gateway', $6, $7) \
+         VALUES ($1, $2, $3, $4, '', $5, $6, 'pending_gateway', $7, $8) \
          RETURNING *", // allow-raw-sql: gateway txn write inside outbox-coupled tx
     )
     .bind(claims.tenant_id)
     .bind(body.invoice_id)
     .bind(body.pos_sale_id)
+    .bind(&provider)
     .bind(body.amount)
     .bind(currency)
     .bind(claims.sub)
@@ -682,7 +687,6 @@ pub async fn create_order(
     .fetch_one(&mut *tx)
     .await?;
 
-    // Use the row's UUID as the idempotency key (and Razorpay receipt).
     sqlx::query(
         // allow-raw-sql: backfill idempotency_key with txn.id
         "UPDATE payment_gateway_transactions SET idempotency_key = $1 WHERE id = $1",
@@ -691,25 +695,58 @@ pub async fn create_order(
     .execute(&mut *tx)
     .await?;
 
-    medbrains_outbox::queue_in_tx(
-        &mut tx,
-        medbrains_outbox::OutboxRow {
-            tenant_id: claims.tenant_id,
-            aggregate_type: "payment_gateway_transaction",
-            aggregate_id: Some(txn.id),
-            event_type: "payment.create_order",
-            payload: serde_json::json!({
-                "txn_id": txn.id,
-                "amount_paise": amount_paise,
-                "currency": currency,
-                "receipt": receipt,
-                "actor_context": { "user_id": claims.sub, "tenant_id": claims.tenant_id },
-            }),
-            idempotency_key: Some(txn.id.to_string()),
-        },
-    )
-    .await
-    .map_err(|e| AppError::Internal(format!("outbox queue failed: {e}")))?;
+    // Provider dispatch. Razorpay arm is the original flow verbatim (txn_id
+    // payload, `payment.create_order`); Cashfree is the additive arm.
+    let key_id = if provider == "cashfree" {
+        let (_, mode, _) = peek_provider_config(&mut tx, &claims.tenant_id, "cashfree").await?;
+        let api_base = if mode.as_deref() == Some("live") {
+            "https://api.cashfree.com/pg"
+        } else {
+            "https://sandbox.cashfree.com/pg"
+        };
+        medbrains_outbox::queue_in_tx(
+            &mut tx,
+            medbrains_outbox::OutboxRow {
+                tenant_id: claims.tenant_id,
+                aggregate_type: "payment_gateway_transaction",
+                aggregate_id: Some(txn.id),
+                event_type: "payment.cashfree.create_order",
+                payload: serde_json::json!({
+                    "internal_payment_id": txn.id,
+                    "amount_paise": amount_paise,
+                    "currency": currency,
+                    "api_base": api_base,
+                    "actor_context": { "user_id": claims.sub, "tenant_id": claims.tenant_id },
+                }),
+                idempotency_key: Some(txn.id.to_string()),
+            },
+        )
+        .await
+        .map_err(|e| AppError::Internal(format!("outbox queue failed: {e}")))?;
+        String::new()
+    } else {
+        let config = get_razorpay_config(&mut tx, &claims.tenant_id).await?;
+        medbrains_outbox::queue_in_tx(
+            &mut tx,
+            medbrains_outbox::OutboxRow {
+                tenant_id: claims.tenant_id,
+                aggregate_type: "payment_gateway_transaction",
+                aggregate_id: Some(txn.id),
+                event_type: "payment.create_order",
+                payload: serde_json::json!({
+                    "txn_id": txn.id,
+                    "amount_paise": amount_paise,
+                    "currency": currency,
+                    "receipt": receipt,
+                    "actor_context": { "user_id": claims.sub, "tenant_id": claims.tenant_id },
+                }),
+                idempotency_key: Some(txn.id.to_string()),
+            },
+        )
+        .await
+        .map_err(|e| AppError::Internal(format!("outbox queue failed: {e}")))?;
+        config.key_id // safe to return — Razorpay key_id is public-side
+    };
 
     tx.commit().await?;
 
@@ -718,7 +755,7 @@ pub async fn create_order(
         order_id: String::new(), // populated by worker on success; client polls /status
         amount: body.amount,
         currency: currency.to_owned(),
-        key_id: config.key_id, // safe to return — Razorpay key_id is public-side
+        key_id,
         status: "pending_gateway".to_owned(),
     }))
 }
