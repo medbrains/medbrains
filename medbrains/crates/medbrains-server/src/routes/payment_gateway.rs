@@ -1,11 +1,11 @@
 use axum::{
     Extension, Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::HeaderMap,
 };
 use hmac::{Hmac, Mac};
 use medbrains_core::payment::{
-    CreateOrderResponse, PaymentGatewayTransaction, VerifyPaymentRequest,
+    CreateOrderResponse, PaymentGatewayTransaction, PaymentTerminal, VerifyPaymentRequest,
 };
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
@@ -373,6 +373,218 @@ pub async fn list_payment_providers(
         active_provider: active,
         providers,
     }))
+}
+
+// ══════════════════════════════════════════════════════════
+//  Payment terminals — per-billing-place device registry
+// ══════════════════════════════════════════════════════════
+
+const TERMINAL_KINDS: &[&str] = &["online", "pos", "qr"];
+const TERMINAL_MODES: &[&str] = &["sandbox", "live"];
+
+#[derive(Debug, Deserialize)]
+pub struct ListTerminalsQuery {
+    /// Filter to one billing place (cashier's counter at pay time).
+    counter_id: Option<String>,
+    /// When true, only active devices.
+    active_only: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreatePaymentTerminalRequest {
+    pub provider: String,
+    pub kind: Option<String>,
+    pub terminal_code: Option<String>,
+    pub counter_id: Option<String>,
+    pub location_id: Option<Uuid>,
+    pub label: String,
+    pub mode: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdatePaymentTerminalRequest {
+    pub kind: Option<String>,
+    pub terminal_code: Option<String>,
+    pub counter_id: Option<String>,
+    pub location_id: Option<Uuid>,
+    pub label: Option<String>,
+    pub mode: Option<String>,
+    pub is_active: Option<bool>,
+}
+
+fn validate_terminal_provider(provider: &str) -> Result<(), AppError> {
+    if provider_spec(provider).is_some() {
+        Ok(())
+    } else {
+        Err(AppError::BadRequest(format!("Unknown payment provider '{provider}'")))
+    }
+}
+
+fn validate_terminal_kind(kind: &str) -> Result<(), AppError> {
+    if TERMINAL_KINDS.contains(&kind) {
+        Ok(())
+    } else {
+        Err(AppError::BadRequest(
+            "Terminal kind must be one of: online, pos, qr".to_owned(),
+        ))
+    }
+}
+
+fn validate_terminal_mode(mode: &str) -> Result<(), AppError> {
+    if TERMINAL_MODES.contains(&mode) {
+        Ok(())
+    } else {
+        Err(AppError::BadRequest(
+            "Terminal mode must be sandbox or live".to_owned(),
+        ))
+    }
+}
+
+/// GET /api/payments/terminals — registered devices, optionally for one counter.
+pub async fn list_payment_terminals(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<ListTerminalsQuery>,
+) -> Result<Json<Vec<PaymentTerminal>>, AppError> {
+    require_permission(&claims, permissions::billing::payments::CREATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, PaymentTerminal>(
+        "SELECT * FROM payment_terminals \
+         WHERE tenant_id = $1 \
+           AND ($2::text IS NULL OR counter_id = $2) \
+           AND ($3::bool IS NOT TRUE OR is_active = true) \
+         ORDER BY counter_id NULLS LAST, provider, label",
+    )
+    .bind(claims.tenant_id)
+    .bind(q.counter_id.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(q.active_only)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+/// POST /api/payments/terminals — register a device at a billing place.
+pub async fn create_payment_terminal(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreatePaymentTerminalRequest>,
+) -> Result<Json<PaymentTerminal>, AppError> {
+    require_permission(&claims, permissions::billing::payments::CREATE)?;
+
+    let provider = body.provider.trim();
+    validate_terminal_provider(provider)?;
+    let kind = body.kind.as_deref().map(str::trim).filter(|s| !s.is_empty()).unwrap_or("pos");
+    validate_terminal_kind(kind)?;
+    let mode = body.mode.as_deref().map(str::trim).filter(|s| !s.is_empty()).unwrap_or("sandbox");
+    validate_terminal_mode(mode)?;
+    let label = body.label.trim();
+    if label.is_empty() {
+        return Err(AppError::BadRequest("Terminal label is required".to_owned()));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let terminal = sqlx::query_as::<_, PaymentTerminal>(
+        "INSERT INTO payment_terminals \
+         (tenant_id, provider, kind, terminal_code, counter_id, location_id, \
+          label, mode, created_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
+         RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(provider)
+    .bind(kind)
+    .bind(body.terminal_code.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(body.counter_id.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(body.location_id)
+    .bind(label)
+    .bind(mode)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(terminal))
+}
+
+/// PUT /api/payments/terminals/{id} — update a registered device.
+pub async fn update_payment_terminal(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdatePaymentTerminalRequest>,
+) -> Result<Json<PaymentTerminal>, AppError> {
+    require_permission(&claims, permissions::billing::payments::CREATE)?;
+
+    if let Some(kind) = body.kind.as_deref() {
+        validate_terminal_kind(kind.trim())?;
+    }
+    if let Some(mode) = body.mode.as_deref() {
+        validate_terminal_mode(mode.trim())?;
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let terminal = sqlx::query_as::<_, PaymentTerminal>(
+        "UPDATE payment_terminals SET \
+         kind = COALESCE($1, kind), \
+         terminal_code = COALESCE($2, terminal_code), \
+         counter_id = COALESCE($3, counter_id), \
+         location_id = COALESCE($4, location_id), \
+         label = COALESCE($5, label), \
+         mode = COALESCE($6, mode), \
+         is_active = COALESCE($7, is_active), \
+         updated_at = now() \
+         WHERE id = $8 AND tenant_id = $9 \
+         RETURNING *",
+    )
+    .bind(body.kind.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(body.terminal_code.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(body.counter_id.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(body.location_id)
+    .bind(body.label.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(body.mode.as_deref().map(str::trim).filter(|s| !s.is_empty()))
+    .bind(body.is_active)
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    tx.commit().await?;
+    Ok(Json(terminal))
+}
+
+/// DELETE /api/payments/terminals/{id} — de-register a device.
+pub async fn delete_payment_terminal(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::billing::payments::CREATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let deleted = sqlx::query("DELETE FROM payment_terminals WHERE id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected();
+
+    tx.commit().await?;
+    if deleted == 0 {
+        return Err(AppError::NotFound);
+    }
+    Ok(Json(serde_json::json!({ "status": "deleted" })))
 }
 
 // ══════════════════════════════════════════════════════════

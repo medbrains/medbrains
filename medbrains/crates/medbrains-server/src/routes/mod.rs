@@ -1542,6 +1542,16 @@ pub fn build_router(state: AppState) -> Router {
             "/api/payments/providers",
             get(payment_gateway::list_payment_providers),
         )
+        .route(
+            "/api/payments/terminals",
+            get(payment_gateway::list_payment_terminals)
+                .post(payment_gateway::create_payment_terminal),
+        )
+        .route(
+            "/api/payments/terminals/{id}",
+            put(payment_gateway::update_payment_terminal)
+                .delete(payment_gateway::delete_payment_terminal),
+        )
         // ── Lab ──────────────────────────────────────────
         // Phase 3 static routes (MUST be before /orders/{id})
         .route(

@@ -9,4 +9,11 @@ export const paymentsService = {
   verifyPayment: (data: VerifyPaymentInput) => api.verifyPayment(data),
   generateUpiQr: (data: GenerateUpiQrInput) => api.generateUpiQr(data),
   listPaymentProviders: () => api.listPaymentProviders(),
+  listPaymentTerminals: (...args: Parameters<typeof api.listPaymentTerminals>) =>
+    api.listPaymentTerminals(...args),
+  createPaymentTerminal: (data: Parameters<typeof api.createPaymentTerminal>[0]) =>
+    api.createPaymentTerminal(data),
+  updatePaymentTerminal: (id: string, data: Parameters<typeof api.updatePaymentTerminal>[1]) =>
+    api.updatePaymentTerminal(id, data),
+  deletePaymentTerminal: (id: string) => api.deletePaymentTerminal(id),
 };

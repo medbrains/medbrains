@@ -593,6 +593,7 @@ import type {
   // Payment Gateway
   CreatePaymentOrderRequest,
   CreatePaymentOrderResponse,
+  CreatePaymentTerminalRequest,
   CreatePcpndtRequest,
   CreatePestControlLogRequest,
   CreatePestControlScheduleRequest,
@@ -1288,6 +1289,7 @@ import type {
   PaymentMethodRow,
   PaymentProvidersResponse,
   PaymentStatusResponse,
+  PaymentTerminal,
   PcpndtForm,
   PcpndtQuarterlySummary,
   PcpndtReportPrintData,
@@ -1725,6 +1727,7 @@ import type {
   UpdatePackageRequest,
   UpdatePaRuleRequest,
   UpdatePatientRequest,
+  UpdatePaymentTerminalRequest,
   UpdatePcpndtRequest,
   UpdatePestControlScheduleRequest,
   UpdatePharmacyCatalogRequest,
@@ -12786,6 +12789,30 @@ export const api = {
   getPaymentStatus: (id: string) => request<PaymentStatusResponse>(`/payments/${id}/status`),
   getRazorpayStatus: () => request<RazorpayStatusResponse>("/payments/razorpay/status"),
   listPaymentProviders: () => request<PaymentProvidersResponse>("/payments/providers"),
+  listPaymentTerminals: (params?: { counter_id?: string; active_only?: boolean }) => {
+    const qs = params
+      ? `?${new URLSearchParams(
+          Object.entries(params)
+            .filter(([, v]) => v !== undefined)
+            .map(([k, v]) => [k, String(v)]),
+        )}`
+      : "";
+    return request<PaymentTerminal[]>(`/payments/terminals${qs}`);
+  },
+  createPaymentTerminal: (data: CreatePaymentTerminalRequest) =>
+    request<PaymentTerminal>("/payments/terminals", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updatePaymentTerminal: (id: string, data: UpdatePaymentTerminalRequest) =>
+    request<PaymentTerminal>(`/payments/terminals/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  deletePaymentTerminal: (id: string) =>
+    request<{ status: string }>(`/payments/terminals/${id}`, {
+      method: "DELETE",
+    }),
   generateUpiQr: (data: GenerateUpiQrRequest) =>
     request<UpiQrResponse>("/payments/upi-qr", {
       method: "POST",

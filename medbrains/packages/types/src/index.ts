@@ -29981,6 +29981,42 @@ export interface PaymentProvidersResponse {
   providers: PaymentProviderInfo[];
 }
 
+export interface PaymentTerminal {
+  id: string;
+  tenant_id: string;
+  provider: string;
+  kind: string;
+  terminal_code?: string | null;
+  counter_id?: string | null;
+  location_id?: string | null;
+  label: string;
+  mode: string;
+  is_active: boolean;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreatePaymentTerminalRequest {
+  provider: string;
+  kind?: string;
+  terminal_code?: string;
+  counter_id?: string;
+  location_id?: string;
+  label: string;
+  mode?: string;
+}
+
+export interface UpdatePaymentTerminalRequest {
+  kind?: string;
+  terminal_code?: string;
+  counter_id?: string;
+  location_id?: string;
+  label?: string;
+  mode?: string;
+  is_active?: boolean;
+}
+
 // ══════════════════════════════════════════════════════════════
 //  Orchestration Engine
 // ══════════════════════════════════════════════════════════════

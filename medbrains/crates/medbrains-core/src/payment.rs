@@ -34,6 +34,26 @@ pub struct PaymentGatewayTransaction {
     pub updated_at: DateTime<Utc>,
 }
 
+/// A payment device bolted to a billing place — maps to `payment_terminals`.
+/// A hospital runs several providers + POS/QR/soundbox devices at once; this
+/// registry resolves which devices a cashier's counter can use at pay time.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct PaymentTerminal {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub provider: String,
+    pub kind: String,
+    pub terminal_code: Option<String>,
+    pub counter_id: Option<String>,
+    pub location_id: Option<Uuid>,
+    pub label: String,
+    pub mode: String,
+    pub is_active: bool,
+    pub created_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 /// Response returned when a gateway order is created.
 ///
 /// Sprint A change: `status` carries the queued state. New flow returns
