@@ -76,6 +76,7 @@ pub mod nurse_mar;
 pub mod nurse_vitals;
 pub mod occ_health;
 pub mod notifications;
+pub mod oauth;
 pub mod onboarding;
 pub mod opd;
 pub mod orchestration;
@@ -1522,6 +1523,17 @@ pub fn build_router(state: AppState) -> Router {
             post(payment_gateway::create_order),
         )
         .route("/api/payments/pos-sale", post(payment_gateway::pos_sale))
+        // ── OAuth connect (common token module) ──────────
+        .route("/api/oauth/providers", get(oauth::list_oauth_providers))
+        .route(
+            "/api/oauth/{provider}/authorize",
+            get(oauth::oauth_authorize),
+        )
+        .route("/api/oauth/{provider}/exchange", post(oauth::oauth_exchange))
+        .route(
+            "/api/oauth/connections/{provider}",
+            delete(oauth::oauth_disconnect),
+        )
         // ── Telemedicine ─────────────────────────────────
         .route(
             "/api/telemedicine/consultations",

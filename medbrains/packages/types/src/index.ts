@@ -29981,6 +29981,41 @@ export interface PaymentProvidersResponse {
   providers: PaymentProviderInfo[];
 }
 
+export interface OAuthProviderInfo {
+  provider: string;
+  label: string;
+  scopes: string;
+  connected: boolean;
+  external_account_id?: string | null;
+  status?: string | null;
+}
+
+export interface OAuthAuthorizeResponse {
+  authorize_url: string;
+  state: string;
+}
+
+export interface OAuthConnection {
+  id: string;
+  tenant_id: string;
+  provider: string;
+  grant_type: string;
+  token_type: string;
+  scope?: string | null;
+  expires_at?: string | null;
+  external_account_id?: string | null;
+  status: string;
+  last_error?: string | null;
+  connected_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OAuthExchangeRequest {
+  code: string;
+  redirect_uri: string;
+}
+
 export interface TeleConsultation {
   id: string;
   tenant_id: string;

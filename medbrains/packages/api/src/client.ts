@@ -1197,6 +1197,10 @@ import type {
   NuclearMedSource,
   NursingAssessmentPrintData,
   NursingTask,
+  OAuthAuthorizeResponse,
+  OAuthConnection,
+  OAuthExchangeRequest,
+  OAuthProviderInfo,
   OccHealthAnalytics,
   OccHealthDrugScreen,
   OccHealthHazard,
@@ -12811,6 +12815,20 @@ export const api = {
   getRazorpayStatus: () => request<RazorpayStatusResponse>("/payments/razorpay/status"),
   listPaymentProviders: () => request<PaymentProvidersResponse>("/payments/providers"),
   getReconSummary: () => request<ReconSummary>("/payments/recon-summary"),
+
+  // OAuth connect (common token module)
+  listOAuthProviders: () => request<OAuthProviderInfo[]>("/oauth/providers"),
+  getOAuthAuthorizeUrl: (provider: string, redirectUri: string) =>
+    request<OAuthAuthorizeResponse>(
+      `/oauth/${provider}/authorize?redirect_uri=${encodeURIComponent(redirectUri)}`,
+    ),
+  exchangeOAuthCode: (provider: string, data: OAuthExchangeRequest) =>
+    request<OAuthConnection>(`/oauth/${provider}/exchange`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  disconnectOAuth: (provider: string) =>
+    request<{ status: string }>(`/oauth/connections/${provider}`, { method: "DELETE" }),
 
   // Telemedicine
   listTeleConsultations: (params?: {

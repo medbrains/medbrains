@@ -28,6 +28,7 @@ pub mod event_tokens;
 pub mod events;
 pub mod hospital_time;
 pub mod middleware;
+pub mod oauth;
 pub mod orchestration;
 pub mod routes;
 pub mod s3_presign;
