@@ -48,6 +48,7 @@ import { MasterDataStatusSettings } from "@/pages/admin/settings/MasterDataStatu
 import { ModulesSettings } from "@/pages/admin/settings/ModulesSettings";
 import { OfflineModeSettings } from "@/pages/admin/settings/OfflineModeSettings";
 import { OperationsSettings } from "@/pages/admin/settings/OperationsSettings";
+import { PaymentExceptionsSettings } from "@/pages/admin/settings/PaymentExceptionsSettings";
 import { PaymentTerminalsSettings } from "@/pages/admin/settings/PaymentTerminalsSettings";
 import { PrintTemplateSettings } from "@/pages/admin/settings/PrintTemplateSettings";
 import { SequencesSettings } from "@/pages/admin/settings/SequencesSettings";
@@ -235,6 +236,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: "IconCreditCard",
     requiredPermission: "billing.payments.create",
     component: PaymentTerminalsSettings,
+  },
+  {
+    value: "payment-exceptions",
+    i18nKey: "settings.paymentExceptions",
+    icon: "IconShieldCheck",
+    requiredPermission: "billing.payments.create",
+    component: PaymentExceptionsSettings,
   },
   {
     value: "branding",

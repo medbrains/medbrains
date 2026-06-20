@@ -171,6 +171,11 @@ const SETTINGS_NAV_META: Record<
     description: "POS / QR / online payment devices per billing counter",
     kind: "configuration",
   },
+  "payment-exceptions": {
+    group: "Operations",
+    description: "Unmatched gateway credits awaiting reconciliation",
+    kind: "support",
+  },
   standards: {
     group: "Interoperability",
     description: "FHIR, ABDM, DICOM, ICD, SNOMED, LOINC readiness",

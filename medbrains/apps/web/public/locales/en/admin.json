@@ -15,6 +15,7 @@
   "settings.bedTypes": "Bed Types",
   "settings.billing": "Billing & Tax",
   "settings.paymentTerminals": "Payment Terminals",
+  "settings.paymentExceptions": "Payment Reconciliation",
   "settings.branding": "Branding",
   "settings.deviceIntegrations": "Device Integrations",
   "settings.standards": "Standards",
