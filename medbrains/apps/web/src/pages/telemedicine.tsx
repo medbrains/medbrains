@@ -1,11 +1,13 @@
-import { Group, Loader, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Group, Loader, Menu, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
 import type { TeleConsultation } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
+  IconBrandGoogle,
   IconCalendarPlus,
+  IconDownload,
   IconPhoneOff,
   IconPlayerPlay,
   IconVideo,
@@ -16,6 +18,7 @@ import { useState } from "react";
 import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { telemedicineService } from "@/services/telemedicine.service";
+import { type CalendarEvent, downloadIcs, googleCalendarUrl } from "@/utils/calendar";
 
 const PROVIDER_OPTIONS = [
   { value: "jitsi", label: "Jitsi (auto room)" },
@@ -123,6 +126,36 @@ export function TelemedicinePage() {
     }
   };
 
+  const calendarEvent = async (c: TeleConsultation): Promise<CalendarEvent | null> => {
+    try {
+      const info = await telemedicineService.getTeleJoinInfo(c.id);
+      return {
+        title: "Tele-consultation",
+        description: `Video consultation (${c.provider}).`,
+        url: info.join_url,
+        start: c.scheduled_at ? new Date(c.scheduled_at) : new Date(),
+        durationMinutes: 30,
+      };
+    } catch {
+      notifications.show({
+        title: "Calendar",
+        message: "Couldn't build the calendar event — the meeting link may not be ready.",
+        color: "danger",
+      });
+      return null;
+    }
+  };
+
+  const addToIcs = async (c: TeleConsultation) => {
+    const event = await calendarEvent(c);
+    if (event) downloadIcs(event, `tele-${c.id.slice(0, 8)}.ics`);
+  };
+
+  const addToGoogle = async (c: TeleConsultation) => {
+    const event = await calendarEvent(c);
+    if (event) window.open(googleCalendarUrl(event), "_blank", "noopener");
+  };
+
   const submit = () => {
     if (!form.patient_id.trim()) {
       notifications.show({
@@ -219,6 +252,29 @@ export function TelemedicinePage() {
                         >
                           Join
                         </Button>
+                      )}
+                      {!closed && (
+                        <Menu position="bottom-end" withinPortal>
+                          <Menu.Target>
+                            <IconButton tone="default" size="sm" aria-label="Add to calendar">
+                              <IconCalendarPlus size={14} />
+                            </IconButton>
+                          </Menu.Target>
+                          <Menu.Dropdown>
+                            <Menu.Item
+                              leftSection={<IconDownload size={14} />}
+                              onClick={() => void addToIcs(c)}
+                            >
+                              Download .ics
+                            </Menu.Item>
+                            <Menu.Item
+                              leftSection={<IconBrandGoogle size={14} />}
+                              onClick={() => void addToGoogle(c)}
+                            >
+                              Add to Google Calendar
+                            </Menu.Item>
+                          </Menu.Dropdown>
+                        </Menu>
                       )}
                       {canUpdate && c.status === "in_progress" && (
                         <IconButton
