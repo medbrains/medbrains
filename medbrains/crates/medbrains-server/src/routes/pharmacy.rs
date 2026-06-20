@@ -36,6 +36,7 @@ use crate::{
         authorization::{is_bypass_role, require_any_permission, require_permission},
         field_access,
     },
+    routes::notifications::{NewNotification, create_notification},
     state::AppState,
 };
 use medbrains_core::form::FieldAccessLevel;
@@ -1897,23 +1898,80 @@ async fn decrement_catalog_stock_for_dispense_in_tx(
     quantity: i32,
     drug_name: &str,
 ) -> Result<(), AppError> {
-    let updated = sqlx::query(
+    let updated = sqlx::query_as::<_, (i32, i32)>(
         "UPDATE pharmacy_catalog SET \
          current_stock = current_stock - $1, updated_at = now() \
-         WHERE id = $2 AND tenant_id = $3 AND current_stock >= $1",
+         WHERE id = $2 AND tenant_id = $3 AND current_stock >= $1 \
+         RETURNING current_stock, reorder_level",
     )
     .bind(quantity)
     .bind(catalog_id)
     .bind(tenant_id)
-    .execute(&mut **tx)
+    .fetch_optional(&mut **tx)
     .await?;
 
-    if updated.rows_affected() == 0 {
+    let Some((new_stock, reorder_level)) = updated else {
         return Err(AppError::Conflict(format!(
             "Insufficient stock for {drug_name}. Dispense was not posted."
         )));
+    };
+
+    // Low-stock alert to pharmacists — only on the crossing (this dispense
+    // pushed it to/below the reorder level for the first time), so we don't
+    // re-notify on every subsequent dispense while it stays low.
+    let prev_stock = new_stock + quantity;
+    if reorder_level > 0 && new_stock <= reorder_level && prev_stock > reorder_level {
+        notify_pharmacists_low_stock_in_tx(
+            tx,
+            tenant_id,
+            catalog_id,
+            drug_name,
+            new_stock,
+            reorder_level,
+        )
+        .await?;
     }
 
+    Ok(())
+}
+
+/// Notify every active pharmacist that a catalog drug crossed its reorder level.
+async fn notify_pharmacists_low_stock_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    catalog_id: Uuid,
+    drug_name: &str,
+    current_stock: i32,
+    reorder_level: i32,
+) -> Result<(), AppError> {
+    let pharmacists = sqlx::query_scalar::<_, Uuid>(
+        "SELECT u.id FROM users u \
+         JOIN roles r ON r.id = u.role_id AND r.tenant_id = u.tenant_id \
+         WHERE u.tenant_id = $1 AND r.code = 'pharmacist' AND u.is_active = true",
+    )
+    .bind(tenant_id)
+    .fetch_all(&mut **tx)
+    .await?;
+
+    let title = format!("Low stock: {drug_name}");
+    let body = format!("{current_stock} left (reorder at {reorder_level})");
+    for user_id in pharmacists {
+        create_notification(
+            tx,
+            *tenant_id,
+            NewNotification {
+                user_id,
+                kind: "warning",
+                title: &title,
+                body: Some(&body),
+                category: Some("Pharmacy"),
+                entity_type: Some("pharmacy_catalog"),
+                entity_id: Some(catalog_id),
+                action_url: Some("/pharmacy"),
+            },
+        )
+        .await?;
+    }
     Ok(())
 }
 
