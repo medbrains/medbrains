@@ -16,6 +16,15 @@ body="${3:-$2}"
 cd "$(dirname "$0")/.."
 
 git checkout -b "$branch" >/dev/null 2>&1
+
+# Auto-format + sort imports on staged TS/JS via Biome so commits pass lint
+# (no more manual import-sort follow-up PRs).
+staged="$(git diff --cached --name-only --diff-filter=ACM | grep -E '^medbrains/.*\.(ts|tsx|js|jsx)$' || true)"
+if [ -n "$staged" ]; then
+  ( cd medbrains && echo "$staged" | sed 's|^medbrains/||' | xargs npx @biomejs/biome check --write >/dev/null 2>&1 || true )
+  echo "$staged" | xargs git add >/dev/null 2>&1 || true
+fi
+
 git commit -q -m "$title"
 git push -u origin "$branch" >/dev/null 2>&1
 gh pr create --title "$title" --body "$body" --base master >/dev/null 2>&1
