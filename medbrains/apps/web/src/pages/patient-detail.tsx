@@ -2,7 +2,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Box,
   Card,
-  Divider,
   Grid,
   Group,
   Loader,
@@ -3125,7 +3124,6 @@ function PatientDetailPageInner() {
     section: string;
     icon: ReactNode;
   }>;
-  const tabSections = [...new Set(detailTabs.map((tab) => tab.section))];
   const activeDetailTab: PatientDetailTabValue = isPatientDetailTabValue(activePatientTab)
     ? activePatientTab
     : "overview";
@@ -3277,54 +3275,17 @@ function PatientDetailPageInner() {
           <Grid.Col span={{ base: 12, lg: 4 }}>
             <Box className={classes.contextRail}>
               <Stack gap="sm">
-                <Stack gap={2}>
-                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-                    Patient workspace
-                  </Text>
-                  <Text size="sm" fw={700}>
-                    {displayName}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    UHID {displayUhid}
-                  </Text>
-                </Stack>
-                <Group gap="xs">
-                  {activeEncounter && <Badge tone="success">Active OPD</Badge>}
-                  {activeAdmission && <Badge tone="primary">Active IPD</Badge>}
-                  {patient.is_deceased && (
-                    <Badge tone="neutral" variant="filled">
-                      Deceased
-                    </Badge>
-                  )}
-                </Group>
-                <Divider />
-                <Stack gap="xs">
-                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-                    Navigate
-                  </Text>
-                  {tabSections.map((section) => (
-                    <Stack key={section} gap={4}>
-                      <Text size="xs" fw={700} c="dimmed">
-                        {section}
-                      </Text>
-                      {detailTabs
-                        .filter((tab) => tab.section === section)
-                        .map((tab) => (
-                          <Button
-                            key={tab.value}
-                            tone={activeDetailTab === tab.value ? "primary" : "secondary"}
-                            size="xs"
-                            leftSection={tab.icon}
-                            onClick={() => setActivePatientTab(tab.value)}
-                            fullWidth
-                          >
-                            {tab.label}
-                          </Button>
-                        ))}
-                    </Stack>
-                  ))}
-                </Stack>
-                <Divider />
+                {(activeEncounter || activeAdmission || patient.is_deceased) && (
+                  <Group gap="xs">
+                    {activeEncounter && <Badge tone="success">Active OPD</Badge>}
+                    {activeAdmission && <Badge tone="primary">Active IPD</Badge>}
+                    {patient.is_deceased && (
+                      <Badge tone="neutral" variant="filled">
+                        Deceased
+                      </Badge>
+                    )}
+                  </Group>
+                )}
                 <Stack gap="xs">
                   <Text size="xs" fw={700} c="dimmed" tt="uppercase">
                     Actions
