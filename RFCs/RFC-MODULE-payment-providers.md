@@ -118,3 +118,44 @@ So every device kind converges on one rule: **inbound credit → match by ref �
 | Cashfree | online + QR | order create | **webhook** |
 
 All carry a `mode: sandbox` → test base URL + test creds; nothing reaches a live terminal until an admin flips a provider to `live`.
+
+## 7. Verified sandbox API catalog (researched before implementation)
+Owner directive: *"check actual apis sandboxes before implementations."* Endpoints/auth below were verified against each provider's live docs (June 2026). **No adapter is written from memory.**
+
+### 7.1 Online payment gateways (card / UPI / netbanking / wallet / EMI)
+| Provider | Sandbox base | Create → status/verify | Auth |
+|---|---|---|---|
+| **Razorpay** | `api.razorpay.com/v1` (test keys `rzp_test_*`) | `/orders` → webhook `payment.captured` + HMAC verify | key_id:key_secret (basic) |
+| **Cashfree** | `sandbox.cashfree.com/pg` | `POST /orders` → `GET /orders/{id}` + webhook | `x-client-id` / `x-client-secret` / `x-api-version` |
+| **Paytm** | `securestage.paytmpayments.com` / `securegw-stage.paytm.in` | `/theia/api/v1/initiateTransaction` → `/v3/order/status` | mid + checksum (AES) |
+| **PayU** | prefix `/sandbox` on the API + test auth header | `_payment` → verify; test VPA `anything@payu` | merchant key + salt |
+| **PhonePe** | `api-preprod.phonepe.com/apis/pgsandbox` | pay → status | merchantId + saltKey + saltIndex (X-VERIFY SHA256) |
+| **CCAvenue** | `test.ccavenue.com` | encrypted request → response handler | merchant id + access code + working/encryption key (AES) |
+
+All support **netbanking + card + UPI + wallet + EMI** as *methods* under one order — method is a field on the order/checkout, not a separate provider. So "netbanking and other modes" = enabling those methods on the chosen gateway, surfaced as tabs in the collect screen.
+
+### 7.2 POS terminals (card machine at the counter)
+| Provider | UAT base | Flow |
+|---|---|---|
+| **Pine Labs Plutus** | `plutuscloudserviceuat.in:8201/API/CloudBasedIntegration/V1` | `UploadBilledTransaction` → poll `GetCloudBasedTxnStatus` (PTRID); `CancelTransaction` |
+| **Paytm EDC** | `securegw-stage.paytm.in/edc-integration-service` | push to machine → `txn/status?cpayId&storeId&txnDate` |
+| **Razorpay POS** | Razorpay test | order with terminal → webhook |
+
+### 7.3 Direct bank / corporate APIs (collections, virtual accounts, reconciliation)
+"Actual bank APIs" — for hospitals that want bank-native collection + auto-reconciliation rather than (or alongside) a gateway:
+| Bank / service | Sandbox | Use |
+|---|---|---|
+| **ICICI Corporate API Suite** | `developer.icicibank.com` → `sandbox.icicibank.com` (NDA for UAT) | 250+ APIs: IMPS/UPI collect + pay, **virtual accounts**, statement, auto-reconciliation, BBPS |
+| **RazorpayX / Smart Collect** | RazorpayX test | virtual UPI/account per patient → **auto-recon** inbound by VA id |
+| **Cashfree Payouts** | sandbox | refunds/advance returns to bank/UPI/card (payout side) |
+| **HDFC / Axis / Yes / RBL** | per-bank developer portal (NDA) | same corporate-API shape (issuers behind RazorpayX) |
+
+**Virtual accounts** are the cleanest reverse-reconciliation: assign a per-patient/per-invoice virtual UPI/account; any credit auto-matches by the VA id — no signature dance. Ties directly into §6 and the existing `bank_transaction_claim_allocations` recon table.
+
+### 7.4 Build order respecting the directive
+1. **Cashfree** online adapter (sandbox verified) behind the `PaymentProvider` trait — Razorpay moved behind it unchanged.
+2. **Pine Labs Plutus** POS adapter (poll model) — wired to `payment_terminals.kind='pos'`.
+3. **Paytm** (online + EDC), **PhonePe/PayU/CCAvenue** as further trait impls (config-only thereafter).
+4. **Bank virtual-account** collection + auto-recon (ICICI/RazorpayX) — the revenue-safe collection path.
+
+Each lands only after its sandbox creds + endpoints are confirmed in a Settings→Payments test call.
