@@ -1269,6 +1269,8 @@ import type {
   PatientFlowSnapshot,
   PatientIdentifier,
   PatientInvoiceRow,
+  IssueTokenInput,
+  ModuleToken,
   NotificationListResponse,
   PatientLabOrderRow,
   PatientListResponse,
@@ -3019,6 +3021,24 @@ export const api = {
     request<UnreadCountResponse>(`/notifications/${id}/read`, { method: "POST" }),
   markAllNotificationsRead: () =>
     request<UnreadCountResponse>("/notifications/read-all", { method: "POST" }),
+  // ── Unified token / queue system ──
+  issueToken: (input: IssueTokenInput) =>
+    request<ModuleToken>("/tokens/issue", { method: "POST", body: JSON.stringify(input) }),
+  listTokenBoard: (params: { module: string; scope?: string; scope_id?: string }) => {
+    const qs = new URLSearchParams({ module: params.module });
+    if (params.scope) qs.set("scope", params.scope);
+    if (params.scope_id) qs.set("scope_id", params.scope_id);
+    return request<ModuleToken[]>(`/tokens/board?${qs.toString()}`);
+  },
+  myTokens: (patientId: string) => request<ModuleToken[]>(`/tokens/mine?patient_id=${patientId}`),
+  callToken: (id: string, counterLabel?: string) =>
+    request<ModuleToken>(`/tokens/${id}/call`, {
+      method: "POST",
+      body: JSON.stringify({ counter_label: counterLabel ?? null }),
+    }),
+  serveToken: (id: string) => request<ModuleToken>(`/tokens/${id}/serve`, { method: "POST" }),
+  completeToken: (id: string) => request<ModuleToken>(`/tokens/${id}/complete`, { method: "POST" }),
+  noShowToken: (id: string) => request<ModuleToken>(`/tokens/${id}/no-show`, { method: "POST" }),
   getPatient: (id: string) => request<Patient>(`/patients/${id}`),
   getPatientContext: (id: string) => request<PatientContext>(`/patients/${id}/context`),
   createPatient: (data: CreatePatientRequest) =>

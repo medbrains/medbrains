@@ -31157,3 +31157,38 @@ export interface NotificationListResponse {
 export interface UnreadCountResponse {
   unread_count: number;
 }
+
+// ── Unified token / queue system ──
+export interface ModuleToken {
+  id: string;
+  module: string;
+  scope: string;
+  scope_id?: string | null;
+  scope_label?: string | null;
+  number: string;
+  seq: number;
+  status: string;
+  priority: string;
+  patient_id?: string | null;
+  patient_name?: string | null;
+  entity_type?: string | null;
+  entity_id?: string | null;
+  counter_label?: string | null;
+  called_at?: string | null;
+  served_at?: string | null;
+  completed_at?: string | null;
+  token_date: string;
+  created_at: string;
+}
+
+export interface IssueTokenInput {
+  module: string;
+  scope?: string;
+  scope_id?: string;
+  scope_label?: string;
+  priority?: string;
+  patient_id?: string;
+  patient_name?: string;
+  entity_type?: string;
+  entity_id?: string;
+}
