@@ -1039,6 +1039,178 @@ async fn handle_webhook_refund(
     Ok(())
 }
 
+// ══════════════════════════════════════════════════════════
+//  POST /api/webhooks/cashfree  (PUBLIC — no auth)
+// ══════════════════════════════════════════════════════════
+
+/// Read the Cashfree signing secret for webhook verification: prefer an
+/// explicit `webhook_secret`, else the client secret (`key_secret` /
+/// `client_secret`) as Cashfree signs with the secret key.
+async fn get_cashfree_signing_secret(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+) -> Result<String, AppError> {
+    let cfg = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'payments' AND key = 'cashfree_config'",
+    )
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or_else(|| AppError::ServiceUnavailable("Cashfree is not configured".to_owned()))?;
+
+    ["webhook_secret", "key_secret", "client_secret"]
+        .iter()
+        .find_map(|k| cfg.get(*k).and_then(serde_json::Value::as_str))
+        .filter(|s| !s.is_empty())
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| AppError::ServiceUnavailable("Cashfree signing secret missing".to_owned()))
+}
+
+/// Reverse reconciliation for Cashfree: the inbound webhook (the money already
+/// moved) is matched back to the originating txn by `order_id` (= our txn id),
+/// signature-verified, deduped, then posted to the invoice. Mirrors the
+/// Razorpay webhook; the Razorpay path is untouched.
+pub async fn cashfree_webhook(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: String,
+) -> Result<Json<serde_json::Value>, AppError> {
+    use base64::Engine;
+
+    let signature = headers
+        .get("x-webhook-signature")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| AppError::BadRequest("missing x-webhook-signature header".to_owned()))?;
+    let timestamp = headers
+        .get("x-webhook-timestamp")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| AppError::BadRequest("missing x-webhook-timestamp header".to_owned()))?;
+
+    let payload: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|e| AppError::BadRequest(format!("invalid webhook payload: {e}")))?;
+
+    // Cashfree: data.order.order_id is the order_id we set (= our txn id).
+    let Some(order_id) = payload["data"]["order"]["order_id"].as_str() else {
+        tracing::warn!("cashfree webhook missing order_id");
+        return Ok(Json(serde_json::json!({ "status": "ignored" })));
+    };
+
+    let txn_row = sqlx::query_as::<_, PaymentGatewayTransaction>(
+        // allow-raw-sql: webhook entry, tenant context not yet resolved
+        "SELECT * FROM payment_gateway_transactions WHERE gateway_order_id = $1 LIMIT 1",
+    )
+    .bind(order_id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    let Some(txn_row) = txn_row else {
+        tracing::warn!(order_id, "cashfree webhook for unknown order");
+        return Ok(Json(serde_json::json!({ "status": "unknown_order" })));
+    };
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &txn_row.tenant_id).await?;
+
+    // Verify signature: base64(HMAC-SHA256(timestamp + rawBody, secret)).
+    let secret = get_cashfree_signing_secret(&mut tx, &txn_row.tenant_id).await?;
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
+        .map_err(|e| AppError::Internal(format!("hmac init: {e}")))?;
+    mac.update(timestamp.as_bytes());
+    mac.update(body.as_bytes());
+    let expected = base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes());
+    if expected != signature {
+        return Err(AppError::BadRequest(
+            "cashfree webhook signature verification failed".to_owned(),
+        ));
+    }
+
+    // cf_payment_id may be a string or a number in Cashfree payloads.
+    let cf_payment_id = payload["data"]["payment"]["cf_payment_id"]
+        .as_str()
+        .map(ToOwned::to_owned)
+        .or_else(|| {
+            payload["data"]["payment"]["cf_payment_id"]
+                .as_i64()
+                .map(|n| n.to_string())
+        });
+
+    // Idempotency: dedupe by cf_payment_id (fallback order_id + type).
+    let event_kind = payload["type"].as_str().unwrap_or("");
+    let event_id = cf_payment_id
+        .clone()
+        .unwrap_or_else(|| format!("{order_id}:{event_kind}"));
+
+    let inserted: Option<(String,)> = sqlx::query_as(
+        // allow-raw-sql: webhook idempotency PK insert
+        "INSERT INTO processed_webhooks (provider, event_id, tenant_id, payload) \
+         VALUES ('cashfree', $1, $2, $3) \
+         ON CONFLICT (provider, event_id) DO NOTHING \
+         RETURNING event_id",
+    )
+    .bind(&event_id)
+    .bind(txn_row.tenant_id)
+    .bind(&payload)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if inserted.is_none() {
+        tx.commit().await?;
+        return Ok(Json(
+            serde_json::json!({ "status": "duplicate", "event_id": event_id }),
+        ));
+    }
+
+    match event_kind {
+        "PAYMENT_SUCCESS_WEBHOOK" => {
+            let payment_id = cf_payment_id.as_deref().unwrap_or("");
+            let method = payload["data"]["payment"]["payment_group"].as_str();
+            sqlx::query(
+                "UPDATE payment_gateway_transactions SET \
+                 gateway_payment_id = $1, status = 'captured', payment_method = $2, \
+                 webhook_payload = $3, verified_at = now(), updated_at = now() \
+                 WHERE gateway_order_id = $4 AND tenant_id = $5 AND status != 'captured'",
+            )
+            .bind(payment_id)
+            .bind(method)
+            .bind(&payload)
+            .bind(order_id)
+            .bind(txn_row.tenant_id)
+            .execute(&mut *tx)
+            .await?;
+
+            if let Some(invoice_id) = txn_row.invoice_id {
+                if txn_row.status != "captured" {
+                    record_invoice_payment(
+                        &mut tx,
+                        txn_row.tenant_id,
+                        invoice_id,
+                        txn_row.amount,
+                        payment_id,
+                    )
+                    .await?;
+                }
+            }
+        }
+        "PAYMENT_FAILED_WEBHOOK" => {
+            sqlx::query(
+                "UPDATE payment_gateway_transactions SET \
+                 status = 'failed', webhook_payload = $1, updated_at = now() \
+                 WHERE gateway_order_id = $2 AND tenant_id = $3",
+            )
+            .bind(&payload)
+            .bind(order_id)
+            .bind(txn_row.tenant_id)
+            .execute(&mut *tx)
+            .await?;
+        }
+        other => tracing::info!(event = other, "unhandled cashfree webhook event"),
+    }
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({ "status": "ok" })))
+}
+
 /// Record a payment against an invoice and update its status.
 async fn record_invoice_payment(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
