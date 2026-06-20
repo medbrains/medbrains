@@ -2017,14 +2017,16 @@ export function EncounterDetail({
         >
           <Group
             gap="xs"
-            mb="md"
             wrap="wrap"
             style={{
               position: "sticky",
-              top: -16,
-              zIndex: 2,
+              top: 0,
+              zIndex: 5,
+              // Full-bleed sticky header — cover the panel's 16/24 padding so the
+              // bar pins flush to the top and its rule spans the full width.
+              margin: "-16px -24px 12px",
+              padding: "12px 24px",
               background: "var(--mb-card-bg, #fff)",
-              paddingBottom: 8,
               borderBottom: "1px solid var(--mb-border-subtle)",
             }}
           >
@@ -3610,8 +3612,6 @@ function AdmitToIpdButton({
       <Button
         tone="secondary"
         size="xs"
-        fullWidth
-        justify="flex-start"
         leftSection={<IconMedicalCross size={14} />}
         onClick={open}
       >
@@ -3800,8 +3800,6 @@ function GroupAppointmentModal({ patientId }: { patientId: string }) {
       <Button
         tone="secondary"
         size="xs"
-        fullWidth
-        justify="flex-start"
         leftSection={<IconUsers size={14} />}
         onClick={open}
       >
