@@ -405,15 +405,11 @@ export function AppLayout() {
                 alt=""
                 width={30}
                 height={30}
-                style={{ borderRadius: 8 }}
+                style={{ borderRadius: 3 }}
               />
-              <Text
-                size="sm"
-                fw={700}
-                c="var(--mb-text-primary)"
-                style={{ letterSpacing: "-0.02em" }}
-              >
-                MedBrains
+              <Text size="sm" c="var(--mb-text-primary)" style={{ letterSpacing: "-0.02em" }}>
+                <span style={{ fontWeight: 300 }}>Med</span>
+                <span style={{ fontWeight: 600 }}>Brains</span>
               </Text>
               <Text size="xs" c="var(--mb-text-muted)" fw={500} visibleFrom="md">
                 HMS

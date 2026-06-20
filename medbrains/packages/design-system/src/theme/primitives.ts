@@ -36,18 +36,22 @@ export const blue = [
   "#001141", // 100
 ] as const satisfies readonly string[];
 
-/** Purple — Carbon expressive accent (replaces the rose accent). Anchor [5] = Purple 60 #8a3ffc. */
+/**
+ * Vital green — the brand's second colour (Lazarus / life-signs ECG beat),
+ * paired with IBM blue. Anchor [5] = vital green #42be65. Export name kept as
+ * `cinnabar` for import stability; it is no longer red/purple.
+ */
 export const cinnabar = [
-  "#f6f2ff", // 10
-  "#e8daff", // 20
-  "#d4bbff", // 30
-  "#be95ff", // 40
-  "#a56eff", // 50
-  "#8a3ffc", // 60 — Carbon purple accent
-  "#6929c4", // 70
-  "#491d8b", // 80
-  "#31135e", // 90
-  "#1c0f30", // 100
+  "#defbe6", // 10 — green tint (accent bg)
+  "#a7f0ba", // 20
+  "#6fdc8c", // 30
+  "#74e792", // 40 — light beat (dark-scheme accent fg)
+  "#42be65", // 50 — dark-scheme emphasis
+  "#42be65", // 60 — vital green accent (emphasis) ★
+  "#0e6027", // 70 — readable on white (accent fg)
+  "#044317", // 80
+  "#022d0d", // 90
+  "#071908", // 100
 ] as const satisfies readonly string[];
 
 /** Carbon brand gradient — Blue 90 → 60 → 50 → 30. */
