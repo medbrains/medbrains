@@ -159,6 +159,15 @@ GPay, PhonePe and the Paytm consumer app are **UPI apps, not separate integratio
 
 **Virtual accounts** are the cleanest reverse-reconciliation: assign a per-patient/per-invoice virtual UPI/account; any credit auto-matches by the VA id — no signature dance. Ties directly into §6 and the existing `bank_transaction_claim_allocations` recon table.
 
+**Status:** RazorpayX Smart Collect VA is **built** (adapter + create endpoint + `virtual_account.credited` webhook, mock-tested) — `has_adapter=true`. RazorpayX is the recommended default because most hospitals reach the bank *through* an aggregator; the underlying issuer (ICICI/Axis/Yes/RBL) is transparent.
+
+#### ICICI Corporate API — direct VA (registered, adapter pending)
+For a hospital that banks **ICICI direct** (no aggregator). Registered in `KNOWN_PROVIDERS` (`code: "icici"`, `has_adapter=false`) so the seam recognises it; the adapter is deliberately **not** built blind because ICICI's corporate API differs materially from the JSON gateways:
+- **Encryption layer** — requests/responses are **AES-256 session key wrapped in RSA** (bank public cert + merchant private key), not plain JSON + HMAC. Needs ICICI's keypair + cert provisioned per tenant.
+- **Onboarding** — `developer.icicibank.com` registration → NDA → UAT keys (`sandbox.icicibank.com`). No self-serve sandbox.
+- **Shape** — `CreateVirtualAccount` (URN + collection VA) → credit notification via callback/polling on the **Connected Banking / statement** API; match by VA number.
+**To build when creds land:** a `handlers/icici.rs` adapter mirroring `razorpayx.rs` plus an ICICI **crypto module** (AES/RSA encrypt-then-sign), a `/api/webhooks/icici` (or statement-poll) → same `record_invoice_payment` settle + exceptions-queue path. `create_virtual_account` currently mints a **RazorpayX** VA unconditionally; building ICICI adds a `provider` param to it, gated on `has_adapter` (so an un-built bank-VA provider can never queue an unhandlable event) — mirroring how `create_order` already gates online providers.
+
 ### 7.4 Build order respecting the directive
 1. **Cashfree** online adapter (sandbox verified) behind the `PaymentProvider` trait — Razorpay moved behind it unchanged.
 2. **Pine Labs Plutus** POS adapter (poll model) — wired to `payment_terminals.kind='pos'`.

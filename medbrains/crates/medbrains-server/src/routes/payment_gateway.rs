@@ -271,6 +271,18 @@ const KNOWN_PROVIDERS: &[ProviderSpec] = &[
         methods: &["card", "upi", "netbanking", "wallet", "emi"],
         has_adapter: false,
     },
+    ProviderSpec {
+        code: "razorpayx",
+        label: "RazorpayX (bank virtual account)",
+        methods: &["virtual_account", "upi", "netbanking"],
+        has_adapter: true,
+    },
+    ProviderSpec {
+        code: "icici",
+        label: "ICICI Corporate API (bank virtual account)",
+        methods: &["virtual_account", "upi", "netbanking"],
+        has_adapter: false,
+    },
 ];
 
 fn provider_spec(code: &str) -> Option<&'static ProviderSpec> {
