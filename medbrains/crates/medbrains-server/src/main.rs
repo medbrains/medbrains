@@ -513,7 +513,8 @@ async fn shutdown_signal() {
 fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     use medbrains_outbox::Registry;
     use medbrains_outbox::handlers::{
-        abdm_stub, email_stub, hl7_stub, pipeline_fallback, razorpay, tpa_stub, twilio, whatsapp,
+        abdm_stub, cashfree, email_stub, hl7_stub, pipeline_fallback, razorpay, tpa_stub, twilio,
+        whatsapp,
     };
 
     let mut registry = Registry::new();
@@ -521,6 +522,9 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     // Typed real-money handlers (Phase 1.1: real HTTPS via reqwest)
     registry.register(razorpay::CreateOrderHandler::new());
     registry.register(razorpay::RefundHandler::new());
+    // Cashfree — additive 2nd online provider (runs only for payment.cashfree.*)
+    registry.register(cashfree::CashfreeCreateOrderHandler::new());
+    registry.register(cashfree::CashfreeRefundHandler::new());
 
     // Twilio per-event-type — distinct registrations for each sms.* code
     // so the registry's panic-on-duplicate catches accidental re-binds.

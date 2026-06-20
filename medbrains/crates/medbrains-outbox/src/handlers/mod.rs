@@ -16,6 +16,7 @@
 
 pub mod abdm_hfr;
 pub mod abdm_stub;
+pub mod cashfree;
 pub mod email_stub;
 pub mod hl7_stub;
 pub mod nhcx;
