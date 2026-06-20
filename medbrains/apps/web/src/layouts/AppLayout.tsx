@@ -114,9 +114,8 @@ export function AppLayout() {
   const hasPermission = usePermissionStore((s) => s.hasPermission);
   const { t } = useTranslation("nav");
 
-  const isAppLauncher = location.pathname === "/apps";
   const isExpanded = sidebarOpen;
-  const navbarWidth = isAppLauncher ? 0 : isExpanded ? EXPANDED_WIDTH : RAIL_WIDTH;
+  const navbarWidth = isExpanded ? EXPANDED_WIDTH : RAIL_WIDTH;
 
   // Focus routes carry their own contextual side pane (e.g. the OPD
   // encounter's clinical-tab rail), so the global nav steps back to
@@ -386,7 +385,7 @@ export function AppLayout() {
       navbar={{
         width: navbarWidth,
         breakpoint: "sm",
-        collapsed: { mobile: !mobileOpened || isAppLauncher, desktop: isAppLauncher },
+        collapsed: { mobile: !mobileOpened, desktop: false },
       }}
       padding="md"
       transitionDuration={260}
@@ -396,9 +395,7 @@ export function AppLayout() {
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
           <Group gap="sm">
-            {!isAppLauncher && (
-              <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
-            )}
+            <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
             <Group gap={8} className={classes.logoArea} onClick={() => navigate("/dashboard")}>
               <img
                 src="/logo/medbrains-mark.svg"
@@ -517,51 +514,49 @@ export function AppLayout() {
       </AppShell.Header>
 
       {/* ── Sidebar ── */}
-      {!isAppLauncher && (
-        <AppShell.Navbar
-          data-testid="app-sidebar"
-          data-mode={isExpanded ? "expanded" : "rail"}
-          p={isExpanded ? 8 : 0}
-          className={isExpanded ? classes.navbarExpanded : classes.navbarRail}
-        >
-          <AppShell.Section grow component={ScrollArea} className={classes.navContent}>
-            {renderSidebar()}
-          </AppShell.Section>
+      <AppShell.Navbar
+        data-testid="app-sidebar"
+        data-mode={isExpanded ? "expanded" : "rail"}
+        p={isExpanded ? 8 : 0}
+        className={isExpanded ? classes.navbarExpanded : classes.navbarRail}
+      >
+        <AppShell.Section grow component={ScrollArea} className={classes.navContent}>
+          {renderSidebar()}
+        </AppShell.Section>
 
-          <AppShell.Section className={classes.navFooter}>
-            <Divider my={4} className={classes.railDivider} />
+        <AppShell.Section className={classes.navFooter}>
+          <Divider my={4} className={classes.railDivider} />
 
-            {/* Collapse / Expand toggle */}
-            <Box visibleFrom="sm" className={classes.footerAction}>
-              {isExpanded ? (
-                <UnstyledButton className={classes.sidebarToggleExpanded} onClick={toggleSidebar}>
-                  <AnimatedIcon icon={PanelLeftClose} size={18} motion="float" />
-                  <Text size="xs" c="var(--mb-text-muted)">
-                    {t("collapse")}
-                  </Text>
+          {/* Collapse / Expand toggle */}
+          <Box visibleFrom="sm" className={classes.footerAction}>
+            {isExpanded ? (
+              <UnstyledButton className={classes.sidebarToggleExpanded} onClick={toggleSidebar}>
+                <AnimatedIcon icon={PanelLeftClose} size={18} motion="float" />
+                <Text size="xs" c="var(--mb-text-muted)">
+                  {t("collapse")}
+                </Text>
+              </UnstyledButton>
+            ) : (
+              <Tooltip label={t("expand")} position="right" withArrow>
+                <UnstyledButton className={classes.railItem} onClick={toggleSidebar}>
+                  <AnimatedIcon icon={PanelLeftOpen} size={20} motion="float" />
                 </UnstyledButton>
-              ) : (
-                <Tooltip label={t("expand")} position="right" withArrow>
-                  <UnstyledButton className={classes.railItem} onClick={toggleSidebar}>
-                    <AnimatedIcon icon={PanelLeftOpen} size={20} motion="float" />
-                  </UnstyledButton>
-                </Tooltip>
-              )}
-            </Box>
+              </Tooltip>
+            )}
+          </Box>
 
-            {/* Version */}
-            <Box className={classes.versionBadge}>
-              <Text size="xs" c="var(--mb-text-muted)" fw={400} ta="center">
-                v0.1
-              </Text>
-            </Box>
-          </AppShell.Section>
-        </AppShell.Navbar>
-      )}
+          {/* Version */}
+          <Box className={classes.versionBadge}>
+            <Text size="xs" c="var(--mb-text-muted)" fw={400} ta="center">
+              v0.1
+            </Text>
+          </Box>
+        </AppShell.Section>
+      </AppShell.Navbar>
 
       {/* ── Main content ── */}
       <AppShell.Main>
-        {!isAppLauncher && breadcrumbItems.length > 0 && (
+        {breadcrumbItems.length > 0 && (
           <Breadcrumbs
             mb="md"
             separator={<ChevronRight size={12} color="var(--mb-text-muted)" />}

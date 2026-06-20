@@ -1,4 +1,3 @@
-import { PERMISSIONS } from "@medbrains/types";
 import {
   IconAmbulance,
   IconAppWindow,
@@ -20,6 +19,7 @@ import {
   IconFileAnalytics,
   IconFileCertificate,
   IconFileText,
+  IconFileTypePdf,
   IconFirstAidKit,
   IconFlask,
   IconForms,
@@ -35,7 +35,6 @@ import {
   IconMicroscope,
   IconPackage,
   IconPill,
-  IconFileTypePdf,
   IconPlug,
   IconQrcode,
   IconRadioactive,
@@ -84,30 +83,6 @@ export interface NavGroupConfig {
   key: string;
   items: NavItemConfig[];
 }
-
-export type AppWorkspaceKey =
-  | "hims"
-  | "lims"
-  | "pacs"
-  | "pharmacy"
-  | "finance"
-  | "specialty"
-  | "operations"
-  | "compliance"
-  | "admin";
-
-export interface AppWorkspaceConfig {
-  key: AppWorkspaceKey;
-  i18nKey: string;
-  description: string;
-  icon: string;
-  color: string;
-  defaultPath: string;
-  pathPrefixes: readonly string[];
-  permissionModules: readonly string[];
-}
-
-export const WORKSPACE_STORAGE_KEY = "medbrains.activeWorkspace";
 
 // ── Icon Map ──
 
@@ -250,191 +225,6 @@ const ADMIN_NAV_PERMISSIONS = [
   "devices.list",
   "devices.pairing.paired.list",
 ] as const;
-
-export const APP_WORKSPACES: AppWorkspaceConfig[] = [
-  {
-    key: "hims",
-    i18nKey: "workspaceHims",
-    description: "Patient flow, OPD, ER, IPD, ward and nursing work",
-    icon: "IconBuildingHospital",
-    color: "#0f62fe",
-    defaultPath: "/dashboard",
-    permissionModules: [
-      "dashboard",
-      "patients",
-      "opd",
-      "doctor",
-      "emergency",
-      "ipd",
-      "icu",
-      "ot",
-      "nurse",
-      "bedside",
-      "diet",
-      "clinical",
-      "order_sets",
-    ],
-    pathPrefixes: [
-      "/dashboard",
-      "/patients",
-      "/patients/*",
-      "/opd",
-      "/opd/*",
-      "/doctor/*",
-      "/emergency",
-      "/ipd",
-      "/ipd/*",
-      "/care-view",
-      "/icu",
-      "/nurse",
-      "/ot",
-      "/diet-kitchen",
-      "/bedside-portal",
-      "/order-sets",
-      "/chronic-care",
-    ],
-  },
-  {
-    key: "lims",
-    i18nKey: "workspaceLims",
-    description: "Laboratory, samples, reports, QC and blood bank",
-    icon: "IconFlask",
-    color: "#0f62fe",
-    defaultPath: "/lab",
-    permissionModules: ["lab", "blood_bank"],
-    pathPrefixes: ["/lab", "/blood-bank"],
-  },
-  {
-    key: "pacs",
-    i18nKey: "workspacePacs",
-    description: "Radiology, imaging orders, DICOM and PACS work",
-    icon: "IconRadioactive",
-    color: "#0f62fe",
-    defaultPath: "/radiology",
-    permissionModules: ["radiology"],
-    pathPrefixes: ["/radiology", "/demo/dicom/*"],
-  },
-  {
-    key: "pharmacy",
-    i18nKey: "workspacePharmacy",
-    description: "Pharmacy queue, dispensing, stores and safety",
-    icon: "IconPill",
-    color: "#0f62fe",
-    defaultPath: "/pharmacy",
-    permissionModules: ["pharmacy", "pharmacy_improvements"],
-    pathPrefixes: ["/pharmacy"],
-  },
-  {
-    key: "finance",
-    i18nKey: "workspaceFinance",
-    description: "Billing, payments, advances, insurance and TPA",
-    icon: "IconReceipt",
-    color: "#0f62fe",
-    defaultPath: "/billing",
-    permissionModules: ["billing", "insurance", "patient_packages", "pharmacy_finance"],
-    pathPrefixes: ["/billing", "/billing/*", "/insurance", "/pharmacy/finance"],
-  },
-  {
-    key: "specialty",
-    i18nKey: "workspaceSpecialty",
-    description: "Specialty clinics, procedure areas and care programs",
-    icon: "IconStethoscope",
-    color: "#0f62fe",
-    defaultPath: "/specialty",
-    permissionModules: ["specialty"],
-    pathPrefixes: ["/specialty", "/specialty/*"],
-  },
-  {
-    key: "operations",
-    i18nKey: "workspaceOperations",
-    description: "Stores, assets, camp, facilities, HR and support work",
-    icon: "IconAppWindow",
-    color: "#0f62fe",
-    defaultPath: "/indent",
-    permissionModules: [
-      "ambulance",
-      "assets",
-      "bme",
-      "camp",
-      "case_mgmt",
-      "command_center",
-      "communications",
-      "cssd",
-      "facilities",
-      "front_office",
-      "housekeeping",
-      "hr",
-      "indent",
-      "lms",
-      "mrd",
-      "occ_health",
-      "procurement",
-      "scheduling",
-      "security",
-      "ur",
-    ],
-    pathPrefixes: [
-      "/indent",
-      "/indent/*",
-      "/procurement",
-      "/cssd",
-      "/housekeeping",
-      "/front-office",
-      "/hr",
-      "/lms",
-      "/bme",
-      "/assets",
-      "/ambulance",
-      "/communications",
-      "/camp",
-      "/camp/*",
-      "/command-center",
-      "/facilities",
-      "/mrd",
-      "/security",
-      "/occupational-health",
-      "/utilization-review",
-      "/case-management",
-      "/scheduling",
-    ],
-  },
-  {
-    key: "compliance",
-    i18nKey: "workspaceCompliance",
-    description: "Quality, infection control, regulatory, analytics and audit",
-    icon: "IconShieldCheck",
-    color: "#0f62fe",
-    defaultPath: "/quality",
-    permissionModules: [
-      "analytics",
-      "audit",
-      "consent",
-      "infection_control",
-      "quality",
-      "regulatory",
-    ],
-    pathPrefixes: [
-      "/quality",
-      "/infection-control",
-      "/consent",
-      "/regulatory",
-      "/analytics",
-      "/reports",
-      "/reports/*",
-      "/audit",
-    ],
-  },
-  {
-    key: "admin",
-    i18nKey: "workspaceAdmin",
-    description: "Users, roles, settings, devices and integrations",
-    icon: "IconSettings",
-    color: "#0f62fe",
-    defaultPath: "/admin/users",
-    permissionModules: ["admin", "devices", "documents", "integration", "retrospective", "storage"],
-    pathPrefixes: ["/admin", "/admin/*", "/components-inputs", "/retrospective"],
-  },
-];
 
 export const NAV_GROUPS: NavGroupConfig[] = [
   {
@@ -1259,60 +1049,6 @@ export const NAV_GROUPS: NavGroupConfig[] = [
   },
 ];
 
-function collectPermissionCodes(items: readonly NavItemConfig[], codes: Set<string>) {
-  for (const item of items) {
-    if (item.requiredPermission) {
-      codes.add(item.requiredPermission);
-    }
-    for (const permission of item.requiredPermissions ?? []) {
-      codes.add(permission);
-    }
-    if (item.children) {
-      collectPermissionCodes(item.children, codes);
-    }
-  }
-}
-
-const PERMISSION_CODES_BY_MODULE = PERMISSIONS.reduce<Record<string, string[]>>(
-  (acc, permission) => {
-    const moduleCodes = acc[permission.module] ?? [];
-    moduleCodes.push(permission.code);
-    acc[permission.module] = moduleCodes;
-    return acc;
-  },
-  {},
-);
-
-export function workspacePermissionCodes(workspace: AppWorkspaceConfig): readonly string[] {
-  const codes = new Set<string>();
-  for (const moduleName of workspace.permissionModules) {
-    for (const code of PERMISSION_CODES_BY_MODULE[moduleName] ?? []) {
-      codes.add(code);
-    }
-  }
-  return [...codes];
-}
-
-export function workspaceHasPermission(
-  workspace: AppWorkspaceConfig,
-  hasPermission: (code: string) => boolean,
-): boolean {
-  return workspacePermissionCodes(workspace).some((code) => hasPermission(code));
-}
-
-export const APP_LAUNCHER_PERMISSIONS: readonly string[] = (() => {
-  const codes = new Set<string>();
-  for (const workspace of APP_WORKSPACES) {
-    for (const code of workspacePermissionCodes(workspace)) {
-      codes.add(code);
-    }
-  }
-  for (const group of NAV_GROUPS) {
-    collectPermissionCodes(group.items, codes);
-  }
-  return [...codes];
-})();
-
 // ── Breadcrumb path labels ──
 
 /** Walk the nav tree and build a path→label map using the given translation function. */
@@ -1334,7 +1070,6 @@ export function buildPathLabels(groups: NavGroupConfig[], t: TFunction): Record<
   labels["/admin"] = t("administration", { ns: "nav" });
   labels["/specialty"] = t("specialty", { ns: "nav" });
   labels["/m"] = t("modules", { ns: "nav" });
-  labels["/apps"] = "Apps";
   labels["/patients/register"] = "Register Patient";
   labels["/opd/new"] = "New Visit";
   labels["/opd/queue"] = "Queue";

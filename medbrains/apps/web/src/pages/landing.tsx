@@ -326,7 +326,7 @@ export function LandingPage() {
 
           <div className={classes.navActions}>
             {user ? (
-              <Button tone="primary" size="sm" onClick={() => navigate("/apps")}>
+              <Button tone="primary" size="sm" onClick={() => navigate("/dashboard")}>
                 Go to Dashboard
               </Button>
             ) : (
@@ -361,7 +361,7 @@ export function LandingPage() {
             <Button
               tone="primary"
               size="lg"
-              onClick={() => navigate(user ? "/apps" : "/onboarding")}
+              onClick={() => navigate(user ? "/dashboard" : "/onboarding")}
             >
               Get Started
             </Button>

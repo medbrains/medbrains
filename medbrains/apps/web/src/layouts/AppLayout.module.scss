@@ -431,98 +431,6 @@
   background: var(--mantine-color-primary-filled, var(--mantine-color-primary-5));
 }
 
-// ── App workspace selector ──
-
-.workspaceSelector {
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px 4px 5px;
-  border: 1px solid var(--mb-border);
-  border-radius: 10px;
-  background: var(--mb-card-bg);
-  color: var(--mb-text-secondary);
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
-  cursor: pointer;
-  transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
-
-  &:hover {
-    border-color: var(--mb-active-border, var(--mb-text-faint));
-    box-shadow: 0 12px 28px rgba(14, 165, 233, 0.12);
-    transform: translateY(-1px);
-  }
-
-  &:active {
-    transform: scale(0.98);
-  }
-}
-
-.workspaceIconWrap,
-.workspaceMenuIcon {
-  position: relative;
-  overflow: hidden;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  color: white;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16);
-
-  &::after {
-    content: "";
-    position: absolute;
-    inset: -40%;
-    background: transparent;
-    transform: translateX(-70%) rotate(18deg);
-    animation: workspaceShine 2.8s ease-in-out infinite;
-  }
-
-  > * {
-    position: relative;
-    z-index: 1;
-  }
-}
-
-.workspaceIconWrap {
-  width: 28px;
-  height: 28px;
-  border-radius: 9px;
-}
-
-.workspaceIcon {
-  display: inline-flex;
-  animation: workspaceIconFloat 2.4s ease-in-out infinite;
-}
-
-.workspaceText {
-  min-width: 72px;
-}
-
-.workspaceDropdown {
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.workspaceMenuItem {
-  border-radius: 8px;
-  margin: 3px 4px;
-}
-
-.workspaceMenuItemActive {
-  composes: workspaceMenuItem;
-  background: var(--mb-nav-active-bg, #e0f2fe);
-}
-
-.workspaceMenuIcon {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-}
-
 // ── Breadcrumbs ──
 
 .breadcrumbs {
@@ -551,27 +459,6 @@
   }
 }
 
-@keyframes workspaceShine {
-  0%,
-  55%,
-  100% {
-    transform: translateX(-75%) rotate(18deg);
-  }
-  75% {
-    transform: translateX(75%) rotate(18deg);
-  }
-}
-
-@keyframes workspaceIconFloat {
-  0%,
-  100% {
-    transform: translateY(0) scale(1);
-  }
-  50% {
-    transform: translateY(-1px) scale(1.08);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .navbarRail,
   .navbarExpanded,
@@ -589,10 +476,7 @@
 
   .railItemActive .navIcon,
   .expandedItemActive .navIcon,
-  .expandedChildActive .navIcon,
-  .workspaceIcon,
-  .workspaceIconWrap::after,
-  .workspaceMenuIcon::after {
+  .expandedChildActive .navIcon {
     animation: none;
     filter: none;
   }

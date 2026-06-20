@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { useNavigate } from "react-router";
 
 /**
- * Guard hook — redirects to the app launcher if the user lacks the required permission.
+ * Guard hook — redirects to the dashboard if the user lacks the required permission.
  * Passing multiple codes allows access when any one permission is granted.
  */
 export function useRequirePermission(code: string | readonly string[]): void {
@@ -14,7 +14,7 @@ export function useRequirePermission(code: string | readonly string[]): void {
 
   useEffect(() => {
     if (!hasPermission) {
-      navigate("/apps", { replace: true });
+      navigate("/dashboard", { replace: true });
     }
   }, [hasPermission, navigate]);
 }

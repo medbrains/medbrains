@@ -31,10 +31,6 @@ const ForgotPasswordPage = lazy(() =>
 const MfaEnrollPage = lazy(() =>
   import("./pages/mfa-enroll").then((m) => ({ default: m.MfaEnrollPage })),
 );
-const AppsPage = lazy(() => import("./pages/apps").then((m) => ({ default: m.AppsPage })));
-const WorkspaceLandingPage = lazy(() =>
-  import("./pages/apps").then((m) => ({ default: m.WorkspaceLandingPage })),
-);
 const DemoDicomFixturesPage = lazy(() =>
   import("./pages/demo-dicom-fixtures").then((m) => ({ default: m.DemoDicomFixturesPage })),
 );
@@ -318,8 +314,6 @@ export function App() {
                 </ProtectedRoute>
               }
             >
-              <Route path="apps" element={<AppsPage />} />
-              <Route path="apps/:workspaceKey" element={<WorkspaceLandingPage />} />
               <Route path="dashboard" element={<DashboardPage />} />
               <Route path="components-inputs" element={<ComponentsInputsPage />} />
               <Route path="demo/dicom/*" element={<DemoDicomFixturesPage />} />

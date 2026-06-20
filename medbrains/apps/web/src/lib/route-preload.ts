@@ -1,7 +1,6 @@
 type RoutePreloader = () => Promise<unknown>;
 
 const routePreloaders: Record<string, RoutePreloader> = {
-  "/apps": () => import("@/pages/apps"),
   "/dashboard": () => import("@/pages/dashboard"),
   "/components-inputs": () => import("@/pages/components-inputs"),
   "/patients": () => import("@/pages/patients"),

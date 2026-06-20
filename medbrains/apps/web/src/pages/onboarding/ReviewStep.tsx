@@ -66,7 +66,7 @@ export function ReviewStep({ onBack }: Props) {
     },
     onSuccess: () => {
       reset();
-      navigate("/apps");
+      navigate("/dashboard");
     },
   });
 

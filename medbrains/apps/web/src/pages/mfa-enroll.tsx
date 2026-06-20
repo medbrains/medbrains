@@ -125,7 +125,7 @@ export function MfaEnrollPage() {
                   </Button>
                 )}
               </CopyButton>
-              <Button tone="primary" onClick={() => navigate("/apps", { replace: true })}>
+              <Button tone="primary" onClick={() => navigate("/dashboard", { replace: true })}>
                 Done
               </Button>
             </Group>
