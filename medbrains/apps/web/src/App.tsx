@@ -156,6 +156,9 @@ const CommunicationsPage = lazy(() =>
   import("./pages/communications").then((m) => ({ default: m.CommunicationsPage })),
 );
 const CampPage = lazy(() => import("./pages/camp").then((m) => ({ default: m.CampPage })));
+const TelemedicinePage = lazy(() =>
+  import("./pages/telemedicine").then((m) => ({ default: m.TelemedicinePage })),
+);
 const CampCreatePage = lazy(() =>
   import("./pages/camp").then((m) => ({ default: m.CampCreatePage })),
 );
@@ -375,6 +378,7 @@ export function App() {
               <Route path="ambulance" element={<AmbulancePage />} />
               <Route path="communications" element={<CommunicationsPage />} />
               <Route path="camp" element={<CampPage />} />
+              <Route path="telemedicine" element={<TelemedicinePage />} />
               <Route path="camp/new" element={<CampCreatePage />} />
               <Route path="camp/:campId/work" element={<CampWorkPage />} />
               <Route path="camp/:campId/work/plan" element={<CampPlanEditPage />} />

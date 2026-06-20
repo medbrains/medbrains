@@ -63,6 +63,7 @@ import {
   IconUserShield,
   IconUsers,
   IconUsersGroup,
+  IconVideo,
   IconWash,
 } from "@tabler/icons-react";
 import type { TFunction } from "i18next";
@@ -155,6 +156,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: num
   IconHistory,
   IconFileAnalytics,
   IconDental,
+  IconVideo,
 };
 
 export function resolveIcon(name: string, size = 20, stroke = 1.5): ReactNode {
@@ -320,6 +322,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         path: "/opd/appointments",
         icon: "IconCalendar",
         requiredPermission: "opd.appointment.list",
+      },
+      {
+        i18nKey: "telemedicine",
+        path: "/telemedicine",
+        icon: "IconVideo",
+        requiredPermission: "opd.queue.view",
       },
       {
         i18nKey: "doctorSignoffs",

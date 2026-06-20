@@ -21,6 +21,7 @@
   "patients": "Patients",
   "opdQueue": "OPD Queue",
   "appointments": "Appointments",
+  "telemedicine": "Telemedicine",
   "doctorSignoffs": "Doctor Sign-offs",
   "lab": "Lab",
   "pharmacy": "Pharmacy",

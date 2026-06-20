@@ -29990,6 +29990,7 @@ export interface TeleConsultation {
   doctor_id: string;
   room_id: string;
   provider: string;
+  meeting_url?: string | null;
   status: string;
   scheduled_at?: string | null;
   started_at?: string | null;
@@ -30015,6 +30016,8 @@ export interface CreateTeleConsultationRequest {
   appointment_id?: string;
   encounter_id?: string;
   scheduled_at?: string;
+  provider?: string;
+  meeting_url?: string;
 }
 
 export interface UpdateTeleStatusRequest {
