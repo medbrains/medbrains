@@ -155,5 +155,8 @@
   "deviceIntegrations.connectors.queueDisplay.fields.locationCode.description": "Department, desk, or ward binding code.",
   "deviceIntegrations.connectors.queueDisplay.fields.websocketChannel.label": "WebSocket Channel",
   "deviceIntegrations.connectors.queueDisplay.fields.websocketChannel.description": "Live event channel or topic for this display.",
-  "settings.operations": "Operations"
+  "settings.operations": "Operations",
+  "settings": {
+    "tokens": "Tokens"
+  }
 }

@@ -48,6 +48,7 @@ import { ModulesSettings } from "@/pages/admin/settings/ModulesSettings";
 import { OfflineModeSettings } from "@/pages/admin/settings/OfflineModeSettings";
 import { OperationsSettings } from "@/pages/admin/settings/OperationsSettings";
 import { PrintTemplateSettings } from "@/pages/admin/settings/PrintTemplateSettings";
+import { TokensSettings } from "@/pages/admin/settings/TokensSettings";
 import { SequencesSettings } from "@/pages/admin/settings/SequencesSettings";
 import { ServicesSettings } from "@/pages/admin/settings/ServicesSettings";
 import { StandardsSettings } from "@/pages/admin/settings/StandardsSettings";
@@ -79,6 +80,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: "IconClockCog",
     requiredPermission: "admin.settings.general.manage",
     component: OperationsSettings,
+  },
+  {
+    value: "tokens",
+    i18nKey: "settings.tokens",
+    icon: "IconLayoutGrid",
+    requiredPermission: "admin.settings.general.manage",
+    component: TokensSettings,
   },
   {
     value: "master-data",
