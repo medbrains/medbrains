@@ -3943,6 +3943,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  importChargeMaster: (data: CsvImportRequest) =>
+    request<CsvImportResult>("/billing/charge-master/import", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateChargeMaster: (id: string, data: UpdateChargeMasterRequest) =>
     request<ChargeMaster>(`/billing/charge-master/${id}`, {
       method: "PUT",

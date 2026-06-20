@@ -1166,6 +1166,10 @@ pub fn build_router(state: AppState) -> Router {
             get(billing::list_charge_master).post(billing::create_charge_master),
         )
         .route(
+            "/api/billing/charge-master/import",
+            post(catalog_import::import_charge_master),
+        )
+        .route(
             "/api/billing/charge-master/{id}",
             put(billing::update_charge_master)
                 .delete(billing::delete_charge_master),

@@ -28,6 +28,8 @@ export const billingService = {
     api.listChargeMaster(...args),
   createChargeMaster: (...args: Parameters<typeof api.createChargeMaster>) =>
     api.createChargeMaster(...args),
+  importChargeMaster: (...args: Parameters<typeof api.importChargeMaster>) =>
+    api.importChargeMaster(...args),
   deleteChargeMaster: (...args: Parameters<typeof api.deleteChargeMaster>) =>
     api.deleteChargeMaster(...args),
   calculateCopay: (...args: Parameters<typeof api.calculateCopay>) => api.calculateCopay(...args),

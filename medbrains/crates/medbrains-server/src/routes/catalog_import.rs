@@ -373,3 +373,97 @@ pub async fn import_procedure_catalog(
         errors,
     }))
 }
+
+/// POST /api/billing/charge-master/import
+///
+/// Columns: code*, name*, category*, base_price, tax_percent,
+/// hsn_sac_code, gst_category
+pub async fn import_charge_master(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CsvImportRequest>,
+) -> Result<Json<CsvImportResult>, AppError> {
+    require_permission(&claims, permissions::billing::catalog::MANAGE)?;
+
+    let col = |name: &str| {
+        body.headers
+            .iter()
+            .position(|h| h.eq_ignore_ascii_case(name))
+    };
+    let code_idx = col("code")
+        .ok_or_else(|| AppError::BadRequest("CSV must have a 'code' column".to_owned()))?;
+    let name_idx = col("name")
+        .ok_or_else(|| AppError::BadRequest("CSV must have a 'name' column".to_owned()))?;
+    let category_idx = col("category")
+        .ok_or_else(|| AppError::BadRequest("CSV must have a 'category' column".to_owned()))?;
+    let price_idx = col("base_price");
+    let tax_idx = col("tax_percent");
+    let hsn_idx = col("hsn_sac_code")
+        .or_else(|| col("hsn_code"))
+        .or_else(|| col("sac_code"));
+    let gst_idx = col("gst_category");
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let mut imported = 0i64;
+    let mut skipped = 0i64;
+    let mut errors = Vec::new();
+
+    for (i, row) in body.rows.iter().enumerate() {
+        let row_num = i + 2;
+        let values = &row.values;
+        let code = cell(values, Some(code_idx));
+        let name = cell(values, Some(name_idx));
+        let category = cell(values, Some(category_idx));
+        if code.is_empty() || name.is_empty() || category.is_empty() {
+            errors.push(format!("Row {row_num}: code, name and category are required"));
+            skipped += 1;
+            continue;
+        }
+        // base_price + tax_percent are NOT NULL — empty cells default to zero.
+        let base_price = parse_decimal(cell(values, price_idx)).unwrap_or(Decimal::ZERO);
+        let tax_percent = parse_decimal(cell(values, tax_idx)).unwrap_or(Decimal::ZERO);
+        let gst_category = optional(cell(values, gst_idx)).unwrap_or("healthcare");
+
+        let result = sqlx::query(
+            "INSERT INTO charge_master \
+             (tenant_id, code, name, category, base_price, tax_percent, \
+              hsn_sac_code, gst_category) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+             ON CONFLICT (tenant_id, code) DO UPDATE SET \
+               name = EXCLUDED.name, \
+               category = EXCLUDED.category, \
+               base_price = EXCLUDED.base_price, \
+               tax_percent = EXCLUDED.tax_percent, \
+               hsn_sac_code = COALESCE(EXCLUDED.hsn_sac_code, charge_master.hsn_sac_code), \
+               gst_category = EXCLUDED.gst_category, \
+               is_active = true, updated_at = now()",
+        )
+        .bind(claims.tenant_id)
+        .bind(code)
+        .bind(name)
+        .bind(category)
+        .bind(base_price)
+        .bind(tax_percent)
+        .bind(optional(cell(values, hsn_idx)))
+        .bind(gst_category)
+        .execute(&mut *tx)
+        .await;
+
+        match result {
+            Ok(_) => imported += 1,
+            Err(e) => {
+                errors.push(format!("Row {row_num} ({code}): {e}"));
+                skipped += 1;
+            }
+        }
+    }
+
+    tx.commit().await?;
+    Ok(Json(CsvImportResult {
+        imported,
+        skipped,
+        errors,
+    }))
+}

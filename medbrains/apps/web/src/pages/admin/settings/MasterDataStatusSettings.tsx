@@ -1385,6 +1385,13 @@ export function MasterDataStatusSettings() {
         canView: canViewBillingCatalog,
         isError: queryError(chargeMasterQuery),
         location: "module",
+        csvImport: {
+          title: "Import charge master",
+          requiredColumns: ["code", "name", "category"],
+          optionalColumns: ["base_price", "tax_percent", "hsn_sac_code", "gst_category"],
+          invalidateKey: ["billing-charge-master"],
+          run: (data) => billingService.importChargeMaster(data),
+        },
       }),
       item({
         key: "billing-packages",
