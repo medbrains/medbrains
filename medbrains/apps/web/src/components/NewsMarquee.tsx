@@ -151,7 +151,7 @@ export function NewsMarquee() {
             </a>
           </HoverCard.Target>
           <HoverCard.Dropdown className={styles.card}>
-            <span className={styles.cardEyebrow}>{news.topic}</span>
+            <span className={styles.cardEyebrow}>{host ?? news.topic}</span>
             <Text className={styles.cardTitle}>{item.title}</Text>
             {item.description && <Text className={styles.cardDesc}>{item.description}</Text>}
             <a
