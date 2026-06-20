@@ -1650,6 +1650,8 @@ export function EncounterDetail({
   const emit = useClinicalEmit();
   const orderBasketDeepLinkTab = opdOrderBasketTabFromSearchParams(searchParams);
   const [summaryOpened, { open: openSummary, close: closeSummary }] = useDisclosure(false);
+  // Controlled so the Patient Flow "IPD" chip can open the same Admit modal.
+  const admitControl = useDisclosure(false);
   const [activeEncounterTab, setActiveEncounterTab] = useHashTabs(
     "consultation",
     OPD_ENCOUNTER_TAB_VALUES,
@@ -1812,6 +1814,18 @@ export function EncounterDetail({
         activePharmacyRxQueueId={activePharmacyRxQueueId}
         completedEvents={journeyCompletedEvents}
         compact
+        onStageAction={(stage) => {
+          // Reuse the encounter's own modals/drawers instead of navigating away.
+          if (stage === "pharmacy" && canOrder) {
+            openOrderBasket("drug");
+            return true;
+          }
+          if (stage === "ipd") {
+            admitControl[1].open();
+            return true;
+          }
+          return false;
+        }}
       />
 
       {/* Encounter action toolbar — lives in the header, above the rail/content split. */}
@@ -1859,7 +1873,12 @@ export function EncounterDetail({
             </Button>
           </Menu.Target>
           <Menu.Dropdown>
-            <AdmitToIpdButton encounterId={encounterId} patientName={patientName} asMenuItem />
+            <AdmitToIpdButton
+              encounterId={encounterId}
+              patientName={patientName}
+              asMenuItem
+              control={admitControl}
+            />
             <GroupAppointmentModal patientId={patientId} asMenuItem />
             <Menu.Item leftSection={<IconPrinter size={14} />} onClick={openSummary}>
               Print
@@ -3539,13 +3558,16 @@ function AdmitToIpdButton({
   encounterId,
   patientName,
   asMenuItem = false,
+  control,
 }: {
   encounterId: string;
   patientName: string;
   asMenuItem?: boolean;
+  control?: ReturnType<typeof useDisclosure>;
 }) {
   const { t } = useTranslation("opd");
-  const [opened, { open, close }] = useDisclosure(false);
+  const internalDisclosure = useDisclosure(false);
+  const [opened, { open, close }] = control ?? internalDisclosure;
   const queryClient = useQueryClient();
   const [deptId, setDeptId] = useState<string | null>(null);
   const [wardId, setWardId] = useState<string | null>(null);

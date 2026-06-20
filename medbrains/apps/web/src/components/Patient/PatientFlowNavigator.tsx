@@ -57,6 +57,9 @@ interface PatientFlowNavigatorProps {
   completedEvents?: readonly ClinicalEventName[];
   isDeceased?: boolean;
   compact?: boolean;
+  /** Intercept a stage chip — return true to handle it (e.g. open a modal)
+   *  instead of navigating to the stage's page. */
+  onStageAction?: (stageId: string) => boolean;
 }
 
 interface FlowVisual {
@@ -145,6 +148,7 @@ export function PatientFlowNavigator({
   completedEvents,
   isDeceased = false,
   compact = false,
+  onStageAction,
 }: PatientFlowNavigatorProps) {
   const navigate = useNavigate();
   const { t } = useTranslation("clinical");
@@ -230,7 +234,10 @@ export function PatientFlowNavigator({
               variant={isActive ? "filled" : "default"}
               leftSection={visual.icon}
               disabled={!item.enabled}
-              onClick={() => navigate(item.href)}
+              onClick={() => {
+                if (onStageAction?.(item.id)) return;
+                navigate(item.href);
+              }}
             >
               {patientFlowItemLabel(t, item)}
             </Button>
