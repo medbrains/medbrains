@@ -1,13 +1,13 @@
-import { Group, Pagination, SimpleGrid, Stack, Tabs, Text } from "@mantine/core";
+import { Group, Pagination, Stack, Tabs, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, Search } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { PageHeader } from "@/components";
 import { BlogSection } from "@/components/HealthPulse/BlogSection";
-import { Badge, Button, Card, Drawer, Input, Select } from "@/components/ui";
+import { Badge, Button, Drawer, Input, Select } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import styles from "./health-pulse.module.scss";
 
@@ -53,8 +53,22 @@ export function HealthPulsePage() {
     staleTime: 300_000,
   });
 
-  const totalPages = Math.max(1, Math.ceil((articles?.length ?? 0) / pageSize));
-  const pageItems = (articles ?? []).slice((page - 1) * pageSize, page * pageSize);
+  // The same article can appear under several topics (shared feeds), so the
+  // all-specialties view must dedupe by URL.
+  const deduped = useMemo(() => {
+    const seen = new Set<string>();
+    return (articles ?? []).filter((a) => {
+      if (seen.has(a.url)) return false;
+      seen.add(a.url);
+      return true;
+    });
+  }, [articles]);
+
+  const totalPages = Math.max(1, Math.ceil(deduped.length / pageSize));
+  const pageItems = deduped.slice((page - 1) * pageSize, page * pageSize);
+  const hero = pageItems[0];
+  const secondary = pageItems.slice(1, 5);
+  const latest = pageItems.slice(5);
 
   const { data: article } = useQuery({
     queryKey: ["news-feed", "article", openId],
@@ -119,32 +133,56 @@ export function HealthPulsePage() {
             No articles found. Try a different search or specialty.
           </Text>
         ) : (
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-            {pageItems.map((item) => (
-              <Card
-                key={item.id}
-                withBorder
-                className={styles.card}
-                onClick={() => setOpenId(item.id)}
-              >
-                <Group justify="space-between" gap="xs" mb={6}>
-                  <span className={styles.source}>{item.source}</span>
-                  <Text size="xs" c="dimmed">
-                    {formatDate(item.published_at)}
-                  </Text>
-                </Group>
-                <Text className={styles.cardTitle}>{item.title}</Text>
-                {item.summary && (
-                  <Text size="sm" c="dimmed" lineClamp={3} mt={6}>
-                    {item.summary}
-                  </Text>
-                )}
-                <Badge tone="success" mt="sm">
-                  {item.topic}
-                </Badge>
-              </Card>
-            ))}
-          </SimpleGrid>
+          <div className={styles.editorial}>
+            {hero && (
+              <button type="button" className={styles.hero} onClick={() => setOpenId(hero.id)}>
+                <span className={styles.heroEyebrow}>
+                  {hero.source} · {hero.topic}
+                </span>
+                <span className={styles.heroTitle}>{hero.title}</span>
+                {hero.summary && <span className={styles.heroSummary}>{hero.summary}</span>}
+                <span className={styles.meta}>{formatDate(hero.published_at)}</span>
+              </button>
+            )}
+
+            {secondary.length > 0 && (
+              <div className={styles.secondary}>
+                {secondary.map((item) => (
+                  <button
+                    type="button"
+                    key={item.id}
+                    className={styles.secCard}
+                    onClick={() => setOpenId(item.id)}
+                  >
+                    <span className={styles.eyebrow}>{item.source}</span>
+                    <span className={styles.secTitle}>{item.title}</span>
+                    <span className={styles.meta}>{formatDate(item.published_at)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {latest.length > 0 && (
+              <div className={styles.latest}>
+                <span className={styles.sectionHead}>Latest</span>
+                {latest.map((item, index) => (
+                  <button
+                    type="button"
+                    key={item.id}
+                    className={styles.latestRow}
+                    onClick={() => setOpenId(item.id)}
+                  >
+                    <span className={styles.rank}>{String(index + 6).padStart(2, "0")}</span>
+                    <span className={styles.latestBody}>
+                      <span className={styles.eyebrow}>{item.source}</span>
+                      <span className={styles.latestTitle}>{item.title}</span>
+                    </span>
+                    <span className={styles.meta}>{formatDate(item.published_at)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         ))}
 
       {tab === "news" && totalPages > 1 && (

@@ -27,46 +27,194 @@
   border-top: 1px solid var(--mb-border-default, #e0e0e0);
 }
 
-.card {
-  cursor: pointer;
-  transition: border-color 120ms ease, box-shadow 120ms ease;
+// ── Editorial layout (The Verge × IBM Carbon) ───────────────────────────────
+// IBM Carbon "productive" motion easing for hover transitions.
+$ibm-ease: cubic-bezier(0.2, 0, 0.38, 0.9);
+
+.editorial {
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+  padding-top: 8px;
 }
 
-.card {
-  // Vital-green left indicator — the Health Pulse / news signal colour.
-  border-left: 3px solid var(--mb-accent-emphasis, #42be65);
-}
-
-.card:hover {
-  border-color: var(--mb-accent-emphasis, #42be65);
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
-}
-
-.source {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+// Shared eyebrow + meta (IBM Plex Mono).
+.eyebrow,
+.heroEyebrow,
+.meta {
   font-family: var(--mb-font-mono, "IBM Plex Mono", monospace);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.heroEyebrow,
+.eyebrow {
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  color: var(--mb-interactive, #0f62fe);
+}
+
+.meta {
+  font-size: 10.5px;
   color: var(--mb-text-muted, #6f6f6f);
 }
 
-.source::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--mb-accent-emphasis, #42be65);
+// Lead story — big editorial headline, vital-green signal edge.
+.hero {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 28px 32px;
+  border: 1px solid var(--mb-border-default, #e0e0e0);
+  border-left: 4px solid var(--mb-accent-emphasis, #42be65);
+  background: var(--mb-bg-default, #fff);
+  cursor: pointer;
+  transition: box-shadow 150ms $ibm-ease, transform 150ms $ibm-ease;
 }
 
-.cardTitle {
+.hero:hover {
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.hero:focus-visible {
+  outline: 2px solid var(--mb-interactive, #0f62fe);
+  outline-offset: 2px;
+}
+
+.heroTitle {
+  font-size: clamp(26px, 3.6vw, 42px);
+  font-weight: 600;
+  line-height: 1.06;
+  letter-spacing: -0.02em;
+  color: var(--mb-text-primary, #161616);
+}
+
+.heroSummary {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--mb-text-secondary, #525252);
+}
+
+// Secondary row — a band of medium stories.
+.secondary {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 24px;
+}
+
+.secCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+  padding-top: 14px;
+  border-top: 2px solid var(--mb-text-primary, #161616);
+  background: none;
+  cursor: pointer;
+}
+
+.secTitle {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--mb-text-primary, #161616);
+  transition: color 120ms $ibm-ease;
+}
+
+.secCard:hover .secTitle {
+  color: var(--mb-interactive, #0f62fe);
+}
+
+.secCard:focus-visible {
+  outline: 2px solid var(--mb-interactive, #0f62fe);
+  outline-offset: 2px;
+}
+
+// Latest — numbered feed list (Verge signature).
+.latest {
+  display: flex;
+  flex-direction: column;
+}
+
+.sectionHead {
+  font-family: var(--mb-font-mono, "IBM Plex Mono", monospace);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mb-text-primary, #161616);
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+  border-bottom: 2px solid var(--mb-text-primary, #161616);
+}
+
+.latestRow {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  text-align: left;
+  padding: 14px 8px;
+  border-bottom: 1px solid var(--mb-border-default, #e0e0e0);
+  background: none;
+  cursor: pointer;
+  transition: background 120ms $ibm-ease;
+}
+
+.latestRow:hover {
+  background: var(--mb-bg-hover, #f4f4f4);
+}
+
+.latestRow:focus-visible {
+  outline: 2px solid var(--mb-interactive, #0f62fe);
+  outline-offset: -2px;
+}
+
+.rank {
+  font-family: var(--mb-font-mono, "IBM Plex Mono", monospace);
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--mb-accent-emphasis, #42be65);
+}
+
+.latestBody {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.latestTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 15px;
   font-weight: 600;
-  line-height: 1.35;
   color: var(--mb-text-primary, #161616);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero,
+  .latestRow,
+  .secTitle {
+    transition: none;
+  }
+  .hero:hover {
+    transform: none;
+  }
 }
 
 .readerTitle {
