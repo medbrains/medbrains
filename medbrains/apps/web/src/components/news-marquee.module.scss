@@ -1,0 +1,94 @@
+// Header medical-news ticker — a leading topic chip + a vertical fold rotator
+// that flips through one live headline at a time.
+.marquee {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+  height: 100%;
+}
+
+// Leading topic chip — brand-tinted, identifies the role's news stream.
+.topic {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--mb-brand-bg, #edf5ff);
+  color: var(--mb-interactive, #0f62fe);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+// 3D stage — gives the fold its perspective and clips the rotating headline.
+.stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  perspective: 600px;
+}
+
+.fold {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--mb-text-secondary, #525252);
+  text-decoration: none;
+  transform-origin: top center;
+  backface-visibility: hidden;
+  animation: fold-in 520ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fold:hover,
+.fold:focus-visible {
+  color: var(--mb-interactive, #0f62fe);
+}
+
+.title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--mb-interactive, #0f62fe);
+}
+
+// Fold the next headline down from the top, like a flip-board row.
+@keyframes fold-in {
+  0% {
+    transform: rotateX(-90deg);
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    transform: rotateX(0deg);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fold {
+    animation: none;
+  }
+}

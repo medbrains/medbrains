@@ -35,6 +35,7 @@ import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
 import { HeaderWidgets } from "@/components/HeaderWidgets";
+import { NewsMarquee } from "@/components/NewsMarquee";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { buildPathLabels, NAV_GROUPS, type NavItemConfig, resolveIcon } from "@/config/navigation";
@@ -395,8 +396,8 @@ export function AppLayout() {
     >
       {/* ── Header ── */}
       <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between">
-          <Group gap="sm">
+        <Group h="100%" px="md" gap="md" wrap="nowrap">
+          <Group gap="sm" wrap="nowrap">
             <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
             <Group gap={8} className={classes.logoArea} onClick={() => navigate("/dashboard")}>
               <img
@@ -420,7 +421,11 @@ export function AppLayout() {
             </Group>
           </Group>
 
-          <Group gap="sm">
+          <Box visibleFrom="md" style={{ flex: 1, minWidth: 0, height: "100%" }}>
+            <NewsMarquee />
+          </Box>
+
+          <Group gap="sm" wrap="nowrap">
             <HeaderWidgets />
             <Divider orientation="vertical" size="sm" visibleFrom="sm" />
             {/* Spotlight trigger */}

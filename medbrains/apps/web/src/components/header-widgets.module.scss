@@ -1,0 +1,38 @@
+// Colourful, compact header pills for the live clock + weather.
+.pill {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.pillClock {
+  background: var(--mb-brand-bg, #edf5ff);
+  border-color: rgba(15, 98, 254, 0.25);
+}
+
+.clockTime {
+  color: var(--mb-interactive, #0f62fe);
+}
+
+// A soft tick pulse on the clock icon — calm, not distracting.
+.pulse {
+  color: var(--mb-interactive, #0f62fe);
+  animation: clock-tick 2s ease-in-out infinite;
+}
+
+@keyframes clock-tick {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation: none;
+  }
+}
