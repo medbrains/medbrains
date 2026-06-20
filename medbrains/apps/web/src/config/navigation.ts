@@ -236,6 +236,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         icon: "IconDashboard",
         requiredPermission: "dashboard.view",
       },
+      {
+        i18nKey: "tokenBoard",
+        path: "/token-board",
+        icon: "IconLayoutGrid",
+        requiredPermission: "front_office.queue.list",
+      },
     ],
   },
   {
