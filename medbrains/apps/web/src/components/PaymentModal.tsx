@@ -3,6 +3,7 @@ import {
   Alert,
   Badge,
   Button,
+  Divider,
   Group,
   Modal,
   NumberInput,
@@ -29,6 +30,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { paymentsService } from "@/services/payments.service";
+import { VirtualAccountPanel } from "./VirtualAccountPanel";
 
 declare global {
   interface Window {
@@ -502,6 +504,26 @@ export function PaymentModal({
               Record Cash Payment
             </Button>
           </Stack>
+        )}
+
+        {invoiceId && !paymentBlocked && (
+          <>
+            <Divider label="or collect by bank transfer" labelPosition="center" />
+            <VirtualAccountPanel
+              invoiceId={invoiceId}
+              amount={amount}
+              patientName={patientName}
+              onSettled={() => {
+                onSuccess("virtual_account", {
+                  source: "gateway",
+                  mode: "upi",
+                  amount,
+                  reference_number: "virtual_account",
+                });
+                onClose();
+              }}
+            />
+          </>
         )}
       </Stack>
     </Modal>
