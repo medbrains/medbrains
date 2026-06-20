@@ -137,6 +137,8 @@ import {
 } from "@/components";
 import { BedSelect } from "@/components/BedSelect";
 import { PatientBillingModal } from "@/components/Billing/PatientBillingModal";
+import { CampRegistrationModal } from "@/components/Camp/CampRegistrationModal";
+import { EmergencyVisitModal } from "@/components/Emergency/EmergencyVisitModal";
 import { OrderBasketChip } from "@/components/OrderBasket/OrderBasketChip";
 import {
   type OrderBasketTab,
@@ -1655,6 +1657,8 @@ export function EncounterDetail({
   // Controlled so the Patient Flow "IPD" chip can open the same Admit modal.
   const admitControl = useDisclosure(false);
   const billingControl = useDisclosure(false);
+  const emergencyControl = useDisclosure(false);
+  const campControl = useDisclosure(false);
   const [patientPeekOpened, patientPeek] = useDisclosure(false);
   const [activeEncounterTab, setActiveEncounterTab] = useHashTabs(
     "consultation",
@@ -1836,6 +1840,14 @@ export function EncounterDetail({
             patientPeek.open();
             return true;
           }
+          if (stage === "emergency") {
+            emergencyControl[1].open();
+            return true;
+          }
+          if (stage === "camp") {
+            campControl[1].open();
+            return true;
+          }
           return false;
         }}
       />
@@ -1843,6 +1855,12 @@ export function EncounterDetail({
         patientId={patientId}
         encounterId={encounterId}
         control={billingControl}
+      />
+      <EmergencyVisitModal patientId={patientId} control={emergencyControl} />
+      <CampRegistrationModal
+        patientId={patientId}
+        patientName={patientName}
+        control={campControl}
       />
       <Modal opened={patientPeekOpened} onClose={patientPeek.close} title="Patient" size="lg">
         <Stack gap="sm">
