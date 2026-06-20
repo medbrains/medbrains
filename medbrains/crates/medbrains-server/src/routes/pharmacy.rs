@@ -1843,6 +1843,25 @@ pub async fn create_order_in_tx(
     ensure_order_items_stock_available_for_billing_in_tx(tx, &claims.tenant_id, &items).await?;
     ensure_pharmacy_billing_indent_for_order_in_tx(tx, &claims.tenant_id, &order, &items).await?;
 
+    // Auto-issue a pharmacy token (per store counter when known).
+    crate::routes::tokens::issue_token_in_tx(
+        tx,
+        claims.tenant_id,
+        crate::routes::tokens::IssueToken {
+            module: "pharmacy",
+            scope: if order.store_location_id.is_some() { "counter" } else { "global" },
+            scope_id: order.store_location_id,
+            scope_label: None,
+            priority: "normal",
+            patient_id: Some(order.patient_id),
+            patient_name: None,
+            entity_type: Some("pharmacy_order"),
+            entity_id: Some(order.id),
+            issued_by: Some(claims.sub),
+        },
+    )
+    .await?;
+
     order_detail_response_in_tx(tx, &claims.tenant_id, order, items).await
 }
 
