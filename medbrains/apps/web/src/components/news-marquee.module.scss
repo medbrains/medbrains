@@ -54,6 +54,80 @@
   background: var(--mb-interactive, #0f62fe);
 }
 
+// ── Hover card: full article heading + snippet + role magazines/sources ──
+.card {
+  display: flex;
+  flex-direction: column;
+}
+
+.cardEyebrow {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mb-interactive, #0f62fe);
+}
+
+.cardTitle {
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--mb-text-primary, #161616);
+}
+
+.cardDesc {
+  margin-top: 6px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--mb-text-secondary, #525252);
+}
+
+.cardCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: fit-content;
+  margin-top: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mb-interactive, #0f62fe);
+  text-decoration: none;
+}
+
+.cardCta:hover {
+  text-decoration: underline;
+}
+
+.cardDivider {
+  height: 1px;
+  margin: 12px 0;
+  background: var(--mb-border-default, #e0e0e0);
+}
+
+.cardSources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.cardSource {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--mb-bg-hover, #f4f4f4);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--mb-text-secondary, #525252);
+  text-decoration: none;
+  transition: background 100ms ease, color 100ms ease;
+}
+
+.cardSource:hover {
+  background: var(--mb-brand-bg, #edf5ff);
+  color: var(--mb-interactive, #0f62fe);
+}
+
 // Fold the next headline down from the top, like a flip-board row.
 @keyframes fold-in {
   0% {

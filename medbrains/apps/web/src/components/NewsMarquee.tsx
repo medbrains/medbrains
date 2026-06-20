@@ -1,6 +1,8 @@
+import { HoverCard, Text } from "@mantine/core";
 import { useFocusWithin, useHover, useInterval, useMergedRef } from "@mantine/hooks";
 import { useAuthStore } from "@medbrains/stores";
 import { useQuery } from "@tanstack/react-query";
+import { ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { useEffectOnce } from "react-use";
 import { type NewsSource, newsForRole } from "@/config/medical-news-sources";
@@ -9,11 +11,24 @@ import styles from "./news-marquee.module.scss";
 interface Headline {
   title: string;
   link: string;
+  description?: string;
 }
 
 interface Rss2JsonResponse {
   status: string;
-  items?: { title: string; link: string }[];
+  items?: { title: string; link: string; description?: string }[];
+}
+
+/** Strip HTML tags + collapse whitespace from a feed snippet for the tooltip. */
+function cleanSnippet(html: string | null | undefined): string | undefined {
+  if (!html) return undefined;
+  const text = html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&[a-z]+;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return undefined;
+  return text.length > 220 ? `${text.slice(0, 220)}…` : text;
 }
 
 /** Parse an RSS XML string into headlines (fallback proxy path). */
@@ -24,6 +39,7 @@ function parseRssXml(xml: string): Headline[] {
     .map((node) => ({
       title: node.querySelector("title")?.textContent?.trim() ?? "",
       link: node.querySelector("link")?.textContent?.trim() ?? "",
+      description: cleanSnippet(node.querySelector("description")?.textContent),
     }))
     .filter((item) => item.title && item.link);
 }
@@ -36,7 +52,11 @@ async function fetchHeadlines(feedUrl: string): Promise<Headline[]> {
     if (res.ok) {
       const json: Rss2JsonResponse = await res.json();
       if (json.status === "ok" && json.items?.length) {
-        return json.items.map((item) => ({ title: item.title, link: item.link }));
+        return json.items.map((item) => ({
+          title: item.title,
+          link: item.link,
+          description: cleanSnippet(item.description),
+        }));
       }
     }
   } catch {
@@ -51,6 +71,15 @@ async function fetchHeadlines(feedUrl: string): Promise<Headline[]> {
 
 function sourcesAsHeadlines(sources: NewsSource[]): Headline[] {
   return sources.map((source) => ({ title: source.name, link: source.url }));
+}
+
+/** Readable host for the card footer, e.g. "medlineplus.gov". */
+function hostnameOf(url: string): string | undefined {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return undefined;
+  }
 }
 
 const ROTATE_MS = 3200;
@@ -93,22 +122,64 @@ export function NewsMarquee() {
 
   const item = headlines[index % headlines.length];
   if (!item) return null;
+  const host = hostnameOf(item.link);
 
   return (
     <section ref={sectionRef} className={styles.marquee} aria-label={`${news.topic} news`}>
       <div className={styles.stage} aria-live="polite">
-        {/* key forces a remount each change so the fold-in animation replays */}
-        <a
-          key={index}
-          className={styles.fold}
-          href={item.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={item.title}
+        <HoverCard
+          width={360}
+          shadow="md"
+          radius="md"
+          position="bottom-start"
+          openDelay={200}
+          closeDelay={80}
+          withinPortal
         >
-          <span className={styles.dot} aria-hidden />
-          <span className={styles.title}>{item.title}</span>
-        </a>
+          <HoverCard.Target>
+            {/* key forces a remount each change so the fold-in animation replays */}
+            <a
+              key={index}
+              className={styles.fold}
+              href={item.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={item.title}
+            >
+              <span className={styles.dot} aria-hidden />
+              <span className={styles.title}>{item.title}</span>
+            </a>
+          </HoverCard.Target>
+          <HoverCard.Dropdown className={styles.card}>
+            <span className={styles.cardEyebrow}>{news.topic}</span>
+            <Text className={styles.cardTitle}>{item.title}</Text>
+            {item.description && <Text className={styles.cardDesc}>{item.description}</Text>}
+            <a
+              className={styles.cardCta}
+              href={item.link}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {host ? `Read on ${host}` : "Read article"}
+              <ExternalLink size={12} aria-hidden />
+            </a>
+            <div className={styles.cardDivider} />
+            <span className={styles.cardEyebrow}>Magazines &amp; sources</span>
+            <div className={styles.cardSources}>
+              {news.sources.map((source) => (
+                <a
+                  key={source.url}
+                  className={styles.cardSource}
+                  href={source.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {source.name}
+                </a>
+              ))}
+            </div>
+          </HoverCard.Dropdown>
+        </HoverCard>
       </div>
     </section>
   );
