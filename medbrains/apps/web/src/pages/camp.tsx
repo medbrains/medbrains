@@ -605,7 +605,7 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
         <Grid align="flex-start" className={classes.workspaceGrid}>
           <Grid.Col span={{ base: 12, lg: 8 }}>
             <Stack className={classes.workspaceMain}>
-              <Tabs.List className={classes.tabsList}>
+              <Tabs.List>
                 {workTabs.map((tab) => (
                   <Tabs.Tab key={tab.value} value={tab.value} leftSection={tab.icon}>
                     {tab.label}

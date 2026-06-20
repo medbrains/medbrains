@@ -1140,7 +1140,7 @@ function PharmacyPageInner() {
 
       {hasVisibleTab ? (
         <Tabs value={selectedTab} onChange={setSelectedTab}>
-          <Tabs.List mb="md" className={styles.tabsList}>
+          <Tabs.List mb="md">
             {canOpenRxQueue && (
               <Tabs.Tab value="rx-queue" leftSection={<IconPrescription size={14} />}>
                 {t("rxQueue")}
