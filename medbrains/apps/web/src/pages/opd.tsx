@@ -2313,7 +2313,7 @@ function VitalsTab({
 
   return (
     <Stack>
-      {canUpdate && !formOpened && (
+      {canUpdate && (
         <Group>
           <Button
             tone="primary"
@@ -2325,13 +2325,13 @@ function VitalsTab({
           </Button>
         </Group>
       )}
-      {formOpened && (
+      <Modal opened={formOpened} onClose={formHandlers.close} title="Record Vitals" size="lg">
         <VitalsRecorder
           onSubmit={handleSubmit}
           isSubmitting={unsyncedOps > 0}
           onCancel={formHandlers.close}
         />
-      )}
+      </Modal>
       {vitals.length > 0 && (
         <Timeline
           active={0}
@@ -2818,7 +2818,7 @@ function InvestigationsTab({
 
   return (
     <Stack>
-      {canUpdate && !formOpened && (
+      {canUpdate && (
         <Group>
           <Button
             tone="primary"
@@ -2831,8 +2831,8 @@ function InvestigationsTab({
         </Group>
       )}
 
-      {formOpened && (
-        <Card padding="sm" radius="md" withBorder>
+      <Modal opened={formOpened} onClose={formHandlers.close} title="Order Investigation" size="lg">
+        <Card padding="sm" radius="md" withBorder style={{ border: "none", boxShadow: "none" }}>
           <Stack gap="xs">
             <Controller
               control={control}
@@ -2931,7 +2931,7 @@ function InvestigationsTab({
             </Group>
           </Stack>
         </Card>
-      )}
+      </Modal>
 
       <Stack gap="sm">
         <Group justify="space-between" align="center">
