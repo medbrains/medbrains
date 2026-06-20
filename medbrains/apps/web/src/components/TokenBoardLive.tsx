@@ -52,6 +52,8 @@ export interface TokenBoardLiveProps {
   scopeId?: string;
   /** Public/TV mode — token-number-only (no patient name). */
   publicMode?: boolean;
+  /** TV/waiting-area mode — scales token numbers up for distance reading. */
+  display?: boolean;
 }
 
 /**
@@ -65,6 +67,7 @@ export function TokenBoardLive({
   scope,
   scopeId,
   publicMode = false,
+  display = false,
 }: TokenBoardLiveProps) {
   const queryClient = useQueryClient();
   const [muted, setMuted] = useState(false);
@@ -105,6 +108,7 @@ export function TokenBoardLive({
     <TokenDashboard
       title={title}
       tokens={tokens}
+      display={display}
       headerRight={
         <Group gap="xs">
           <IconButton

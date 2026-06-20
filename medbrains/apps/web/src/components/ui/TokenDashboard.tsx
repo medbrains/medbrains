@@ -29,6 +29,8 @@ export interface TokenDashboardProps {
   /** Columns for the "Up next" grid at the largest breakpoint (default 6). */
   columns?: number;
   emptyLabel?: string;
+  /** TV/waiting-area mode — scales token numbers up for across-the-room reading. */
+  display?: boolean;
 }
 
 /**
@@ -43,12 +45,14 @@ export function TokenDashboard({
   headerRight,
   columns = 6,
   emptyLabel = "No tokens in the queue.",
+  display = false,
 }: TokenDashboardProps) {
   const serving = tokens.filter((token) => token.active);
   const waiting = tokens.filter((token) => !token.active);
+  const className = display ? `${styles.board} ${styles.displayScale}` : styles.board;
 
   return (
-    <section className={styles.board} aria-label={title}>
+    <section className={className} aria-label={title}>
       <Group justify="space-between" align="center" className={styles.header}>
         <Text className={styles.title}>{title}</Text>
         {headerRight}

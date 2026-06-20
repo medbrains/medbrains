@@ -6,29 +6,28 @@
   background: var(--mb-bg-canvas, #f4f4f4);
 }
 
-// Top bar: brand + module/department pickers + clock. Dark for contrast.
+// Top bar: brand + module/department pickers + clock. Brand blue, clean.
 .bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 14px 32px;
-  background: var(--mb-gray-90, #262626);
-  border-bottom: 2px solid var(--mb-interactive, #0f62fe);
+  padding: 16px 32px;
+  background: var(--mb-interactive, #0f62fe);
 }
 
 .brand {
-  color: #fff;
+  color: #fff !important;
   font-weight: 600;
-  font-size: 18px;
+  font-size: 20px;
   letter-spacing: 0.01em;
 }
 
 .clock {
-  min-width: 78px;
-  color: #fff;
+  min-width: 84px;
+  color: #fff !important;
   font-weight: 600;
-  font-size: 22px;
+  font-size: 24px;
   font-variant-numeric: tabular-nums;
   text-align: right;
 }

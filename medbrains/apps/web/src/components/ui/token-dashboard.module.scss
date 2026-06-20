@@ -86,3 +86,52 @@
 .meta {
   font-size: 12px;
 }
+
+// ── Display / TV variant — scale everything up for across-the-room reading ──
+.displayScale {
+  gap: 28px;
+
+  .title {
+    font-size: 30px;
+  }
+
+  .sectionLabel {
+    font-size: 16px;
+    letter-spacing: 0.16em;
+    margin-bottom: 14px;
+  }
+
+  .hero {
+    min-height: 220px;
+    border-left-width: 8px;
+    padding: 28px 36px;
+    gap: 14px;
+  }
+
+  .heroToken {
+    font-size: 120px;
+    letter-spacing: -0.02em;
+  }
+
+  .heroPrimary {
+    font-size: 34px;
+  }
+
+  .heroMeta {
+    font-size: 22px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .card {
+    padding: 20px 22px;
+  }
+
+  .token {
+    font-size: 56px;
+  }
+
+  .meta {
+    font-size: 20px;
+  }
+}

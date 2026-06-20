@@ -92,6 +92,7 @@ export function TokenDisplayPage() {
           scope={departmentId ? "department" : undefined}
           scopeId={departmentId ?? undefined}
           publicMode
+          display
         />
       </div>
     </div>
