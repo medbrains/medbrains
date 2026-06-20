@@ -139,6 +139,34 @@ pub async fn issue_token_in_tx(
     Ok(Some(number))
 }
 
+/// Issue a token only if the patient has no active (non-terminal) token for this
+/// module today. For modules where one record ≠ one queue visit (lab issues a
+/// row per test, billing a row per invoice) this keeps it to one token per
+/// patient per day. Still gated by module enablement inside `issue_token_in_tx`.
+pub async fn issue_token_once_per_patient_day(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    input: IssueToken<'_>,
+) -> Result<Option<String>, AppError> {
+    if let Some(patient_id) = input.patient_id {
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM tokens \
+             WHERE tenant_id = $1 AND module = $2 AND patient_id = $3 \
+               AND token_date = CURRENT_DATE \
+               AND status NOT IN ('completed', 'no_show', 'cancelled'))",
+        )
+        .bind(tenant_id)
+        .bind(input.module)
+        .bind(patient_id)
+        .fetch_one(&mut **tx)
+        .await?;
+        if exists {
+            return Ok(None);
+        }
+    }
+    issue_token_in_tx(tx, tenant_id, input).await
+}
+
 async fn broadcast_status(state: &AppState, token: &Token) {
     if let Some(scope_id) = token.scope_id {
         state

@@ -588,6 +588,28 @@ pub(crate) async fn create_order_in_tx_with_options(
         best_effort_auto_bill_lab_order_in_tx(tx, claims, &order).await?;
     }
 
+    // Auto-issue a lab sample-collection token (one per patient per day; gated
+    // by the tenant's lab-token enablement). Skipped for dummy/test orders.
+    if !is_dummy {
+        crate::routes::tokens::issue_token_once_per_patient_day(
+            tx,
+            claims.tenant_id,
+            crate::routes::tokens::IssueToken {
+                module: "lab",
+                scope: "global",
+                scope_id: None,
+                scope_label: Some("Lab sample collection"),
+                priority: "normal",
+                patient_id: Some(order.patient_id),
+                patient_name: None,
+                entity_type: Some("lab_order"),
+                entity_id: Some(order.id),
+                issued_by: Some(claims.sub),
+            },
+        )
+        .await?;
+    }
+
     Ok(order)
 }
 

@@ -1376,6 +1376,26 @@ pub async fn create_invoice(
     }
     crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
+    // Auto-issue a billing-counter token (one per patient per day; gated by the
+    // tenant's billing-token enablement).
+    crate::routes::tokens::issue_token_once_per_patient_day(
+        &mut tx,
+        claims.tenant_id,
+        crate::routes::tokens::IssueToken {
+            module: "billing",
+            scope: "global",
+            scope_id: None,
+            scope_label: Some("Billing counter"),
+            priority: "normal",
+            patient_id: Some(invoice.patient_id),
+            patient_name: None,
+            entity_type: Some("invoice"),
+            entity_id: Some(invoice.id),
+            issued_by: Some(claims.sub),
+        },
+    )
+    .await?;
+
     tx.commit().await?;
 
     // Grant the creating user viewer access to this invoice in SpiceDB
