@@ -1428,6 +1428,7 @@ import type {
   Receipt,
   ReceiptPrintData,
   ReconciliationReport,
+  ReconSummary,
   RecordAdherenceRequest,
   RecordBedsideVideoViewRequest,
   RecordCssdIndicatorRequest,
@@ -12805,6 +12806,7 @@ export const api = {
   getPaymentStatus: (id: string) => request<PaymentStatusResponse>(`/payments/${id}/status`),
   getRazorpayStatus: () => request<RazorpayStatusResponse>("/payments/razorpay/status"),
   listPaymentProviders: () => request<PaymentProvidersResponse>("/payments/providers"),
+  getReconSummary: () => request<ReconSummary>("/payments/recon-summary"),
   listPaymentExceptions: (params?: { status?: string }) => {
     const qs = params?.status ? `?${new URLSearchParams({ status: params.status })}` : "";
     return request<PaymentWebhookException[]>(`/payments/exceptions${qs}`);

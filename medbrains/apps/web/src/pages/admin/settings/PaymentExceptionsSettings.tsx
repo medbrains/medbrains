@@ -1,4 +1,4 @@
-import { Group, Loader, SegmentedControl, Stack, Text } from "@mantine/core";
+import { Card, Group, Loader, SegmentedControl, SimpleGrid, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { PaymentWebhookException } from "@medbrains/types";
 import { IconCheck, IconShieldCheck, IconX } from "@tabler/icons-react";
@@ -6,6 +6,26 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Badge, Button, Table } from "@/components/ui";
 import { paymentsService } from "@/services/payments.service";
+
+const TILE_COLOR: Record<string, string> = {
+  success: "green",
+  warning: "orange",
+  danger: "red",
+  info: "blue",
+};
+
+function ReconTile({ label, value, tone }: { label: string; value: string; tone: string }) {
+  return (
+    <Card withBorder padding="sm" radius="md">
+      <Text size="xs" c="dimmed" tt="uppercase">
+        {label}
+      </Text>
+      <Text fw={700} size="lg" ff="monospace" c={TILE_COLOR[tone]}>
+        {value}
+      </Text>
+    </Card>
+  );
+}
 
 const STATUS_FILTERS = [
   { value: "open", label: "Open" },
@@ -33,6 +53,21 @@ export function PaymentExceptionsSettings() {
     queryKey: key,
     queryFn: () => paymentsService.listPaymentExceptions({ status }),
   });
+
+  const { data: recon } = useQuery({
+    queryKey: ["payment-recon-summary"],
+    queryFn: () => paymentsService.getReconSummary(),
+    staleTime: 60_000,
+  });
+
+  const reconAmount = (statuses: string[]) =>
+    (recon?.by_status ?? [])
+      .filter((row) => statuses.includes(row.status))
+      .reduce((sum, row) => sum + Number(row.total_amount), 0);
+  const settled = reconAmount(["captured"]);
+  const pending = reconAmount(["pending_gateway", "created"]);
+  const failed = reconAmount(["failed"]);
+  const money = (value: number) => `₹${value.toLocaleString("en-IN")}`;
 
   const resolveMutation = useMutation({
     mutationFn: ({ id, next }: { id: string; next: "resolved" | "ignored" }) =>
@@ -86,6 +121,15 @@ export function PaymentExceptionsSettings() {
           data={STATUS_FILTERS.map((s) => ({ value: s.value, label: s.label }))}
         />
       </Group>
+
+      {recon && (
+        <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm">
+          <ReconTile label="Settled" value={money(settled)} tone="success" />
+          <ReconTile label="Pending" value={money(pending)} tone="warning" />
+          <ReconTile label="Failed" value={money(failed)} tone="danger" />
+          <ReconTile label="Open exceptions" value={String(recon.open_exceptions)} tone="info" />
+        </SimpleGrid>
+      )}
 
       {exceptions && exceptions.length > 0 ? (
         <Table striped highlightOnHover withTableBorder>

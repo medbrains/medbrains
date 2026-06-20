@@ -13,6 +13,7 @@ export const paymentsService = {
   verifyPayment: (data: VerifyPaymentInput) => api.verifyPayment(data),
   generateUpiQr: (data: GenerateUpiQrInput) => api.generateUpiQr(data),
   listPaymentProviders: () => api.listPaymentProviders(),
+  getReconSummary: () => api.getReconSummary(),
   listPaymentExceptions: (...args: Parameters<typeof api.listPaymentExceptions>) =>
     api.listPaymentExceptions(...args),
   resolvePaymentException: (id: string, data: Parameters<typeof api.resolvePaymentException>[1]) =>

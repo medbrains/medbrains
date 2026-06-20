@@ -1560,6 +1560,10 @@ pub fn build_router(state: AppState) -> Router {
                 .delete(payment_gateway::delete_payment_terminal),
         )
         .route(
+            "/api/payments/recon-summary",
+            get(payment_gateway::payment_recon_summary),
+        )
+        .route(
             "/api/payments/exceptions",
             get(payment_gateway::list_payment_exceptions),
         )

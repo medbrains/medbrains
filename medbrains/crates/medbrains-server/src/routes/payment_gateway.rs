@@ -1192,6 +1192,7 @@ pub async fn razorpay_webhook(
 
     let Some(order_id) = order_id else {
         tracing::warn!("webhook missing order_id in payload");
+        log_webhook_exception(&state.db, "razorpay", None, "unknown_order", &payload).await?;
         return Ok(Json(serde_json::json!({ "status": "ignored" })));
     };
 
@@ -1205,6 +1206,8 @@ pub async fn razorpay_webhook(
 
     let Some(txn_row) = txn_row else {
         tracing::warn!(order_id, "webhook for unknown order");
+        log_webhook_exception(&state.db, "razorpay", Some(order_id), "unknown_order", &payload)
+            .await?;
         return Ok(Json(serde_json::json!({ "status": "unknown_order" })));
     };
 
@@ -1497,6 +1500,55 @@ pub async fn resolve_payment_exception(
     .ok_or(AppError::NotFound)?;
 
     Ok(Json(row))
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct ReconStatusRow {
+    pub status: String,
+    pub txn_count: i64,
+    pub total_amount: Decimal,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ReconSummary {
+    pub by_status: Vec<ReconStatusRow>,
+    pub open_exceptions: i64,
+}
+
+/// GET /api/payments/recon-summary — gateway txns grouped by status (settled vs
+/// pending vs failed) + the open-exceptions count, for the recon dashboard.
+pub async fn payment_recon_summary(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<ReconSummary>, AppError> {
+    require_permission(&claims, permissions::billing::payments::CREATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let by_status = sqlx::query_as::<_, ReconStatusRow>(
+        "SELECT status, COUNT(*)::bigint AS txn_count, \
+                COALESCE(SUM(amount), 0)::numeric AS total_amount \
+           FROM payment_gateway_transactions WHERE tenant_id = $1 \
+          GROUP BY status ORDER BY status",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    // Exceptions are a cross-tenant ops table — count all still-open.
+    let open_exceptions: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint FROM payment_webhook_exceptions WHERE status = 'open'",
+    )
+    .fetch_one(&state.db)
+    .await?;
+
+    Ok(Json(ReconSummary {
+        by_status,
+        open_exceptions,
+    }))
 }
 
 /// Reverse reconciliation for Cashfree: the inbound webhook (the money already

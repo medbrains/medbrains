@@ -30024,6 +30024,17 @@ export interface ResolveExceptionRequest {
   notes?: string;
 }
 
+export interface ReconStatusRow {
+  status: string;
+  txn_count: number;
+  total_amount: number;
+}
+
+export interface ReconSummary {
+  by_status: ReconStatusRow[];
+  open_exceptions: number;
+}
+
 export interface PaymentTerminal {
   id: string;
   tenant_id: string;
