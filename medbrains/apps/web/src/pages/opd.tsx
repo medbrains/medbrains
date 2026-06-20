@@ -1821,16 +1821,17 @@ export function EncounterDetail({
           tabSection: railStyles.railTabSection,
           tabLabel: railStyles.railTabLabel,
         }}
-        style={{ display: "flex", height: "100%", width: "100%", minWidth: 0 }}
+        style={{ display: "flex", height: "100%", width: "100%", minWidth: 0, minHeight: 0 }}
       >
         {/* ── Left Sidebar: Patient + Nav ── */}
         <div
           style={{
             width: 240,
             flexShrink: 0,
+            minHeight: 0,
             overflowY: "auto",
             borderRight: "1px solid var(--mb-border-subtle)",
-            padding: "10px",
+            padding: "10px 10px 28px",
             background: "var(--mb-bg-subtle)",
             display: "flex",
             flexDirection: "column",
