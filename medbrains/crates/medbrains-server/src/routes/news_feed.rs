@@ -53,13 +53,19 @@ pub async fn list_news_feed(
         .map(ToOwned::to_owned);
 
     let rows = sqlx::query_as::<_, NewsFeedArticle>(&format!(
-        "SELECT {SELECT_COLS} FROM news_feed_articles \
-         WHERE ($1::text IS NULL OR topic = $1) \
-           AND ($2::text IS NULL OR search_tsv @@ websearch_to_tsquery('english', $2)) \
+        // The same article lives under several topic feeds, so dedupe by URL
+        // (keep the most recent copy) before ranking/ordering.
+        "SELECT {SELECT_COLS} FROM ( \
+           SELECT DISTINCT ON (url) {SELECT_COLS}, search_tsv \
+           FROM news_feed_articles \
+           WHERE ($1::text IS NULL OR topic = $1) \
+             AND ($2::text IS NULL OR search_tsv @@ websearch_to_tsquery('english', $2)) \
+           ORDER BY url, published_at DESC NULLS LAST \
+         ) d \
          ORDER BY \
            CASE WHEN $2::text IS NULL THEN 0::float4 \
-                ELSE ts_rank(search_tsv, websearch_to_tsquery('english', $2)) END DESC, \
-           published_at DESC NULLS LAST \
+                ELSE ts_rank(d.search_tsv, websearch_to_tsquery('english', $2)) END DESC, \
+           d.published_at DESC NULLS LAST \
          LIMIT $3"
     ))
     .bind(params.topic)
