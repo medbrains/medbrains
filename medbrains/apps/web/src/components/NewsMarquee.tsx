@@ -151,7 +151,6 @@ export function NewsMarquee() {
             </a>
           </HoverCard.Target>
           <HoverCard.Dropdown className={styles.card}>
-            <span className={styles.cardEyebrow}>{host ?? news.topic}</span>
             <Text className={styles.cardTitle}>{item.title}</Text>
             {item.description && <Text className={styles.cardDesc}>{item.description}</Text>}
             <a
@@ -163,21 +162,6 @@ export function NewsMarquee() {
               {host ? `Read on ${host}` : "Read article"}
               <ExternalLink size={12} aria-hidden />
             </a>
-            <div className={styles.cardDivider} />
-            <span className={styles.cardEyebrow}>Magazines &amp; sources</span>
-            <div className={styles.cardSources}>
-              {news.sources.map((source) => (
-                <a
-                  key={source.url}
-                  className={styles.cardSource}
-                  href={source.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {source.name}
-                </a>
-              ))}
-            </div>
           </HoverCard.Dropdown>
         </HoverCard>
       </div>
