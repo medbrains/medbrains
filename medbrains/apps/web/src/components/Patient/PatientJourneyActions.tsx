@@ -20,7 +20,6 @@ import type {
   ResolvedClinicalJourneyAction,
 } from "@medbrains/types";
 import {
-  clinicalJourneyActionSignal,
   patientJourneyActionRoute,
   resolveClinicalJourneyActions,
   summarizeClinicalJourneyActions,
@@ -43,17 +42,14 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { useClinicalEventStore } from "@/components/clinical-event-store";
-import { OperationalSignal } from "../OperationalSignal";
 import styles from "./patient-journey-actions.module.scss";
 import { mergeJourneyEventNames } from "./patient-journey-events";
 import {
   clinicalEventLabel,
-  journeyActionAvailability,
   journeyActionDescription,
   journeyActionDisabledReason,
   journeyActionLabel,
   journeyActionShortLabel,
-  journeyActionSignalLabel,
   journeyBlockedReasonLabel,
 } from "./patient-journey-i18n";
 
@@ -262,9 +258,8 @@ export function PatientJourneyActions({
 
   // In inline layout (directory tables), hide disabled actions to keep rows compact.
   // Rail layout always shows all resolved actions with their state.
-  const visibleActions = layout === "inline" && !showUnavailable
-    ? actions.filter((a) => a.enabled)
-    : actions;
+  const visibleActions =
+    layout === "inline" && !showUnavailable ? actions.filter((a) => a.enabled) : actions;
 
   function handleAction(actionId: ClinicalJourneyActionId) {
     if (actionId === "patient.edit" && onEdit) {
@@ -451,47 +446,24 @@ function PatientJourneyActionButton({
   const tooltip = <ActionTooltip action={action} t={t} />;
 
   if (layout === "rail") {
-    const metaText = journeyActionAvailability(t, action);
-    const signal = clinicalJourneyActionSignal(action);
-    const signalLabel = journeyActionSignalLabel(t, signal);
-    const button = (
-      <Button
-        variant={actionVariant(action.intent)}
-        color={actionColor(action.intent)}
-        size={size}
-        leftSection={actionIcon(action.id)}
-        onClick={onClick}
-        disabled={disabled}
-        fullWidth
-        className={styles.railButton}
-      >
-        {journeyActionLabel(t, action.id)}
-      </Button>
-    );
-
+    // Clean button per action — readiness + trigger/permission detail live in
+    // the hover tooltip, not a per-row "Ready" badge + meta line.
     return (
       <Tooltip label={tooltip} multiline w={280}>
-        <Stack gap={3} className={styles.railItem} data-disabled={disabled || undefined}>
-          <Group gap={6} justify="space-between" wrap="nowrap" className={styles.railItemHeader}>
-            <OperationalSignal
-              label={signalLabel}
-              shape={signal.shape}
-              size="xs"
-              tone={signal.tone}
-            />
-          </Group>
-          {button}
-          {metaText && (
-            <Text
-              size="xs"
-              className={styles.railMeta}
-              data-disabled={disabled || undefined}
-              title={metaText}
-            >
-              {metaText}
-            </Text>
-          )}
-        </Stack>
+        <div className={styles.railItem} data-disabled={disabled || undefined}>
+          <Button
+            variant={actionVariant(action.intent)}
+            color={actionColor(action.intent)}
+            size={size}
+            leftSection={actionIcon(action.id)}
+            onClick={onClick}
+            disabled={disabled}
+            fullWidth
+            className={styles.railButton}
+          >
+            {journeyActionLabel(t, action.id)}
+          </Button>
+        </div>
       </Tooltip>
     );
   }
