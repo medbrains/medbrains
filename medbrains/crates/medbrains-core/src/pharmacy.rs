@@ -75,6 +75,7 @@ pub struct PharmacyOrderItem {
     pub expiry_date: Option<NaiveDate>,
     pub batch_stock_id: Option<Uuid>,
     pub quantity_prescribed: Option<i32>,
+    pub quantity_dispensed: i32,
     pub quantity_returned: i32,
     pub removed_at: Option<DateTime<Utc>>,
     pub removed_by: Option<Uuid>,

@@ -140,6 +140,7 @@ import { PatientJourneyActions } from "@/components/Patient/PatientJourneyAction
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { CreditNotesTab } from "@/components/Pharmacy/CreditNotesTab";
+import { DispenseModal } from "@/components/Pharmacy/DispenseModal";
 import {
   MedicineOrderLineCard,
   type MedicineOrderLineValue,
@@ -2624,13 +2625,18 @@ function PharmacyOrderDetail({
     next.delete("action");
     setSearchParams(next, { replace: true });
   };
+  const [dispenseOpen, dispenseModal] = useDisclosure(false);
   const dispenseMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (payload?: {
+      items: { order_item_id: string; batch_stock_id?: string; quantity: number }[];
+      witnessed_by?: string;
+    }) => {
       const currentDetail = await pharmacyService.getPharmacyOrder(orderId);
-      const order = await pharmacyService.dispenseOrder(orderId);
+      const order = await pharmacyService.dispenseOrder(orderId, payload);
       return { admissionId: currentDetail.admission_id, items: currentDetail.items, order };
     },
     onSuccess: ({ admissionId, items, order }) => {
+      dispenseModal.close();
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-order-detail", orderId] });
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
@@ -2673,9 +2679,29 @@ function PharmacyOrderDetail({
 
   return (
     <Stack>
+      <DispenseModal
+        opened={dispenseOpen}
+        onClose={dispenseModal.close}
+        items={detail.items}
+        isDispensing={dispenseMutation.isPending}
+        onDispense={(payload) => dispenseMutation.mutate(payload)}
+      />
       <Group justify="space-between">
         <Text fw={700}>Order: {detail.order.id.slice(0, 8)}...</Text>
         <Group gap="xs">
+          {canDispense &&
+            (detail.order.status === "ordered" ||
+              detail.order.status === "partially_dispensed") && (
+              <Button
+                size="xs"
+                tone="primary"
+                leftSection={<IconCheck size={14} />}
+                loading={dispenseMutation.isPending}
+                onClick={dispenseModal.open}
+              >
+                Dispense
+              </Button>
+            )}
           <Badge tone={sharedColorBadgeTone(statusColors[detail.order.status])} size="lg">
             {detail.order.status}
           </Badge>
@@ -2720,7 +2746,7 @@ function PharmacyOrderDetail({
                   tone="primary"
                   leftSection={<IconCheck size={14} />}
                   loading={dispenseMutation.isPending}
-                  onClick={() => dispenseMutation.mutate()}
+                  onClick={dispenseModal.open}
                 >
                   {t("button.dispenseOrder")}
                 </Button>

@@ -1374,6 +1374,9 @@ pub struct DispenseItemInput {
     pub batch_number: Option<String>,
     // Historical API field name; stores the selected pharmacy_batches.id.
     pub batch_stock_id: Option<Uuid>,
+    /// Quantity to dispense now (partial). Defaults to the ordered quantity;
+    /// clamped to the ordered quantity. Under-dispensing → `partially_dispensed`.
+    pub quantity: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2546,11 +2549,27 @@ pub async fn dispense_order(
         .map(|d| (d.order_item_id, d))
         .collect();
 
+    // Did we leave any item short of its ordered quantity? → partially_dispensed.
+    let mut all_fully_dispensed = true;
     for item in &items {
         if item.quantity <= 0 {
             return Err(AppError::BadRequest(
                 "Pharmacy quantity must be greater than zero".to_owned(),
             ));
+        }
+
+        // Remaining = ordered − already dispensed; per-item requested qty is
+        // clamped to the remaining (supports partial + dispensing the rest later).
+        let remaining = item.quantity - item.quantity_dispensed;
+        let dispense_qty = batch_map
+            .get(&item.id)
+            .and_then(|d| d.quantity)
+            .map_or(remaining, |q| q.clamp(0, remaining));
+        if dispense_qty < remaining {
+            all_fully_dispensed = false;
+        }
+        if dispense_qty <= 0 {
+            continue;
         }
 
         if let Some(catalog_id) = item.catalog_item_id {
@@ -2561,10 +2580,10 @@ pub async fn dispense_order(
                 &item.drug_name,
             )
             .await?;
-            if stock.current_stock < item.quantity {
+            if stock.current_stock < dispense_qty {
                 return Err(AppError::Conflict(format!(
                     "Insufficient stock for {}: requested {}, available {}. Dispense was not posted.",
-                    item.drug_name, item.quantity, stock.current_stock
+                    item.drug_name, dispense_qty, stock.current_stock
                 )));
             }
 
@@ -2580,7 +2599,7 @@ pub async fn dispense_order(
                         &claims.tenant_id,
                         catalog_id,
                         batch_stock_id,
-                        item.quantity,
+                        dispense_qty,
                         &item.drug_name,
                     )
                     .await?,
@@ -2591,7 +2610,7 @@ pub async fn dispense_order(
                     &claims.tenant_id,
                     catalog_id,
                     order.store_location_id,
-                    item.quantity,
+                    dispense_qty,
                 )
                 .await?;
                 if trace.is_none() && stock.batch_tracking_required {
@@ -2635,7 +2654,7 @@ pub async fn dispense_order(
                 &mut tx,
                 &claims.tenant_id,
                 catalog_id,
-                item.quantity,
+                dispense_qty,
                 &item.drug_name,
             )
             .await?;
@@ -2649,7 +2668,7 @@ pub async fn dispense_order(
             )
             .bind(claims.tenant_id)
             .bind(catalog_id)
-            .bind(item.quantity)
+            .bind(dispense_qty)
             .bind(order.id)
             .bind(claims.sub)
             .execute(&mut *tx)
@@ -2668,7 +2687,7 @@ pub async fn dispense_order(
                 .await?
                 .unwrap_or(0);
 
-                let new_balance = current_balance - i64::from(item.quantity);
+                let new_balance = current_balance - i64::from(dispense_qty);
 
                 let ndps_entry = sqlx::query_as::<_, NdpsRegisterEntry>(
                     "INSERT INTO pharmacy_ndps_register \
@@ -2679,7 +2698,7 @@ pub async fn dispense_order(
                 )
                 .bind(claims.tenant_id)
                 .bind(catalog_id)
-                .bind(item.quantity)
+                .bind(dispense_qty)
                 .bind(i32::try_from(new_balance).unwrap_or(0))
                 .bind(order.patient_id)
                 .bind(order.prescription_id)
@@ -2697,17 +2716,36 @@ pub async fn dispense_order(
                 .await?;
             }
         }
+
+        // Track dispensed-so-far on the line (supports dispensing the rest later).
+        sqlx::query(
+            "UPDATE pharmacy_order_items SET quantity_dispensed = quantity_dispensed + $1 \
+             WHERE id = $2 AND tenant_id = $3",
+        )
+        .bind(dispense_qty)
+        .bind(item.id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
     }
 
+    // Fully dispensed → 'dispensed'; some line still has a balance → 'partially_dispensed'
+    // (re-dispensing the remainder is allowed from either 'ordered' or 'partially_dispensed').
+    let new_status = if all_fully_dispensed {
+        "dispensed"
+    } else {
+        "partially_dispensed"
+    };
     let order = sqlx::query_as::<_, PharmacyOrder>(
-        "UPDATE pharmacy_orders SET status = 'dispensed', \
+        "UPDATE pharmacy_orders SET status = $4, \
          dispensed_by = $3, dispensed_at = now(), updated_at = now() \
-         WHERE id = $1 AND tenant_id = $2 AND status = 'ordered' \
+         WHERE id = $1 AND tenant_id = $2 AND status IN ('ordered', 'partially_dispensed') \
          RETURNING *",
     )
     .bind(id)
     .bind(claims.tenant_id)
     .bind(claims.sub)
+    .bind(new_status)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;

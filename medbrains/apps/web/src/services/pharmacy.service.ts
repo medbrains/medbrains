@@ -1,6 +1,13 @@
 import { api } from "@medbrains/api";
+import type { FefoBatch } from "@medbrains/types";
 
 export const pharmacyService = {
+  selectFefoBatch: (data: {
+    catalog_item_id: string;
+    quantity_needed: number;
+    store_location_id?: string;
+  }) => api.selectFefoBatch(data) as Promise<{ batches: FefoBatch[] }>,
+  dispenseRepeat: (...args: Parameters<typeof api.dispenseRepeat>) => api.dispenseRepeat(...args),
   getTenantSettings: (...args: Parameters<typeof api.getTenantSettings>) =>
     api.getTenantSettings(...args),
   listPharmacyOrders: (...args: Parameters<typeof api.listPharmacyOrders>) =>

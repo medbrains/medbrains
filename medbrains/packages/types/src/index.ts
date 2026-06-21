@@ -7314,7 +7314,12 @@ export interface RecordDoseRequest {
 //  Pharmacy Module
 // ══════════════════════════════════════════════════════════
 
-export type PharmacyOrderStatus = "ordered" | "dispensed" | "cancelled" | "returned";
+export type PharmacyOrderStatus =
+  | "ordered"
+  | "dispensed"
+  | "partially_dispensed"
+  | "cancelled"
+  | "returned";
 export type StockTransactionType = "receipt" | "issue" | "return" | "adjustment";
 export type DrugSchedule = "H" | "H1" | "X" | "G" | "OTC" | "NDPS";
 export type FormularyStatus = "approved" | "restricted" | "non_formulary";
@@ -7417,11 +7422,20 @@ export interface PharmacyOrderItem {
   expiry_date: string | null;
   batch_stock_id: string | null;
   quantity_prescribed: number | null;
+  quantity_dispensed: number;
   quantity_returned: number;
   removed_at: string | null;
   removed_by: string | null;
   remove_reason: string | null;
   created_at: string;
+}
+
+/** A dispensable batch (FEFO order) for a catalog item. */
+export interface FefoBatch {
+  batch_id: string;
+  batch_number: string;
+  expiry_date: string;
+  quantity_on_hand: number;
 }
 
 export interface PharmacyStockTransaction {
