@@ -17,6 +17,7 @@ import {
   MAX_DOSES,
   type RxItem,
   repeatLabel,
+  stockStatus,
 } from "./rxModel";
 
 /** Standard frequency code implied by an item's current doses (null = custom). */
@@ -92,6 +93,12 @@ export function RxTable({ items, formularyById, onChange, onOpenDetails, onRemov
                 {d?.controlled && <span className={classes.rxTFlag}>NDPS</span>}
                 {d?.aware && <span className={classes.rxTFlag}>{d.aware}</span>}
                 {d?.lasa && <span className={classes.rxTFlag}>LASA</span>}
+                {d && stockStatus(d) === "out" && (
+                  <span className={`${classes.rxTFlag} ${classes.rxTFlagRed}`}>out of stock</span>
+                )}
+                {d && stockStatus(d) === "low" && (
+                  <span className={classes.rxTFlag}>low stock</span>
+                )}
                 {it.pendingMD && <span className={classes.rxTFlag}>pending MD</span>}
                 {d?.salt && <Box className={classes.rxTSalt}>{d.salt}</Box>}
               </Table.Td>

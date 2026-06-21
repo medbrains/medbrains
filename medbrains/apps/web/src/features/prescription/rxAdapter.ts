@@ -126,6 +126,9 @@ export function catalogToFormulary(catalog: PharmacyCatalog[]): FormularyDrug[] 
       atc: c.atc_code ?? undefined,
       aware: c.aware_category ? (AWARE_FROM_CATALOG[c.aware_category] ?? null) : null,
       lasa: c.is_lasa,
+      stock: c.current_stock,
+      reorderLevel: c.reorder_level,
+      maxDosePerDay: c.max_dose_per_day ?? undefined,
     } satisfies FormularyDrug;
   });
 }

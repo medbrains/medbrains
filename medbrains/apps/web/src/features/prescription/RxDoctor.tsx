@@ -15,7 +15,14 @@ import { Input } from "@/components/ui/Input";
 import classes from "./prescription.module.scss";
 import { type ComposeValues, type Prescriber, RxCompose } from "./RxCompose";
 import { RxTable } from "./RxTable";
-import { type FormularyDrug, quickRxDefaults, type RxItem, searchFormulary } from "./rxModel";
+import {
+  type FormularyDrug,
+  maxDoseExceeded,
+  quickRxDefaults,
+  type RxItem,
+  searchFormulary,
+  stockStatus,
+} from "./rxModel";
 
 const cx = (...c: (string | false | undefined)[]) => c.filter(Boolean).join(" ");
 
@@ -206,8 +213,15 @@ export function RxDoctor({
     if (d.cls) classCount[d.cls] = (classCount[d.cls] || 0) + 1;
   }
   const dupes = Object.entries(classCount).filter(([, n]) => n > 1);
+  const overMax = items
+    .map((it) => {
+      const d = formularyById[it.id];
+      const hit = d ? maxDoseExceeded(it, d) : null;
+      return hit ? { name: it.name, label: hit.totalLabel } : null;
+    })
+    .filter(Boolean) as { name: string; label: string }[];
   const pendingCount = items.filter((it) => it.pendingMD).length;
-  const reviewCount = major.length + conflicts.length;
+  const reviewCount = major.length + conflicts.length + overMax.length;
 
   return (
     <Box className={classes.view}>
@@ -327,6 +341,12 @@ export function RxDoctor({
                         </Box>
                       </Box>
                       <Box className={classes.ddCls}>{drug.cls}</Box>
+                      {stockStatus(drug) === "out" && (
+                        <span className={cx(classes.ddTag, classes.pen)}>out of stock</span>
+                      )}
+                      {stockStatus(drug) === "low" && (
+                        <span className={cx(classes.ddTag, classes.lowStock)}>low stock</span>
+                      )}
                       {drug.kind === "otc" ? (
                         <span className={cx(classes.ddTag, classes.otc)}>OTC</span>
                       ) : (
@@ -415,6 +435,15 @@ export function RxDoctor({
             controlledItems.length
               ? `${controlledItems.map((i) => i.name).join(", ")} — needs written Rx + register entry on dispense`
               : "No Schedule X / H1 / NDPS drugs in order"
+          }
+        />
+        <SafetyRow
+          state={overMax.length ? "flag" : "ok"}
+          label="Max dose · 24h"
+          detail={
+            overMax.length
+              ? overMax.map((m) => `${m.name}: ${m.label}`).join(", ")
+              : "Within catalog daily ceilings"
           }
         />
         <SafetyRow

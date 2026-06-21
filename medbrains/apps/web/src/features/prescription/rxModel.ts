@@ -83,6 +83,43 @@ export interface FormularyDrug {
   aware?: AwareClass;
   /** Look-alike-sound-alike — tall-man + confirm step. */
   lasa?: boolean;
+  // ── stock + dose-safety (non-blocking hints / CDS) ──
+  /** On-hand stock (informational; never blocks prescribing). */
+  stock?: number;
+  /** Reorder level — below it the drug reads "low stock". */
+  reorderLevel?: number;
+  /** Catalog max dose per day, free text e.g. "3000 mg" (max-dose check). */
+  maxDosePerDay?: string;
+}
+
+/** Stock status for a formulary drug (informational badge). */
+export function stockStatus(drug: FormularyDrug): "out" | "low" | "ok" | null {
+  if (drug.stock == null) return null;
+  if (drug.stock <= 0) return "out";
+  if (drug.reorderLevel != null && drug.stock <= drug.reorderLevel) return "low";
+  return "ok";
+}
+
+/** Parse a "<number> <unit>" string → { value, unit } (unit lower-cased). */
+function parseAmount(s: string): { value: number; unit: string } | null {
+  const m = s.trim().match(/([\d.]+)\s*([a-z%]*)/i);
+  if (!m || !m[1]) return null;
+  const value = Number.parseFloat(m[1]);
+  if (!Number.isFinite(value)) return null;
+  return { value, unit: (m[2] ?? "").toLowerCase() };
+}
+
+/** Daily total exceeds the catalog max-dose? Only checks matching units (mg/mcg/g/ml). */
+export function maxDoseExceeded(item: RxItem, drug: FormularyDrug): { totalLabel: string } | null {
+  if (item.sos || !drug.maxDosePerDay) return null;
+  const dose = parseAmount(item.strength);
+  const max = parseAmount(drug.maxDosePerDay);
+  if (!dose || !max || !dose.unit || dose.unit !== max.unit) return null;
+  const perDay = item.doses.length;
+  if (perDay <= 0) return null;
+  const total = dose.value * perDay;
+  if (total <= max.value) return null;
+  return { totalLabel: `${total} ${dose.unit}/day > max ${max.value} ${max.unit}` };
 }
 
 /** Schedule badge label + whether it needs a written Rx / register. */
