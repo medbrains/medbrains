@@ -50,9 +50,10 @@
 .placeholder span { font-size: 13px; max-width: 420px; line-height: 1.5; }
 .placeholder em { font-family: var(--mono); font-style: normal; font-size: 11px; color: var(--g50); }
 
-.view { display: grid; grid-template-columns: 1fr 360px; gap: 20px; align-items: start; }
+.view { display: block; }
 .colMain { min-width: 0; display: flex; flex-direction: column; gap: 16px; }
-.colRail { display: flex; flex-direction: column; gap: 16px; }
+.safetyChipPill { margin-left: 8px; }
+.safetyDrawer { display: flex; flex-direction: column; gap: 2px; padding-top: 4px; }
 
 .sectionHead { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; }
 .sectionHead h2 { font-family: var(--serif); font-weight: 400; font-size: 27px; letter-spacing: -0.01em; line-height: 1.1; }
@@ -79,23 +80,21 @@
 .prescriberNote b { color: var(--ink); }
 
 // rx sheet
-.rxSheet { background: #fff; border: 1px solid var(--g20); border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; }
+.rxSheet { background: #fff; border: 1px solid var(--g20); border-radius: var(--r); overflow: hidden; }
 .rxSheetHead { display: flex; align-items: center; gap: 12px; padding: 14px 20px; background: var(--g10); border-bottom: 1px solid var(--g20); }
 .rxSymbol { font-size: 20px; color: var(--blue); font-family: var(--serif); }
 .rxSheetTitle { font-family: var(--mono); font-size: 12px; font-weight: 500; letter-spacing: 0.08em; }
 .rxSheetMeta { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--g50); }
 .rxEmpty { padding: 32px 20px; text-align: center; color: var(--g50); font-size: 13.5px; }
 
-// search
-.rxSearch { position: relative; display: flex; align-items: center; gap: 12px; padding: 14px 20px; background: var(--g10); }
-.rxAddIcon { width: 22px; height: 22px; border-radius: 50%; background: var(--blue); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
-.rxSearch input { flex: 1; border: 0; background: transparent; font-family: var(--sans); font-size: 13.5px; color: var(--ink); }
-.rxSearch input:focus { outline: none; }
-.rxAddKbd { font-family: var(--mono); font-size: 10px; padding: 2px 6px; background: #fff; border: 1px solid var(--g20); border-radius: var(--r-sm); color: var(--g50); }
-.rxDd { position: absolute; left: 52px; right: 20px; top: 52px; background: #fff; border: 1px solid var(--g20); border-radius: var(--r); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14); z-index: 30; max-height: 340px; overflow: auto; }
+// search — grows in the centre of the sheet header
+.rxSearch { position: relative; flex: 1; min-width: 0; }
+.rxAddIcon { width: 20px; height: 20px; border-radius: 50%; background: var(--blue); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.rxDd { position: absolute; left: 0; right: 0; top: calc(100% + 6px); background: #fff; border: 1px solid var(--g20); border-radius: var(--r); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14); z-index: 30; max-height: 340px; overflow: auto; }
 .ddItem { display: flex; align-items: center; gap: 12px; padding: 11px 16px; cursor: pointer; border-bottom: 1px solid var(--g10); width: 100%; text-align: left; }
 .ddItem:last-child { border-bottom: 0; }
-.ddItem:hover { background: var(--blue-10); }
+.ddItem:hover, .ddActive { background: var(--blue-10); }
+.ddActive { box-shadow: inset 2px 0 0 var(--blue); }
 .ddMid { flex: 1; min-width: 0; }
 .ddName { font-size: 13.5px; font-weight: 600; }
 .ddSalt { font-size: 11px; color: var(--g50); font-family: var(--mono); margin-top: 1px; }
@@ -143,8 +142,11 @@
 .durRow { gap: 12px; }
 .doseField { align-items: flex-end; }
 
-// existing prescriptions (saved this visit) — compact action cards
-.existingList { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+// previous prescriptions — compact, collapsed by default
+.prevWrap { margin-top: 14px; }
+.prevToggle { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--g70); padding: 4px 2px; }
+.prevToggle:hover { color: var(--blue); }
+.existingList { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
 .existingCard { padding: 10px 14px; }
 
 .allergyBlock { display: flex; gap: 11px; align-items: center; padding: 12px 14px; background: var(--red-10); border: 1px solid var(--red); border-radius: var(--r-sm); }
@@ -178,6 +180,11 @@
 .rxTCad { display: inline-block; font-size: 9.5px; font-weight: 600; color: var(--blue-80); background: var(--blue-10); padding: 1px 6px; border-radius: 980px; margin-left: 5px; }
 .rxTTimes { font-family: var(--mono); font-size: 10px; color: var(--g50); margin-top: 2px; white-space: nowrap; }
 .rxTDur, .rxTTiming { color: var(--g70); white-space: nowrap; }
+.rxTOngoing { font-size: 12px; color: var(--g70); }
+.rxTDoseTimes { margin-top: 6px; }
+.rxTDoseTime { display: flex; align-items: center; gap: 2px; }
+.rxTEdit { padding: 0 !important; background: var(--g10); }
+.rxTEdit .compose { margin: 12px 16px; }
 .rxTNote { color: var(--g70); font-size: 12px; max-width: 200px; }
 .rxTFlag { display: inline-block; font-size: 8.5px; font-weight: 700; padding: 1px 6px; border-radius: 980px; text-transform: uppercase; letter-spacing: 0.03em; margin-left: 6px; vertical-align: middle; background: var(--amber-10); color: var(--amber-ink); }
 .rxTActions { display: flex; gap: 2px; justify-content: flex-end; }
@@ -198,9 +205,11 @@
 .srText b { display: block; font-size: 13px; font-weight: 600; }
 .srText span { display: block; font-size: 12px; color: var(--g70); margin-top: 2px; line-height: 1.45; }
 
-.signCard { background: #fff; border: 1px solid var(--g20); border-radius: var(--r); padding: 18px; }
-.signLine { height: 36px; border-bottom: 1px solid var(--ink); margin-bottom: 8px; }
-.signMeta b { display: block; font-size: 13px; font-weight: 600; }
-.signMeta { font-size: 11px; color: var(--g50); font-family: var(--mono); line-height: 1.5; }
+// prescription card footer — signer identity + digital-sign action
+.rxSheetFoot { padding: 14px 20px; border-top: 1px solid var(--g20); background: var(--g10); gap: 12px; }
+.signLine { width: 160px; border-bottom: 1px solid var(--ink); margin-bottom: 6px; }
+.signMeta b { display: block; font-size: 13px; font-weight: 600; color: var(--ink); }
+.signMeta span { font-size: 11px; color: var(--g50); font-family: var(--mono); }
+.signMeta { line-height: 1.5; }
 
 .placeholder { padding: 48px 24px; text-align: center; color: var(--g50); font-size: 14px; }

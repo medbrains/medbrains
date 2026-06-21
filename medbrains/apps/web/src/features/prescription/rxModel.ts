@@ -121,6 +121,73 @@ export const CADENCE: { v: CadenceType; label: string }[] = [
 
 export const FOODS = ["after food", "before food", "with food", "empty stomach", "at bedtime"];
 
+const SLOT_BY_KEY: Record<string, (typeof SLOTS)[number]> = Object.fromEntries(
+  SLOTS.map((s) => [s.key, s]),
+);
+
+/** Quick frequency codes for the inline row control. */
+export const FREQ_CODES = ["OD", "BD", "TID", "QID", "SOS"] as const;
+export type FreqCode = (typeof FREQ_CODES)[number];
+
+/** Day-part keys each standard frequency maps to (SOS → no scheduled doses). */
+const FREQ_SLOT_KEYS: Record<string, string[]> = {
+  OD: ["m"],
+  BD: ["m", "e"],
+  TID: ["m", "a", "e"],
+  QID: ["m", "a", "e", "n"],
+};
+
+/** Expand a quick frequency code into day-part doses (+ SOS flag). */
+export function freqCodeToDoses(code: string): { doses: Dose[]; sos: boolean } {
+  if (code === "SOS") return { doses: [], sos: true };
+  const keys = FREQ_SLOT_KEYS[code] ?? ["m"];
+  const doses: Dose[] = [];
+  for (const k of keys) {
+    const slot = SLOT_BY_KEY[k];
+    if (slot) doses.push({ key: slot.key, label: slot.label, time: slot.def });
+  }
+  return { doses, sos: false };
+}
+
+/**
+ * A sensible default per-dose amount derived from the drug FORM (not the pack
+ * unit — catalog `unit` is often "bottle"/"vial"). Tablet→"1 tab", syrup→"5 ml",
+ * drops→"2 drop", inhaler→"2 puff". Always editable in the dose field.
+ */
+export function defaultDose(drug: FormularyDrug): string {
+  const hay = `${drug.form} ${drug.name}`.toLowerCase();
+  const has = (...keys: string[]) => keys.some((k) => hay.includes(k));
+  if (has("drop")) return "2 drop";
+  if (has("syrup", "suspension", "susp", "solution", "elixir", "liquid", "bottle", " ml", "syp"))
+    return "5 ml";
+  if (has("inhaler", "puff", "mdi", "respule", "rotacap", "spray")) return "2 puff";
+  if (has("sachet")) return "1 sachet";
+  if (has("vial", "amp", "inject", "infus")) return ""; // dose by volume/strength — prescriber sets
+  if (has("cap")) return "1 cap";
+  if (has("tab")) return "1 tab";
+  return drug.form ? `1 ${drug.form}` : "";
+}
+
+/** Sensible starting point for a freshly-added drug — OD · 5 days · after food · oral. */
+export function quickRxDefaults(drug: FormularyDrug): Omit<RxItem, "uid"> {
+  const morning = SLOTS[0];
+  return {
+    id: drug.id,
+    name: drug.name,
+    form: drug.form,
+    strength: defaultDose(drug),
+    brand: drug.brands[0] ?? drug.name,
+    doses: [{ key: morning.key, label: morning.label, time: morning.def }],
+    sos: false,
+    repeat: { type: "daily" },
+    days: 5,
+    ongoing: false,
+    food: "after food",
+    route: "oral",
+    note: "",
+  };
+}
+
 function ord(n: number): string {
   const s = ["th", "st", "nd", "rd"];
   const v = n % 100;

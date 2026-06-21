@@ -3499,6 +3499,7 @@ function PrescriptionsTab({
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const [printRx, setPrintRx] = useState<PrescriptionWithItems | null>(null);
+  const [viewsOpen, setViewsOpen] = useState(false);
 
   const { data: prescriptions = [] } = useQuery({
     queryKey: ["prescriptions", encounterId],
@@ -3578,14 +3579,26 @@ function PrescriptionsTab({
         uhid={uhid}
         allergies={allergies}
       />
-      {/* 4-view prescription display — Prose, Timeline, Dose Calc, Rules */}
+      {/* 4-view prescription display — on demand (Prose, Timeline, Dose Calc, Rules) */}
       {(prescriptions as PrescriptionWithItems[]).length > 0 && (
-        <PrescriptionViews
-          prescriptions={prescriptions as PrescriptionWithItems[]}
-          patientName={patientName}
-          uhid={uhid}
-          allergies={allergies}
-        />
+        <Stack gap="xs" mt="sm">
+          <Button
+            tone="ghost"
+            size="xs"
+            style={{ alignSelf: "flex-start" }}
+            onClick={() => setViewsOpen((o) => !o)}
+          >
+            {viewsOpen ? "Hide" : "Show"} schedule · dose calc · rules
+          </Button>
+          {viewsOpen && (
+            <PrescriptionViews
+              prescriptions={prescriptions as PrescriptionWithItems[]}
+              patientName={patientName}
+              uhid={uhid}
+              allergies={allergies}
+            />
+          )}
+        </Stack>
       )}
       {printRx && (
         <PrescriptionPrint

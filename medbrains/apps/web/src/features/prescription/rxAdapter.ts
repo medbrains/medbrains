@@ -8,10 +8,23 @@ import type {
   FoodTiming,
   MedicationTiming,
   PharmacyCatalog,
-  PrescriptionItem,
   PrescriptionItemInput,
   TimeOfDay,
 } from "@medbrains/types";
+
+/** The fields needed to rebuild an rx-suite row — satisfied by both a stored
+ *  `PrescriptionItem` and a template `PrescriptionItemInput`. */
+interface RxLikeItem {
+  id?: string;
+  drug_name: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  route?: string | null;
+  instructions?: string | null;
+  catalog_item_id?: string | null;
+}
+
 import { parseInstructions, serializeTiming } from "@/lib/medication-timing-utils";
 import {
   type AwareClass,
@@ -199,7 +212,7 @@ function dosesFromTiming(timing: MedicationTiming): Dose[] {
  *  can be loaded back into the composer for editing. Best-effort: cadence that
  *  was folded into `custom_instruction` returns as the note. */
 export function prescriptionItemsToRx(
-  items: PrescriptionItem[],
+  items: RxLikeItem[],
   formularyById: Record<string, FormularyDrug>,
 ): RxItem[] {
   return items.map((item, i) => {
@@ -212,7 +225,7 @@ export function prescriptionItemsToRx(
     const repeat: Repeat = { type: "daily" };
     return {
       uid: i + 1,
-      id: item.catalog_item_id ?? item.id,
+      id: item.catalog_item_id ?? item.id ?? `unmatched-${i}`,
       name: item.drug_name,
       form: drug?.form ?? "",
       strength: item.dosage,
