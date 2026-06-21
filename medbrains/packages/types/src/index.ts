@@ -8278,8 +8278,40 @@ export interface IpdMedicationAdministration {
   prn_reason: string | null;
   missed_reason: string | null;
   double_checked_by: string | null;
+  batch_stock_id: string | null;
+  batch_number: string | null;
+  batch_expiry: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** A due-now dose enriched for the nurse's medication round. */
+export interface MarDueRow {
+  id: string;
+  admission_id: string;
+  patient_id: string;
+  patient_name: string;
+  bed_id: string | null;
+  drug_name: string;
+  dose: string;
+  route: string;
+  frequency: string | null;
+  scheduled_at: string;
+  status: MarStatus;
+  is_high_alert: boolean;
+  batch_number: string | null;
+  batch_expiry: string | null;
+}
+
+export interface UpdateMarRoundInput {
+  status: MarStatus;
+  administered_at?: string;
+  witnessed_by?: string;
+  barcode_verified?: boolean;
+  hold_reason?: string;
+  refused_reason?: string;
+  missed_reason?: string;
+  notes?: string;
 }
 
 export interface IpdIntakeOutput {

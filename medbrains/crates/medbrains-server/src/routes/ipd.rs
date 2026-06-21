@@ -33,6 +33,7 @@ use crate::{
         authorization::{is_bypass_role, require_any_permission, require_permission},
         field_access,
     },
+    routes::notifications::{NewNotification, create_notification},
     state::AppState,
 };
 
@@ -367,6 +368,7 @@ pub struct UpdateMarRequest {
     pub barcode_verified: Option<bool>,
     pub hold_reason: Option<String>,
     pub refused_reason: Option<String>,
+    pub missed_reason: Option<String>,
     pub notes: Option<String>,
 }
 
@@ -2670,6 +2672,259 @@ pub async fn update_mar(
     tx.commit().await?;
 
     Ok(Json(row))
+}
+
+// ══════════════════════════════════════════════════════════
+//  eMAR medication round (cross-admission, ward-filtered)
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Deserialize)]
+pub struct MarDueQuery {
+    /// Look-ahead window in minutes (doses scheduled within now+window). Default 60.
+    pub window_min: Option<i64>,
+    pub ward_id: Option<Uuid>,
+    pub patient_id: Option<Uuid>,
+}
+
+/// A due-now dose enriched for the nurse's round (patient + batch context).
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct MarDueRow {
+    pub id: Uuid,
+    pub admission_id: Uuid,
+    pub patient_id: Uuid,
+    pub patient_name: String,
+    pub bed_id: Option<Uuid>,
+    pub drug_name: String,
+    pub dose: String,
+    pub route: String,
+    pub frequency: Option<String>,
+    pub scheduled_at: chrono::DateTime<Utc>,
+    pub status: MarStatus,
+    pub is_high_alert: bool,
+    pub batch_number: Option<String>,
+    pub batch_expiry: Option<NaiveDate>,
+}
+
+/// `GET /api/nurse/mar/due-now` — scheduled doses due within the window across
+/// the ward (optionally filtered by ward / patient). This is the nurse's
+/// medication-round worklist, reading the canonical `ipd_medication_administration`.
+pub async fn list_mar_due_now(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<MarDueQuery>,
+) -> Result<Json<Vec<MarDueRow>>, AppError> {
+    require_any_permission(&claims, &[permissions::ipd::mar::LIST, permissions::nurse::mar::VIEW])?;
+
+    let window_min = params.window_min.unwrap_or(60).clamp(0, 1440);
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+
+    let rows = sqlx::query_as::<_, MarDueRow>(
+        "SELECT m.id, m.admission_id, a.patient_id, \
+                (p.first_name || ' ' || p.last_name) AS patient_name, a.bed_id, \
+                m.drug_name, m.dose, m.route, m.frequency, m.scheduled_at, m.status, \
+                m.is_high_alert, m.batch_number, m.batch_expiry \
+         FROM ipd_medication_administration m \
+         JOIN admissions a ON a.id = m.admission_id AND a.tenant_id = m.tenant_id \
+         JOIN patients p ON p.id = a.patient_id AND p.tenant_id = m.tenant_id \
+         WHERE m.tenant_id = $1 AND m.status = 'scheduled'::mar_status \
+           AND m.scheduled_at <= now() + make_interval(mins => $2::int) \
+           AND ($3::uuid IS NULL OR a.ward_id = $3) \
+           AND ($4::uuid IS NULL OR a.patient_id = $4) \
+         ORDER BY m.scheduled_at ASC LIMIT 500",
+    )
+    .bind(claims.tenant_id)
+    .bind(i32::try_from(window_min).unwrap_or(60))
+    .bind(params.ward_id)
+    .bind(params.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+/// `GET /api/nurse/mar/patient/{patient_id}` — the canonical per-patient MAR
+/// timeline (replaces the retired orphan nurse_mar path).
+pub async fn list_mar_for_patient(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(patient_id): Path<Uuid>,
+) -> Result<Json<Vec<IpdMedicationAdministration>>, AppError> {
+    require_any_permission(&claims, &[permissions::ipd::mar::LIST, permissions::nurse::mar::VIEW])?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+
+    let rows = sqlx::query_as::<_, IpdMedicationAdministration>(
+        "SELECT m.* FROM ipd_medication_administration m \
+         JOIN admissions a ON a.id = m.admission_id AND a.tenant_id = m.tenant_id \
+         WHERE m.tenant_id = $1 AND a.patient_id = $2 \
+         ORDER BY m.scheduled_at DESC LIMIT 500",
+    )
+    .bind(claims.tenant_id)
+    .bind(patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+/// `PUT /api/nurse/mar/{id}` — record an administration from the round with the
+/// 5-Rights + safety rules: a high-alert drug requires a witness (≠ the giver);
+/// hold/refuse/missed require a reason and notify the prescriber.
+pub async fn update_mar_round(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(mar_id): Path<Uuid>,
+    Json(body): Json<UpdateMarRequest>,
+) -> Result<Json<IpdMedicationAdministration>, AppError> {
+    require_any_permission(
+        &claims,
+        &[permissions::ipd::mar::UPDATE, permissions::nurse::mar::ADMINISTER],
+    )?;
+
+    let status: MarStatus = serde_json::from_value(serde_json::Value::String(body.status.clone()))
+        .map_err(|_| AppError::BadRequest(format!("Invalid MAR status '{}'", body.status)))?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+
+    let existing = sqlx::query_as::<_, IpdMedicationAdministration>(
+        "SELECT * FROM ipd_medication_administration \
+         WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(mar_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    // Safety rules.
+    match status {
+        MarStatus::Given => {
+            if existing.is_high_alert {
+                match body.witnessed_by {
+                    None => {
+                        return Err(AppError::BadRequest(
+                            "A second-nurse witness is required to administer a high-alert drug."
+                                .to_owned(),
+                        ));
+                    }
+                    Some(w) if w == claims.sub => {
+                        return Err(AppError::BadRequest(
+                            "The witness must be a different nurse from the administering nurse."
+                                .to_owned(),
+                        ));
+                    }
+                    Some(_) => {}
+                }
+            }
+        }
+        MarStatus::Held if body.hold_reason.as_deref().unwrap_or("").trim().is_empty() => {
+            return Err(AppError::BadRequest("A reason is required to hold a dose.".to_owned()));
+        }
+        MarStatus::Refused if body.refused_reason.as_deref().unwrap_or("").trim().is_empty() => {
+            return Err(AppError::BadRequest("A reason is required to record a refusal.".to_owned()));
+        }
+        MarStatus::Missed if body.missed_reason.as_deref().unwrap_or("").trim().is_empty() => {
+            return Err(AppError::BadRequest("A reason is required to record a missed dose.".to_owned()));
+        }
+        _ => {}
+    }
+
+    let administered_by = matches!(status, MarStatus::Given | MarStatus::SelfAdministered)
+        .then_some(claims.sub);
+
+    let row = sqlx::query_as::<_, IpdMedicationAdministration>(
+        "UPDATE ipd_medication_administration SET \
+           status = $3::mar_status, \
+           administered_at = CASE WHEN $3::mar_status IN ('given','self_administered') \
+                                  THEN COALESCE($4, now()) ELSE administered_at END, \
+           administered_by = COALESCE($5, administered_by), \
+           witnessed_by = COALESCE($6, witnessed_by), \
+           barcode_verified = COALESCE($7, barcode_verified), \
+           hold_reason = COALESCE($8, hold_reason), \
+           refused_reason = COALESCE($9, refused_reason), \
+           missed_reason = COALESCE($10, missed_reason), \
+           notes = COALESCE($11, notes), \
+           updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 \
+         RETURNING *",
+    )
+    .bind(mar_id)
+    .bind(claims.tenant_id)
+    .bind(&body.status)
+    .bind(body.administered_at)
+    .bind(administered_by)
+    .bind(body.witnessed_by)
+    .bind(body.barcode_verified)
+    .bind(&body.hold_reason)
+    .bind(&body.refused_reason)
+    .bind(&body.missed_reason)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    // Notify the prescriber when a dose is not given.
+    if matches!(status, MarStatus::Held | MarStatus::Refused | MarStatus::Missed) {
+        notify_prescriber_dose_not_given_in_tx(&mut tx, &claims.tenant_id, &row, &body.status)
+            .await?;
+    }
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// Notify the prescribing doctor that a scheduled dose was held/refused/missed.
+async fn notify_prescriber_dose_not_given_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    mar: &IpdMedicationAdministration,
+    status: &str,
+) -> Result<(), AppError> {
+    let Some(item_id) = mar.prescription_item_id else {
+        return Ok(());
+    };
+    let doctor_id: Option<Uuid> = sqlx::query_scalar(
+        "SELECT p.doctor_id FROM prescription_items pi \
+         JOIN prescriptions p ON p.id = pi.prescription_id AND p.tenant_id = pi.tenant_id \
+         WHERE pi.id = $1 AND pi.tenant_id = $2",
+    )
+    .bind(item_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    let Some(doctor_id) = doctor_id else {
+        return Ok(());
+    };
+
+    let title = format!("Dose {status}: {}", mar.drug_name);
+    let body = format!(
+        "{} {} ({}) scheduled {} was {}.",
+        mar.drug_name,
+        mar.dose,
+        mar.route,
+        mar.scheduled_at.format("%d %b %H:%M"),
+        status
+    );
+    create_notification(
+        tx,
+        *tenant_id,
+        NewNotification {
+            user_id: doctor_id,
+            kind: "mar_dose_not_given",
+            title: &title,
+            body: Some(&body),
+            category: Some("clinical"),
+            entity_type: Some("ipd_medication_administration"),
+            entity_id: Some(mar.id),
+            action_url: None,
+        },
+    )
+    .await
 }
 
 // ══════════════════════════════════════════════════════════

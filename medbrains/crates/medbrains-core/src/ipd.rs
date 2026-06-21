@@ -248,6 +248,9 @@ pub struct IpdMedicationAdministration {
     pub missed_reason: Option<String>,
     pub double_checked_by: Option<Uuid>,
     pub notes: Option<String>,
+    pub batch_stock_id: Option<Uuid>,
+    pub batch_number: Option<String>,
+    pub batch_expiry: Option<NaiveDate>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

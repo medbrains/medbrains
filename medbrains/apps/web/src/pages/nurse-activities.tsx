@@ -1,7 +1,6 @@
 import {
   Card,
   Group,
-  Modal,
   NumberInput,
   SegmentedControl,
   Select,
@@ -41,6 +40,7 @@ import { PageHeader, VitalsRecorder } from "@/components";
 import { HandoffPanel } from "@/components/crdt/HandoffPanel";
 import { NursingNotesPanel } from "@/components/crdt/NursingNotesPanel";
 import { EncounterSelect } from "@/components/EncounterSelect";
+import { MedicationRound } from "@/components/Nurse/MedicationRound";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
 import { RxSuiteWriter } from "@/features/prescription/RxSuiteWriter";
@@ -48,17 +48,6 @@ import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminAccessService } from "@/services/adminAccess.service";
 import { nurseActivitiesService } from "@/services/nurseActivities.service";
 import { opdService } from "@/services/opd.service";
-
-interface MarRow {
-  id: string;
-  prescription_id: string;
-  patient_id: string;
-  scheduled_at: string;
-  status: string;
-  dose_administered?: string | null;
-  route?: string | null;
-  late_minutes?: number | null;
-}
 
 interface IoEntryRow {
   id: string;
@@ -170,14 +159,6 @@ const NURSE_PAGE_PERMISSIONS = [
   P.NURSE.EQUIPMENT_VIEW,
   P.NURSE.EQUIPMENT_RECORD,
 ] as const;
-
-const statusBadge: Record<string, BadgeTone> = {
-  pending: "warning",
-  administered: "success",
-  held: "info",
-  refused: "warning",
-  missed: "danger",
-};
 
 function nurseTabFromSearch(value: string | null): NurseTabKey | null {
   if (
@@ -673,166 +654,7 @@ function dailyShiftId(): string {
 // ── MAR Tab ─────────────────────────────────────────────────────────
 
 function MarTab({ patientId }: { patientId: string }) {
-  const qc = useQueryClient();
-  const canAdminister = useHasPermission(P.NURSE.MAR_ADMINISTER);
-  const canHold = useHasPermission(P.NURSE.MAR_HOLD);
-  const canRefuse = useHasPermission(P.NURSE.MAR_REFUSE);
-  const [windowMin, setWindowMin] = useState<number>(60);
-  const [actioning, setActioning] = useState<{
-    id: string;
-    mode: "administer" | "hold" | "refuse";
-  } | null>(null);
-  const [reason, setReason] = useState("");
-
-  const { data, isLoading } = useQuery({
-    queryKey: ["mar-due-now", windowMin, patientId],
-    queryFn: () =>
-      nurseActivitiesService.listMarDueNow({
-        window_min: windowMin,
-        patient_id: patientId || undefined,
-      }) as Promise<MarRow[]>,
-  });
-
-  const administer = useMutation({
-    mutationFn: (id: string) =>
-      nurseActivitiesService.administerMar(id, { wristband_scanned: true, drug_scanned: true }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["mar-due-now"] }),
-  });
-  const hold = useMutation({
-    mutationFn: (vars: { id: string; reason: string }) =>
-      nurseActivitiesService.holdMar(vars.id, { reason: vars.reason }),
-    onSuccess: () => {
-      setActioning(null);
-      setReason("");
-      qc.invalidateQueries({ queryKey: ["mar-due-now"] });
-    },
-  });
-  const refuse = useMutation({
-    mutationFn: (vars: { id: string; reason: string }) =>
-      nurseActivitiesService.refuseMar(vars.id, { reason: vars.reason }),
-    onSuccess: () => {
-      setActioning(null);
-      setReason("");
-      qc.invalidateQueries({ queryKey: ["mar-due-now"] });
-    },
-  });
-
-  const submitReason = () => {
-    if (!actioning) return;
-    if (actioning.mode === "hold") hold.mutate({ id: actioning.id, reason });
-    if (actioning.mode === "refuse") refuse.mutate({ id: actioning.id, reason });
-  };
-
-  return (
-    <Stack>
-      <Group>
-        <NumberInput
-          label="Look-ahead (minutes)"
-          value={windowMin}
-          onChange={(v) => setWindowMin(typeof v === "number" ? v : 60)}
-          min={15}
-          max={1440}
-          step={15}
-          w={200}
-        />
-        {patientId && (
-          <Badge tone="neutral" mt={24}>
-            Filtered to current patient
-          </Badge>
-        )}
-      </Group>
-
-      {isLoading && <Text c="dimmed">Loading…</Text>}
-      {data?.length === 0 && <Text c="dimmed">No medications due in window.</Text>}
-
-      <Stack gap="xs">
-        {data?.map((row) => (
-          <Card key={row.id} withBorder padding="md">
-            <Group justify="space-between">
-              <Stack gap={2}>
-                <Group gap="xs">
-                  <Text fw={600}>Rx {row.prescription_id.slice(0, 8)}</Text>
-                  <Badge tone={statusBadge[row.status] ?? "neutral"}>{row.status}</Badge>
-                  {row.late_minutes != null && row.late_minutes > 0 && (
-                    <Badge tone="danger">{row.late_minutes}m late</Badge>
-                  )}
-                </Group>
-                <Text size="sm" c="dimmed">
-                  Scheduled {new Date(row.scheduled_at).toLocaleString()}
-                </Text>
-              </Stack>
-              {row.status === "pending" && (
-                <Group>
-                  {canAdminister && (
-                    <Button
-                      tone="primary"
-                      size="xs"
-                      onClick={() => administer.mutate(row.id)}
-                      loading={administer.isPending}
-                    >
-                      Administer
-                    </Button>
-                  )}
-                  {canHold && (
-                    <Button
-                      tone="secondary"
-                      size="xs"
-                      onClick={() => setActioning({ id: row.id, mode: "hold" })}
-                    >
-                      Hold
-                    </Button>
-                  )}
-                  {canRefuse && (
-                    <Button
-                      tone="secondary"
-                      size="xs"
-                      onClick={() => setActioning({ id: row.id, mode: "refuse" })}
-                    >
-                      Refuse
-                    </Button>
-                  )}
-                  {!canAdminister && !canHold && !canRefuse && (
-                    <Text size="xs" c="dimmed">
-                      View only
-                    </Text>
-                  )}
-                </Group>
-              )}
-            </Group>
-          </Card>
-        ))}
-      </Stack>
-
-      <Modal
-        opened={actioning !== null}
-        onClose={() => {
-          setActioning(null);
-          setReason("");
-        }}
-        title={actioning?.mode === "hold" ? "Hold reason" : "Refusal reason"}
-      >
-        <Stack>
-          <Textarea
-            label="Reason"
-            value={reason}
-            onChange={(e) => setReason(e.currentTarget.value)}
-            minRows={3}
-            required
-          />
-          <Group justify="flex-end">
-            <Button
-              tone="primary"
-              onClick={submitReason}
-              disabled={!reason.trim()}
-              loading={hold.isPending || refuse.isPending}
-            >
-              Confirm
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-    </Stack>
-  );
+  return <MedicationRound patientId={patientId || undefined} />;
 }
 
 // ── I/O Tab ─────────────────────────────────────────────────────────

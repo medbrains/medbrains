@@ -72,7 +72,6 @@ pub mod news_feed;
 pub mod nhcx_callback;
 pub mod nurse_clinical;
 pub mod nurse_handoff;
-pub mod nurse_mar;
 pub mod nurse_vitals;
 pub mod occ_health;
 pub mod notifications;
@@ -2243,14 +2242,12 @@ pub fn build_router(state: AppState) -> Router {
             "/api/pharmacy/cash-drawers/{id}/close",
             put(pharmacy_cash_drawer::close_drawer),
         )
-        // ── Nurse Activities: MAR ──────────────────────────
-        .route("/api/nurse/mar/due-now", get(nurse_mar::list_due_now))
-        .route("/api/nurse/mar/{id}/administer", put(nurse_mar::administer))
-        .route("/api/nurse/mar/{id}/hold", put(nurse_mar::hold))
-        .route("/api/nurse/mar/{id}/refuse", put(nurse_mar::refuse))
+        // ── Nurse Activities: MAR (canonical ipd_medication_administration) ──
+        .route("/api/nurse/mar/due-now", get(ipd::list_mar_due_now))
+        .route("/api/nurse/mar/{id}", put(ipd::update_mar_round))
         .route(
             "/api/nurse/mar/patient/{patient_id}",
-            get(nurse_mar::list_for_patient),
+            get(ipd::list_mar_for_patient),
         )
         // ── Nurse Activities: Vitals + I/O + Pain + Fall Risk
         .route(

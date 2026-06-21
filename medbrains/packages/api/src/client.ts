@@ -13121,20 +13121,17 @@ export const api = {
   // Nurse Activities
   // ══════════════════════════════════════════════════════════════════
 
-  // MAR
-  listMarDueNow: (params?: { window_min?: number; patient_id?: string }) => {
+  // MAR (canonical ipd_medication_administration)
+  listMarDueNow: (params?: { window_min?: number; ward_id?: string; patient_id?: string }) => {
     const qs = new URLSearchParams();
     if (params?.window_min !== undefined) qs.set("window_min", String(params.window_min));
+    if (params?.ward_id) qs.set("ward_id", params.ward_id);
     if (params?.patient_id) qs.set("patient_id", params.patient_id);
     const q = qs.toString();
     return request<unknown[]>(`/nurse/mar/due-now${q ? `?${q}` : ""}`);
   },
-  administerMar: (id: string, data: Record<string, unknown>) =>
-    request<unknown>(`/nurse/mar/${id}/administer`, { method: "PUT", body: JSON.stringify(data) }),
-  holdMar: (id: string, data: { reason: string }) =>
-    request<unknown>(`/nurse/mar/${id}/hold`, { method: "PUT", body: JSON.stringify(data) }),
-  refuseMar: (id: string, data: { reason: string }) =>
-    request<unknown>(`/nurse/mar/${id}/refuse`, { method: "PUT", body: JSON.stringify(data) }),
+  updateMarRound: (id: string, data: Record<string, unknown>) =>
+    request<unknown>(`/nurse/mar/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   listMarForPatient: (patient_id: string) => request<unknown[]>(`/nurse/mar/patient/${patient_id}`),
 
   // Vitals schedules

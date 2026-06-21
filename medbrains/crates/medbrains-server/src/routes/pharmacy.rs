@@ -567,6 +567,127 @@ async fn admission_id_for_encounter_in_tx(
     .map_err(AppError::from)
 }
 
+/// Dispensed-batch trace for a catalog item: (stock id, batch number, expiry).
+type BatchTrace = (Option<Uuid>, Option<String>, Option<NaiveDate>);
+
+#[derive(sqlx::FromRow)]
+struct PrescriptionItemForMar {
+    id: Uuid,
+    drug_name: String,
+    dosage: String,
+    frequency: String,
+    duration: String,
+    route: Option<String>,
+    catalog_item_id: Option<Uuid>,
+}
+
+/// Explode a just-dispensed IPD prescription into scheduled eMAR doses.
+///
+/// For each active prescription item we generate `ipd_medication_administration`
+/// rows from the item's frequency + duration (see [`mar_schedule`]), attaching
+/// the dispensed batch (matched by catalog item) for recall/expiry traceability
+/// and flagging high-alert drugs (controlled / Schedule H1·X·NDPS / LASA) so the
+/// bedside requires a witness. Idempotent: an item that already has MAR rows is
+/// skipped, so re-dispensing the remainder of a partial order won't double-book.
+async fn generate_mar_from_dispensed_order_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    admission_id: Uuid,
+    prescription_id: Uuid,
+    dispensed_items: &[PharmacyOrderItem],
+) -> Result<(), AppError> {
+    // Batch by catalog item: the dose carries the actual dispensed lot.
+    let batch_by_catalog: HashMap<Uuid, BatchTrace> =
+        dispensed_items
+            .iter()
+            .filter_map(|i| {
+                i.catalog_item_id.map(|cid| {
+                    (
+                        cid,
+                        (i.batch_stock_id, i.batch_number.clone(), i.expiry_date),
+                    )
+                })
+            })
+            .collect();
+
+    let items = sqlx::query_as::<_, PrescriptionItemForMar>(
+        "SELECT id, drug_name, dosage, frequency, duration, route, catalog_item_id \
+         FROM prescription_items \
+         WHERE prescription_id = $1 AND tenant_id = $2 AND item_status = 'active'",
+    )
+    .bind(prescription_id)
+    .bind(tenant_id)
+    .fetch_all(&mut **tx)
+    .await?;
+
+    let now = chrono::Utc::now();
+    for item in &items {
+        // Idempotency: don't regenerate if this item already has scheduled doses.
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM ipd_medication_administration \
+             WHERE tenant_id = $1 AND prescription_item_id = $2)",
+        )
+        .bind(tenant_id)
+        .bind(item.id)
+        .fetch_one(&mut **tx)
+        .await?;
+        if exists {
+            continue;
+        }
+
+        let slots = medbrains_core::mar_schedule::schedule_doses(&item.frequency, &item.duration, now);
+        if slots.is_empty() {
+            // PRN / SOS — created on demand at the bedside, not pre-scheduled.
+            continue;
+        }
+
+        let is_high_alert = match item.catalog_item_id {
+            Some(cid) => sqlx::query_scalar::<_, bool>(
+                "SELECT (is_controlled OR is_lasa OR drug_schedule IN ('H1','X','NDPS')) \
+                 FROM pharmacy_catalog WHERE id = $1 AND tenant_id = $2",
+            )
+            .bind(cid)
+            .bind(tenant_id)
+            .fetch_optional(&mut **tx)
+            .await?
+            .unwrap_or(false),
+            None => false,
+        };
+
+        let (batch_stock_id, batch_number, batch_expiry) = item
+            .catalog_item_id
+            .and_then(|cid| batch_by_catalog.get(&cid).cloned())
+            .unwrap_or((None, None, None));
+        let route = item.route.clone().unwrap_or_else(|| "oral".to_owned());
+
+        for slot in slots {
+            sqlx::query(
+                "INSERT INTO ipd_medication_administration \
+                   (tenant_id, admission_id, prescription_item_id, drug_name, dose, route, \
+                    frequency, scheduled_at, status, is_high_alert, \
+                    batch_stock_id, batch_number, batch_expiry) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'scheduled'::mar_status, $9, $10, $11, $12)",
+            )
+            .bind(tenant_id)
+            .bind(admission_id)
+            .bind(item.id)
+            .bind(&item.drug_name)
+            .bind(&item.dosage)
+            .bind(&route)
+            .bind(&item.frequency)
+            .bind(slot.scheduled_at)
+            .bind(is_high_alert)
+            .bind(batch_stock_id)
+            .bind(&batch_number)
+            .bind(batch_expiry)
+            .execute(&mut **tx)
+            .await?;
+        }
+    }
+
+    Ok(())
+}
+
 async fn order_detail_response_in_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
@@ -2768,6 +2889,20 @@ pub async fn dispense_order(
 
     let admission_id =
         admission_id_for_encounter_in_tx(&mut tx, &claims.tenant_id, order.encounter_id).await?;
+
+    // Close the medication loop: an IPD dispense generates the bedside eMAR
+    // schedule (doses appear on the nurse's round, traceable to this batch).
+    if let (Some(admission_id), Some(prescription_id)) = (admission_id, order.prescription_id) {
+        generate_mar_from_dispensed_order_in_tx(
+            &mut tx,
+            &claims.tenant_id,
+            admission_id,
+            prescription_id,
+            &billed_items,
+        )
+        .await?;
+    }
+
     let mut event = ClinicalEventEnvelope::new(
         claims.tenant_id,
         ClinicalEventName::PharmacyOrderDispensed,

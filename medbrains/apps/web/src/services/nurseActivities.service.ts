@@ -1,10 +1,16 @@
 import { api } from "@medbrains/api";
+import type { IpdMedicationAdministration, MarDueRow, UpdateMarRoundInput } from "@medbrains/types";
 
 export const nurseActivitiesService = {
-  listMarDueNow: (...args: Parameters<typeof api.listMarDueNow>) => api.listMarDueNow(...args),
-  administerMar: (...args: Parameters<typeof api.administerMar>) => api.administerMar(...args),
-  holdMar: (...args: Parameters<typeof api.holdMar>) => api.holdMar(...args),
-  refuseMar: (...args: Parameters<typeof api.refuseMar>) => api.refuseMar(...args),
+  listMarDueNow: (params?: { window_min?: number; ward_id?: string; patient_id?: string }) =>
+    api.listMarDueNow(params) as Promise<MarDueRow[]>,
+  updateMarRound: (id: string, data: UpdateMarRoundInput) =>
+    api.updateMarRound(
+      id,
+      data as unknown as Record<string, unknown>,
+    ) as Promise<IpdMedicationAdministration>,
+  listMarForPatient: (patientId: string) =>
+    api.listMarForPatient(patientId) as Promise<IpdMedicationAdministration[]>,
   listVitalsSchedules: (...args: Parameters<typeof api.listVitalsSchedules>) =>
     api.listVitalsSchedules(...args),
   createVitalsSchedule: (...args: Parameters<typeof api.createVitalsSchedule>) =>
