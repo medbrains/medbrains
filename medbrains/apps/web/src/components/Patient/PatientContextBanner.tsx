@@ -52,6 +52,9 @@ interface PatientContextBannerProps {
   /** Render the signal chips only (no Alert frame, no identity line) so they
    * can sit inline next to a header's identity chips. */
   inline?: boolean;
+  /** Surface-driven layout: "compact" strip (default) or a large "detail"
+   * header for full pages (patient detail, OPD/IPD encounter). */
+  surface?: "compact" | "detail";
 }
 
 interface PatientContextChip {
@@ -61,7 +64,13 @@ interface PatientContextChip {
   severity: "critical" | "info" | "warning";
 }
 
-function PatientContextIdentity({ data }: { data: PatientContext }) {
+function PatientContextIdentity({
+  data,
+  surface = "compact",
+}: {
+  data: PatientContext;
+  surface?: "compact" | "detail";
+}) {
   const protectedUhid = useProtectedFieldValue({
     fieldCode: PATIENT_UHID_FIELD_ACCESS_KEY,
     value: data.uhid,
@@ -87,17 +96,28 @@ function PatientContextIdentity({ data }: { data: PatientContext }) {
     gender: data.gender,
   });
 
-  const identity = (
-    <Box className={styles.identity}>
-      <Box className={styles.avatar} aria-hidden="true">
-        {patientInitials(nameStr)}
+  const identity =
+    surface === "detail" ? (
+      <Box className={styles.identity}>
+        <Box className={styles.avatarLg} aria-hidden="true">
+          {patientInitials(nameStr)}
+        </Box>
+        <Box className={styles.idText}>
+          <Box className={styles.nameLg}>{protectedName.displayValue}</Box>
+          <Box className={styles.factsLg}>{sub}</Box>
+        </Box>
       </Box>
-      <Box className={styles.idText}>
-        <Box className={styles.name}>{protectedName.displayValue}</Box>
-        <Box className={styles.sub}>{sub}</Box>
+    ) : (
+      <Box className={styles.identity}>
+        <Box className={styles.avatar} aria-hidden="true">
+          {patientInitials(nameStr)}
+        </Box>
+        <Box className={styles.idText}>
+          <Box className={styles.name}>{protectedName.displayValue}</Box>
+          <Box className={styles.sub}>{sub}</Box>
+        </Box>
       </Box>
-    </Box>
-  );
+    );
 
   if (!restrictionLabel) {
     return identity;
@@ -125,6 +145,7 @@ export function PatientContextBanner({
   hideLoadingState = false,
   variant = "clinical",
   inline = false,
+  surface = "compact",
 }: PatientContextBannerProps) {
   const { t } = useTranslation("patients");
   const { data, isLoading, isError } = usePatientContext(patientId);
@@ -297,6 +318,23 @@ export function PatientContextBanner({
 
   const visibleChips =
     variant === "financial" ? chips.filter((chip) => chip.scope === "all") : chips;
+
+  // Detail surface — large header for full pages; always shows identity even
+  // when there are no signal chips.
+  if (surface === "detail") {
+    return (
+      <Box className={styles.detail}>
+        <PatientContextIdentity data={data} surface="detail" />
+        {visibleChips.length > 0 && (
+          <Box className={styles.detailChips}>
+            {visibleChips.map((chip) => (
+              <span key={chip.key}>{chip.node}</span>
+            ))}
+          </Box>
+        )}
+      </Box>
+    );
+  }
 
   if (visibleChips.length === 0) return null;
 

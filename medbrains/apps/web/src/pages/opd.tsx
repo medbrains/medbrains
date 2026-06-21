@@ -1799,7 +1799,7 @@ export function EncounterDetail({
         />
       )}
 
-      <PatientContextBanner patientId={patientId} hideLoadingState />
+      <PatientContextBanner patientId={patientId} hideLoadingState surface="detail" />
       <PatientFlowNavigator
         patientId={patientId}
         active="opd"
