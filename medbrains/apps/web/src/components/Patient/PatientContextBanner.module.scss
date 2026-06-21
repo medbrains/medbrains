@@ -1,0 +1,62 @@
+// Clean rx-suite patient header — neutral surface, hairline border, an
+// initials avatar + identity, with operational signal chips on the right.
+// Replaces the old full-width severity-coloured alert band.
+
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 24px;
+  background: #fff;
+  border-bottom: 1px solid var(--mb-border, #e0e0e0);
+}
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.avatar {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: var(--mb-radius-sm, 4px);
+  background: var(--mb-brand, #0f62fe);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mb-font-mono, "IBM Plex Mono", monospace);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.idText {
+  min-width: 0;
+}
+
+.name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--mb-text, #161616);
+  line-height: 1.25;
+}
+
+.sub {
+  font-family: var(--mb-font-mono, "IBM Plex Mono", monospace);
+  font-size: 11px;
+  color: var(--mb-text-muted, #6f6f6f);
+  letter-spacing: 0.01em;
+}
+
+.chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}

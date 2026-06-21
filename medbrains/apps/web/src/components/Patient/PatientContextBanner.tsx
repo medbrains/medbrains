@@ -11,7 +11,7 @@
 //
 // Plan section 1 — feeds form defaults via the hook elsewhere.
 
-import { Alert, Group, Skeleton, Text, Tooltip } from "@mantine/core";
+import { Box, Group, Skeleton, Tooltip } from "@mantine/core";
 import type { PatientContext } from "@medbrains/types";
 import {
   PATIENT_NAME_FIELD_ACCESS_KEYS,
@@ -32,6 +32,8 @@ import { useTranslation } from "react-i18next";
 import { OperationalSignal } from "@/components/OperationalSignal";
 import { useProtectedFieldValue } from "@/components/PermissionedFieldValue";
 import { usePatientContext } from "@/hooks/usePatientContext";
+import { patientIdentitySubline, patientInitials } from "@/utils/patient-identity";
+import styles from "./PatientContextBanner.module.scss";
 
 /** Which chips a screen cares about. Safety/identity chips
  * (deceased, MLC, VIP, insurance, balance) show everywhere;
@@ -74,19 +76,27 @@ function PatientContextIdentity({ data }: { data: PatientContext }) {
     .filter(Boolean)
     .join("; ");
 
+  const nameStr = typeof protectedName.displayValue === "string" ? protectedName.displayValue : "";
+  const uhidStr =
+    typeof protectedUhid.displayValue === "string"
+      ? protectedUhid.displayValue
+      : String(protectedUhid.displayValue ?? "");
+  const sub = patientIdentitySubline({
+    uhid: uhidStr,
+    ageYears: data.age_years,
+    gender: data.gender,
+  });
+
   const identity = (
-    <Text
-      size="xs"
-      c={
-        protectedUhid.isRestricted || protectedName.isRestricted ? "var(--mb-text-muted)" : "dimmed"
-      }
-      fw={500}
-      mr={4}
-    >
-      {protectedUhid.displayValue} · {protectedName.displayValue}
-      {data.age_years !== null ? ` · ${data.age_years}y` : ""}
-      {data.gender ? ` · ${data.gender}` : ""}
-    </Text>
+    <Box className={styles.identity}>
+      <Box className={styles.avatar} aria-hidden="true">
+        {patientInitials(nameStr)}
+      </Box>
+      <Box className={styles.idText}>
+        <Box className={styles.name}>{protectedName.displayValue}</Box>
+        <Box className={styles.sub}>{sub}</Box>
+      </Box>
+    </Box>
   );
 
   if (!restrictionLabel) {
@@ -301,21 +311,15 @@ export function PatientContextBanner({
     );
   }
 
-  // Use the highest severity present to colour the alert frame.
-  const alertColor = visibleChips.some((chip) => chip.severity === "critical")
-    ? "red"
-    : visibleChips.some((chip) => chip.severity === "warning")
-      ? "yellow"
-      : "brand";
-
+  // Clean rx-suite header — neutral surface; chips carry their own colour.
   return (
-    <Alert color={alertColor} variant="light" mb="sm" radius="sm" withCloseButton={false}>
-      <Group gap="xs" wrap="wrap" align="center">
-        <PatientContextIdentity data={data} />
+    <Box className={styles.banner}>
+      <PatientContextIdentity data={data} />
+      <Box className={styles.chips}>
         {visibleChips.map((chip) => (
           <span key={chip.key}>{chip.node}</span>
         ))}
-      </Group>
-    </Alert>
+      </Box>
+    </Box>
   );
 }

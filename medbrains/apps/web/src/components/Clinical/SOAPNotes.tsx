@@ -552,9 +552,13 @@ export function SOAPNotes({
                         {t(section.labelKey)}
                       </Text>
                     </Group>
-                    <Text size="sm" c={value.length > 0 ? undefined : "dimmed"} lineClamp={6}>
-                      {value.length > 0 ? soapText(value) : "Not documented in this encounter."}
-                    </Text>
+                    {value.length > 0 ? (
+                      <RichTextEditor value={soapText(value)} readOnly minHeight={0} />
+                    ) : (
+                      <Text size="sm" c="dimmed">
+                        Not documented in this encounter.
+                      </Text>
+                    )}
                   </div>
                 );
               })}
@@ -565,9 +569,7 @@ export function SOAPNotes({
                 <Text size="xs" fw={700} c="dimmed" tt="uppercase">
                   Combined Note
                 </Text>
-                <Text size="sm" className={styles.noteText}>
-                  {soapText(savedCombined)}
-                </Text>
+                <RichTextEditor value={soapText(savedCombined)} readOnly minHeight={0} />
               </div>
             )}
           </Stack>
@@ -624,9 +626,7 @@ export function SOAPNotes({
                       <Text size="xs" c="dimmed" mb={4}>
                         {[entry.date, entry.subtitle].filter(Boolean).join(" - ")}
                       </Text>
-                      <Text size="sm" className={styles.noteText}>
-                        {soapText(entry.value)}
-                      </Text>
+                      <RichTextEditor value={soapText(entry.value)} readOnly minHeight={0} />
                     </Timeline.Item>
                   ))}
                 </Timeline>
@@ -683,9 +683,11 @@ export function SOAPNotes({
                             ))}
                           </Group>
                           {entry.preview.length > 0 && (
-                            <Text size="xs" mt={6} lineClamp={3}>
-                              {soapText(entry.preview)}
-                            </Text>
+                            <RichTextEditor
+                              value={soapText(entry.preview)}
+                              readOnly
+                              minHeight={0}
+                            />
                           )}
                         </div>
                       ))
@@ -823,9 +825,7 @@ export function SOAPNotes({
                   )}
                 />
                 {watchedValues.notes.trim().length === 0 && combinedPreview.length > 0 && (
-                  <Text size="xs" c="dimmed" mt={6} className={styles.noteText}>
-                    {combinedPreview}
-                  </Text>
+                  <RichTextEditor value={combinedPreview} readOnly minHeight={0} />
                 )}
               </div>
 

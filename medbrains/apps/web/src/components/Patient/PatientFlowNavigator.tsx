@@ -15,7 +15,6 @@ import {
 import {
   IconBed,
   IconBuildingStore,
-  IconCash,
   IconFileInvoice,
   IconFirstAidKit,
   IconPill,
@@ -28,7 +27,7 @@ import { useNavigate } from "react-router";
 import { useClinicalEventStore } from "@/components/clinical-event-store";
 import { OperationalSignal } from "../OperationalSignal";
 import styles from "./patient-flow-navigator.module.scss";
-import { clinicalEventMatchesJourney, mergeJourneyEventNames } from "./patient-journey-events";
+import { mergeJourneyEventNames } from "./patient-journey-events";
 import {
   clinicalEventLabel,
   journeyActionSignalLabel,
@@ -177,87 +176,60 @@ export function PatientFlowNavigator({
     ...baseContext,
     completedEvents: mergeJourneyEventNames(baseContext, recentEvents),
   };
-  const recentPatientEvent = recentEvents.find((event) =>
-    clinicalEventMatchesJourney(event, context),
-  );
   const { items, summary } = buildPatientFlowReadiness(context, hasPermission);
 
   return (
     <div className={styles.wrapper} data-compact={compact || undefined}>
-      <Group justify="space-between" gap="xs" align="center" className={styles.header}>
-        <Group gap={6}>
-          <IconCash size={14} />
-          <Text size="xs" fw={700}>
-            {t("patientJourney.flow.title")}
-          </Text>
+      <Group justify="space-between" gap="xs" wrap="wrap">
+        <Group gap="xs" wrap="wrap">
+          {items.map((item) => {
+            const isActive = item.id === active;
+            const visual = FLOW_VISUALS[item.id];
+            const signal = patientFlowReadinessSignal(item);
+            const signalLabel = journeyActionSignalLabel(t, signal);
+            const signalNominal = signal.tone === "ready";
+            const button = (
+              <Button
+                key={item.id}
+                size="xs"
+                color={isActive ? "primary" : "gray"}
+                variant={isActive ? "filled" : "default"}
+                leftSection={visual.icon}
+                disabled={!item.enabled}
+                onClick={() => {
+                  if (onStageAction?.(item.id)) return;
+                  navigate(item.href);
+                }}
+              >
+                {patientFlowItemLabel(t, item)}
+              </Button>
+            );
+            return (
+              <Tooltip key={item.id} label={<FlowTooltip item={item} />} multiline w={280}>
+                <span className={styles.flowItem}>
+                  {!signalNominal && (
+                    <OperationalSignal
+                      label={signalLabel}
+                      shape={signal.shape}
+                      size="xs"
+                      tone={signal.tone}
+                    />
+                  )}
+                  {button}
+                </span>
+              </Tooltip>
+            );
+          })}
         </Group>
-        <Group gap={4}>
-          <OperationalSignal
-            label={t("patientJourney.flow.readySummary", {
-              enabled: summary.enabled,
-              total: summary.total,
-            })}
-            shape={summary.blocked > 0 ? "diamond" : "pill"}
-            size="xs"
-            tone={summary.blocked > 0 ? "blocked" : "ready"}
-          />
-          <OperationalSignal
-            label={
-              recentPatientEvent
-                ? t("patientJourney.flow.lastEvent", {
-                    event: recentPatientEvent.eventName
-                      ? clinicalEventLabel(t, recentPatientEvent.eventName)
-                      : t("patientJourney.events.unknown", {
-                          trigger: recentPatientEvent.rawTrigger,
-                        }),
-                  })
-                : t("patientJourney.flow.eventActivated")
-            }
-            shape="token"
-            size="xs"
-            tone={recentPatientEvent ? "complete" : "active"}
-          />
-        </Group>
-      </Group>
-      <Group gap="xs" wrap="wrap">
-        {items.map((item) => {
-          const isActive = item.id === active;
-          const visual = FLOW_VISUALS[item.id];
-          const signal = patientFlowReadinessSignal(item);
-          const signalLabel = journeyActionSignalLabel(t, signal);
-          const signalNominal = signal.tone === "ready";
-          const button = (
-            <Button
-              key={item.id}
-              size="xs"
-              color={isActive ? "primary" : "gray"}
-              variant={isActive ? "filled" : "default"}
-              leftSection={visual.icon}
-              disabled={!item.enabled}
-              onClick={() => {
-                if (onStageAction?.(item.id)) return;
-                navigate(item.href);
-              }}
-            >
-              {patientFlowItemLabel(t, item)}
-            </Button>
-          );
-          return (
-            <Tooltip key={item.id} label={<FlowTooltip item={item} />} multiline w={280}>
-              <span className={styles.flowItem}>
-                {!signalNominal && (
-                  <OperationalSignal
-                    label={signalLabel}
-                    shape={signal.shape}
-                    size="xs"
-                    tone={signal.tone}
-                  />
-                )}
-                {button}
-              </span>
-            </Tooltip>
-          );
-        })}
+        <OperationalSignal
+          label={t("patientJourney.flow.readySummary", {
+            enabled: summary.enabled,
+            total: summary.total,
+          })}
+          shape={summary.blocked > 0 ? "diamond" : "pill"}
+          size="xs"
+          tone={summary.blocked > 0 ? "blocked" : "ready"}
+        />
       </Group>
     </div>
   );

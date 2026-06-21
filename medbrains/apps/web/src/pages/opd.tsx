@@ -56,7 +56,6 @@ import type {
   PatientDiagnosisRow,
   PatientLabOrderRow,
   PharmacyDispatchStatus as PharmacyDispatchStatusRow,
-  PrescriptionHistoryItem,
   PrescriptionWithItems,
   QueueEntry,
   RadiologyDicomStudy,
@@ -1763,19 +1762,6 @@ export function EncounterDetail({
   });
   const activeAllergies = (allergies as PatientAllergy[]).filter((a) => a.is_active);
 
-  // Current medications (from most recent prescription)
-  const { data: rxHistory = [] } = useQuery({
-    queryKey: ["patient-rx-history", patientId],
-    queryFn: () => opdService.listPatientPrescriptions(patientId),
-    staleTime: 120_000,
-  });
-  const currentMeds = useMemo(() => {
-    const history = rxHistory as PrescriptionHistoryItem[];
-    const latest = history[0];
-    if (!latest) return [];
-    return latest.items;
-  }, [rxHistory]);
-
   // Chronic conditions (unresolved diagnoses from past encounters)
   const { data: patientDiagnoses = [] } = useQuery({
     queryKey: ["patient-diagnoses", patientId],
@@ -1883,7 +1869,7 @@ export function EncounterDetail({
         gap="xs"
         wrap="wrap"
         style={{
-          padding: "10px 0 12px",
+          padding: "10px 24px 12px",
           marginTop: 4,
           borderTop: "1px solid var(--mb-border-subtle)",
         }}
@@ -1984,15 +1970,7 @@ export function EncounterDetail({
         >
           {/* Allergies */}
           {activeAllergies.length > 0 && (
-            <Card
-              padding="xs"
-              mb="xs"
-              withBorder
-              style={{
-                background: "var(--mb-danger-bg)",
-                borderColor: "var(--mb-danger-border)",
-              }}
-            >
+            <Card padding="xs" mb="xs" radius="sm" style={{ background: "var(--mb-danger-bg)" }}>
               <Group gap={4} mb={4}>
                 <IconAlertTriangle size={14} color="var(--mb-danger-fg)" />
                 <Text size="xs" fw={700} c="danger">
@@ -2009,28 +1987,9 @@ export function EncounterDetail({
             </Card>
           )}
 
-          {/* Current Medications */}
-          {currentMeds.length > 0 && (
-            <Card padding="xs" mb="xs" withBorder>
-              <Group gap={4} mb={4}>
-                <IconPill size={14} />
-                <Text size="xs" fw={700} c="primary">
-                  Medications
-                </Text>
-              </Group>
-              <Stack gap={2}>
-                {currentMeds.slice(0, 6).map((m) => (
-                  <Text key={m.id} size="xs" c="dimmed">
-                    {m.drug_name} — {m.dosage}
-                  </Text>
-                ))}
-              </Stack>
-            </Card>
-          )}
-
           {/* Chronic Conditions */}
           {chronicConditions.length > 0 && (
-            <Card padding="xs" mb="xs" withBorder>
+            <Card padding="xs" mb="xs" radius="sm" style={{ background: "#fff" }}>
               <Group gap={4} mb={4}>
                 <IconHeartbeat size={14} />
                 <Text size="xs" fw={700} c="orange">
