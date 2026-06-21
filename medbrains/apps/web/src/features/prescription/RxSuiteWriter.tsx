@@ -1,4 +1,4 @@
-import { Box } from "@mantine/core";
+import { Box, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useAuthStore, useHasPermission } from "@medbrains/stores";
@@ -7,10 +7,13 @@ import {
   P,
   type PrescriptionTemplate,
   type PrescriptionWithItems,
+  type RxOrderMode,
   type UpdatePrescriptionRequest,
 } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
+import { Card, Checkbox, SegmentedControl } from "@/components/ui";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import classes from "./prescription.module.scss";
 import { RxDoctor, type RxSafety } from "./RxDoctor";
@@ -63,6 +66,10 @@ export function RxSuiteWriter({
   const [safety, setSafety] = useState<RxSafety>(EMPTY_SAFETY);
   const [currentItems, setCurrentItems] = useState<RxItem[]>([]);
   const [printOpen, printDisc] = useDisclosure(false);
+  const [orderMode, setOrderMode] = useState<RxOrderMode>("written");
+  const [orderingDoctorId, setOrderingDoctorId] = useState("");
+  const [readBack, setReadBack] = useState(false);
+  const isVerbal = prescriber === "nurse" && orderMode !== "written";
 
   const { data: catalog = [] } = useQuery({
     queryKey: ["pharmacy-catalog"],
@@ -136,8 +143,26 @@ export function RxSuiteWriter({
 
   const handleSave = (items: RxItem[]) => {
     if (!canUpdate || items.length === 0) return;
-    onSave({ items: rxItemsToInput(items) });
+    if (isVerbal && (!orderingDoctorId || !readBack)) {
+      notifications.show({
+        title: "Verbal order incomplete",
+        message: "Select the ordering doctor and confirm read-back before saving.",
+        color: "warning",
+      });
+      return;
+    }
+    onSave({
+      items: rxItemsToInput(items),
+      ...(isVerbal
+        ? {
+            order_mode: orderMode,
+            ordering_doctor_id: orderingDoctorId,
+            read_back_confirmed: readBack,
+          }
+        : {}),
+    });
     setSafety(EMPTY_SAFETY);
+    setReadBack(false);
   };
 
   const signer = {
@@ -149,6 +174,43 @@ export function RxSuiteWriter({
 
   return (
     <Box className={classes.suite}>
+      {prescriber === "nurse" && (
+        <Card padding="sm" mb="sm">
+          <Stack gap="xs">
+            <Text size="sm" fw={600}>
+              Order type
+            </Text>
+            <SegmentedControl
+              value={orderMode}
+              onChange={(v) => setOrderMode(v as RxOrderMode)}
+              data={[
+                { label: "Written", value: "written" },
+                { label: "Verbal", value: "verbal" },
+                { label: "Telephone", value: "telephone" },
+              ]}
+            />
+            {isVerbal && (
+              <>
+                <DoctorSearchSelect
+                  label="Ordering doctor"
+                  value={orderingDoctorId}
+                  onChange={setOrderingDoctorId}
+                  required
+                />
+                <Checkbox
+                  label="I read the order back to the doctor and they confirmed it"
+                  checked={readBack}
+                  onChange={(e) => setReadBack(e.currentTarget.checked)}
+                />
+                <Text size="xs" c="dimmed">
+                  The order is recorded under the doctor and routed to them to countersign within 24
+                  hours.
+                </Text>
+              </>
+            )}
+          </Stack>
+        </Card>
+      )}
       <RxDoctor
         formulary={formulary}
         formularyById={formularyById}

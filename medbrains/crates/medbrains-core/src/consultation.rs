@@ -91,6 +91,10 @@ pub struct Prescription {
     pub encounter_id: Uuid,
     pub doctor_id: Uuid,
     pub notes: Option<String>,
+    pub order_mode: String,
+    pub transcribed_by: Option<Uuid>,
+    pub read_back_confirmed: bool,
+    pub countersign_due_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

@@ -35,6 +35,7 @@ use crate::{
         authorization::{require_any_permission, require_permission},
         field_access,
     },
+    routes::notifications::{NewNotification, create_notification},
     state::AppState,
 };
 
@@ -307,6 +308,13 @@ pub struct UpdateDiagnosisRequest {
 pub struct CreatePrescriptionRequest {
     pub notes: Option<String>,
     pub items: Vec<PrescriptionItemInput>,
+    /// "written" (default), "verbal", or "telephone". Verbal/telephone orders
+    /// are transcribed by a nurse and routed to the doctor for countersignature.
+    pub order_mode: Option<String>,
+    /// The prescribing doctor for a verbal/telephone order taken by a nurse.
+    pub ordering_doctor_id: Option<Uuid>,
+    /// Read-back confirmation — mandatory for verbal/telephone orders.
+    pub read_back_confirmed: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2170,17 +2178,46 @@ pub async fn create_prescription(
         ));
     }
 
+    let order_mode = body.order_mode.as_deref().unwrap_or("written");
+    if !["written", "verbal", "telephone"].contains(&order_mode) {
+        return Err(AppError::BadRequest(format!("Invalid order mode '{order_mode}'.")));
+    }
+    let is_verbal = order_mode != "written";
+
+    // For a verbal/telephone order the prescriber is the ordering doctor (the
+    // nurse only transcribes); read-back is mandatory and the doctor must
+    // countersign within policy (24h).
+    let (doctor_id, transcribed_by, countersign_due) = if is_verbal {
+        let ordering = body.ordering_doctor_id.ok_or_else(|| {
+            AppError::BadRequest("A verbal/telephone order needs the ordering doctor.".to_owned())
+        })?;
+        if body.read_back_confirmed != Some(true) {
+            return Err(AppError::BadRequest(
+                "Read-back must be confirmed for a verbal/telephone order.".to_owned(),
+            ));
+        }
+        (ordering, Some(claims.sub), Some(Utc::now() + chrono::Duration::hours(24)))
+    } else {
+        (claims.sub, None, None)
+    };
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rx = sqlx::query_as::<_, Prescription>(
-        "INSERT INTO prescriptions (tenant_id, encounter_id, doctor_id, notes) \
-         VALUES ($1, $2, $3, $4) RETURNING *",
+        "INSERT INTO prescriptions \
+           (tenant_id, encounter_id, doctor_id, notes, order_mode, transcribed_by, \
+            read_back_confirmed, countersign_due_at) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(encounter_id)
-    .bind(claims.sub)
+    .bind(doctor_id)
     .bind(&body.notes)
+    .bind(order_mode)
+    .bind(transcribed_by)
+    .bind(is_verbal)
+    .bind(countersign_due)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -2245,7 +2282,7 @@ pub async fn create_prescription(
         .bind(rx.id)
         .bind(pid)
         .bind(encounter_id)
-        .bind(claims.sub)
+        .bind(doctor_id)
         .bind(source)
         .fetch_optional(&mut *tx)
         .await?;
@@ -2260,6 +2297,25 @@ pub async fn create_prescription(
             .fetch_optional(&mut *tx)
             .await?;
         }
+    }
+
+    // Route a verbal/telephone order to the prescribing doctor to countersign.
+    if is_verbal && doctor_id != claims.sub {
+        create_notification(
+            &mut tx,
+            claims.tenant_id,
+            NewNotification {
+                user_id: doctor_id,
+                kind: "verbal_order_countersign",
+                title: "Verbal order awaiting countersignature",
+                body: Some("A nurse transcribed a verbal/telephone order on your behalf."),
+                category: Some("clinical"),
+                entity_type: Some("prescriptions"),
+                entity_id: Some(rx.id),
+                action_url: None,
+            },
+        )
+        .await?;
     }
 
     tx.commit().await?;

@@ -4288,6 +4288,10 @@ export interface Prescription {
   encounter_id: string;
   doctor_id: string;
   notes: string | null;
+  order_mode: RxOrderMode;
+  transcribed_by: string | null;
+  read_back_confirmed: boolean;
+  countersign_due_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -4332,9 +4336,14 @@ export interface PrescriptionItemInput {
   catalog_item_id?: string;
 }
 
+export type RxOrderMode = "written" | "verbal" | "telephone";
+
 export interface CreatePrescriptionRequest {
   notes?: string;
   items: PrescriptionItemInput[];
+  order_mode?: RxOrderMode;
+  ordering_doctor_id?: string;
+  read_back_confirmed?: boolean;
 }
 
 export interface UpdatePrescriptionRequest {
