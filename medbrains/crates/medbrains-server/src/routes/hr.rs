@@ -1130,6 +1130,35 @@ async fn resolve_planned_end(
     }
 }
 
+#[derive(Deserialize, Default)]
+struct FatigueOverrides {
+    continuous_h: Option<f64>,
+    rest_h: Option<f64>,
+    week_h: Option<f64>,
+}
+
+/// Resolve fatigue thresholds — tenant_settings (category `fatigue`,
+/// key `thresholds`) overriding the safe defaults.
+async fn resolve_fatigue_thresholds(
+    tx: &mut HrTx<'_>,
+    tenant_id: &Uuid,
+) -> Result<FatigueThresholds, AppError> {
+    let d = FatigueThresholds::default();
+    let row: Option<serde_json::Value> = sqlx::query_scalar(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'fatigue' AND key = 'thresholds'",
+    )
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    let o: FatigueOverrides = row.and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default();
+    Ok(FatigueThresholds {
+        continuous_h: o.continuous_h.unwrap_or(d.continuous_h),
+        rest_h: o.rest_h.unwrap_or(d.rest_h),
+        week_h: o.week_h.unwrap_or(d.week_h),
+    })
+}
+
 async fn compute_fatigue(
     tx: &mut HrTx<'_>,
     tenant_id: &Uuid,
@@ -1175,7 +1204,8 @@ async fn compute_fatigue(
     .await?;
     let week_h = week_minutes / 60.0;
 
-    let flags = fatigue::evaluate(continuous_h, rest_h, week_h, FatigueThresholds::default());
+    let thresholds = resolve_fatigue_thresholds(tx, tenant_id).await?;
+    let flags = fatigue::evaluate(continuous_h, rest_h, week_h, thresholds);
     let acknowledged = session.is_some_and(|s| s.fatigue_ack_at.is_some());
     Ok(FatigueState {
         flags: flags
@@ -1495,6 +1525,7 @@ pub async fn list_duty_hours(
     .fetch_all(&mut *tx)
     .await?;
 
+    let thresholds = resolve_fatigue_thresholds(&mut tx, &claims.tenant_id).await?;
     tx.commit().await?;
 
     let now = Utc::now();
@@ -1511,7 +1542,7 @@ pub async fn list_duty_hours(
                 None => 0.0,
             };
             let week_h = a.week_minutes / 60.0;
-            let flags = fatigue::evaluate(continuous_h, None, week_h, FatigueThresholds::default())
+            let flags = fatigue::evaluate(continuous_h, None, week_h, thresholds)
                 .iter()
                 .map(fatigue::FatigueFlag::code)
                 .collect();

@@ -79,7 +79,12 @@ export function MyShiftWidget() {
   });
   const end = useMutation({
     mutationFn: () => hrService.endShift(),
-    onSuccess: apply,
+    onSuccess: (resp) => {
+      apply(resp);
+      toast.info("Shift ended — complete any pending patient handoffs before you leave.", {
+        title: "Handover",
+      });
+    },
     onError: onErr,
   });
   const ack = useMutation({
