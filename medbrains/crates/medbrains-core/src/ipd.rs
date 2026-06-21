@@ -270,6 +270,34 @@ pub struct IpdIntakeOutput {
     pub created_at: DateTime<Utc>,
 }
 
+/// A running IV infusion the bedside nurse manages: structured rate, site,
+/// pump and a lifecycle (ordered → running ⇄ paused → completed/discontinued).
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct IvFluidOrder {
+    pub id: Uuid,
+    pub tenant_id: Option<Uuid>,
+    pub admission_id: Option<Uuid>,
+    pub fluid_name: String,
+    pub volume_ml: i32,
+    pub rate: Option<String>,
+    pub additives: Option<Vec<String>>,
+    pub start_time: DateTime<Utc>,
+    pub duration_hours: Option<f64>,
+    pub status: String,
+    pub rate_ml_per_hr: Option<rust_decimal::Decimal>,
+    pub site: Option<String>,
+    pub pump_serial: Option<String>,
+    pub ordered_by: Option<Uuid>,
+    pub started_at: Option<DateTime<Utc>>,
+    pub planned_end_time: Option<DateTime<Utc>>,
+    pub actual_end_time: Option<DateTime<Utc>>,
+    pub discontinued_reason: Option<String>,
+    pub discontinued_by: Option<Uuid>,
+    pub discontinued_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct IpdNursingAssessment {
     pub id: Uuid,

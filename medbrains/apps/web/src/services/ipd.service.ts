@@ -30,6 +30,9 @@ export const ipdService = {
   listIntakeOutput: (...args: Parameters<typeof api.listIntakeOutput>) =>
     api.listIntakeOutput(...args),
   getIoBalance: (...args: Parameters<typeof api.getIoBalance>) => api.getIoBalance(...args),
+  listInfusions: (...args: Parameters<typeof api.listInfusions>) => api.listInfusions(...args),
+  createInfusion: (...args: Parameters<typeof api.createInfusion>) => api.createInfusion(...args),
+  updateInfusion: (...args: Parameters<typeof api.updateInfusion>) => api.updateInfusion(...args),
   listCarePlans: (...args: Parameters<typeof api.listCarePlans>) => api.listCarePlans(...args),
   listHandovers: (...args: Parameters<typeof api.listHandovers>) => api.listHandovers(...args),
   listAttenders: (...args: Parameters<typeof api.listAttenders>) => api.listAttenders(...args),

@@ -16,8 +16,8 @@ use medbrains_core::ipd::{
     IpdClinicalAssessment, IpdClinicalDocumentation, IpdDeathSummary, IpdDischargeChecklist,
     IpdDischargeSummary, IpdDischargeTatLog, IpdHandoverReport, IpdIntakeOutput,
     IpdMedicationAdministration, IpdNursingAssessment, IpdProgressNote, IpdTransferLog,
-    LabOrderSummary, LabResultSummary, MarStatus, NursingShift, NursingTask, ProgressNoteType,
-    RadiologyOrderSummary, RestraintMonitoringLog, Ward, WardBedMapping,
+    IvFluidOrder, LabOrderSummary, LabResultSummary, MarStatus, NursingShift, NursingTask,
+    ProgressNoteType, RadiologyOrderSummary, RestraintMonitoringLog, Ward, WardBedMapping,
 };
 use medbrains_core::permissions;
 use medbrains_core::privacy::{mask_free_text, mask_identifier_keep_last, mask_name, mask_phone};
@@ -3049,6 +3049,166 @@ pub async fn get_io_balance(
         total_output_ml: total_output,
         balance_ml: total_intake - total_output,
     }))
+}
+
+// ══════════════════════════════════════════════════════════
+//  IV infusions (running-infusion lifecycle)
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Deserialize)]
+pub struct CreateInfusionRequest {
+    pub fluid_name: String,
+    pub volume_ml: i32,
+    pub rate_ml_per_hr: Option<Decimal>,
+    pub site: Option<String>,
+    pub pump_serial: Option<String>,
+    pub additives: Option<Vec<String>>,
+    pub duration_hours: Option<f64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateInfusionRequest {
+    pub status: Option<String>,
+    pub rate_ml_per_hr: Option<Decimal>,
+    pub site: Option<String>,
+    pub pump_serial: Option<String>,
+    pub discontinued_reason: Option<String>,
+}
+
+const INFUSION_STATUSES: [&str; 5] = ["ordered", "running", "paused", "completed", "discontinued"];
+
+/// `GET /api/ipd/admissions/{id}/infusions`
+pub async fn list_infusions(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<IvFluidOrder>>, AppError> {
+    require_permission(&claims, permissions::ipd::io_chart::LIST)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+
+    let rows = sqlx::query_as::<_, IvFluidOrder>(
+        "SELECT * FROM iv_fluid_orders \
+         WHERE admission_id = $1 AND tenant_id = $2 \
+         ORDER BY created_at DESC LIMIT 500",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+/// `POST /api/ipd/admissions/{id}/infusions` — set up + start an infusion.
+pub async fn create_infusion(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<CreateInfusionRequest>,
+) -> Result<Json<IvFluidOrder>, AppError> {
+    require_permission(&claims, permissions::ipd::io_chart::CREATE)?;
+
+    if body.fluid_name.trim().is_empty() {
+        return Err(AppError::BadRequest("Fluid name is required.".to_owned()));
+    }
+    if body.volume_ml <= 0 {
+        return Err(AppError::BadRequest("Volume must be greater than zero.".to_owned()));
+    }
+
+    // Setting up the pump starts the infusion; planned end = now + duration.
+    let planned_end = body
+        .duration_hours
+        .filter(|h| *h > 0.0)
+        .map(|h| Utc::now() + chrono::Duration::milliseconds((h * 3_600_000.0) as i64));
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+
+    let row = sqlx::query_as::<_, IvFluidOrder>(
+        "INSERT INTO iv_fluid_orders \
+           (tenant_id, admission_id, fluid_name, volume_ml, additives, status, \
+            rate_ml_per_hr, site, pump_serial, ordered_by, started_at, \
+            duration_hours, planned_end_time) \
+         VALUES ($1, $2, $3, $4, $5, 'running', $6, $7, $8, $9, now(), $10, $11) \
+         RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(id)
+    .bind(body.fluid_name.trim())
+    .bind(body.volume_ml)
+    .bind(body.additives.as_deref())
+    .bind(body.rate_ml_per_hr)
+    .bind(&body.site)
+    .bind(&body.pump_serial)
+    .bind(claims.sub)
+    .bind(body.duration_hours)
+    .bind(planned_end)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// `PUT /api/ipd/admissions/{id}/infusions/{infusion_id}` — titrate (rate/site)
+/// or transition status (pause/resume/complete/discontinue).
+pub async fn update_infusion(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((id, infusion_id)): Path<(Uuid, Uuid)>,
+    Json(body): Json<UpdateInfusionRequest>,
+) -> Result<Json<IvFluidOrder>, AppError> {
+    require_permission(&claims, permissions::ipd::io_chart::CREATE)?;
+
+    if let Some(status) = &body.status {
+        if !INFUSION_STATUSES.contains(&status.as_str()) {
+            return Err(AppError::BadRequest(format!("Invalid infusion status '{status}'.")));
+        }
+        if status == "discontinued" && body.discontinued_reason.as_deref().unwrap_or("").trim().is_empty() {
+            return Err(AppError::BadRequest(
+                "A reason is required to discontinue an infusion.".to_owned(),
+            ));
+        }
+    }
+
+    let discontinued_by = matches!(body.status.as_deref(), Some("discontinued")).then_some(claims.sub);
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+
+    let row = sqlx::query_as::<_, IvFluidOrder>(
+        "UPDATE iv_fluid_orders SET \
+           status = COALESCE($3, status), \
+           rate_ml_per_hr = COALESCE($4, rate_ml_per_hr), \
+           site = COALESCE($5, site), \
+           pump_serial = COALESCE($6, pump_serial), \
+           started_at = CASE WHEN $3 = 'running' AND started_at IS NULL THEN now() ELSE started_at END, \
+           actual_end_time = CASE WHEN $3 IN ('completed','discontinued') THEN now() ELSE actual_end_time END, \
+           discontinued_reason = COALESCE($7, discontinued_reason), \
+           discontinued_by = COALESCE($8, discontinued_by), \
+           discontinued_at = CASE WHEN $3 = 'discontinued' THEN now() ELSE discontinued_at END, \
+           updated_at = now() \
+         WHERE id = $1 AND admission_id = $2 AND tenant_id = $9 \
+         RETURNING *",
+    )
+    .bind(infusion_id)
+    .bind(id)
+    .bind(body.status.as_deref())
+    .bind(body.rate_ml_per_hr)
+    .bind(&body.site)
+    .bind(&body.pump_serial)
+    .bind(&body.discontinued_reason)
+    .bind(discontinued_by)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    tx.commit().await?;
+    Ok(Json(row))
 }
 
 // ══════════════════════════════════════════════════════════

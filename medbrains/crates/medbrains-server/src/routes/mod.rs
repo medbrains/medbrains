@@ -3132,6 +3132,14 @@ pub fn build_router(state: AppState) -> Router {
             get(ipd::get_io_balance),
         )
         .route(
+            "/api/ipd/admissions/{id}/infusions",
+            get(ipd::list_infusions).post(ipd::create_infusion),
+        )
+        .route(
+            "/api/ipd/admissions/{id}/infusions/{infusion_id}",
+            put(ipd::update_infusion),
+        )
+        .route(
             "/api/ipd/admissions/{id}/nursing-assessments",
             get(ipd::list_nursing_assessments).post(ipd::create_nursing_assessment),
         )

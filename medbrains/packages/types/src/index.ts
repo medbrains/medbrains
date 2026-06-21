@@ -8328,6 +8328,51 @@ export interface IpdIntakeOutput {
   created_at: string;
 }
 
+export type InfusionStatus = "ordered" | "running" | "paused" | "completed" | "discontinued";
+
+export interface IvFluidOrder {
+  id: string;
+  tenant_id: string | null;
+  admission_id: string | null;
+  fluid_name: string;
+  volume_ml: number;
+  rate: string | null;
+  additives: string[] | null;
+  start_time: string;
+  duration_hours: number | null;
+  status: InfusionStatus;
+  rate_ml_per_hr: string | null;
+  site: string | null;
+  pump_serial: string | null;
+  ordered_by: string | null;
+  started_at: string | null;
+  planned_end_time: string | null;
+  actual_end_time: string | null;
+  discontinued_reason: string | null;
+  discontinued_by: string | null;
+  discontinued_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateInfusionInput {
+  fluid_name: string;
+  volume_ml: number;
+  rate_ml_per_hr?: number;
+  site?: string;
+  pump_serial?: string;
+  additives?: string[];
+  duration_hours?: number;
+}
+
+export interface UpdateInfusionInput {
+  status?: InfusionStatus;
+  rate_ml_per_hr?: number;
+  site?: string;
+  pump_serial?: string;
+  discontinued_reason?: string;
+}
+
 export interface IoBalanceResponse {
   total_intake_ml: number;
   total_output_ml: number;

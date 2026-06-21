@@ -169,6 +169,7 @@ import { DischargeWorkflowWizard } from "@/components/Ipd/DischargeWorkflowWizar
 import { MarkDeathModal } from "@/components/Ipd/MarkDeathModal";
 import { TransferOutModal } from "@/components/Ipd/TransferOutModal";
 import { WristbandPrintModal } from "@/components/Ipd/WristbandPrintModal";
+import { InfusionsPanel } from "@/components/Nurse/InfusionsPanel";
 import {
   type OrderBasketTab,
   OrderBasketWorkspace,
@@ -331,6 +332,7 @@ const IPD_WORKSPACE_TABS = [
   { value: "mar", label: "MAR", section: "Command" },
   { value: "prescriptions", label: "Prescriptions", section: "Command" },
   { value: "io", label: "I/O Chart", section: "Command" },
+  { value: "infusions", label: "Infusions", section: "Command" },
   { value: "nursing", label: "Nursing", section: "Command" },
   { value: "attenders", label: "Attenders", section: "Care Context" },
   { value: "clinical-docs", label: "Clinical Docs", section: "Care Context" },
@@ -1629,6 +1631,9 @@ function AdmissionDetail({
             </Tabs.Panel>
             <Tabs.Panel value="io" pt="md">
               <IoChartTab admissionId={admissionId} />
+            </Tabs.Panel>
+            <Tabs.Panel value="infusions" pt="md">
+              <InfusionsPanel admissionId={admissionId} />
             </Tabs.Panel>
             <Tabs.Panel value="nursing" pt="md">
               <NursingTab admissionId={admissionId} />

@@ -516,6 +516,7 @@ import type {
   CreateIncentiveRuleRequest,
   CreateInclusionRequest,
   CreateIndentRequisitionRequest,
+  CreateInfusionInput,
   CreateInjuryRequest,
   CreateInsuranceClaimRequest,
   CreateInsuranceProviderRequest,
@@ -1045,6 +1046,7 @@ import type {
   IssueTokenInput,
   IssueToPatientRequest,
   ItSecurityOnboardingProgress,
+  IvFluidOrder,
   JobListResponse,
   JobStats,
   JournalEntry,
@@ -1707,6 +1709,7 @@ import type {
   UpdateHomeCollectionRequest,
   UpdateHospitalGroup,
   UpdateImplantRequest,
+  UpdateInfusionInput,
   UpdateInjuryRequest,
   UpdateInsuranceClaimRequest,
   UpdateInsuranceProviderRequest,
@@ -5377,6 +5380,18 @@ export const api = {
     }),
   getIoBalance: (admissionId: string) =>
     request<IoBalanceResponse>(`/ipd/admissions/${admissionId}/io/balance`),
+  listInfusions: (admissionId: string) =>
+    request<IvFluidOrder[]>(`/ipd/admissions/${admissionId}/infusions`),
+  createInfusion: (admissionId: string, data: CreateInfusionInput) =>
+    request<IvFluidOrder>(`/ipd/admissions/${admissionId}/infusions`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateInfusion: (admissionId: string, infusionId: string, data: UpdateInfusionInput) =>
+    request<IvFluidOrder>(`/ipd/admissions/${admissionId}/infusions/${infusionId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   // Nursing Assessment
   listNursingAssessments: (admissionId: string) =>
