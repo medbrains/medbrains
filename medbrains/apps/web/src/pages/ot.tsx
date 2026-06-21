@@ -52,12 +52,14 @@ import type {
   OtBooking,
   OtCaseRecord,
   OtConsumableUsage,
+  OtHandoffItem,
   OtPostopRecord,
   OtPreopAssessment,
   OtRoom,
   OtSurgeonPreference,
   OtSurgicalSafetyChecklist,
   RoomUtilization,
+  SetupUser,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
@@ -122,6 +124,7 @@ import {
   toUpdatePreopAssessmentRequest,
 } from "@/forms/ot.form";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { adminAccessService } from "@/services/adminAccess.service";
 import { otService } from "@/services/ot.service";
 
 const bookingStatusColors: Record<string, string> = {
@@ -774,7 +777,10 @@ function BookingDetail({ bookingId }: { bookingId: string }) {
         <OverviewTab booking={data} />
       </Tabs.Panel>
       <Tabs.Panel value="preop" pt="md">
-        <PreopTab bookingId={bookingId} />
+        <Stack>
+          <PreopTab bookingId={bookingId} />
+          <PreopHandoffCard bookingId={bookingId} />
+        </Stack>
       </Tabs.Panel>
       <Tabs.Panel value="checklist" pt="md">
         <ChecklistTab bookingId={bookingId} />
@@ -1012,6 +1018,140 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
         </Stack>
       )}
     </Stack>
+  );
+}
+
+// ── Ward → OT Pre-Op Send-off ─────────────────────────
+
+const PREOP_HANDOFF_TEMPLATE: OtHandoffItem[] = [
+  { key: "consent_verified", label: "Informed consent signed and verified", checked: false },
+  { key: "id_band", label: "Patient ID band present and correct", checked: false },
+  { key: "npo_confirmed", label: "Fasting / NPO status confirmed", checked: false },
+  { key: "site_marked", label: "Surgical site marked (or not applicable)", checked: false },
+  { key: "allergies_checked", label: "Allergies reviewed and band applied", checked: false },
+  {
+    key: "prosthetics_removed",
+    label: "Dentures, lenses, jewellery and prosthetics removed",
+    checked: false,
+  },
+  { key: "preop_meds_given", label: "Pre-op medication given as ordered", checked: false },
+  { key: "valuables_secured", label: "Valuables handed to relatives / secured", checked: false },
+  {
+    key: "records_available",
+    label: "Case notes, imaging and investigations available",
+    checked: false,
+  },
+  {
+    key: "blood_arranged",
+    label: "Blood arranged if required (or not applicable)",
+    checked: false,
+  },
+];
+
+function PreopHandoffCard({ bookingId }: { bookingId: string }) {
+  const queryClient = useQueryClient();
+  const canEdit = useHasPermission(P.OT.PREOP_CREATE);
+  const [items, setItems] = useState<OtHandoffItem[]>(PREOP_HANDOFF_TEMPLATE);
+  const [receivedBy, setReceivedBy] = useState<string | null>(null);
+
+  const { data: handoff } = useQuery({
+    queryKey: ["ot-preop-handoff", bookingId],
+    queryFn: () => otService.getPreopHandoff(bookingId),
+  });
+  const { data: users = [] } = useQuery({
+    queryKey: ["setup-users"],
+    queryFn: () => adminAccessService.listUsers(),
+    staleTime: 300_000,
+    enabled: canEdit,
+  });
+
+  const stored = handoff?.items;
+  const effectiveItems = stored && stored.length > 0 ? stored : items;
+  const completed = handoff?.completed ?? false;
+  const allChecked = effectiveItems.every((i) => i.checked);
+
+  const invalidate = () =>
+    void queryClient.invalidateQueries({ queryKey: ["ot-preop-handoff", bookingId] });
+
+  const save = useMutation({
+    mutationFn: (next: OtHandoffItem[]) => otService.upsertPreopHandoff(bookingId, { items: next }),
+    onSuccess: invalidate,
+    onError: () => toast.error("Failed to save send-off", { title: "Error" }),
+  });
+  const confirm = useMutation({
+    mutationFn: () =>
+      otService.upsertPreopHandoff(bookingId, {
+        items: effectiveItems,
+        received_by: receivedBy ?? undefined,
+        completed: true,
+      }),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Patient handed off to OT", { title: "Send-off complete" });
+    },
+    onError: (e: Error) => toast.error(e.message, { title: "Cannot confirm" }),
+  });
+
+  const toggle = (key: string) => {
+    const next = effectiveItems.map((i) => (i.key === key ? { ...i, checked: !i.checked } : i));
+    setItems(next);
+    save.mutate(next);
+  };
+
+  return (
+    <Card withBorder padding="sm">
+      <Group justify="space-between">
+        <Text fw={600}>Ward → OT send-off</Text>
+        {completed ? (
+          <Badge tone="success" size="sm">
+            Handed off
+          </Badge>
+        ) : (
+          <Badge tone="warning" size="sm">
+            Pending
+          </Badge>
+        )}
+      </Group>
+      {completed && handoff?.completed_at && (
+        <Text size="xs" c="dimmed" mt={4}>
+          Handed off at {new Date(handoff.completed_at).toLocaleString()}
+        </Text>
+      )}
+      <Stack gap="xs" mt="xs">
+        {effectiveItems.map((item) => (
+          <Checkbox
+            key={item.key}
+            label={item.label}
+            checked={item.checked}
+            disabled={!canEdit || completed}
+            onChange={() => toggle(item.key)}
+            size="xs"
+          />
+        ))}
+        {canEdit && !completed && (
+          <>
+            <Select
+              label="Received by (OT nurse)"
+              placeholder="Select staff"
+              data={(users as SetupUser[]).map((u) => ({ value: u.id, label: u.full_name }))}
+              value={receivedBy}
+              onChange={setReceivedBy}
+              searchable
+              size="xs"
+            />
+            <Button
+              tone="primary"
+              size="xs"
+              disabled={!allChecked || !receivedBy}
+              loading={confirm.isPending}
+              onClick={() => confirm.mutate()}
+            >
+              {allChecked ? "Confirm send-off to OT" : "Check all items to confirm"}
+            </Button>
+          </>
+        )}
+      </Stack>
+    </Card>
   );
 }
 

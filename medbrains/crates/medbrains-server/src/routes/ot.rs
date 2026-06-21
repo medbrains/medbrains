@@ -8,8 +8,8 @@ use chrono::{NaiveDate, Utc};
 use medbrains_core::ipd::{AnesthesiaComplicationEntry, SurgeonCaseloadEntry};
 use medbrains_core::ot::{
     ChecklistPhase, OtAnesthesiaRecord, OtBooking, OtCaseRecord, OtConsumableCategory,
-    OtConsumableUsage, OtPostopRecord, OtPreopAssessment, OtRoom, OtSurgeonPreference,
-    OtSurgicalSafetyChecklist,
+    OtConsumableUsage, OtPostopRecord, OtPreopAssessment, OtPreopHandoff, OtRoom,
+    OtSurgeonPreference, OtSurgicalSafetyChecklist,
 };
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
@@ -810,6 +810,177 @@ pub async fn update_preop(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+// ══════════════════════════════════════════════════════════
+//  Ward → OT pre-op send-off handoff
+// ══════════════════════════════════════════════════════════
+
+/// Required ward → OT send-off checklist items (key, label). The patient may
+/// not be confirmed handed off until every item is checked.
+fn preop_handoff_items() -> &'static [(&'static str, &'static str)] {
+    &[
+        ("consent_verified", "Informed consent signed and verified"),
+        ("id_band", "Patient ID band present and correct"),
+        ("npo_confirmed", "Fasting / NPO status confirmed"),
+        ("site_marked", "Surgical site marked (or not applicable)"),
+        ("allergies_checked", "Allergies reviewed and band applied"),
+        ("prosthetics_removed", "Dentures, lenses, jewellery and prosthetics removed"),
+        ("preop_meds_given", "Pre-op medication given as ordered"),
+        ("valuables_secured", "Valuables handed to relatives / secured"),
+        ("records_available", "Case notes, imaging and investigations available"),
+        ("blood_arranged", "Blood arranged if required (or not applicable)"),
+    ]
+}
+
+fn seed_handoff_items() -> serde_json::Value {
+    serde_json::Value::Array(
+        preop_handoff_items()
+            .iter()
+            .map(|(key, label)| serde_json::json!({ "key": key, "label": label, "checked": false }))
+            .collect(),
+    )
+}
+
+#[derive(Deserialize)]
+struct HandoffItemState {
+    key: String,
+    #[serde(default)]
+    checked: bool,
+}
+
+fn ensure_handoff_complete(items: &serde_json::Value) -> Result<(), AppError> {
+    let states: Vec<HandoffItemState> = serde_json::from_value(items.clone()).unwrap_or_default();
+    let missing: Vec<&str> = preop_handoff_items()
+        .iter()
+        .filter(|(key, _)| !states.iter().any(|s| s.key == *key && s.checked))
+        .map(|(_, label)| *label)
+        .collect();
+    if missing.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::BadRequest(format!(
+            "Cannot confirm send-off — {} item(s) still unchecked: {}",
+            missing.len(),
+            missing.join("; ")
+        )))
+    }
+}
+
+#[derive(Deserialize)]
+pub struct UpsertHandoffRequest {
+    pub items: Option<serde_json::Value>,
+    pub received_by: Option<Uuid>,
+    pub notes: Option<String>,
+    pub completed: Option<bool>,
+}
+
+/// `GET /api/ot/bookings/{booking_id}/preop-handoff`
+pub async fn get_preop_handoff(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(booking_id): Path<Uuid>,
+) -> Result<Json<Option<OtPreopHandoff>>, AppError> {
+    require_permission(&claims, permissions::ot::preop::LIST)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, OtPreopHandoff>(
+        "SELECT * FROM ot_preop_handoffs WHERE booking_id = $1 AND tenant_id = $2",
+    )
+    .bind(booking_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// `PUT /api/ot/bookings/{booking_id}/preop-handoff` — create (seeded) or update
+/// the send-off; confirming completion requires every item checked + a receiver.
+pub async fn upsert_preop_handoff(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(booking_id): Path<Uuid>,
+    Json(body): Json<UpsertHandoffRequest>,
+) -> Result<Json<OtPreopHandoff>, AppError> {
+    require_permission(&claims, permissions::ot::preop::CREATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let existing = sqlx::query_as::<_, OtPreopHandoff>(
+        "SELECT * FROM ot_preop_handoffs WHERE booking_id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(booking_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let completing = body.completed == Some(true);
+    let effective_items = body
+        .items
+        .clone()
+        .or_else(|| existing.as_ref().map(|e| e.items.clone()))
+        .unwrap_or_else(seed_handoff_items);
+
+    if completing {
+        ensure_handoff_complete(&effective_items)?;
+        if body.received_by.is_none() && existing.as_ref().and_then(|e| e.received_by).is_none() {
+            return Err(AppError::BadRequest(
+                "A receiving OT nurse is required to confirm the send-off.".to_owned(),
+            ));
+        }
+    }
+
+    let handed_off_by = completing.then_some(claims.sub);
+    let completed_at = completing.then(Utc::now);
+
+    let row = if existing.is_some() {
+        sqlx::query_as::<_, OtPreopHandoff>(
+            "UPDATE ot_preop_handoffs SET \
+               items = $3, \
+               received_by = COALESCE($4, received_by), \
+               notes = COALESCE($5, notes), \
+               completed = COALESCE($6, completed), \
+               handed_off_by = COALESCE($7, handed_off_by), \
+               completed_at = COALESCE($8, completed_at), \
+               updated_at = now() \
+             WHERE booking_id = $1 AND tenant_id = $2 RETURNING *",
+        )
+        .bind(booking_id)
+        .bind(claims.tenant_id)
+        .bind(&effective_items)
+        .bind(body.received_by)
+        .bind(&body.notes)
+        .bind(body.completed)
+        .bind(handed_off_by)
+        .bind(completed_at)
+        .fetch_one(&mut *tx)
+        .await?
+    } else {
+        sqlx::query_as::<_, OtPreopHandoff>(
+            "INSERT INTO ot_preop_handoffs \
+               (tenant_id, booking_id, items, received_by, notes, completed, \
+                handed_off_by, completed_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
+        )
+        .bind(claims.tenant_id)
+        .bind(booking_id)
+        .bind(&effective_items)
+        .bind(body.received_by)
+        .bind(&body.notes)
+        .bind(body.completed.unwrap_or(false))
+        .bind(handed_off_by)
+        .bind(completed_at)
+        .fetch_one(&mut *tx)
+        .await?
+    };
 
     tx.commit().await?;
     Ok(Json(row))

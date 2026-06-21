@@ -15,6 +15,10 @@ export const otService = {
     api.createPreopAssessment(...args),
   updatePreopAssessment: (...args: Parameters<typeof api.updatePreopAssessment>) =>
     api.updatePreopAssessment(...args),
+  getPreopHandoff: (...args: Parameters<typeof api.getPreopHandoff>) =>
+    api.getPreopHandoff(...args),
+  upsertPreopHandoff: (...args: Parameters<typeof api.upsertPreopHandoff>) =>
+    api.upsertPreopHandoff(...args),
   listSafetyChecklists: (...args: Parameters<typeof api.listSafetyChecklists>) =>
     api.listSafetyChecklists(...args),
   createSafetyChecklist: (...args: Parameters<typeof api.createSafetyChecklist>) =>

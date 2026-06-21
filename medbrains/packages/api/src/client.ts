@@ -1245,6 +1245,7 @@ import type {
   OtConsumableUsage,
   OtPostopRecord,
   OtPreopAssessment,
+  OtPreopHandoff,
   OtRegisterPrintData,
   // OT
   OtRoom,
@@ -1798,6 +1799,7 @@ import type {
   UpsertCampRemoteSetupRequest,
   UpsertDisplayConfigRequest,
   UpsertParLevelRequest,
+  UpsertPreopHandoffInput,
   UpsertQueuePriorityRequest,
   UpsertVisitingHoursRequest,
   UrAnalyticsSummary,
@@ -5580,6 +5582,13 @@ export const api = {
     }),
   updatePreopAssessment: (bookingId: string, data: UpdatePreopAssessmentRequest) =>
     request<OtPreopAssessment>(`/ot/bookings/${bookingId}/preop`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getPreopHandoff: (bookingId: string) =>
+    request<OtPreopHandoff | null>(`/ot/bookings/${bookingId}/preop-handoff`),
+  upsertPreopHandoff: (bookingId: string, data: UpsertPreopHandoffInput) =>
+    request<OtPreopHandoff>(`/ot/bookings/${bookingId}/preop-handoff`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),

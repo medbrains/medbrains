@@ -8660,6 +8660,33 @@ export interface OtPreopAssessment {
   updated_at: string;
 }
 
+export interface OtHandoffItem {
+  key: string;
+  label: string;
+  checked: boolean;
+}
+
+export interface OtPreopHandoff {
+  id: string;
+  tenant_id: string;
+  booking_id: string;
+  items: OtHandoffItem[];
+  handed_off_by: string | null;
+  received_by: string | null;
+  completed: boolean;
+  completed_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpsertPreopHandoffInput {
+  items?: OtHandoffItem[];
+  received_by?: string;
+  notes?: string;
+  completed?: boolean;
+}
+
 export interface OtSurgicalSafetyChecklist {
   id: string;
   tenant_id: string;

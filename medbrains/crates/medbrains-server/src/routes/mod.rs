@@ -3355,6 +3355,10 @@ pub fn build_router(state: AppState) -> Router {
             get(ot::get_preop).post(ot::create_preop).put(ot::update_preop),
         )
         .route(
+            "/api/ot/bookings/{booking_id}/preop-handoff",
+            get(ot::get_preop_handoff).put(ot::upsert_preop_handoff),
+        )
+        .route(
             "/api/ot/bookings/{booking_id}/checklists",
             get(ot::get_checklists).post(ot::create_checklist),
         )
