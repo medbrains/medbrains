@@ -20,6 +20,7 @@ import { useHasPermission } from "@medbrains/stores";
 import type {
   AttendanceRecord,
   Designation,
+  DutyHoursRow,
   DutyRoster,
   Employee,
   EmployeeCredential,
@@ -36,6 +37,7 @@ import {
   IconCertificate,
   IconCheck,
   IconClock,
+  IconHeartbeat,
   IconIdBadge2,
   IconPencil,
   IconPlus,
@@ -131,6 +133,9 @@ export function HrPage() {
           <Tabs.Tab value="attendance" leftSection={<IconClock size={16} />}>
             Attendance
           </Tabs.Tab>
+          <Tabs.Tab value="duty-hours" leftSection={<IconHeartbeat size={16} />}>
+            Duty Hours
+          </Tabs.Tab>
           <Tabs.Tab value="leave" leftSection={<IconCalendar size={16} />}>
             Leave
           </Tabs.Tab>
@@ -150,6 +155,9 @@ export function HrPage() {
         </Tabs.Panel>
         <Tabs.Panel value="attendance">
           <AttendanceTab canManage={canManageAttendance} />
+        </Tabs.Panel>
+        <Tabs.Panel value="duty-hours">
+          <DutyHoursTab />
         </Tabs.Panel>
         <Tabs.Panel value="leave">
           <LeaveTab canCreate={canCreateLeave} canApprove={canApproveLeave} />
@@ -835,6 +843,104 @@ function EmployeeDetailDrawer({
 }
 
 // ══════════════════════════════════════════════════════════
+//  Duty Hours / WLB Tab
+// ══════════════════════════════════════════════════════════
+
+const FATIGUE_FLAG_LABEL: Record<string, string> = {
+  long_continuous: "12h+ continuous",
+  short_rest: "<8h rest",
+  heavy_week: "60h+ this week",
+};
+
+function DutyHoursTab() {
+  const { data = [], isLoading } = useQuery({
+    queryKey: ["hr-duty-hours"],
+    queryFn: () => hrService.listDutyHours(),
+  });
+
+  const columns = [
+    {
+      key: "employee_name",
+      label: "Staff",
+      render: (r: DutyHoursRow) => <Text fw={500}>{r.employee_name}</Text>,
+    },
+    {
+      key: "session_status",
+      label: "On shift",
+      render: (r: DutyHoursRow) =>
+        r.session_status ? (
+          <Badge tone={r.session_status === "paused" ? "warning" : "success"} size="sm">
+            {r.session_status === "paused" ? "Paused" : "On duty"}
+          </Badge>
+        ) : (
+          <Text size="sm" c="dimmed">
+            —
+          </Text>
+        ),
+    },
+    {
+      key: "shift_end",
+      label: "Ends",
+      render: (r: DutyHoursRow) => (
+        <Text size="sm">
+          {r.shift_end
+            ? new Date(r.shift_end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            : "—"}
+        </Text>
+      ),
+    },
+    {
+      key: "continuous_h",
+      label: "Continuous",
+      render: (r: DutyHoursRow) => <Text size="sm">{r.continuous_h.toFixed(1)}h</Text>,
+    },
+    {
+      key: "week_h",
+      label: "7-day",
+      render: (r: DutyHoursRow) => <Text size="sm">{r.week_h.toFixed(1)}h</Text>,
+    },
+    {
+      key: "overtime_h",
+      label: "Overtime",
+      render: (r: DutyHoursRow) => <Text size="sm">{r.overtime_h.toFixed(1)}h</Text>,
+    },
+    {
+      key: "flags",
+      label: "Fatigue",
+      render: (r: DutyHoursRow) =>
+        r.flags.length > 0 ? (
+          <Group gap={4}>
+            {r.flags.map((f) => (
+              <Badge key={f} tone="danger" size="sm">
+                {FATIGUE_FLAG_LABEL[f] ?? f}
+              </Badge>
+            ))}
+          </Group>
+        ) : (
+          <Badge tone="success" size="sm">
+            OK
+          </Badge>
+        ),
+    },
+  ];
+
+  return (
+    <Stack>
+      <Text size="sm" c="dimmed">
+        Worked hours over the last 7 days, sorted by load. Fatigue flags are advisory — follow up
+        with flagged staff and arrange relief where you can.
+      </Text>
+      <DataTable
+        columns={columns}
+        data={data}
+        loading={isLoading}
+        rowKey={(r: DutyHoursRow) => r.employee_id}
+      />
+    </Stack>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
 //  Attendance Tab
 // ══════════════════════════════════════════════════════════
 
@@ -979,11 +1085,7 @@ function AttendanceTab({ canManage }: { canManage: boolean }) {
           {
             key: "source",
             label: "Source",
-            render: (r: AttendanceRecord) => (
-              <Badge size="sm">
-                {r.source}
-              </Badge>
-            ),
+            render: (r: AttendanceRecord) => <Badge size="sm">{r.source}</Badge>,
           },
         ]}
       />

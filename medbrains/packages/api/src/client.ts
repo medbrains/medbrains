@@ -835,6 +835,7 @@ import type {
   DrugUtilizationRow,
   DualInsuranceResult,
   DuplicateOrderInfo,
+  DutyHoursRow,
   DutyRoster,
   DutyRosterPrintData,
   Employee,
@@ -7593,6 +7594,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  listDutyHours: () => request<DutyHoursRow[]>("/hr/duty-hours"),
   getMyShift: () => request<MyShiftResponse>("/hr/my-shift"),
   startShift: () => request<MyShiftResponse>("/hr/my-shift/start", { method: "POST" }),
   extendShift: (data: { hours: number; reason?: string }) =>

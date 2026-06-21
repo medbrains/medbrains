@@ -1,6 +1,7 @@
 import { api } from "@medbrains/api";
 
 export const hrService = {
+  listDutyHours: (...args: Parameters<typeof api.listDutyHours>) => api.listDutyHours(...args),
   getMyShift: (...args: Parameters<typeof api.getMyShift>) => api.getMyShift(...args),
   startShift: (...args: Parameters<typeof api.startShift>) => api.startShift(...args),
   extendShift: (...args: Parameters<typeof api.extendShift>) => api.extendShift(...args),

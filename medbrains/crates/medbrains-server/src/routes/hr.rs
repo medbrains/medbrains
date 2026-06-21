@@ -1362,6 +1362,119 @@ pub async fn acknowledge_fatigue(
 }
 
 // ══════════════════════════════════════════════════════════
+//  Duty-hours / WLB dashboard (charge nurse + HR)
+// ══════════════════════════════════════════════════════════
+
+#[derive(sqlx::FromRow)]
+struct DutyHoursAgg {
+    employee_id: Uuid,
+    employee_name: String,
+    department_id: Option<Uuid>,
+    session_status: Option<String>,
+    check_in: Option<DateTime<Utc>>,
+    planned_end: Option<DateTime<Utc>>,
+    extended_until: Option<DateTime<Utc>>,
+    paused_at: Option<DateTime<Utc>>,
+    paused_minutes: Option<i32>,
+    week_minutes: f64,
+    overtime_minutes: i64,
+}
+
+#[derive(Serialize)]
+pub struct DutyHoursRow {
+    employee_id: Uuid,
+    employee_name: String,
+    department_id: Option<Uuid>,
+    session_status: Option<String>,
+    shift_end: Option<DateTime<Utc>>,
+    continuous_h: f64,
+    week_h: f64,
+    overtime_h: f64,
+    flags: Vec<&'static str>,
+}
+
+/// `GET /api/hr/duty-hours` — per-staff worked-hours + fatigue flags over the
+/// rolling 7 days, for anyone currently on shift or active this week. Lets a
+/// charge nurse / HR see who is overworked and intervene.
+pub async fn list_duty_hours(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<DutyHoursRow>>, AppError> {
+    require_permission(&claims, permissions::hr::attendance::LIST)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, DutyHoursAgg>(
+        "SELECT e.id AS employee_id, \
+                (e.first_name || ' ' || COALESCE(e.last_name, '')) AS employee_name, \
+                e.department_id, \
+                s.session_status, s.check_in, s.planned_end, s.extended_until, \
+                s.paused_at, s.paused_minutes, \
+                COALESCE(wk.week_minutes, 0)::float8 AS week_minutes, \
+                COALESCE(wk.overtime_minutes, 0)::bigint AS overtime_minutes \
+         FROM employees e \
+         LEFT JOIN LATERAL ( \
+             SELECT * FROM attendance_records a \
+             WHERE a.tenant_id = e.tenant_id AND a.employee_id = e.id \
+               AND a.session_status IN ('on_duty', 'paused') \
+             ORDER BY a.check_in DESC LIMIT 1 \
+         ) s ON true \
+         LEFT JOIN ( \
+             SELECT employee_id, \
+                    SUM(EXTRACT(EPOCH FROM (COALESCE(check_out, now()) - check_in)) / 60.0 \
+                        - paused_minutes) AS week_minutes, \
+                    SUM(overtime_minutes) AS overtime_minutes \
+             FROM attendance_records \
+             WHERE tenant_id = $1 AND check_in IS NOT NULL \
+               AND attendance_date >= CURRENT_DATE - 7 \
+             GROUP BY employee_id \
+         ) wk ON wk.employee_id = e.id \
+         WHERE e.tenant_id = $1 AND (s.id IS NOT NULL OR wk.week_minutes IS NOT NULL) \
+         ORDER BY COALESCE(wk.week_minutes, 0) DESC LIMIT 200",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    let now = Utc::now();
+    let out = rows
+        .into_iter()
+        .map(|a| {
+            let continuous_h = match a.check_in {
+                Some(check_in) => {
+                    let end_point = a.paused_at.unwrap_or(now);
+                    let worked = (end_point - check_in).num_minutes().max(0) as i32
+                        - a.paused_minutes.unwrap_or(0);
+                    f64::from(worked.max(0)) / 60.0
+                }
+                None => 0.0,
+            };
+            let week_h = a.week_minutes / 60.0;
+            let flags = fatigue::evaluate(continuous_h, None, week_h, FatigueThresholds::default())
+                .iter()
+                .map(fatigue::FatigueFlag::code)
+                .collect();
+            DutyHoursRow {
+                employee_id: a.employee_id,
+                employee_name: a.employee_name,
+                department_id: a.department_id,
+                session_status: a.session_status,
+                shift_end: a.extended_until.or(a.planned_end),
+                continuous_h,
+                week_h,
+                overtime_h: a.overtime_minutes as f64 / 60.0,
+                flags,
+            }
+        })
+        .collect();
+
+    Ok(Json(out))
+}
+
+// ══════════════════════════════════════════════════════════
 //  Leave handlers
 // ══════════════════════════════════════════════════════════
 

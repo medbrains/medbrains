@@ -3915,6 +3915,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/hr/attendance",
             get(hr::list_attendance).post(hr::create_attendance),
         )
+        .route("/api/hr/duty-hours", get(hr::list_duty_hours))
         .route("/api/hr/my-shift", get(hr::get_my_shift))
         .route("/api/hr/my-shift/start", post(hr::start_shift))
         .route("/api/hr/my-shift/extend", post(hr::extend_shift))

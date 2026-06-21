@@ -14267,6 +14267,18 @@ export interface MyShiftResponse {
   fatigue: FatigueState;
 }
 
+export interface DutyHoursRow {
+  employee_id: string;
+  employee_name: string;
+  department_id: string | null;
+  session_status: ShiftSessionStatus | null;
+  shift_end: string | null;
+  continuous_h: number;
+  week_h: number;
+  overtime_h: number;
+  flags: string[];
+}
+
 export interface LeaveBalance {
   id: string;
   tenant_id: string;
