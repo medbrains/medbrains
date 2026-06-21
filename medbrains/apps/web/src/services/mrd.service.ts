@@ -33,6 +33,8 @@ export const mrdService = {
     api.getMrdCaseSheetPacket(...args),
   listMrdCaseSheetPages: (...args: Parameters<typeof api.listMrdCaseSheetPages>) =>
     api.listMrdCaseSheetPages(...args),
+  updateMrdCaseSheetPageStatus: (...args: Parameters<typeof api.updateMrdCaseSheetPageStatus>) =>
+    api.updateMrdCaseSheetPageStatus(...args),
   getMrdCaseSheetCompleteness: (...args: Parameters<typeof api.getMrdCaseSheetCompleteness>) =>
     api.getMrdCaseSheetCompleteness(...args),
   generateOpdCaseSheetPacket: (...args: Parameters<typeof api.generateOpdCaseSheetPacket>) =>

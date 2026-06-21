@@ -37,6 +37,7 @@ import type {
   MrdCaseSheetPacket,
   MrdCaseSheetPacketStatus,
   MrdCaseSheetPage,
+  MrdCaseSheetPageStatus,
   MrdDeathRegister,
   MrdMedicalRecord,
   MrdMorbidityMortalityResponse,
@@ -70,7 +71,7 @@ import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Modal, toast } from "@/components/ui";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { mrdService } from "@/services/mrd.service";
@@ -1087,6 +1088,31 @@ function CaseSheetsTab() {
     enabled: pagesOpen && !!selectedPacket,
   });
 
+  const [deficientPage, setDeficientPage] = useState<MrdCaseSheetPage | null>(null);
+  const [deficiencyReason, setDeficiencyReason] = useState("");
+  const pageStatusMutation = useMutation({
+    mutationFn: ({
+      pageId,
+      status,
+      reason,
+    }: {
+      pageId: string;
+      status: MrdCaseSheetPageStatus;
+      reason?: string;
+    }) =>
+      mrdService.updateMrdCaseSheetPageStatus(selectedPacket?.id ?? "", pageId, {
+        status,
+        deficiency_reason: reason,
+      }),
+    onSuccess: () => {
+      setDeficientPage(null);
+      setDeficiencyReason("");
+      void qc.invalidateQueries({ queryKey: ["mrd-case-sheet-pages", selectedPacket?.id] });
+      void qc.invalidateQueries({ queryKey: ["mrd-case-sheet-completeness", selectedPacket?.id] });
+    },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not update page" }),
+  });
+
   const printMut = useMutation({
     mutationFn: async (packet: MrdCaseSheetPacket): Promise<MrdCaseSheetPrintPreview> => {
       const printedPacket = await mrdService.printMrdCaseSheetPacket(packet.id, {
@@ -1483,8 +1509,42 @@ function CaseSheetsTab() {
                 key: "status",
                 label: "Status",
                 render: (page: MrdCaseSheetPage) => (
-                  <Badge tone={STATUS_COLORS[page.status] ?? "neutral"}>{page.status}</Badge>
+                  <Stack gap={2}>
+                    <Badge tone={STATUS_COLORS[page.status] ?? "neutral"}>{page.status}</Badge>
+                    {page.deficiency_reason && (
+                      <Text size="xs" c="red">
+                        {page.deficiency_reason}
+                      </Text>
+                    )}
+                  </Stack>
                 ),
+              },
+              {
+                key: "deficiency",
+                label: "Deficiency",
+                render: (page: MrdCaseSheetPage) =>
+                  canFile ? (
+                    page.status === "deficient" ? (
+                      <Button
+                        size="xs"
+                        tone="secondary"
+                        loading={pageStatusMutation.isPending}
+                        onClick={() =>
+                          pageStatusMutation.mutate({ pageId: page.id, status: "available" })
+                        }
+                      >
+                        Resolve
+                      </Button>
+                    ) : (
+                      <Button size="xs" tone="danger" onClick={() => setDeficientPage(page)}>
+                        Flag deficient
+                      </Button>
+                    )
+                  ) : (
+                    <Text size="xs" c="dimmed">
+                      —
+                    </Text>
+                  ),
               },
             ]}
             data={pages}
@@ -1493,6 +1553,40 @@ function CaseSheetsTab() {
           />
         </Stack>
       </Drawer>
+
+      <Modal
+        opened={deficientPage !== null}
+        onClose={() => setDeficientPage(null)}
+        title={`Flag deficient: ${deficientPage?.page_title ?? ""}`}
+      >
+        <Stack>
+          <Textarea
+            label="Reason"
+            placeholder="e.g. missing signature, incomplete form, illegible"
+            value={deficiencyReason}
+            onChange={(e) => setDeficiencyReason(e.currentTarget.value)}
+            minRows={2}
+            required
+          />
+          <Group justify="flex-end">
+            <Button
+              tone="danger"
+              disabled={!deficiencyReason.trim()}
+              loading={pageStatusMutation.isPending}
+              onClick={() =>
+                deficientPage &&
+                pageStatusMutation.mutate({
+                  pageId: deficientPage.id,
+                  status: "deficient",
+                  reason: deficiencyReason.trim(),
+                })
+              }
+            >
+              Flag deficient
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
 
       <Drawer
         opened={fileOpen}

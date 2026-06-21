@@ -2306,6 +2306,60 @@ pub async fn print_case_sheet_packet(
     Ok(Json(row))
 }
 
+#[derive(serde::Deserialize)]
+pub struct UpdatePageStatusRequest {
+    pub status: String,
+    pub deficiency_reason: Option<String>,
+}
+
+/// `PUT /api/mrd/case-sheets/{packet_id}/pages/{page_id}/status` — flag a page
+/// deficient (with reason), waive it, or mark it available/resolved. A record
+/// can't be filed while any page is deficient.
+pub async fn update_case_sheet_page_status(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((packet_id, page_id)): Path<(Uuid, Uuid)>,
+    Json(body): Json<UpdatePageStatusRequest>,
+) -> Result<Json<MrdCaseSheetPage>, AppError> {
+    require_permission(&claims, permissions::mrd::case_sheets::FILE)?;
+
+    if !["deficient", "waived", "available"].contains(&body.status.as_str()) {
+        return Err(AppError::BadRequest(format!("Invalid page status '{}'.", body.status)));
+    }
+    if body.status == "deficient" && body.deficiency_reason.as_deref().unwrap_or("").trim().is_empty()
+    {
+        return Err(AppError::BadRequest(
+            "A reason is required to flag a page deficient.".to_owned(),
+        ));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+
+    let row = sqlx::query_as::<_, MrdCaseSheetPage>(
+        "UPDATE mrd_case_sheet_pages SET \
+           status = $3, \
+           deficiency_reason = CASE WHEN $3 = 'deficient' THEN $4 ELSE NULL END, \
+           marked_deficient_by = CASE WHEN $3 = 'deficient' THEN $5 ELSE NULL END, \
+           marked_deficient_at = CASE WHEN $3 = 'deficient' THEN now() ELSE NULL END, \
+           updated_at = now() \
+         WHERE id = $1 AND packet_id = $2 AND tenant_id = $6 \
+         RETURNING *",
+    )
+    .bind(page_id)
+    .bind(packet_id)
+    .bind(&body.status)
+    .bind(&body.deficiency_reason)
+    .bind(claims.sub)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
 pub async fn file_case_sheet_packet(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2328,6 +2382,21 @@ pub async fn file_case_sheet_packet(
         return Err(AppError::BadRequest(
             "case sheet is already filed; use MRD movement/retrieval to relocate it".to_owned(),
         ));
+    }
+
+    // A record may not be filed as complete while any page is flagged deficient.
+    let deficient: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM mrd_case_sheet_pages \
+         WHERE packet_id = $1 AND tenant_id = $2 AND status = 'deficient'",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if deficient > 0 {
+        return Err(AppError::BadRequest(format!(
+            "Resolve {deficient} deficient page(s) before filing this record."
+        )));
     }
 
     let location = sqlx::query_as::<_, MrdStorageLocation>(

@@ -1730,6 +1730,7 @@ import type {
   UpdateMealPrepStatusRequest,
   UpdateMlcCaseRequest,
   UpdateModalityRequest,
+  UpdateMrdPageStatusInput,
   UpdateMrdRecordRequest,
   UpdateMrdRetentionPolicyRequest,
   UpdateMrdStorageLocationRequest,
@@ -8556,6 +8557,15 @@ export const api = {
   getMrdCaseSheetPacket: (id: string) => request<MrdCaseSheetPacket>(`/mrd/case-sheets/${id}`),
   listMrdCaseSheetPages: (packetId: string) =>
     request<MrdCaseSheetPage[]>(`/mrd/case-sheets/${packetId}/pages`),
+  updateMrdCaseSheetPageStatus: (
+    packetId: string,
+    pageId: string,
+    data: UpdateMrdPageStatusInput,
+  ) =>
+    request<MrdCaseSheetPage>(`/mrd/case-sheets/${packetId}/pages/${pageId}/status`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   getMrdCaseSheetCompleteness: (packetId: string) =>
     request<MrdCaseSheetCompletenessResponse>(`/mrd/case-sheets/${packetId}/completeness`),
   generateOpdCaseSheetPacket: (encounterId: string) =>

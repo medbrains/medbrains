@@ -16217,10 +16217,18 @@ export interface MrdCaseSheetPage {
   document_output_id: string | null;
   is_required: boolean;
   status: MrdCaseSheetPageStatus;
+  deficiency_reason: string | null;
+  marked_deficient_by: string | null;
+  marked_deficient_at: string | null;
   completed_at: string | null;
   printed_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface UpdateMrdPageStatusInput {
+  status: MrdCaseSheetPageStatus;
+  deficiency_reason?: string;
 }
 
 export interface MrdCaseSheetCompletenessItem {

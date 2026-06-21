@@ -4170,6 +4170,10 @@ pub fn build_router(state: AppState) -> Router {
             get(mrd::list_case_sheet_pages),
         )
         .route(
+            "/api/mrd/case-sheets/{packet_id}/pages/{page_id}/status",
+            put(mrd::update_case_sheet_page_status),
+        )
+        .route(
             "/api/mrd/case-sheets/{id}/completeness",
             get(mrd::get_case_sheet_completeness),
         )
