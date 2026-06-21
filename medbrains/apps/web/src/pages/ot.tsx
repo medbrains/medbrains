@@ -1298,6 +1298,16 @@ function previousChecklistPhase(phase: ChecklistPhase): ChecklistPhase | null {
   return PHASES[index - 1] ?? null;
 }
 
+interface WhoChecklistItem {
+  key: string;
+  label: string;
+  checked: boolean;
+}
+
+function readChecklistItems(checklist: OtSurgicalSafetyChecklist): WhoChecklistItem[] {
+  return Array.isArray(checklist.items) ? (checklist.items as WhoChecklistItem[]) : [];
+}
+
 function ChecklistTab({ bookingId }: { bookingId: string }) {
   const queryClient = useQueryClient();
   const canCreate = useHasPermission(P.OT.SAFETY_CHECKLIST_CREATE);
@@ -1316,16 +1326,6 @@ function ChecklistTab({ bookingId }: { bookingId: string }) {
       toast.success("Checklist phase started", { title: "Created" });
     },
     onError: () => toast.error("Failed to create checklist", { title: "Error" }),
-  });
-
-  const completeMutation = useMutation({
-    mutationFn: ({ id }: { id: string }) =>
-      otService.updateSafetyChecklist(bookingId, id, { completed: true }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["ot-checklists", bookingId] });
-      toast.success("Phase completed", { title: "Completed" });
-    },
-    onError: () => toast.error("Failed to complete phase", { title: "Error" }),
   });
 
   if (isLoading) return <Text c="dimmed">Loading...</Text>;
@@ -1389,6 +1389,14 @@ function ChecklistTab({ bookingId }: { bookingId: string }) {
               )}
             </Group>
 
+            {checklist && (
+              <PhaseChecklistBody
+                bookingId={bookingId}
+                checklist={checklist}
+                canEdit={canCreate && !completed}
+              />
+            )}
+
             {checklist?.completed_at && (
               <Text size="xs" c="dimmed" mt={4}>
                 Completed at: {new Date(checklist.completed_at).toLocaleString()}
@@ -1402,28 +1410,83 @@ function ChecklistTab({ bookingId }: { bookingId: string }) {
                 mt="xs"
                 disabled={blocked}
                 loading={createMutation.isPending}
-                onClick={() => createMutation.mutate({ phase, items: {} })}
+                onClick={() => createMutation.mutate({ phase, items: [] })}
               >
                 {blocked
                   ? `Complete ${previousPhase ? phaseLabels[previousPhase] : "previous phase"} first`
                   : `Start ${phaseLabels[phase]}`}
               </Button>
             )}
-
-            {canCreate && checklist && !completed && (
-              <Button
-                tone="primary"
-                size="xs"
-                mt="xs"
-                loading={completeMutation.isPending}
-                onClick={() => completeMutation.mutate({ id: checklist.id })}
-              >
-                Mark Complete
-              </Button>
-            )}
           </Card>
         );
       })}
+    </Stack>
+  );
+}
+
+function PhaseChecklistBody({
+  bookingId,
+  checklist,
+  canEdit,
+}: {
+  bookingId: string;
+  checklist: OtSurgicalSafetyChecklist;
+  canEdit: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [items, setItems] = useState<WhoChecklistItem[]>(() => readChecklistItems(checklist));
+
+  const invalidate = () =>
+    void queryClient.invalidateQueries({ queryKey: ["ot-checklists", bookingId] });
+
+  const save = useMutation({
+    mutationFn: (next: WhoChecklistItem[]) =>
+      otService.updateSafetyChecklist(bookingId, checklist.id, { items: next }),
+    onError: () => toast.error("Failed to save checklist", { title: "Error" }),
+  });
+
+  const complete = useMutation({
+    mutationFn: () =>
+      otService.updateSafetyChecklist(bookingId, checklist.id, { items, completed: true }),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Phase completed", { title: "Completed" });
+    },
+    onError: (e: Error) => toast.error(e.message, { title: "Cannot complete" }),
+  });
+
+  const toggle = (key: string) => {
+    const next = items.map((i) => (i.key === key ? { ...i, checked: !i.checked } : i));
+    setItems(next);
+    save.mutate(next);
+  };
+
+  const allChecked = items.length > 0 && items.every((i) => i.checked);
+
+  return (
+    <Stack gap="xs" mt="xs">
+      {items.map((item) => (
+        <Checkbox
+          key={item.key}
+          label={item.label}
+          checked={item.checked}
+          disabled={!canEdit}
+          onChange={() => toggle(item.key)}
+          size="xs"
+        />
+      ))}
+      {canEdit && (
+        <Button
+          tone="primary"
+          size="xs"
+          mt="xs"
+          disabled={!allChecked}
+          loading={complete.isPending}
+          onClick={() => complete.mutate()}
+        >
+          {allChecked ? "Mark Complete" : "Check all items to complete"}
+        </Button>
+      )}
     </Stack>
   );
 }

@@ -7,8 +7,9 @@ use axum::{
 use chrono::{NaiveDate, Utc};
 use medbrains_core::ipd::{AnesthesiaComplicationEntry, SurgeonCaseloadEntry};
 use medbrains_core::ot::{
-    OtAnesthesiaRecord, OtBooking, OtCaseRecord, OtConsumableCategory, OtConsumableUsage,
-    OtPostopRecord, OtPreopAssessment, OtRoom, OtSurgeonPreference, OtSurgicalSafetyChecklist,
+    ChecklistPhase, OtAnesthesiaRecord, OtBooking, OtCaseRecord, OtConsumableCategory,
+    OtConsumableUsage, OtPostopRecord, OtPreopAssessment, OtRoom, OtSurgeonPreference,
+    OtSurgicalSafetyChecklist,
 };
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
@@ -841,6 +842,87 @@ pub async fn get_checklists(
     Ok(Json(rows))
 }
 
+/// The WHO Surgical Safety Checklist — required items per phase (key, label).
+/// A phase cannot be marked complete until every item is checked.
+fn who_checklist_items(phase: &str) -> &'static [(&'static str, &'static str)] {
+    match phase {
+        "sign_in" => &[
+            ("patient_identity", "Patient confirmed: identity, site, procedure, consent"),
+            ("site_marked", "Surgical site marked (or not applicable)"),
+            ("anaesthesia_check", "Anaesthesia machine and medication check complete"),
+            ("pulse_oximeter", "Pulse oximeter on patient and functioning"),
+            ("allergy", "Known allergy reviewed"),
+            ("airway_risk", "Difficult airway / aspiration risk assessed"),
+            ("blood_loss_risk", "Risk of >500ml blood loss assessed (IV access / fluids)"),
+        ],
+        "time_out" => &[
+            ("team_introductions", "Team members introduced by name and role"),
+            ("confirm_patient", "Surgeon, anaesthetist and nurse confirm patient, site, procedure"),
+            ("antibiotic_prophylaxis", "Antibiotic prophylaxis given within the last 60 minutes"),
+            ("imaging", "Essential imaging displayed (or not required)"),
+            ("critical_steps", "Surgeon reviews critical or unexpected steps"),
+            ("anaesthesia_concerns", "Anaesthesia reviews patient-specific concerns"),
+            ("sterility", "Nursing confirms sterility and equipment readiness"),
+        ],
+        "sign_out" => &[
+            ("procedure_recorded", "Name of the procedure recorded"),
+            ("counts_correct", "Instrument, sponge and needle counts correct"),
+            ("specimen_labelled", "Specimen labelled (including patient name)"),
+            ("equipment_problems", "Any equipment problems identified and addressed"),
+            ("recovery_concerns", "Key concerns for recovery and management reviewed"),
+        ],
+        _ => &[],
+    }
+}
+
+fn phase_str(phase: &ChecklistPhase) -> &'static str {
+    match phase {
+        ChecklistPhase::SignIn => "sign_in",
+        ChecklistPhase::TimeOut => "time_out",
+        ChecklistPhase::SignOut => "sign_out",
+    }
+}
+
+#[derive(Deserialize)]
+struct ChecklistItemState {
+    key: String,
+    #[serde(default)]
+    checked: bool,
+}
+
+/// Build the seed items array (all unchecked) for a phase.
+fn seed_checklist_items(phase: &str) -> serde_json::Value {
+    serde_json::Value::Array(
+        who_checklist_items(phase)
+            .iter()
+            .map(|(key, label)| serde_json::json!({ "key": key, "label": label, "checked": false }))
+            .collect(),
+    )
+}
+
+/// Reject completion unless every required WHO item for the phase is checked.
+fn ensure_who_complete(phase: &str, items: &serde_json::Value) -> Result<(), AppError> {
+    let required = who_checklist_items(phase);
+    if required.is_empty() {
+        return Ok(());
+    }
+    let states: Vec<ChecklistItemState> = serde_json::from_value(items.clone()).unwrap_or_default();
+    let missing: Vec<&str> = required
+        .iter()
+        .filter(|(key, _)| !states.iter().any(|s| s.key == *key && s.checked))
+        .map(|(_, label)| *label)
+        .collect();
+    if missing.is_empty() {
+        Ok(())
+    } else {
+        Err(AppError::BadRequest(format!(
+            "Cannot complete this phase — {} item(s) still unchecked: {}",
+            missing.len(),
+            missing.join("; ")
+        )))
+    }
+}
+
 pub async fn create_checklist(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -848,6 +930,12 @@ pub async fn create_checklist(
     Json(body): Json<CreateChecklistRequest>,
 ) -> Result<Json<OtSurgicalSafetyChecklist>, AppError> {
     require_permission(&claims, permissions::ot::safety_checklist::CREATE)?;
+
+    // Seed the standard WHO items when the caller didn't supply a populated list.
+    let items = match &body.items {
+        serde_json::Value::Array(a) if !a.is_empty() => body.items.clone(),
+        _ => seed_checklist_items(&body.phase),
+    };
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -861,7 +949,7 @@ pub async fn create_checklist(
     .bind(claims.tenant_id)
     .bind(booking_id)
     .bind(&body.phase)
-    .bind(&body.items)
+    .bind(&items)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -885,6 +973,23 @@ pub async fn update_checklist(
     } else {
         (None, None)
     };
+
+    // Block completion until every required WHO item for the phase is checked.
+    // Validate against the items being saved this request, else the persisted ones.
+    if body.completed == Some(true) {
+        let existing = sqlx::query_as::<_, OtSurgicalSafetyChecklist>(
+            "SELECT * FROM ot_surgical_safety_checklists \
+             WHERE id = $1 AND booking_id = $2 AND tenant_id = $3 FOR UPDATE",
+        )
+        .bind(checklist_id)
+        .bind(booking_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+        let effective_items = body.items.clone().unwrap_or(existing.items);
+        ensure_who_complete(phase_str(&existing.phase), &effective_items)?;
+    }
 
     let row = sqlx::query_as::<_, OtSurgicalSafetyChecklist>(
         "UPDATE ot_surgical_safety_checklists SET \
