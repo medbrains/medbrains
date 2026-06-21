@@ -1,6 +1,14 @@
 import { api } from "@medbrains/api";
 
 export const hrService = {
+  getMyShift: (...args: Parameters<typeof api.getMyShift>) => api.getMyShift(...args),
+  startShift: (...args: Parameters<typeof api.startShift>) => api.startShift(...args),
+  extendShift: (...args: Parameters<typeof api.extendShift>) => api.extendShift(...args),
+  pauseShift: (...args: Parameters<typeof api.pauseShift>) => api.pauseShift(...args),
+  resumeShift: (...args: Parameters<typeof api.resumeShift>) => api.resumeShift(...args),
+  endShift: (...args: Parameters<typeof api.endShift>) => api.endShift(...args),
+  acknowledgeFatigue: (...args: Parameters<typeof api.acknowledgeFatigue>) =>
+    api.acknowledgeFatigue(...args),
   listEmployees: (...args: Parameters<typeof api.listEmployees>) => api.listEmployees(...args),
   getEmployee: (...args: Parameters<typeof api.getEmployee>) => api.getEmployee(...args),
   createEmployee: (...args: Parameters<typeof api.createEmployee>) => api.createEmployee(...args),

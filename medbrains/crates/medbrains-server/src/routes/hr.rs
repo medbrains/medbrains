@@ -4,17 +4,22 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use chrono::{DateTime, Utc};
+use medbrains_core::fatigue::{self, FatigueThresholds};
 use medbrains_core::hr::{
     Appraisal, AttendanceRecord, Designation, DutyRoster, Employee, EmployeeCredential,
     LeaveBalance, LeaveRequest, OnCallSchedule, ShiftDefinition, StatutoryRecord, TrainingProgram,
     TrainingRecord,
 };
 use medbrains_core::permissions;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::require_permission,
+    routes::notifications::{NewNotification, create_notification},
     state::AppState,
 };
 
@@ -969,6 +974,391 @@ pub async fn create_attendance(
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+// ══════════════════════════════════════════════════════════
+//  My Shift — self-service shift session + fatigue guard
+// ══════════════════════════════════════════════════════════
+
+#[derive(Serialize)]
+pub struct FatigueFlagDto {
+    code: &'static str,
+    message: String,
+}
+
+#[derive(Serialize)]
+pub struct FatigueState {
+    flags: Vec<FatigueFlagDto>,
+    continuous_h: f64,
+    rest_h: Option<f64>,
+    week_h: f64,
+    acknowledged: bool,
+}
+
+#[derive(Serialize)]
+pub struct ScheduledShift {
+    shift_type: String,
+    charge_nurse_user_id: Option<Uuid>,
+}
+
+#[derive(Serialize)]
+pub struct MyShiftResponse {
+    scheduled: Option<ScheduledShift>,
+    session: Option<AttendanceRecord>,
+    fatigue: FatigueState,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExtendShiftRequest {
+    pub hours: f64,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AcknowledgeFatigueRequest {
+    pub reason: Option<String>,
+}
+
+type HrTx<'a> = sqlx::Transaction<'a, sqlx::Postgres>;
+
+async fn current_employee_id(
+    tx: &mut HrTx<'_>,
+    tenant_id: &Uuid,
+    user_id: Uuid,
+) -> Result<Uuid, AppError> {
+    sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM employees WHERE tenant_id = $1 AND user_id = $2 LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(user_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("No employee record is linked to your login.".to_owned()))
+}
+
+async fn open_session(
+    tx: &mut HrTx<'_>,
+    tenant_id: &Uuid,
+    employee_id: Uuid,
+) -> Result<Option<AttendanceRecord>, AppError> {
+    sqlx::query_as::<_, AttendanceRecord>(
+        "SELECT * FROM attendance_records \
+         WHERE tenant_id = $1 AND employee_id = $2 \
+           AND session_status IN ('on_duty', 'paused') \
+         ORDER BY check_in DESC LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(employee_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(AppError::from)
+}
+
+async fn todays_scheduled_shift(
+    tx: &mut HrTx<'_>,
+    tenant_id: &Uuid,
+    user_id: Uuid,
+) -> Result<Option<ScheduledShift>, AppError> {
+    let row: Option<(String, Option<Uuid>)> = sqlx::query_as(
+        "SELECT shift_type, charge_nurse_user_id FROM nurse_shift_assignments \
+         WHERE tenant_id = $1 AND nurse_user_id = $2 AND shift_date = CURRENT_DATE \
+         LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(user_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(row.map(|(shift_type, charge_nurse_user_id)| ScheduledShift {
+        shift_type,
+        charge_nurse_user_id,
+    }))
+}
+
+async fn compute_fatigue(
+    tx: &mut HrTx<'_>,
+    tenant_id: &Uuid,
+    employee_id: Uuid,
+    session: Option<&AttendanceRecord>,
+) -> Result<FatigueState, AppError> {
+    let now = Utc::now();
+    let continuous_h = match session.and_then(|s| s.check_in) {
+        Some(check_in) => {
+            let end_point = session.and_then(|s| s.paused_at).unwrap_or(now);
+            let worked_min = (end_point - check_in).num_minutes().max(0);
+            let paused = session.map_or(0, |s| s.paused_minutes);
+            f64::from((worked_min as i32 - paused).max(0)) / 60.0
+        }
+        None => 0.0,
+    };
+
+    let prev_checkout: Option<DateTime<Utc>> = sqlx::query_scalar(
+        "SELECT MAX(check_out) FROM attendance_records \
+         WHERE tenant_id = $1 AND employee_id = $2 AND session_status = 'ended' \
+           AND check_out IS NOT NULL",
+    )
+    .bind(tenant_id)
+    .bind(employee_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    let rest_h = match (session.and_then(|s| s.check_in), prev_checkout) {
+        (Some(check_in), Some(co)) => Some(f64::from((check_in - co).num_minutes().max(0) as i32) / 60.0),
+        _ => None,
+    };
+
+    let week_minutes: f64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM( \
+            EXTRACT(EPOCH FROM (COALESCE(check_out, now()) - check_in)) / 60.0 - paused_minutes \
+         ), 0)::float8 \
+         FROM attendance_records \
+         WHERE tenant_id = $1 AND employee_id = $2 AND check_in IS NOT NULL \
+           AND attendance_date >= CURRENT_DATE - 7",
+    )
+    .bind(tenant_id)
+    .bind(employee_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    let week_h = week_minutes / 60.0;
+
+    let flags = fatigue::evaluate(continuous_h, rest_h, week_h, FatigueThresholds::default());
+    let acknowledged = session.is_some_and(|s| s.fatigue_ack_at.is_some());
+    Ok(FatigueState {
+        flags: flags
+            .iter()
+            .map(|f| FatigueFlagDto { code: f.code(), message: f.message() })
+            .collect(),
+        continuous_h,
+        rest_h,
+        week_h,
+        acknowledged,
+    })
+}
+
+async fn build_my_shift(
+    tx: &mut HrTx<'_>,
+    tenant_id: &Uuid,
+    employee_id: Uuid,
+    user_id: Uuid,
+) -> Result<MyShiftResponse, AppError> {
+    let session = open_session(tx, tenant_id, employee_id).await?;
+    let scheduled = todays_scheduled_shift(tx, tenant_id, user_id).await?;
+    let fatigue = compute_fatigue(tx, tenant_id, employee_id, session.as_ref()).await?;
+    Ok(MyShiftResponse { scheduled, session, fatigue })
+}
+
+/// `GET /api/hr/my-shift`
+pub async fn get_my_shift(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<MyShiftResponse>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let employee_id = current_employee_id(&mut tx, &claims.tenant_id, claims.sub).await?;
+    let resp = build_my_shift(&mut tx, &claims.tenant_id, employee_id, claims.sub).await?;
+    tx.commit().await?;
+    Ok(Json(resp))
+}
+
+/// `POST /api/hr/my-shift/start` — clock in for an 8h shift session.
+pub async fn start_shift(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<MyShiftResponse>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let employee_id = current_employee_id(&mut tx, &claims.tenant_id, claims.sub).await?;
+
+    if open_session(&mut tx, &claims.tenant_id, employee_id).await?.is_some() {
+        return Err(AppError::BadRequest("You already have an open shift.".to_owned()));
+    }
+
+    sqlx::query(
+        "INSERT INTO attendance_records \
+           (tenant_id, employee_id, attendance_date, check_in, status, source, \
+            session_status, planned_end, recorded_by) \
+         VALUES ($1, $2, CURRENT_DATE, now(), 'present', 'self', 'on_duty', \
+                 now() + interval '8 hours', $3)",
+    )
+    .bind(claims.tenant_id)
+    .bind(employee_id)
+    .bind(claims.sub)
+    .execute(&mut *tx)
+    .await?;
+
+    let resp = build_my_shift(&mut tx, &claims.tenant_id, employee_id, claims.sub).await?;
+    tx.commit().await?;
+    Ok(Json(resp))
+}
+
+/// `POST /api/hr/my-shift/extend` — extend (snooze) the shift end.
+pub async fn extend_shift(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<ExtendShiftRequest>,
+) -> Result<Json<MyShiftResponse>, AppError> {
+    if !(body.hours > 0.0 && body.hours <= 12.0) {
+        return Err(AppError::BadRequest("Extend by between 0 and 12 hours.".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let employee_id = current_employee_id(&mut tx, &claims.tenant_id, claims.sub).await?;
+    let session = open_session(&mut tx, &claims.tenant_id, employee_id)
+        .await?
+        .ok_or_else(|| AppError::BadRequest("You have no open shift to extend.".to_owned()))?;
+
+    sqlx::query(
+        "UPDATE attendance_records SET \
+           extended_until = COALESCE(extended_until, planned_end, check_in) + (interval '1 hour' * $3), \
+           overtime_minutes = overtime_minutes + round($3 * 60)::int, \
+           extension_reason = COALESCE($4, extension_reason), \
+           fatigue_ack_at = NULL, \
+           updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(session.id)
+    .bind(claims.tenant_id)
+    .bind(body.hours)
+    .bind(&body.reason)
+    .execute(&mut *tx)
+    .await?;
+
+    let resp = build_my_shift(&mut tx, &claims.tenant_id, employee_id, claims.sub).await?;
+    tx.commit().await?;
+    Ok(Json(resp))
+}
+
+/// `POST /api/hr/my-shift/pause`
+pub async fn pause_shift(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<MyShiftResponse>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let employee_id = current_employee_id(&mut tx, &claims.tenant_id, claims.sub).await?;
+
+    sqlx::query(
+        "UPDATE attendance_records SET session_status = 'paused', paused_at = now(), updated_at = now() \
+         WHERE tenant_id = $1 AND employee_id = $2 AND session_status = 'on_duty'",
+    )
+    .bind(claims.tenant_id)
+    .bind(employee_id)
+    .execute(&mut *tx)
+    .await?;
+
+    let resp = build_my_shift(&mut tx, &claims.tenant_id, employee_id, claims.sub).await?;
+    tx.commit().await?;
+    Ok(Json(resp))
+}
+
+/// `POST /api/hr/my-shift/resume`
+pub async fn resume_shift(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<MyShiftResponse>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let employee_id = current_employee_id(&mut tx, &claims.tenant_id, claims.sub).await?;
+
+    sqlx::query(
+        "UPDATE attendance_records SET \
+           paused_minutes = paused_minutes + GREATEST(0, EXTRACT(EPOCH FROM (now() - paused_at)) / 60)::int, \
+           paused_at = NULL, session_status = 'on_duty', updated_at = now() \
+         WHERE tenant_id = $1 AND employee_id = $2 AND session_status = 'paused'",
+    )
+    .bind(claims.tenant_id)
+    .bind(employee_id)
+    .execute(&mut *tx)
+    .await?;
+
+    let resp = build_my_shift(&mut tx, &claims.tenant_id, employee_id, claims.sub).await?;
+    tx.commit().await?;
+    Ok(Json(resp))
+}
+
+/// `POST /api/hr/my-shift/end`
+pub async fn end_shift(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<MyShiftResponse>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let employee_id = current_employee_id(&mut tx, &claims.tenant_id, claims.sub).await?;
+
+    sqlx::query(
+        "UPDATE attendance_records SET \
+           paused_minutes = paused_minutes + CASE WHEN paused_at IS NOT NULL \
+               THEN GREATEST(0, EXTRACT(EPOCH FROM (now() - paused_at)) / 60)::int ELSE 0 END, \
+           paused_at = NULL, check_out = now(), session_status = 'ended', updated_at = now() \
+         WHERE tenant_id = $1 AND employee_id = $2 AND session_status IN ('on_duty', 'paused')",
+    )
+    .bind(claims.tenant_id)
+    .bind(employee_id)
+    .execute(&mut *tx)
+    .await?;
+
+    let resp = build_my_shift(&mut tx, &claims.tenant_id, employee_id, claims.sub).await?;
+    tx.commit().await?;
+    Ok(Json(resp))
+}
+
+/// `POST /api/hr/my-shift/acknowledge-fatigue` — staff acknowledges a fatigue
+/// warning and continues; the reason is recorded and the charge nurse notified.
+pub async fn acknowledge_fatigue(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<AcknowledgeFatigueRequest>,
+) -> Result<Json<MyShiftResponse>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let employee_id = current_employee_id(&mut tx, &claims.tenant_id, claims.sub).await?;
+    let session = open_session(&mut tx, &claims.tenant_id, employee_id)
+        .await?
+        .ok_or_else(|| AppError::BadRequest("You have no open shift.".to_owned()))?;
+
+    let fatigue = compute_fatigue(&mut tx, &claims.tenant_id, employee_id, Some(&session)).await?;
+    let codes: Vec<String> = fatigue.flags.iter().map(|f| f.code.to_owned()).collect();
+
+    sqlx::query(
+        "UPDATE attendance_records SET \
+           fatigue_ack_at = now(), fatigue_ack_reason = $3, fatigue_flags = $4, updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(session.id)
+    .bind(claims.tenant_id)
+    .bind(&body.reason)
+    .bind(&codes)
+    .execute(&mut *tx)
+    .await?;
+
+    // Notify the charge nurse on duty that a colleague is working through fatigue.
+    if !codes.is_empty() {
+        if let Some(charge) = todays_scheduled_shift(&mut tx, &claims.tenant_id, claims.sub)
+            .await?
+            .and_then(|s| s.charge_nurse_user_id)
+        {
+            if charge != claims.sub {
+                let body_text = format!("A staff member is continuing on shift despite a fatigue warning ({}).", codes.join(", "));
+                create_notification(
+                    &mut tx,
+                    claims.tenant_id,
+                    NewNotification {
+                        user_id: charge,
+                        kind: "staff_fatigue_ack",
+                        title: "Staff fatigue acknowledged",
+                        body: Some(&body_text),
+                        category: Some("hr"),
+                        entity_type: Some("attendance_records"),
+                        entity_id: Some(session.id),
+                        action_url: None,
+                    },
+                )
+                .await?;
+            }
+        }
+    }
+
+    let resp = build_my_shift(&mut tx, &claims.tenant_id, employee_id, claims.sub).await?;
+    tx.commit().await?;
+    Ok(Json(resp))
 }
 
 // ══════════════════════════════════════════════════════════

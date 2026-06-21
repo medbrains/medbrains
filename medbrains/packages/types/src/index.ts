@@ -14228,6 +14228,45 @@ export interface AttendanceRecord {
   updated_at: string;
 }
 
+export type ShiftSessionStatus = "off" | "on_duty" | "paused" | "ended";
+
+export interface ShiftSession {
+  id: string;
+  session_status: ShiftSessionStatus;
+  check_in: string | null;
+  check_out: string | null;
+  planned_end: string | null;
+  extended_until: string | null;
+  paused_at: string | null;
+  paused_minutes: number;
+  overtime_minutes: number;
+  fatigue_ack_at: string | null;
+}
+
+export interface FatigueFlag {
+  code: string;
+  message: string;
+}
+
+export interface FatigueState {
+  flags: FatigueFlag[];
+  continuous_h: number;
+  rest_h: number | null;
+  week_h: number;
+  acknowledged: boolean;
+}
+
+export interface ScheduledShift {
+  shift_type: string;
+  charge_nurse_user_id: string | null;
+}
+
+export interface MyShiftResponse {
+  scheduled: ScheduledShift | null;
+  session: ShiftSession | null;
+  fatigue: FatigueState;
+}
+
 export interface LeaveBalance {
   id: string;
   tenant_id: string;

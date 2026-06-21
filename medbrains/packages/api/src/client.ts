@@ -1175,6 +1175,7 @@ import type {
   MrdRetentionPolicy,
   MrdStorageLocation,
   MyDayResponse,
+  MyShiftResponse,
   MyTasksResponse,
   // Phase 4 Print Data - Regulatory
   NabhQualityReportPrintData,
@@ -7589,6 +7590,18 @@ export const api = {
 
   createAttendance: (data: CreateAttendanceRequest) =>
     request<AttendanceRecord>("/hr/attendance", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getMyShift: () => request<MyShiftResponse>("/hr/my-shift"),
+  startShift: () => request<MyShiftResponse>("/hr/my-shift/start", { method: "POST" }),
+  extendShift: (data: { hours: number; reason?: string }) =>
+    request<MyShiftResponse>("/hr/my-shift/extend", { method: "POST", body: JSON.stringify(data) }),
+  pauseShift: () => request<MyShiftResponse>("/hr/my-shift/pause", { method: "POST" }),
+  resumeShift: () => request<MyShiftResponse>("/hr/my-shift/resume", { method: "POST" }),
+  endShift: () => request<MyShiftResponse>("/hr/my-shift/end", { method: "POST" }),
+  acknowledgeFatigue: (data: { reason?: string }) =>
+    request<MyShiftResponse>("/hr/my-shift/acknowledge-fatigue", {
       method: "POST",
       body: JSON.stringify(data),
     }),

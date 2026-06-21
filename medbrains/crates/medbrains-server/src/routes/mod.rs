@@ -3915,6 +3915,13 @@ pub fn build_router(state: AppState) -> Router {
             "/api/hr/attendance",
             get(hr::list_attendance).post(hr::create_attendance),
         )
+        .route("/api/hr/my-shift", get(hr::get_my_shift))
+        .route("/api/hr/my-shift/start", post(hr::start_shift))
+        .route("/api/hr/my-shift/extend", post(hr::extend_shift))
+        .route("/api/hr/my-shift/pause", post(hr::pause_shift))
+        .route("/api/hr/my-shift/resume", post(hr::resume_shift))
+        .route("/api/hr/my-shift/end", post(hr::end_shift))
+        .route("/api/hr/my-shift/acknowledge-fatigue", post(hr::acknowledge_fatigue))
         .route(
             "/api/hr/leaves",
             get(hr::list_leave_requests).post(hr::create_leave_request),

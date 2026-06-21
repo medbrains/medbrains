@@ -5,6 +5,7 @@ import { Clock, Cloud, CloudDrizzle, CloudRain, CloudSnow, CloudSun, Sun, Zap } 
 import { useState } from "react";
 import { useEffectOnce } from "react-use";
 import styles from "./header-widgets.module.scss";
+import { MyShiftWidget } from "./Nurse/MyShiftWidget";
 
 // Fallback location until the browser grants geolocation (Chennai).
 const FALLBACK = { lat: 13.0827, lon: 80.2707 };
@@ -109,6 +110,7 @@ function WeatherWidget() {
 export function HeaderWidgets() {
   return (
     <Group gap="xs" wrap="nowrap" visibleFrom="lg">
+      <MyShiftWidget />
       <ClockWidget />
       <WeatherWidget />
     </Group>
