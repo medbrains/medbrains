@@ -55,6 +55,7 @@ import type {
   PatientConsultationHistoryRow,
   PatientDiagnosisRow,
   PatientLabOrderRow,
+  PendingSignoffEntry,
   PharmacyDispatchStatus as PharmacyDispatchStatusRow,
   PrescriptionWithItems,
   QueueEntry,
@@ -99,6 +100,7 @@ import {
   IconPrinter,
   IconSearch,
   IconShieldCheck,
+  IconSignature,
   IconStar,
   IconStethoscope,
   IconTimeline,
@@ -136,6 +138,7 @@ import {
 import { BedSelect } from "@/components/BedSelect";
 import { PatientBillingModal } from "@/components/Billing/PatientBillingModal";
 import { CampRegistrationModal } from "@/components/Camp/CampRegistrationModal";
+import { SignWorkspace } from "@/components/Doctor/SignWorkspace";
 import { EmergencyVisitModal } from "@/components/Emergency/EmergencyVisitModal";
 import { OrderBasketChip } from "@/components/OrderBasket/OrderBasketChip";
 import {
@@ -163,6 +166,7 @@ import { useVitalsSource } from "@/hooks/useVitalsSource";
 import { toDateString, todayDateString } from "@/lib/date-utils";
 import { statusColor } from "@/lib/status-colors";
 import { campService } from "@/services/camp.service";
+import { ipdService } from "@/services/ipd.service";
 import { mrdService } from "@/services/mrd.service";
 import { opdService } from "@/services/opd.service";
 import { toCreateConsultationPayload } from "./opd/consultation-utils";
@@ -491,6 +495,15 @@ function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: OpdVisitFo
     },
   });
   const visitType = watch("visit_type");
+  const selectedPatientId = watch("patient_id");
+
+  // An admitted patient can't start a new OPD visit (admission from OPD stays allowed).
+  const { data: activeAdmissions } = useQuery({
+    queryKey: ["patient-active-admissions", selectedPatientId],
+    queryFn: () => ipdService.listAdmissions({ patient_id: selectedPatientId, status: "admitted" }),
+    enabled: Boolean(selectedPatientId),
+  });
+  const hasActiveAdmission = (activeAdmissions?.admissions ?? []).length > 0;
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
@@ -546,6 +559,12 @@ function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: OpdVisitFo
 
   return (
     <Stack component="form" onSubmit={handleSubmit((values) => createMutation.mutate(values))}>
+      {hasActiveAdmission && (
+        <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
+          This patient has an active IPD admission. A new OPD visit can't be created while admitted
+          — use the admission's encounter (or discharge first).
+        </Alert>
+      )}
       <Controller
         control={control}
         name="visit_type"
@@ -631,7 +650,12 @@ function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: OpdVisitFo
         <Button tone="ghost" onClick={onCancel}>
           Cancel
         </Button>
-        <Button tone="primary" type="submit" loading={createMutation.isPending}>
+        <Button
+          tone="primary"
+          type="submit"
+          loading={createMutation.isPending}
+          disabled={hasActiveAdmission}
+        >
           Create Visit
         </Button>
       </Group>
@@ -3447,12 +3471,28 @@ function PrescriptionsTab({
 }) {
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
+  const canSign = useHasPermission(P.DOCTOR.SIGNATURE.SIGN);
   const [printRx, setPrintRx] = useState<PrescriptionWithItems | null>(null);
   const [viewsOpen, setViewsOpen] = useState(false);
+  const [signTarget, setSignTarget] = useState<PendingSignoffEntry | null>(null);
 
   const { data: prescriptions = [] } = useQuery({
     queryKey: ["prescriptions", encounterId],
     queryFn: () => opdService.listPrescriptions(encounterId),
+  });
+
+  const unsignedRx = (prescriptions as PrescriptionWithItems[]).filter(
+    (p) => !(p.prescription as { is_signed?: boolean }).is_signed,
+  );
+  const signEntry = (rx: PrescriptionWithItems): PendingSignoffEntry => ({
+    record_type: "prescription",
+    record_id: rx.prescription.id,
+    created_at: rx.prescription.created_at,
+    legal_class: "clinical",
+    patient_id: patientId,
+    patient_name: patientName,
+    uhid,
+    summary: `${rx.items.length} medication${rx.items.length === 1 ? "" : "s"}`,
   });
 
   const { data: hospitalSettings = [] } = useQuery({
@@ -3528,6 +3568,49 @@ function PrescriptionsTab({
         uhid={uhid}
         allergies={allergies}
       />
+      {/* Pending doctor signature — sign right here (incl. nurse-drafted Rx) */}
+      {canSign && unsignedRx.length > 0 && (
+        <Card withBorder padding="sm" radius="md" mt="sm">
+          <Group justify="space-between" mb={6}>
+            <Group gap={6}>
+              <IconSignature size={15} />
+              <Text size="sm" fw={700}>
+                Awaiting your signature
+              </Text>
+            </Group>
+            <Badge tone="warning">{unsignedRx.length}</Badge>
+          </Group>
+          <Stack gap={6}>
+            {unsignedRx.map((rx) => (
+              <Group key={rx.prescription.id} justify="space-between">
+                <Text size="xs" c="dimmed">
+                  {rx.items.length} item{rx.items.length === 1 ? "" : "s"} ·{" "}
+                  {new Date(rx.prescription.created_at).toLocaleString()}
+                </Text>
+                <Button
+                  tone="primary"
+                  size="xs"
+                  leftSection={<IconSignature size={14} />}
+                  onClick={() => setSignTarget(signEntry(rx))}
+                >
+                  Sign
+                </Button>
+              </Group>
+            ))}
+          </Stack>
+        </Card>
+      )}
+      {signTarget && (
+        <SignWorkspace
+          opened={Boolean(signTarget)}
+          target={signTarget}
+          onClose={() => setSignTarget(null)}
+          onSigned={() => {
+            setSignTarget(null);
+            void queryClient.invalidateQueries({ queryKey: ["prescriptions", encounterId] });
+          }}
+        />
+      )}
       {/* 4-view prescription display — on demand (Prose, Timeline, Dose Calc, Rules) */}
       {(prescriptions as PrescriptionWithItems[]).length > 0 && (
         <Stack gap="xs" mt="sm">

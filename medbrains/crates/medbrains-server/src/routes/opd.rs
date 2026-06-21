@@ -541,6 +541,23 @@ pub async fn create_encounter(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // An admitted (active IPD) patient cannot start a fresh OPD visit. Admitting
+    // FROM an OPD encounter is a different endpoint (`admit_from_opd`) and stays allowed.
+    let active_admission: Option<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM admissions \
+         WHERE tenant_id = $1 AND patient_id = $2 AND status = 'admitted' LIMIT 1",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if active_admission.is_some() {
+        return Err(AppError::Conflict(
+            "Patient has an active IPD admission — a new OPD visit cannot be created while admitted."
+                .to_owned(),
+        ));
+    }
+
     let today = crate::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]

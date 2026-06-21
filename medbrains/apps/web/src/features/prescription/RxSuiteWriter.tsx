@@ -1,12 +1,13 @@
 import { Box } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { useAuthStore } from "@medbrains/stores";
-import type {
-  CreatePrescriptionRequest,
-  PrescriptionTemplate,
-  PrescriptionWithItems,
-  UpdatePrescriptionRequest,
+import { useAuthStore, useHasPermission } from "@medbrains/stores";
+import {
+  type CreatePrescriptionRequest,
+  P,
+  type PrescriptionTemplate,
+  type PrescriptionWithItems,
+  type UpdatePrescriptionRequest,
 } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -57,6 +58,8 @@ export function RxSuiteWriter({
 }: Props) {
   const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
+  // Print is permission-gated (doctors/admin), not tied to the nurse/doctor toggle.
+  const canPrint = useHasPermission(P.OPD.VISIT_UPDATE);
   const [safety, setSafety] = useState<RxSafety>(EMPTY_SAFETY);
   const [currentItems, setCurrentItems] = useState<RxItem[]>([]);
   const [printOpen, printDisc] = useDisclosure(false);
@@ -163,7 +166,7 @@ export function RxSuiteWriter({
         onSaveTemplate={(name, items) => saveTemplateMutation.mutate({ name, items })}
         priorDrugIds={priorDrugIds}
         onItemsChange={handleItemsChange}
-        onPrint={printDisc.open}
+        onPrint={canPrint ? printDisc.open : undefined}
         onSave={handleSave}
       />
       <RxPrint
