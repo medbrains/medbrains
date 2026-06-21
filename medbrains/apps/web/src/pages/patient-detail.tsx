@@ -3181,6 +3181,18 @@ function PatientDetailPageInner() {
             activeOrderContext={activeOrderContext}
             completedEvents={completedEvents}
             compact
+            actions={
+              <PatientJourneyActions
+                context={actionContext}
+                onEdit={() => navigate(`/patients/${patient.id}/edit`)}
+                onOpenOrderBasket={openOrderBasket}
+                onShare={openShare}
+                onPrintPatientCard={() => {
+                  void printPatientCard();
+                }}
+                size="xs"
+              />
+            }
           />
           <Group justify="space-between" align="flex-start" gap="sm">
             <Stack gap={6}>
@@ -3226,16 +3238,6 @@ function PatientDetailPageInner() {
                 <PatientContextBanner patientId={patient.id} inline />
               </Group>
             </Stack>
-            <PatientJourneyActions
-              context={actionContext}
-              onEdit={() => navigate(`/patients/${patient.id}/edit`)}
-              onOpenOrderBasket={openOrderBasket}
-              onShare={openShare}
-              onPrintPatientCard={() => {
-                void printPatientCard();
-              }}
-              size="xs"
-            />
           </Group>
         </Stack>
       </Card>
