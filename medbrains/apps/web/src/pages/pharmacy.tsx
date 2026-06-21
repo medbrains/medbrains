@@ -5953,6 +5953,7 @@ function RxDetailView({
         transcribed_by: null,
         read_back_confirmed: false,
         countersign_due_at: null,
+        is_signed: false,
         created_at: prescription.received_at,
         updated_at: prescription.received_at,
       },

@@ -90,13 +90,20 @@ export function PrescriptionViews({
   const [view, setView] = useState<ViewMode>("prose");
   const items = useMemo(() => flattenItems(prescriptions), [prescriptions]);
   const pharmacyStatusSignals = useMemo(() => pharmacyStatuses(prescriptions), [prescriptions]);
-  const verbalModes = useMemo(() => {
-    const modes = new Set<string>();
+  const verbalOrder = useMemo(() => {
+    const now = Date.now();
     for (const p of prescriptions) {
-      const mode = p.prescription.order_mode;
-      if (mode && mode !== "written") modes.add(mode);
+      const rx = p.prescription;
+      if (!rx.order_mode || rx.order_mode === "written" || rx.is_signed) continue;
+      const overdue = rx.countersign_due_at
+        ? new Date(rx.countersign_due_at).getTime() < now
+        : false;
+      const mode = rx.order_mode === "telephone" ? "Telephone" : "Verbal";
+      // Prefer surfacing an overdue order if any exists.
+      if (overdue) return { label: `${mode} order — countersign overdue`, overdue: true };
+      return { label: `${mode} order — awaiting countersign`, overdue: false };
     }
-    return [...modes];
+    return null;
   }, [prescriptions]);
 
   if (prescriptions.length === 0) {
@@ -121,15 +128,14 @@ export function PrescriptionViews({
             {patientAge}
           </Text>
         )}
-        {verbalModes.map((mode) => (
+        {verbalOrder && (
           <OperationalSignal
-            key={mode}
-            label={`${mode === "telephone" ? "Telephone" : "Verbal"} order — countersign`}
+            label={verbalOrder.label}
             shape="token"
             size="xs"
-            tone="risk"
+            tone={verbalOrder.overdue ? "blocked" : "risk"}
           />
-        ))}
+        )}
         <OperationalSignal
           label={t("prescriptionViews.signals.itemCount", { count: items.length })}
           shape="token"

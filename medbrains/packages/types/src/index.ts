@@ -4292,6 +4292,7 @@ export interface Prescription {
   transcribed_by: string | null;
   read_back_confirmed: boolean;
   countersign_due_at: string | null;
+  is_signed: boolean;
   created_at: string;
   updated_at: string;
 }

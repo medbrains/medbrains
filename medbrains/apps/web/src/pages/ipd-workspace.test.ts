@@ -190,6 +190,7 @@ function prescriptionWithPharmacyOrder(pharmacyOrderId: string): PrescriptionWit
       transcribed_by: null,
       read_back_confirmed: false,
       countersign_due_at: null,
+      is_signed: false,
       tenant_id: "tenant-1",
       updated_at: "2026-01-01T00:00:00Z",
     },

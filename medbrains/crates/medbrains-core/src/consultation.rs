@@ -95,6 +95,7 @@ pub struct Prescription {
     pub transcribed_by: Option<Uuid>,
     pub read_back_confirmed: bool,
     pub countersign_due_at: Option<DateTime<Utc>>,
+    pub is_signed: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
