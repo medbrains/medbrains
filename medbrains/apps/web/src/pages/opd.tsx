@@ -1836,6 +1836,74 @@ export function EncounterDetail({
           }
           return false;
         }}
+        actions={
+          <>
+            {canOrder && <OrderBasketChip onClick={() => openOrderBasket("drug")} />}
+            {canOrder && (
+              <Button
+                tone="secondary"
+                size="xs"
+                leftSection={<IconFlask size={14} />}
+                onClick={() => openOrderBasket("lab")}
+              >
+                Lab
+              </Button>
+            )}
+            {canOrder && (
+              <Button
+                tone="secondary"
+                size="xs"
+                leftSection={<IconEye size={14} />}
+                onClick={() => openOrderBasket("radiology")}
+              >
+                Imaging
+              </Button>
+            )}
+            <Menu shadow="md" width={224} position="bottom-start" keepMounted>
+              <Menu.Target>
+                <Button
+                  tone="secondary"
+                  size="xs"
+                  rightSection={<IconChevronDown size={14} />}
+                  leftSection={<IconDotsVertical size={14} />}
+                >
+                  Actions
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <AdmitToIpdButton
+                  encounterId={encounterId}
+                  patientName={patientName}
+                  asMenuItem
+                  control={admitControl}
+                />
+                <GroupAppointmentModal patientId={patientId} asMenuItem />
+                <Menu.Item leftSection={<IconPrinter size={14} />} onClick={openSummary}>
+                  Print
+                </Menu.Item>
+                {canGenerateMrdCaseSheet && (
+                  <Menu.Item
+                    leftSection={<IconClipboardList size={14} />}
+                    onClick={() => generateMrdCaseSheetMutation.mutate()}
+                    disabled={generateMrdCaseSheetMutation.isPending}
+                  >
+                    {latestMrdCaseSheet ? "Update MRD" : "Send to MRD"}
+                  </Menu.Item>
+                )}
+                {canViewMrdCaseSheets && latestMrdCaseSheet && (
+                  <Menu.Item
+                    leftSection={<IconArrowRight size={14} />}
+                    onClick={() =>
+                      navigate(`/mrd?packet_type=opd&encounter_id=${encounterId}#case-sheets`)
+                    }
+                  >
+                    MRD Packet
+                  </Menu.Item>
+                )}
+              </Menu.Dropdown>
+            </Menu>
+          </>
+        }
       />
       <PatientBillingModal
         patientId={patientId}
@@ -1863,84 +1931,6 @@ export function EncounterDetail({
           </Button>
         </Stack>
       </Modal>
-
-      {/* Encounter action toolbar — lives in the header, above the rail/content split. */}
-      <Group
-        gap="xs"
-        wrap="wrap"
-        style={{
-          padding: "10px 24px 12px",
-          marginTop: 4,
-          borderTop: "1px solid var(--mb-border-subtle)",
-        }}
-      >
-        {canOrder && <OrderBasketChip onClick={() => openOrderBasket("drug")} />}
-        {canOrder && (
-          <Button
-            tone="secondary"
-            size="xs"
-            leftSection={<IconFlask size={14} />}
-            onClick={() => openOrderBasket("lab")}
-          >
-            Lab
-          </Button>
-        )}
-        {canOrder && (
-          <Button
-            tone="secondary"
-            size="xs"
-            leftSection={<IconEye size={14} />}
-            onClick={() => openOrderBasket("radiology")}
-          >
-            Imaging
-          </Button>
-        )}
-        {/* Secondary actions collapsed into a single menu. keepMounted so the
-            Admit/Group modal components inside stay mounted when it closes. */}
-        <Menu shadow="md" width={224} position="bottom-start" keepMounted>
-          <Menu.Target>
-            <Button
-              tone="secondary"
-              size="xs"
-              rightSection={<IconChevronDown size={14} />}
-              leftSection={<IconDotsVertical size={14} />}
-            >
-              Actions
-            </Button>
-          </Menu.Target>
-          <Menu.Dropdown>
-            <AdmitToIpdButton
-              encounterId={encounterId}
-              patientName={patientName}
-              asMenuItem
-              control={admitControl}
-            />
-            <GroupAppointmentModal patientId={patientId} asMenuItem />
-            <Menu.Item leftSection={<IconPrinter size={14} />} onClick={openSummary}>
-              Print
-            </Menu.Item>
-            {canGenerateMrdCaseSheet && (
-              <Menu.Item
-                leftSection={<IconClipboardList size={14} />}
-                onClick={() => generateMrdCaseSheetMutation.mutate()}
-                disabled={generateMrdCaseSheetMutation.isPending}
-              >
-                {latestMrdCaseSheet ? "Update MRD" : "Send to MRD"}
-              </Menu.Item>
-            )}
-            {canViewMrdCaseSheets && latestMrdCaseSheet && (
-              <Menu.Item
-                leftSection={<IconArrowRight size={14} />}
-                onClick={() =>
-                  navigate(`/mrd?packet_type=opd&encounter_id=${encounterId}#case-sheets`)
-                }
-              >
-                MRD Packet
-              </Menu.Item>
-            )}
-          </Menu.Dropdown>
-        </Menu>
-      </Group>
 
       <Tabs
         value={activeEncounterTab}

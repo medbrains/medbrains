@@ -56,6 +56,8 @@ interface PatientFlowNavigatorProps {
   completedEvents?: readonly ClinicalEventName[];
   isDeceased?: boolean;
   compact?: boolean;
+  /** Order/action controls rendered on the right of the flow row (Order Basket, Lab, …). */
+  actions?: ReactNode;
   /** Intercept a stage chip — return true to handle it (e.g. open a modal)
    *  instead of navigating to the stage's page. */
   onStageAction?: (stageId: string) => boolean;
@@ -147,6 +149,7 @@ export function PatientFlowNavigator({
   completedEvents,
   isDeceased = false,
   compact = false,
+  actions,
   onStageAction,
 }: PatientFlowNavigatorProps) {
   const navigate = useNavigate();
@@ -221,15 +224,18 @@ export function PatientFlowNavigator({
             );
           })}
         </Group>
-        <OperationalSignal
-          label={t("patientJourney.flow.readySummary", {
-            enabled: summary.enabled,
-            total: summary.total,
-          })}
-          shape={summary.blocked > 0 ? "diamond" : "pill"}
-          size="xs"
-          tone={summary.blocked > 0 ? "blocked" : "ready"}
-        />
+        <Group gap="xs" wrap="wrap" align="center">
+          {actions}
+          <OperationalSignal
+            label={t("patientJourney.flow.readySummary", {
+              enabled: summary.enabled,
+              total: summary.total,
+            })}
+            shape={summary.blocked > 0 ? "diamond" : "pill"}
+            size="xs"
+            tone={summary.blocked > 0 ? "blocked" : "ready"}
+          />
+        </Group>
       </Group>
     </div>
   );

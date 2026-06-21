@@ -142,12 +142,6 @@
 .durRow { gap: 12px; }
 .doseField { align-items: flex-end; }
 
-// previous prescriptions — compact, collapsed by default
-.prevWrap { margin-top: 14px; }
-.prevToggle { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--g70); padding: 4px 2px; }
-.prevToggle:hover { color: var(--blue); }
-.existingList { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
-.existingCard { padding: 10px 14px; }
 
 .allergyBlock { display: flex; gap: 11px; align-items: center; padding: 12px 14px; background: var(--red-10); border: 1px solid var(--red); border-radius: var(--r-sm); }
 .allergyBlock.amber { background: var(--amber-10); border-color: var(--amber); }
