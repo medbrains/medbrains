@@ -106,6 +106,7 @@ import {
   IconPlus,
   IconPrescription,
   IconReceipt,
+  IconReplace,
   IconShieldCheck,
   IconShoppingCart,
   IconTrash,
@@ -147,7 +148,9 @@ import {
 } from "@/components/Pharmacy/MedicineOrderLineCard";
 import { PharmacyDispensingView } from "@/components/Pharmacy/PharmacyDispensingView";
 import { PharmacyLabel } from "@/components/Pharmacy/PharmacyLabel";
+import { RepeatPanel } from "@/components/Pharmacy/RepeatPanel";
 import { StoreIndentsTab } from "@/components/Pharmacy/StoreIndentsTab";
+import { SubstituteModal } from "@/components/Pharmacy/SubstituteModal";
 import {
   Alert,
   type AlertTone,
@@ -2658,10 +2661,23 @@ function PharmacyOrderDetail({
     },
   });
 
+  const canSubstituteDrug = useHasPermission(P.PHARMACY_IMPROVEMENTS.SUBSTITUTION_RECORD);
+  const { data: detailCatalog = [] } = useQuery({
+    queryKey: ["pharmacy-catalog"],
+    queryFn: () => pharmacyService.listPharmacyCatalog(),
+    staleTime: 300_000,
+    enabled: canSubstituteDrug,
+  });
+  const [substituteItem, setSubstituteItem] = useState<PharmacyOrderItem | null>(null);
+
   if (!detail) return <Text c="dimmed">Loading...</Text>;
 
   const hasRxItems = rxData && rxData.items.length > 0;
   const canEditOrderItems = canEditItems && detail.order.status === "ordered";
+  const canSubstitute =
+    canSubstituteDrug &&
+    (detail.order.status === "ordered" || detail.order.status === "partially_dispensed");
+  const showItemActions = canEditOrderItems || canSubstitute;
   const isDispenseHandoff = searchParams.get("action") === "dispense";
   const isAwaitingDispense = detail.order.status === "ordered";
   const dispenseHandoffMessage = !isAwaitingDispense
@@ -2686,6 +2702,14 @@ function PharmacyOrderDetail({
         isDispensing={dispenseMutation.isPending}
         onDispense={(payload) => dispenseMutation.mutate(payload)}
       />
+      {substituteItem && (
+        <SubstituteModal
+          opened={Boolean(substituteItem)}
+          onClose={() => setSubstituteItem(null)}
+          item={substituteItem}
+          catalog={detailCatalog}
+        />
+      )}
       <Group justify="space-between">
         <Text fw={700}>Order: {detail.order.id.slice(0, 8)}...</Text>
         <Group gap="xs">
@@ -2714,6 +2738,12 @@ function PharmacyOrderDetail({
         <Text size="xs" c="dimmed">
           Dispensed: {new Date(detail.order.dispensed_at).toLocaleString()}
         </Text>
+      )}
+      {detail.order.prescription_id && (
+        <RepeatPanel
+          prescriptionId={detail.order.prescription_id}
+          pharmacyOrderId={detail.order.id}
+        />
       )}
       {canEditOrderItems && (
         <Alert tone="info" icon={<IconShieldCheck size={16} />}>
@@ -2803,7 +2833,7 @@ function PharmacyOrderDetail({
               <Table.Th>Unit Price</Table.Th>
               <Table.Th>Total</Table.Th>
               {canViewReturns && <Table.Th>Returned</Table.Th>}
-              {canEditOrderItems && <Table.Th>Actions</Table.Th>}
+              {showItemActions && <Table.Th>Actions</Table.Th>}
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -2837,32 +2867,48 @@ function PharmacyOrderDetail({
                 {canViewReturns && (
                   <Table.Td>{item.quantity_returned > 0 ? item.quantity_returned : "—"}</Table.Td>
                 )}
-                {canEditOrderItems && (
+                {showItemActions && (
                   <Table.Td>
-                    <Tooltip
-                      label={
-                        detail.items.length <= 1
-                          ? "At least one item must remain"
-                          : "Remove item before dispense"
-                      }
-                    >
-                      <IconButton
-                        size="sm"
-                        tone="danger"
-                        disabled={detail.items.length <= 1 || removeItemMutation.isPending}
-                        onClick={() =>
-                          confirmDestructive({
-                            title: "Remove drug",
-                            message: `Remove ${item.drug_name} from this order?`,
-                            confirmLabel: "Remove drug",
-                            onConfirm: () => removeItemMutation.mutate(item.id),
-                          })
-                        }
-                        aria-label={`Remove ${item.drug_name}`}
-                      >
-                        <IconTrash size={14} />
-                      </IconButton>
-                    </Tooltip>
+                    <Group gap={4} wrap="nowrap">
+                      {canSubstitute && (
+                        <Tooltip label="Substitute medication">
+                          <IconButton
+                            size="sm"
+                            tone="default"
+                            onClick={() => setSubstituteItem(item)}
+                            aria-label={`Substitute ${item.drug_name}`}
+                          >
+                            <IconReplace size={14} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {canEditOrderItems && (
+                        <Tooltip
+                          label={
+                            detail.items.length <= 1
+                              ? "At least one item must remain"
+                              : "Remove item before dispense"
+                          }
+                        >
+                          <IconButton
+                            size="sm"
+                            tone="danger"
+                            disabled={detail.items.length <= 1 || removeItemMutation.isPending}
+                            onClick={() =>
+                              confirmDestructive({
+                                title: "Remove drug",
+                                message: `Remove ${item.drug_name} from this order?`,
+                                confirmLabel: "Remove drug",
+                                onConfirm: () => removeItemMutation.mutate(item.id),
+                              })
+                            }
+                            aria-label={`Remove ${item.drug_name}`}
+                          >
+                            <IconTrash size={14} />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Group>
                   </Table.Td>
                 )}
               </Table.Tr>

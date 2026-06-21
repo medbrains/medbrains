@@ -7438,6 +7438,38 @@ export interface FefoBatch {
   quantity_on_hand: number;
 }
 
+export interface RepeatEligibility {
+  prescription_id: string;
+  repeats_allowed: number;
+  repeats_used: number;
+  remaining: number;
+  last_dispense_at: string | null;
+  next_eligible_at: string | null;
+  is_eligible_now: boolean;
+}
+
+export interface PharmacySubstitution {
+  id: string;
+  tenant_id: string;
+  pharmacy_order_item_id: string;
+  original_drug_id: string;
+  substituted_drug_id: string;
+  reason: string;
+  inn_match: boolean;
+  patient_consent_obtained: boolean;
+  substituted_by: string;
+  substituted_at: string;
+}
+
+export interface CreateSubstitutionInput {
+  pharmacy_order_item_id: string;
+  original_drug_id: string;
+  substituted_drug_id: string;
+  reason: string;
+  inn_match: boolean;
+  patient_consent_obtained?: boolean;
+}
+
 export interface PharmacyStockTransaction {
   id: string;
   tenant_id: string;
