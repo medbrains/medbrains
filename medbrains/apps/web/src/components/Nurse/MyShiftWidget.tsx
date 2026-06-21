@@ -101,6 +101,9 @@ export function MyShiftWidget() {
 
   // Off duty: offer to start.
   if (!session || session.session_status === "off" || session.session_status === "ended") {
+    const sched = data.scheduled;
+    const window =
+      sched?.start_time && sched.end_time ? ` · ${sched.start_time}–${sched.end_time}` : "";
     return (
       <Button
         size="xs"
@@ -109,7 +112,7 @@ export function MyShiftWidget() {
         loading={start.isPending}
         onClick={() => start.mutate()}
       >
-        {data.scheduled ? `Start ${data.scheduled.shift_type} shift` : "Start shift"}
+        {sched ? `Start ${sched.shift_type} shift${window}` : "Start shift"}
       </Button>
     );
   }

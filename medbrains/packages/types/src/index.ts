@@ -14258,6 +14258,9 @@ export interface FatigueState {
 
 export interface ScheduledShift {
   shift_type: string;
+  shift_name: string | null;
+  start_time: string | null;
+  end_time: string | null;
   charge_nurse_user_id: string | null;
 }
 

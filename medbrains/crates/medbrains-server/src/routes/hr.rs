@@ -4,7 +4,7 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, NaiveTime, TimeZone, Utc};
 use medbrains_core::fatigue::{self, FatigueThresholds};
 use medbrains_core::hr::{
     Appraisal, AttendanceRecord, Designation, DutyRoster, Employee, EmployeeCredential,
@@ -998,6 +998,9 @@ pub struct FatigueState {
 #[derive(Serialize)]
 pub struct ScheduledShift {
     shift_type: String,
+    shift_name: Option<String>,
+    start_time: Option<String>,
+    end_time: Option<String>,
     charge_nurse_user_id: Option<Uuid>,
 }
 
@@ -1054,12 +1057,33 @@ async fn open_session(
     .map_err(AppError::from)
 }
 
+/// Today's rostered shift definition (name + times) for an employee.
+async fn todays_roster_shift(
+    tx: &mut HrTx<'_>,
+    tenant_id: &Uuid,
+    employee_id: Uuid,
+) -> Result<Option<(String, NaiveTime, NaiveTime)>, AppError> {
+    sqlx::query_as(
+        "SELECT sd.name, sd.start_time, sd.end_time \
+         FROM duty_rosters dr \
+         JOIN shift_definitions sd ON sd.id = dr.shift_id AND sd.tenant_id = dr.tenant_id \
+         WHERE dr.tenant_id = $1 AND dr.employee_id = $2 AND dr.roster_date = CURRENT_DATE \
+         LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(employee_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(AppError::from)
+}
+
 async fn todays_scheduled_shift(
     tx: &mut HrTx<'_>,
     tenant_id: &Uuid,
+    employee_id: Uuid,
     user_id: Uuid,
 ) -> Result<Option<ScheduledShift>, AppError> {
-    let row: Option<(String, Option<Uuid>)> = sqlx::query_as(
+    let assignment: Option<(String, Option<Uuid>)> = sqlx::query_as(
         "SELECT shift_type, charge_nurse_user_id FROM nurse_shift_assignments \
          WHERE tenant_id = $1 AND nurse_user_id = $2 AND shift_date = CURRENT_DATE \
          LIMIT 1",
@@ -1068,10 +1092,42 @@ async fn todays_scheduled_shift(
     .bind(user_id)
     .fetch_optional(&mut **tx)
     .await?;
-    Ok(row.map(|(shift_type, charge_nurse_user_id)| ScheduledShift {
-        shift_type,
-        charge_nurse_user_id,
+    let roster = todays_roster_shift(tx, tenant_id, employee_id).await?;
+
+    if assignment.is_none() && roster.is_none() {
+        return Ok(None);
+    }
+    Ok(Some(ScheduledShift {
+        shift_type: assignment
+            .as_ref()
+            .map(|a| a.0.clone())
+            .or_else(|| roster.as_ref().map(|r| r.0.clone()))
+            .unwrap_or_default(),
+        shift_name: roster.as_ref().map(|r| r.0.clone()),
+        start_time: roster.as_ref().map(|r| r.1.format("%H:%M").to_string()),
+        end_time: roster.as_ref().map(|r| r.2.format("%H:%M").to_string()),
+        charge_nurse_user_id: assignment.and_then(|a| a.1),
     }))
+}
+
+/// Planned shift end from today's roster (night shifts cross midnight), or a
+/// standard 8h from now when the staff member isn't rostered.
+async fn resolve_planned_end(
+    tx: &mut HrTx<'_>,
+    tenant_id: &Uuid,
+    employee_id: Uuid,
+) -> Result<DateTime<Utc>, AppError> {
+    let now = Utc::now();
+    match todays_roster_shift(tx, tenant_id, employee_id).await? {
+        Some((_, start, end)) => {
+            let mut end_dt = now.date_naive().and_time(end);
+            if end <= start {
+                end_dt += Duration::days(1);
+            }
+            Ok(Utc.from_utc_datetime(&end_dt))
+        }
+        None => Ok(now + Duration::hours(8)),
+    }
 }
 
 async fn compute_fatigue(
@@ -1140,7 +1196,7 @@ async fn build_my_shift(
     user_id: Uuid,
 ) -> Result<MyShiftResponse, AppError> {
     let session = open_session(tx, tenant_id, employee_id).await?;
-    let scheduled = todays_scheduled_shift(tx, tenant_id, user_id).await?;
+    let scheduled = todays_scheduled_shift(tx, tenant_id, employee_id, user_id).await?;
     let fatigue = compute_fatigue(tx, tenant_id, employee_id, session.as_ref()).await?;
     Ok(MyShiftResponse { scheduled, session, fatigue })
 }
@@ -1171,15 +1227,17 @@ pub async fn start_shift(
         return Err(AppError::BadRequest("You already have an open shift.".to_owned()));
     }
 
+    let planned_end = resolve_planned_end(&mut tx, &claims.tenant_id, employee_id).await?;
+
     sqlx::query(
         "INSERT INTO attendance_records \
            (tenant_id, employee_id, attendance_date, check_in, status, source, \
             session_status, planned_end, recorded_by) \
-         VALUES ($1, $2, CURRENT_DATE, now(), 'present', 'self', 'on_duty', \
-                 now() + interval '8 hours', $3)",
+         VALUES ($1, $2, CURRENT_DATE, now(), 'present', 'self', 'on_duty', $3, $4)",
     )
     .bind(claims.tenant_id)
     .bind(employee_id)
+    .bind(planned_end)
     .bind(claims.sub)
     .execute(&mut *tx)
     .await?;
@@ -1331,7 +1389,7 @@ pub async fn acknowledge_fatigue(
 
     // Notify the charge nurse on duty that a colleague is working through fatigue.
     if !codes.is_empty() {
-        if let Some(charge) = todays_scheduled_shift(&mut tx, &claims.tenant_id, claims.sub)
+        if let Some(charge) = todays_scheduled_shift(&mut tx, &claims.tenant_id, employee_id, claims.sub)
             .await?
             .and_then(|s| s.charge_nurse_user_id)
         {
