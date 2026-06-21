@@ -13,7 +13,7 @@ import { type KeyboardEvent, type ReactNode, useMemo, useRef, useState } from "r
 import { Button, Drawer, Modal, SegmentedControl } from "@/components/ui";
 import { Input } from "@/components/ui/Input";
 import classes from "./prescription.module.scss";
-import type { Prescriber } from "./RxCompose";
+import { type ComposeValues, type Prescriber, RxCompose } from "./RxCompose";
 import { RxTable } from "./RxTable";
 import { type FormularyDrug, quickRxDefaults, type RxItem, searchFormulary } from "./rxModel";
 
@@ -357,12 +357,8 @@ export function RxDoctor({
             <RxTable
               items={items}
               formularyById={formularyById}
-              expandedUid={expandedUid}
-              prescriber={prescriber}
-              patientName={patientName}
-              patientAllergies={patientAllergies}
               onChange={patchItem}
-              onExpand={setExpandedUid}
+              onOpenDetails={setExpandedUid}
               onRemove={removeItem}
             />
           )}
@@ -449,6 +445,35 @@ export function RxDoctor({
           </Button>
         </Group>
       </Modal>
+
+      {/* Shared detailed-dose modal — reused for whichever row's adjust icon is clicked. */}
+      {(() => {
+        const item = expandedUid != null ? items.find((it) => it.uid === expandedUid) : undefined;
+        const drug = item ? formularyById[item.id] : undefined;
+        return (
+          <Modal
+            opened={Boolean(item && drug)}
+            onClose={() => setExpandedUid(null)}
+            title={item ? `Dose details · ${item.name}` : "Dose details"}
+            size="lg"
+          >
+            {item && drug && (
+              <RxCompose
+                drug={drug}
+                init={item}
+                prescriber={prescriber}
+                patientName={patientName}
+                patientAllergies={patientAllergies}
+                onSave={(vals: ComposeValues) => {
+                  patchItem(item.uid, vals);
+                  setExpandedUid(null);
+                }}
+                onCancel={() => setExpandedUid(null)}
+              />
+            )}
+          </Modal>
+        );
+      })()}
     </Box>
   );
 }
