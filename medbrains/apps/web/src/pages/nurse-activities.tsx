@@ -16,7 +16,16 @@ import {
   Timeline,
 } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
-import { type CreateVitalRequest, P, type SetupUser, type Vital } from "@medbrains/types";
+import {
+  type CreatePrescriptionRequest,
+  type CreateVitalRequest,
+  P,
+  type PatientAllergy,
+  type PrescriptionWithItems,
+  type SetupUser,
+  type UpdatePrescriptionRequest,
+  type Vital,
+} from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconBandage,
@@ -34,9 +43,11 @@ import { NursingNotesPanel } from "@/components/crdt/NursingNotesPanel";
 import { EncounterSelect } from "@/components/EncounterSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
+import { RxSuiteWriter } from "@/features/prescription/RxSuiteWriter";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminAccessService } from "@/services/adminAccess.service";
 import { nurseActivitiesService } from "@/services/nurseActivities.service";
+import { opdService } from "@/services/opd.service";
 
 interface MarRow {
   id: string;
@@ -134,7 +145,8 @@ type NurseTabKey =
   | "code-blue"
   | "handoff"
   | "shift-notes"
-  | "equipment";
+  | "equipment"
+  | "prescriptions";
 
 const NURSE_PAGE_PERMISSIONS = [
   P.NURSE.DASHBOARD_VIEW,
@@ -176,7 +188,8 @@ function nurseTabFromSearch(value: string | null): NurseTabKey | null {
     value === "code-blue" ||
     value === "handoff" ||
     value === "shift-notes" ||
-    value === "equipment"
+    value === "equipment" ||
+    value === "prescriptions"
   ) {
     return value;
   }
@@ -428,6 +441,7 @@ export function NurseActivitiesPage() {
   const canRecordHandoff = useHasPermission(P.NURSE.HANDOFF_RECORD);
   const canViewEquipment = useHasPermission(P.NURSE.EQUIPMENT_VIEW);
   const canRecordEquipment = useHasPermission(P.NURSE.EQUIPMENT_RECORD);
+  const canDraftRx = useHasPermission(P.NURSE.PRESCRIPTIONS_DRAFT);
   const canOpenVitals = canViewVitals || canRecordVitals;
   const canOpenIo = canViewIo || canRecordIo;
   const canOpenSafety =
@@ -449,6 +463,11 @@ export function NurseActivitiesPage() {
     { value: "handoff" as const, label: "Handoff", visible: canOpenHandoff },
     { value: "shift-notes" as const, label: "Shift Notes", visible: canViewHandoff },
     { value: "equipment" as const, label: "Equipment", visible: canOpenEquipment },
+    {
+      value: "prescriptions" as const,
+      label: "Prescriptions",
+      visible: canDraftRx && Boolean(contextEncounterId),
+    },
   ].filter((item) => item.visible);
   const fallbackTab = availableTabs[0]?.value ?? "mar";
   const initialTab =
@@ -561,6 +580,11 @@ export function NurseActivitiesPage() {
           {canOpenEquipment && (
             <Tabs.Panel value="equipment" pt="md">
               <EquipmentTab />
+            </Tabs.Panel>
+          )}
+          {canDraftRx && contextEncounterId && (
+            <Tabs.Panel value="prescriptions" pt="md">
+              <NurseRxTab encounterId={contextEncounterId} patientId={contextPatientId} />
             </Tabs.Panel>
           )}
         </Tabs>
@@ -1878,6 +1902,66 @@ function HandoffWorkflowPanel({
 }
 
 // ── Code Blue Tab ───────────────────────────────────────────────────
+
+/** Nurse-draft prescription writer — Rx-only items route to a doctor to countersign. */
+function NurseRxTab({ encounterId, patientId }: { encounterId: string; patientId: string }) {
+  const qc = useQueryClient();
+  const canDraft = useHasPermission(P.NURSE.PRESCRIPTIONS_DRAFT);
+
+  const { data: prescriptions = [] } = useQuery<PrescriptionWithItems[]>({
+    queryKey: ["encounter-prescriptions", encounterId],
+    queryFn: () => opdService.listPrescriptions(encounterId),
+  });
+  const { data: patient } = useQuery({
+    queryKey: ["patient-detail", patientId],
+    queryFn: () => opdService.getPatient(patientId),
+    enabled: Boolean(patientId),
+  });
+  const { data: allergies = [] } = useQuery<PatientAllergy[]>({
+    queryKey: ["patient-allergies", patientId],
+    queryFn: () => opdService.listPatientAllergies(patientId),
+    enabled: Boolean(patientId),
+  });
+
+  const invalidate = () =>
+    void qc.invalidateQueries({ queryKey: ["encounter-prescriptions", encounterId] });
+  const createMutation = useMutation({
+    mutationFn: (data: CreatePrescriptionRequest) =>
+      opdService.createPrescription(encounterId, data),
+    onSuccess: invalidate,
+  });
+  const updateMutation = useMutation({
+    mutationFn: ({
+      prescriptionId,
+      data,
+    }: {
+      prescriptionId: string;
+      data: UpdatePrescriptionRequest;
+    }) => opdService.updatePrescription(prescriptionId, data),
+    onSuccess: invalidate,
+  });
+
+  const patientName = patient
+    ? `${patient.first_name} ${patient.last_name}`.trim()
+    : patientId.slice(0, 8);
+
+  return (
+    <RxSuiteWriter
+      encounterId={encounterId}
+      patientId={patientId}
+      prescriptions={prescriptions}
+      canUpdate={canDraft}
+      onSave={(data) => createMutation.mutate(data)}
+      onUpdate={(prescriptionId, data) => updateMutation.mutate({ prescriptionId, data })}
+      isSaving={createMutation.isPending}
+      isUpdating={updateMutation.isPending}
+      patientName={patientName}
+      uhid={patient?.uhid ?? patientId.slice(0, 8)}
+      allergies={allergies.filter((a) => a.is_active).map((a) => a.allergen_name)}
+      prescriber="nurse"
+    />
+  );
+}
 
 function EquipmentTab() {
   const canView = useHasPermission(P.NURSE.EQUIPMENT_VIEW);

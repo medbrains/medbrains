@@ -2138,7 +2138,14 @@ pub async fn create_prescription(
     Path(encounter_id): Path<Uuid>,
     Json(body): Json<CreatePrescriptionRequest>,
 ) -> Result<Json<PrescriptionWithItems>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    // Doctors prescribe directly; nurses may draft (Rx routes to MD countersign).
+    require_any_permission(
+        &claims,
+        &[
+            permissions::opd::visit::UPDATE,
+            permissions::nurse::prescriptions::DRAFT,
+        ],
+    )?;
 
     if body.items.is_empty() {
         return Err(AppError::BadRequest(
@@ -2281,7 +2288,14 @@ pub async fn update_prescription(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdatePrescriptionRequest>,
 ) -> Result<Json<PrescriptionWithItems>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    // Doctors prescribe directly; nurses may draft (Rx routes to MD countersign).
+    require_any_permission(
+        &claims,
+        &[
+            permissions::opd::visit::UPDATE,
+            permissions::nurse::prescriptions::DRAFT,
+        ],
+    )?;
 
     if body.items.is_empty() {
         return Err(AppError::BadRequest(

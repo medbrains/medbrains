@@ -4628,6 +4628,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "nurse",
   },
   {
+    code: "nurse.prescriptions.draft",
+    label: "Draft Prescriptions",
+    description: "Draft OTC/protocol prescriptions for doctor countersign",
+    module: "nurse",
+  },
+  {
     code: "nurse.vitals.view",
     label: "View Vitals Schedules",
     description: "View vitals capture schedules",
@@ -5885,6 +5891,7 @@ export const P = {
     MAR_ADMINISTER: "nurse.mar.administer" as const,
     MAR_HOLD: "nurse.mar.hold" as const,
     MAR_REFUSE: "nurse.mar.refuse" as const,
+    PRESCRIPTIONS_DRAFT: "nurse.prescriptions.draft" as const,
     VITALS_VIEW: "nurse.vitals.view" as const,
     VITALS_RECORD: "nurse.vitals.record" as const,
     INTAKE_OUTPUT_VIEW: "nurse.intake_output.view" as const,
@@ -6166,6 +6173,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.NURSE.MAR_ADMINISTER,
       P.NURSE.MAR_HOLD,
       P.NURSE.MAR_REFUSE,
+      P.NURSE.PRESCRIPTIONS_DRAFT,
       P.NURSE.VITALS_VIEW,
       P.NURSE.VITALS_RECORD,
       P.NURSE.INTAKE_OUTPUT_VIEW,

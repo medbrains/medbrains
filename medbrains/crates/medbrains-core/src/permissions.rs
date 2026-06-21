@@ -1951,6 +1951,9 @@ pub mod nurse {
         pub const HOLD: &str = "nurse.mar.hold";
         pub const REFUSE: &str = "nurse.mar.refuse";
     }
+    pub mod prescriptions {
+        pub const DRAFT: &str = "nurse.prescriptions.draft";
+    }
     pub mod vitals {
         pub const VIEW: &str = "nurse.vitals.view";
         pub const RECORD: &str = "nurse.vitals.record";

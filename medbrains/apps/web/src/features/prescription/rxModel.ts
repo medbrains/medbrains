@@ -38,9 +38,27 @@ export interface RxItem {
   ongoing: boolean;
   food: string;
   note: string;
+  /** Administration route. */
+  route?: Route;
   /** Nurse-drafted Rx-only item awaiting MD sign-off. */
   pendingMD?: boolean;
 }
+
+/** CDSCO drug schedule. X = duplicate Rx + register; H1 = written Rx + register. */
+export type DrugSchedule = "H" | "H1" | "X" | "G" | null;
+/** WHO AWaRe antibiotic-stewardship class. */
+export type AwareClass = "Access" | "Watch" | "Reserve" | null;
+export type Route = "oral" | "iv" | "im" | "sc" | "topical" | "inhaled" | "rectal";
+
+export const ROUTES: { v: Route; label: string }[] = [
+  { v: "oral", label: "Oral" },
+  { v: "iv", label: "IV" },
+  { v: "im", label: "IM" },
+  { v: "sc", label: "SC" },
+  { v: "topical", label: "Topical" },
+  { v: "inhaled", label: "Inhaled" },
+  { v: "rectal", label: "Rectal" },
+];
 
 export interface FormularyDrug {
   id: string;
@@ -54,6 +72,26 @@ export interface FormularyDrug {
   penicillin?: boolean;
   crossPen?: boolean;
   sedative?: boolean;
+  // ── regulatory (CLAUDE.md §Pharmacology) ──
+  /** CDSCO schedule — drives badge + Rx/register rules. */
+  schedule?: DrugSchedule;
+  /** NDPS controlled substance — register + dual-lock on dispense. */
+  controlled?: boolean;
+  /** ATC classification code. */
+  atc?: string;
+  /** WHO AWaRe antibiotic class (antibiotics only). */
+  aware?: AwareClass;
+  /** Look-alike-sound-alike — tall-man + confirm step. */
+  lasa?: boolean;
+}
+
+/** Schedule badge label + whether it needs a written Rx / register. */
+export function scheduleInfo(s: DrugSchedule): { label: string; strict: boolean } | null {
+  if (!s) return null;
+  if (s === "X") return { label: "Schedule X", strict: true };
+  if (s === "H1") return { label: "Schedule H1", strict: true };
+  if (s === "H") return { label: "Schedule H", strict: false };
+  return { label: `Schedule ${s}`, strict: false };
 }
 
 export type InteractionSeverity = "minor" | "moderate" | "major";
@@ -96,7 +134,7 @@ export function repeatLabel(r?: Repeat): string {
   if (r.type === "interval")
     return (r.everyN || 2) === 2 ? "Alternate days" : `Every ${r.everyN} days`;
   if (r.type === "days") {
-    return r.days && r.days.length
+    return r.days?.length
       ? r.days
           .slice()
           .sort((a, b) => a - b)
@@ -104,7 +142,7 @@ export function repeatLabel(r?: Repeat): string {
           .join(", ")
       : "Pick days";
   }
-  if (r.type === "weekly") return `Weekly · ${WEEK[((r.days && r.days[0]) || 1) - 1]}`;
+  if (r.type === "weekly") return `Weekly · ${WEEK[(r.days?.[0] || 1) - 1]}`;
   if (r.type === "monthly") return `Monthly · ${ord(r.dom || 1)}`;
   return "Every day";
 }
@@ -143,6 +181,9 @@ export const FORMULARY: FormularyDrug[] = [
     brands: ["Azithral 500", "Zithromax"],
     strengths: ["250 mg", "500 mg"],
     kind: "rx",
+    schedule: "H",
+    atc: "J01FA10",
+    aware: "Watch",
   },
   {
     id: "amc",
@@ -154,6 +195,9 @@ export const FORMULARY: FormularyDrug[] = [
     strengths: ["375 mg", "625 mg"],
     penicillin: true,
     kind: "rx",
+    schedule: "H",
+    atc: "J01CR02",
+    aware: "Access",
   },
   {
     id: "amx",
@@ -165,6 +209,9 @@ export const FORMULARY: FormularyDrug[] = [
     strengths: ["250 mg", "500 mg"],
     penicillin: true,
     kind: "rx",
+    schedule: "H",
+    atc: "J01CA04",
+    aware: "Access",
   },
   {
     id: "cfx",
@@ -176,6 +223,9 @@ export const FORMULARY: FormularyDrug[] = [
     strengths: ["100 mg", "200 mg"],
     crossPen: true,
     kind: "rx",
+    schedule: "H",
+    atc: "J01DD08",
+    aware: "Watch",
   },
   {
     id: "par",
@@ -186,6 +236,8 @@ export const FORMULARY: FormularyDrug[] = [
     brands: ["Dolo 650", "Calpol"],
     strengths: ["500 mg", "650 mg"],
     kind: "otc",
+    schedule: null,
+    atc: "N02BE01",
   },
   {
     id: "ibu",
@@ -196,6 +248,8 @@ export const FORMULARY: FormularyDrug[] = [
     brands: ["Brufen", "Combiflam"],
     strengths: ["200 mg", "400 mg"],
     kind: "otc",
+    schedule: null,
+    atc: "M01AE01",
   },
   {
     id: "lev",
@@ -207,6 +261,9 @@ export const FORMULARY: FormularyDrug[] = [
     strengths: ["5 mg"],
     sedative: true,
     kind: "otc",
+    schedule: "H",
+    atc: "R06AE09",
+    lasa: true,
   },
   {
     id: "cet",
@@ -218,6 +275,8 @@ export const FORMULARY: FormularyDrug[] = [
     strengths: ["10 mg"],
     sedative: true,
     kind: "otc",
+    schedule: "H",
+    atc: "R06AE07",
   },
   {
     id: "pan",
@@ -228,6 +287,8 @@ export const FORMULARY: FormularyDrug[] = [
     brands: ["Pantop 40", "Pan 40"],
     strengths: ["20 mg", "40 mg"],
     kind: "rx",
+    schedule: "H",
+    atc: "A02BC02",
   },
   {
     id: "mont",
@@ -238,6 +299,8 @@ export const FORMULARY: FormularyDrug[] = [
     brands: ["Montair", "Montek"],
     strengths: ["4 mg", "5 mg", "10 mg"],
     kind: "rx",
+    schedule: "H",
+    atc: "R03DC03",
   },
   {
     id: "dom",
@@ -248,6 +311,22 @@ export const FORMULARY: FormularyDrug[] = [
     brands: ["Domstal"],
     strengths: ["10 mg"],
     kind: "rx",
+    schedule: "H",
+    atc: "A03FA03",
+  },
+  {
+    id: "alp",
+    name: "Alprazolam",
+    salt: "Alprazolam",
+    form: "Tab",
+    cls: "Benzodiazepine",
+    brands: ["Alprax", "Restyl"],
+    strengths: ["0.25 mg", "0.5 mg"],
+    sedative: true,
+    kind: "rx",
+    schedule: "H1",
+    controlled: true,
+    atc: "N05BA12",
   },
   {
     id: "ors",
@@ -258,6 +337,8 @@ export const FORMULARY: FormularyDrug[] = [
     brands: ["Electral"],
     strengths: ["1 sachet"],
     kind: "otc",
+    schedule: null,
+    atc: "A07CA",
   },
 ];
 
@@ -274,15 +355,21 @@ export const INTERACTIONS: Record<string, Interaction> = {
   "ibu|par": { sev: "minor", note: "both antipyretic — avoid stacking" },
 };
 
-/** Search the formulary by name, salt, brand, or class. */
-export function searchFormulary(query: string, limit = 6): FormularyDrug[] {
+/** Search a formulary list by name, salt, brand, or class. */
+export function searchFormulary(
+  formulary: FormularyDrug[],
+  query: string,
+  limit = 6,
+): FormularyDrug[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
-  return FORMULARY.filter(
-    (d) =>
-      d.name.toLowerCase().includes(q) ||
-      d.salt.toLowerCase().includes(q) ||
-      d.brands.some((b) => b.toLowerCase().includes(q)) ||
-      d.cls.toLowerCase().includes(q),
-  ).slice(0, limit);
+  return formulary
+    .filter(
+      (d) =>
+        d.name.toLowerCase().includes(q) ||
+        d.salt.toLowerCase().includes(q) ||
+        d.brands.some((b) => b.toLowerCase().includes(q)) ||
+        d.cls.toLowerCase().includes(q),
+    )
+    .slice(0, limit);
 }

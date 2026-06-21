@@ -128,7 +128,6 @@ import {
   PatientSearchSelect,
   PrescriptionPrint,
   PrescriptionViews,
-  PrescriptionWriter,
   SOAPNotes,
   useClinicalEmit,
   useProtectedFieldAccess,
@@ -148,6 +147,7 @@ import { PatientContextBanner } from "@/components/Patient/PatientContextBanner"
 import { PatientContextSummary } from "@/components/Patient/PatientContextSummary";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
+import { RxSuiteWriter } from "@/features/prescription/RxSuiteWriter";
 import {
   DEFAULT_OPD_FOLLOW_UP_FORM_VALUES,
   DEFAULT_OPD_LAB_ORDER_FORM_VALUES,
@@ -3564,7 +3564,7 @@ function PrescriptionsTab({
 
   return (
     <>
-      <PrescriptionWriter
+      <RxSuiteWriter
         encounterId={encounterId}
         patientId={patientId}
         prescriptions={prescriptions as PrescriptionWithItems[]}
@@ -3574,6 +3574,9 @@ function PrescriptionsTab({
         isSaving={createMutation.isPending}
         isUpdating={updateMutation.isPending}
         onPrint={(rx) => setPrintRx(rx)}
+        patientName={patientName}
+        uhid={uhid}
+        allergies={allergies}
       />
       {/* 4-view prescription display — Prose, Timeline, Dose Calc, Rules */}
       {(prescriptions as PrescriptionWithItems[]).length > 0 && (

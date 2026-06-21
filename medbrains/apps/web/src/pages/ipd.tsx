@@ -57,6 +57,7 @@ import type {
   CreateDeathSummaryRequest,
   CreateDischargeSummaryRequest,
   CreateNursingTaskRequest,
+  CreatePrescriptionRequest,
   CreateRestraintCheckRequest,
   CreateTransferRequest,
   CreateWardRequest,
@@ -86,6 +87,7 @@ import type {
   MlcCase,
   MrdCaseSheetPacket,
   NursingTask,
+  PatientAllergy,
   PrescriptionWithItems,
   PriorAuthRequestRow,
   ProcedureConsent,
@@ -95,6 +97,7 @@ import type {
   SurgeonCaseloadEntry,
   TransferType,
   UpdateDischargeSummaryRequest,
+  UpdatePrescriptionRequest,
   UpdateWardRequest,
   WardBedRow,
   WardListRow,
@@ -186,6 +189,7 @@ import {
 } from "@/components/ui";
 import { WardSelect } from "@/components/WardSelect";
 import { ALL_TEMPLATES, type ChecklistTemplate } from "@/data/checklist-templates";
+import { RxSuiteWriter } from "@/features/prescription/RxSuiteWriter";
 import {
   bradenRiskLevel,
   calculateBradenTotal,
@@ -2631,6 +2635,8 @@ function AdmissionPrescriptionsTab({
   encounterId: string;
   patientId: string;
 }) {
+  const queryClient = useQueryClient();
+  const canWrite = useHasPermission(P.OPD.VISIT_UPDATE);
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
   const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
   const { data: prescriptions = [] } = useQuery<PrescriptionWithItems[]>({
@@ -2643,13 +2649,29 @@ function AdmissionPrescriptionsTab({
     queryFn: () => ipdService.getPatient(patientId),
   });
 
-  if (prescriptions.length === 0) {
-    return (
-      <Text c="dimmed" size="sm">
-        No prescriptions for this admission.
-      </Text>
-    );
-  }
+  const { data: allergies = [] } = useQuery<PatientAllergy[]>({
+    queryKey: ["patient-allergies", patientId],
+    queryFn: () => ipdService.listPatientAllergies(patientId),
+  });
+  const allergyNames = allergies.filter((a) => a.is_active).map((a) => a.allergen_name);
+
+  const invalidate = () =>
+    void queryClient.invalidateQueries({ queryKey: ["encounter-prescriptions", encounterId] });
+  const createMutation = useMutation({
+    mutationFn: (data: CreatePrescriptionRequest) =>
+      ipdService.createPrescription(encounterId, data),
+    onSuccess: invalidate,
+  });
+  const updateMutation = useMutation({
+    mutationFn: ({
+      prescriptionId,
+      data,
+    }: {
+      prescriptionId: string;
+      data: UpdatePrescriptionRequest;
+    }) => ipdService.updatePrescription(prescriptionId, data),
+    onSuccess: invalidate,
+  });
 
   const fullName = patient
     ? `${patient.first_name} ${patient.middle_name ?? ""} ${patient.last_name}`.trim()
@@ -2659,12 +2681,29 @@ function AdmissionPrescriptionsTab({
   const patientUhid = protectedIpdPatientIdentifier(uhid, uhidAccess);
 
   return (
-    <PrescriptionViews
-      prescriptions={prescriptions}
-      patientName={patientName}
-      uhid={patientUhid}
-      allergies={[]}
-    />
+    <Stack gap="md">
+      <RxSuiteWriter
+        encounterId={encounterId}
+        patientId={patientId}
+        prescriptions={prescriptions}
+        canUpdate={canWrite}
+        onSave={(data) => createMutation.mutate(data)}
+        onUpdate={(prescriptionId, data) => updateMutation.mutate({ prescriptionId, data })}
+        isSaving={createMutation.isPending}
+        isUpdating={updateMutation.isPending}
+        patientName={patientName}
+        uhid={patientUhid}
+        allergies={allergyNames}
+      />
+      {prescriptions.length > 0 && (
+        <PrescriptionViews
+          prescriptions={prescriptions}
+          patientName={patientName}
+          uhid={patientUhid}
+          allergies={allergyNames}
+        />
+      )}
+    </Stack>
   );
 }
 

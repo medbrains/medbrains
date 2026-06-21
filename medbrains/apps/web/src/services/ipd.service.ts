@@ -20,6 +20,12 @@ export const ipdService = {
   listMar: (...args: Parameters<typeof api.listMar>) => api.listMar(...args),
   listPrescriptions: (...args: Parameters<typeof api.listPrescriptions>) =>
     api.listPrescriptions(...args),
+  createPrescription: (...args: Parameters<typeof api.createPrescription>) =>
+    api.createPrescription(...args),
+  updatePrescription: (...args: Parameters<typeof api.updatePrescription>) =>
+    api.updatePrescription(...args),
+  listPatientAllergies: (...args: Parameters<typeof api.listPatientAllergies>) =>
+    api.listPatientAllergies(...args),
   getPatient: (...args: Parameters<typeof api.getPatient>) => api.getPatient(...args),
   listIntakeOutput: (...args: Parameters<typeof api.listIntakeOutput>) =>
     api.listIntakeOutput(...args),
