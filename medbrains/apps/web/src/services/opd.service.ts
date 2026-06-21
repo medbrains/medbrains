@@ -109,6 +109,8 @@ export const opdService = {
     api.revokeProcedureConsent(...args),
   getOpdConsentPrintData: (...args: Parameters<typeof api.getOpdConsentPrintData>) =>
     api.getOpdConsentPrintData(...args),
+  getOpdPrescriptionPrintData: (...args: Parameters<typeof api.getOpdPrescriptionPrintData>) =>
+    api.getOpdPrescriptionPrintData(...args),
   getDoctorDocket: (...args: Parameters<typeof api.getDoctorDocket>) =>
     api.getDoctorDocket(...args),
   generateDoctorDocket: (...args: Parameters<typeof api.generateDoctorDocket>) =>

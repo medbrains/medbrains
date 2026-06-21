@@ -1,4 +1,5 @@
 import { Box } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useAuthStore } from "@medbrains/stores";
 import type {
@@ -12,6 +13,7 @@ import { useMemo, useState } from "react";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import classes from "./prescription.module.scss";
 import { RxDoctor, type RxSafety } from "./RxDoctor";
+import { RxPrint } from "./RxPrint";
 import { catalogToFormulary, prescriptionItemsToRx, rxItemsToInput } from "./rxAdapter";
 import type { FormularyDrug, RxItem } from "./rxModel";
 
@@ -42,18 +44,22 @@ const EMPTY_SAFETY: RxSafety = { interactions: [], allergy_conflicts: [] };
  * doctor sign-off queue, not inline here. Scoped under `.suite`.
  */
 export function RxSuiteWriter({
+  encounterId,
   prescriptions,
   canUpdate,
   onSave,
   isSaving,
   patientId,
   patientName,
+  uhid,
   allergies = [],
   prescriber = "doctor",
 }: Props) {
   const user = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
   const [safety, setSafety] = useState<RxSafety>(EMPTY_SAFETY);
+  const [currentItems, setCurrentItems] = useState<RxItem[]>([]);
+  const [printOpen, printDisc] = useDisclosure(false);
 
   const { data: catalog = [] } = useQuery({
     queryKey: ["pharmacy-catalog"],
@@ -120,7 +126,8 @@ export function RxSuiteWriter({
     }
   };
 
-  const handleItemsChange = (items: { name: string }[]) => {
+  const handleItemsChange = (items: RxItem[]) => {
+    setCurrentItems(items);
     void runSafety(items.map((i) => i.name));
   };
 
@@ -156,7 +163,17 @@ export function RxSuiteWriter({
         onSaveTemplate={(name, items) => saveTemplateMutation.mutate({ name, items })}
         priorDrugIds={priorDrugIds}
         onItemsChange={handleItemsChange}
+        onPrint={printDisc.open}
         onSave={handleSave}
+      />
+      <RxPrint
+        opened={printOpen}
+        onClose={printDisc.close}
+        encounterId={encounterId}
+        items={currentItems}
+        formularyById={formularyById}
+        patientName={patientName}
+        uhid={uhid}
       />
     </Box>
   );
