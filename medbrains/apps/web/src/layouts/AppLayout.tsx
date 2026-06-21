@@ -34,6 +34,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
+import { BrandLogo } from "@/components/BrandLogo";
 import { HeaderWidgets } from "@/components/HeaderWidgets";
 import { NewsMarquee } from "@/components/NewsMarquee";
 import { NotificationCenter } from "@/components/NotificationCenter";
@@ -419,20 +420,7 @@ export function AppLayout() {
           <Group gap="sm" wrap="nowrap">
             <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
             <Group gap={8} className={classes.logoArea} onClick={() => navigate("/dashboard")}>
-              <img
-                src="/logo/medbrains-mark.svg"
-                alt=""
-                width={30}
-                height={30}
-                style={{ borderRadius: 3 }}
-              />
-              <Text size="sm" c="var(--mb-text-primary)" style={{ letterSpacing: "-0.02em" }}>
-                <span style={{ fontWeight: 300 }}>Med</span>
-                <span style={{ fontWeight: 600 }}>Brains</span>
-              </Text>
-              <Text size="xs" c="var(--mb-text-muted)" fw={500} visibleFrom="md">
-                HMS
-              </Text>
+              <BrandLogo />
             </Group>
           </Group>
 

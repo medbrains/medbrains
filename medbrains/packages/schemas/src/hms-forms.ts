@@ -4231,6 +4231,7 @@ const hexColorField = requiredTrimmed("Color is required", 7).refine(
 );
 
 export const brandingSettingsFormSchema = z.object({
+  display_name: z.string().max(120),
   primary_color: hexColorField,
   secondary_color: hexColorField,
   logo_url: z.string(),

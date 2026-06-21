@@ -35,6 +35,7 @@ const DEFAULT_PRIMARY = "#0D9488";
 const DEFAULT_SECONDARY = "#1E293B";
 
 const EMPTY_FORM: BrandingSettingsFormInput = {
+  display_name: "",
   primary_color: DEFAULT_PRIMARY,
   secondary_color: DEFAULT_SECONDARY,
   logo_url: "",
@@ -49,6 +50,7 @@ function parseBrandingSettings(rows: TenantSettingsRow[]): BrandingSettingsFormI
   };
 
   return {
+    display_name: find("display_name"),
     primary_color: find("primary_color") || DEFAULT_PRIMARY,
     secondary_color: find("secondary_color") || DEFAULT_SECONDARY,
     logo_url: find("logo_url"),
@@ -90,6 +92,9 @@ export function BrandingSettings() {
       const original = parseBrandingSettings(settings ?? []);
       const entries: { key: string; value: string }[] = [];
 
+      if (formData.display_name !== original.display_name) {
+        entries.push({ key: "display_name", value: formData.display_name });
+      }
       if (formData.primary_color !== original.primary_color) {
         entries.push({ key: "primary_color", value: formData.primary_color });
       }
@@ -127,6 +132,7 @@ export function BrandingSettings() {
 
   const submitBranding = handleSubmit((form) => {
     mutation.mutate({
+      display_name: form.display_name.trim(),
       primary_color: form.primary_color.trim(),
       secondary_color: form.secondary_color.trim(),
       logo_url: form.logo_url.trim(),
@@ -165,6 +171,14 @@ export function BrandingSettings() {
 
   return (
     <Stack gap="lg">
+      <TextInput
+        label="Hospital display name"
+        description="Shown in the app header as the brand (e.g. 'City General Hospital'). Falls back to MedBrains HMS when empty."
+        placeholder="City General Hospital"
+        error={errors.display_name?.message}
+        {...register("display_name")}
+      />
+
       <Text fw={600} size="lg">
         Branding Colors
       </Text>
