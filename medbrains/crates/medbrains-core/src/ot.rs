@@ -140,6 +140,22 @@ pub struct OtBooking {
     pub updated_at: DateTime<Utc>,
 }
 
+/// OT → PACU / ward post-op handoff (nursing transfer of care after surgery).
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct OtPostopHandoff {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub booking_id: Uuid,
+    pub items: serde_json::Value,
+    pub handed_off_by: Option<Uuid>,
+    pub received_by: Option<Uuid>,
+    pub completed: bool,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 /// Ward → OT pre-op send-off handoff (nursing transfer of care before surgery).
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct OtPreopHandoff {

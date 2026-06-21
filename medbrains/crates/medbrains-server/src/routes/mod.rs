@@ -3379,6 +3379,10 @@ pub fn build_router(state: AppState) -> Router {
             get(ot::get_postop).post(ot::create_postop).put(ot::update_postop),
         )
         .route(
+            "/api/ot/bookings/{booking_id}/postop-handoff",
+            get(ot::get_postop_handoff).put(ot::upsert_postop_handoff),
+        )
+        .route(
             "/api/ot/surgeon-preferences",
             get(ot::list_surgeon_preferences).post(ot::create_surgeon_preference),
         )

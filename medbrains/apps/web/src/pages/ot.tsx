@@ -60,6 +60,7 @@ import type {
   OtSurgicalSafetyChecklist,
   RoomUtilization,
   SetupUser,
+  UpsertPreopHandoffInput,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
@@ -792,7 +793,10 @@ function BookingDetail({ bookingId }: { bookingId: string }) {
         <AnesthesiaTab bookingId={bookingId} />
       </Tabs.Panel>
       <Tabs.Panel value="postop" pt="md">
-        <PostopTab bookingId={bookingId} />
+        <Stack>
+          <PostopTab bookingId={bookingId} />
+          <PostopHandoffCard bookingId={bookingId} />
+        </Stack>
       </Tabs.Panel>
       <Tabs.Panel value="consumables" pt="md">
         <ConsumablesSubTab bookingId={bookingId} />
@@ -1021,7 +1025,7 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
   );
 }
 
-// ── Ward → OT Pre-Op Send-off ─────────────────────────
+// ── OT handoff cards (pre-op send-off + post-op handoff) ──
 
 const PREOP_HANDOFF_TEMPLATE: OtHandoffItem[] = [
   { key: "consent_verified", label: "Informed consent signed and verified", checked: false },
@@ -1048,15 +1052,61 @@ const PREOP_HANDOFF_TEMPLATE: OtHandoffItem[] = [
   },
 ];
 
-function PreopHandoffCard({ bookingId }: { bookingId: string }) {
+const POSTOP_HANDOFF_TEMPLATE: OtHandoffItem[] = [
+  { key: "airway_patent", label: "Airway patent — extubated or secured", checked: false },
+  { key: "vitals_stable", label: "Vital signs stable and documented", checked: false },
+  { key: "pain_assessed", label: "Pain assessed and controlled", checked: false },
+  { key: "ponv_assessed", label: "Nausea / vomiting assessed", checked: false },
+  { key: "dressing_intact", label: "Surgical dressing dry and intact", checked: false },
+  { key: "drains_lines", label: "Drains, catheters and IV lines documented", checked: false },
+  { key: "bleeding_output", label: "Bleeding / drain output assessed", checked: false },
+  { key: "aldrete_recorded", label: "Aldrete score recorded", checked: false },
+  { key: "postop_orders", label: "Post-op orders and analgesia handed over", checked: false },
+  {
+    key: "belongings_notes",
+    label: "Patient belongings and case notes accompany patient",
+    checked: false,
+  },
+];
+
+interface HandoffLike {
+  items: OtHandoffItem[];
+  completed: boolean;
+  completed_at: string | null;
+}
+
+interface OtHandoffCardProps {
+  bookingId: string;
+  title: string;
+  template: OtHandoffItem[];
+  queryKey: string;
+  canEdit: boolean;
+  receiverLabel: string;
+  confirmLabel: string;
+  doneMessage: string;
+  fetchHandoff: (bookingId: string) => Promise<HandoffLike | null>;
+  upsertHandoff: (bookingId: string, data: UpsertPreopHandoffInput) => Promise<HandoffLike>;
+}
+
+function OtHandoffCard({
+  bookingId,
+  title,
+  template,
+  queryKey,
+  canEdit,
+  receiverLabel,
+  confirmLabel,
+  doneMessage,
+  fetchHandoff,
+  upsertHandoff,
+}: OtHandoffCardProps) {
   const queryClient = useQueryClient();
-  const canEdit = useHasPermission(P.OT.PREOP_CREATE);
-  const [items, setItems] = useState<OtHandoffItem[]>(PREOP_HANDOFF_TEMPLATE);
+  const [items, setItems] = useState<OtHandoffItem[]>(template);
   const [receivedBy, setReceivedBy] = useState<string | null>(null);
 
   const { data: handoff } = useQuery({
-    queryKey: ["ot-preop-handoff", bookingId],
-    queryFn: () => otService.getPreopHandoff(bookingId),
+    queryKey: [queryKey, bookingId],
+    queryFn: () => fetchHandoff(bookingId),
   });
   const { data: users = [] } = useQuery({
     queryKey: ["setup-users"],
@@ -1070,24 +1120,23 @@ function PreopHandoffCard({ bookingId }: { bookingId: string }) {
   const completed = handoff?.completed ?? false;
   const allChecked = effectiveItems.every((i) => i.checked);
 
-  const invalidate = () =>
-    void queryClient.invalidateQueries({ queryKey: ["ot-preop-handoff", bookingId] });
+  const invalidate = () => void queryClient.invalidateQueries({ queryKey: [queryKey, bookingId] });
 
   const save = useMutation({
-    mutationFn: (next: OtHandoffItem[]) => otService.upsertPreopHandoff(bookingId, { items: next }),
+    mutationFn: (next: OtHandoffItem[]) => upsertHandoff(bookingId, { items: next }),
     onSuccess: invalidate,
-    onError: () => toast.error("Failed to save send-off", { title: "Error" }),
+    onError: () => toast.error("Failed to save handoff", { title: "Error" }),
   });
   const confirm = useMutation({
     mutationFn: () =>
-      otService.upsertPreopHandoff(bookingId, {
+      upsertHandoff(bookingId, {
         items: effectiveItems,
         received_by: receivedBy ?? undefined,
         completed: true,
       }),
     onSuccess: () => {
       invalidate();
-      toast.success("Patient handed off to OT", { title: "Send-off complete" });
+      toast.success(doneMessage, { title: "Handoff complete" });
     },
     onError: (e: Error) => toast.error(e.message, { title: "Cannot confirm" }),
   });
@@ -1101,16 +1150,10 @@ function PreopHandoffCard({ bookingId }: { bookingId: string }) {
   return (
     <Card withBorder padding="sm">
       <Group justify="space-between">
-        <Text fw={600}>Ward → OT send-off</Text>
-        {completed ? (
-          <Badge tone="success" size="sm">
-            Handed off
-          </Badge>
-        ) : (
-          <Badge tone="warning" size="sm">
-            Pending
-          </Badge>
-        )}
+        <Text fw={600}>{title}</Text>
+        <Badge tone={completed ? "success" : "warning"} size="sm">
+          {completed ? "Handed off" : "Pending"}
+        </Badge>
       </Group>
       {completed && handoff?.completed_at && (
         <Text size="xs" c="dimmed" mt={4}>
@@ -1131,7 +1174,7 @@ function PreopHandoffCard({ bookingId }: { bookingId: string }) {
         {canEdit && !completed && (
           <>
             <Select
-              label="Received by (OT nurse)"
+              label={receiverLabel}
               placeholder="Select staff"
               data={(users as SetupUser[]).map((u) => ({ value: u.id, label: u.full_name }))}
               value={receivedBy}
@@ -1146,12 +1189,48 @@ function PreopHandoffCard({ bookingId }: { bookingId: string }) {
               loading={confirm.isPending}
               onClick={() => confirm.mutate()}
             >
-              {allChecked ? "Confirm send-off to OT" : "Check all items to confirm"}
+              {allChecked ? confirmLabel : "Check all items to confirm"}
             </Button>
           </>
         )}
       </Stack>
     </Card>
+  );
+}
+
+function PreopHandoffCard({ bookingId }: { bookingId: string }) {
+  const canEdit = useHasPermission(P.OT.PREOP_CREATE);
+  return (
+    <OtHandoffCard
+      bookingId={bookingId}
+      title="Ward → OT send-off"
+      template={PREOP_HANDOFF_TEMPLATE}
+      queryKey="ot-preop-handoff"
+      canEdit={canEdit}
+      receiverLabel="Received by (OT nurse)"
+      confirmLabel="Confirm send-off to OT"
+      doneMessage="Patient handed off to OT"
+      fetchHandoff={(id) => otService.getPreopHandoff(id)}
+      upsertHandoff={(id, data) => otService.upsertPreopHandoff(id, data)}
+    />
+  );
+}
+
+function PostopHandoffCard({ bookingId }: { bookingId: string }) {
+  const canEdit = useHasPermission(P.OT.POSTOP_CREATE);
+  return (
+    <OtHandoffCard
+      bookingId={bookingId}
+      title="OT → PACU / ward handoff"
+      template={POSTOP_HANDOFF_TEMPLATE}
+      queryKey="ot-postop-handoff"
+      canEdit={canEdit}
+      receiverLabel="Received by (PACU / ward nurse)"
+      confirmLabel="Confirm handoff"
+      doneMessage="Patient handed off from OT"
+      fetchHandoff={(id) => otService.getPostopHandoff(id)}
+      upsertHandoff={(id, data) => otService.upsertPostopHandoff(id, data)}
+    />
   );
 }
 

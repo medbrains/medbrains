@@ -8681,6 +8681,8 @@ export interface OtPreopHandoff {
   updated_at: string;
 }
 
+export type OtPostopHandoff = OtPreopHandoff;
+
 export interface UpsertPreopHandoffInput {
   items?: OtHandoffItem[];
   received_by?: string;

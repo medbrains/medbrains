@@ -1243,6 +1243,7 @@ import type {
   OtBookingListResponse,
   OtCaseRecord,
   OtConsumableUsage,
+  OtPostopHandoff,
   OtPostopRecord,
   OtPreopAssessment,
   OtPreopHandoff,
@@ -5589,6 +5590,13 @@ export const api = {
     request<OtPreopHandoff | null>(`/ot/bookings/${bookingId}/preop-handoff`),
   upsertPreopHandoff: (bookingId: string, data: UpsertPreopHandoffInput) =>
     request<OtPreopHandoff>(`/ot/bookings/${bookingId}/preop-handoff`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getPostopHandoff: (bookingId: string) =>
+    request<OtPostopHandoff | null>(`/ot/bookings/${bookingId}/postop-handoff`),
+  upsertPostopHandoff: (bookingId: string, data: UpsertPreopHandoffInput) =>
+    request<OtPostopHandoff>(`/ot/bookings/${bookingId}/postop-handoff`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
