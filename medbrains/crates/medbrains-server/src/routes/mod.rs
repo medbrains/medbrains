@@ -121,6 +121,7 @@ pub mod sharing;
 pub mod signatures;
 pub mod signed_documents;
 pub mod specialty_interventional;
+pub mod station_handoff;
 pub mod specialty_maternity;
 pub mod specialty_other;
 pub mod specialty_psychiatry;
@@ -3922,6 +3923,14 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/hr/attendance",
             get(hr::list_attendance).post(hr::create_attendance),
+        )
+        .route(
+            "/api/station-handoffs",
+            get(station_handoff::list_station_handoffs).post(station_handoff::create_station_handoff),
+        )
+        .route(
+            "/api/station-handoffs/{id}/acknowledge",
+            put(station_handoff::acknowledge_station_handoff),
         )
         .route("/api/hr/duty-hours", get(hr::list_duty_hours))
         .route("/api/hr/my-shift", get(hr::get_my_shift))

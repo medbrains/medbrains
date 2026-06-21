@@ -674,6 +674,7 @@ import type {
   CreateShiftRequest,
   CreateSpecialtyRecordRequest,
   CreateSpecialtyTemplateRequest,
+  CreateStationHandoffInput,
   CreateStatutoryRecordRequest,
   CreateStewardshipRequest,
   CreateStockTransactionRequest,
@@ -1547,6 +1548,7 @@ import type {
   StaffAttendanceReportPrintData,
   StaffCredentialFormPrintData,
   StaffCredentialSummary,
+  StationHandoff,
   StatutoryRecord,
   StipendPaymentAdvicePrintData,
   StockDisposalItem,
@@ -7624,6 +7626,26 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  // Station handoffs (generic location-based, open-pickup)
+  listStationHandoffs: (params: {
+    module: string;
+    station_type: string;
+    station_key: string;
+    status?: string;
+  }) => {
+    const qs = new URLSearchParams({
+      module: params.module,
+      station_type: params.station_type,
+      station_key: params.station_key,
+    });
+    if (params.status) qs.set("status", params.status);
+    return request<StationHandoff[]>(`/station-handoffs?${qs.toString()}`);
+  },
+  createStationHandoff: (data: CreateStationHandoffInput) =>
+    request<StationHandoff>("/station-handoffs", { method: "POST", body: JSON.stringify(data) }),
+  acknowledgeStationHandoff: (id: string) =>
+    request<StationHandoff>(`/station-handoffs/${id}/acknowledge`, { method: "PUT" }),
 
   // Leave Balances
   listLeaveBalances: (employeeId: string) =>

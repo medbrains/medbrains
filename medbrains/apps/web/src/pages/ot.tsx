@@ -83,6 +83,7 @@ import { Controller, useForm, useWatch } from "react-hook-form";
 import { useSearchParams } from "react-router";
 import { DataTable, PageHeader, StatusDot } from "@/components";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
+import { StationHandoffPanel } from "@/components/Handoff/StationHandoffPanel";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
@@ -775,7 +776,17 @@ function BookingDetail({ bookingId }: { bookingId: string }) {
       </Tabs.List>
 
       <Tabs.Panel value="overview" pt="md">
-        <OverviewTab booking={data} />
+        <Stack>
+          <OverviewTab booking={data} />
+          {data.ot_room_id && (
+            <StationHandoffPanel
+              module="ot"
+              stationType="ot_room"
+              stationKey={data.ot_room_id}
+              stationLabel="OT room"
+            />
+          )}
+        </Stack>
       </Tabs.Panel>
       <Tabs.Panel value="preop" pt="md">
         <Stack>

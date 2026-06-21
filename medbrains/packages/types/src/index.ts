@@ -8683,6 +8683,38 @@ export interface OtPreopHandoff {
 
 export type OtPostopHandoff = OtPreopHandoff;
 
+export type StationHandoffStatus = "open" | "acknowledged";
+
+/** Generic location/station handoff (open-pickup) — used across modules. */
+export interface StationHandoff {
+  id: string;
+  tenant_id: string;
+  module: string;
+  station_type: string;
+  station_key: string;
+  station_label: string | null;
+  title: string;
+  summary: string | null;
+  items: unknown;
+  status: StationHandoffStatus;
+  handed_off_by: string;
+  handed_off_at: string;
+  acknowledged_by: string | null;
+  acknowledged_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateStationHandoffInput {
+  module: string;
+  station_type: string;
+  station_key: string;
+  station_label?: string;
+  title: string;
+  summary?: string;
+  items?: unknown;
+}
+
 export interface UpsertPreopHandoffInput {
   items?: OtHandoffItem[];
   received_by?: string;
