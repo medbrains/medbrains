@@ -642,6 +642,23 @@ pub async fn update_booking_status(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // A case cannot start until the ward → OT pre-op send-off is completed.
+    if body.status == "in_progress" {
+        let handed_off: bool = sqlx::query_scalar(
+            "SELECT COALESCE((SELECT completed FROM ot_preop_handoffs \
+                              WHERE booking_id = $1 AND tenant_id = $2), false)",
+        )
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !handed_off {
+            return Err(AppError::BadRequest(
+                "Complete the ward → OT pre-op send-off before starting surgery.".to_owned(),
+            ));
+        }
+    }
+
     let (actual_start, actual_end) = match body.status.as_str() {
         "in_progress" => (Some(Utc::now()), None),
         "completed" => (None, Some(Utc::now())),
@@ -1493,6 +1510,26 @@ pub async fn update_postop(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // PACU discharge-readiness gate: a patient may not be moved to the ward or
+    // discharged from recovery until the Aldrete score is ≥ 9 (transfer to ICU
+    // is exempt — unstable patients go to ICU precisely because they aren't).
+    if matches!(body.recovery_status.as_deref(), Some("shifted_to_ward" | "discharged")) {
+        let existing_aldrete: Option<i32> = sqlx::query_scalar(
+            "SELECT aldrete_score_discharge FROM ot_postop_records \
+             WHERE booking_id = $1 AND tenant_id = $2",
+        )
+        .bind(booking_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .flatten();
+        if body.aldrete_score_discharge.or(existing_aldrete).is_none_or(|s| s < 9) {
+            return Err(AppError::BadRequest(
+                "PACU discharge requires an Aldrete score of 9 or higher.".to_owned(),
+            ));
+        }
+    }
 
     let row = sqlx::query_as::<_, OtPostopRecord>(
         "UPDATE ot_postop_records SET \
