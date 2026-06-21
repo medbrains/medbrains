@@ -90,6 +90,14 @@ export function PrescriptionViews({
   const [view, setView] = useState<ViewMode>("prose");
   const items = useMemo(() => flattenItems(prescriptions), [prescriptions]);
   const pharmacyStatusSignals = useMemo(() => pharmacyStatuses(prescriptions), [prescriptions]);
+  const verbalModes = useMemo(() => {
+    const modes = new Set<string>();
+    for (const p of prescriptions) {
+      const mode = p.prescription.order_mode;
+      if (mode && mode !== "written") modes.add(mode);
+    }
+    return [...modes];
+  }, [prescriptions]);
 
   if (prescriptions.length === 0) {
     return (
@@ -113,6 +121,15 @@ export function PrescriptionViews({
             {patientAge}
           </Text>
         )}
+        {verbalModes.map((mode) => (
+          <OperationalSignal
+            key={mode}
+            label={`${mode === "telephone" ? "Telephone" : "Verbal"} order — countersign`}
+            shape="token"
+            size="xs"
+            tone="risk"
+          />
+        ))}
         <OperationalSignal
           label={t("prescriptionViews.signals.itemCount", { count: items.length })}
           shape="token"
