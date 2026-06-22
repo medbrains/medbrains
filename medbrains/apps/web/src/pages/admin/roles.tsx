@@ -15,6 +15,7 @@ import { PageHeader } from "@/components";
 import { OfflineWriteBanner } from "@/components/OfflineWriteBanner";
 import { Badge, Button, IconButton, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { confirmDestructive } from "@/lib/confirm";
 import { adminAccessService } from "@/services/adminAccess.service";
 
 // ── Edit Role Modal ────────────────────────────────────────
@@ -398,7 +399,14 @@ export function RolesPage() {
                       <Menu.Item
                         leftSection={<IconTrash size={14} />}
                         color="danger"
-                        onClick={() => deleteMutation.mutate(role.id)}
+                        onClick={() =>
+                          confirmDestructive({
+                            title: "Delete role",
+                            message: `Delete the role "${role.name}"? Users assigned to it lose its permissions. This cannot be undone.`,
+                            confirmLabel: "Delete role",
+                            onConfirm: () => deleteMutation.mutate(role.id),
+                          })
+                        }
                         disabled={!canDelete}
                       >
                         Delete

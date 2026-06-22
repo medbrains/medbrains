@@ -49,6 +49,7 @@ import { PatientContextBanner } from "@/components/Patient/PatientContextBanner"
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { confirmDestructive } from "@/lib/confirm";
 import { consentService } from "@/services/consent.service";
 
 // ── Constants ──────────────────────────────────────────
@@ -329,7 +330,13 @@ function TemplatesTab({
             <IconButton
               tone="danger"
               size="sm"
-              onClick={() => deleteMut.mutate(r.id)}
+              onClick={() =>
+                confirmDestructive({
+                  title: "Delete consent",
+                  message: "Permanently delete this consent record? This cannot be undone.",
+                  onConfirm: () => deleteMut.mutate(r.id),
+                })
+              }
               aria-label="Delete"
             >
               <IconTrash size={14} />
@@ -1524,7 +1531,13 @@ function SignaturesTab({ canManage }: { canManage: boolean }) {
             <IconButton
               tone="danger"
               size="sm"
-              onClick={() => deleteMut.mutate(r.id)}
+              onClick={() =>
+                confirmDestructive({
+                  title: "Delete consent",
+                  message: "Permanently delete this consent record? This cannot be undone.",
+                  onConfirm: () => deleteMut.mutate(r.id),
+                })
+              }
               aria-label="Delete"
             >
               <IconTrash size={14} />

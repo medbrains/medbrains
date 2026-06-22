@@ -124,6 +124,7 @@ import {
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { usePatientContext } from "@/hooks/usePatientContext";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { confirmDestructive } from "@/lib/confirm";
 import { statusColor } from "@/lib/status-colors";
 import { patientDetailService } from "@/services/patientDetail.service";
 import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "@/utils/printCopies";
@@ -507,7 +508,14 @@ function AllergiesTab({ patient }: { patient: Patient }) {
                     <IconButton
                       tone="danger"
                       size="sm"
-                      onClick={() => deleteMutation.mutate(a.id)}
+                      onClick={() =>
+                        confirmDestructive({
+                          title: "Delete allergy",
+                          message:
+                            "Remove this allergy from the patient's record? Allergy history is safety-critical — this cannot be undone.",
+                          onConfirm: () => deleteMutation.mutate(a.id),
+                        })
+                      }
                       loading={deleteMutation.isPending}
                       aria-label="Delete allergy"
                     >
@@ -1428,7 +1436,13 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
                     <IconButton
                       tone="danger"
                       size="sm"
-                      onClick={() => deleteMutation.mutate(l.id)}
+                      onClick={() =>
+                        confirmDestructive({
+                          title: "Delete record",
+                          message: "Permanently delete this record? This cannot be undone.",
+                          onConfirm: () => deleteMutation.mutate(l.id),
+                        })
+                      }
                       aria-label="Delete"
                     >
                       <IconTrash size={14} />
@@ -1639,7 +1653,13 @@ function DetailDocumentsTab({ patientId }: { patientId: string }) {
                     <IconButton
                       tone="danger"
                       size="sm"
-                      onClick={() => deleteMutation.mutate(d.id)}
+                      onClick={() =>
+                        confirmDestructive({
+                          title: "Delete document",
+                          message: "Permanently delete this document? This cannot be undone.",
+                          onConfirm: () => deleteMutation.mutate(d.id),
+                        })
+                      }
                       aria-label="Delete"
                     >
                       <IconTrash size={14} />
