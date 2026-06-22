@@ -32,7 +32,8 @@
         "noExplicitAny": "warn",
         "noConfusingVoidType": "error",
         "noArrayIndexKey": "warn",
-        "noAssignInExpressions": "warn"
+        "noAssignInExpressions": "warn",
+        "noConsole": { "level": "warn", "options": { "allow": ["warn", "error"] } }
       },
       "security": {
         "noDangerouslySetInnerHtml": "warn"

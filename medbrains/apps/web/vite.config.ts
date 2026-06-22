@@ -5,7 +5,8 @@ import wasm from "vite-plugin-wasm";
 import topLevelAwait from "vite-plugin-top-level-await";
 import path from "path";
 
-export default defineConfig(async () => {
+export default defineConfig(async ({ command }) => {
+  const isBuild = command === "build";
   const plugins: PluginOption[] = [
     react(),
     wasm(),
@@ -42,6 +43,13 @@ export default defineConfig(async () => {
   return {
     cacheDir: process.env.VITE_CACHE_DIR ?? path.resolve(__dirname, "node_modules/.vite"),
     plugins,
+    // Strip noisy/leaky console + debugger from PRODUCTION builds only (dev keeps
+    // them). `pure` drops console.log/info/debug (which may log PHI) via dead-code
+    // elimination; console.warn/error are KEPT — error is the client-error report
+    // hook in main.tsx, warn is operational.
+    esbuild: isBuild
+      ? { pure: ["console.log", "console.info", "console.debug"], drop: ["debugger"] }
+      : {},
     resolve: {
       dedupe: ["react", "react-dom", "react-hook-form"],
       alias: {
