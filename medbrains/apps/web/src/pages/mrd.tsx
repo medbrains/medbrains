@@ -60,6 +60,7 @@ import {
   IconPlus,
   IconPrinter,
   IconShieldCheck,
+  IconShieldLock,
   IconSkull,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -71,6 +72,7 @@ import type { Column } from "@/components/DataTable";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { RoiTab } from "@/components/Mrd/RoiTab";
+import { SignatureVerifyPanel } from "@/components/Mrd/SignatureVerifyPanel";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton, Modal, toast } from "@/components/ui";
@@ -574,6 +576,7 @@ function MrdPageInner() {
   const canViewBirths = useHasPermission(P.MRD.BIRTHS_LIST);
   const canViewDeaths = useHasPermission(P.MRD.DEATHS_LIST);
   const canViewForms = useHasPermission(P.MRD.FORMS_VIEW);
+  const canVerifySignatures = useHasPermission(P.DOCTOR.SIGNATURE.VERIFY);
   const defaultTab = canViewRecords
     ? "records"
     : canViewCaseSheets
@@ -649,6 +652,11 @@ function MrdPageInner() {
               Retention Policies
             </Tabs.Tab>
           )}
+          {canVerifySignatures && (
+            <Tabs.Tab value="verify" leftSection={<IconShieldLock size={16} />}>
+              Verify
+            </Tabs.Tab>
+          )}
         </Tabs.List>
 
         {canViewRecords && (
@@ -689,6 +697,11 @@ function MrdPageInner() {
         {canManageRecords && (
           <Tabs.Panel value="retention" pt="md">
             <RetentionTab />
+          </Tabs.Panel>
+        )}
+        {canVerifySignatures && (
+          <Tabs.Panel value="verify" pt="md">
+            <SignatureVerifyPanel />
           </Tabs.Panel>
         )}
       </Tabs>
