@@ -48,6 +48,7 @@ const EMPTY_SAFETY: RxSafety = {
   renal_alerts: [],
   hepatic_alerts: [],
   ingredient_alerts: [],
+  conclusion: { severity: "clear", summary: "", recommendation: "", issue_count: 0 },
 };
 
 /**

@@ -108,6 +108,16 @@ pub struct AllergyConflict {
     pub reaction: Option<String>,
 }
 
+/// Synthesised verdict over all detectors — the AI-pluggable conclusion seam.
+#[derive(Debug, Serialize)]
+pub struct ClinicalConclusion {
+    /// "critical" | "warning" | "clear".
+    pub severity: String,
+    pub summary: String,
+    pub recommendation: String,
+    pub issue_count: u32,
+}
+
 #[derive(Debug, Serialize)]
 pub struct DrugSafetyCheckResult {
     pub interactions: Vec<DrugInteractionAlert>,
@@ -117,6 +127,67 @@ pub struct DrugSafetyCheckResult {
     pub renal_alerts: Vec<RenalDoseAlert>,
     pub hepatic_alerts: Vec<HepaticAlert>,
     pub ingredient_alerts: Vec<IngredientAlert>,
+    pub conclusion: ClinicalConclusion,
+}
+
+/// Reach a single clinical conclusion from all detector outputs. **This is the
+/// AI-pluggable seam**: a deterministic, severity-ranked synthesis today; an LLM
+/// clinical reasoner can replace this one function (it has the full structured
+/// safety picture) without changing any call site.
+fn synthesize_conclusion(result: &DrugSafetyCheckResult) -> ClinicalConclusion {
+    // (severity_rank, message) — rank 2 = critical, 1 = warning.
+    let mut issues: Vec<(u8, String)> = Vec::new();
+    for a in &result.allergy_conflicts {
+        issues.push((2, format!("allergy: {} × {}", a.drug_name, a.allergen_name)));
+    }
+    for i in &result.interactions {
+        if i.severity == "major" || i.severity == "contraindicated" {
+            issues.push((2, format!("interaction: {} × {}", i.drug_a, i.drug_b)));
+        } else {
+            issues.push((1, format!("interaction: {} × {}", i.drug_a, i.drug_b)));
+        }
+    }
+    for a in &result.ingredient_alerts {
+        let rank = if a.kind == "incompatible" { 2 } else { 1 };
+        issues.push((rank, a.label.clone()));
+    }
+    for a in &result.dose_alerts {
+        issues.push((1, format!("over-max: {}", a.drug_name)));
+    }
+    for a in &result.weight_alerts {
+        issues.push((1, format!("paeds dose: {}", a.drug_name)));
+    }
+    for a in &result.renal_alerts {
+        issues.push((1, format!("renal: {}", a.drug_name)));
+    }
+    for a in &result.hepatic_alerts {
+        issues.push((1, format!("hepatic: {}", a.drug_name)));
+    }
+
+    let issue_count = issues.len() as u32;
+    if issues.is_empty() {
+        return ClinicalConclusion {
+            severity: "clear".to_owned(),
+            summary: "No safety issues detected for this order.".to_owned(),
+            recommendation: "Safe to proceed.".to_owned(),
+            issue_count: 0,
+        };
+    }
+    issues.sort_by(|a, b| b.0.cmp(&a.0));
+    let critical = issues.iter().filter(|i| i.0 == 2).count();
+    let severity = if critical > 0 { "critical" } else { "warning" };
+    let top: Vec<String> = issues.iter().take(3).map(|i| i.1.clone()).collect();
+    let summary = format!(
+        "{issue_count} issue(s){}: {}.",
+        if critical > 0 { format!(" ({critical} critical)") } else { String::new() },
+        top.join("; ")
+    );
+    let recommendation = if critical > 0 {
+        "Review critical findings and acknowledge or change the order before signing.".to_owned()
+    } else {
+        "Review the advisories; proceed with monitoring if clinically appropriate.".to_owned()
+    };
+    ClinicalConclusion { severity: severity.to_owned(), summary, recommendation, issue_count }
 }
 
 #[derive(Debug, Deserialize)]
@@ -345,7 +416,7 @@ pub async fn check_drug_safety(
 
     tx.commit().await?;
 
-    Ok(Json(DrugSafetyCheckResult {
+    let mut result = DrugSafetyCheckResult {
         interactions,
         allergy_conflicts,
         dose_alerts,
@@ -353,7 +424,15 @@ pub async fn check_drug_safety(
         renal_alerts,
         hepatic_alerts,
         ingredient_alerts,
-    }))
+        conclusion: ClinicalConclusion {
+            severity: "clear".to_owned(),
+            summary: String::new(),
+            recommendation: String::new(),
+            issue_count: 0,
+        },
+    };
+    result.conclusion = synthesize_conclusion(&result);
+    Ok(Json(result))
 }
 
 /// Combination-chemistry detector: expand prescribed products to active

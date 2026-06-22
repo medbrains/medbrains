@@ -1,8 +1,9 @@
-import { Box, Group, Menu } from "@mantine/core";
+import { Box, Group, Menu, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type {
   AllergyConflict,
+  ClinicalConclusion,
   DrugInteractionAlert,
   HepaticAlert,
   IngredientAlert,
@@ -18,7 +19,7 @@ import {
   IconTemplate,
 } from "@tabler/icons-react";
 import { type KeyboardEvent, type ReactNode, useMemo, useRef, useState } from "react";
-import { Button, Drawer, Modal, SegmentedControl } from "@/components/ui";
+import { Alert, Button, Drawer, Modal, SegmentedControl } from "@/components/ui";
 import { Input } from "@/components/ui/Input";
 import classes from "./prescription.module.scss";
 import { type ComposeValues, type Prescriber, RxCompose } from "./RxCompose";
@@ -50,6 +51,7 @@ export interface RxSafety {
   renal_alerts: RenalDoseAlert[];
   hepatic_alerts: HepaticAlert[];
   ingredient_alerts: IngredientAlert[];
+  conclusion: ClinicalConclusion;
 }
 
 function SafetyRow({
@@ -436,6 +438,23 @@ export function RxDoctor({
         title="Safety check · live"
         classNames={{ body: classes.safetyDrawer }}
       >
+        {safety.conclusion.summary && (
+          <Alert
+            tone={
+              safety.conclusion.severity === "critical"
+                ? "danger"
+                : safety.conclusion.severity === "warning"
+                  ? "warning"
+                  : "success"
+            }
+            title="Clinical review"
+          >
+            <Text size="sm">{safety.conclusion.summary}</Text>
+            <Text size="xs" c="dimmed">
+              {safety.conclusion.recommendation}
+            </Text>
+          </Alert>
+        )}
         <SafetyRow
           state={conflicts.length ? "flag" : "ok"}
           label="Allergy screen"

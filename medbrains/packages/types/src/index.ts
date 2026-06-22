@@ -12222,6 +12222,14 @@ export interface DrugSafetyCheckResult {
   renal_alerts: RenalDoseAlert[];
   hepatic_alerts: HepaticAlert[];
   ingredient_alerts: IngredientAlert[];
+  conclusion: ClinicalConclusion;
+}
+
+export interface ClinicalConclusion {
+  severity: "critical" | "warning" | "clear";
+  summary: string;
+  recommendation: string;
+  issue_count: number;
 }
 
 export interface RenalDoseAlert {
