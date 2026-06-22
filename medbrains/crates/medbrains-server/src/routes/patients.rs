@@ -3818,7 +3818,7 @@ pub struct PatientAccessLogRow {
     pub patient_id: Uuid,
     pub accessed_by: Uuid,
     pub access_type: String,
-    pub accessed_at: chrono::DateTime<chrono::Utc>,
+    pub accessed_at: DateTime<Utc>,
     pub notes: Option<String>,
 }
 

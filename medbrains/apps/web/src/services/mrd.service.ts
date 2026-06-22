@@ -1,6 +1,19 @@
 import { api } from "@medbrains/api";
 
 export const mrdService = {
+  presignUpload: (...args: Parameters<typeof api.presignUpload>) => api.presignUpload(...args),
+  listIngestionBatches: (...args: Parameters<typeof api.listIngestionBatches>) =>
+    api.listIngestionBatches(...args),
+  createIngestionBatch: (...args: Parameters<typeof api.createIngestionBatch>) =>
+    api.createIngestionBatch(...args),
+  listIngestionItems: (...args: Parameters<typeof api.listIngestionItems>) =>
+    api.listIngestionItems(...args),
+  addIngestionItem: (...args: Parameters<typeof api.addIngestionItem>) =>
+    api.addIngestionItem(...args),
+  linkIngestionItem: (...args: Parameters<typeof api.linkIngestionItem>) =>
+    api.linkIngestionItem(...args),
+  fileIngestionItem: (...args: Parameters<typeof api.fileIngestionItem>) =>
+    api.fileIngestionItem(...args),
   listRoiRequests: (...args: Parameters<typeof api.listRoiRequests>) =>
     api.listRoiRequests(...args),
   createRoiRequest: (...args: Parameters<typeof api.createRoiRequest>) =>

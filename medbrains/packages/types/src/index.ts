@@ -16302,6 +16302,43 @@ export interface RoiAccessInput {
   notes?: string;
 }
 
+export type IngestionItemStatus = "uploaded" | "linked" | "filed";
+
+export interface IngestionBatch {
+  id: string;
+  tenant_id: string;
+  label: string;
+  status: "open" | "closed";
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IngestionItem {
+  id: string;
+  tenant_id: string;
+  batch_id: string;
+  file_url: string;
+  original_filename: string;
+  mime_type: string | null;
+  barcode: string | null;
+  linked_medical_record_id: string | null;
+  linked_packet_id: string | null;
+  extracted_text: string | null;
+  status: IngestionItemStatus;
+  notes: string | null;
+  uploaded_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AddIngestionItemInput {
+  file_url: string;
+  original_filename: string;
+  mime_type?: string;
+  barcode?: string;
+}
+
 export interface MrdCaseSheetCompletenessItem {
   code: string;
   label: string;

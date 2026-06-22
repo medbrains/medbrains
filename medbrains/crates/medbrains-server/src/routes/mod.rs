@@ -41,6 +41,7 @@ pub mod dlt;
 pub mod doctor_dashboard;
 pub mod doctor_packages;
 pub mod doctor_profile;
+pub mod document_ingestion;
 pub mod documents;
 pub mod documents_render;
 pub mod emergency;
@@ -3946,6 +3947,22 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/roi-requests/{id}/access-log",
             get(roi::list_roi_access_log),
+        )
+        .route(
+            "/api/document-ingestion/batches",
+            get(document_ingestion::list_batches).post(document_ingestion::create_batch),
+        )
+        .route(
+            "/api/document-ingestion/batches/{batch_id}/items",
+            get(document_ingestion::list_items).post(document_ingestion::add_item),
+        )
+        .route(
+            "/api/document-ingestion/items/{item_id}/link",
+            put(document_ingestion::link_item),
+        )
+        .route(
+            "/api/document-ingestion/items/{item_id}/file",
+            put(document_ingestion::file_item),
         )
         .route("/api/hr/duty-hours", get(hr::list_duty_hours))
         .route("/api/hr/my-shift", get(hr::get_my_shift))

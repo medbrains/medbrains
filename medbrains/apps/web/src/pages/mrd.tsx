@@ -59,6 +59,7 @@ import {
   IconMapPin,
   IconPlus,
   IconPrinter,
+  IconScan,
   IconShieldCheck,
   IconShieldLock,
   IconSkull,
@@ -71,6 +72,7 @@ import { ClinicalEventProvider, DataTable, PageHeader, useClinicalEmit } from "@
 import type { Column } from "@/components/DataTable";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { DigitizeTab } from "@/components/Mrd/DigitizeTab";
 import { RoiTab } from "@/components/Mrd/RoiTab";
 import { SignatureVerifyPanel } from "@/components/Mrd/SignatureVerifyPanel";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
@@ -628,6 +630,11 @@ function MrdPageInner() {
             </Tabs.Tab>
           )}
           {canViewRecords && (
+            <Tabs.Tab value="digitize" leftSection={<IconScan size={16} />}>
+              Digitise
+            </Tabs.Tab>
+          )}
+          {canViewRecords && (
             <Tabs.Tab value="storage" leftSection={<IconArchive size={16} />}>
               Storage
             </Tabs.Tab>
@@ -672,6 +679,11 @@ function MrdPageInner() {
         {canViewRecords && (
           <Tabs.Panel value="roi" pt="md">
             <RoiTab />
+          </Tabs.Panel>
+        )}
+        {canViewRecords && (
+          <Tabs.Panel value="digitize" pt="md">
+            <DigitizeTab />
           </Tabs.Panel>
         )}
         {canViewRecords && (

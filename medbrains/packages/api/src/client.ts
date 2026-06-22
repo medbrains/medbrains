@@ -26,6 +26,7 @@ import type {
   AddCssdLoadItemRequest,
   AddDiscountRequest,
   AddDocumentSignatureRequest,
+  AddIngestionItemInput,
   AddInvoiceItemRequest,
   AddOnTestRequest,
   AddOrderSetItemRequest,
@@ -983,6 +984,8 @@ import type {
   InfectionDeviceDay,
   // Infection Control
   InfectionSurveillanceEvent,
+  IngestionBatch,
+  IngestionItem,
   InitDischargeTatRequest,
   InitiateRefundRequest,
   InspectBbReturnRequest,
@@ -7677,6 +7680,28 @@ export const api = {
       body: JSON.stringify(data),
     }),
   listRoiAccessLog: (id: string) => request<RoiAccessLogRow[]>(`/roi-requests/${id}/access-log`),
+
+  // Reverse-print / document ingestion
+  listIngestionBatches: () => request<IngestionBatch[]>("/document-ingestion/batches"),
+  createIngestionBatch: (data: { label: string }) =>
+    request<IngestionBatch>("/document-ingestion/batches", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listIngestionItems: (batchId: string) =>
+    request<IngestionItem[]>(`/document-ingestion/batches/${batchId}/items`),
+  addIngestionItem: (batchId: string, data: AddIngestionItemInput) =>
+    request<IngestionItem>(`/document-ingestion/batches/${batchId}/items`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  linkIngestionItem: (itemId: string, data: { barcode: string }) =>
+    request<IngestionItem>(`/document-ingestion/items/${itemId}/link`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  fileIngestionItem: (itemId: string) =>
+    request<IngestionItem>(`/document-ingestion/items/${itemId}/file`, { method: "PUT" }),
 
   // Leave Balances
   listLeaveBalances: (employeeId: string) =>
