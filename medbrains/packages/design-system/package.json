@@ -18,8 +18,8 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "@mantine/core": "^9.0.0",
-    "@mantine/dates": "^9.0.0",
+    "@mantine/core": "^9.3.2",
+    "@mantine/dates": "^9.3.2",
     "react": "^19.0.0"
   }
 }
