@@ -45,12 +45,13 @@ export function SignoffsPage() {
     const ageHours = (Date.now() - new Date(it.created_at).getTime()) / 3_600_000;
     return ageHours > 24 && it.legal_class === "medico_legal";
   }).length;
+  const countersignOverdue = items.filter((it) => verbalCountersign(it)?.overdue).length;
 
   return (
     <div>
       <PageHeader
         title="Sign-off queue"
-        subtitle={`${totalCount} pending • ${overdueCount} overdue medico-legal`}
+        subtitle={`${totalCount} pending • ${overdueCount} overdue medico-legal • ${countersignOverdue} countersign overdue`}
         icon={<IconClipboardCheck size={20} stroke={1.5} />}
         color="warning"
       />
@@ -124,12 +125,14 @@ function SignoffList({
       {items.map((item) => {
         const ageHours = (Date.now() - new Date(item.created_at).getTime()) / 3_600_000;
         const isOverdue = ageHours > 24 && item.legal_class === "medico_legal";
+        const countersign = verbalCountersign(item);
+        const flagged = isOverdue || countersign?.overdue;
         return (
           <Card
             key={item.record_id}
             withBorder
             padding="sm"
-            style={isOverdue ? { borderColor: "var(--mantine-color-red-6)" } : undefined}
+            style={flagged ? { borderColor: "var(--mantine-color-red-6)" } : undefined}
           >
             <Group justify="space-between" wrap="nowrap">
               <Stack gap={4} style={{ flex: 1, minWidth: 0 }}>
@@ -141,6 +144,20 @@ function SignoffList({
                   {isOverdue && (
                     <Badge size="xs" tone="danger" leftSection={<IconAlertTriangle size={10} />}>
                       Overdue
+                    </Badge>
+                  )}
+                  {countersign && (
+                    <Badge
+                      size="xs"
+                      tone={countersign.overdue ? "danger" : "warning"}
+                      leftSection={<IconAlertTriangle size={10} />}
+                    >
+                      {countersign.label}
+                    </Badge>
+                  )}
+                  {item.transcribed && (
+                    <Badge size="xs" tone="neutral">
+                      Nurse-transcribed
                     </Badge>
                   )}
                 </Group>
@@ -199,6 +216,21 @@ function labelFor(type: string): string {
     default:
       return type.replace(/_/g, " ");
   }
+}
+
+/** Verbal/telephone order countersign status for a pending entry, if applicable. */
+function verbalCountersign(item: PendingSignoffEntry): { label: string; overdue: boolean } | null {
+  if (item.order_mode !== "verbal" && item.order_mode !== "telephone") return null;
+  const mode = item.order_mode === "telephone" ? "Telephone" : "Verbal";
+  const dueMs = item.countersign_due_at ? new Date(item.countersign_due_at).getTime() : null;
+  if (dueMs !== null && dueMs < Date.now()) {
+    return { label: `${mode} order — countersign overdue`, overdue: true };
+  }
+  const by =
+    dueMs !== null
+      ? ` by ${new Date(dueMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+      : "";
+  return { label: `${mode} order — countersign${by}`, overdue: false };
 }
 
 function legalColor(legalClass: string): BadgeTone {

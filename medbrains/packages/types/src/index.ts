@@ -31343,6 +31343,12 @@ export interface PendingSignoffEntry {
   summary?: string | null;
   context?: string | null;
   risk_label?: string | null;
+  /** "written" | "verbal" | "telephone" (prescriptions only). */
+  order_mode?: string | null;
+  /** 24h countersign deadline for a verbal/telephone order. */
+  countersign_due_at?: string | null;
+  /** True when a nurse transcribed the order on the doctor's behalf. */
+  transcribed?: boolean | null;
 }
 
 /**

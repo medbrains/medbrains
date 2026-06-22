@@ -190,6 +190,12 @@ pub struct PendingSignoffEntry {
     pub summary: Option<String>,
     pub context: Option<String>,
     pub risk_label: Option<String>,
+    /// "written" | "verbal" | "telephone" (prescriptions only; null elsewhere).
+    pub order_mode: Option<String>,
+    /// 24h countersign deadline for a verbal/telephone order (prescriptions only).
+    pub countersign_due_at: Option<DateTime<Utc>>,
+    /// True when a nurse transcribed the order on the doctor's behalf.
+    pub transcribed: Option<bool>,
 }
 
 pub async fn list_my_pending_signoffs(
@@ -216,7 +222,10 @@ pub async fn list_my_pending_signoffs(
                     WHERE pi.tenant_id = p.tenant_id AND pi.prescription_id = p.id \
                 ), ' medication(s)')) AS summary, \
                 CONCAT('Encounter ', p.encounter_id::text) AS context, \
-                CASE WHEN pat.is_medico_legal THEN 'MLC patient' ELSE NULL END AS risk_label \
+                CASE WHEN pat.is_medico_legal THEN 'MLC patient' ELSE NULL END AS risk_label, \
+                p.order_mode AS order_mode, \
+                p.countersign_due_at AS countersign_due_at, \
+                (p.transcribed_by IS NOT NULL) AS transcribed \
          FROM prescriptions p \
          LEFT JOIN encounters e ON e.tenant_id = p.tenant_id AND e.id = p.encounter_id \
          LEFT JOIN patients pat ON pat.tenant_id = p.tenant_id \
@@ -246,7 +255,8 @@ pub async fn list_my_pending_signoffs(
                     WHEN lo.is_stat THEN 'STAT order' \
                     WHEN pat.is_medico_legal THEN 'MLC patient' \
                     ELSE NULL \
-                END AS risk_label \
+                END AS risk_label, \
+                NULL::text AS order_mode, NULL::timestamptz AS countersign_due_at, NULL::boolean AS transcribed \
          FROM lab_results lr \
          JOIN lab_orders lo ON lo.tenant_id = lr.tenant_id AND lo.id = lr.order_id \
          JOIN patients pat ON pat.tenant_id = lo.tenant_id AND pat.id = lo.patient_id \
@@ -275,7 +285,8 @@ pub async fn list_my_pending_signoffs(
                     WHEN ro.allergy_flagged THEN 'Allergy flag' \
                     WHEN pat.is_medico_legal THEN 'MLC patient' \
                     ELSE NULL \
-                END AS risk_label \
+                END AS risk_label, \
+                NULL::text AS order_mode, NULL::timestamptz AS countersign_due_at, NULL::boolean AS transcribed \
          FROM radiology_reports rr \
          JOIN radiology_orders ro ON ro.tenant_id = rr.tenant_id AND ro.id = rr.order_id \
          JOIN patients pat ON pat.tenant_id = ro.tenant_id AND pat.id = ro.patient_id \
@@ -303,7 +314,8 @@ pub async fn list_my_pending_signoffs(
                     WHEN a.isolation_required THEN 'Isolation required' \
                     WHEN pat.is_medico_legal THEN 'MLC patient' \
                     ELSE NULL \
-                END AS risk_label \
+                END AS risk_label, \
+                NULL::text AS order_mode, NULL::timestamptz AS countersign_due_at, NULL::boolean AS transcribed \
          FROM ipd_discharge_summaries ds \
          JOIN admissions a ON a.tenant_id = ds.tenant_id AND a.id = ds.admission_id \
          JOIN patients pat ON pat.tenant_id = a.tenant_id AND pat.id = a.patient_id \
@@ -321,6 +333,16 @@ pub async fn list_my_pending_signoffs(
     }
 
     tx.commit().await?;
-    entries.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+    // Verbal/telephone orders carry a 24h countersign deadline — surface them
+    // first, soonest (and overdue) deadline at the top; everything else by age.
+    let is_countersign = |e: &PendingSignoffEntry| {
+        matches!(e.order_mode.as_deref(), Some("verbal" | "telephone"))
+    };
+    entries.sort_by(|a, b| match (is_countersign(a), is_countersign(b)) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        (true, true) => a.countersign_due_at.cmp(&b.countersign_due_at),
+        (false, false) => a.created_at.cmp(&b.created_at),
+    });
     Ok(Json(entries))
 }
