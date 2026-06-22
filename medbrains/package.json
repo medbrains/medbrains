@@ -24,12 +24,20 @@
   "pnpm": {
     "overrides": {
       "brace-expansion@<1.1.14": "1.1.14",
+      "js-cookie@<3.0.7": "3.0.8",
       "picomatch@<2.3.2": "2.3.2",
       "picomatch@>=4.0.0 <4.0.4": "4.0.4",
       "postcss@<8.5.14": "8.5.14",
       "react": "19.2.4",
       "react-dom": "19.2.4",
+      "shell-quote@<1.8.4": "1.8.4",
       "yaml@>=2.0.0 <2.8.4": "2.8.4"
+    },
+    "auditConfig": {
+      "ignoreGhsas": [
+        "GHSA-96hv-2xvq-fx4p",
+        "GHSA-vxpw-j846-p89q"
+      ]
     }
   }
 }

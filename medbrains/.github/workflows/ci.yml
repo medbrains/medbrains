@@ -369,6 +369,51 @@ jobs:
         run: python3 scripts/check_egress_allowlist.py
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # DEPENDENCY SECURITY AUDIT (blocking — fails on known CVEs)
+  #   - cargo audit: fails on RustSec vulnerabilities (unmaintained = warning only)
+  #   - pnpm audit --prod: fails on high/critical in SHIPPED runtime deps.
+  #     Mobile dev-tooling advisories (expo/react-native → ws/undici) are
+  #     allowlisted in package.json pnpm.auditConfig.ignoreGhsas — not shipped.
+  # ═══════════════════════════════════════════════════════════════════════════
+  dependency-audit:
+    name: Dependency Audit (cargo-audit + pnpm audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      # Lockfile is generated (not committed); audit the resolved tree.
+      - name: Generate Cargo.lock
+        run: cargo generate-lockfile
+
+      - name: cargo audit (fail on vulnerabilities)
+        run: cargo audit
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: pnpm audit (shipped runtime deps — fail on high/critical)
+        run: pnpm audit --prod --audit-level high
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # FINAL STATUS CHECK (required for branch protection)
   # ═══════════════════════════════════════════════════════════════════════════
   ci-success:
@@ -384,6 +429,7 @@ jobs:
       - typescript-test
       - typescript-build
       - audit-checks
+      - dependency-audit
     if: always()
     steps:
       - name: Check all jobs passed
@@ -396,7 +442,8 @@ jobs:
              [[ "${{ needs.typescript-typecheck.result }}" != "success" ]] || \
              [[ "${{ needs.typescript-test.result }}" != "success" ]] || \
              [[ "${{ needs.typescript-build.result }}" != "success" ]] || \
-             [[ "${{ needs.audit-checks.result }}" != "success" ]]; then
+             [[ "${{ needs.audit-checks.result }}" != "success" ]] || \
+             [[ "${{ needs.dependency-audit.result }}" != "success" ]]; then
             echo "One or more jobs failed"
             exit 1
           fi
