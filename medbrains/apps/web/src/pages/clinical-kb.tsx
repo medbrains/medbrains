@@ -211,6 +211,34 @@ function LabReferenceTab() {
               ),
           },
           {
+            key: "pregnancy",
+            label: "Pregnancy",
+            render: (a) =>
+              a.pregnancy_low !== null || a.pregnancy_high !== null ? (
+                <Text size="sm">
+                  {fmt(a.pregnancy_low)}–{fmt(a.pregnancy_high)}
+                </Text>
+              ) : (
+                <Text size="sm" c="dimmed">
+                  —
+                </Text>
+              ),
+          },
+          {
+            key: "elderly",
+            label: "Elderly (≥65)",
+            render: (a) =>
+              a.elderly_low !== null || a.elderly_high !== null ? (
+                <Text size="sm">
+                  {fmt(a.elderly_low)}–{fmt(a.elderly_high)}
+                </Text>
+              ) : (
+                <Text size="sm" c="dimmed">
+                  —
+                </Text>
+              ),
+          },
+          {
             key: "category",
             label: "Category",
             render: (a) => (

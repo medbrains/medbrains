@@ -38,7 +38,7 @@ pub(super) async fn seed_diagnosis_reference(
                name = EXCLUDED.name, department = EXCLUDED.department, \
                is_notifiable = EXCLUDED.is_notifiable, \
                reporting_body = EXCLUDED.reporting_body, \
-               report_timeframe = EXCLUDED.report_timeframe, updated_at = now()",
+               report_timeframe = EXCLUDED.report_timeframe",
         )
         .bind(icd)
         .bind(name)
@@ -96,7 +96,7 @@ pub(super) async fn seed_drug_reference(pool: &PgPool) -> Result<(), Box<dyn std
                renal_adjust_rule = EXCLUDED.renal_adjust_rule, \
                hepatic_caution = EXCLUDED.hepatic_caution, \
                pregnancy_category = EXCLUDED.pregnancy_category, \
-               brands = EXCLUDED.brands, is_nlem = EXCLUDED.is_nlem, updated_at = now()",
+               brands = EXCLUDED.brands, is_nlem = EXCLUDED.is_nlem",
         )
         .bind(generic.to_lowercase())
         .bind(non_empty(c.get(1)))
@@ -144,10 +144,12 @@ pub(super) async fn seed_lab_reference(pool: &PgPool) -> Result<(), Box<dyn std:
             "INSERT INTO cds_lab_reference \
                (test, analyte, unit, normal_low, normal_high, critical_low, critical_high, \
                 category, neonate_low, neonate_high, infant_low, infant_high, child_low, \
-                child_high, adult_m_low, adult_m_high, adult_f_low, adult_f_high) \
+                child_high, adult_m_low, adult_m_high, adult_f_low, adult_f_high, \
+                pregnancy_low, pregnancy_high, elderly_low, elderly_high) \
              VALUES ($1, $2, $3, $4::numeric, $5::numeric, $6::numeric, $7::numeric, $8, \
                      $9::numeric, $10::numeric, $11::numeric, $12::numeric, $13::numeric, \
-                     $14::numeric, $15::numeric, $16::numeric, $17::numeric, $18::numeric) \
+                     $14::numeric, $15::numeric, $16::numeric, $17::numeric, $18::numeric, \
+                     $19::numeric, $20::numeric, $21::numeric, $22::numeric) \
              ON CONFLICT (analyte) DO UPDATE SET \
                test = EXCLUDED.test, unit = EXCLUDED.unit, \
                normal_low = EXCLUDED.normal_low, normal_high = EXCLUDED.normal_high, \
@@ -158,7 +160,8 @@ pub(super) async fn seed_lab_reference(pool: &PgPool) -> Result<(), Box<dyn std:
                child_low = EXCLUDED.child_low, child_high = EXCLUDED.child_high, \
                adult_m_low = EXCLUDED.adult_m_low, adult_m_high = EXCLUDED.adult_m_high, \
                adult_f_low = EXCLUDED.adult_f_low, adult_f_high = EXCLUDED.adult_f_high, \
-               updated_at = now()",
+               pregnancy_low = EXCLUDED.pregnancy_low, pregnancy_high = EXCLUDED.pregnancy_high, \
+               elderly_low = EXCLUDED.elderly_low, elderly_high = EXCLUDED.elderly_high",
         )
         .bind(non_empty(c.first()))
         .bind(analyte.to_lowercase())
@@ -178,6 +181,10 @@ pub(super) async fn seed_lab_reference(pool: &PgPool) -> Result<(), Box<dyn std:
         .bind(non_empty(c.get(15)))
         .bind(non_empty(c.get(16)))
         .bind(non_empty(c.get(17)))
+        .bind(non_empty(c.get(18)))
+        .bind(non_empty(c.get(19)))
+        .bind(non_empty(c.get(20)))
+        .bind(non_empty(c.get(21)))
         .execute(&mut *tx)
         .await?;
         count += 1;

@@ -1020,7 +1020,9 @@ pub async fn cancel_order(
 // ══════════════════════════════════════════════════════════
 
 /// The patient's lab reference band ("neonate" | "infant" | "child" |
-/// "adult_m" | "adult_f"), from age + biological sex. Defaults to adult by sex.
+/// "adult_m" | "adult_f" | "elderly_m" | "elderly_f"), from age + biological
+/// sex. ≥65y → elderly (falls back to the adult band when no elderly range).
+/// Defaults to adult by sex.
 async fn patient_lab_band(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
@@ -1040,12 +1042,15 @@ async fn patient_lab_band(
         return Ok(adult.to_owned());
     };
     let age_days = chrono::Utc::now().date_naive().signed_duration_since(dob).num_days();
+    let elderly = if sex.as_deref() == Some("female") { "elderly_f" } else { "elderly_m" };
     let band = if age_days < 28 {
         "neonate"
     } else if age_days < 365 {
         "infant"
     } else if age_days < 365 * 12 {
         "child"
+    } else if age_days >= 365 * 65 {
+        elderly
     } else {
         adult
     };
@@ -1066,6 +1071,8 @@ struct LabRefRow {
     adult_m_high: Option<f64>,
     adult_f_low: Option<f64>,
     adult_f_high: Option<f64>,
+    elderly_low: Option<f64>,
+    elderly_high: Option<f64>,
 }
 
 /// Auto-flag a numeric result against the global `cds_lab_reference`: critical
@@ -1084,7 +1091,8 @@ async fn auto_flag(
         "SELECT critical_low::float8, critical_high::float8, \
                 neonate_low::float8, neonate_high::float8, infant_low::float8, infant_high::float8, \
                 child_low::float8, child_high::float8, adult_m_low::float8, adult_m_high::float8, \
-                adult_f_low::float8, adult_f_high::float8 \
+                adult_f_low::float8, adult_f_high::float8, \
+                elderly_low::float8, elderly_high::float8 \
          FROM cds_lab_reference WHERE lower(analyte) = lower($1) OR lower(test) = lower($1) LIMIT 1",
     )
     .bind(parameter_name.trim())
@@ -1104,6 +1112,9 @@ async fn auto_flag(
         "infant" => (r.infant_low, r.infant_high),
         "child" => (r.child_low, r.child_high),
         "adult_f" => (r.adult_f_low, r.adult_f_high),
+        // Elderly falls back to the sex-specific adult range when no elderly band.
+        "elderly_f" => (r.elderly_low.or(r.adult_f_low), r.elderly_high.or(r.adult_f_high)),
+        "elderly_m" => (r.elderly_low.or(r.adult_m_low), r.elderly_high.or(r.adult_m_high)),
         _ => (r.adult_m_low, r.adult_m_high),
     };
     if low.is_some_and(|lo| v < lo) {

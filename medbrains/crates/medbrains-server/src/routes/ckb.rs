@@ -124,6 +124,10 @@ pub struct LabReference {
     pub critical_low: Option<f64>,
     pub critical_high: Option<f64>,
     pub category: Option<String>,
+    pub pregnancy_low: Option<f64>,
+    pub pregnancy_high: Option<f64>,
+    pub elderly_low: Option<f64>,
+    pub elderly_high: Option<f64>,
 }
 
 /// GET /api/ckb/nlem-generics — lowercased NLEM (government-essential) generic
@@ -154,7 +158,9 @@ pub async fn list_lab_reference(
     let pattern = format!("%{}%", q.q.unwrap_or_default().trim().to_lowercase());
     let rows = sqlx::query_as::<_, LabReference>(
         "SELECT test, analyte, unit, normal_low::float8, normal_high::float8, \
-                critical_low::float8, critical_high::float8, category \
+                critical_low::float8, critical_high::float8, category, \
+                pregnancy_low::float8, pregnancy_high::float8, \
+                elderly_low::float8, elderly_high::float8 \
          FROM cds_lab_reference \
          WHERE lower(analyte) LIKE $1 OR lower(coalesce(test, '')) LIKE $1 \
          ORDER BY analyte LIMIT 500",

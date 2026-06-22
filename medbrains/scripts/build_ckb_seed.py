@@ -181,9 +181,35 @@ def _parse_range(text: str) -> tuple[str, str]:
     return (m.group(1), m.group(2)) if m else ("", "")
 
 
+# Pregnancy + elderly normal ranges are NOT in the source matrix; curate the
+# well-published shifts (WHO/CDC/IADPSG/BNF) for high-value analytes. Matched by
+# substring token against the analyte name. (low, high) — empty string = no shift.
+# Pregnancy: physiologic dilution/leukocytosis; Elderly (≥65): age-adjusted upper.
+CURATED_LAB_BANDS: list[tuple[tuple[str, ...], str, str, str, str]] = [
+    # tokens,                       preg_lo, preg_hi, eld_lo, eld_hi
+    (("haemoglobin", "hemoglobin"), "11.0", "14.0", "12.0", "16.0"),
+    (("creatinine",),               "0.4", "0.8", "0.7", "1.4"),
+    (("platelet",),                 "115", "400", "150", "400"),
+    (("tsh",),                      "0.1", "4.0", "0.4", "7.0"),
+    (("leucocyte", "leukocyte", "wbc", "tlc"), "6.0", "16.0", "4.0", "11.0"),
+    (("fasting",),                  "70", "92", "70", "110"),
+    (("urea", "bun"),               "7", "30", "10", "50"),
+    (("uric",),                     "2.5", "5.8", "3.5", "8.5"),
+]
+
+
+def _curated_bands(analyte: str) -> tuple[str, str, str, str]:
+    a = analyte.lower()
+    for tokens, plo, phi, elo, ehi in CURATED_LAB_BANDS:
+        if any(t in a for t in tokens):
+            return plo, phi, elo, ehi
+    return "", "", "", ""
+
+
 def build_lab_reference(src: str, out_dir: str) -> None:
     """Emit lab_reference.csv from Lab_Value_Matrix[Reference_Ranges] —
-    analyte reference ranges + critical thresholds (real de-identified data)."""
+    analyte reference ranges + critical thresholds (real de-identified data).
+    Pregnancy/elderly bands are a curated overlay (not in the source matrix)."""
     import json
 
     xlsx = os.path.join(src, "analysis", "Lab_Value_Matrix.xlsx")
@@ -193,7 +219,8 @@ def build_lab_reference(src: str, out_dir: str) -> None:
         "critical_low", "critical_high", "category",
         "neonate_low", "neonate_high", "infant_low", "infant_high",
         "child_low", "child_high", "adult_m_low", "adult_m_high",
-        "adult_f_low", "adult_f_high",
+        "adult_f_low", "adult_f_high", "pregnancy_low", "pregnancy_high",
+        "elderly_low", "elderly_high",
     ]
     out_path = os.path.join(out_dir, "lab_reference.csv")
     if not os.path.isfile(xlsx):
@@ -223,6 +250,8 @@ def build_lab_reference(src: str, out_dir: str) -> None:
         "child": col("Normal: Child"),
         "adult_m": col("Normal: Adult-M"),
         "adult_f": col("Normal: Adult-F"),
+        "pregnancy": col("Normal: Pregnancy"),
+        "elderly": col("Normal: Elderly"),
     }
 
     def band_range(r: tuple, key: str) -> tuple[str, str]:
@@ -245,6 +274,11 @@ def build_lab_reference(src: str, out_dir: str) -> None:
         for key in ("neonate", "infant", "child", "adult_m", "adult_f"):
             lo, hi = band_range(r, key)
             row.extend([lo, hi])
+        # Pregnancy/elderly: prefer the source column if present, else curated overlay.
+        plo, phi = band_range(r, "pregnancy")
+        elo, ehi = band_range(r, "elderly")
+        c_plo, c_phi, c_elo, c_ehi = _curated_bands(analyte)
+        row.extend([plo or c_plo, phi or c_phi, elo or c_elo, ehi or c_ehi])
         rows.append(row)
 
     with open(out_path, "w", newline="") as f:
@@ -252,7 +286,11 @@ def build_lab_reference(src: str, out_dir: str) -> None:
         w.writerow(cols)
         w.writerows(rows)
     crit = sum(1 for r in rows if r[5] or r[6])
-    print(f"Wrote {len(rows)} lab analytes ({crit} with critical thresholds, age/sex bands) → {out_path}")
+    preg = sum(1 for r in rows if r[18] or r[20])
+    print(
+        f"Wrote {len(rows)} lab analytes ({crit} critical, age/sex bands, "
+        f"{preg} with pregnancy/elderly overlay) → {out_path}"
+    )
 
 
 # Curated public dangerous drug/ingredient combinations (well-established

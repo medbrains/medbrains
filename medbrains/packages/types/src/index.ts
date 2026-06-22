@@ -12306,6 +12306,10 @@ export interface LabReference {
   critical_low?: number | null;
   critical_high?: number | null;
   category?: string | null;
+  pregnancy_low?: number | null;
+  pregnancy_high?: number | null;
+  elderly_low?: number | null;
+  elderly_high?: number | null;
 }
 
 export interface DoseAlert {
