@@ -4357,6 +4357,8 @@ export interface CreatePrescriptionRequest {
   read_back_confirmed?: boolean;
   /** Reason for prescribing over the catalogue max dose — required when a line exceeds it. */
   dose_override_reason?: string;
+  /** Reason for prescribing despite a documented drug allergy — required on conflict. */
+  allergy_override_reason?: string;
 }
 
 export interface UpdatePrescriptionRequest {

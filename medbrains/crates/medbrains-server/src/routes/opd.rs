@@ -318,6 +318,9 @@ pub struct CreatePrescriptionRequest {
     /// Clinician's reason for prescribing over the catalogue max dose. Required
     /// (non-blank) when any line exceeds `max_dose_per_day`; logged to audit.
     pub dose_override_reason: Option<String>,
+    /// Clinician's reason for prescribing despite a documented drug allergy.
+    /// Required (non-blank) when a line conflicts with the patient's allergies.
+    pub allergy_override_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2240,6 +2243,51 @@ pub async fn create_prescription(
         )));
     }
 
+    // Allergy backstop: prescribing a drug the patient is documented allergic
+    // to is a sentinel event (NABH IPSG). Warn & require an acknowledged reason
+    // (logged) — never a silent pass, never a hard block.
+    let rx_patient_id = sqlx::query_scalar::<_, Option<Uuid>>(
+        "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .flatten();
+    let mut allergy_conflicts: Vec<String> = Vec::new();
+    if let Some(pid) = rx_patient_id {
+        let allergens = sqlx::query_scalar::<_, String>(
+            "SELECT allergen_name FROM patient_allergies \
+             WHERE tenant_id = $1 AND patient_id = $2 AND is_active = true \
+               AND allergy_type = 'drug'",
+        )
+        .bind(claims.tenant_id)
+        .bind(pid)
+        .fetch_all(&mut *tx)
+        .await?;
+        for item in &body.items {
+            let drug = item.drug_name.to_lowercase();
+            for allergen in &allergens {
+                let a = allergen.trim().to_lowercase();
+                if !a.is_empty() && (drug.contains(&a) || a.contains(&drug)) {
+                    allergy_conflicts.push(format!("{} (allergy: {allergen})", item.drug_name));
+                    break;
+                }
+            }
+        }
+    }
+    let allergy_reason = body
+        .allergy_override_reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|r| !r.is_empty());
+    if !allergy_conflicts.is_empty() && allergy_reason.is_none() {
+        return Err(AppError::BadRequest(format!(
+            "Patient has a documented drug allergy conflicting with: {}. Provide an override reason to proceed.",
+            allergy_conflicts.join("; ")
+        )));
+    }
+
     let rx = sqlx::query_as::<_, Prescription>(
         "INSERT INTO prescriptions \
            (tenant_id, encounter_id, doctor_id, notes, order_mode, transcribed_by, \
@@ -2287,6 +2335,31 @@ pub async fn create_prescription(
             },
         )
         .await?;
+    }
+
+    if let Some(reason) = allergy_reason {
+        if !allergy_conflicts.is_empty() {
+            let audit_values = serde_json::json!({
+                "prescription_id": rx.id,
+                "encounter_id": encounter_id,
+                "override_reason": reason,
+                "conflicts": allergy_conflicts,
+            });
+            medbrains_db::audit::AuditLogger::log(
+                &mut tx,
+                &medbrains_db::audit::AuditEntry {
+                    tenant_id: claims.tenant_id,
+                    user_id: Some(claims.sub),
+                    action: "prescription.allergy_override",
+                    entity_type: "prescription",
+                    entity_id: Some(rx.id),
+                    old_values: None,
+                    new_values: Some(&audit_values),
+                    ip_address: None,
+                },
+            )
+            .await?;
+        }
     }
 
     let mut items = Vec::with_capacity(body.items.len());

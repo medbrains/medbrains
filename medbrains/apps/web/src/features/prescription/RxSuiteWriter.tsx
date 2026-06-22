@@ -15,12 +15,12 @@ import { useMemo, useState } from "react";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { Card, Checkbox, SegmentedControl } from "@/components/ui";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
-import { type DoseExceedanceView, DoseOverrideModal } from "./DoseOverrideModal";
 import classes from "./prescription.module.scss";
 import { RxDoctor, type RxSafety } from "./RxDoctor";
 import { RxPrint } from "./RxPrint";
 import { catalogToFormulary, prescriptionItemsToRx, rxItemsToInput } from "./rxAdapter";
 import { type FormularyDrug, maxDoseExceeded, type RxItem } from "./rxModel";
+import { type SafetyIssue, SafetyOverrideModal } from "./SafetyOverrideModal";
 
 interface Props {
   encounterId: string;
@@ -71,7 +71,7 @@ export function RxSuiteWriter({
   const [orderingDoctorId, setOrderingDoctorId] = useState("");
   const [readBack, setReadBack] = useState(false);
   const [pendingItems, setPendingItems] = useState<RxItem[] | null>(null);
-  const [overrideExceedances, setOverrideExceedances] = useState<DoseExceedanceView[]>([]);
+  const [overrideIssues, setOverrideIssues] = useState<SafetyIssue[]>([]);
   const isVerbal = prescriber === "nurse" && orderMode !== "written";
 
   const { data: catalog = [] } = useQuery({
@@ -150,10 +150,11 @@ export function RxSuiteWriter({
     void runSafety(items);
   };
 
-  const doSave = (items: RxItem[], doseOverrideReason?: string) => {
+  const doSave = (items: RxItem[], overrides?: { dose?: string; allergy?: string }) => {
     onSave({
       items: rxItemsToInput(items),
-      ...(doseOverrideReason ? { dose_override_reason: doseOverrideReason } : {}),
+      ...(overrides?.dose ? { dose_override_reason: overrides.dose } : {}),
+      ...(overrides?.allergy ? { allergy_override_reason: overrides.allergy } : {}),
       ...(isVerbal
         ? {
             order_mode: orderMode,
@@ -166,6 +167,27 @@ export function RxSuiteWriter({
     setReadBack(false);
   };
 
+  // Safety guards checked at save: a documented drug allergy (sentinel event)
+  // and a daily dose over the catalogue max. Both warn-and-acknowledge; the
+  // server re-checks each independently as a backstop.
+  const safetyIssues = (items: RxItem[]): SafetyIssue[] => {
+    const issues: SafetyIssue[] = [];
+    for (const it of items) {
+      const name = it.name.toLowerCase();
+      const allergen = allergies.find((a) => {
+        const al = a.trim().toLowerCase();
+        return al.length > 0 && (name.includes(al) || al.includes(name));
+      });
+      if (allergen) {
+        issues.push({ kind: "allergy", name: it.name, detail: `Documented allergy: ${allergen}` });
+      }
+      const drug = formularyById[it.id];
+      const hit = drug ? maxDoseExceeded(it, drug) : null;
+      if (hit) issues.push({ kind: "dose", name: it.name, detail: hit.totalLabel });
+    }
+    return issues;
+  };
+
   const handleSave = (items: RxItem[]) => {
     if (!canUpdate || items.length === 0) return;
     if (isVerbal && (!orderingDoctorId || !readBack)) {
@@ -176,27 +198,24 @@ export function RxSuiteWriter({
       });
       return;
     }
-    // Daily dose over the catalogue max → require an acknowledged reason
-    // (logged). The server independently re-checks as a backstop.
-    const exceedances = items
-      .map((it) => {
-        const drug = formularyById[it.id];
-        const hit = drug ? maxDoseExceeded(it, drug) : null;
-        return hit ? { name: it.name, label: hit.totalLabel } : null;
-      })
-      .filter((e): e is DoseExceedanceView => e !== null);
-    if (exceedances.length > 0) {
+    const issues = safetyIssues(items);
+    if (issues.length > 0) {
       setPendingItems(items);
-      setOverrideExceedances(exceedances);
+      setOverrideIssues(issues);
       return;
     }
     doSave(items);
   };
 
   const confirmOverride = (reason: string) => {
-    if (pendingItems) doSave(pendingItems, reason);
+    if (pendingItems) {
+      doSave(pendingItems, {
+        dose: overrideIssues.some((i) => i.kind === "dose") ? reason : undefined,
+        allergy: overrideIssues.some((i) => i.kind === "allergy") ? reason : undefined,
+      });
+    }
     setPendingItems(null);
-    setOverrideExceedances([]);
+    setOverrideIssues([]);
   };
 
   const signer = {
@@ -274,14 +293,14 @@ export function RxSuiteWriter({
         patientName={patientName}
         uhid={uhid}
       />
-      <DoseOverrideModal
+      <SafetyOverrideModal
         opened={pendingItems !== null}
-        exceedances={overrideExceedances}
+        issues={overrideIssues}
         saving={Boolean(isSaving)}
         onConfirm={confirmOverride}
         onClose={() => {
           setPendingItems(null);
-          setOverrideExceedances([]);
+          setOverrideIssues([]);
         }}
       />
     </Box>
