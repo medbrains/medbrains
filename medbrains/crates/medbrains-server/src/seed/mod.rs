@@ -2,6 +2,7 @@ mod bed_types;
 mod camp_fixtures;
 mod canonical_fixtures;
 mod charge_master;
+mod ckb;
 mod default_dashboard;
 mod demo_patients;
 mod departments;
@@ -134,6 +135,7 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     // Idempotent seeds — always run (ON CONFLICT DO NOTHING / DO UPDATE)
     seed_built_in_roles(pool, tenant_id).await?;
     seed_default_groups(pool, tenant_id).await?;
+    ckb::seed_diagnosis_reference(pool).await?; // global reference (no tenant)
     departments::seed_departments(pool, tenant_id).await?;
     lab_catalog::seed_lab_catalog(pool, tenant_id).await?;
     pharmacy_catalog::seed_pharmacy_catalog(pool, tenant_id).await?;

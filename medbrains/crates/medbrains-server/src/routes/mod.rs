@@ -22,6 +22,7 @@ pub mod case_mgmt;
 pub mod catalog_import;
 pub mod cds;
 pub mod chronic_care;
+pub mod ckb;
 pub mod client_errors;
 pub mod clinical_offline;
 pub mod cms;
@@ -1075,6 +1076,13 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/opd/analytics/followup",
             get(opd::followup_compliance),
+        )
+        // ── Clinical Knowledge Base ─────────────────────
+        .route("/api/ckb/diagnoses", get(ckb::list_diagnoses))
+        .route("/api/ckb/notifiable-reports", get(ckb::list_notifiable_reports))
+        .route(
+            "/api/ckb/notifiable-reports/{id}",
+            put(ckb::update_notifiable_report),
         )
         // ── Clinical Decision Support ───────────────────
         .route(

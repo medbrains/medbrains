@@ -64,6 +64,7 @@ import {
   IconUsers,
   IconUsersGroup,
   IconVideo,
+  IconVirus,
   IconWash,
 } from "@tabler/icons-react";
 import type { TFunction } from "i18next";
@@ -149,6 +150,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: num
   IconListDetails,
   IconShieldHalfFilled,
   IconReportMedical,
+  IconVirus,
   IconHeartPlus,
   IconClipboardCheck,
   IconUserSearch,
@@ -837,6 +839,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         path: "/mrd",
         icon: "IconFileCertificate",
         requiredPermission: "mrd.records.list",
+      },
+      {
+        i18nKey: "clinicalKb",
+        path: "/clinical-kb",
+        icon: "IconVirus",
+        requiredPermission: "ckb.view",
       },
       {
         i18nKey: "security",

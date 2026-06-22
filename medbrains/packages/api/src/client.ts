@@ -831,6 +831,9 @@ import type {
   DrugExpiryAlertPrintData,
   DrugInteraction,
   DrugInteractionCheckRequest,
+  DiagnosisReference,
+  NotifiableReport,
+  UpdateNotifiableReportRequest,
   DrugInteractionResult,
   DrugLicenseReportPrintData,
   DrugSafetyCheckResult,
@@ -6830,6 +6833,21 @@ export const api = {
   checkDrugSafety: (data: CheckDrugInteractionsRequest) =>
     request<DrugSafetyCheckResult>("/cds/drug-safety-check", {
       method: "POST",
+      body: JSON.stringify(data),
+    }),
+  // Clinical Knowledge Base
+  listCkbDiagnoses: (params?: { q?: string; notifiable_only?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (params?.q) qs.set("q", params.q);
+    if (params?.notifiable_only) qs.set("notifiable_only", "true");
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<DiagnosisReference[]>(`/ckb/diagnoses${suffix}`);
+  },
+  listNotifiableReports: (status?: string) =>
+    request<NotifiableReport[]>(`/ckb/notifiable-reports${status ? `?status=${status}` : ""}`),
+  updateNotifiableReport: (id: string, data: UpdateNotifiableReportRequest) =>
+    request<NotifiableReport>(`/ckb/notifiable-reports/${id}`, {
+      method: "PUT",
       body: JSON.stringify(data),
     }),
   listDrugInteractions: () => request<DrugInteraction[]>("/cds/drug-interactions"),

@@ -12235,6 +12235,36 @@ export interface HepaticAlert {
   caution: string;
 }
 
+// ── Clinical Knowledge Base (CKB) ──
+export interface DiagnosisReference {
+  icd10_code: string;
+  name: string;
+  department?: string | null;
+  is_notifiable: boolean;
+  reporting_body?: string | null;
+  report_timeframe?: string | null;
+}
+
+export interface NotifiableReport {
+  id: string;
+  patient_id?: string | null;
+  encounter_id?: string | null;
+  icd10_code: string;
+  disease_name: string;
+  reporting_body?: string | null;
+  detected_at: string;
+  status: string;
+  report_ref?: string | null;
+  submitted_at?: string | null;
+  notes?: string | null;
+}
+
+export interface UpdateNotifiableReportRequest {
+  status: string;
+  report_ref?: string;
+  notes?: string;
+}
+
 export interface DoseAlert {
   drug_name: string;
   per_dose: string;

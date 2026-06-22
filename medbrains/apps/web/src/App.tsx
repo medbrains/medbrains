@@ -270,6 +270,9 @@ const SettingsPage = lazy(() =>
 const OAuthCallbackPage = lazy(() =>
   import("./pages/OAuthCallbackPage").then((m) => ({ default: m.OAuthCallbackPage })),
 );
+const ClinicalKbPage = lazy(() =>
+  import("./pages/clinical-kb").then((m) => ({ default: m.ClinicalKbPage })),
+);
 const DocumentTemplatesPage = lazy(() =>
   import("./pages/admin/document-templates").then((m) => ({
     default: m.DocumentTemplatesPage,
@@ -343,6 +346,7 @@ export function App() {
               }
             >
               <Route path="dashboard" element={<DashboardPage />} />
+              <Route path="clinical-kb" element={<ClinicalKbPage />} />
               <Route path="oauth/callback" element={<OAuthCallbackPage />} />
               <Route path="components-inputs" element={<ComponentsInputsPage />} />
               <Route path="demo/dicom/*" element={<DemoDicomFixturesPage />} />

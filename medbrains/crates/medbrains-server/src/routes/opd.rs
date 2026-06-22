@@ -1896,6 +1896,49 @@ pub async fn create_diagnosis(
     .fetch_one(&mut *tx)
     .await?;
 
+    // CKB statutory hook: if this diagnosis is a notifiable disease, file a
+    // pending report and alert the reporter. The conclusion lives in one place
+    // (`ckb::flag_notifiable_diagnosis`) so it can later be AI-driven.
+    let patient_id = sqlx::query_scalar::<_, Option<Uuid>>(
+        "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .flatten();
+    let icd_code = body.icd_code.as_deref().unwrap_or_default();
+    if let Some((disease_name, reporting_body)) = super::ckb::flag_notifiable_diagnosis(
+        &mut tx,
+        claims.tenant_id,
+        patient_id,
+        Some(encounter_id),
+        Some(claims.sub),
+        icd_code,
+    )
+    .await?
+    {
+        let body_text = format!(
+            "{disease_name} ({icd_code}) requires {} reporting.",
+            reporting_body.as_deref().unwrap_or("IDSP")
+        );
+        create_notification(
+            &mut tx,
+            claims.tenant_id,
+            NewNotification {
+                user_id: claims.sub,
+                kind: "warning",
+                title: "Notifiable disease — statutory report due",
+                body: Some(&body_text),
+                category: Some("Notifiable Disease"),
+                entity_type: Some("notifiable_disease_reports"),
+                entity_id: None,
+                action_url: Some("/clinical-kb#reports"),
+            },
+        )
+        .await?;
+    }
+
     tx.commit().await?;
     Ok(Json(filter_diagnosis_response(row, &restricted_fields)))
 }

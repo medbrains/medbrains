@@ -3190,6 +3190,24 @@ export const PERMISSIONS: PermissionDef[] = [
 
   // MRD (Medical Records Department)
   {
+    code: "ckb.view",
+    label: "View Clinical Knowledge Base",
+    description: "View the clinical knowledge base (diagnosis reference, notifiable diseases)",
+    module: "ckb",
+  },
+  {
+    code: "ckb.reports.list",
+    label: "View Notifiable-Disease Reports",
+    description: "View the statutory notifiable-disease reporting worklist",
+    module: "ckb",
+  },
+  {
+    code: "ckb.reports.manage",
+    label: "Manage Notifiable-Disease Reports",
+    description: "Mark notifiable-disease reports submitted/exempted",
+    module: "ckb",
+  },
+  {
     code: "mrd.records.list",
     label: "View Medical Records",
     description: "View medical record index",
@@ -5275,6 +5293,11 @@ export const P = {
     ENQUIRY_LIST: "front_office.enquiry.list" as const,
     ENQUIRY_CREATE: "front_office.enquiry.create" as const,
     ENQUIRY_MANAGE: "front_office.enquiry.manage" as const,
+  },
+  CKB: {
+    VIEW: "ckb.view" as const,
+    REPORTS_LIST: "ckb.reports.list" as const,
+    REPORTS_MANAGE: "ckb.reports.manage" as const,
   },
   MRD: {
     RECORDS_LIST: "mrd.records.list" as const,
