@@ -1,11 +1,10 @@
-import { Tabs } from "@mantine/core";
+import { Box, Tabs } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import {
   IconArchive,
   IconBabyCarriage,
   IconChartBar,
-  IconClipboardCheck,
   IconClipboardList,
   IconFileCertificate,
   IconFileExport,
@@ -14,7 +13,13 @@ import {
   IconShieldLock,
   IconSkull,
 } from "@tabler/icons-react";
-import { ClinicalEventProvider, PageHeader } from "@/components";
+import {
+  ClinicalEventProvider,
+  PageHeader,
+  type RailGroup,
+  type RailItem,
+  WorkspaceRail,
+} from "@/components";
 import { BirthsTab } from "@/components/Mrd/BirthsTab";
 import { CaseSheetsTab } from "@/components/Mrd/CaseSheetsTab";
 import { DeathsTab } from "@/components/Mrd/DeathsTab";
@@ -27,16 +32,20 @@ import { StatsTab } from "@/components/Mrd/StatsTab";
 import { StorageLocationsTab } from "@/components/Mrd/StorageLocationsTab";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import styles from "./mrd.module.scss";
 
+// Every rail section value, in priority order for default selection.
 const MRD_TAB_VALUES = [
   "records",
   "case-sheets",
-  "forms",
-  "storage",
+  "verify",
+  "digitize",
   "births",
   "deaths",
-  "stats",
+  "roi",
+  "storage",
   "retention",
+  "stats",
 ] as const;
 
 const MRD_PAGE_PERMISSIONS = [
@@ -67,146 +76,149 @@ function MrdPageInner() {
   const canViewCaseSheets = useHasPermission(P.MRD.CASE_SHEETS_VIEW);
   const canViewBirths = useHasPermission(P.MRD.BIRTHS_LIST);
   const canViewDeaths = useHasPermission(P.MRD.DEATHS_LIST);
-  const canViewForms = useHasPermission(P.MRD.FORMS_VIEW);
   const canVerifySignatures = useHasPermission(P.DOCTOR.SIGNATURE.VERIFY);
-  const defaultTab = canViewRecords
-    ? "records"
-    : canViewCaseSheets
-      ? "case-sheets"
-      : canViewForms
-        ? "forms"
-        : canViewBirths
-          ? "births"
-          : canViewDeaths
-            ? "deaths"
-            : "retention";
-  const accessibleTabs = new Set<string>([
-    ...(canViewRecords ? ["records", "storage", "stats"] : []),
-    ...(canViewCaseSheets ? ["case-sheets"] : []),
-    ...(canViewForms ? ["forms"] : []),
-    ...(canViewBirths ? ["births"] : []),
-    ...(canViewDeaths ? ["deaths"] : []),
-    ...(canManageRecords ? ["retention"] : []),
-  ]);
+
+  // Rail groups mirror how an MRD department runs the chart lifecycle. Items are
+  // omitted when the user lacks the permission; an emptied group disappears.
+  const groups: RailGroup[] = [
+    {
+      label: "Case records",
+      items: [
+        canViewRecords && {
+          value: "records",
+          label: "Records",
+          icon: <IconFileCertificate size={14} />,
+        },
+        canViewCaseSheets && {
+          value: "case-sheets",
+          label: "Case Sheets",
+          icon: <IconClipboardList size={14} />,
+        },
+        canVerifySignatures && {
+          value: "verify",
+          label: "Verify",
+          icon: <IconShieldLock size={14} />,
+        },
+      ].filter(Boolean) as RailItem[],
+    },
+    {
+      label: "Digital MRD",
+      items: [
+        canViewRecords && { value: "digitize", label: "Digitise", icon: <IconScan size={14} /> },
+      ].filter(Boolean) as RailItem[],
+    },
+    {
+      label: "Statutory registers",
+      items: [
+        canViewBirths && {
+          value: "births",
+          label: "Birth Register",
+          icon: <IconBabyCarriage size={14} />,
+        },
+        canViewDeaths && {
+          value: "deaths",
+          label: "Death Register",
+          icon: <IconSkull size={14} />,
+        },
+      ].filter(Boolean) as RailItem[],
+    },
+    {
+      label: "Release of information",
+      items: [
+        canViewRecords && {
+          value: "roi",
+          label: "Release of Info",
+          icon: <IconFileExport size={14} />,
+        },
+      ].filter(Boolean) as RailItem[],
+    },
+    {
+      label: "Records management",
+      items: [
+        canViewRecords && {
+          value: "storage",
+          label: "Storage",
+          icon: <IconArchive size={14} />,
+        },
+        canManageRecords && {
+          value: "retention",
+          label: "Retention Policies",
+          icon: <IconShieldCheck size={14} />,
+        },
+        canViewRecords && {
+          value: "stats",
+          label: "Statistics",
+          icon: <IconChartBar size={14} />,
+        },
+      ].filter(Boolean) as RailItem[],
+    },
+  ];
+
+  const accessibleTabs = new Set(groups.flatMap((g) => g.items.map((i) => i.value)));
+  const defaultTab = MRD_TAB_VALUES.find((v) => accessibleTabs.has(v)) ?? "records";
   const [tab, setTab] = useHashTabs(defaultTab, MRD_TAB_VALUES);
   const tabValue = accessibleTabs.has(tab) ? tab : defaultTab;
 
   return (
-    <div>
+    <Box className={styles.page}>
       <PageHeader
         title="Medical Records Department"
-        subtitle="Record indexing, birth/death registries, statistics"
+        subtitle="Record indexing, digitisation, registries, release of information & statistics"
       />
-      <Tabs value={tabValue} onChange={setTab}>
-        <Tabs.List>
+      <Box className={styles.workspace}>
+        <WorkspaceRail groups={groups} active={tabValue} onChange={setTab}>
           {canViewRecords && (
-            <Tabs.Tab value="records" leftSection={<IconFileCertificate size={16} />}>
-              Records
-            </Tabs.Tab>
+            <Tabs.Panel value="records">
+              <RecordsTab />
+            </Tabs.Panel>
           )}
           {canViewCaseSheets && (
-            <Tabs.Tab value="case-sheets" leftSection={<IconClipboardList size={16} />}>
-              Case Sheets
-            </Tabs.Tab>
-          )}
-          {canViewForms && (
-            <Tabs.Tab value="forms" leftSection={<IconClipboardCheck size={16} />}>
-              Form Records
-            </Tabs.Tab>
-          )}
-          {canViewRecords && (
-            <Tabs.Tab value="roi" leftSection={<IconFileExport size={16} />}>
-              Release of Info
-            </Tabs.Tab>
-          )}
-          {canViewRecords && (
-            <Tabs.Tab value="digitize" leftSection={<IconScan size={16} />}>
-              Digitise
-            </Tabs.Tab>
-          )}
-          {canViewRecords && (
-            <Tabs.Tab value="storage" leftSection={<IconArchive size={16} />}>
-              Storage
-            </Tabs.Tab>
-          )}
-          {canViewBirths && (
-            <Tabs.Tab value="births" leftSection={<IconBabyCarriage size={16} />}>
-              Birth Register
-            </Tabs.Tab>
-          )}
-          {canViewDeaths && (
-            <Tabs.Tab value="deaths" leftSection={<IconSkull size={16} />}>
-              Death Register
-            </Tabs.Tab>
-          )}
-          {canViewRecords && (
-            <Tabs.Tab value="stats" leftSection={<IconChartBar size={16} />}>
-              Statistics
-            </Tabs.Tab>
-          )}
-          {canManageRecords && (
-            <Tabs.Tab value="retention" leftSection={<IconShieldCheck size={16} />}>
-              Retention Policies
-            </Tabs.Tab>
+            <Tabs.Panel value="case-sheets">
+              <CaseSheetsTab />
+            </Tabs.Panel>
           )}
           {canVerifySignatures && (
-            <Tabs.Tab value="verify" leftSection={<IconShieldLock size={16} />}>
-              Verify
-            </Tabs.Tab>
+            <Tabs.Panel value="verify">
+              <SignatureVerifyPanel />
+            </Tabs.Panel>
           )}
-        </Tabs.List>
-
-        {canViewRecords && (
-          <Tabs.Panel value="records" pt="md">
-            <RecordsTab />
-          </Tabs.Panel>
-        )}
-        {canViewCaseSheets && (
-          <Tabs.Panel value="case-sheets" pt="md">
-            <CaseSheetsTab />
-          </Tabs.Panel>
-        )}
-        {canViewRecords && (
-          <Tabs.Panel value="roi" pt="md">
-            <RoiTab />
-          </Tabs.Panel>
-        )}
-        {canViewRecords && (
-          <Tabs.Panel value="digitize" pt="md">
-            <DigitizeTab />
-          </Tabs.Panel>
-        )}
-        {canViewRecords && (
-          <Tabs.Panel value="storage" pt="md">
-            <StorageLocationsTab />
-          </Tabs.Panel>
-        )}
-        {canViewBirths && (
-          <Tabs.Panel value="births" pt="md">
-            <BirthsTab />
-          </Tabs.Panel>
-        )}
-        {canViewDeaths && (
-          <Tabs.Panel value="deaths" pt="md">
-            <DeathsTab />
-          </Tabs.Panel>
-        )}
-        {canViewRecords && (
-          <Tabs.Panel value="stats" pt="md">
-            <StatsTab />
-          </Tabs.Panel>
-        )}
-        {canManageRecords && (
-          <Tabs.Panel value="retention" pt="md">
-            <RetentionTab />
-          </Tabs.Panel>
-        )}
-        {canVerifySignatures && (
-          <Tabs.Panel value="verify" pt="md">
-            <SignatureVerifyPanel />
-          </Tabs.Panel>
-        )}
-      </Tabs>
-    </div>
+          {canViewRecords && (
+            <Tabs.Panel value="digitize">
+              <DigitizeTab />
+            </Tabs.Panel>
+          )}
+          {canViewBirths && (
+            <Tabs.Panel value="births">
+              <BirthsTab />
+            </Tabs.Panel>
+          )}
+          {canViewDeaths && (
+            <Tabs.Panel value="deaths">
+              <DeathsTab />
+            </Tabs.Panel>
+          )}
+          {canViewRecords && (
+            <Tabs.Panel value="roi">
+              <RoiTab />
+            </Tabs.Panel>
+          )}
+          {canViewRecords && (
+            <Tabs.Panel value="storage">
+              <StorageLocationsTab />
+            </Tabs.Panel>
+          )}
+          {canManageRecords && (
+            <Tabs.Panel value="retention">
+              <RetentionTab />
+            </Tabs.Panel>
+          )}
+          {canViewRecords && (
+            <Tabs.Panel value="stats">
+              <StatsTab />
+            </Tabs.Panel>
+          )}
+        </WorkspaceRail>
+      </Box>
+    </Box>
   );
 }

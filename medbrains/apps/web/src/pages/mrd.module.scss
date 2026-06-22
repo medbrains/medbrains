@@ -1,0 +1,17 @@
+// MRD workspace — full-height two-pane shell beneath the page header.
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.workspace {
+  display: flex;
+  flex: 1;
+  min-height: calc(100vh - 200px);
+  margin-top: 12px;
+  border: 1px solid var(--mb-border-subtle, #e0e0e0);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--mb-bg, #fff);
+}

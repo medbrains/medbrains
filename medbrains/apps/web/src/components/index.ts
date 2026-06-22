@@ -69,3 +69,5 @@ export { labelTableValue, TableValueBadge, tableValueIcon } from "./TableValueBa
 export { TopProgressBar } from "./TopProgressBar";
 export { VendorSearchSelect } from "./VendorSearchSelect";
 export { WardSelect } from "./WardSelect";
+export type { RailGroup, RailItem, WorkspaceRailProps } from "./WorkspaceRail";
+export { WorkspaceRail } from "./WorkspaceRail";
