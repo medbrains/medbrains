@@ -7,6 +7,7 @@ use axum::{
 };
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use tower_http::{
+    compression::CompressionLayer,
     cors::{AllowOrigin, CorsLayer},
     request_id::SetRequestIdLayer,
     set_header::SetResponseHeaderLayer,
@@ -395,6 +396,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(permissions_policy)
         .layer(coop)
         .layer(cors)
+        // Negotiated response compression (brotli / zstd / gzip / deflate).
+        // JSON API payloads are highly repetitive → typically 70–90% smaller
+        // on the wire. Picks the best algorithm from the request's
+        // Accept-Encoding; passes through when the client offers none.
+        .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())
         .layer(SetRequestIdLayer::new(request_id_header(), MakeRequestUuid));
 
