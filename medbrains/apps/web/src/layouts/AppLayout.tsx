@@ -40,6 +40,7 @@ import { HeaderWidgets } from "@/components/HeaderWidgets";
 import { NewsMarquee } from "@/components/NewsMarquee";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { PageSkeleton } from "@/components/PageSkeleton";
+import { PageTransition } from "@/components/PageTransition";
 import { buildPathLabels, NAV_GROUPS, type NavItemConfig, resolveIcon } from "@/config/navigation";
 import { preloadRoute } from "@/lib/route-preload";
 import { sessionService } from "@/services/session.service";
@@ -599,9 +600,9 @@ export function AppLayout() {
         )}
 
         <Suspense fallback={<PageSkeleton />}>
-          <div className="page-content">
+          <PageTransition>
             <Outlet />
-          </div>
+          </PageTransition>
         </Suspense>
       </AppShell.Main>
     </AppShell>
