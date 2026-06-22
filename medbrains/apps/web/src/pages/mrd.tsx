@@ -55,6 +55,7 @@ import {
   IconClipboardCheck,
   IconClipboardList,
   IconFileCertificate,
+  IconFileExport,
   IconMapPin,
   IconPlus,
   IconPrinter,
@@ -69,6 +70,7 @@ import { ClinicalEventProvider, DataTable, PageHeader, useClinicalEmit } from "@
 import type { Column } from "@/components/DataTable";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { RoiTab } from "@/components/Mrd/RoiTab";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton, Modal, toast } from "@/components/ui";
@@ -618,6 +620,11 @@ function MrdPageInner() {
             </Tabs.Tab>
           )}
           {canViewRecords && (
+            <Tabs.Tab value="roi" leftSection={<IconFileExport size={16} />}>
+              Release of Info
+            </Tabs.Tab>
+          )}
+          {canViewRecords && (
             <Tabs.Tab value="storage" leftSection={<IconArchive size={16} />}>
               Storage
             </Tabs.Tab>
@@ -652,6 +659,11 @@ function MrdPageInner() {
         {canViewCaseSheets && (
           <Tabs.Panel value="case-sheets" pt="md">
             <CaseSheetsTab />
+          </Tabs.Panel>
+        )}
+        {canViewRecords && (
+          <Tabs.Panel value="roi" pt="md">
+            <RoiTab />
           </Tabs.Panel>
         )}
         {canViewRecords && (

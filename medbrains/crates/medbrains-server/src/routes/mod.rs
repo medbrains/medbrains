@@ -113,6 +113,7 @@ pub mod radiology;
 pub mod regulatory;
 pub mod reports;
 pub mod retrospective;
+pub mod roi;
 pub mod scheduling;
 pub mod schema_registry;
 pub mod security;
@@ -3931,6 +3932,16 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/station-handoffs/{id}/acknowledge",
             put(station_handoff::acknowledge_station_handoff),
+        )
+        .route(
+            "/api/roi-requests",
+            get(roi::list_roi_requests).post(roi::create_roi_request),
+        )
+        .route("/api/roi-requests/{id}/review", put(roi::review_roi_request))
+        .route("/api/roi-requests/{id}/access", post(roi::record_roi_access))
+        .route(
+            "/api/roi-requests/{id}/access-log",
+            get(roi::list_roi_access_log),
         )
         .route("/api/hr/duty-hours", get(hr::list_duty_hours))
         .route("/api/hr/my-shift", get(hr::get_my_shift))

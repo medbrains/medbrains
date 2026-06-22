@@ -657,6 +657,7 @@ import type {
   CreateResuscitationLogRequest,
   CreateRetroEncounterRequest,
   CreateReviewScheduleRequest,
+  CreateRoiInput,
   CreateRosterRequest,
   CreateRoutingRuleRequest,
   CreateSafetyChecklistRequest,
@@ -1487,11 +1488,15 @@ import type {
   ReviewBreakGlassRequest,
   ReviewPharmacyPrescriptionRequest,
   ReviewPostAction,
+  ReviewRoiInput,
   ReviewStewardshipRequest,
   RevokeConsentRequest,
   RevokeCredentialRequest,
   RevokePassRequest,
   RevokeProcedureConsentRequest,
+  RoiAccessInput,
+  RoiAccessLogRow,
+  RoiRequest,
   RoomTurnaround,
   RoomUtilization,
   RunVerificationRequest,
@@ -7647,6 +7652,23 @@ export const api = {
     request<StationHandoff>("/station-handoffs", { method: "POST", body: JSON.stringify(data) }),
   acknowledgeStationHandoff: (id: string) =>
     request<StationHandoff>(`/station-handoffs/${id}/acknowledge`, { method: "PUT" }),
+
+  // Release of Information (ROI)
+  listRoiRequests: (status?: string) =>
+    request<RoiRequest[]>(`/roi-requests${status ? `?status=${status}` : ""}`),
+  createRoiRequest: (data: CreateRoiInput) =>
+    request<RoiRequest>("/roi-requests", { method: "POST", body: JSON.stringify(data) }),
+  reviewRoiRequest: (id: string, data: ReviewRoiInput) =>
+    request<RoiRequest>(`/roi-requests/${id}/review`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  recordRoiAccess: (id: string, data: RoiAccessInput) =>
+    request<RoiAccessLogRow>(`/roi-requests/${id}/access`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listRoiAccessLog: (id: string) => request<RoiAccessLogRow[]>(`/roi-requests/${id}/access-log`),
 
   // Leave Balances
   listLeaveBalances: (employeeId: string) =>

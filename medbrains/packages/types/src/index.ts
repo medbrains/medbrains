@@ -16231,6 +16231,67 @@ export interface UpdateMrdPageStatusInput {
   deficiency_reason?: string;
 }
 
+export type RoiRequesterType = "patient" | "insurer" | "court" | "police" | "employer" | "other";
+export type RoiStatus = "pending" | "approved" | "denied" | "released" | "expired";
+
+export interface RoiRequest {
+  id: string;
+  tenant_id: string;
+  patient_id: string;
+  requester_type: RoiRequesterType;
+  requester_name: string;
+  requester_contact: string | null;
+  purpose: string | null;
+  record_scope: string;
+  date_from: string | null;
+  date_to: string | null;
+  scope_notes: string | null;
+  status: RoiStatus;
+  authorization_obtained: boolean;
+  expiry_date: string | null;
+  requested_by: string | null;
+  requested_at: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  decision_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RoiAccessLogRow {
+  id: string;
+  tenant_id: string;
+  roi_request_id: string;
+  accessed_by: string;
+  action: string;
+  accessed_at: string;
+  notes: string | null;
+}
+
+export interface CreateRoiInput {
+  patient_id: string;
+  requester_type: RoiRequesterType;
+  requester_name: string;
+  requester_contact?: string;
+  purpose?: string;
+  record_scope?: string;
+  date_from?: string;
+  date_to?: string;
+  scope_notes?: string;
+  authorization_obtained?: boolean;
+}
+
+export interface ReviewRoiInput {
+  decision: "approved" | "denied";
+  decision_reason?: string;
+  expiry_date?: string;
+}
+
+export interface RoiAccessInput {
+  action: "viewed" | "downloaded" | "released";
+  notes?: string;
+}
+
 export interface MrdCaseSheetCompletenessItem {
   code: string;
   label: string;

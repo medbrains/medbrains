@@ -1,6 +1,16 @@
 import { api } from "@medbrains/api";
 
 export const mrdService = {
+  listRoiRequests: (...args: Parameters<typeof api.listRoiRequests>) =>
+    api.listRoiRequests(...args),
+  createRoiRequest: (...args: Parameters<typeof api.createRoiRequest>) =>
+    api.createRoiRequest(...args),
+  reviewRoiRequest: (...args: Parameters<typeof api.reviewRoiRequest>) =>
+    api.reviewRoiRequest(...args),
+  recordRoiAccess: (...args: Parameters<typeof api.recordRoiAccess>) =>
+    api.recordRoiAccess(...args),
+  listRoiAccessLog: (...args: Parameters<typeof api.listRoiAccessLog>) =>
+    api.listRoiAccessLog(...args),
   listMrdRecords: (...args: Parameters<typeof api.listMrdRecords>) => api.listMrdRecords(...args),
   createMrdRecord: (...args: Parameters<typeof api.createMrdRecord>) =>
     api.createMrdRecord(...args),
