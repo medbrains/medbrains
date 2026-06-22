@@ -158,6 +158,7 @@
   "deviceIntegrations.connectors.queueDisplay.fields.websocketChannel.label": "WebSocket Channel",
   "deviceIntegrations.connectors.queueDisplay.fields.websocketChannel.description": "Live event channel or topic for this display.",
   "settings.operations": "Operations",
+  "settings.oauthIntegrations": "Connected Accounts",
   "settings": {
     "tokens": "Tokens"
   }

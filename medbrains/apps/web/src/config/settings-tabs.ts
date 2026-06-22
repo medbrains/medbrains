@@ -46,6 +46,7 @@ import { GeoSettings } from "@/pages/admin/settings/GeoSettings";
 import { LocationsSettings } from "@/pages/admin/settings/LocationsSettings";
 import { MasterDataStatusSettings } from "@/pages/admin/settings/MasterDataStatusSettings";
 import { ModulesSettings } from "@/pages/admin/settings/ModulesSettings";
+import { OAuthIntegrationsSettings } from "@/pages/admin/settings/OAuthIntegrationsSettings";
 import { OfflineModeSettings } from "@/pages/admin/settings/OfflineModeSettings";
 import { OperationsSettings } from "@/pages/admin/settings/OperationsSettings";
 import { PaymentExceptionsSettings } from "@/pages/admin/settings/PaymentExceptionsSettings";
@@ -257,6 +258,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: "IconPlug",
     requiredPermission: "integration.view",
     component: DeviceIntegrationsSettings,
+  },
+  {
+    value: "oauth-integrations",
+    i18nKey: "settings.oauthIntegrations",
+    icon: "IconWorld",
+    requiredPermission: "admin.settings.general.manage",
+    component: OAuthIntegrationsSettings,
   },
   {
     value: "standards",

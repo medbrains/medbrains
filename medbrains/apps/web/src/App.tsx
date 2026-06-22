@@ -267,6 +267,9 @@ const AccessRequestsPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import("./pages/admin/settings").then((m) => ({ default: m.SettingsPage })),
 );
+const OAuthCallbackPage = lazy(() =>
+  import("./pages/OAuthCallbackPage").then((m) => ({ default: m.OAuthCallbackPage })),
+);
 const DocumentTemplatesPage = lazy(() =>
   import("./pages/admin/document-templates").then((m) => ({
     default: m.DocumentTemplatesPage,
@@ -340,6 +343,7 @@ export function App() {
               }
             >
               <Route path="dashboard" element={<DashboardPage />} />
+              <Route path="oauth/callback" element={<OAuthCallbackPage />} />
               <Route path="components-inputs" element={<ComponentsInputsPage />} />
               <Route path="demo/dicom/*" element={<DemoDicomFixturesPage />} />
               <Route path="patients" element={<PatientsPage />} />
