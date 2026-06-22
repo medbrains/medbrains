@@ -12216,6 +12216,7 @@ export interface DrugSafetyCheckResult {
   interactions: DrugInteractionAlert[];
   allergy_conflicts: AllergyConflict[];
   dose_alerts: DoseAlert[];
+  weight_alerts: WeightDoseAlert[];
 }
 
 export interface DoseAlert {
@@ -12224,6 +12225,14 @@ export interface DoseAlert {
   doses_per_day: number;
   total_per_day_label: string;
   max_per_day_label: string;
+}
+
+export interface WeightDoseAlert {
+  drug_name: string;
+  direction: "over" | "under";
+  prescribed_per_day_label: string;
+  recommended_per_day_label: string;
+  weight_kg: number;
 }
 
 export interface DoseCheckItem {

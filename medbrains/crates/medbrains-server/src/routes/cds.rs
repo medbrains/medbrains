@@ -57,6 +57,16 @@ pub struct DoseAlert {
 }
 
 #[derive(Debug, Serialize)]
+pub struct WeightDoseAlert {
+    pub drug_name: String,
+    /// "over" or "under" the weight-based recommendation.
+    pub direction: String,
+    pub prescribed_per_day_label: String,
+    pub recommended_per_day_label: String,
+    pub weight_kg: f64,
+}
+
+#[derive(Debug, Serialize)]
 pub struct DrugInteractionAlert {
     pub drug_a: String,
     pub drug_b: String,
@@ -79,6 +89,7 @@ pub struct DrugSafetyCheckResult {
     pub interactions: Vec<DrugInteractionAlert>,
     pub allergy_conflicts: Vec<AllergyConflict>,
     pub dose_alerts: Vec<DoseAlert>,
+    pub weight_alerts: Vec<WeightDoseAlert>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -273,13 +284,138 @@ pub async fn check_drug_safety(
 
     let dose_alerts = dose_alerts_for_items(&mut tx, claims.tenant_id, &body.items).await?;
 
+    // Paediatric weight-based (mg/kg/day) advisory — only when the patient is a
+    // child with a recorded weight. Advisory only; never gates prescribing.
+    let mut weight_alerts = Vec::new();
+    if let Some(patient_id) = body.patient_id {
+        if !body.items.is_empty() {
+            if let Some((weight_kg, age_years)) =
+                patient_weight_and_age(&mut tx, claims.tenant_id, patient_id).await?
+            {
+                if age_years < 18 && weight_kg > 0.0 {
+                    weight_alerts =
+                        weight_alerts_for_items(&mut tx, claims.tenant_id, &body.items, weight_kg)
+                            .await?;
+                }
+            }
+        }
+    }
+
     tx.commit().await?;
 
     Ok(Json(DrugSafetyCheckResult {
         interactions,
         allergy_conflicts,
         dose_alerts,
+        weight_alerts,
     }))
+}
+
+/// Latest recorded weight (kg) and current age (years) for a patient, when known.
+async fn patient_weight_and_age(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+) -> Result<Option<(f64, i32)>, AppError> {
+    let dob = sqlx::query_scalar::<_, Option<NaiveDate>>(
+        "SELECT date_of_birth FROM patients WHERE tenant_id = $1 AND id = $2",
+    )
+    .bind(tenant_id)
+    .bind(patient_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .flatten();
+    let Some(dob) = dob else {
+        return Ok(None);
+    };
+    let age_years = i32::try_from(
+        (Utc::now().date_naive().signed_duration_since(dob).num_days() / 365).max(0),
+    )
+    .unwrap_or(0);
+
+    let weight = sqlx::query_scalar::<_, Option<f64>>(
+        "SELECT v.weight_kg::float8 FROM vitals v \
+         JOIN encounters e ON e.id = v.encounter_id \
+         WHERE v.tenant_id = $1 AND e.patient_id = $2 AND v.weight_kg IS NOT NULL \
+         ORDER BY v.recorded_at DESC LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(patient_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .flatten();
+
+    Ok(weight.map(|w| (w, age_years)))
+}
+
+/// Weight-based (mg/kg/day) dose advisories for the given lines.
+async fn weight_alerts_for_items(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    items: &[DoseCheckItem],
+    weight_kg: f64,
+) -> Result<Vec<WeightDoseAlert>, AppError> {
+    let catalog_ids: Vec<Uuid> = items.iter().filter_map(|i| i.catalog_item_id).collect();
+    if catalog_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    #[derive(sqlx::FromRow)]
+    struct PerKgRow {
+        id: Uuid,
+        dose_per_kg: Option<String>,
+    }
+    let rows = sqlx::query_as::<_, PerKgRow>(
+        "SELECT id, dose_per_kg FROM pharmacy_catalog WHERE tenant_id = $1 AND id = ANY($2)",
+    )
+    .bind(tenant_id)
+    .bind(&catalog_ids)
+    .fetch_all(&mut **tx)
+    .await?;
+
+    let mut alerts = Vec::new();
+    for item in items {
+        let Some(catalog_id) = item.catalog_item_id else {
+            continue;
+        };
+        let Some(per_kg) = rows
+            .iter()
+            .find(|r| r.id == catalog_id)
+            .and_then(|r| r.dose_per_kg.as_deref())
+        else {
+            continue;
+        };
+        let Some(doses) = medbrains_core::mar_schedule::doses_per_day(&item.frequency) else {
+            continue;
+        };
+        if let Some(advice) = medbrains_core::dose_safety::evaluate_weight_dose(
+            &item.dosage,
+            doses,
+            weight_kg,
+            per_kg,
+        ) {
+            let direction = match advice.direction {
+                medbrains_core::dose_safety::DoseDirection::Over => "over",
+                medbrains_core::dose_safety::DoseDirection::Under => "under",
+            };
+            alerts.push(WeightDoseAlert {
+                drug_name: item.drug_name.clone(),
+                direction: direction.to_owned(),
+                prescribed_per_day_label: format!(
+                    "{} {}",
+                    trim_float(advice.prescribed_per_day),
+                    advice.unit
+                ),
+                recommended_per_day_label: format!(
+                    "{} {}",
+                    trim_float(advice.recommended_per_day),
+                    advice.unit
+                ),
+                weight_kg,
+            });
+        }
+    }
+    Ok(alerts)
 }
 
 /// Compute max-dose-per-day exceedances for the given prescription lines.

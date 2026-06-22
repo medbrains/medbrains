@@ -40,7 +40,7 @@ interface Props {
   prescriber?: "doctor" | "nurse";
 }
 
-const EMPTY_SAFETY: RxSafety = { interactions: [], allergy_conflicts: [] };
+const EMPTY_SAFETY: RxSafety = { interactions: [], allergy_conflicts: [], weight_alerts: [] };
 
 /**
  * Embeddable, backend-wired prescription writer — the rx-suite composer + live
@@ -122,16 +122,22 @@ export function RxSuiteWriter({
     return [...ids];
   }, [prescriptions]);
 
-  const runSafety = async (drugNames: string[]) => {
-    if (drugNames.length === 0) {
+  const runSafety = async (items: RxItem[]) => {
+    if (items.length === 0) {
       setSafety(EMPTY_SAFETY);
       return;
     }
     try {
       setSafety(
         await clinicalSupportService.checkDrugSafety({
-          drug_names: drugNames,
+          drug_names: items.map((i) => i.name),
           patient_id: patientId,
+          items: rxItemsToInput(items).map((i) => ({
+            drug_name: i.drug_name,
+            dosage: i.dosage,
+            frequency: i.frequency,
+            catalog_item_id: i.catalog_item_id,
+          })),
         }),
       );
     } catch {
@@ -141,7 +147,7 @@ export function RxSuiteWriter({
 
   const handleItemsChange = (items: RxItem[]) => {
     setCurrentItems(items);
-    void runSafety(items.map((i) => i.name));
+    void runSafety(items);
   };
 
   const doSave = (items: RxItem[], doseOverrideReason?: string) => {

@@ -1,7 +1,12 @@
 import { Box, Group, Menu } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import type { AllergyConflict, DrugInteractionAlert, PrescriptionTemplate } from "@medbrains/types";
+import type {
+  AllergyConflict,
+  DrugInteractionAlert,
+  PrescriptionTemplate,
+  WeightDoseAlert,
+} from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconCheck,
@@ -38,6 +43,7 @@ const SAFETY_ICON = {
 export interface RxSafety {
   interactions: DrugInteractionAlert[];
   allergy_conflicts: AllergyConflict[];
+  weight_alerts: WeightDoseAlert[];
 }
 
 function SafetyRow({
@@ -223,8 +229,10 @@ export function RxDoctor({
     .filter(Boolean) as { name: string; label: string }[];
   const cautions = prescribingCautions(drugObjs);
   const seriousCautions = cautions.filter((c) => c.serious);
+  const weightAlerts = safety.weight_alerts;
   const pendingCount = items.filter((it) => it.pendingMD).length;
-  const reviewCount = major.length + conflicts.length + overMax.length + seriousCautions.length;
+  const reviewCount =
+    major.length + conflicts.length + overMax.length + seriousCautions.length + weightAlerts.length;
 
   return (
     <Box className={classes.view}>
@@ -465,6 +473,26 @@ export function RxDoctor({
             cautions.length
               ? cautions.map((c) => `${c.label}: ${c.detail}`).join(" · ")
               : "No AWaRe Reserve/Watch antibiotics or boxed warnings in order"
+          }
+        />
+        <SafetyRow
+          state={
+            weightAlerts.some((w) => w.direction === "over")
+              ? "flag"
+              : weightAlerts.length
+                ? "warn"
+                : "ok"
+          }
+          label="Paediatric dose · mg/kg"
+          detail={
+            weightAlerts.length
+              ? weightAlerts
+                  .map(
+                    (w) =>
+                      `${w.drug_name}: ${w.prescribed_per_day_label}/day is ${w.direction} the ~${w.recommended_per_day_label}/day for ${w.weight_kg} kg`,
+                  )
+                  .join(" · ")
+              : "Within weight-based range (or not a paediatric patient)"
           }
         />
       </Drawer>
