@@ -3,7 +3,7 @@ import { Box, Group, Stack, Tabs, Text, Textarea, TextInput } from "@mantine/cor
 import { useHasPermission } from "@medbrains/stores";
 import type { NotifiableReport } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconAlertTriangle, IconReportMedical, IconVirus } from "@tabler/icons-react";
+import { IconAlertTriangle, IconPill, IconReportMedical, IconVirus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -15,7 +15,7 @@ import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { ckbService } from "@/services/ckb.service";
 import styles from "./mrd.module.scss";
 
-const CKB_TABS = ["notifiable", "reports"] as const;
+const CKB_TABS = ["notifiable", "reports", "formulary"] as const;
 
 const STATUS_TONE: Record<string, BadgeTone> = {
   pending: "warning",
@@ -35,6 +35,10 @@ export function ClinicalKbPage() {
         { value: "reports", label: "Reporting worklist", icon: <IconReportMedical size={14} /> },
       ],
     },
+    {
+      label: "Reference",
+      items: [{ value: "formulary", label: "Drug formulary", icon: <IconPill size={14} /> }],
+    },
   ];
   const [tab, setTab] = useHashTabs("notifiable", CKB_TABS);
 
@@ -51,6 +55,9 @@ export function ClinicalKbPage() {
           </Tabs.Panel>
           <Tabs.Panel value="reports">
             <ReportsTab canManage={canManage} />
+          </Tabs.Panel>
+          <Tabs.Panel value="formulary">
+            <FormularyTab />
           </Tabs.Panel>
         </WorkspaceRail>
       </Box>
@@ -123,6 +130,99 @@ function NotifiableDiseasesTab() {
         data={diagnoses}
         loading={isLoading}
         rowKey={(d) => d.icd10_code}
+      />
+    </Stack>
+  );
+}
+
+function FormularyTab() {
+  const [search, setSearch] = useState("");
+  const { data: drugs = [], isLoading } = useQuery({
+    queryKey: ["ckb-formulary", search],
+    queryFn: () => ckbService.listCkbFormulary(search.trim() || undefined),
+  });
+
+  return (
+    <Stack>
+      <Group justify="space-between">
+        <Input
+          placeholder="Search generic drug"
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+          w={320}
+        />
+        <Text size="xs" c="dimmed">
+          CDS reference — feeds dose / renal / hepatic checks
+        </Text>
+      </Group>
+      <DataTable
+        columns={[
+          {
+            key: "generic_name",
+            label: "Generic",
+            render: (d) => (
+              <Text size="sm" fw={600} tt="capitalize">
+                {d.generic_name}
+              </Text>
+            ),
+          },
+          {
+            key: "max_dose_per_day",
+            label: "Max/day",
+            render: (d) => <Text size="sm">{d.max_dose_per_day ?? "—"}</Text>,
+          },
+          {
+            key: "dose_per_kg",
+            label: "Paeds mg/kg",
+            render: (d) => <Text size="sm">{d.dose_per_kg ?? "—"}</Text>,
+          },
+          {
+            key: "renal",
+            label: "Renal",
+            render: (d) =>
+              d.renal_adjust_rule ? (
+                <Text size="xs" lineClamp={2} maw={220}>
+                  {d.renal_adjust_egfr_threshold ? `eGFR<${d.renal_adjust_egfr_threshold}: ` : ""}
+                  {d.renal_adjust_rule}
+                </Text>
+              ) : (
+                <Text size="sm" c="dimmed">
+                  —
+                </Text>
+              ),
+          },
+          {
+            key: "hepatic_caution",
+            label: "Hepatic",
+            render: (d) =>
+              d.hepatic_caution ? (
+                <Text size="xs" lineClamp={2} maw={220}>
+                  {d.hepatic_caution}
+                </Text>
+              ) : (
+                <Text size="sm" c="dimmed">
+                  —
+                </Text>
+              ),
+          },
+          {
+            key: "pregnancy_category",
+            label: "Preg",
+            render: (d) =>
+              d.pregnancy_category ? (
+                <Badge tone={["D", "X"].includes(d.pregnancy_category) ? "danger" : "neutral"}>
+                  {d.pregnancy_category}
+                </Badge>
+              ) : (
+                <Text size="sm" c="dimmed">
+                  —
+                </Text>
+              ),
+          },
+        ]}
+        data={drugs}
+        loading={isLoading}
+        rowKey={(d) => d.generic_name}
       />
     </Stack>
   );

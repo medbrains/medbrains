@@ -74,6 +74,41 @@ pub async fn list_diagnoses(
     Ok(Json(rows))
 }
 
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct DrugReference {
+    pub generic_name: String,
+    pub inn_name: Option<String>,
+    pub atc_code: Option<String>,
+    pub max_dose_per_day: Option<String>,
+    pub max_single_dose: Option<String>,
+    pub dose_per_kg: Option<String>,
+    pub renal_adjust_egfr_threshold: Option<f64>,
+    pub renal_adjust_rule: Option<String>,
+    pub hepatic_caution: Option<String>,
+    pub pregnancy_category: Option<String>,
+}
+
+/// GET /api/ckb/formulary — search the global CDS drug reference.
+pub async fn list_formulary(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<DiseaseSearchQuery>,
+) -> Result<Json<Vec<DrugReference>>, AppError> {
+    require_permission(&claims, "ckb.view")?;
+    let pattern = format!("%{}%", q.q.unwrap_or_default().trim().to_lowercase());
+    let rows = sqlx::query_as::<_, DrugReference>(
+        "SELECT generic_name, inn_name, atc_code, max_dose_per_day, max_single_dose, \
+                dose_per_kg, renal_adjust_egfr_threshold::float8, renal_adjust_rule, \
+                hepatic_caution, pregnancy_category \
+         FROM cds_drug_reference WHERE lower(generic_name) LIKE $1 \
+         ORDER BY generic_name LIMIT 500",
+    )
+    .bind(&pattern)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ReportListQuery {
     pub status: Option<String>,

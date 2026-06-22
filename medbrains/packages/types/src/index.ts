@@ -12265,6 +12265,19 @@ export interface UpdateNotifiableReportRequest {
   notes?: string;
 }
 
+export interface DrugReference {
+  generic_name: string;
+  inn_name?: string | null;
+  atc_code?: string | null;
+  max_dose_per_day?: string | null;
+  max_single_dose?: string | null;
+  dose_per_kg?: string | null;
+  renal_adjust_egfr_threshold?: number | null;
+  renal_adjust_rule?: string | null;
+  hepatic_caution?: string | null;
+  pregnancy_category?: string | null;
+}
+
 export interface DoseAlert {
   drug_name: string;
   per_dose: string;

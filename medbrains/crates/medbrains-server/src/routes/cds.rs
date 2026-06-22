@@ -383,8 +383,15 @@ async fn renal_hepatic_alerts_for_items(
         hepatic_caution: Option<String>,
     }
     let rows = sqlx::query_as::<_, RuleRow>(
-        "SELECT id, renal_adjust_egfr_threshold::float8, renal_adjust_rule, hepatic_caution \
-         FROM pharmacy_catalog WHERE tenant_id = $1 AND id = ANY($2)",
+        "SELECT pc.id, \
+                COALESCE(pc.renal_adjust_egfr_threshold, ref.renal_adjust_egfr_threshold)::float8 \
+                    AS renal_adjust_egfr_threshold, \
+                COALESCE(pc.renal_adjust_rule, ref.renal_adjust_rule) AS renal_adjust_rule, \
+                COALESCE(pc.hepatic_caution, ref.hepatic_caution) AS hepatic_caution \
+         FROM pharmacy_catalog pc \
+         LEFT JOIN cds_drug_reference ref ON lower(ref.generic_name) = \
+             lower(COALESCE(NULLIF(pc.inn_name, ''), pc.generic_name, pc.name)) \
+         WHERE pc.tenant_id = $1 AND pc.id = ANY($2)",
     )
     .bind(tenant_id)
     .bind(&catalog_ids)
@@ -479,7 +486,11 @@ async fn weight_alerts_for_items(
         dose_per_kg: Option<String>,
     }
     let rows = sqlx::query_as::<_, PerKgRow>(
-        "SELECT id, dose_per_kg FROM pharmacy_catalog WHERE tenant_id = $1 AND id = ANY($2)",
+        "SELECT pc.id, COALESCE(pc.dose_per_kg, ref.dose_per_kg) AS dose_per_kg \
+         FROM pharmacy_catalog pc \
+         LEFT JOIN cds_drug_reference ref ON lower(ref.generic_name) = \
+             lower(COALESCE(NULLIF(pc.inn_name, ''), pc.generic_name, pc.name)) \
+         WHERE pc.tenant_id = $1 AND pc.id = ANY($2)",
     )
     .bind(tenant_id)
     .bind(&catalog_ids)
@@ -552,8 +563,11 @@ pub async fn dose_alerts_for_items(
         max_dose_per_day: Option<String>,
     }
     let rows = sqlx::query_as::<_, MaxDoseRow>(
-        "SELECT id, max_dose_per_day FROM pharmacy_catalog \
-         WHERE tenant_id = $1 AND id = ANY($2)",
+        "SELECT pc.id, COALESCE(pc.max_dose_per_day, ref.max_dose_per_day) AS max_dose_per_day \
+         FROM pharmacy_catalog pc \
+         LEFT JOIN cds_drug_reference ref ON lower(ref.generic_name) = \
+             lower(COALESCE(NULLIF(pc.inn_name, ''), pc.generic_name, pc.name)) \
+         WHERE pc.tenant_id = $1 AND pc.id = ANY($2)",
     )
     .bind(tenant_id)
     .bind(&catalog_ids)

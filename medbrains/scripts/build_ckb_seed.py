@@ -68,6 +68,102 @@ IDSP_NOTIFIABLE: list[tuple[str, str, str, str, str]] = [
 ]
 
 
+# Curated public CDS dosing reference for common drugs — standard adult values
+# from the WHO EML / NLEM 2022 / BNF (public reference knowledge, not patient
+# data). (generic, max_dose_per_day, max_single_dose, renal_egfr_threshold,
+# renal_rule, hepatic_caution, pregnancy_category)
+CURATED_CDS: list[tuple[str, str, str, str, str, str, str]] = [
+    ("paracetamol", "4000 mg", "1000 mg", "", "", "Reduce dose in chronic liver disease", "B"),
+    ("ibuprofen", "2400 mg", "800 mg", "30", "Avoid if eGFR < 30", "", "C"),
+    ("diclofenac", "150 mg", "50 mg", "30", "Avoid if eGFR < 30", "", "C"),
+    ("aceclofenac", "200 mg", "100 mg", "30", "Avoid if eGFR < 30", "", "C"),
+    ("naproxen", "1000 mg", "500 mg", "30", "Avoid if eGFR < 30", "", "C"),
+    ("aspirin", "4000 mg", "1000 mg", "", "", "", "C"),
+    ("amoxicillin", "3000 mg", "1000 mg", "30", "Reduce frequency if eGFR < 30", "", "B"),
+    ("amoxicillin_clav", "3000 mg", "1000 mg", "30", "Reduce frequency if eGFR < 30", "", "B"),
+    ("azithromycin", "500 mg", "500 mg", "", "", "Caution in hepatic impairment", "B"),
+    ("ciprofloxacin", "1500 mg", "750 mg", "30", "Halve dose if eGFR < 30", "", "C"),
+    ("levofloxacin", "750 mg", "750 mg", "50", "Reduce dose if eGFR < 50", "", "C"),
+    ("metronidazole", "2000 mg", "800 mg", "", "", "Reduce dose in severe hepatic impairment", "B"),
+    ("ceftriaxone", "4000 mg", "2000 mg", "", "", "", "B"),
+    ("cefixime", "400 mg", "200 mg", "20", "Reduce dose if eGFR < 20", "", "B"),
+    ("metformin", "2550 mg", "1000 mg", "30", "Stop if eGFR < 30 (lactic acidosis)", "", "C"),
+    ("glimepiride", "8 mg", "8 mg", "", "", "Caution in hepatic impairment", "C"),
+    ("amlodipine", "10 mg", "10 mg", "", "", "", "C"),
+    ("telmisartan", "80 mg", "80 mg", "", "", "Caution in biliary obstruction", "D"),
+    ("losartan", "100 mg", "100 mg", "", "", "Reduce dose in hepatic impairment", "D"),
+    ("atenolol", "100 mg", "100 mg", "35", "Reduce dose if eGFR < 35", "", "D"),
+    ("atorvastatin", "80 mg", "80 mg", "", "", "Contraindicated in active liver disease", "X"),
+    ("prednisolone", "60 mg", "60 mg", "", "", "", "C"),
+    ("pantoprazole", "80 mg", "40 mg", "", "", "Max 20 mg/day in severe hepatic impairment", "B"),
+    ("omeprazole", "40 mg", "40 mg", "", "", "Max 20 mg/day in hepatic impairment", "C"),
+    ("ranitidine", "300 mg", "150 mg", "50", "Halve dose if eGFR < 50", "", "B"),
+    ("furosemide", "80 mg", "40 mg", "", "", "", "C"),
+    ("amitriptyline", "150 mg", "75 mg", "", "", "Caution in hepatic impairment", "C"),
+    ("tramadol", "400 mg", "100 mg", "30", "Increase dosing interval if eGFR < 30", "Caution in hepatic impairment", "C"),
+    ("gentamicin", "5 mg", "", "60", "Reduce dose / extend interval if eGFR < 60", "", "D"),
+    ("vancomycin", "2000 mg", "1000 mg", "60", "Adjust by levels if eGFR < 60", "", "C"),
+]
+
+
+def build_drug_formulary(src: str, out_dir: str) -> None:
+    """Emit drug_formulary.csv = curated public CDS reference, enriched with
+    paediatric mg/kg + hepatic/pregnancy notes from the local pharmacology.py."""
+    import re
+
+    cols = [
+        "generic_name", "inn_name", "atc_code", "max_dose_per_day", "max_single_dose",
+        "dose_per_kg", "renal_adjust_egfr_threshold", "renal_adjust_rule",
+        "hepatic_caution", "pregnancy_category",
+    ]
+    # Start from the curated reference.
+    by_generic: dict[str, dict] = {}
+    for g, maxd, maxs, rt, rr, hep, preg in CURATED_CDS:
+        by_generic[g] = {
+            "generic_name": g, "inn_name": g, "atc_code": "",
+            "max_dose_per_day": maxd, "max_single_dose": maxs, "dose_per_kg": "",
+            "renal_adjust_egfr_threshold": rt, "renal_adjust_rule": rr,
+            "hepatic_caution": hep, "pregnancy_category": preg,
+        }
+
+    # Enrich from pharmacology.py (paediatric mg/kg, hepatic/pregnancy notes).
+    if os.path.isfile(os.path.join(src, "pharmacology.py")):
+        sys.path.insert(0, src)
+        try:
+            import pharmacology  # type: ignore
+
+            for key, d in pharmacology.DRUGS.items():
+                generic = key.split("_")[0].strip().lower()
+                row = by_generic.setdefault(
+                    generic,
+                    {c: "" for c in cols} | {"generic_name": generic, "inn_name": generic},
+                )
+                notes = str(d.get("notes") or "")
+                if not row["hepatic_caution"] and re.search(r"LFT|hepat|liver", notes, re.I):
+                    row["hepatic_caution"] = notes
+                if not row["pregnancy_category"]:
+                    if re.search(r"avoid in pregnan", notes, re.I):
+                        row["pregnancy_category"] = "D"
+                    elif re.search(r"pregnan", notes, re.I):
+                        row["pregnancy_category"] = "C"
+                paedia = d.get("paedia") or {}
+                m = re.match(r"([\d.]+)\s*(mcg|mg|g)/kg", str(paedia.get("dose", "")))
+                if m and not row["dose_per_kg"]:
+                    row["dose_per_kg"] = f"{m.group(1)} {m.group(2)}"
+        except Exception as exc:  # noqa: BLE001
+            print(f"WARN: could not import pharmacology.py: {exc}", file=sys.stderr)
+    else:
+        print("WARN: pharmacology.py not found — curated CDS only.", file=sys.stderr)
+
+    out_path = os.path.join(out_dir, "drug_formulary.csv")
+    with open(out_path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(cols)
+        for g in sorted(by_generic):
+            w.writerow([by_generic[g][c] for c in cols])
+    print(f"Wrote {len(by_generic)} drug rows → {out_path}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -123,6 +219,8 @@ def main() -> int:
 
     notifiable = sum(1 for r in rows if r[3] == "true")
     print(f"Wrote {len(rows)} rows ({notifiable} notifiable) → {out_path}")
+
+    build_drug_formulary(args.src, out_dir)
     return 0
 
 

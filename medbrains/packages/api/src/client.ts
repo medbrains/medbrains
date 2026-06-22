@@ -832,6 +832,7 @@ import type {
   DrugInteraction,
   DrugInteractionCheckRequest,
   DiagnosisReference,
+  DrugReference,
   NotifiableReport,
   UpdateNotifiableReportRequest,
   DrugInteractionResult,
@@ -6843,6 +6844,8 @@ export const api = {
     const suffix = qs.toString() ? `?${qs}` : "";
     return request<DiagnosisReference[]>(`/ckb/diagnoses${suffix}`);
   },
+  listCkbFormulary: (q?: string) =>
+    request<DrugReference[]>(`/ckb/formulary${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   listNotifiableReports: (status?: string) =>
     request<NotifiableReport[]>(`/ckb/notifiable-reports${status ? `?status=${status}` : ""}`),
   updateNotifiableReport: (id: string, data: UpdateNotifiableReportRequest) =>
