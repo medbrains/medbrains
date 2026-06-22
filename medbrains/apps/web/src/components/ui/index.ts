@@ -12,6 +12,7 @@ export { Checkbox } from "./Checkbox";
 export { Divider } from "./Divider";
 export { Drawer } from "./Drawer";
 export { IconButton, type IconButtonProps, type IconButtonTone } from "./IconButton";
+export { Image, type ImageProps } from "./Image";
 export { Input, NumberField, PasswordField, TextArea } from "./Input";
 export { Modal } from "./Modal";
 export { Panel, type PanelProps } from "./Panel";

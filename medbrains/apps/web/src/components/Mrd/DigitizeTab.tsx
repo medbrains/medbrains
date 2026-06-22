@@ -8,6 +8,7 @@ import { useState } from "react";
 import { DataTable } from "@/components";
 import { Badge, type BadgeTone, Button, Card, Input, Select, toast } from "@/components/ui";
 import { mrdService } from "@/services/mrd.service";
+import { compressImageFile } from "@/utils/compressImage";
 
 const STATUS_TONE: Record<string, BadgeTone> = {
   uploaded: "neutral",
@@ -52,7 +53,9 @@ export function DigitizeTab() {
   });
 
   const upload = useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async (rawFile: File) => {
+      // Resize/re-encode phone-camera scans before upload (no-op for PDFs).
+      const file = await compressImageFile(rawFile);
       const presign = await mrdService.presignUpload({
         category: "mrd_scan",
         filename: file.name,
@@ -66,7 +69,7 @@ export function DigitizeTab() {
       if (!res.ok) throw new Error("Upload to storage failed.");
       return mrdService.addIngestionItem(batchId ?? "", {
         file_url: presign.key,
-        original_filename: file.name,
+        original_filename: rawFile.name,
         mime_type: file.type || undefined,
       });
     },

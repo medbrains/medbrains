@@ -18,6 +18,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { spotlight } from "@mantine/spotlight";
 import { useAuthStore, usePermissionStore } from "@medbrains/stores";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ChevronRight,
   Languages,
@@ -113,6 +114,7 @@ export function AppLayout() {
 
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const hasPermission = usePermissionStore((s) => s.hasPermission);
@@ -145,6 +147,10 @@ export function AppLayout() {
       // ignore
     }
     clearAuth();
+    // Wipe the in-memory query cache — it holds PHI/clinical data from this
+    // session. Without this, the next user on a shared workstation could be
+    // served the previous user's cached records before a refetch.
+    queryClient.clear();
     navigate("/login");
   };
 
