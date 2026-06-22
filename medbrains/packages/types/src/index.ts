@@ -12219,6 +12219,20 @@ export interface DrugSafetyCheckResult {
   allergy_conflicts: AllergyConflict[];
   dose_alerts: DoseAlert[];
   weight_alerts: WeightDoseAlert[];
+  renal_alerts: RenalDoseAlert[];
+  hepatic_alerts: HepaticAlert[];
+}
+
+export interface RenalDoseAlert {
+  drug_name: string;
+  egfr: number;
+  threshold: number;
+  rule: string;
+}
+
+export interface HepaticAlert {
+  drug_name: string;
+  caution: string;
 }
 
 export interface DoseAlert {

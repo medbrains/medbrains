@@ -4,7 +4,9 @@ import { notifications } from "@mantine/notifications";
 import type {
   AllergyConflict,
   DrugInteractionAlert,
+  HepaticAlert,
   PrescriptionTemplate,
+  RenalDoseAlert,
   WeightDoseAlert,
 } from "@medbrains/types";
 import {
@@ -44,6 +46,8 @@ export interface RxSafety {
   interactions: DrugInteractionAlert[];
   allergy_conflicts: AllergyConflict[];
   weight_alerts: WeightDoseAlert[];
+  renal_alerts: RenalDoseAlert[];
+  hepatic_alerts: HepaticAlert[];
 }
 
 function SafetyRow({
@@ -230,9 +234,17 @@ export function RxDoctor({
   const cautions = prescribingCautions(drugObjs);
   const seriousCautions = cautions.filter((c) => c.serious);
   const weightAlerts = safety.weight_alerts;
+  const renalAlerts = safety.renal_alerts;
+  const hepaticAlerts = safety.hepatic_alerts;
   const pendingCount = items.filter((it) => it.pendingMD).length;
   const reviewCount =
-    major.length + conflicts.length + overMax.length + seriousCautions.length + weightAlerts.length;
+    major.length +
+    conflicts.length +
+    overMax.length +
+    seriousCautions.length +
+    weightAlerts.length +
+    renalAlerts.length +
+    hepaticAlerts.length;
 
   return (
     <Box className={classes.view}>
@@ -493,6 +505,26 @@ export function RxDoctor({
                   )
                   .join(" · ")
               : "Within weight-based range (or not a paediatric patient)"
+          }
+        />
+        <SafetyRow
+          state={renalAlerts.length ? "flag" : "ok"}
+          label="Renal dose · eGFR"
+          detail={
+            renalAlerts.length
+              ? renalAlerts
+                  .map((r) => `${r.drug_name}: ${r.rule} (eGFR ${r.egfr} < ${r.threshold})`)
+                  .join(" · ")
+              : "No renal dose adjustment flagged"
+          }
+        />
+        <SafetyRow
+          state={hepaticAlerts.length ? "warn" : "ok"}
+          label="Hepatic caution"
+          detail={
+            hepaticAlerts.length
+              ? hepaticAlerts.map((h) => `${h.drug_name}: ${h.caution}`).join(" · ")
+              : "No hepatic cautions in order"
           }
         />
       </Drawer>

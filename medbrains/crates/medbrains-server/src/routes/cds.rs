@@ -67,6 +67,21 @@ pub struct WeightDoseAlert {
 }
 
 #[derive(Debug, Serialize)]
+pub struct RenalDoseAlert {
+    pub drug_name: String,
+    pub egfr: f64,
+    pub threshold: f64,
+    /// Pharmacist-authored adjustment rule, e.g. "Reduce dose 50%" / "Avoid".
+    pub rule: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct HepaticAlert {
+    pub drug_name: String,
+    pub caution: String,
+}
+
+#[derive(Debug, Serialize)]
 pub struct DrugInteractionAlert {
     pub drug_a: String,
     pub drug_b: String,
@@ -90,6 +105,8 @@ pub struct DrugSafetyCheckResult {
     pub allergy_conflicts: Vec<AllergyConflict>,
     pub dose_alerts: Vec<DoseAlert>,
     pub weight_alerts: Vec<WeightDoseAlert>,
+    pub renal_alerts: Vec<RenalDoseAlert>,
+    pub hepatic_alerts: Vec<HepaticAlert>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -301,6 +318,18 @@ pub async fn check_drug_safety(
         }
     }
 
+    // Renal (eGFR-based) + hepatic dosing advisory — pharmacist-seeded rules on
+    // the catalogue. Advisory only; never gates prescribing.
+    let (renal_alerts, hepatic_alerts) = if body.items.is_empty() {
+        (Vec::new(), Vec::new())
+    } else {
+        let egfr = match body.patient_id {
+            Some(pid) => patient_latest_egfr(&mut tx, claims.tenant_id, pid).await?,
+            None => None,
+        };
+        renal_hepatic_alerts_for_items(&mut tx, claims.tenant_id, &body.items, egfr).await?
+    };
+
     tx.commit().await?;
 
     Ok(Json(DrugSafetyCheckResult {
@@ -308,7 +337,91 @@ pub async fn check_drug_safety(
         allergy_conflicts,
         dose_alerts,
         weight_alerts,
+        renal_alerts,
+        hepatic_alerts,
     }))
+}
+
+/// Latest recorded eGFR (mL/min/1.73m²) for a patient from lab results, if any.
+async fn patient_latest_egfr(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+) -> Result<Option<f64>, AppError> {
+    let egfr = sqlx::query_scalar::<_, Option<f64>>(
+        "SELECT lr.numeric_value::float8 FROM lab_results lr \
+         JOIN lab_orders lo ON lo.id = lr.order_id AND lo.tenant_id = lr.tenant_id \
+         WHERE lr.tenant_id = $1 AND lo.patient_id = $2 AND lr.numeric_value IS NOT NULL \
+           AND (lower(lr.parameter_name) LIKE '%egfr%' OR lower(lr.parameter_name) LIKE '%gfr%') \
+         ORDER BY lr.created_at DESC LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(patient_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .flatten();
+    Ok(egfr)
+}
+
+/// Renal + hepatic advisories for the given lines from the catalogue rules.
+async fn renal_hepatic_alerts_for_items(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    items: &[DoseCheckItem],
+    egfr: Option<f64>,
+) -> Result<(Vec<RenalDoseAlert>, Vec<HepaticAlert>), AppError> {
+    let catalog_ids: Vec<Uuid> = items.iter().filter_map(|i| i.catalog_item_id).collect();
+    if catalog_ids.is_empty() {
+        return Ok((Vec::new(), Vec::new()));
+    }
+
+    #[derive(sqlx::FromRow)]
+    struct RuleRow {
+        id: Uuid,
+        renal_adjust_egfr_threshold: Option<f64>,
+        renal_adjust_rule: Option<String>,
+        hepatic_caution: Option<String>,
+    }
+    let rows = sqlx::query_as::<_, RuleRow>(
+        "SELECT id, renal_adjust_egfr_threshold::float8, renal_adjust_rule, hepatic_caution \
+         FROM pharmacy_catalog WHERE tenant_id = $1 AND id = ANY($2)",
+    )
+    .bind(tenant_id)
+    .bind(&catalog_ids)
+    .fetch_all(&mut **tx)
+    .await?;
+
+    let mut renal = Vec::new();
+    let mut hepatic = Vec::new();
+    for item in items {
+        let Some(catalog_id) = item.catalog_item_id else {
+            continue;
+        };
+        let Some(row) = rows.iter().find(|r| r.id == catalog_id) else {
+            continue;
+        };
+        if let Some(caution) = row.hepatic_caution.as_deref().filter(|c| !c.trim().is_empty()) {
+            hepatic.push(HepaticAlert {
+                drug_name: item.drug_name.clone(),
+                caution: caution.to_owned(),
+            });
+        }
+        if let (Some(egfr), Some(threshold), Some(rule)) = (
+            egfr,
+            row.renal_adjust_egfr_threshold,
+            row.renal_adjust_rule.as_deref().filter(|r| !r.trim().is_empty()),
+        ) {
+            if egfr < threshold {
+                renal.push(RenalDoseAlert {
+                    drug_name: item.drug_name.clone(),
+                    egfr,
+                    threshold,
+                    rule: rule.to_owned(),
+                });
+            }
+        }
+    }
+    Ok((renal, hepatic))
 }
 
 /// Latest recorded weight (kg) and current age (years) for a patient, when known.

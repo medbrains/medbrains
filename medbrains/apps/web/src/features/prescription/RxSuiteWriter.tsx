@@ -41,7 +41,13 @@ interface Props {
   prescriber?: "doctor" | "nurse";
 }
 
-const EMPTY_SAFETY: RxSafety = { interactions: [], allergy_conflicts: [], weight_alerts: [] };
+const EMPTY_SAFETY: RxSafety = {
+  interactions: [],
+  allergy_conflicts: [],
+  weight_alerts: [],
+  renal_alerts: [],
+  hepatic_alerts: [],
+};
 
 /**
  * Embeddable, backend-wired prescription writer — the rx-suite composer + live
