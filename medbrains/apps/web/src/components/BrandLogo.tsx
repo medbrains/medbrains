@@ -1,6 +1,7 @@
 import { Stack, Text } from "@mantine/core";
 import type { TenantSettingsRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
+import { Image } from "@/components/ui";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 function brandValue(rows: TenantSettingsRow[], key: string): string {
@@ -27,13 +28,7 @@ export function BrandLogo() {
 
   return (
     <>
-      <img
-        src={logoUrl}
-        alt=""
-        width={30}
-        height={30}
-        style={{ borderRadius: 3, objectFit: "contain" }}
-      />
+      <Image src={logoUrl} alt="" w={30} h={30} fit="contain" radius={3} loading="eager" />
       <Stack gap={0} style={{ lineHeight: 1.05 }}>
         <Text size="sm" fw={600} c="var(--mb-text-primary)" style={{ letterSpacing: "-0.02em" }}>
           {displayName}

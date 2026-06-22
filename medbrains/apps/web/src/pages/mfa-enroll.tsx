@@ -8,7 +8,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Navigate, useNavigate } from "react-router";
 import { z } from "zod";
-import { Alert, Button } from "@/components/ui";
+import { Alert, Button, Image } from "@/components/ui";
 
 const activateSchema = z.object({
   code: z.string().length(6, "Enter the 6-digit code from your authenticator app"),
@@ -67,11 +67,12 @@ export function MfaEnrollPage() {
               )}
               {enrollment.data && (
                 <Stack align="center" gap="xs">
-                  <img
+                  <Image
                     src={`data:image/png;base64,${enrollment.data.qr_png_base64}`}
                     alt="Authenticator QR code"
-                    width={200}
-                    height={200}
+                    w={200}
+                    h={200}
+                    fit="contain"
                   />
                   <Text size="xs" c="dimmed">
                     Can't scan? Enter manually: <Code>{enrollment.data.secret}</Code>

@@ -1,6 +1,7 @@
 import { Button, Group } from "@mantine/core";
 import { IconDownload, IconPrinter } from "@tabler/icons-react";
 import { useMemo, useRef } from "react";
+import { Image } from "@/components/ui";
 import classes from "./document-renderer.module.scss";
 
 // ── Types ───────────────────────────────────────────────
@@ -127,7 +128,13 @@ function HospitalHeader({ info, t }: { info?: HospitalInfo; t: TemplateLayout })
   return (
     <div className={classes.hospitalHeader}>
       {t.show_logo && info.logo_url && (
-        <img src={info.logo_url} alt="Logo" className={classes.hospitalLogo} />
+        <Image
+          src={info.logo_url}
+          alt="Logo"
+          className={classes.hospitalLogo}
+          fit="contain"
+          loading="eager"
+        />
       )}
       <div className={classes.hospitalInfo}>
         {t.show_hospital_name && <h2>{info.name}</h2>}

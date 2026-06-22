@@ -29,6 +29,7 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Image } from "@/components/ui";
 import { paymentsService } from "@/services/payments.service";
 import { VirtualAccountPanel } from "./VirtualAccountPanel";
 
@@ -572,12 +573,13 @@ function QrCodeDisplay({ value }: { value: string }) {
           border: "1px solid var(--mantine-color-gray-3)",
         }}
       >
-        <img
+        <Image
           src={`https://chart.googleapis.com/chart?cht=qr&chs=180x180&chl=${encodeURIComponent(value)}`}
           alt="UPI QR Code"
-          width={180}
-          height={180}
-          style={{ borderRadius: 4 }}
+          w={180}
+          h={180}
+          fit="contain"
+          radius={4}
         />
       </div>
       <TextInput

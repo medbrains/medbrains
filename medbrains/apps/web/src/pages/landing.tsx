@@ -29,7 +29,7 @@ import {
 } from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Image } from "@/components/ui";
 import classes from "./landing.module.scss";
 
 interface FeatureEntry {
@@ -302,12 +302,14 @@ export function LandingPage() {
       <nav className={classes.navbar}>
         <div className={classes.navbarInner}>
           <div className={classes.navLogo}>
-            <img
+            <Image
               src="/logo/medbrains-mark.svg"
               alt=""
-              width={32}
-              height={32}
-              style={{ borderRadius: 6 }}
+              w={32}
+              h={32}
+              fit="contain"
+              radius={6}
+              loading="eager"
             />
             <span className={classes.navLogoText}>MedBrains</span>
           </div>
@@ -498,12 +500,13 @@ export function LandingPage() {
           <div className={classes.footerGrid}>
             <div className={classes.footerBrand}>
               <Group gap={10}>
-                <img
+                <Image
                   src="/logo/medbrains-mark.svg"
                   alt=""
-                  width={28}
-                  height={28}
-                  style={{ borderRadius: 5 }}
+                  w={28}
+                  h={28}
+                  fit="contain"
+                  radius={5}
                 />
                 <span className={classes.footerBrandName}>MedBrains</span>
               </Group>

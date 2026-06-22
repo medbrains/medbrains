@@ -3,7 +3,7 @@ import { notifications } from "@mantine/notifications";
 import { IconBuildingBank, IconCheck, IconCopy } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, Image } from "@/components/ui";
 import { paymentsService } from "@/services/payments.service";
 
 interface VaReceiver {
@@ -141,14 +141,16 @@ export function VirtualAccountPanel({ invoiceId, amount, patientName, onSettled 
         <Stack gap={6} align="center">
           <CopyField label="UPI ID" value={vpa} />
           {upiUri && (
-            <img
+            <Image
               src={`https://chart.googleapis.com/chart?cht=qr&chs=180x180&chl=${encodeURIComponent(
                 upiUri,
               )}`}
               alt="UPI virtual-account QR"
-              width={180}
-              height={180}
-              style={{ borderRadius: 4, border: "1px solid var(--mb-border-subtle)" }}
+              w={180}
+              h={180}
+              fit="contain"
+              radius={4}
+              style={{ border: "1px solid var(--mb-border-subtle)" }}
             />
           )}
         </Stack>

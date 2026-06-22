@@ -12,6 +12,7 @@ import {
   Card,
   Drawer,
   IconButton,
+  Image,
   Input,
   RichTextEditor,
   Select,
@@ -100,7 +101,7 @@ export function BlogSection() {
           {posts.map((post) => (
             <Card key={post.id} withBorder className={styles.card} onClick={() => setReading(post)}>
               {post.cover_image_url && (
-                <img className={styles.cover} src={post.cover_image_url} alt="" />
+                <Image className={styles.cover} src={post.cover_image_url} alt="" />
               )}
               <Group justify="space-between" gap="xs" mt={post.cover_image_url ? "sm" : 0}>
                 <Text className={styles.cardTitle}>{post.title}</Text>
@@ -154,7 +155,7 @@ export function BlogSection() {
               {reading.author_name ?? "Hospital"} · {formatDate(reading.published_at)}
             </Text>
             {reading.cover_image_url && (
-              <img className={styles.readerCover} src={reading.cover_image_url} alt="" />
+              <Image className={styles.readerCover} src={reading.cover_image_url} alt="" />
             )}
             {/* biome-ignore lint/security/noDangerouslySetInnerHtml: body is sanitized tiptap HTML authored by trusted hospital staff */}
             <div

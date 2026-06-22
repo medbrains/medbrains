@@ -8,7 +8,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, Navigate, useNavigate } from "react-router";
-import { Alert, Button } from "@/components/ui";
+import { Alert, Button, Image } from "@/components/ui";
 import {
   DEFAULT_LOGIN_FORM_VALUES,
   type LoginFormInput,
@@ -118,12 +118,14 @@ export function LoginPage() {
       {/* Left — dark forest manifesto panel */}
       <div className={classes.manifesto}>
         <div className={classes.manifestoLogo}>
-          <img
+          <Image
             src="/logo/medbrains-mark.svg"
             alt=""
-            width={36}
-            height={36}
-            style={{ borderRadius: 8 }}
+            w={36}
+            h={36}
+            fit="contain"
+            radius={8}
+            loading="eager"
           />
           <span className={classes.manifestoLogoText}>MedBrains</span>
         </div>
@@ -174,12 +176,14 @@ export function LoginPage() {
       <div className={classes.formSide}>
         <div className={classes.container}>
           <Stack align="center" gap="sm" mb="xl">
-            <img
+            <Image
               src="/logo/medbrains-mark.svg"
               alt="MedBrains"
-              width={48}
-              height={48}
-              style={{ borderRadius: 12 }}
+              w={48}
+              h={48}
+              fit="contain"
+              radius={12}
+              loading="eager"
               className={classes.mobileLogo}
             />
             <Text size="xl" fw={700} c="var(--mb-text-primary)">
