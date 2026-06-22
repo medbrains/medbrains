@@ -10,21 +10,14 @@ import { type CrdtConnectionStatus, useAppendOnlyCrdtList } from "@medbrains/crd
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useTenantConfig } from "@/providers/TenantConfigProvider";
-import { clinicalSourcesService } from "@/services/clinicalSources.service";
+import {
+  clinicalSourcesService,
+  type TriageEntry,
+  type TriageEntryInput,
+} from "@/services/clinicalSources.service";
 
-export interface TriageEntry extends Record<string, unknown> {
-  ts: number;
-  author: string;
-  esi_level: 1 | 2 | 3 | 4 | 5;
-  chief_complaint: string;
-  observation: string;
-}
-
-export interface TriageEntryInput {
-  esi_level: 1 | 2 | 3 | 4 | 5;
-  chief_complaint: string;
-  observation: string;
-}
+// Re-exported here so existing importers (TriagePanel) keep their import path.
+export type { TriageEntry, TriageEntryInput };
 
 export interface TriageSourceResult {
   entries: TriageEntry[];

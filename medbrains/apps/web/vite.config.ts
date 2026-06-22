@@ -80,7 +80,8 @@ export default defineConfig(async ({ command }) => {
       // order — the prod-only "Cannot access 'X' before initialization" / "Jk is
       // not a function" crashes. Rollup's automatic chunking computes a
       // TDZ-safe order and still code-splits the lazy routes. See vitejs/vite
-      // discussion #14090 and issue #12209.
+      // discussion #14090 and issue #12209. Circular deps are caught separately
+      // by `make check-circular` (madge) — see Makefile.
     },
     // Pre-bundle the tiptap editor deps so adding them never triggers a
     // late re-optimize / 504 "Outdated Optimize Dep" on the dev server.

@@ -267,13 +267,16 @@ check-ui-api: ## Verify UI pages ↔ API method coverage
 check-types: ## Verify TS ↔ Rust type field contracts
 	python3 ../scripts/check_type_contract.py
 
+check-circular: ## Fail on circular imports in the web app (prevents TDZ-class build crashes)
+	pnpm --filter=@medbrains/web run check:circular
+
 check-nav-drift: ## Verify navigation.ts in sync with access::SCREENS
 	python3 scripts/check_nav_drift.py
 
 check-ui-seam: ## Verify pages use @/components/ui (not raw Mantine Button/Badge)
 	python3 scripts/check_ui_seam.py
 
-check-all: check-api check-ui-api check-types check-nav-drift check-ui-seam check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
+check-all: check-api check-ui-api check-types check-circular check-nav-drift check-ui-seam check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
 
 # ── Audit / Authz Static Checks (RFC-INFRA-2026-002 Phase 0) ─
 

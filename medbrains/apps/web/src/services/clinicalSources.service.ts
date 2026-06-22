@@ -1,5 +1,20 @@
 import { api } from "@medbrains/api";
-import type { TriageEntry, TriageEntryInput } from "@/hooks/useTriageSource";
+
+// API DTOs live with the service (not the hook) so the service never has to
+// import back from the hook — that was the one circular dependency in the app.
+export interface TriageEntry extends Record<string, unknown> {
+  ts: number;
+  author: string;
+  esi_level: 1 | 2 | 3 | 4 | 5;
+  chief_complaint: string;
+  observation: string;
+}
+
+export interface TriageEntryInput {
+  esi_level: 1 | 2 | 3 | 4 | 5;
+  chief_complaint: string;
+  observation: string;
+}
 
 interface NarrativeNotes {
   text: string;
