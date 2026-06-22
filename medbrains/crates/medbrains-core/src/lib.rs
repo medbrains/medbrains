@@ -17,6 +17,7 @@
 //! - [`audit`] — Audit log entry types with SHA-256 chain
 
 pub mod access;
+pub mod allergy;
 pub mod ambulance;
 pub mod analytics;
 pub mod appointment;

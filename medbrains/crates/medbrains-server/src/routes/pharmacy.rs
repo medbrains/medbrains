@@ -2670,64 +2670,37 @@ pub async fn dispense_order(
     // Allergy backstop — the last barrier before a drug reaches the patient.
     // Warn & require an acknowledged reason (logged); never a silent pass,
     // never a hard block (prior tolerance / desensitisation / no alternative).
-    let allergens = sqlx::query_scalar::<_, String>(
-        "SELECT allergen_name FROM patient_allergies \
-         WHERE tenant_id = $1 AND patient_id = $2 AND is_active = true \
-           AND allergy_type = 'drug'",
-    )
-    .bind(claims.tenant_id)
-    .bind(order.patient_id)
-    .fetch_all(&mut *tx)
-    .await?;
-    if !allergens.is_empty() {
-        let mut conflicts: Vec<(&PharmacyOrderItem, &String)> = Vec::new();
-        for item in &items {
-            let drug = item.drug_name.to_lowercase();
-            for allergen in &allergens {
-                let a = allergen.trim().to_lowercase();
-                if !a.is_empty() && (drug.contains(&a) || a.contains(&drug)) {
-                    conflicts.push((item, allergen));
-                    break;
-                }
+    let dispense_drug_names: Vec<String> = items.iter().map(|i| i.drug_name.clone()).collect();
+    let allergy_conflicts =
+        drug_allergy_conflicts(&mut tx, claims.tenant_id, order.patient_id, &dispense_drug_names)
+            .await?;
+    if !allergy_conflicts.is_empty() {
+        let reason = body
+            .allergy_override_reason
+            .as_deref()
+            .map(str::trim)
+            .filter(|r| !r.is_empty());
+        match reason {
+            None => {
+                return Err(AppError::BadRequest(format!(
+                    "Patient has a documented drug allergy conflicting with: {}. Provide an override reason to dispense.",
+                    allergy_conflict_summary(&allergy_conflicts)
+                )));
             }
-        }
-        if !conflicts.is_empty() {
-            let reason = body
-                .allergy_override_reason
-                .as_deref()
-                .map(str::trim)
-                .filter(|r| !r.is_empty());
-            match reason {
-                None => {
-                    let summary = conflicts
-                        .iter()
-                        .map(|(it, a)| format!("{} (allergy: {a})", it.drug_name))
-                        .collect::<Vec<_>>()
-                        .join("; ");
-                    return Err(AppError::BadRequest(format!(
-                        "Patient has a documented drug allergy conflicting with: {summary}. Provide an override reason to dispense."
-                    )));
-                }
-                Some(reason) => {
-                    for (item, allergen) in &conflicts {
-                        sqlx::query(
-                            "INSERT INTO pharmacy_allergy_check_log \
-                             (tenant_id, patient_id, catalog_item_id, drug_name, allergen_matched, \
-                              action_taken, overridden_by, override_reason, context, order_id) \
-                             VALUES ($1, $2, $3, $4, $5, 'overridden', $6, $7, 'dispensing', $8)",
-                        )
-                        .bind(claims.tenant_id)
-                        .bind(order.patient_id)
-                        .bind(item.catalog_item_id)
-                        .bind(&item.drug_name)
-                        .bind(*allergen)
-                        .bind(claims.sub)
-                        .bind(reason)
-                        .bind(order.id)
-                        .execute(&mut *tx)
-                        .await?;
-                    }
-                }
+            Some(reason) => {
+                log_allergy_overrides(
+                    &mut tx,
+                    &allergy_conflicts,
+                    &AllergyOverrideLog {
+                        tenant_id: claims.tenant_id,
+                        patient_id: order.patient_id,
+                        overridden_by: claims.sub,
+                        reason,
+                        context: "dispensing",
+                        order_id: Some(order.id),
+                    },
+                )
+                .await?;
             }
         }
     }
@@ -3348,15 +3321,15 @@ pub async fn validate_order(
 //  POST /api/pharmacy/otc-sale
 // ══════════════════════════════════════════════════════════
 
-/// Active drug-allergy conflicts for a patient against the given drug names.
-/// Fuzzy case-insensitive substring match (either direction). Shared by the
-/// dispense / OTC-sale / POS-sale allergy guards.
+/// Active drug-allergy conflicts for a patient against the given drug names,
+/// including cross-reactivity classes (via `medbrains_core::allergy`). Shared by
+/// the dispense / OTC-sale / POS-sale allergy guards.
 async fn drug_allergy_conflicts(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
     patient_id: Uuid,
     drug_names: &[String],
-) -> Result<Vec<(String, String)>, AppError> {
+) -> Result<Vec<medbrains_core::allergy::DrugAllergyConflict>, AppError> {
     let allergens = sqlx::query_scalar::<_, String>(
         "SELECT allergen_name FROM patient_allergies \
          WHERE tenant_id = $1 AND patient_id = $2 AND is_active = true \
@@ -3369,55 +3342,56 @@ async fn drug_allergy_conflicts(
     if allergens.is_empty() {
         return Ok(Vec::new());
     }
-    let mut conflicts = Vec::new();
-    for drug in drug_names {
-        let d = drug.to_lowercase();
-        for allergen in &allergens {
-            let a = allergen.trim().to_lowercase();
-            if !a.is_empty() && (d.contains(&a) || a.contains(&d)) {
-                conflicts.push((drug.clone(), allergen.clone()));
-                break;
-            }
-        }
-    }
-    Ok(conflicts)
+    Ok(medbrains_core::allergy::find_conflicts(drug_names, &allergens))
 }
 
-/// Human-readable "drug (allergy: allergen); …" summary for a 400 message.
-fn allergy_conflict_summary(conflicts: &[(String, String)]) -> String {
+/// Human-readable "drug (allergy: allergen[, cross-reactive]); …" 400 summary.
+fn allergy_conflict_summary(conflicts: &[medbrains_core::allergy::DrugAllergyConflict]) -> String {
     conflicts
         .iter()
-        .map(|(drug, allergen)| format!("{drug} (allergy: {allergen})"))
+        .map(|c| {
+            let cross = if c.kind == medbrains_core::allergy::AllergyMatchKind::CrossReactive {
+                format!(", cross-reactive {}", c.class.as_deref().unwrap_or("class"))
+            } else {
+                String::new()
+            };
+            format!("{} (allergy: {}{cross})", c.drug_name, c.allergen)
+        })
         .collect::<Vec<_>>()
         .join("; ")
+}
+
+/// Context for recording acknowledged allergy overrides.
+struct AllergyOverrideLog<'a> {
+    tenant_id: Uuid,
+    patient_id: Uuid,
+    overridden_by: Uuid,
+    reason: &'a str,
+    context: &'a str,
+    order_id: Option<Uuid>,
 }
 
 /// Record acknowledged allergy overrides to `pharmacy_allergy_check_log`.
 async fn log_allergy_overrides(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: Uuid,
-    patient_id: Uuid,
-    conflicts: &[(String, String)],
-    overridden_by: Uuid,
-    reason: &str,
-    context: &str,
-    order_id: Option<Uuid>,
+    conflicts: &[medbrains_core::allergy::DrugAllergyConflict],
+    log: &AllergyOverrideLog<'_>,
 ) -> Result<(), AppError> {
-    for (drug, allergen) in conflicts {
+    for c in conflicts {
         sqlx::query(
             "INSERT INTO pharmacy_allergy_check_log \
              (tenant_id, patient_id, drug_name, allergen_matched, action_taken, \
               overridden_by, override_reason, context, order_id) \
              VALUES ($1, $2, $3, $4, 'overridden', $5, $6, $7, $8)",
         )
-        .bind(tenant_id)
-        .bind(patient_id)
-        .bind(drug)
-        .bind(allergen)
-        .bind(overridden_by)
-        .bind(reason)
-        .bind(context)
-        .bind(order_id)
+        .bind(log.tenant_id)
+        .bind(log.patient_id)
+        .bind(&c.drug_name)
+        .bind(&c.allergen)
+        .bind(log.overridden_by)
+        .bind(log.reason)
+        .bind(log.context)
+        .bind(log.order_id)
         .execute(&mut **tx)
         .await?;
     }
@@ -3483,13 +3457,15 @@ pub async fn create_otc_sale(
         if !allergy_conflicts.is_empty() {
             log_allergy_overrides(
                 &mut tx,
-                claims.tenant_id,
-                pid,
                 &allergy_conflicts,
-                claims.sub,
-                reason,
-                "pos_sale",
-                Some(order.id),
+                &AllergyOverrideLog {
+                    tenant_id: claims.tenant_id,
+                    patient_id: pid,
+                    overridden_by: claims.sub,
+                    reason,
+                    context: "pos_sale",
+                    order_id: Some(order.id),
+                },
             )
             .await?;
         }
@@ -6001,13 +5977,15 @@ pub async fn create_pos_sale(
         if !allergy_conflicts.is_empty() {
             log_allergy_overrides(
                 &mut tx,
-                claims.tenant_id,
-                pid,
                 &allergy_conflicts,
-                claims.sub,
-                reason,
-                "pos_sale",
-                Some(order.id),
+                &AllergyOverrideLog {
+                    tenant_id: claims.tenant_id,
+                    patient_id: pid,
+                    overridden_by: claims.sub,
+                    reason,
+                    context: "pos_sale",
+                    order_id: Some(order.id),
+                },
             )
             .await?;
         }

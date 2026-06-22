@@ -2265,15 +2265,14 @@ pub async fn create_prescription(
         .bind(pid)
         .fetch_all(&mut *tx)
         .await?;
-        for item in &body.items {
-            let drug = item.drug_name.to_lowercase();
-            for allergen in &allergens {
-                let a = allergen.trim().to_lowercase();
-                if !a.is_empty() && (drug.contains(&a) || a.contains(&drug)) {
-                    allergy_conflicts.push(format!("{} (allergy: {allergen})", item.drug_name));
-                    break;
-                }
-            }
+        let drug_names: Vec<String> = body.items.iter().map(|i| i.drug_name.clone()).collect();
+        for c in medbrains_core::allergy::find_conflicts(&drug_names, &allergens) {
+            let cross = if c.kind == medbrains_core::allergy::AllergyMatchKind::CrossReactive {
+                format!(", cross-reactive {}", c.class.as_deref().unwrap_or("class"))
+            } else {
+                String::new()
+            };
+            allergy_conflicts.push(format!("{} (allergy: {}{cross})", c.drug_name, c.allergen));
         }
     }
     let allergy_reason = body

@@ -15,6 +15,7 @@ import { useMemo, useState } from "react";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { Card, Checkbox, SegmentedControl } from "@/components/ui";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
+import { matchDrugAllergy } from "@/utils/allergyMatch";
 import classes from "./prescription.module.scss";
 import { RxDoctor, type RxSafety } from "./RxDoctor";
 import { RxPrint } from "./RxPrint";
@@ -173,13 +174,15 @@ export function RxSuiteWriter({
   const safetyIssues = (items: RxItem[]): SafetyIssue[] => {
     const issues: SafetyIssue[] = [];
     for (const it of items) {
-      const name = it.name.toLowerCase();
-      const allergen = allergies.find((a) => {
-        const al = a.trim().toLowerCase();
-        return al.length > 0 && (name.includes(al) || al.includes(name));
-      });
-      if (allergen) {
-        issues.push({ kind: "allergy", name: it.name, detail: `Documented allergy: ${allergen}` });
+      const conflict = allergies
+        .map((a) => ({ allergen: a, hit: matchDrugAllergy(it.name, a) }))
+        .find((c) => c.hit !== null);
+      if (conflict) {
+        issues.push({
+          kind: "allergy",
+          name: it.name,
+          detail: `Documented allergy: ${conflict.allergen}${conflict.hit?.cross ? ` (cross-reactive ${conflict.hit.class})` : ""}`,
+        });
       }
       const drug = formularyById[it.id];
       const hit = drug ? maxDoseExceeded(it, drug) : null;

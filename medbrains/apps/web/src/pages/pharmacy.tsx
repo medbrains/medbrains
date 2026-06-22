@@ -177,6 +177,7 @@ import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { confirmDestructive } from "@/lib/confirm-destructive";
 import { instructionsDisplayText } from "@/lib/medication-timing-utils";
 import { pharmacyService } from "@/services/pharmacy.service";
+import { findAllergyConflicts } from "@/utils/allergyMatch";
 import styles from "./pharmacy.module.scss";
 import { pharmacyOrderJourneyContext } from "./pharmacy-workspace";
 
@@ -6420,16 +6421,10 @@ function PosCounterTab({
       .filter((a) => a.is_active && a.allergy_type === "drug")
       .map((a) => a.allergen_name);
     if (allergens.length === 0) return [];
-    return (cart ?? [])
-      .map((c) => {
-        const drug = (c.drug_name ?? "").toLowerCase();
-        const allergen = allergens.find((a) => {
-          const al = a.trim().toLowerCase();
-          return al.length > 0 && drug.length > 0 && (drug.includes(al) || al.includes(drug));
-        });
-        return allergen ? { drug: c.drug_name, allergen } : null;
-      })
-      .filter((x): x is { drug: string; allergen: string } => x !== null);
+    return findAllergyConflicts(
+      (cart ?? []).map((c) => c.drug_name ?? ""),
+      allergens,
+    );
   }, [cart, posPatientAllergies]);
   const posAllergyBlocked = posAllergyConflicts.length > 0 && posAllergyReason.trim().length < 5;
 
@@ -6968,6 +6963,7 @@ function PosCounterTab({
                   {posAllergyConflicts.map((c) => (
                     <Text key={c.drug} size="sm">
                       <b>{c.drug}</b> — patient allergic to {c.allergen}
+                      {c.cross ? " (cross-reactive)" : ""}
                     </Text>
                   ))}
                   <Textarea

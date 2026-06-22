@@ -8,6 +8,7 @@ import { NumberField } from "@/components/ui/Input";
 import { adminAccessService } from "@/services/adminAccess.service";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { pharmacyService } from "@/services/pharmacy.service";
+import { findAllergyConflicts } from "@/utils/allergyMatch";
 
 interface Props {
   opened: boolean;
@@ -75,19 +76,16 @@ export function DispenseModal({
   // Last-barrier allergy check: a dispensable line whose drug name matches a
   // documented allergen. Warn & require an acknowledged reason (logged server-
   // side); the server re-checks independently as the backstop.
-  const allergyConflicts = useMemo(() => {
-    if (patientAllergens.length === 0) return [];
-    return lines
-      .map((l) => {
-        const drug = l.item.drug_name.toLowerCase();
-        const allergen = patientAllergens.find((a) => {
-          const al = a.trim().toLowerCase();
-          return al.length > 0 && (drug.includes(al) || al.includes(drug));
-        });
-        return allergen ? { drug: l.item.drug_name, allergen } : null;
-      })
-      .filter((c): c is { drug: string; allergen: string } => c !== null);
-  }, [lines, patientAllergens]);
+  const allergyConflicts = useMemo(
+    () =>
+      patientAllergens.length === 0
+        ? []
+        : findAllergyConflicts(
+            lines.map((l) => l.item.drug_name),
+            patientAllergens,
+          ),
+    [lines, patientAllergens],
+  );
   const allergyBlocked = allergyConflicts.length > 0 && allergyReason.trim().length < 5;
 
   const rowFor = (itemId: string, remaining: number): RowState =>
@@ -166,6 +164,7 @@ export function DispenseModal({
               {allergyConflicts.map((c) => (
                 <Text key={c.drug} size="sm">
                   <b>{c.drug}</b> — patient allergic to {c.allergen}
+                  {c.cross ? " (cross-reactive)" : ""}
                 </Text>
               ))}
               <Textarea
