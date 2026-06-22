@@ -15,11 +15,12 @@ import { useMemo, useState } from "react";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { Card, Checkbox, SegmentedControl } from "@/components/ui";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
+import { type DoseExceedanceView, DoseOverrideModal } from "./DoseOverrideModal";
 import classes from "./prescription.module.scss";
 import { RxDoctor, type RxSafety } from "./RxDoctor";
 import { RxPrint } from "./RxPrint";
 import { catalogToFormulary, prescriptionItemsToRx, rxItemsToInput } from "./rxAdapter";
-import type { FormularyDrug, RxItem } from "./rxModel";
+import { type FormularyDrug, maxDoseExceeded, type RxItem } from "./rxModel";
 
 interface Props {
   encounterId: string;
@@ -69,6 +70,8 @@ export function RxSuiteWriter({
   const [orderMode, setOrderMode] = useState<RxOrderMode>("written");
   const [orderingDoctorId, setOrderingDoctorId] = useState("");
   const [readBack, setReadBack] = useState(false);
+  const [pendingItems, setPendingItems] = useState<RxItem[] | null>(null);
+  const [overrideExceedances, setOverrideExceedances] = useState<DoseExceedanceView[]>([]);
   const isVerbal = prescriber === "nurse" && orderMode !== "written";
 
   const { data: catalog = [] } = useQuery({
@@ -141,18 +144,10 @@ export function RxSuiteWriter({
     void runSafety(items.map((i) => i.name));
   };
 
-  const handleSave = (items: RxItem[]) => {
-    if (!canUpdate || items.length === 0) return;
-    if (isVerbal && (!orderingDoctorId || !readBack)) {
-      notifications.show({
-        title: "Verbal order incomplete",
-        message: "Select the ordering doctor and confirm read-back before saving.",
-        color: "warning",
-      });
-      return;
-    }
+  const doSave = (items: RxItem[], doseOverrideReason?: string) => {
     onSave({
       items: rxItemsToInput(items),
+      ...(doseOverrideReason ? { dose_override_reason: doseOverrideReason } : {}),
       ...(isVerbal
         ? {
             order_mode: orderMode,
@@ -163,6 +158,39 @@ export function RxSuiteWriter({
     });
     setSafety(EMPTY_SAFETY);
     setReadBack(false);
+  };
+
+  const handleSave = (items: RxItem[]) => {
+    if (!canUpdate || items.length === 0) return;
+    if (isVerbal && (!orderingDoctorId || !readBack)) {
+      notifications.show({
+        title: "Verbal order incomplete",
+        message: "Select the ordering doctor and confirm read-back before saving.",
+        color: "warning",
+      });
+      return;
+    }
+    // Daily dose over the catalogue max → require an acknowledged reason
+    // (logged). The server independently re-checks as a backstop.
+    const exceedances = items
+      .map((it) => {
+        const drug = formularyById[it.id];
+        const hit = drug ? maxDoseExceeded(it, drug) : null;
+        return hit ? { name: it.name, label: hit.totalLabel } : null;
+      })
+      .filter((e): e is DoseExceedanceView => e !== null);
+    if (exceedances.length > 0) {
+      setPendingItems(items);
+      setOverrideExceedances(exceedances);
+      return;
+    }
+    doSave(items);
+  };
+
+  const confirmOverride = (reason: string) => {
+    if (pendingItems) doSave(pendingItems, reason);
+    setPendingItems(null);
+    setOverrideExceedances([]);
   };
 
   const signer = {
@@ -239,6 +267,16 @@ export function RxSuiteWriter({
         formularyById={formularyById}
         patientName={patientName}
         uhid={uhid}
+      />
+      <DoseOverrideModal
+        opened={pendingItems !== null}
+        exceedances={overrideExceedances}
+        saving={Boolean(isSaving)}
+        onConfirm={confirmOverride}
+        onClose={() => {
+          setPendingItems(null);
+          setOverrideExceedances([]);
+        }}
       />
     </Box>
   );

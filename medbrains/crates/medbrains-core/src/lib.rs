@@ -45,6 +45,7 @@ pub mod deploy_mode;
 pub mod device;
 pub mod diet;
 pub mod document;
+pub mod dose_safety;
 pub mod emergency;
 pub mod encounter;
 pub mod facilities_mgmt;

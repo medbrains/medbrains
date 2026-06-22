@@ -315,6 +315,9 @@ pub struct CreatePrescriptionRequest {
     pub ordering_doctor_id: Option<Uuid>,
     /// Read-back confirmation — mandatory for verbal/telephone orders.
     pub read_back_confirmed: Option<bool>,
+    /// Clinician's reason for prescribing over the catalogue max dose. Required
+    /// (non-blank) when any line exceeds `max_dose_per_day`; logged to audit.
+    pub dose_override_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2204,6 +2207,39 @@ pub async fn create_prescription(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // Dose-safety backstop: flag any line whose daily total exceeds the
+    // catalogue max. Advisory — overridable with a reason (logged), never a
+    // hard block. The CDS rail surfaces the same alerts before save.
+    let dose_check_items: Vec<super::cds::DoseCheckItem> = body
+        .items
+        .iter()
+        .map(|i| super::cds::DoseCheckItem {
+            drug_name: i.drug_name.clone(),
+            dosage: i.dosage.clone(),
+            frequency: i.frequency.clone(),
+            catalog_item_id: i.catalog_item_id,
+        })
+        .collect();
+    let dose_alerts =
+        super::cds::dose_alerts_for_items(&mut tx, claims.tenant_id, &dose_check_items).await?;
+    let override_reason = body
+        .dose_override_reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|r| !r.is_empty());
+    if !dose_alerts.is_empty() && override_reason.is_none() {
+        let summary = dose_alerts
+            .iter()
+            .map(|a| {
+                format!("{} {}/day exceeds max {}", a.drug_name, a.total_per_day_label, a.max_per_day_label)
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(AppError::BadRequest(format!(
+            "Dose exceeds the catalogue maximum ({summary}). Provide an override reason to proceed."
+        )));
+    }
+
     let rx = sqlx::query_as::<_, Prescription>(
         "INSERT INTO prescriptions \
            (tenant_id, encounter_id, doctor_id, notes, order_mode, transcribed_by, \
@@ -2220,6 +2256,38 @@ pub async fn create_prescription(
     .bind(countersign_due)
     .fetch_one(&mut *tx)
     .await?;
+
+    if let Some(reason) = override_reason {
+        let audit_values = serde_json::json!({
+            "prescription_id": rx.id,
+            "encounter_id": encounter_id,
+            "override_reason": reason,
+            "exceedances": dose_alerts
+                .iter()
+                .map(|a| serde_json::json!({
+                    "drug_name": a.drug_name,
+                    "per_dose": a.per_dose,
+                    "doses_per_day": a.doses_per_day,
+                    "total_per_day": a.total_per_day_label,
+                    "max_per_day": a.max_per_day_label,
+                }))
+                .collect::<Vec<_>>(),
+        });
+        medbrains_db::audit::AuditLogger::log(
+            &mut tx,
+            &medbrains_db::audit::AuditEntry {
+                tenant_id: claims.tenant_id,
+                user_id: Some(claims.sub),
+                action: "prescription.dose_override",
+                entity_type: "prescription",
+                entity_id: Some(rx.id),
+                old_values: None,
+                new_values: Some(&audit_values),
+                ip_address: None,
+            },
+        )
+        .await?;
+    }
 
     let mut items = Vec::with_capacity(body.items.len());
     for item in &body.items {

@@ -99,6 +99,19 @@ pub fn is_prn(frequency: &str) -> bool {
     f.contains("PRN") || f.contains("SOS") || f.contains("ASNEEDED") || f.contains("AS NEEDED")
 }
 
+/// Number of scheduled administrations per day for a recurring frequency.
+///
+/// Returns `None` for as-needed (PRN/SOS) — which has no fixed daily total —
+/// and for frequencies we do not recognise. Used by dose-safety to derive the
+/// daily dose from a per-dose amount.
+#[must_use]
+pub fn doses_per_day(frequency: &str) -> Option<u32> {
+    if is_prn(frequency) {
+        return None;
+    }
+    round_hours(frequency).map(|hours| hours.len() as u32)
+}
+
 /// True if the frequency means a single immediate dose.
 fn is_stat(frequency: &str) -> bool {
     let f: String = frequency

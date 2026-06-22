@@ -31,6 +31,29 @@ use crate::{
 pub struct CheckDrugInteractionsRequest {
     pub drug_names: Vec<String>,
     pub patient_id: Option<Uuid>,
+    /// Per-line dose context for max-dose-per-day checking (optional —
+    /// `drug_names` alone still drives the DDI + allergy checks).
+    #[serde(default)]
+    pub items: Vec<DoseCheckItem>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DoseCheckItem {
+    pub drug_name: String,
+    /// Per-dose amount as written, e.g. "500 mg".
+    pub dosage: String,
+    /// Frequency code, e.g. "TID" / "1-0-1".
+    pub frequency: String,
+    pub catalog_item_id: Option<Uuid>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DoseAlert {
+    pub drug_name: String,
+    pub per_dose: String,
+    pub doses_per_day: u32,
+    pub total_per_day_label: String,
+    pub max_per_day_label: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -55,6 +78,7 @@ pub struct AllergyConflict {
 pub struct DrugSafetyCheckResult {
     pub interactions: Vec<DrugInteractionAlert>,
     pub allergy_conflicts: Vec<AllergyConflict>,
+    pub dose_alerts: Vec<DoseAlert>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -247,12 +271,83 @@ pub async fn check_drug_safety(
         }
     }
 
+    let dose_alerts = dose_alerts_for_items(&mut tx, claims.tenant_id, &body.items).await?;
+
     tx.commit().await?;
 
     Ok(Json(DrugSafetyCheckResult {
         interactions,
         allergy_conflicts,
+        dose_alerts,
     }))
+}
+
+/// Compute max-dose-per-day exceedances for the given prescription lines.
+///
+/// Looks up each line's catalogue `max_dose_per_day`, derives doses/day from
+/// the frequency, and flags lines whose daily total exceeds the maximum.
+/// Shared by the CDS advisory check and the prescribe-time backstop.
+pub async fn dose_alerts_for_items(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    items: &[DoseCheckItem],
+) -> Result<Vec<DoseAlert>, AppError> {
+    let catalog_ids: Vec<Uuid> = items.iter().filter_map(|i| i.catalog_item_id).collect();
+    if catalog_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    #[derive(sqlx::FromRow)]
+    struct MaxDoseRow {
+        id: Uuid,
+        max_dose_per_day: Option<String>,
+    }
+    let rows = sqlx::query_as::<_, MaxDoseRow>(
+        "SELECT id, max_dose_per_day FROM pharmacy_catalog \
+         WHERE tenant_id = $1 AND id = ANY($2)",
+    )
+    .bind(tenant_id)
+    .bind(&catalog_ids)
+    .fetch_all(&mut **tx)
+    .await?;
+
+    let mut alerts = Vec::new();
+    for item in items {
+        let Some(catalog_id) = item.catalog_item_id else {
+            continue;
+        };
+        let Some(max_raw) = rows
+            .iter()
+            .find(|r| r.id == catalog_id)
+            .and_then(|r| r.max_dose_per_day.as_deref())
+        else {
+            continue;
+        };
+        let Some(doses) = medbrains_core::mar_schedule::doses_per_day(&item.frequency) else {
+            continue;
+        };
+        if let Some(hit) =
+            medbrains_core::dose_safety::evaluate_max_dose(&item.dosage, doses, max_raw)
+        {
+            alerts.push(DoseAlert {
+                drug_name: item.drug_name.clone(),
+                per_dose: item.dosage.clone(),
+                doses_per_day: doses,
+                total_per_day_label: format!("{} {}", trim_float(hit.total_per_day), hit.unit),
+                max_per_day_label: format!("{} {}", trim_float(hit.max_per_day), hit.unit),
+            });
+        }
+    }
+    Ok(alerts)
+}
+
+/// Render a dose value without a trailing `.0` for whole numbers.
+fn trim_float(value: f64) -> String {
+    if (value.fract()).abs() < f64::EPSILON {
+        format!("{value:.0}")
+    } else {
+        format!("{value}")
+    }
 }
 
 /// GET /api/cds/drug-interactions — list all drug interactions

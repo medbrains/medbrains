@@ -4355,6 +4355,8 @@ export interface CreatePrescriptionRequest {
   order_mode?: RxOrderMode;
   ordering_doctor_id?: string;
   read_back_confirmed?: boolean;
+  /** Reason for prescribing over the catalogue max dose — required when a line exceeds it. */
+  dose_override_reason?: string;
 }
 
 export interface UpdatePrescriptionRequest {
@@ -12213,11 +12215,28 @@ export interface AllergyConflict {
 export interface DrugSafetyCheckResult {
   interactions: DrugInteractionAlert[];
   allergy_conflicts: AllergyConflict[];
+  dose_alerts: DoseAlert[];
+}
+
+export interface DoseAlert {
+  drug_name: string;
+  per_dose: string;
+  doses_per_day: number;
+  total_per_day_label: string;
+  max_per_day_label: string;
+}
+
+export interface DoseCheckItem {
+  drug_name: string;
+  dosage: string;
+  frequency: string;
+  catalog_item_id?: string;
 }
 
 export interface CheckDrugInteractionsRequest {
   drug_names: string[];
   patient_id?: string;
+  items?: DoseCheckItem[];
 }
 
 export interface CreateDrugInteractionRequest {
