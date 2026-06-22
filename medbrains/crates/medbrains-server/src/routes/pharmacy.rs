@@ -1487,6 +1487,10 @@ pub struct DischargeMedsRequest {
 pub struct DispenseOrderRequest {
     pub items: Option<Vec<DispenseItemInput>>,
     pub witnessed_by: Option<Uuid>,
+    /// Pharmacist's reason for dispensing despite a documented drug allergy.
+    /// Required (non-blank) when a line conflicts with the patient's allergies;
+    /// logged to `pharmacy_allergy_check_log` (context `dispensing`).
+    pub allergy_override_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2660,6 +2664,71 @@ pub async fn dispense_order(
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
+
+    // Allergy backstop — the last barrier before a drug reaches the patient.
+    // Warn & require an acknowledged reason (logged); never a silent pass,
+    // never a hard block (prior tolerance / desensitisation / no alternative).
+    let allergens = sqlx::query_scalar::<_, String>(
+        "SELECT allergen_name FROM patient_allergies \
+         WHERE tenant_id = $1 AND patient_id = $2 AND is_active = true \
+           AND allergy_type = 'drug'",
+    )
+    .bind(claims.tenant_id)
+    .bind(order.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    if !allergens.is_empty() {
+        let mut conflicts: Vec<(&PharmacyOrderItem, &String)> = Vec::new();
+        for item in &items {
+            let drug = item.drug_name.to_lowercase();
+            for allergen in &allergens {
+                let a = allergen.trim().to_lowercase();
+                if !a.is_empty() && (drug.contains(&a) || a.contains(&drug)) {
+                    conflicts.push((item, allergen));
+                    break;
+                }
+            }
+        }
+        if !conflicts.is_empty() {
+            let reason = body
+                .allergy_override_reason
+                .as_deref()
+                .map(str::trim)
+                .filter(|r| !r.is_empty());
+            match reason {
+                None => {
+                    let summary = conflicts
+                        .iter()
+                        .map(|(it, a)| format!("{} (allergy: {a})", it.drug_name))
+                        .collect::<Vec<_>>()
+                        .join("; ");
+                    return Err(AppError::BadRequest(format!(
+                        "Patient has a documented drug allergy conflicting with: {summary}. Provide an override reason to dispense."
+                    )));
+                }
+                Some(reason) => {
+                    for (item, allergen) in &conflicts {
+                        sqlx::query(
+                            "INSERT INTO pharmacy_allergy_check_log \
+                             (tenant_id, patient_id, catalog_item_id, drug_name, allergen_matched, \
+                              action_taken, overridden_by, override_reason, context, order_id) \
+                             VALUES ($1, $2, $3, $4, $5, 'overridden', $6, $7, 'dispensing', $8)",
+                        )
+                        .bind(claims.tenant_id)
+                        .bind(order.patient_id)
+                        .bind(item.catalog_item_id)
+                        .bind(&item.drug_name)
+                        .bind(*allergen)
+                        .bind(claims.sub)
+                        .bind(reason)
+                        .bind(order.id)
+                        .execute(&mut *tx)
+                        .await?;
+                    }
+                }
+            }
+        }
+    }
 
     // Build a lookup for batch info from the request
     let batch_map: HashMap<Uuid, &DispenseItemInput> = body

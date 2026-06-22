@@ -4936,7 +4936,10 @@ export const api = {
     request<PharmacyOrderDetailResponse>(`/pharmacy/orders/${orderId}/items/${itemId}`, {
       method: "DELETE",
     }),
-  dispenseOrder: (id: string, data?: { items?: unknown[]; witnessed_by?: string }) =>
+  dispenseOrder: (
+    id: string,
+    data?: { items?: unknown[]; witnessed_by?: string; allergy_override_reason?: string },
+  ) =>
     request<PharmacyOrder>(`/pharmacy/orders/${id}/dispense`, {
       method: "PUT",
       body: JSON.stringify(data ?? {}),

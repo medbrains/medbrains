@@ -2629,10 +2629,20 @@ function PharmacyOrderDetail({
     setSearchParams(next, { replace: true });
   };
   const [dispenseOpen, dispenseModal] = useDisclosure(false);
+  // Active drug allergens for the dispense-time allergy guard.
+  const { data: patientAllergies = [] } = useQuery({
+    queryKey: ["patient-allergies", detail?.order.patient_id],
+    queryFn: () => pharmacyService.listPatientAllergies(detail?.order.patient_id ?? ""),
+    enabled: dispenseOpen && Boolean(detail?.order.patient_id),
+  });
+  const drugAllergens = patientAllergies
+    .filter((a) => a.is_active && a.allergy_type === "drug")
+    .map((a) => a.allergen_name);
   const dispenseMutation = useMutation({
     mutationFn: async (payload?: {
       items: { order_item_id: string; batch_stock_id?: string; quantity: number }[];
       witnessed_by?: string;
+      allergy_override_reason?: string;
     }) => {
       const currentDetail = await pharmacyService.getPharmacyOrder(orderId);
       const order = await pharmacyService.dispenseOrder(orderId, payload);
@@ -2700,6 +2710,7 @@ function PharmacyOrderDetail({
         onClose={dispenseModal.close}
         items={detail.items}
         isDispensing={dispenseMutation.isPending}
+        patientAllergens={drugAllergens}
         onDispense={(payload) => dispenseMutation.mutate(payload)}
       />
       {substituteItem && (

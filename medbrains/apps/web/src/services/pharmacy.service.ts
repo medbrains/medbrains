@@ -26,6 +26,8 @@ export const pharmacyService = {
   listPharmacyOrders: (...args: Parameters<typeof api.listPharmacyOrders>) =>
     api.listPharmacyOrders(...args),
   dispenseOrder: (...args: Parameters<typeof api.dispenseOrder>) => api.dispenseOrder(...args),
+  listPatientAllergies: (...args: Parameters<typeof api.listPatientAllergies>) =>
+    api.listPatientAllergies(...args),
   cancelPharmacyOrder: (...args: Parameters<typeof api.cancelPharmacyOrder>) =>
     api.cancelPharmacyOrder(...args),
   createOtcSale: (...args: Parameters<typeof api.createOtcSale>) => api.createOtcSale(...args),

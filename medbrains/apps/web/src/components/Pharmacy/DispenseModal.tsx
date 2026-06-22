@@ -1,5 +1,6 @@
-import { Group, Stack, Text } from "@mantine/core";
+import { Group, Stack, Text, Textarea } from "@mantine/core";
 import type { PharmacyCatalog, PharmacyOrderItem, SetupUser } from "@medbrains/types";
+import { IconAlertTriangle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Alert, Badge, Button, Modal, Select, Table, toast } from "@/components/ui";
@@ -13,9 +14,12 @@ interface Props {
   onClose: () => void;
   items: PharmacyOrderItem[];
   isDispensing: boolean;
+  /** Active drug-allergen names for the order's patient (for the dispense-time guard). */
+  patientAllergens?: string[];
   onDispense: (payload: {
     items: { order_item_id: string; batch_stock_id?: string; quantity: number }[];
     witnessed_by?: string;
+    allergy_override_reason?: string;
   }) => void;
 }
 
@@ -32,7 +36,14 @@ const isControlled = (drug?: PharmacyCatalog): boolean =>
  * with a mandatory witness when any Schedule-X/controlled drug is present.
  * Submits to the existing `dispense_order` (partial → `partially_dispensed`).
  */
-export function DispenseModal({ opened, onClose, items, isDispensing, onDispense }: Props) {
+export function DispenseModal({
+  opened,
+  onClose,
+  items,
+  isDispensing,
+  patientAllergens = [],
+  onDispense,
+}: Props) {
   const { data: catalog = [] } = useQuery({
     queryKey: ["pharmacy-catalog"],
     queryFn: () => clinicalSupportService.listPharmacyCatalog(),
@@ -59,6 +70,25 @@ export function DispenseModal({ opened, onClose, items, isDispensing, onDispense
 
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [witness, setWitness] = useState<string | null>(null);
+  const [allergyReason, setAllergyReason] = useState("");
+
+  // Last-barrier allergy check: a dispensable line whose drug name matches a
+  // documented allergen. Warn & require an acknowledged reason (logged server-
+  // side); the server re-checks independently as the backstop.
+  const allergyConflicts = useMemo(() => {
+    if (patientAllergens.length === 0) return [];
+    return lines
+      .map((l) => {
+        const drug = l.item.drug_name.toLowerCase();
+        const allergen = patientAllergens.find((a) => {
+          const al = a.trim().toLowerCase();
+          return al.length > 0 && (drug.includes(al) || al.includes(drug));
+        });
+        return allergen ? { drug: l.item.drug_name, allergen } : null;
+      })
+      .filter((c): c is { drug: string; allergen: string } => c !== null);
+  }, [lines, patientAllergens]);
+  const allergyBlocked = allergyConflicts.length > 0 && allergyReason.trim().length < 5;
 
   const rowFor = (itemId: string, remaining: number): RowState =>
     rows[itemId] ?? { qty: remaining, batchId: null };
@@ -75,6 +105,12 @@ export function DispenseModal({ opened, onClose, items, isDispensing, onDispense
       });
       return;
     }
+    if (allergyBlocked) {
+      toast.error("Documented drug allergy — record an override reason to dispense.", {
+        title: "Allergy conflict",
+      });
+      return;
+    }
     const payloadItems = lines.map((l) => {
       const r = rowFor(l.item.id, l.remaining);
       return {
@@ -83,7 +119,11 @@ export function DispenseModal({ opened, onClose, items, isDispensing, onDispense
         quantity: Math.min(Math.max(0, r.qty), l.remaining),
       };
     });
-    onDispense({ items: payloadItems, witnessed_by: witness ?? undefined });
+    onDispense({
+      items: payloadItems,
+      witnessed_by: witness ?? undefined,
+      allergy_override_reason: allergyConflicts.length > 0 ? allergyReason.trim() : undefined,
+    });
   };
 
   return (
@@ -116,6 +156,32 @@ export function DispenseModal({ opened, onClose, items, isDispensing, onDispense
           </Table>
         )}
 
+        {allergyConflicts.length > 0 && (
+          <Alert
+            tone="danger"
+            icon={<IconAlertTriangle size={16} />}
+            title="Documented drug allergy"
+          >
+            <Stack gap={4}>
+              {allergyConflicts.map((c) => (
+                <Text key={c.drug} size="sm">
+                  <b>{c.drug}</b> — patient allergic to {c.allergen}
+                </Text>
+              ))}
+              <Textarea
+                label="Override reason"
+                required
+                autosize
+                minRows={2}
+                placeholder="e.g. Prior documented tolerance; prescriber confirmed; no alternative"
+                value={allergyReason}
+                onChange={(e) => setAllergyReason(e.currentTarget.value)}
+                error={allergyBlocked ? "A reason (≥5 chars) is required to dispense" : undefined}
+              />
+            </Stack>
+          </Alert>
+        )}
+
         {anyControlled && (
           <Select
             label="Witness (second pharmacist — required for Schedule X)"
@@ -135,7 +201,7 @@ export function DispenseModal({ opened, onClose, items, isDispensing, onDispense
           <Button
             tone="primary"
             loading={isDispensing}
-            disabled={lines.length === 0 || witnessMissing}
+            disabled={lines.length === 0 || witnessMissing || allergyBlocked}
             onClick={submit}
           >
             Dispense
