@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Drawer,
   Group,
@@ -10,24 +11,38 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import type { MrdStorageCreateInput } from "@medbrains/schemas";
+import { mrdStorageCreateSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreateMrdStorageLocationRequest, MrdStorageLocation } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconArchive, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { Badge, Button } from "@/components/ui";
 import { mrdService } from "@/services/mrd.service";
 
+const STORAGE_DEFAULTS: MrdStorageCreateInput = {
+  code: "",
+  name: "",
+};
+
 export function StorageLocationsTab() {
   const qc = useQueryClient();
   const canManageStorage = useHasPermission(P.MRD.STORAGE_MANAGE);
   const [createOpen, { open: openCreate, close: closeCreate }] = useDisclosure();
-  const [form, setForm] = useState<CreateMrdStorageLocationRequest>({
-    code: "",
-    name: "",
+
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<MrdStorageCreateInput>({
+    resolver: zodResolver(mrdStorageCreateSchema),
+    defaultValues: STORAGE_DEFAULTS,
+    mode: "onTouched",
   });
 
   const { data: locations = [], isLoading } = useQuery({
@@ -40,14 +55,30 @@ export function StorageLocationsTab() {
       mrdService.createMrdStorageLocation(body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["mrd-storage-locations"] });
+      reset(STORAGE_DEFAULTS);
       closeCreate();
-      setForm({ code: "", name: "" });
       notifications.show({
         title: "Location created",
         message: "MRD storage location is available for case-sheet filing",
         color: "success",
       });
     },
+  });
+
+  const submit = handleSubmit((values) => {
+    createMut.mutate({
+      code: values.code.trim(),
+      name: values.name.trim(),
+      building: values.building?.trim() || undefined,
+      floor: values.floor?.trim() || undefined,
+      room: values.room?.trim() || undefined,
+      rack: values.rack?.trim() || undefined,
+      shelf: values.shelf?.trim() || undefined,
+      bin: values.bin?.trim() || undefined,
+      barcode: values.barcode?.trim() || undefined,
+      capacity: values.capacity,
+      notes: values.notes?.trim() || undefined,
+    });
   });
 
   const columns: Column<MrdStorageLocation>[] = [
@@ -134,77 +165,147 @@ export function StorageLocationsTab() {
       >
         <Stack>
           <Group grow>
-            <TextInput
-              label="Location Code"
-              placeholder="MRD-A-01"
-              value={form.code}
-              onChange={(event) => setForm({ ...form, code: event.currentTarget.value })}
-              required
+            <Controller
+              control={control}
+              name="code"
+              render={({ field }) => (
+                <TextInput
+                  label="Location Code"
+                  placeholder="MRD-A-01"
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  error={errors.code?.message}
+                  required
+                />
+              )}
             />
-            <TextInput
-              label="Name"
-              placeholder="Compactor A / Rack 1"
-              value={form.name}
-              onChange={(event) => setForm({ ...form, name: event.currentTarget.value })}
-              required
+            <Controller
+              control={control}
+              name="name"
+              render={({ field }) => (
+                <TextInput
+                  label="Name"
+                  placeholder="Compactor A / Rack 1"
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  error={errors.name?.message}
+                  required
+                />
+              )}
             />
           </Group>
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            <TextInput
-              label="Building"
-              value={form.building ?? ""}
-              onChange={(event) => setForm({ ...form, building: event.currentTarget.value })}
+            <Controller
+              control={control}
+              name="building"
+              render={({ field }) => (
+                <TextInput
+                  label="Building"
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  error={errors.building?.message}
+                />
+              )}
             />
-            <TextInput
-              label="Floor"
-              value={form.floor ?? ""}
-              onChange={(event) => setForm({ ...form, floor: event.currentTarget.value })}
+            <Controller
+              control={control}
+              name="floor"
+              render={({ field }) => (
+                <TextInput
+                  label="Floor"
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  error={errors.floor?.message}
+                />
+              )}
             />
-            <TextInput
-              label="Room"
-              value={form.room ?? ""}
-              onChange={(event) => setForm({ ...form, room: event.currentTarget.value })}
+            <Controller
+              control={control}
+              name="room"
+              render={({ field }) => (
+                <TextInput
+                  label="Room"
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  error={errors.room?.message}
+                />
+              )}
             />
-            <TextInput
-              label="Rack / Compactor"
-              value={form.rack ?? ""}
-              onChange={(event) => setForm({ ...form, rack: event.currentTarget.value })}
+            <Controller
+              control={control}
+              name="rack"
+              render={({ field }) => (
+                <TextInput
+                  label="Rack / Compactor"
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  error={errors.rack?.message}
+                />
+              )}
             />
-            <TextInput
-              label="Shelf"
-              value={form.shelf ?? ""}
-              onChange={(event) => setForm({ ...form, shelf: event.currentTarget.value })}
+            <Controller
+              control={control}
+              name="shelf"
+              render={({ field }) => (
+                <TextInput
+                  label="Shelf"
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  error={errors.shelf?.message}
+                />
+              )}
             />
-            <TextInput
-              label="Bin"
-              value={form.bin ?? ""}
-              onChange={(event) => setForm({ ...form, bin: event.currentTarget.value })}
+            <Controller
+              control={control}
+              name="bin"
+              render={({ field }) => (
+                <TextInput
+                  label="Bin"
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  error={errors.bin?.message}
+                />
+              )}
             />
-            <TextInput
-              label="Barcode"
-              value={form.barcode ?? ""}
-              onChange={(event) => setForm({ ...form, barcode: event.currentTarget.value })}
+            <Controller
+              control={control}
+              name="barcode"
+              render={({ field }) => (
+                <TextInput
+                  label="Barcode"
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  error={errors.barcode?.message}
+                />
+              )}
             />
-            <NumberInput
-              label="Capacity"
-              value={form.capacity ?? undefined}
-              onChange={(value) =>
-                setForm({ ...form, capacity: value ? Number(value) : undefined })
-              }
-              min={1}
+            <Controller
+              control={control}
+              name="capacity"
+              render={({ field }) => (
+                <NumberInput
+                  label="Capacity"
+                  value={field.value ?? ""}
+                  onChange={(v) => field.onChange(v === "" ? undefined : Number(v))}
+                  error={errors.capacity?.message}
+                  min={1}
+                />
+              )}
             />
           </SimpleGrid>
-          <Textarea
-            label="Notes"
-            value={form.notes ?? ""}
-            onChange={(event) => setForm({ ...form, notes: event.currentTarget.value })}
+          <Controller
+            control={control}
+            name="notes"
+            render={({ field }) => (
+              <Textarea
+                label="Notes"
+                value={field.value ?? ""}
+                onChange={field.onChange}
+                error={errors.notes?.message}
+              />
+            )}
           />
-          <Button
-            tone="primary"
-            onClick={() => createMut.mutate(form)}
-            loading={createMut.isPending}
-            disabled={!form.code.trim() || !form.name.trim()}
-          >
+          <Button tone="primary" onClick={() => void submit()} loading={createMut.isPending}>
             Create Location
           </Button>
         </Stack>

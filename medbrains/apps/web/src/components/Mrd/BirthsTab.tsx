@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Drawer,
   Group,
@@ -10,12 +11,14 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import type { MrdBirthCreateInput } from "@medbrains/schemas";
+import { mrdBirthCreateSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreateMrdBirthRequest, MrdBirthRegister } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
@@ -23,6 +26,13 @@ import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, Button } from "@/components/ui";
 import { mrdService } from "@/services/mrd.service";
 import { fmt } from "./mrdShared";
+
+const BIRTH_DEFAULTS: MrdBirthCreateInput = {
+  patient_id: "",
+  birth_date: "",
+  baby_gender: "male",
+  birth_type: "normal",
+};
 
 export function BirthsTab() {
   const qc = useQueryClient();
@@ -34,19 +44,42 @@ export function BirthsTab() {
     queryFn: () => mrdService.listMrdBirths(),
   });
 
-  const [form, setForm] = useState<CreateMrdBirthRequest>({
-    patient_id: "",
-    birth_date: "",
-    baby_gender: "",
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<MrdBirthCreateInput>({
+    resolver: zodResolver(mrdBirthCreateSchema),
+    defaultValues: BIRTH_DEFAULTS,
+    mode: "onTouched",
   });
+
+  const patientId = useWatch({ control, name: "patient_id" });
 
   const createMut = useMutation({
     mutationFn: (body: CreateMrdBirthRequest) => mrdService.createMrdBirth(body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["mrd-births"] });
+      reset(BIRTH_DEFAULTS);
       closeCreate();
       notifications.show({ title: "Registered", message: "Birth registered", color: "success" });
     },
+  });
+
+  const submit = handleSubmit((values) => {
+    createMut.mutate({
+      patient_id: values.patient_id,
+      birth_date: values.birth_date.trim(),
+      baby_gender: values.baby_gender,
+      baby_weight_grams: values.baby_weight_grams,
+      birth_type: values.birth_type,
+      apgar_1min: values.apgar_1min,
+      apgar_5min: values.apgar_5min,
+      father_name: values.father_name?.trim() || undefined,
+      mother_age: values.mother_age,
+      complications: values.complications?.trim() || undefined,
+    });
   });
 
   const columns: Column<MrdBirthRegister>[] = [
@@ -103,74 +136,142 @@ export function BirthsTab() {
         size="xl"
       >
         <Stack>
-          <PatientSearchSelect
-            label="Mother Patient"
-            value={form.patient_id}
-            onChange={(v) => setForm({ ...form, patient_id: v })}
-            required
+          <Controller
+            control={control}
+            name="patient_id"
+            render={({ field }) => (
+              <PatientSearchSelect
+                label="Mother Patient"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.patient_id?.message}
+                required
+              />
+            )}
           />
-          <PatientContextBanner patientId={form.patient_id} hideLoadingState />
-          <TextInput
-            label="Birth Date"
-            required
-            placeholder="YYYY-MM-DD"
-            value={form.birth_date}
-            onChange={(e) => setForm({ ...form, birth_date: e.currentTarget.value })}
+          <PatientContextBanner patientId={patientId} hideLoadingState />
+          <Controller
+            control={control}
+            name="birth_date"
+            render={({ field }) => (
+              <TextInput
+                label="Birth Date"
+                required
+                placeholder="YYYY-MM-DD"
+                value={field.value ?? ""}
+                onChange={field.onChange}
+                error={errors.birth_date?.message}
+              />
+            )}
           />
-          <Select
-            label="Baby Gender"
-            data={["male", "female", "ambiguous"]}
-            required
-            value={form.baby_gender}
-            onChange={(v) => setForm({ ...form, baby_gender: v ?? "" })}
+          <Controller
+            control={control}
+            name="baby_gender"
+            render={({ field }) => (
+              <Select
+                label="Baby Gender"
+                data={["male", "female", "ambiguous"]}
+                required
+                value={field.value ?? null}
+                onChange={field.onChange}
+                error={errors.baby_gender?.message}
+              />
+            )}
           />
-          <NumberInput
-            label="Baby Weight (grams)"
-            value={form.baby_weight_grams ?? undefined}
-            onChange={(v) => setForm({ ...form, baby_weight_grams: v ? Number(v) : undefined })}
+          <Controller
+            control={control}
+            name="baby_weight_grams"
+            render={({ field }) => (
+              <NumberInput
+                label="Baby Weight (grams)"
+                value={field.value ?? ""}
+                onChange={(v) => field.onChange(v === "" ? undefined : Number(v))}
+                error={errors.baby_weight_grams?.message}
+                min={0}
+              />
+            )}
           />
-          <Select
-            label="Birth Type"
-            data={["normal", "cesarean", "assisted", "vacuum", "forceps"]}
-            value={form.birth_type ?? "normal"}
-            onChange={(v) => setForm({ ...form, birth_type: v ?? "normal" })}
+          <Controller
+            control={control}
+            name="birth_type"
+            render={({ field }) => (
+              <Select
+                label="Birth Type"
+                data={["normal", "cesarean", "assisted", "vacuum", "forceps"]}
+                value={field.value ?? null}
+                onChange={field.onChange}
+                error={errors.birth_type?.message}
+              />
+            )}
           />
           <Group grow>
-            <NumberInput
-              label="APGAR 1min"
-              value={form.apgar_1min ?? undefined}
-              onChange={(v) => setForm({ ...form, apgar_1min: v != null ? Number(v) : undefined })}
-              min={0}
-              max={10}
+            <Controller
+              control={control}
+              name="apgar_1min"
+              render={({ field }) => (
+                <NumberInput
+                  label="APGAR 1min"
+                  value={field.value ?? ""}
+                  onChange={(v) => field.onChange(v === "" ? undefined : Number(v))}
+                  error={errors.apgar_1min?.message}
+                  min={0}
+                  max={10}
+                />
+              )}
             />
-            <NumberInput
-              label="APGAR 5min"
-              value={form.apgar_5min ?? undefined}
-              onChange={(v) => setForm({ ...form, apgar_5min: v != null ? Number(v) : undefined })}
-              min={0}
-              max={10}
+            <Controller
+              control={control}
+              name="apgar_5min"
+              render={({ field }) => (
+                <NumberInput
+                  label="APGAR 5min"
+                  value={field.value ?? ""}
+                  onChange={(v) => field.onChange(v === "" ? undefined : Number(v))}
+                  error={errors.apgar_5min?.message}
+                  min={0}
+                  max={10}
+                />
+              )}
             />
           </Group>
-          <TextInput
-            label="Father Name"
-            value={form.father_name ?? ""}
-            onChange={(e) => setForm({ ...form, father_name: e.currentTarget.value })}
+          <Controller
+            control={control}
+            name="father_name"
+            render={({ field }) => (
+              <TextInput
+                label="Father Name"
+                value={field.value ?? ""}
+                onChange={field.onChange}
+                error={errors.father_name?.message}
+              />
+            )}
           />
-          <NumberInput
-            label="Mother Age"
-            value={form.mother_age ?? undefined}
-            onChange={(v) => setForm({ ...form, mother_age: v ? Number(v) : undefined })}
+          <Controller
+            control={control}
+            name="mother_age"
+            render={({ field }) => (
+              <NumberInput
+                label="Mother Age"
+                value={field.value ?? ""}
+                onChange={(v) => field.onChange(v === "" ? undefined : Number(v))}
+                error={errors.mother_age?.message}
+                min={0}
+              />
+            )}
           />
-          <Textarea
-            label="Complications"
-            value={form.complications ?? ""}
-            onChange={(e) => setForm({ ...form, complications: e.currentTarget.value })}
+          <Controller
+            control={control}
+            name="complications"
+            render={({ field }) => (
+              <Textarea
+                label="Complications"
+                value={field.value ?? ""}
+                onChange={field.onChange}
+                error={errors.complications?.message}
+              />
+            )}
           />
-          <Button
-            tone="primary"
-            onClick={() => createMut.mutate(form)}
-            loading={createMut.isPending}
-          >
+          <Button tone="primary" onClick={() => void submit()} loading={createMut.isPending}>
             Register
           </Button>
         </Stack>

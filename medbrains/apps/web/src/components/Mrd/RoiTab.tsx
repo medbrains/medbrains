@@ -1,14 +1,32 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Group, Stack, Text, Textarea } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import type { RoiCreateInput } from "@medbrains/schemas";
+import { roiCreateSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type { ReviewRoiInput, RoiRequest, RoiRequesterType, RoiStatus } from "@medbrains/types";
+import type {
+  CreateRoiInput,
+  ReviewRoiInput,
+  RoiRequest,
+  RoiRequesterType,
+  RoiStatus,
+} from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, Input, Modal, Select, toast } from "@/components/ui";
 import { mrdService } from "@/services/mrd.service";
+
+const ROI_DEFAULTS: RoiCreateInput = {
+  patient_id: "",
+  requester_type: "patient",
+  requester_name: "",
+  purpose: "",
+  authorization_obtained: false,
+};
 
 const STATUS_TONE: Record<RoiStatus, BadgeTone> = {
   pending: "warning",
@@ -236,73 +254,111 @@ function CreateRoiModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [patientId, setPatientId] = useState("");
-  const [requesterType, setRequesterType] = useState<RoiRequesterType>("patient");
-  const [requesterName, setRequesterName] = useState("");
-  const [purpose, setPurpose] = useState("");
-  const [authObtained, setAuthObtained] = useState(false);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<RoiCreateInput>({
+    resolver: zodResolver(roiCreateSchema),
+    defaultValues: ROI_DEFAULTS,
+    mode: "onTouched",
+  });
 
   const create = useMutation({
-    mutationFn: () =>
-      mrdService.createRoiRequest({
-        patient_id: patientId,
-        requester_type: requesterType,
-        requester_name: requesterName.trim(),
-        purpose: purpose.trim() || undefined,
-        authorization_obtained: authObtained,
-      }),
+    mutationFn: (body: CreateRoiInput) => mrdService.createRoiRequest(body),
     onSuccess: () => {
-      setPatientId("");
-      setRequesterName("");
-      setPurpose("");
-      setAuthObtained(false);
+      reset(ROI_DEFAULTS);
       onCreated();
       onClose();
     },
     onError: (e: Error) => toast.error(e.message, { title: "Could not create request" }),
   });
 
+  const submit = handleSubmit((values) => {
+    create.mutate({
+      patient_id: values.patient_id,
+      requester_type: values.requester_type,
+      requester_name: values.requester_name.trim(),
+      purpose: values.purpose?.trim() || undefined,
+      authorization_obtained: values.authorization_obtained,
+    });
+  });
+
   return (
     <Modal opened={opened} onClose={onClose} title="New ROI request" size="md">
       <Stack gap="sm">
-        <PatientSearchSelect value={patientId} onChange={setPatientId} label="Patient" />
-        <Select
-          label="Requester type"
-          data={REQUESTER_OPTIONS}
-          value={requesterType}
-          onChange={(v) => setRequesterType((v as RoiRequesterType) ?? "patient")}
+        <Controller
+          control={control}
+          name="patient_id"
+          render={({ field }) => (
+            <PatientSearchSelect
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.patient_id?.message}
+              label="Patient"
+            />
+          )}
         />
-        <Input
-          label="Requester name"
-          value={requesterName}
-          onChange={(e) => setRequesterName(e.currentTarget.value)}
-          required
+        <Controller
+          control={control}
+          name="requester_type"
+          render={({ field }) => (
+            <Select
+              label="Requester type"
+              data={REQUESTER_OPTIONS}
+              value={field.value ?? null}
+              onChange={(v) => field.onChange((v as RoiRequesterType) ?? "patient")}
+              error={errors.requester_type?.message}
+            />
+          )}
         />
-        <Textarea
-          label="Purpose"
-          value={purpose}
-          onChange={(e) => setPurpose(e.currentTarget.value)}
-          minRows={2}
+        <Controller
+          control={control}
+          name="requester_name"
+          render={({ field }) => (
+            <Input
+              label="Requester name"
+              value={field.value ?? ""}
+              onChange={field.onChange}
+              error={errors.requester_name?.message}
+              required
+            />
+          )}
         />
-        <Select
-          label="Patient authorisation obtained?"
-          data={[
-            { value: "yes", label: "Yes — patient consented" },
-            { value: "no", label: "No / legal order" },
-          ]}
-          value={authObtained ? "yes" : "no"}
-          onChange={(v) => setAuthObtained(v === "yes")}
+        <Controller
+          control={control}
+          name="purpose"
+          render={({ field }) => (
+            <Textarea
+              label="Purpose"
+              value={field.value ?? ""}
+              onChange={field.onChange}
+              error={errors.purpose?.message}
+              minRows={2}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="authorization_obtained"
+          render={({ field }) => (
+            <Select
+              label="Patient authorisation obtained?"
+              data={[
+                { value: "yes", label: "Yes — patient consented" },
+                { value: "no", label: "No / legal order" },
+              ]}
+              value={field.value ? "yes" : "no"}
+              onChange={(v) => field.onChange(v === "yes")}
+            />
+          )}
         />
         <Group justify="flex-end">
           <Button tone="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            tone="primary"
-            disabled={!patientId || !requesterName.trim()}
-            loading={create.isPending}
-            onClick={() => create.mutate()}
-          >
+          <Button tone="primary" loading={create.isPending} onClick={() => void submit()}>
             Create request
           </Button>
         </Group>

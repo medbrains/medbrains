@@ -4447,6 +4447,119 @@ export const mrdCaseSheetReprintFormSchema = z.object({
 
 export type MrdCaseSheetReprintFormInput = z.infer<typeof mrdCaseSheetReprintFormSchema>;
 
+export const mrdBabyGenderValues = ["male", "female", "ambiguous"] as const;
+export const mrdBirthTypeValues = ["normal", "cesarean", "assisted", "vacuum", "forceps"] as const;
+
+export const mrdBirthCreateSchema = z.object({
+  patient_id: z.string().uuid("Select the mother's patient record"),
+  birth_date: requiredTrimmed("Birth date is required", 10).refine(
+    (value) => isoDatePattern.test(value.trim()),
+    "Enter a valid date in YYYY-MM-DD format",
+  ),
+  baby_gender: z.enum(mrdBabyGenderValues, { message: "Baby gender is required" }),
+  baby_weight_grams: z
+    .number()
+    .int("Enter a whole number of grams")
+    .min(0, "Weight cannot be negative")
+    .optional(),
+  birth_type: z.enum(mrdBirthTypeValues).optional(),
+  apgar_1min: z.number().int().min(0, "APGAR is 0–10").max(10, "APGAR is 0–10").optional(),
+  apgar_5min: z.number().int().min(0, "APGAR is 0–10").max(10, "APGAR is 0–10").optional(),
+  father_name: z.string().max(200, "Father name is too long").optional(),
+  mother_age: z
+    .number()
+    .int("Enter a whole number of years")
+    .min(0, "Age cannot be negative")
+    .optional(),
+  complications: z.string().max(1000, "Complications note is too long").optional(),
+});
+
+export type MrdBirthCreateInput = z.infer<typeof mrdBirthCreateSchema>;
+
+export const mrdMannerOfDeathValues = [
+  "natural",
+  "accident",
+  "suicide",
+  "homicide",
+  "undetermined",
+  "pending",
+] as const;
+
+export const mrdDeathCreateSchema = z.object({
+  patient_id: z.string().uuid("Select the deceased patient record"),
+  death_date: requiredTrimmed("Death date is required", 10).refine(
+    (value) => isoDatePattern.test(value.trim()),
+    "Enter a valid date in YYYY-MM-DD format",
+  ),
+  cause_of_death: z.string().max(500, "Cause of death is too long").optional(),
+  immediate_cause: z.string().max(500, "Immediate cause is too long").optional(),
+  antecedent_cause: z.string().max(500, "Antecedent cause is too long").optional(),
+  underlying_cause: z.string().max(500, "Underlying cause is too long").optional(),
+  manner_of_death: z.enum(mrdMannerOfDeathValues).optional(),
+  is_medico_legal: z.boolean().optional(),
+  is_brought_dead: z.boolean().optional(),
+});
+
+export type MrdDeathCreateInput = z.infer<typeof mrdDeathCreateSchema>;
+
+export const mrdStorageCreateSchema = z.object({
+  code: requiredTrimmed("Location code is required", 60),
+  name: requiredTrimmed("Location name is required", 200),
+  building: z.string().max(120).optional(),
+  floor: z.string().max(120).optional(),
+  room: z.string().max(120).optional(),
+  rack: z.string().max(120).optional(),
+  shelf: z.string().max(120).optional(),
+  bin: z.string().max(120).optional(),
+  barcode: z.string().max(120).optional(),
+  capacity: z.number().int("Enter a whole number").min(1, "Capacity must be at least 1").optional(),
+  notes: z.string().max(500, "Notes must be 500 characters or less").optional(),
+});
+
+export type MrdStorageCreateInput = z.infer<typeof mrdStorageCreateSchema>;
+
+export const mrdRecordTypeValues = [
+  "opd",
+  "ipd",
+  "emergency",
+  "maternity",
+  "mlc",
+  "pediatric",
+] as const;
+export const mrdDestructionMethodValues = ["shredding", "incineration"] as const;
+
+export const mrdRetentionCreateSchema = z.object({
+  record_type: z.enum(mrdRecordTypeValues, { message: "Record type is required" }),
+  category: requiredTrimmed("Category is required", 120),
+  retention_years: z
+    .number()
+    .int("Enter a whole number of years")
+    .min(1, "Retention must be at least 1 year"),
+  legal_reference: z.string().max(255, "Legal reference is too long").optional(),
+  destruction_method: z.enum(mrdDestructionMethodValues).optional(),
+});
+
+export type MrdRetentionCreateInput = z.infer<typeof mrdRetentionCreateSchema>;
+
+export const roiRequesterTypeValues = [
+  "patient",
+  "insurer",
+  "court",
+  "police",
+  "employer",
+  "other",
+] as const;
+
+export const roiCreateSchema = z.object({
+  patient_id: z.string().uuid("Select the patient record"),
+  requester_type: z.enum(roiRequesterTypeValues),
+  requester_name: requiredTrimmed("Requester name is required", 200),
+  purpose: z.string().max(1000, "Purpose is too long").optional(),
+  authorization_obtained: z.boolean().optional(),
+});
+
+export type RoiCreateInput = z.infer<typeof roiCreateSchema>;
+
 export const documentPrintFormatValues = [
   "a4_portrait",
   "a4_landscape",

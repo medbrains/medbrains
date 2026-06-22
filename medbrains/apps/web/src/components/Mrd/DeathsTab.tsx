@@ -1,12 +1,15 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Drawer, Group, Select, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import type { MrdDeathCreateInput } from "@medbrains/schemas";
+import { mrdDeathCreateSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreateMrdDeathRequest, MrdDeathRegister } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
@@ -14,6 +17,14 @@ import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, Button } from "@/components/ui";
 import { mrdService } from "@/services/mrd.service";
 import { fmt } from "./mrdShared";
+
+const DEATH_DEFAULTS: MrdDeathCreateInput = {
+  patient_id: "",
+  death_date: "",
+  manner_of_death: "natural",
+  is_medico_legal: false,
+  is_brought_dead: false,
+};
 
 export function DeathsTab() {
   const qc = useQueryClient();
@@ -25,18 +36,41 @@ export function DeathsTab() {
     queryFn: () => mrdService.listMrdDeaths(),
   });
 
-  const [form, setForm] = useState<CreateMrdDeathRequest>({
-    patient_id: "",
-    death_date: "",
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<MrdDeathCreateInput>({
+    resolver: zodResolver(mrdDeathCreateSchema),
+    defaultValues: DEATH_DEFAULTS,
+    mode: "onTouched",
   });
+
+  const patientId = useWatch({ control, name: "patient_id" });
 
   const createMut = useMutation({
     mutationFn: (body: CreateMrdDeathRequest) => mrdService.createMrdDeath(body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["mrd-deaths"] });
+      reset(DEATH_DEFAULTS);
       closeCreate();
       notifications.show({ title: "Registered", message: "Death registered", color: "success" });
     },
+  });
+
+  const submit = handleSubmit((values) => {
+    createMut.mutate({
+      patient_id: values.patient_id,
+      death_date: values.death_date.trim(),
+      cause_of_death: values.cause_of_death?.trim() || undefined,
+      immediate_cause: values.immediate_cause?.trim() || undefined,
+      antecedent_cause: values.antecedent_cause?.trim() || undefined,
+      underlying_cause: values.underlying_cause?.trim() || undefined,
+      manner_of_death: values.manner_of_death,
+      is_medico_legal: values.is_medico_legal,
+      is_brought_dead: values.is_brought_dead,
+    });
   });
 
   const columns: Column<MrdDeathRegister>[] = [
@@ -103,70 +137,127 @@ export function DeathsTab() {
         size="xl"
       >
         <Stack>
-          <PatientSearchSelect
-            value={form.patient_id}
-            onChange={(v) => setForm({ ...form, patient_id: v })}
-            required
+          <Controller
+            control={control}
+            name="patient_id"
+            render={({ field }) => (
+              <PatientSearchSelect
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.patient_id?.message}
+                required
+              />
+            )}
           />
-          <PatientContextBanner patientId={form.patient_id} hideLoadingState />
-          <TextInput
-            label="Death Date"
-            required
-            placeholder="YYYY-MM-DD"
-            value={form.death_date}
-            onChange={(e) => setForm({ ...form, death_date: e.currentTarget.value })}
+          <PatientContextBanner patientId={patientId} hideLoadingState />
+          <Controller
+            control={control}
+            name="death_date"
+            render={({ field }) => (
+              <TextInput
+                label="Death Date"
+                required
+                placeholder="YYYY-MM-DD"
+                value={field.value ?? ""}
+                onChange={field.onChange}
+                error={errors.death_date?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Cause of Death"
-            value={form.cause_of_death ?? ""}
-            onChange={(e) => setForm({ ...form, cause_of_death: e.currentTarget.value })}
+          <Controller
+            control={control}
+            name="cause_of_death"
+            render={({ field }) => (
+              <TextInput
+                label="Cause of Death"
+                value={field.value ?? ""}
+                onChange={field.onChange}
+                error={errors.cause_of_death?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Immediate Cause"
-            value={form.immediate_cause ?? ""}
-            onChange={(e) => setForm({ ...form, immediate_cause: e.currentTarget.value })}
+          <Controller
+            control={control}
+            name="immediate_cause"
+            render={({ field }) => (
+              <TextInput
+                label="Immediate Cause"
+                value={field.value ?? ""}
+                onChange={field.onChange}
+                error={errors.immediate_cause?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Antecedent Cause"
-            value={form.antecedent_cause ?? ""}
-            onChange={(e) => setForm({ ...form, antecedent_cause: e.currentTarget.value })}
+          <Controller
+            control={control}
+            name="antecedent_cause"
+            render={({ field }) => (
+              <TextInput
+                label="Antecedent Cause"
+                value={field.value ?? ""}
+                onChange={field.onChange}
+                error={errors.antecedent_cause?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Underlying Cause"
-            value={form.underlying_cause ?? ""}
-            onChange={(e) => setForm({ ...form, underlying_cause: e.currentTarget.value })}
+          <Controller
+            control={control}
+            name="underlying_cause"
+            render={({ field }) => (
+              <TextInput
+                label="Underlying Cause"
+                value={field.value ?? ""}
+                onChange={field.onChange}
+                error={errors.underlying_cause?.message}
+              />
+            )}
           />
-          <Select
-            label="Manner of Death"
-            data={["natural", "accident", "suicide", "homicide", "undetermined", "pending"]}
-            value={form.manner_of_death ?? "natural"}
-            onChange={(v) => setForm({ ...form, manner_of_death: v ?? "natural" })}
+          <Controller
+            control={control}
+            name="manner_of_death"
+            render={({ field }) => (
+              <Select
+                label="Manner of Death"
+                data={["natural", "accident", "suicide", "homicide", "undetermined", "pending"]}
+                value={field.value ?? null}
+                onChange={field.onChange}
+                error={errors.manner_of_death?.message}
+              />
+            )}
           />
           <Group grow>
-            <Select
-              label="Medico-Legal?"
-              data={[
-                { value: "true", label: "Yes" },
-                { value: "false", label: "No" },
-              ]}
-              value={String(form.is_medico_legal ?? false)}
-              onChange={(v) => setForm({ ...form, is_medico_legal: v === "true" })}
+            <Controller
+              control={control}
+              name="is_medico_legal"
+              render={({ field }) => (
+                <Select
+                  label="Medico-Legal?"
+                  data={[
+                    { value: "true", label: "Yes" },
+                    { value: "false", label: "No" },
+                  ]}
+                  value={String(field.value ?? false)}
+                  onChange={(v) => field.onChange(v === "true")}
+                />
+              )}
             />
-            <Select
-              label="Brought Dead?"
-              data={[
-                { value: "true", label: "Yes" },
-                { value: "false", label: "No" },
-              ]}
-              value={String(form.is_brought_dead ?? false)}
-              onChange={(v) => setForm({ ...form, is_brought_dead: v === "true" })}
+            <Controller
+              control={control}
+              name="is_brought_dead"
+              render={({ field }) => (
+                <Select
+                  label="Brought Dead?"
+                  data={[
+                    { value: "true", label: "Yes" },
+                    { value: "false", label: "No" },
+                  ]}
+                  value={String(field.value ?? false)}
+                  onChange={(v) => field.onChange(v === "true")}
+                />
+              )}
             />
           </Group>
-          <Button
-            tone="primary"
-            onClick={() => createMut.mutate(form)}
-            loading={createMut.isPending}
-          >
+          <Button tone="primary" onClick={() => void submit()} loading={createMut.isPending}>
             Register
           </Button>
         </Stack>
