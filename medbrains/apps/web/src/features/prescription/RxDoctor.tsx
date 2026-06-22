@@ -18,6 +18,7 @@ import { RxTable } from "./RxTable";
 import {
   type FormularyDrug,
   maxDoseExceeded,
+  prescribingCautions,
   quickRxDefaults,
   type RxItem,
   searchFormulary,
@@ -220,8 +221,10 @@ export function RxDoctor({
       return hit ? { name: it.name, label: hit.totalLabel } : null;
     })
     .filter(Boolean) as { name: string; label: string }[];
+  const cautions = prescribingCautions(drugObjs);
+  const seriousCautions = cautions.filter((c) => c.serious);
   const pendingCount = items.filter((it) => it.pendingMD).length;
-  const reviewCount = major.length + conflicts.length + overMax.length;
+  const reviewCount = major.length + conflicts.length + overMax.length + seriousCautions.length;
 
   return (
     <Box className={classes.view}>
@@ -453,6 +456,15 @@ export function RxDoctor({
             dupes.length
               ? dupes.map(([c, n]) => `${n}× ${c}`).join(", ")
               : "No overlapping drug classes"
+          }
+        />
+        <SafetyRow
+          state={seriousCautions.length ? "flag" : cautions.length ? "warn" : "ok"}
+          label="Stewardship & warnings"
+          detail={
+            cautions.length
+              ? cautions.map((c) => `${c.label}: ${c.detail}`).join(" · ")
+              : "No AWaRe Reserve/Watch antibiotics or boxed warnings in order"
           }
         />
       </Drawer>

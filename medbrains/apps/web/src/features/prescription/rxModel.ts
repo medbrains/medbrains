@@ -90,6 +90,56 @@ export interface FormularyDrug {
   reorderLevel?: number;
   /** Catalog max dose per day, free text e.g. "3000 mg" (max-dose check). */
   maxDosePerDay?: string;
+  /** Boxed (black-box) safety warning text, if the drug carries one. */
+  blackBox?: string;
+}
+
+/** A non-blocking prescribing caution surfaced in the safety rail. */
+export interface PrescribingCaution {
+  name: string;
+  kind: "aware-reserve" | "aware-watch" | "black-box";
+  label: string;
+  detail: string;
+  /** Reserve antibiotics + boxed warnings count toward the review tally; Watch is informational. */
+  serious: boolean;
+}
+
+/**
+ * Drug-intrinsic cautions for the current order: WHO AWaRe antibiotic
+ * stewardship (Reserve / Watch) and boxed safety warnings. Advisory only —
+ * never blocks prescribing.
+ */
+export function prescribingCautions(drugs: FormularyDrug[]): PrescribingCaution[] {
+  const out: PrescribingCaution[] = [];
+  for (const d of drugs) {
+    if (d.aware === "Reserve") {
+      out.push({
+        name: d.name,
+        kind: "aware-reserve",
+        label: "AWaRe Reserve",
+        detail: `${d.name} — last-resort antibiotic; restrict to confirmed multidrug-resistant infections`,
+        serious: true,
+      });
+    } else if (d.aware === "Watch") {
+      out.push({
+        name: d.name,
+        kind: "aware-watch",
+        label: "AWaRe Watch",
+        detail: `${d.name} — higher resistance potential; prefer an Access agent where clinically appropriate`,
+        serious: false,
+      });
+    }
+    if (d.blackBox?.trim()) {
+      out.push({
+        name: d.name,
+        kind: "black-box",
+        label: "Boxed warning",
+        detail: `${d.name} — ${d.blackBox.trim()}`,
+        serious: true,
+      });
+    }
+  }
+  return out;
 }
 
 /** Stock status for a formulary drug (informational badge). */

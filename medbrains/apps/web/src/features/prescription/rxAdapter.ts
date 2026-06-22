@@ -129,6 +129,7 @@ export function catalogToFormulary(catalog: PharmacyCatalog[]): FormularyDrug[] 
       stock: c.current_stock,
       reorderLevel: c.reorder_level,
       maxDosePerDay: c.max_dose_per_day ?? undefined,
+      blackBox: c.black_box_warning ?? undefined,
     } satisfies FormularyDrug;
   });
 }
