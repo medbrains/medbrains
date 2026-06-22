@@ -85,6 +85,8 @@ function SafetyRow({
 interface Props {
   formulary: FormularyDrug[];
   formularyById: Record<string, FormularyDrug>;
+  /** Lowercased NLEM (government-essential) generic names — tags essential drugs. */
+  nlemGenerics: ReadonlySet<string>;
   initialItems: RxItem[];
   patientName: string;
   patientAllergies: string[];
@@ -112,6 +114,7 @@ let UID = 1000;
 export function RxDoctor({
   formulary,
   formularyById,
+  nlemGenerics,
   initialItems,
   patientName,
   patientAllergies,
@@ -407,6 +410,7 @@ export function RxDoctor({
             <RxTable
               items={items}
               formularyById={formularyById}
+              nlemGenerics={nlemGenerics}
               onChange={patchItem}
               onOpenDetails={setExpandedUid}
               onRemove={removeItem}

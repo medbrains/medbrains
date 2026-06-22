@@ -30,6 +30,8 @@ function currentFreq(item: RxItem): FreqCode | null {
 interface Props {
   items: RxItem[];
   formularyById: Record<string, FormularyDrug>;
+  /** Lowercased NLEM (government-essential) generic names — drives the NLEM tag. */
+  nlemGenerics: ReadonlySet<string>;
   onChange: (uid: number, patch: Partial<RxItem>) => void;
   /** Open the detailed dose modal for this row. */
   onOpenDetails: (uid: number) => void;
@@ -41,7 +43,16 @@ interface Props {
  * set directly on each row; the adjust icon opens a modal for the detailed dose
  * writer (day-parts · custom times · cadence · SOS · route · note).
  */
-export function RxTable({ items, formularyById, onChange, onOpenDetails, onRemove }: Props) {
+export function RxTable({
+  items,
+  formularyById,
+  nlemGenerics,
+  onChange,
+  onOpenDetails,
+  onRemove,
+}: Props) {
+  const isNlem = (d?: FormularyDrug) =>
+    Boolean(d?.salt && nlemGenerics.has(d.salt.trim().toLowerCase()));
   const setFreq = (uid: number, code: string) => {
     if (code === "SOS") onChange(uid, { sos: true, doses: [] });
     else {
@@ -100,6 +111,14 @@ export function RxTable({ items, formularyById, onChange, onOpenDetails, onRemov
                   <span className={classes.rxTFlag}>low stock</span>
                 )}
                 {it.pendingMD && <span className={classes.rxTFlag}>pending MD</span>}
+                {isNlem(d) && (
+                  <span
+                    className={`${classes.rxTFlag} ${classes.rxTFlagNlem}`}
+                    title="Generic is on the National List of Essential Medicines — prefer the generic"
+                  >
+                    NLEM
+                  </span>
+                )}
                 {d?.salt && <Box className={classes.rxTSalt}>{d.salt}</Box>}
               </Table.Td>
               <Table.Td className={classes.rxTDose}>

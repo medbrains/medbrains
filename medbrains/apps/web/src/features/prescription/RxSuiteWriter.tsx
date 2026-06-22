@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { Card, Checkbox, SegmentedControl } from "@/components/ui";
+import { ckbService } from "@/services/ckb.service";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { matchDrugAllergy } from "@/utils/allergyMatch";
 import classes from "./prescription.module.scss";
@@ -118,6 +119,15 @@ export function RxSuiteWriter({
     () => Object.fromEntries(formulary.map((d) => [d.id, d])),
     [formulary],
   );
+
+  // NLEM (government-essential) generics — tag essential drugs in the chart so
+  // the prescriber prefers the generic / Jan Aushadhi equivalent.
+  const { data: nlemList = [] } = useQuery({
+    queryKey: ["ckb-nlem-generics"],
+    queryFn: () => ckbService.listNlemGenerics(),
+    staleTime: 600_000,
+  });
+  const nlemGenerics = useMemo(() => new Set(nlemList), [nlemList]);
 
   const templateToItems = (tpl: PrescriptionTemplate): RxItem[] =>
     prescriptionItemsToRx(tpl.items, formularyById);
@@ -278,6 +288,7 @@ export function RxSuiteWriter({
       <RxDoctor
         formulary={formulary}
         formularyById={formularyById}
+        nlemGenerics={nlemGenerics}
         initialItems={[]}
         patientName={patientName}
         patientAllergies={allergies}

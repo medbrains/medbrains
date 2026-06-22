@@ -183,6 +183,7 @@
 .rxTNote { color: var(--g70); font-size: 12px; max-width: 200px; }
 .rxTFlag { display: inline-block; font-size: 8.5px; font-weight: 700; padding: 1px 6px; border-radius: 980px; text-transform: uppercase; letter-spacing: 0.03em; margin-left: 6px; vertical-align: middle; background: var(--amber-10); color: var(--amber-ink); }
 .rxTFlagRed { background: var(--red-10); color: var(--red-ink); }
+.rxTFlagNlem { background: var(--green-10); color: var(--green-60); }
 .rxTActions { display: flex; gap: 2px; justify-content: flex-end; }
 .rxTActions button { background: none; border: 0; cursor: pointer; color: var(--g30); padding: 3px; border-radius: var(--r-sm); display: flex; }
 .rxTable tbody tr:hover .rxTActions button { color: var(--g50); }
