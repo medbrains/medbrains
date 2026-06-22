@@ -81,7 +81,7 @@ dev-icd: dev ## Alias for make dev; ICD-11 is now part of the default dev stack
 
 dev-backend: db ## Start database + backend only
 	SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret scripts/spicedb_local_schema.sh
-	cargo run -p medbrains-server --bin medbrains-server
+	MAKEFLAGS= cargo run -p medbrains-server --bin medbrains-server
 
 dev-edge: ## Run medbrains-edge appliance locally for offline-mode testing
 	@mkdir -p var/medbrains-edge/docs var/medbrains-edge/chain
@@ -106,7 +106,7 @@ dev-split: ## Start backend + web without local HTTPS proxy
 	@docker compose up -d postgres 2>/dev/null
 	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
 	@trap 'kill 0' EXIT; \
-		cargo run -p medbrains-server --bin medbrains-server & \
+		MAKEFLAGS= cargo run -p medbrains-server --bin medbrains-server & \
 		pnpm dev:web & \
 		wait
 

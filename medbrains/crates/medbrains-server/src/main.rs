@@ -29,6 +29,12 @@ use medbrains_server::{
     state::{AppState, CookieConfig},
 };
 
+// jemalloc as the global allocator: lower fragmentation + better multithreaded
+// heap behaviour than the system allocator under concurrent request load.
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load .env file (ignore if missing — production uses real env vars)

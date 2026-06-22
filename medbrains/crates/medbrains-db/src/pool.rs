@@ -31,8 +31,8 @@ impl Default for PoolConfig {
     fn default() -> Self {
         Self {
             max_connections: 20,
-            min_connections: 2,
-            acquire_timeout: Duration::from_secs(5),
+            min_connections: 5,
+            acquire_timeout: Duration::from_secs(2),
             idle_timeout: Duration::from_secs(600),
             max_lifetime: Duration::from_secs(1800),
             statement_cache_capacity: 256,

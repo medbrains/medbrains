@@ -84,11 +84,15 @@ const fn default_db_pool_max_connections() -> u32 {
 }
 
 const fn default_db_pool_min_connections() -> u32 {
-    2
+    // Keep a warm floor so the first requests after idle don't pay
+    // connection-establishment latency. Override via DB_POOL_MIN_CONNECTIONS.
+    5
 }
 
 const fn default_db_pool_acquire_timeout_secs() -> u64 {
-    5
+    // Fail fast on a saturated pool — a 2s 503 beats a stalled request holding
+    // a worker. Override via DB_POOL_ACQUIRE_TIMEOUT_SECS.
+    2
 }
 
 const fn default_db_pool_idle_timeout_secs() -> u64 {

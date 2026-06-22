@@ -11,6 +11,10 @@ medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 # Body::size_hint for the dev payload-size logger (middleware::payload_size_log).
 http-body = "1"
+# jemalloc global allocator — better multithreaded heap behaviour + lower
+# fragmentation tail-latency under concurrent load than the system allocator.
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemallocator = "0.6"
 medbrains-yottadb = { path = "../medbrains-yottadb" }
 medbrains-outbox = { path = "../medbrains-outbox" }
 medbrains-fhir = { path = "../medbrains-fhir" }

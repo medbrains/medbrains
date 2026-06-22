@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# When launched from `make dev`, MAKEFLAGS carries the parent recipe's variable
+# assignments + jobserver (e.g. " -- DEV_PROXY_CONFIG=… -j --jobserver-fds=8,9").
+# Native build scripts that shell out to their own `make` (jemalloc-sys, etc.)
+# choke on it ("No rule to make target '-j'"). We don't run make from here, so
+# clear it before any cargo build pulls in a C dependency.
+unset MAKEFLAGS MFLAGS MAKELEVEL
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
