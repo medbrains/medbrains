@@ -1,5 +1,6 @@
 import { defineConfig, type PluginOption } from "vite";
 import react from "@vitejs/plugin-react";
+import { compression } from "vite-plugin-compression2";
 import wasm from "vite-plugin-wasm";
 import topLevelAwait from "vite-plugin-top-level-await";
 import path from "path";
@@ -53,7 +54,16 @@ function manualChunks(id: string) {
 }
 
 export default defineConfig(async () => {
-  const plugins: PluginOption[] = [react(), wasm(), topLevelAwait()];
+  const plugins: PluginOption[] = [
+    react(),
+    wasm(),
+    topLevelAwait(),
+    // Precompress hashed, immutable build assets once (brotli-max + gzip).
+    // The server serves these directly (ServeDir precompressed_*), so the
+    // bundle ships at max ratio with zero per-request CPU. Originals are kept
+    // for clients that don't accept the encoding.
+    compression({ algorithms: ["brotliCompress", "gzip"], threshold: 1024 }),
+  ];
   const devHttpsDomain = process.env.DEV_HTTPS_DOMAIN ?? "medbrains.localhost";
   const devPort = Number.parseInt(process.env.VITE_DEV_PORT ?? "5173", 10);
   const reactScanDev = process.env.VITE_REACT_SCAN === "true";

@@ -375,9 +375,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .static_dir
         .clone()
         .unwrap_or_else(|| "/var/www/medbrains".to_owned());
-    let spa_fallback = tower_http::services::ServeDir::new(&static_dir).not_found_service(
-        tower_http::services::ServeFile::new(format!("{static_dir}/index.html")),
-    );
+    // Serve build-time precompressed bundles (.br/.gz emitted by Vite) when the
+    // client accepts them — max ratio computed once, zero per-request CPU. Falls
+    // back to the original (which the global CompressionLayer compresses live).
+    let spa_fallback = tower_http::services::ServeDir::new(&static_dir)
+        .precompressed_br()
+        .precompressed_gzip()
+        .not_found_service(tower_http::services::ServeFile::new(format!(
+            "{static_dir}/index.html"
+        )));
 
     // Build router with all routes + static file fallback
     let app: Router = routes::build_router(state)
