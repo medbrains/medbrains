@@ -396,7 +396,13 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
           overlayProps: { backgroundOpacity: 0.4, blur: 8 },
           radius: "lg",
           shadow: "xl",
-          transitionProps: { duration: 200, transition: "fade" },
+          // "pop" = scale-from-center + fade; eased with the same easeOutExpo
+          // settle curve as the page transition so all motion feels of a piece.
+          transitionProps: {
+            duration: 220,
+            transition: "pop",
+            timingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+          },
         },
       },
 
@@ -536,7 +542,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
       Drawer: {
         defaultProps: {
           shadow: "xl",
-          transitionProps: { duration: 300 },
+          transitionProps: { duration: 300, timingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" },
         },
       },
 
