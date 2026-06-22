@@ -16325,6 +16325,7 @@ export interface IngestionItem {
   linked_medical_record_id: string | null;
   linked_packet_id: string | null;
   extracted_text: string | null;
+  ocr_status: string | null;
   status: IngestionItemStatus;
   notes: string | null;
   uploaded_by: string | null;

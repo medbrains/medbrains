@@ -2,7 +2,7 @@ import { FileButton, Group, Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type { IngestionItem } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconScan, IconUpload } from "@tabler/icons-react";
+import { IconScan, IconSearch, IconUpload } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
@@ -92,6 +92,27 @@ export function DigitizeTab() {
     onError: (e: Error) => toast.error(e.message, { title: "Could not file" }),
   });
 
+  const ocr = useMutation({
+    mutationFn: (id: string) => mrdService.ocrIngestionItem(id),
+    onSuccess: (item) => {
+      invalidateItems();
+      if (item.ocr_status === "done") toast.success("Text extracted", { title: "OCR" });
+      else if (item.ocr_status === "unavailable")
+        toast.error("OCR engine not available on the server.", { title: "OCR" });
+      else if (item.ocr_status === "unsupported")
+        toast.error("OCR supports image scans; convert PDFs to images first.", { title: "OCR" });
+      else toast.error("Could not extract text from this scan.", { title: "OCR" });
+    },
+    onError: (e: Error) => toast.error(e.message, { title: "OCR failed" }),
+  });
+
+  const [search, setSearch] = useState("");
+  const { data: searchResults = [] } = useQuery({
+    queryKey: ["ingestion-search", search],
+    queryFn: () => mrdService.searchIngested(search.trim()),
+    enabled: search.trim().length > 1,
+  });
+
   const columns = [
     {
       key: "file",
@@ -132,6 +153,23 @@ export function DigitizeTab() {
         ),
     },
     {
+      key: "ocr",
+      label: "OCR text",
+      render: (it: IngestionItem) => (
+        <Stack gap={2}>
+          {it.extracted_text ? (
+            <Text size="xs" lineClamp={2} maw={260}>
+              {it.extracted_text}
+            </Text>
+          ) : (
+            <Text size="xs" c="dimmed">
+              {it.ocr_status ?? "not run"}
+            </Text>
+          )}
+        </Stack>
+      ),
+    },
+    {
       key: "status",
       label: "Status",
       render: (it: IngestionItem) => (
@@ -141,26 +179,69 @@ export function DigitizeTab() {
     {
       key: "actions",
       label: "Actions",
-      render: (it: IngestionItem) =>
-        canManage && it.status === "linked" ? (
-          <Button
-            size="xs"
-            tone="primary"
-            loading={fileItem.isPending}
-            onClick={() => fileItem.mutate(it.id)}
-          >
-            File to record
-          </Button>
-        ) : (
-          <Text size="xs" c="dimmed">
-            —
-          </Text>
-        ),
+      render: (it: IngestionItem) => (
+        <Group gap={4} wrap="nowrap">
+          {canManage && (
+            <Button
+              size="xs"
+              tone="secondary"
+              loading={ocr.isPending}
+              onClick={() => ocr.mutate(it.id)}
+            >
+              OCR
+            </Button>
+          )}
+          {canManage && it.status === "linked" && (
+            <Button
+              size="xs"
+              tone="primary"
+              loading={fileItem.isPending}
+              onClick={() => fileItem.mutate(it.id)}
+            >
+              File to record
+            </Button>
+          )}
+        </Group>
+      ),
     },
   ];
 
   return (
     <Stack>
+      <Card withBorder padding="sm">
+        <Group gap="xs" mb="xs">
+          <IconSearch size={16} />
+          <Text fw={600} size="sm">
+            Search digitised records
+          </Text>
+        </Group>
+        <Input
+          placeholder="Search by OCR'd text, file name, or MRD number"
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+        />
+        {search.trim().length > 1 && (
+          <Stack gap={4} mt="xs">
+            {searchResults.length === 0 && (
+              <Text size="sm" c="dimmed">
+                No matching scans.
+              </Text>
+            )}
+            {searchResults.map((it) => (
+              <Group key={it.id} justify="space-between" wrap="nowrap">
+                <Text size="sm" lineClamp={1}>
+                  {it.original_filename}
+                  {it.barcode ? ` · ${it.barcode}` : ""}
+                </Text>
+                <Badge tone={STATUS_TONE[it.status] ?? "neutral"} size="sm">
+                  {it.status}
+                </Badge>
+              </Group>
+            ))}
+          </Stack>
+        )}
+      </Card>
+
       <Card withBorder padding="sm">
         <Group gap="xs">
           <IconScan size={18} />

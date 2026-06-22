@@ -7702,6 +7702,10 @@ export const api = {
     }),
   fileIngestionItem: (itemId: string) =>
     request<IngestionItem>(`/document-ingestion/items/${itemId}/file`, { method: "PUT" }),
+  ocrIngestionItem: (itemId: string) =>
+    request<IngestionItem>(`/document-ingestion/items/${itemId}/ocr`, { method: "PUT" }),
+  searchIngested: (q: string) =>
+    request<IngestionItem[]>(`/document-ingestion/search?q=${encodeURIComponent(q)}`),
 
   // Leave Balances
   listLeaveBalances: (employeeId: string) =>

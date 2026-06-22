@@ -104,6 +104,24 @@ impl S3PresignClient {
 
         Ok(presigned.uri().to_string())
     }
+
+    /// Download an object's bytes directly (server-side, e.g. for OCR).
+    pub async fn download_object(&self, key: &str) -> Result<Vec<u8>, S3PresignError> {
+        let output = self
+            .client
+            .get_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .send()
+            .await
+            .map_err(|e| S3PresignError(e.to_string()))?;
+        let body = output
+            .body
+            .collect()
+            .await
+            .map_err(|e| S3PresignError(e.to_string()))?;
+        Ok(body.to_vec())
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

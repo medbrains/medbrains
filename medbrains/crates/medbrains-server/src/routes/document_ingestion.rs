@@ -39,6 +39,7 @@ pub struct IngestionItem {
     pub linked_medical_record_id: Option<Uuid>,
     pub linked_packet_id: Option<Uuid>,
     pub extracted_text: Option<String>,
+    pub ocr_status: Option<String>,
     pub status: String,
     pub notes: Option<String>,
     pub uploaded_by: Option<Uuid>,
@@ -63,6 +64,41 @@ pub struct AddItemRequest {
 pub struct LinkItemRequest {
     /// Record number scanned/typed from the document barcode.
     pub barcode: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct IngestionSearchQuery {
+    pub q: String,
+}
+
+/// `GET /api/document-ingestion/search?q=` — full-text search across the OCR'd
+/// scans (the point of digitisation: retrieve a chart by its content or number).
+pub async fn search_ingested(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    axum::extract::Query(params): axum::extract::Query<IngestionSearchQuery>,
+) -> Result<Json<Vec<IngestionItem>>, AppError> {
+    require_permission(&claims, permissions::mrd::records::LIST)?;
+    let q = params.q.trim();
+    if q.is_empty() {
+        return Ok(Json(Vec::new()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, IngestionItem>(
+        "SELECT * FROM document_ingestion_items \
+         WHERE tenant_id = $1 \
+           AND (extracted_text ILIKE '%' || $2 || '%' \
+                OR original_filename ILIKE '%' || $2 || '%' \
+                OR barcode ILIKE '%' || $2 || '%') \
+         ORDER BY created_at DESC LIMIT 100",
+    )
+    .bind(claims.tenant_id)
+    .bind(q)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
 }
 
 /// `GET /api/document-ingestion/batches`
@@ -197,6 +233,98 @@ pub async fn link_item(
     .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// Run tesseract OCR over image bytes. Returns the engine outcome separately
+/// from genuine errors so the caller can record an `ocr_status`.
+enum OcrOutcome {
+    Text(String),
+    Unsupported,
+    Unavailable,
+    Failed,
+}
+
+async fn run_tesseract_ocr(bytes: &[u8], ext: &str) -> OcrOutcome {
+    const IMAGE_EXTS: [&str; 8] = ["png", "jpg", "jpeg", "tif", "tiff", "bmp", "gif", "webp"];
+    if !IMAGE_EXTS.contains(&ext.to_lowercase().as_str()) {
+        // tesseract reads images directly; PDFs need page rasterisation first.
+        return OcrOutcome::Unsupported;
+    }
+    let tmp = std::env::temp_dir().join(format!("mb-ocr-{}.{ext}", Uuid::new_v4()));
+    if tokio::fs::write(&tmp, bytes).await.is_err() {
+        return OcrOutcome::Failed;
+    }
+    let result = tokio::process::Command::new("tesseract")
+        .arg(&tmp)
+        .arg("stdout")
+        .args(["-l", "eng"])
+        .output()
+        .await;
+    let _ = tokio::fs::remove_file(&tmp).await;
+    match result {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => OcrOutcome::Unavailable,
+        Err(_) => OcrOutcome::Failed,
+        Ok(out) if !out.status.success() => OcrOutcome::Failed,
+        Ok(out) => OcrOutcome::Text(String::from_utf8_lossy(&out.stdout).into_owned()),
+    }
+}
+
+/// `PUT /api/document-ingestion/items/{item_id}/ocr` — OCR the scan with the
+/// configured engine (tesseract) and store the extracted text.
+pub async fn ocr_item(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(item_id): Path<Uuid>,
+) -> Result<Json<IngestionItem>, AppError> {
+    require_permission(&claims, permissions::mrd::records::CREATE)?;
+
+    let s3 = state
+        .s3
+        .clone()
+        .ok_or_else(|| AppError::BadRequest("Object storage is not configured.".to_owned()))?;
+
+    // Fetch the item (short transaction; the OCR itself runs outside any tx).
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let item = sqlx::query_as::<_, IngestionItem>(
+        "SELECT * FROM document_ingestion_items WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(item_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+
+    let bytes = s3
+        .download_object(&item.file_url)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+    let ext = item.original_filename.rsplit('.').next().unwrap_or("").to_owned();
+
+    let (text, ocr_status) = match run_tesseract_ocr(&bytes, &ext).await {
+        OcrOutcome::Text(t) => (Some(t), "done"),
+        OcrOutcome::Unsupported => (None, "unsupported"),
+        OcrOutcome::Unavailable => (None, "unavailable"),
+        OcrOutcome::Failed => (None, "failed"),
+    };
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, IngestionItem>(
+        "UPDATE document_ingestion_items SET \
+           extracted_text = COALESCE($3, extracted_text), ocr_status = $4, updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 RETURNING *",
+    )
+    .bind(item_id)
+    .bind(claims.tenant_id)
+    .bind(&text)
+    .bind(ocr_status)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
     Ok(Json(row))
 }
 

@@ -3964,6 +3964,14 @@ pub fn build_router(state: AppState) -> Router {
             "/api/document-ingestion/items/{item_id}/file",
             put(document_ingestion::file_item),
         )
+        .route(
+            "/api/document-ingestion/items/{item_id}/ocr",
+            put(document_ingestion::ocr_item),
+        )
+        .route(
+            "/api/document-ingestion/search",
+            get(document_ingestion::search_ingested),
+        )
         .route("/api/hr/duty-hours", get(hr::list_duty_hours))
         .route("/api/hr/my-shift", get(hr::get_my_shift))
         .route("/api/hr/my-shift/start", post(hr::start_shift))

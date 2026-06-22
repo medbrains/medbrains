@@ -14,6 +14,9 @@ export const mrdService = {
     api.linkIngestionItem(...args),
   fileIngestionItem: (...args: Parameters<typeof api.fileIngestionItem>) =>
     api.fileIngestionItem(...args),
+  ocrIngestionItem: (...args: Parameters<typeof api.ocrIngestionItem>) =>
+    api.ocrIngestionItem(...args),
+  searchIngested: (...args: Parameters<typeof api.searchIngested>) => api.searchIngested(...args),
   listRoiRequests: (...args: Parameters<typeof api.listRoiRequests>) =>
     api.listRoiRequests(...args),
   createRoiRequest: (...args: Parameters<typeof api.createRoiRequest>) =>
