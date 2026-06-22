@@ -12284,6 +12284,8 @@ export interface DrugReference {
   renal_adjust_rule?: string | null;
   hepatic_caution?: string | null;
   pregnancy_category?: string | null;
+  brands?: string | null;
+  is_nlem: boolean;
 }
 
 export interface LabReference {

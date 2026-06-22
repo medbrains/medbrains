@@ -114,9 +114,10 @@ def build_drug_formulary(src: str, out_dir: str) -> None:
     cols = [
         "generic_name", "inn_name", "atc_code", "max_dose_per_day", "max_single_dose",
         "dose_per_kg", "renal_adjust_egfr_threshold", "renal_adjust_rule",
-        "hepatic_caution", "pregnancy_category",
+        "hepatic_caution", "pregnancy_category", "brands", "is_nlem",
     ]
-    # Start from the curated reference.
+    # Start from the curated reference. These are WHO-EML / NLEM-2022 essential
+    # medicines → government-supply / free-drug-scheme drugs (is_nlem = true).
     by_generic: dict[str, dict] = {}
     for g, maxd, maxs, rt, rr, hep, preg in CURATED_CDS:
         by_generic[g] = {
@@ -124,6 +125,7 @@ def build_drug_formulary(src: str, out_dir: str) -> None:
             "max_dose_per_day": maxd, "max_single_dose": maxs, "dose_per_kg": "",
             "renal_adjust_egfr_threshold": rt, "renal_adjust_rule": rr,
             "hepatic_caution": hep, "pregnancy_category": preg,
+            "brands": "", "is_nlem": "true",
         }
 
     # Enrich from pharmacology.py (paediatric mg/kg, hepatic/pregnancy notes).
@@ -150,6 +152,13 @@ def build_drug_formulary(src: str, out_dir: str) -> None:
                 m = re.match(r"([\d.]+)\s*(mcg|mg|g)/kg", str(paedia.get("dose", "")))
                 if m and not row["dose_per_kg"]:
                     row["dose_per_kg"] = f"{m.group(1)} {m.group(2)}"
+                # brand name(s) from the product label parentheses; NLEM essential.
+                row["is_nlem"] = "true"
+                brand_m = re.search(r"\(([^)0-9][^)]*)\)", str(d.get("name") or ""))
+                if brand_m and not row.get("brands"):
+                    brand = re.sub(r"[\d./%]+.*$", "", brand_m.group(1)).strip()
+                    if brand:
+                        row["brands"] = brand
         except Exception as exc:  # noqa: BLE001
             print(f"WARN: could not import pharmacology.py: {exc}", file=sys.stderr)
     else:

@@ -86,6 +86,8 @@ pub struct DrugReference {
     pub renal_adjust_rule: Option<String>,
     pub hepatic_caution: Option<String>,
     pub pregnancy_category: Option<String>,
+    pub brands: Option<String>,
+    pub is_nlem: bool,
 }
 
 /// GET /api/ckb/formulary — search the global CDS drug reference.
@@ -99,8 +101,9 @@ pub async fn list_formulary(
     let rows = sqlx::query_as::<_, DrugReference>(
         "SELECT generic_name, inn_name, atc_code, max_dose_per_day, max_single_dose, \
                 dose_per_kg, renal_adjust_egfr_threshold::float8, renal_adjust_rule, \
-                hepatic_caution, pregnancy_category \
-         FROM cds_drug_reference WHERE lower(generic_name) LIKE $1 \
+                hepatic_caution, pregnancy_category, brands, is_nlem \
+         FROM cds_drug_reference \
+         WHERE lower(generic_name) LIKE $1 OR lower(coalesce(brands, '')) LIKE $1 \
          ORDER BY generic_name LIMIT 500",
     )
     .bind(&pattern)

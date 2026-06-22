@@ -254,9 +254,23 @@ function FormularyTab() {
             key: "generic_name",
             label: "Generic",
             render: (d) => (
-              <Text size="sm" fw={600} tt="capitalize">
-                {d.generic_name}
-              </Text>
+              <Stack gap={0}>
+                <Group gap={6}>
+                  <Text size="sm" fw={600} tt="capitalize">
+                    {d.generic_name}
+                  </Text>
+                  {d.is_nlem ? (
+                    <Badge tone="success" size="xs">
+                      NLEM
+                    </Badge>
+                  ) : null}
+                </Group>
+                {d.brands ? (
+                  <Text size="xs" c="dimmed">
+                    {d.brands}
+                  </Text>
+                ) : null}
+              </Stack>
             ),
           },
           {

@@ -81,12 +81,13 @@ pub(super) async fn seed_drug_reference(pool: &PgPool) -> Result<(), Box<dyn std
         // numeric eGFR threshold (column 6) — pass as text, cast in SQL.
         let egfr = non_empty(c.get(6));
 
+        let is_nlem = c.get(11).is_some_and(|s| s == "true");
         sqlx::query(
             "INSERT INTO cds_drug_reference \
                (generic_name, inn_name, atc_code, max_dose_per_day, max_single_dose, \
                 dose_per_kg, renal_adjust_egfr_threshold, renal_adjust_rule, \
-                hepatic_caution, pregnancy_category) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7::numeric, $8, $9, $10) \
+                hepatic_caution, pregnancy_category, brands, is_nlem) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7::numeric, $8, $9, $10, $11, $12) \
              ON CONFLICT (generic_name) DO UPDATE SET \
                inn_name = EXCLUDED.inn_name, atc_code = EXCLUDED.atc_code, \
                max_dose_per_day = EXCLUDED.max_dose_per_day, \
@@ -94,7 +95,8 @@ pub(super) async fn seed_drug_reference(pool: &PgPool) -> Result<(), Box<dyn std
                renal_adjust_egfr_threshold = EXCLUDED.renal_adjust_egfr_threshold, \
                renal_adjust_rule = EXCLUDED.renal_adjust_rule, \
                hepatic_caution = EXCLUDED.hepatic_caution, \
-               pregnancy_category = EXCLUDED.pregnancy_category, updated_at = now()",
+               pregnancy_category = EXCLUDED.pregnancy_category, \
+               brands = EXCLUDED.brands, is_nlem = EXCLUDED.is_nlem, updated_at = now()",
         )
         .bind(generic.to_lowercase())
         .bind(non_empty(c.get(1)))
@@ -106,6 +108,8 @@ pub(super) async fn seed_drug_reference(pool: &PgPool) -> Result<(), Box<dyn std
         .bind(non_empty(c.get(7)))
         .bind(non_empty(c.get(8)))
         .bind(non_empty(c.get(9)))
+        .bind(non_empty(c.get(10)))
+        .bind(is_nlem)
         .execute(&mut *tx)
         .await?;
         count += 1;

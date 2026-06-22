@@ -1,64 +1,64 @@
-generic_name,inn_name,atc_code,max_dose_per_day,max_single_dose,dose_per_kg,renal_adjust_egfr_threshold,renal_adjust_rule,hepatic_caution,pregnancy_category
-aceclofenac,aceclofenac,,200 mg,100 mg,,30,Avoid if eGFR < 30,,C
-amitriptyline,amitriptyline,,150 mg,75 mg,,,,Caution in hepatic impairment,C
-amlodipine,amlodipine,,10 mg,10 mg,,,,,C
-amoxicillin,amoxicillin,,3000 mg,1000 mg,20 mg,30,Reduce frequency if eGFR < 30,,B
-amoxicillin_clav,amoxicillin_clav,,3000 mg,1000 mg,,30,Reduce frequency if eGFR < 30,,B
-aspirin,aspirin,,4000 mg,1000 mg,,,,,C
-asv,asv,,,,,,,,
-atenolol,atenolol,,100 mg,100 mg,,35,Reduce dose if eGFR < 35,,D
-atorvastatin,atorvastatin,,80 mg,80 mg,,,,Contraindicated in active liver disease,X
-atropine,atropine,,,,,,,,
-azithromycin,azithromycin,,500 mg,500 mg,10 mg,,,Caution in hepatic impairment,B
-budesonide,budesonide,,,,,,,,
-calcium,calcium,,,,,,,,
-cefixime,cefixime,,400 mg,200 mg,,20,Reduce dose if eGFR < 20,,B
-cefotaxime,cefotaxime,,,,,,,,
-ceftriaxone,ceftriaxone,,4000 mg,2000 mg,50 mg,,,,B
-cetirizine,cetirizine,,,,,,,,
-ciprofloxacin,ciprofloxacin,,1500 mg,750 mg,,30,Halve dose if eGFR < 30,,C
-clonazepam,clonazepam,,,,,,,,
-clotrimazole,clotrimazole,,,,,,,,
-diclofenac,diclofenac,,150 mg,50 mg,,30,Avoid if eGFR < 30,,C
-domperidone,domperidone,,,,,,,,
-doxycycline,doxycycline,,,,,,,,
-escitalopram,escitalopram,,,,,,,,
-etoricoxib,etoricoxib,,,,,,,,
-folic,folic,,,,,,,,
-furosemide,furosemide,,80 mg,40 mg,,,,,C
-gentamicin,gentamicin,,5 mg,,,60,Reduce dose / extend interval if eGFR < 60,,D
-glimepiride,glimepiride,,8 mg,8 mg,,,,Caution in hepatic impairment,C
-glucosamine,glucosamine,,,,,,,,
-hydrocortisone,hydrocortisone,,,,5 mg,,,,
-ibuprofen,ibuprofen,,2400 mg,800 mg,10 mg,30,Avoid if eGFR < 30,,C
-insulin,insulin,,,,,,,,
-iron,iron,,,,,,,,
-latanoprost,latanoprost,,,,,,,,
-levocetirizine,levocetirizine,,,,,,,,
-levofloxacin,levofloxacin,,750 mg,750 mg,,50,Reduce dose if eGFR < 50,,C
-losartan,losartan,,100 mg,100 mg,,,,Reduce dose in hepatic impairment,D
-metformin,metformin,,2550 mg,1000 mg,,30,Stop if eGFR < 30 (lactic acidosis),,C
-metronidazole,metronidazole,,2000 mg,800 mg,7.5 mg,,,Reduce dose in severe hepatic impairment,B
-montelukast,montelukast,,,,,,,,
-naproxen,naproxen,,1000 mg,500 mg,,30,Avoid if eGFR < 30,,C
-ofloxacin,ofloxacin,,,,,,,,
-omeprazole,omeprazole,,40 mg,40 mg,,,,Max 20 mg/day in hepatic impairment,C
-ondansetron,ondansetron,,,,0.15 mg,,,,
-ors,ors,,,,,,,,
-pam,pam,,,,,,,,
-pantoprazole,pantoprazole,,80 mg,40 mg,,,,Max 20 mg/day in severe hepatic impairment,B
-paracetamol,paracetamol,,4000 mg,1000 mg,15 mg,,,Reduce dose in chronic liver disease,B
-permethrin,permethrin,,,,,,,,
-pheniramine,pheniramine,,,,,,,,
-prednisolone,prednisolone,,60 mg,60 mg,1 mg,,,,C
-ranitidine,ranitidine,,300 mg,150 mg,,50,Halve dose if eGFR < 50,,B
-salbutamol,salbutamol,,,,,,,,
-sertraline,sertraline,,,,,,,,
-silver,silver,,,,,,,,
-telmisartan,telmisartan,,80 mg,80 mg,,,,Caution in biliary obstruction,D
-tetanus,tetanus,,,,,,,,
-thiamine,thiamine,,,,,,,,
-timolol,timolol,,,,,,,,
-tramadol,tramadol,,400 mg,100 mg,,30,Increase dosing interval if eGFR < 30,Caution in hepatic impairment,C
-vancomycin,vancomycin,,2000 mg,1000 mg,,60,Adjust by levels if eGFR < 60,,C
-vitamin,vitamin,,,,,,,,
+generic_name,inn_name,atc_code,max_dose_per_day,max_single_dose,dose_per_kg,renal_adjust_egfr_threshold,renal_adjust_rule,hepatic_caution,pregnancy_category,brands,is_nlem
+aceclofenac,aceclofenac,,200 mg,100 mg,,30,Avoid if eGFR < 30,,C,,true
+amitriptyline,amitriptyline,,150 mg,75 mg,,,,Caution in hepatic impairment,C,,true
+amlodipine,amlodipine,,10 mg,10 mg,,,,,C,,true
+amoxicillin,amoxicillin,,3000 mg,1000 mg,20 mg,30,Reduce frequency if eGFR < 30,,B,,true
+amoxicillin_clav,amoxicillin_clav,,3000 mg,1000 mg,,30,Reduce frequency if eGFR < 30,,B,,true
+aspirin,aspirin,,4000 mg,1000 mg,,,,,C,,true
+asv,asv,,,,,,,,,Anti-Snake Venom,true
+atenolol,atenolol,,100 mg,100 mg,,35,Reduce dose if eGFR < 35,,D,,true
+atorvastatin,atorvastatin,,80 mg,80 mg,,,,Contraindicated in active liver disease,X,,true
+atropine,atropine,,,,,,,,,,true
+azithromycin,azithromycin,,500 mg,500 mg,10 mg,,,Caution in hepatic impairment,B,,true
+budesonide,budesonide,,,,,,,,,Symbicort,true
+calcium,calcium,,,,,,,,,,true
+cefixime,cefixime,,400 mg,200 mg,,20,Reduce dose if eGFR < 20,,B,,true
+cefotaxime,cefotaxime,,,,,,,,,,true
+ceftriaxone,ceftriaxone,,4000 mg,2000 mg,50 mg,,,,B,,true
+cetirizine,cetirizine,,,,,,,,,,true
+ciprofloxacin,ciprofloxacin,,1500 mg,750 mg,,30,Halve dose if eGFR < 30,,C,,true
+clonazepam,clonazepam,,,,,,,,,,true
+clotrimazole,clotrimazole,,,,,,,,,,true
+diclofenac,diclofenac,,150 mg,50 mg,,30,Avoid if eGFR < 30,,C,,true
+domperidone,domperidone,,,,,,,,,,true
+doxycycline,doxycycline,,,,,,,,,,true
+escitalopram,escitalopram,,,,,,,,,,true
+etoricoxib,etoricoxib,,,,,,,,,,true
+folic,folic,,,,,,,,,,true
+furosemide,furosemide,,80 mg,40 mg,,,,,C,,true
+gentamicin,gentamicin,,5 mg,,,60,Reduce dose / extend interval if eGFR < 60,,D,,true
+glimepiride,glimepiride,,8 mg,8 mg,,,,Caution in hepatic impairment,C,,true
+glucosamine,glucosamine,,,,,,,,,,true
+hydrocortisone,hydrocortisone,,,,5 mg,,,,,,true
+ibuprofen,ibuprofen,,2400 mg,800 mg,10 mg,30,Avoid if eGFR < 30,,C,,true
+insulin,insulin,,,,,,,,,Mixtard,true
+iron,iron,,,,,,,,,,true
+latanoprost,latanoprost,,,,,,,,,,true
+levocetirizine,levocetirizine,,,,,,,,,,true
+levofloxacin,levofloxacin,,750 mg,750 mg,,50,Reduce dose if eGFR < 50,,C,,true
+losartan,losartan,,100 mg,100 mg,,,,Reduce dose in hepatic impairment,D,,true
+metformin,metformin,,2550 mg,1000 mg,,30,Stop if eGFR < 30 (lactic acidosis),,C,,true
+metronidazole,metronidazole,,2000 mg,800 mg,7.5 mg,,,Reduce dose in severe hepatic impairment,B,,true
+montelukast,montelukast,,,,,,,,,,true
+naproxen,naproxen,,1000 mg,500 mg,,30,Avoid if eGFR < 30,,C,,true
+ofloxacin,ofloxacin,,,,,,,,,,true
+omeprazole,omeprazole,,40 mg,40 mg,,,,Max 20 mg/day in hepatic impairment,C,,true
+ondansetron,ondansetron,,,,0.15 mg,,,,,,true
+ors,ors,,,,,,,,,Sachet,true
+pam,pam,,,,,,,,,PAM,true
+pantoprazole,pantoprazole,,80 mg,40 mg,,,,Max 20 mg/day in severe hepatic impairment,B,,true
+paracetamol,paracetamol,,4000 mg,1000 mg,15 mg,,,Reduce dose in chronic liver disease,B,,true
+permethrin,permethrin,,,,,,,,,,true
+pheniramine,pheniramine,,,,,,,,,,true
+prednisolone,prednisolone,,60 mg,60 mg,1 mg,,,,C,,true
+ranitidine,ranitidine,,300 mg,150 mg,,50,Halve dose if eGFR < 50,,B,,true
+salbutamol,salbutamol,,,,,,,,,,true
+sertraline,sertraline,,,,,,,,,,true
+silver,silver,,,,,,,,,,true
+telmisartan,telmisartan,,80 mg,80 mg,,,,Caution in biliary obstruction,D,,true
+tetanus,tetanus,,,,,,,,,,true
+thiamine,thiamine,,,,,,,,,,true
+timolol,timolol,,,,,,,,,,true
+tramadol,tramadol,,400 mg,100 mg,,30,Increase dosing interval if eGFR < 30,Caution in hepatic impairment,C,,true
+vancomycin,vancomycin,,2000 mg,1000 mg,,60,Adjust by levels if eGFR < 60,,C,,true
+vitamin,vitamin,,,,,,,,,,true
