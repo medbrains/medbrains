@@ -187,9 +187,13 @@ def build_lab_reference(src: str, out_dir: str) -> None:
     import json
 
     xlsx = os.path.join(src, "analysis", "Lab_Value_Matrix.xlsx")
+    # normal_low/high default to Adult-M; per-age/sex bands follow.
     cols = [
         "test", "analyte", "unit", "normal_low", "normal_high",
         "critical_low", "critical_high", "category",
+        "neonate_low", "neonate_high", "infant_low", "infant_high",
+        "child_low", "child_high", "adult_m_low", "adult_m_high",
+        "adult_f_low", "adult_f_high",
     ]
     out_path = os.path.join(out_dir, "lab_reference.csv")
     if not os.path.isfile(xlsx):
@@ -212,8 +216,18 @@ def build_lab_reference(src: str, out_dir: str) -> None:
         return hdr.index(name) if name in hdr else -1
 
     ti, ai, ui = col("Test"), col("Analyte"), col("Unit")
-    am = col("Normal: Adult-M")
     cl, ch = col("Critical Low"), col("Critical High")
+    bands = {
+        "neonate": col("Normal: Neonate"),
+        "infant": col("Normal: Infant"),
+        "child": col("Normal: Child"),
+        "adult_m": col("Normal: Adult-M"),
+        "adult_f": col("Normal: Adult-F"),
+    }
+
+    def band_range(r: tuple, key: str) -> tuple[str, str]:
+        idx = bands[key]
+        return _parse_range(r[idx]) if idx >= 0 else ("", "")
 
     rows: list[list[str]] = []
     seen: set[str] = set()
@@ -223,23 +237,22 @@ def build_lab_reference(src: str, out_dir: str) -> None:
         if not analyte or analyte.lower() in seen:
             continue
         seen.add(analyte.lower())
-        n_low, n_high = _parse_range(r[am]) if am >= 0 else ("", "")
-        c_low = str(r[cl] or "").strip() if cl >= 0 else ""
-        c_high = str(r[ch] or "").strip() if ch >= 0 else ""
-        # keep only a plain number for the critical columns
-        c_low = _parse_range(f"{c_low}–{c_low}")[0] if c_low else ""
-        c_high = _parse_range(f"{c_high}–{c_high}")[0] if c_high else ""
+        am_low, am_high = band_range(r, "adult_m")
+        c_low = _parse_range(f"{r[cl]}–{r[cl]}")[0] if cl >= 0 and r[cl] else ""
+        c_high = _parse_range(f"{r[ch]}–{r[ch]}")[0] if ch >= 0 and r[ch] else ""
         category = cat_map.get(test.lower()) or cat_map.get(analyte.lower()) or "Pathology"
-        rows.append([
-            test, analyte, str(r[ui] or "").strip(), n_low, n_high, c_low, c_high, category,
-        ])
+        row = [test, analyte, str(r[ui] or "").strip(), am_low, am_high, c_low, c_high, category]
+        for key in ("neonate", "infant", "child", "adult_m", "adult_f"):
+            lo, hi = band_range(r, key)
+            row.extend([lo, hi])
+        rows.append(row)
 
     with open(out_path, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(cols)
         w.writerows(rows)
     crit = sum(1 for r in rows if r[5] or r[6])
-    print(f"Wrote {len(rows)} lab analytes ({crit} with critical thresholds) → {out_path}")
+    print(f"Wrote {len(rows)} lab analytes ({crit} with critical thresholds, age/sex bands) → {out_path}")
 
 
 # Curated public dangerous drug/ingredient combinations (well-established

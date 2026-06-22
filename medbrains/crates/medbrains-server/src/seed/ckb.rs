@@ -142,13 +142,23 @@ pub(super) async fn seed_lab_reference(pool: &PgPool) -> Result<(), Box<dyn std:
         };
         sqlx::query(
             "INSERT INTO cds_lab_reference \
-               (test, analyte, unit, normal_low, normal_high, critical_low, critical_high, category) \
-             VALUES ($1, $2, $3, $4::numeric, $5::numeric, $6::numeric, $7::numeric, $8) \
+               (test, analyte, unit, normal_low, normal_high, critical_low, critical_high, \
+                category, neonate_low, neonate_high, infant_low, infant_high, child_low, \
+                child_high, adult_m_low, adult_m_high, adult_f_low, adult_f_high) \
+             VALUES ($1, $2, $3, $4::numeric, $5::numeric, $6::numeric, $7::numeric, $8, \
+                     $9::numeric, $10::numeric, $11::numeric, $12::numeric, $13::numeric, \
+                     $14::numeric, $15::numeric, $16::numeric, $17::numeric, $18::numeric) \
              ON CONFLICT (analyte) DO UPDATE SET \
                test = EXCLUDED.test, unit = EXCLUDED.unit, \
                normal_low = EXCLUDED.normal_low, normal_high = EXCLUDED.normal_high, \
                critical_low = EXCLUDED.critical_low, critical_high = EXCLUDED.critical_high, \
-               category = EXCLUDED.category, updated_at = now()",
+               category = EXCLUDED.category, \
+               neonate_low = EXCLUDED.neonate_low, neonate_high = EXCLUDED.neonate_high, \
+               infant_low = EXCLUDED.infant_low, infant_high = EXCLUDED.infant_high, \
+               child_low = EXCLUDED.child_low, child_high = EXCLUDED.child_high, \
+               adult_m_low = EXCLUDED.adult_m_low, adult_m_high = EXCLUDED.adult_m_high, \
+               adult_f_low = EXCLUDED.adult_f_low, adult_f_high = EXCLUDED.adult_f_high, \
+               updated_at = now()",
         )
         .bind(non_empty(c.first()))
         .bind(analyte.to_lowercase())
@@ -158,6 +168,16 @@ pub(super) async fn seed_lab_reference(pool: &PgPool) -> Result<(), Box<dyn std:
         .bind(non_empty(c.get(5)))
         .bind(non_empty(c.get(6)))
         .bind(non_empty(c.get(7)))
+        .bind(non_empty(c.get(8)))
+        .bind(non_empty(c.get(9)))
+        .bind(non_empty(c.get(10)))
+        .bind(non_empty(c.get(11)))
+        .bind(non_empty(c.get(12)))
+        .bind(non_empty(c.get(13)))
+        .bind(non_empty(c.get(14)))
+        .bind(non_empty(c.get(15)))
+        .bind(non_empty(c.get(16)))
+        .bind(non_empty(c.get(17)))
         .execute(&mut *tx)
         .await?;
         count += 1;

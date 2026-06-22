@@ -1019,32 +1019,98 @@ pub async fn cancel_order(
 //  Results
 // ══════════════════════════════════════════════════════════
 
-/// Auto-detect a critical flag for a numeric result by matching its parameter
-/// name to the global `cds_lab_reference` (analyte or test) and comparing to the
-/// critical thresholds. Returns `None` for non-numeric values or no match.
-async fn auto_critical_flag(
+/// The patient's lab reference band ("neonate" | "infant" | "child" |
+/// "adult_m" | "adult_f"), from age + biological sex. Defaults to adult by sex.
+async fn patient_lab_band(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+) -> Result<String, AppError> {
+    let row = sqlx::query_as::<_, (Option<NaiveDate>, Option<String>)>(
+        "SELECT date_of_birth, biological_sex::text FROM patients \
+         WHERE tenant_id = $1 AND id = $2",
+    )
+    .bind(tenant_id)
+    .bind(patient_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    let (dob, sex) = row.unwrap_or((None, None));
+    let adult = if sex.as_deref() == Some("female") { "adult_f" } else { "adult_m" };
+    let Some(dob) = dob else {
+        return Ok(adult.to_owned());
+    };
+    let age_days = chrono::Utc::now().date_naive().signed_duration_since(dob).num_days();
+    let band = if age_days < 28 {
+        "neonate"
+    } else if age_days < 365 {
+        "infant"
+    } else if age_days < 365 * 12 {
+        "child"
+    } else {
+        adult
+    };
+    Ok(band.to_owned())
+}
+
+#[derive(sqlx::FromRow)]
+struct LabRefRow {
+    critical_low: Option<f64>,
+    critical_high: Option<f64>,
+    neonate_low: Option<f64>,
+    neonate_high: Option<f64>,
+    infant_low: Option<f64>,
+    infant_high: Option<f64>,
+    child_low: Option<f64>,
+    child_high: Option<f64>,
+    adult_m_low: Option<f64>,
+    adult_m_high: Option<f64>,
+    adult_f_low: Option<f64>,
+    adult_f_high: Option<f64>,
+}
+
+/// Auto-flag a numeric result against the global `cds_lab_reference`: critical
+/// thresholds first, then the patient's age/sex normal band (→ high/low).
+/// Returns `None` for non-numeric values or no match.
+async fn auto_flag(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     parameter_name: &str,
     value: &str,
+    band: &str,
 ) -> Result<Option<String>, AppError> {
     let Ok(v) = value.trim().parse::<f64>() else {
         return Ok(None);
     };
-    let row = sqlx::query_as::<_, (Option<f64>, Option<f64>)>(
-        "SELECT critical_low::float8, critical_high::float8 FROM cds_lab_reference \
-         WHERE lower(analyte) = lower($1) OR lower(test) = lower($1) LIMIT 1",
+    let row = sqlx::query_as::<_, LabRefRow>(
+        "SELECT critical_low::float8, critical_high::float8, \
+                neonate_low::float8, neonate_high::float8, infant_low::float8, infant_high::float8, \
+                child_low::float8, child_high::float8, adult_m_low::float8, adult_m_high::float8, \
+                adult_f_low::float8, adult_f_high::float8 \
+         FROM cds_lab_reference WHERE lower(analyte) = lower($1) OR lower(test) = lower($1) LIMIT 1",
     )
     .bind(parameter_name.trim())
     .fetch_optional(&mut **tx)
     .await?;
-    let Some((critical_low, critical_high)) = row else {
+    let Some(r) = row else {
         return Ok(None);
     };
-    if critical_low.is_some_and(|lo| v < lo) {
+    if r.critical_low.is_some_and(|lo| v < lo) {
         return Ok(Some("critical_low".to_owned()));
     }
-    if critical_high.is_some_and(|hi| v > hi) {
+    if r.critical_high.is_some_and(|hi| v > hi) {
         return Ok(Some("critical_high".to_owned()));
+    }
+    let (low, high) = match band {
+        "neonate" => (r.neonate_low, r.neonate_high),
+        "infant" => (r.infant_low, r.infant_high),
+        "child" => (r.child_low, r.child_high),
+        "adult_f" => (r.adult_f_low, r.adult_f_high),
+        _ => (r.adult_m_low, r.adult_m_high),
+    };
+    if low.is_some_and(|lo| v < lo) {
+        return Ok(Some("low".to_owned()));
+    }
+    if high.is_some_and(|hi| v > hi) {
+        return Ok(Some("high".to_owned()));
     }
     Ok(None)
 }
@@ -1069,6 +1135,9 @@ pub async fn add_results(
             .await?
             .ok_or(AppError::NotFound)?;
 
+    // Patient age/sex band for reference-range auto-flagging.
+    let lab_band = patient_lab_band(&mut tx, claims.tenant_id, order.patient_id).await?;
+
     // Fetch test catalog for delta check threshold
     #[derive(sqlx::FromRow)]
     struct TestConfig {
@@ -1089,7 +1158,7 @@ pub async fn add_results(
         // Auto-detect a critical value from the global CDS lab reference when
         // the technician hasn't already flagged one (NABL critical-value
         // reporting — a value out of the critical range is never missed).
-        let effective_flag = auto_critical_flag(&mut tx, &r.parameter_name, &r.value)
+        let effective_flag = auto_flag(&mut tx, &r.parameter_name, &r.value, &lab_band)
             .await?
             .or_else(|| r.flag.clone());
 
