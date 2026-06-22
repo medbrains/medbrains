@@ -27,13 +27,13 @@ export function PageTransition({ children }: Props) {
     <motion.div
       key={location.pathname}
       className="page-content"
-      style={reduce ? undefined : { transformOrigin: "center top", willChange: "transform, opacity" }}
+      style={
+        reduce ? undefined : { transformOrigin: "center top", willChange: "transform, opacity" }
+      }
       initial={reduce ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.99 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={
-        reduce
-          ? { duration: 0.12 }
-          : { duration: 0.3, ease: SETTLE, opacity: { duration: 0.2 } }
+        reduce ? { duration: 0.12 } : { duration: 0.3, ease: SETTLE, opacity: { duration: 0.2 } }
       }
     >
       {children}
