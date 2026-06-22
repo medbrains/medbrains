@@ -12221,6 +12221,7 @@ export interface DrugSafetyCheckResult {
   weight_alerts: WeightDoseAlert[];
   renal_alerts: RenalDoseAlert[];
   hepatic_alerts: HepaticAlert[];
+  ingredient_alerts: IngredientAlert[];
 }
 
 export interface RenalDoseAlert {
@@ -12233,6 +12234,13 @@ export interface RenalDoseAlert {
 export interface HepaticAlert {
   drug_name: string;
   caution: string;
+}
+
+export interface IngredientAlert {
+  kind: "duplicate" | "incompatible";
+  label: string;
+  detail: string;
+  severity: string;
 }
 
 // ── Clinical Knowledge Base (CKB) ──

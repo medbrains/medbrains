@@ -233,6 +233,99 @@ def build_lab_reference(src: str, out_dir: str) -> None:
     print(f"Wrote {len(rows)} lab analytes ({crit} with critical thresholds) → {out_path}")
 
 
+# Curated public dangerous drug/ingredient combinations (well-established
+# interactions + IV admixture incompatibilities). (ingredient_a, ingredient_b,
+# severity, mechanism)
+INCOMPATIBILITIES: list[tuple[str, str, str, str]] = [
+    ("warfarin", "aspirin", "major", "Additive bleeding risk"),
+    ("warfarin", "ibuprofen", "major", "Additive bleeding risk + GI"),
+    ("warfarin", "diclofenac", "major", "Additive bleeding risk + GI"),
+    ("ramipril", "spironolactone", "major", "Hyperkalaemia"),
+    ("enalapril", "spironolactone", "major", "Hyperkalaemia"),
+    ("telmisartan", "spironolactone", "major", "Hyperkalaemia"),
+    ("losartan", "ramipril", "moderate", "Dual RAAS blockade — hyperkalaemia / AKI"),
+    ("ciprofloxacin", "tizanidine", "major", "↑ tizanidine — hypotension/sedation"),
+    ("clarithromycin", "atorvastatin", "major", "Rhabdomyolysis (CYP3A4)"),
+    ("clarithromycin", "simvastatin", "major", "Rhabdomyolysis (CYP3A4)"),
+    ("ceftriaxone", "calcium", "major", "Ceftriaxone–calcium precipitate (IV, esp. neonates)"),
+    ("phenytoin", "dextrose", "major", "Phenytoin precipitates in dextrose — saline only"),
+    ("methotrexate", "trimethoprim", "major", "Additive antifolate — marrow suppression"),
+    ("digoxin", "amiodarone", "major", "↑ digoxin level — toxicity"),
+    ("metformin", "contrast", "moderate", "Lactic acidosis — hold around iodinated contrast"),
+    ("tramadol", "ondansetron", "moderate", "Serotonin syndrome risk"),
+    ("amlodipine", "simvastatin", "moderate", "↑ simvastatin — limit to 20 mg"),
+    ("potassium", "spironolactone", "major", "Hyperkalaemia"),
+    ("ibuprofen", "ramipril", "moderate", "NSAID blunts ACE-i + AKI ('triple whammy' w/ diuretic)"),
+]
+
+# Common combination products whose ingredients aren't parseable from the name.
+KNOWN_INGREDIENTS: dict[str, list[str]] = {
+    "amoxicillin_clav": ["amoxicillin", "clavulanic acid"],
+    "cotrimoxazole": ["sulfamethoxazole", "trimethoprim"],
+    "piperacillin_tazo": ["piperacillin", "tazobactam"],
+}
+
+
+def _clean_ingredient(token: str) -> str:
+    import re
+
+    t = re.sub(r"\([^)]*\)", "", token)  # drop brand/strength parens
+    t = re.sub(r"\b\d+[\d./]*\s*(mg|mcg|g|ml|iu|%)?\b", "", t, flags=re.I)  # drop doses
+    return t.strip(" .").lower()
+
+
+def build_drug_ingredients(src: str, out_dir: str) -> None:
+    """Emit drug_ingredients.csv (generic → active ingredient) by parsing the
+    pharmacology.py product names for combinations, and ingredient_incompatibility.csv."""
+    import re
+
+    pairs: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    if os.path.isfile(os.path.join(src, "pharmacology.py")):
+        sys.path.insert(0, src)
+        try:
+            import pharmacology  # type: ignore
+
+            form_prefix = re.compile(
+                r"^(t|tab|cap|c|syp|syr|inj|neb|mdi|oint|cr|gel|drops?|susp|sol|spray)\.?\s+",
+                re.I,
+            )
+            for key, d in pharmacology.DRUGS.items():
+                generic = key.split("_")[0].strip().lower()
+                if generic in KNOWN_INGREDIENTS:
+                    ingredients = KNOWN_INGREDIENTS[generic]
+                elif key in KNOWN_INGREDIENTS:
+                    ingredients = KNOWN_INGREDIENTS[key]
+                else:
+                    name = form_prefix.sub("", str(d.get("name") or "").strip())
+                    name = re.sub(r"\([^)]*\)", "", name)
+                    parts = [p for p in re.split(r"\s*\+\s*", name) if p.strip()]
+                    ingredients = [_clean_ingredient(p) for p in parts] or [generic]
+                for ing in ingredients:
+                    if ing and (generic, ing) not in seen:
+                        seen.add((generic, ing))
+                        pairs.append((generic, ing))
+        except Exception as exc:  # noqa: BLE001
+            print(f"WARN: ingredients from pharmacology.py: {exc}", file=sys.stderr)
+
+    ing_path = os.path.join(out_dir, "drug_ingredients.csv")
+    with open(ing_path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["generic_name", "ingredient"])
+        w.writerows(sorted(pairs))
+    print(f"Wrote {len(pairs)} drug→ingredient rows → {ing_path}")
+
+    inc_path = os.path.join(out_dir, "ingredient_incompatibility.csv")
+    with open(inc_path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["ingredient_a", "ingredient_b", "severity", "mechanism"])
+        # store the pair ordered so lookups are symmetric.
+        for a, b, sev, mech in INCOMPATIBILITIES:
+            lo, hi = sorted([a.lower(), b.lower()])
+            w.writerow([lo, hi, sev, mech])
+    print(f"Wrote {len(INCOMPATIBILITIES)} incompatibility pairs → {inc_path}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -291,6 +384,7 @@ def main() -> int:
 
     build_drug_formulary(args.src, out_dir)
     build_lab_reference(args.src, out_dir)
+    build_drug_ingredients(args.src, out_dir)
     return 0
 
 

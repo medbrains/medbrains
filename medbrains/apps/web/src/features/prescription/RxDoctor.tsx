@@ -5,6 +5,7 @@ import type {
   AllergyConflict,
   DrugInteractionAlert,
   HepaticAlert,
+  IngredientAlert,
   PrescriptionTemplate,
   RenalDoseAlert,
   WeightDoseAlert,
@@ -48,6 +49,7 @@ export interface RxSafety {
   weight_alerts: WeightDoseAlert[];
   renal_alerts: RenalDoseAlert[];
   hepatic_alerts: HepaticAlert[];
+  ingredient_alerts: IngredientAlert[];
 }
 
 function SafetyRow({
@@ -236,6 +238,8 @@ export function RxDoctor({
   const weightAlerts = safety.weight_alerts;
   const renalAlerts = safety.renal_alerts;
   const hepaticAlerts = safety.hepatic_alerts;
+  const ingredientAlerts = safety.ingredient_alerts;
+  const seriousIngredient = ingredientAlerts.filter((a) => a.kind === "incompatible");
   const pendingCount = items.filter((it) => it.pendingMD).length;
   const reviewCount =
     major.length +
@@ -244,7 +248,8 @@ export function RxDoctor({
     seriousCautions.length +
     weightAlerts.length +
     renalAlerts.length +
-    hepaticAlerts.length;
+    hepaticAlerts.length +
+    ingredientAlerts.length;
 
   return (
     <Box className={classes.view}>
@@ -525,6 +530,21 @@ export function RxDoctor({
             hepaticAlerts.length
               ? hepaticAlerts.map((h) => `${h.drug_name}: ${h.caution}`).join(" · ")
               : "No hepatic cautions in order"
+          }
+        />
+        <SafetyRow
+          state={seriousIngredient.length ? "flag" : ingredientAlerts.length ? "warn" : "ok"}
+          label="Combination chemistry"
+          detail={
+            ingredientAlerts.length
+              ? ingredientAlerts
+                  .map((a) =>
+                    a.kind === "duplicate"
+                      ? `Duplicate ${a.label} — ${a.detail}`
+                      : `${a.label}: ${a.detail}`,
+                  )
+                  .join(" · ")
+              : "No duplicate ingredients or incompatible combinations"
           }
         />
       </Drawer>

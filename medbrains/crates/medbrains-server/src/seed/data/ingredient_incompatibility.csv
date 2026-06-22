@@ -1,0 +1,20 @@
+ingredient_a,ingredient_b,severity,mechanism
+aspirin,warfarin,major,Additive bleeding risk
+ibuprofen,warfarin,major,Additive bleeding risk + GI
+diclofenac,warfarin,major,Additive bleeding risk + GI
+ramipril,spironolactone,major,Hyperkalaemia
+enalapril,spironolactone,major,Hyperkalaemia
+spironolactone,telmisartan,major,Hyperkalaemia
+losartan,ramipril,moderate,Dual RAAS blockade — hyperkalaemia / AKI
+ciprofloxacin,tizanidine,major,↑ tizanidine — hypotension/sedation
+atorvastatin,clarithromycin,major,Rhabdomyolysis (CYP3A4)
+clarithromycin,simvastatin,major,Rhabdomyolysis (CYP3A4)
+calcium,ceftriaxone,major,"Ceftriaxone–calcium precipitate (IV, esp. neonates)"
+dextrose,phenytoin,major,Phenytoin precipitates in dextrose — saline only
+methotrexate,trimethoprim,major,Additive antifolate — marrow suppression
+amiodarone,digoxin,major,↑ digoxin level — toxicity
+contrast,metformin,moderate,Lactic acidosis — hold around iodinated contrast
+ondansetron,tramadol,moderate,Serotonin syndrome risk
+amlodipine,simvastatin,moderate,↑ simvastatin — limit to 20 mg
+potassium,spironolactone,major,Hyperkalaemia
+ibuprofen,ramipril,moderate,NSAID blunts ACE-i + AKI ('triple whammy' w/ diuretic)

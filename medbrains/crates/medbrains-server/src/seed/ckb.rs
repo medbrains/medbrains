@@ -164,6 +164,53 @@ pub(super) async fn seed_lab_reference(pool: &PgPool) -> Result<(), Box<dyn std:
     Ok(())
 }
 
+const DRUG_INGREDIENTS_CSV: &str = include_str!("data/drug_ingredients.csv");
+const INGREDIENT_INCOMPAT_CSV: &str = include_str!("data/ingredient_incompatibility.csv");
+
+/// Seed the GLOBAL ingredient model (generic → ingredient + incompatible pairs)
+/// for combination-chemistry checks. Idempotent.
+pub(super) async fn seed_ingredients(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
+    let mut tx = pool.begin().await?;
+
+    for line in DRUG_INGREDIENTS_CSV.lines().skip(1) {
+        let c = parse_csv_row(line.trim_end());
+        let (Some(generic), Some(ingredient)) = (non_empty(c.first()), non_empty(c.get(1))) else {
+            continue;
+        };
+        sqlx::query(
+            "INSERT INTO cds_drug_ingredient (generic_name, ingredient) VALUES ($1, $2) \
+             ON CONFLICT (generic_name, ingredient) DO NOTHING",
+        )
+        .bind(generic.to_lowercase())
+        .bind(ingredient.to_lowercase())
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    for line in INGREDIENT_INCOMPAT_CSV.lines().skip(1) {
+        let c = parse_csv_row(line.trim_end());
+        let (Some(a), Some(b)) = (non_empty(c.first()), non_empty(c.get(1))) else {
+            continue;
+        };
+        sqlx::query(
+            "INSERT INTO cds_ingredient_incompatibility (ingredient_a, ingredient_b, severity, mechanism) \
+             VALUES ($1, $2, $3, $4) \
+             ON CONFLICT (ingredient_a, ingredient_b) DO UPDATE SET \
+               severity = EXCLUDED.severity, mechanism = EXCLUDED.mechanism",
+        )
+        .bind(a.to_lowercase())
+        .bind(b.to_lowercase())
+        .bind(non_empty(c.get(2)))
+        .bind(non_empty(c.get(3)))
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+    tracing::info!("Seeded cds_drug_ingredient + cds_ingredient_incompatibility");
+    Ok(())
+}
+
 fn non_empty(value: Option<&String>) -> Option<&str> {
     value.map(String::as_str).filter(|s| !s.is_empty())
 }

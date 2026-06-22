@@ -47,6 +47,7 @@ const EMPTY_SAFETY: RxSafety = {
   weight_alerts: [],
   renal_alerts: [],
   hepatic_alerts: [],
+  ingredient_alerts: [],
 };
 
 /**

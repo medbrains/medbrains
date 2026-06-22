@@ -82,6 +82,15 @@ pub struct HepaticAlert {
 }
 
 #[derive(Debug, Serialize)]
+pub struct IngredientAlert {
+    /// "duplicate" (same active ingredient in 2+ products) or "incompatible".
+    pub kind: String,
+    pub label: String,
+    pub detail: String,
+    pub severity: String,
+}
+
+#[derive(Debug, Serialize)]
 pub struct DrugInteractionAlert {
     pub drug_a: String,
     pub drug_b: String,
@@ -107,6 +116,7 @@ pub struct DrugSafetyCheckResult {
     pub weight_alerts: Vec<WeightDoseAlert>,
     pub renal_alerts: Vec<RenalDoseAlert>,
     pub hepatic_alerts: Vec<HepaticAlert>,
+    pub ingredient_alerts: Vec<IngredientAlert>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -330,6 +340,9 @@ pub async fn check_drug_safety(
         renal_hepatic_alerts_for_items(&mut tx, claims.tenant_id, &body.items, egfr).await?
     };
 
+    // Combination chemistry: duplicate active ingredients + incompatible pairs.
+    let ingredient_alerts = ingredient_alerts_for_items(&mut tx, claims.tenant_id, &body.items).await?;
+
     tx.commit().await?;
 
     Ok(Json(DrugSafetyCheckResult {
@@ -339,7 +352,115 @@ pub async fn check_drug_safety(
         weight_alerts,
         renal_alerts,
         hepatic_alerts,
+        ingredient_alerts,
     }))
+}
+
+/// Combination-chemistry detector: expand prescribed products to active
+/// ingredients (global `cds_drug_ingredient`), then flag (a) the same
+/// ingredient in 2+ products (additive-dose risk) and (b) known incompatible
+/// ingredient pairs (`cds_ingredient_incompatibility`).
+async fn ingredient_alerts_for_items(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    items: &[DoseCheckItem],
+) -> Result<Vec<IngredientAlert>, AppError> {
+    let catalog_ids: Vec<Uuid> = items.iter().filter_map(|i| i.catalog_item_id).collect();
+    if catalog_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    #[derive(sqlx::FromRow)]
+    struct GenRow {
+        id: Uuid,
+        generic: Option<String>,
+    }
+    let gens = sqlx::query_as::<_, GenRow>(
+        "SELECT id, lower(COALESCE(NULLIF(inn_name, ''), generic_name, name)) AS generic \
+         FROM pharmacy_catalog WHERE tenant_id = $1 AND id = ANY($2)",
+    )
+    .bind(tenant_id)
+    .bind(&catalog_ids)
+    .fetch_all(&mut **tx)
+    .await?;
+    let id_to_generic: std::collections::HashMap<Uuid, String> = gens
+        .into_iter()
+        .filter_map(|g| g.generic.map(|name| (g.id, name)))
+        .collect();
+
+    let generics: Vec<String> = id_to_generic.values().cloned().collect();
+    #[derive(sqlx::FromRow)]
+    struct IngRow {
+        generic_name: String,
+        ingredient: String,
+    }
+    let ing_rows = sqlx::query_as::<_, IngRow>(
+        "SELECT generic_name, ingredient FROM cds_drug_ingredient WHERE generic_name = ANY($1)",
+    )
+    .bind(&generics)
+    .fetch_all(&mut **tx)
+    .await?;
+    let mut generic_to_ings: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
+    for r in ing_rows {
+        generic_to_ings.entry(r.generic_name).or_default().push(r.ingredient);
+    }
+
+    // ingredient → distinct product names that contain it.
+    let mut ing_to_drugs: std::collections::BTreeMap<String, std::collections::BTreeSet<String>> =
+        std::collections::BTreeMap::new();
+    for item in items {
+        let Some(generic) = item.catalog_item_id.and_then(|cid| id_to_generic.get(&cid)) else {
+            continue;
+        };
+        let ings = generic_to_ings
+            .get(generic)
+            .cloned()
+            .unwrap_or_else(|| vec![generic.clone()]);
+        for ing in ings {
+            ing_to_drugs.entry(ing).or_default().insert(item.drug_name.clone());
+        }
+    }
+
+    let mut alerts = Vec::new();
+    for (ing, drugs) in &ing_to_drugs {
+        if drugs.len() >= 2 {
+            alerts.push(IngredientAlert {
+                kind: "duplicate".to_owned(),
+                label: ing.clone(),
+                detail: format!("Same ingredient in: {}", drugs.iter().cloned().collect::<Vec<_>>().join(", ")),
+                severity: "duplicate".to_owned(),
+            });
+        }
+    }
+
+    let all_ings: Vec<String> = ing_to_drugs.keys().cloned().collect();
+    if all_ings.len() >= 2 {
+        #[derive(sqlx::FromRow)]
+        struct IncRow {
+            ingredient_a: String,
+            ingredient_b: String,
+            severity: Option<String>,
+            mechanism: Option<String>,
+        }
+        let inc = sqlx::query_as::<_, IncRow>(
+            "SELECT ingredient_a, ingredient_b, severity, mechanism \
+             FROM cds_ingredient_incompatibility \
+             WHERE ingredient_a = ANY($1) AND ingredient_b = ANY($1)",
+        )
+        .bind(&all_ings)
+        .fetch_all(&mut **tx)
+        .await?;
+        for r in inc {
+            alerts.push(IngredientAlert {
+                kind: "incompatible".to_owned(),
+                label: format!("{} + {}", r.ingredient_a, r.ingredient_b),
+                detail: r.mechanism.unwrap_or_default(),
+                severity: r.severity.unwrap_or_else(|| "major".to_owned()),
+            });
+        }
+    }
+    Ok(alerts)
 }
 
 /// Latest recorded eGFR (mL/min/1.73m²) for a patient from lab results, if any.
