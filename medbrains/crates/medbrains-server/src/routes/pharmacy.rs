@@ -1472,6 +1472,8 @@ pub struct OtcSaleRequest {
     pub items: Vec<OrderItemInput>,
     pub notes: Option<String>,
     pub store_location_id: Option<Uuid>,
+    /// Pharmacist's reason for selling despite a documented drug allergy.
+    pub allergy_override_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -3346,6 +3348,82 @@ pub async fn validate_order(
 //  POST /api/pharmacy/otc-sale
 // ══════════════════════════════════════════════════════════
 
+/// Active drug-allergy conflicts for a patient against the given drug names.
+/// Fuzzy case-insensitive substring match (either direction). Shared by the
+/// dispense / OTC-sale / POS-sale allergy guards.
+async fn drug_allergy_conflicts(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+    drug_names: &[String],
+) -> Result<Vec<(String, String)>, AppError> {
+    let allergens = sqlx::query_scalar::<_, String>(
+        "SELECT allergen_name FROM patient_allergies \
+         WHERE tenant_id = $1 AND patient_id = $2 AND is_active = true \
+           AND allergy_type = 'drug'",
+    )
+    .bind(tenant_id)
+    .bind(patient_id)
+    .fetch_all(&mut **tx)
+    .await?;
+    if allergens.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut conflicts = Vec::new();
+    for drug in drug_names {
+        let d = drug.to_lowercase();
+        for allergen in &allergens {
+            let a = allergen.trim().to_lowercase();
+            if !a.is_empty() && (d.contains(&a) || a.contains(&d)) {
+                conflicts.push((drug.clone(), allergen.clone()));
+                break;
+            }
+        }
+    }
+    Ok(conflicts)
+}
+
+/// Human-readable "drug (allergy: allergen); …" summary for a 400 message.
+fn allergy_conflict_summary(conflicts: &[(String, String)]) -> String {
+    conflicts
+        .iter()
+        .map(|(drug, allergen)| format!("{drug} (allergy: {allergen})"))
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+/// Record acknowledged allergy overrides to `pharmacy_allergy_check_log`.
+async fn log_allergy_overrides(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+    conflicts: &[(String, String)],
+    overridden_by: Uuid,
+    reason: &str,
+    context: &str,
+    order_id: Option<Uuid>,
+) -> Result<(), AppError> {
+    for (drug, allergen) in conflicts {
+        sqlx::query(
+            "INSERT INTO pharmacy_allergy_check_log \
+             (tenant_id, patient_id, drug_name, allergen_matched, action_taken, \
+              overridden_by, override_reason, context, order_id) \
+             VALUES ($1, $2, $3, $4, 'overridden', $5, $6, $7, $8)",
+        )
+        .bind(tenant_id)
+        .bind(patient_id)
+        .bind(drug)
+        .bind(allergen)
+        .bind(overridden_by)
+        .bind(reason)
+        .bind(context)
+        .bind(order_id)
+        .execute(&mut **tx)
+        .await?;
+    }
+    Ok(())
+}
+
 pub async fn create_otc_sale(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -3367,6 +3445,25 @@ pub async fn create_otc_sale(
     // OTC sale: patient_id is optional (NULL for walk-in customers)
     let patient_id = body.patient_id;
 
+    // Allergy guard — only when the sale is linked to a patient.
+    let allergy_reason = body
+        .allergy_override_reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|r| !r.is_empty());
+    let allergy_conflicts = if let Some(pid) = patient_id {
+        let names: Vec<String> = body.items.iter().map(|i| i.drug_name.clone()).collect();
+        drug_allergy_conflicts(&mut tx, claims.tenant_id, pid, &names).await?
+    } else {
+        Vec::new()
+    };
+    if !allergy_conflicts.is_empty() && allergy_reason.is_none() {
+        return Err(AppError::BadRequest(format!(
+            "Patient has a documented drug allergy conflicting with: {}. Provide an override reason to sell.",
+            allergy_conflict_summary(&allergy_conflicts)
+        )));
+    }
+
     let order = sqlx::query_as::<_, PharmacyOrder>(
         "INSERT INTO pharmacy_orders \
          (tenant_id, patient_id, ordered_by, status, notes, \
@@ -3381,6 +3478,22 @@ pub async fn create_otc_sale(
     .bind(body.store_location_id)
     .fetch_one(&mut *tx)
     .await?;
+
+    if let (Some(pid), Some(reason)) = (patient_id, allergy_reason) {
+        if !allergy_conflicts.is_empty() {
+            log_allergy_overrides(
+                &mut tx,
+                claims.tenant_id,
+                pid,
+                &allergy_conflicts,
+                claims.sub,
+                reason,
+                "pos_sale",
+                Some(order.id),
+            )
+            .await?;
+        }
+    }
 
     let mut items = Vec::with_capacity(body.items.len());
     for item in &body.items {
@@ -5815,6 +5928,25 @@ pub async fn create_pos_sale(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    // Allergy guard — only when the sale is linked to a patient.
+    let allergy_reason = body
+        .allergy_override_reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|r| !r.is_empty());
+    let allergy_conflicts = if let Some(pid) = body.patient_id {
+        let names: Vec<String> = body.items.iter().map(|i| i.drug_name.clone()).collect();
+        drug_allergy_conflicts(&mut tx, claims.tenant_id, pid, &names).await?
+    } else {
+        Vec::new()
+    };
+    if !allergy_conflicts.is_empty() && allergy_reason.is_none() {
+        return Err(AppError::BadRequest(format!(
+            "Patient has a documented drug allergy conflicting with: {}. Provide an override reason to sell.",
+            allergy_conflict_summary(&allergy_conflicts)
+        )));
+    }
+
     // Generate sale number
     let sale_num = format!(
         "PH-SALE-{}",
@@ -5864,6 +5996,22 @@ pub async fn create_pos_sale(
     .bind(body.store_location_id)
     .fetch_one(&mut *tx)
     .await?;
+
+    if let (Some(pid), Some(reason)) = (body.patient_id, allergy_reason) {
+        if !allergy_conflicts.is_empty() {
+            log_allergy_overrides(
+                &mut tx,
+                claims.tenant_id,
+                pid,
+                &allergy_conflicts,
+                claims.sub,
+                reason,
+                "pos_sale",
+                Some(order.id),
+            )
+            .await?;
+        }
+    }
 
     // Create POS sale record
     let sale = sqlx::query_as::<_, PharmacyPosSale>(
@@ -6865,6 +7013,8 @@ pub struct CreatePosSaleRequest {
     pub pricing_tier: Option<String>,
     pub notes: Option<String>,
     pub store_location_id: Option<Uuid>,
+    /// Pharmacist's reason for selling despite a documented drug allergy.
+    pub allergy_override_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

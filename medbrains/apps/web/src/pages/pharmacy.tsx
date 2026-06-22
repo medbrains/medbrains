@@ -6408,6 +6408,31 @@ function PosCounterTab({
   const discountPercent = watch("discount_percent");
   const registeredPatientId = watch("patient_id");
 
+  // Allergy guard for patient-linked counter sales.
+  const [posAllergyReason, setPosAllergyReason] = useState("");
+  const { data: posPatientAllergies = [] } = useQuery({
+    queryKey: ["patient-allergies", registeredPatientId],
+    queryFn: () => pharmacyService.listPatientAllergies(registeredPatientId),
+    enabled: Boolean(registeredPatientId),
+  });
+  const posAllergyConflicts = useMemo(() => {
+    const allergens = posPatientAllergies
+      .filter((a) => a.is_active && a.allergy_type === "drug")
+      .map((a) => a.allergen_name);
+    if (allergens.length === 0) return [];
+    return (cart ?? [])
+      .map((c) => {
+        const drug = (c.drug_name ?? "").toLowerCase();
+        const allergen = allergens.find((a) => {
+          const al = a.trim().toLowerCase();
+          return al.length > 0 && drug.length > 0 && (drug.includes(al) || al.includes(drug));
+        });
+        return allergen ? { drug: c.drug_name, allergen } : null;
+      })
+      .filter((x): x is { drug: string; allergen: string } => x !== null);
+  }, [cart, posPatientAllergies]);
+  const posAllergyBlocked = posAllergyConflicts.length > 0 && posAllergyReason.trim().length < 5;
+
   const { data: daySummary } = useQuery({
     queryKey: ["pharmacy-pos-day-summary"],
     queryFn: () => pharmacyService.getPosDaySummary(),
@@ -6536,6 +6561,12 @@ function PosCounterTab({
   }
 
   function handleSubmitSale(values: PharmacyPosSaleFormInput) {
+    if (posAllergyBlocked) {
+      toast.error("Documented drug allergy — record an override reason to sell.", {
+        title: "Allergy conflict",
+      });
+      return;
+    }
     const subtotalValue = values.items.reduce(
       (sum, item) => sum + posSaleLineQuantity(item) * posSaleLinePrice(item),
       0,
@@ -6544,6 +6575,7 @@ function PosCounterTab({
     const discountValue = subtotalValue * (discountPercentValue / 100);
     createMutation.mutate({
       patient_id: optionalFormText(values.patient_id),
+      allergy_override_reason: posAllergyConflicts.length > 0 ? posAllergyReason.trim() : undefined,
       items: values.items.map((c) => ({
         catalog_item_id: c.catalog_item_id,
         drug_name: c.drug_name,
@@ -6926,6 +6958,34 @@ function PosCounterTab({
               )}
             </Group>
 
+            {posAllergyConflicts.length > 0 && (
+              <Alert
+                tone="danger"
+                icon={<IconAlertTriangle size={16} />}
+                title="Documented drug allergy"
+              >
+                <Stack gap={4}>
+                  {posAllergyConflicts.map((c) => (
+                    <Text key={c.drug} size="sm">
+                      <b>{c.drug}</b> — patient allergic to {c.allergen}
+                    </Text>
+                  ))}
+                  <Textarea
+                    label="Override reason"
+                    required
+                    autosize
+                    minRows={2}
+                    placeholder="e.g. Prior documented tolerance; prescriber confirmed; no alternative"
+                    value={posAllergyReason}
+                    onChange={(e) => setPosAllergyReason(e.currentTarget.value)}
+                    error={
+                      posAllergyBlocked ? "A reason (≥5 chars) is required to sell" : undefined
+                    }
+                  />
+                </Stack>
+              </Alert>
+            )}
+
             {cart.length > 0 && (
               <Table striped highlightOnHover mb="sm">
                 <Table.Thead>
@@ -7072,6 +7132,7 @@ function PosCounterTab({
                     disabled={
                       !canEditPosAmounts ||
                       cart.length === 0 ||
+                      posAllergyBlocked ||
                       formNumberOrFallback(amountReceived, 0) < totalAmount
                     }
                     leftSection={<IconShoppingCart size={14} />}
