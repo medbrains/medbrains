@@ -5,6 +5,8 @@ export const ckbService = {
     api.listCkbDiagnoses(...args),
   listCkbFormulary: (...args: Parameters<typeof api.listCkbFormulary>) =>
     api.listCkbFormulary(...args),
+  listCkbLabReference: (...args: Parameters<typeof api.listCkbLabReference>) =>
+    api.listCkbLabReference(...args),
   listNotifiableReports: (...args: Parameters<typeof api.listNotifiableReports>) =>
     api.listNotifiableReports(...args),
   updateNotifiableReport: (...args: Parameters<typeof api.updateNotifiableReport>) =>

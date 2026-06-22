@@ -1,0 +1,101 @@
+test,analyte,unit,normal_low,normal_high,critical_low,critical_high,category
+CBC,Haemoglobin,g/dL,13.0,17.0,7,20,Pathology
+CBC,Total WBC,cells/cumm,4000,11000,2000,30000,Pathology
+CBC,Platelet Count,lakh/cumm,1.5,4.5,0.2,10,Pathology
+CBC,PCV/Hct,%,40,50,,,Pathology
+CBC,MCV,fL,80,100,,,Pathology
+CBC,Neutrophils,%,40,75,,,Pathology
+CBC,Lymphocytes,%,20,40,,,Pathology
+CBC,Eosinophils,%,1,6,,,Pathology
+LFT,Total Bilirubin,mg/dL,0.3,1.2,,15,Biochemistry
+LFT,Direct Bilirubin,mg/dL,0.0,0.3,,,Biochemistry
+LFT,SGOT/AST,U/L,5,40,,,Biochemistry
+LFT,SGPT/ALT,U/L,7,45,,,Biochemistry
+LFT,ALP,U/L,40,130,,,Biochemistry
+LFT,Total Protein,g/dL,6.4,8.3,,,Biochemistry
+LFT,Albumin,g/dL,3.5,5.2,2,,Biochemistry
+LFT,GGT,U/L,10,71,,,Biochemistry
+RFT,Blood Urea,mg/dL,15,40,,100,Biochemistry
+RFT,Serum Creatinine,mg/dL,0.7,1.3,,5,Biochemistry
+RFT,Uric Acid,mg/dL,3.5,7.2,,,Biochemistry
+RFT,eGFR,mL/min/1.73m2,90,120,,,Biochemistry
+Electrolytes,Sodium,mEq/L,135,145,120,160,Biochemistry
+Electrolytes,Potassium,mEq/L,3.5,5.1,2.5,6.5,Biochemistry
+Electrolytes,Chloride,mEq/L,98,107,,,Biochemistry
+Electrolytes,Bicarbonate,mEq/L,22,29,,,Biochemistry
+Lipid Profile,Total Cholesterol,mg/dL,125,200,,300,Biochemistry
+Lipid Profile,Triglycerides,mg/dL,50,150,,500,Biochemistry
+Lipid Profile,HDL,mg/dL,40,60,,,Biochemistry
+Lipid Profile,LDL,mg/dL,50,100,,,Biochemistry
+TFT,TSH,uIU/mL,0.4,4.0,,,Biochemistry
+TFT,Free T4,ng/dL,0.8,1.8,,,Biochemistry
+TFT,Free T3,pg/mL,2.3,4.2,,,Biochemistry
+Iron Studies,Serum Iron,ug/dL,65,175,,,Pathology
+Iron Studies,TIBC,ug/dL,250,450,,,Pathology
+Iron Studies,Ferritin,ng/mL,30,400,,,Pathology
+Iron Studies,Transferrin Saturation,%,20,50,,,Pathology
+Coag Profile,BT,min,2,7,,,Pathology
+Coag Profile,CT,min,4,9,,,Pathology
+Coag Profile,PT,sec,11,14,,,Pathology
+Coag Profile,INR,,0.8,1.2,,4.5,Pathology
+Coag Profile,APTT,sec,25,35,,,Pathology
+RBS,RBS,mg/dL,70,140,50,400,Biochemistry
+FBS,FBS,mg/dL,70,100,50,350,Biochemistry
+PPBS,PPBS,mg/dL,70,140,,400,Biochemistry
+HbA1c,HbA1c,%,4.0,5.6,,,Biochemistry
+ESR,ESR,mm/hr,0,15,,,Pathology
+CRP,CRP,mg/L,0,6,,100,Microbiology
+Serum Calcium,Serum Calcium,mg/dL,8.6,10.3,6.5,13,Pathology
+Serum Amylase,Serum Amylase,U/L,25,125,,500,Pathology
+Serum Lipase,Serum Lipase,U/L,10,60,,400,Pathology
+Troponin I/T,Troponin I/T,ng/mL,0.0,0.04,,0.5,Pathology
+CK-MB,CK-MB,U/L,0,25,,,Pathology
+BNP,BNP,pg/mL,0,100,,400,Pathology
+Vitamin D,Vitamin D,ng/mL,30,100,,,Pathology
+Vitamin B12,Vitamin B12,pg/mL,200,900,,,Pathology
+Folate,Folate,ng/mL,3,17,,,Pathology
+Reticulocyte Count,Reticulocyte Count,%,0.5,2.5,,,Pathology
+Serum Ferritin,Serum Ferritin,ng/mL,30,400,,,Pathology
+AEC,AEC,cells/cumm,40,440,,,Pathology
+IgE,IgE,IU/mL,0,150,,,Pathology
+LDH,LDH,U/L,140,280,,,Biochemistry
+Serum Protein,Serum Protein,g/dL,6.4,8.3,,,Pathology
+Magnesium,Magnesium,mg/dL,1.7,2.2,,,Pathology
+Prolactin,Prolactin,ng/mL,4,23,,,Pathology
+Anti-TPO,Anti-TPO,IU/mL,0,34,,,Pathology
+Testosterone,Testosterone,ng/dL,280,1100,,,Pathology
+LH,LH,mIU/mL,1.5,9.0,,,Biochemistry
+FSH,FSH,mIU/mL,1.5,12.0,,,Biochemistry
+AMH,AMH,ng/mL,1.0,4.0,,,Pathology
+Beta-hCG,Beta-hCG,mIU/mL,0,5,,,Pathology
+CA-125,CA-125,U/mL,0,35,,,Biochemistry
+PSA,PSA,ng/mL,0,4,,,Pathology
+RA Factor,RA Factor,IU/mL,0,14,,,Microbiology
+Anti-CCP,Anti-CCP,U/mL,0,17,,,Pathology
+ASO Titre,ASO Titre,IU/mL,0,200,,,Pathology
+Dengue NS1/IgM,Dengue NS1/IgM,,,,,,Pathology
+Dengue NS1,Dengue NS1,,,,,,Pathology
+HIV,HIV,,,,,,Microbiology
+HBsAg,HBsAg,,,,,,Microbiology
+HCV,HCV,,,,,,Microbiology
+VDRL,VDRL,,,,,,Microbiology
+RPR,RPR,,,,,,Microbiology
+Widal,Widal,,,,,,Microbiology
+Typhidot IgM,Typhidot IgM,,,,,,Pathology
+Leptospira IgM,Leptospira IgM,,,,,,Pathology
+Scrub Typhus IgM,Scrub Typhus IgM,,,,,,Pathology
+Malaria RDT,Malaria RDT,,,,,,Pathology
+Mantoux,Mantoux,,,,,,Microbiology
+Sputum AFB,Sputum AFB,,,,,,Microbiology
+H. pylori,H. pylori,,,,,,Pathology
+H. pylori Stool Antigen,H. pylori Stool Antigen,,,,,,Pathology
+ANA,ANA,,,,,,Biochemistry
+HLA-B27,HLA-B27,,,,,,Pathology
+RF,RF,,,,,,Pathology
+Stool Occult Blood,Stool Occult Blood,,,,,,Pathology
+Beta-hCG (qualitative),Beta-hCG (qualitative),,,,,,Pathology
+UPT,UPT,,,,,,Pathology
+Urine HCG,Urine HCG,,,,,,Pathology
+KOH,KOH,,,,,,Microbiology
+KOH (skin scraping),KOH (skin scraping),,,,,,Pathology
+GCT,GCT,,,,,,Biochemistry

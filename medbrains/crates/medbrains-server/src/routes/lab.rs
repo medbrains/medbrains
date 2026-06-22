@@ -1019,6 +1019,36 @@ pub async fn cancel_order(
 //  Results
 // ══════════════════════════════════════════════════════════
 
+/// Auto-detect a critical flag for a numeric result by matching its parameter
+/// name to the global `cds_lab_reference` (analyte or test) and comparing to the
+/// critical thresholds. Returns `None` for non-numeric values or no match.
+async fn auto_critical_flag(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    parameter_name: &str,
+    value: &str,
+) -> Result<Option<String>, AppError> {
+    let Ok(v) = value.trim().parse::<f64>() else {
+        return Ok(None);
+    };
+    let row = sqlx::query_as::<_, (Option<f64>, Option<f64>)>(
+        "SELECT critical_low::float8, critical_high::float8 FROM cds_lab_reference \
+         WHERE lower(analyte) = lower($1) OR lower(test) = lower($1) LIMIT 1",
+    )
+    .bind(parameter_name.trim())
+    .fetch_optional(&mut **tx)
+    .await?;
+    let Some((critical_low, critical_high)) = row else {
+        return Ok(None);
+    };
+    if critical_low.is_some_and(|lo| v < lo) {
+        return Ok(Some("critical_low".to_owned()));
+    }
+    if critical_high.is_some_and(|hi| v > hi) {
+        return Ok(Some("critical_high".to_owned()));
+    }
+    Ok(None)
+}
+
 pub async fn add_results(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1056,6 +1086,13 @@ pub async fn add_results(
     let mut results = Vec::with_capacity(body.results.len());
     let mut critical_count = 0_usize;
     for r in &body.results {
+        // Auto-detect a critical value from the global CDS lab reference when
+        // the technician hasn't already flagged one (NABL critical-value
+        // reporting — a value out of the critical range is never missed).
+        let effective_flag = auto_critical_flag(&mut tx, &r.parameter_name, &r.value)
+            .await?
+            .or_else(|| r.flag.clone());
+
         // Delta check: find previous result for same patient + parameter
         #[derive(sqlx::FromRow)]
         struct PrevResult {
@@ -1101,7 +1138,7 @@ pub async fn add_results(
         // Auto-validate: within range, no delta flag, no critical
         let mut is_auto_validated = false;
         if !is_delta_flagged {
-            if let Some(ref flag_str) = r.flag {
+            if let Some(ref flag_str) = effective_flag {
                 if flag_str == "normal" {
                     is_auto_validated = true;
                 }
@@ -1125,7 +1162,7 @@ pub async fn add_results(
         .bind(&r.value)
         .bind(&r.unit)
         .bind(&r.normal_range)
-        .bind(&r.flag)
+        .bind(&effective_flag)
         .bind(&r.notes)
         .bind(claims.sub)
         .bind(&previous_value)
@@ -1136,7 +1173,7 @@ pub async fn add_results(
         .await?;
 
         // Generate critical alert if flag is critical
-        if let Some(ref flag_str) = r.flag {
+        if let Some(ref flag_str) = effective_flag {
             if flag_str == "critical_low" || flag_str == "critical_high" {
                 critical_count += 1;
                 // notified_to drives the SMS + escalation chain: the

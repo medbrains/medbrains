@@ -3,7 +3,13 @@ import { Box, Group, Stack, Tabs, Text, Textarea, TextInput } from "@mantine/cor
 import { useHasPermission } from "@medbrains/stores";
 import type { NotifiableReport } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconAlertTriangle, IconPill, IconReportMedical, IconVirus } from "@tabler/icons-react";
+import {
+  IconAlertTriangle,
+  IconFlask,
+  IconPill,
+  IconReportMedical,
+  IconVirus,
+} from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -15,7 +21,7 @@ import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { ckbService } from "@/services/ckb.service";
 import styles from "./mrd.module.scss";
 
-const CKB_TABS = ["notifiable", "reports", "formulary"] as const;
+const CKB_TABS = ["notifiable", "reports", "formulary", "lab"] as const;
 
 const STATUS_TONE: Record<string, BadgeTone> = {
   pending: "warning",
@@ -37,7 +43,10 @@ export function ClinicalKbPage() {
     },
     {
       label: "Reference",
-      items: [{ value: "formulary", label: "Drug formulary", icon: <IconPill size={14} /> }],
+      items: [
+        { value: "formulary", label: "Drug formulary", icon: <IconPill size={14} /> },
+        { value: "lab", label: "Lab reference", icon: <IconFlask size={14} /> },
+      ],
     },
   ];
   const [tab, setTab] = useHashTabs("notifiable", CKB_TABS);
@@ -58,6 +67,9 @@ export function ClinicalKbPage() {
           </Tabs.Panel>
           <Tabs.Panel value="formulary">
             <FormularyTab />
+          </Tabs.Panel>
+          <Tabs.Panel value="lab">
+            <LabReferenceTab />
           </Tabs.Panel>
         </WorkspaceRail>
       </Box>
@@ -130,6 +142,87 @@ function NotifiableDiseasesTab() {
         data={diagnoses}
         loading={isLoading}
         rowKey={(d) => d.icd10_code}
+      />
+    </Stack>
+  );
+}
+
+function LabReferenceTab() {
+  const [search, setSearch] = useState("");
+  const { data: analytes = [], isLoading } = useQuery({
+    queryKey: ["ckb-lab-reference", search],
+    queryFn: () => ckbService.listCkbLabReference(search.trim() || undefined),
+  });
+  const fmt = (n?: number | null) => (n === null || n === undefined ? "—" : String(n));
+
+  return (
+    <Stack>
+      <Group justify="space-between">
+        <Input
+          placeholder="Search analyte or test"
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+          w={320}
+        />
+        <Text size="xs" c="dimmed">
+          Auto-flags critical results at result entry
+        </Text>
+      </Group>
+      <DataTable
+        columns={[
+          {
+            key: "analyte",
+            label: "Analyte",
+            render: (a) => (
+              <Stack gap={0}>
+                <Text size="sm" fw={600} tt="capitalize">
+                  {a.analyte}
+                </Text>
+                {a.test ? (
+                  <Text size="xs" c="dimmed">
+                    {a.test}
+                  </Text>
+                ) : null}
+              </Stack>
+            ),
+          },
+          { key: "unit", label: "Unit", render: (a) => <Text size="sm">{a.unit ?? "—"}</Text> },
+          {
+            key: "normal",
+            label: "Normal",
+            render: (a) => (
+              <Text size="sm">
+                {fmt(a.normal_low)}–{fmt(a.normal_high)}
+              </Text>
+            ),
+          },
+          {
+            key: "critical",
+            label: "Critical",
+            render: (a) =>
+              a.critical_low !== null || a.critical_high !== null ? (
+                <Badge tone="danger">
+                  &lt;{fmt(a.critical_low)} / &gt;{fmt(a.critical_high)}
+                </Badge>
+              ) : (
+                <Text size="sm" c="dimmed">
+                  —
+                </Text>
+              ),
+          },
+          {
+            key: "category",
+            label: "Category",
+            render: (a) => (
+              <Text size="sm" c="dimmed">
+                {a.category ?? "—"}
+              </Text>
+            ),
+          },
+        ]}
+        data={analytes}
+        loading={isLoading}
+        rowKey={(a) => a.analyte}
       />
     </Stack>
   );

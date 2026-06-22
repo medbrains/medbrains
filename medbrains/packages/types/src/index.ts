@@ -12278,6 +12278,17 @@ export interface DrugReference {
   pregnancy_category?: string | null;
 }
 
+export interface LabReference {
+  test?: string | null;
+  analyte: string;
+  unit?: string | null;
+  normal_low?: number | null;
+  normal_high?: number | null;
+  critical_low?: number | null;
+  critical_high?: number | null;
+  category?: string | null;
+}
+
 export interface DoseAlert {
   drug_name: string;
   per_dose: string;

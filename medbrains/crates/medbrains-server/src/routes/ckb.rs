@@ -109,6 +109,39 @@ pub async fn list_formulary(
     Ok(Json(rows))
 }
 
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct LabReference {
+    pub test: Option<String>,
+    pub analyte: String,
+    pub unit: Option<String>,
+    pub normal_low: Option<f64>,
+    pub normal_high: Option<f64>,
+    pub critical_low: Option<f64>,
+    pub critical_high: Option<f64>,
+    pub category: Option<String>,
+}
+
+/// GET /api/ckb/lab-reference — search the global lab analyte reference.
+pub async fn list_lab_reference(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<DiseaseSearchQuery>,
+) -> Result<Json<Vec<LabReference>>, AppError> {
+    require_permission(&claims, "ckb.view")?;
+    let pattern = format!("%{}%", q.q.unwrap_or_default().trim().to_lowercase());
+    let rows = sqlx::query_as::<_, LabReference>(
+        "SELECT test, analyte, unit, normal_low::float8, normal_high::float8, \
+                critical_low::float8, critical_high::float8, category \
+         FROM cds_lab_reference \
+         WHERE lower(analyte) LIKE $1 OR lower(coalesce(test, '')) LIKE $1 \
+         ORDER BY analyte LIMIT 500",
+    )
+    .bind(&pattern)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ReportListQuery {
     pub status: Option<String>,

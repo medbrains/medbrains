@@ -833,6 +833,7 @@ import type {
   DrugInteractionCheckRequest,
   DiagnosisReference,
   DrugReference,
+  LabReference,
   NotifiableReport,
   UpdateNotifiableReportRequest,
   DrugInteractionResult,
@@ -6846,6 +6847,8 @@ export const api = {
   },
   listCkbFormulary: (q?: string) =>
     request<DrugReference[]>(`/ckb/formulary${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  listCkbLabReference: (q?: string) =>
+    request<LabReference[]>(`/ckb/lab-reference${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   listNotifiableReports: (status?: string) =>
     request<NotifiableReport[]>(`/ckb/notifiable-reports${status ? `?status=${status}` : ""}`),
   updateNotifiableReport: (id: string, data: UpdateNotifiableReportRequest) =>

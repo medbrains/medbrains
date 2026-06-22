@@ -1080,6 +1080,7 @@ pub fn build_router(state: AppState) -> Router {
         // ── Clinical Knowledge Base ─────────────────────
         .route("/api/ckb/diagnoses", get(ckb::list_diagnoses))
         .route("/api/ckb/formulary", get(ckb::list_formulary))
+        .route("/api/ckb/lab-reference", get(ckb::list_lab_reference))
         .route("/api/ckb/notifiable-reports", get(ckb::list_notifiable_reports))
         .route(
             "/api/ckb/notifiable-reports/{id}",

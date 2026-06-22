@@ -164,6 +164,75 @@ def build_drug_formulary(src: str, out_dir: str) -> None:
     print(f"Wrote {len(by_generic)} drug rows → {out_path}")
 
 
+def _parse_range(text: str) -> tuple[str, str]:
+    """'13.0–17.0 g/dL' → ('13.0','17.0'); returns ('','') if not a numeric range."""
+    import re
+
+    m = re.search(r"(-?[\d.]+)\s*[–\-]\s*(-?[\d.]+)", str(text or ""))
+    return (m.group(1), m.group(2)) if m else ("", "")
+
+
+def build_lab_reference(src: str, out_dir: str) -> None:
+    """Emit lab_reference.csv from Lab_Value_Matrix[Reference_Ranges] —
+    analyte reference ranges + critical thresholds (real de-identified data)."""
+    import json
+
+    xlsx = os.path.join(src, "analysis", "Lab_Value_Matrix.xlsx")
+    cols = [
+        "test", "analyte", "unit", "normal_low", "normal_high",
+        "critical_low", "critical_high", "category",
+    ]
+    out_path = os.path.join(out_dir, "lab_reference.csv")
+    if not os.path.isfile(xlsx):
+        print(f"WARN: {xlsx} not found — skipping lab reference.", file=sys.stderr)
+        return
+
+    import openpyxl
+
+    cat_map: dict[str, str] = {}
+    cat_path = os.path.join(src, "test_category_map.json")
+    if os.path.isfile(cat_path):
+        cat_map = {k.lower(): v for k, v in json.load(open(cat_path)).items()}
+
+    wb = openpyxl.load_workbook(xlsx, read_only=True)
+    ws = wb["Reference_Ranges"]
+    data = list(ws.iter_rows(values_only=True))
+    hdr = [str(c).strip() for c in data[0]]
+
+    def col(name: str) -> int:
+        return hdr.index(name) if name in hdr else -1
+
+    ti, ai, ui = col("Test"), col("Analyte"), col("Unit")
+    am = col("Normal: Adult-M")
+    cl, ch = col("Critical Low"), col("Critical High")
+
+    rows: list[list[str]] = []
+    seen: set[str] = set()
+    for r in data[1:]:
+        analyte = str(r[ai] or "").strip()
+        test = str(r[ti] or "").strip()
+        if not analyte or analyte.lower() in seen:
+            continue
+        seen.add(analyte.lower())
+        n_low, n_high = _parse_range(r[am]) if am >= 0 else ("", "")
+        c_low = str(r[cl] or "").strip() if cl >= 0 else ""
+        c_high = str(r[ch] or "").strip() if ch >= 0 else ""
+        # keep only a plain number for the critical columns
+        c_low = _parse_range(f"{c_low}–{c_low}")[0] if c_low else ""
+        c_high = _parse_range(f"{c_high}–{c_high}")[0] if c_high else ""
+        category = cat_map.get(test.lower()) or cat_map.get(analyte.lower()) or "Pathology"
+        rows.append([
+            test, analyte, str(r[ui] or "").strip(), n_low, n_high, c_low, c_high, category,
+        ])
+
+    with open(out_path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(cols)
+        w.writerows(rows)
+    crit = sum(1 for r in rows if r[5] or r[6])
+    print(f"Wrote {len(rows)} lab analytes ({crit} with critical thresholds) → {out_path}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -221,6 +290,7 @@ def main() -> int:
     print(f"Wrote {len(rows)} rows ({notifiable} notifiable) → {out_path}")
 
     build_drug_formulary(args.src, out_dir)
+    build_lab_reference(args.src, out_dir)
     return 0
 
 

@@ -116,6 +116,54 @@ pub(super) async fn seed_drug_reference(pool: &PgPool) -> Result<(), Box<dyn std
     Ok(())
 }
 
+/// Github-tracked lab analyte reference (ranges + critical thresholds) from
+/// `scripts/build_ckb_seed.py`. Columns:
+/// `test,analyte,unit,normal_low,normal_high,critical_low,critical_high,category`.
+const LAB_REFERENCE_CSV: &str = include_str!("data/lab_reference.csv");
+
+/// Seed the GLOBAL `cds_lab_reference` from the committed CSV. Idempotent
+/// (`ON CONFLICT (analyte)`).
+pub(super) async fn seed_lab_reference(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
+    let mut tx = pool.begin().await?;
+    let mut count = 0usize;
+
+    for line in LAB_REFERENCE_CSV.lines().skip(1) {
+        let line = line.trim_end();
+        if line.is_empty() {
+            continue;
+        }
+        let c = parse_csv_row(line);
+        let Some(analyte) = c.get(1).map(String::as_str).filter(|s| !s.is_empty()) else {
+            continue;
+        };
+        sqlx::query(
+            "INSERT INTO cds_lab_reference \
+               (test, analyte, unit, normal_low, normal_high, critical_low, critical_high, category) \
+             VALUES ($1, $2, $3, $4::numeric, $5::numeric, $6::numeric, $7::numeric, $8) \
+             ON CONFLICT (analyte) DO UPDATE SET \
+               test = EXCLUDED.test, unit = EXCLUDED.unit, \
+               normal_low = EXCLUDED.normal_low, normal_high = EXCLUDED.normal_high, \
+               critical_low = EXCLUDED.critical_low, critical_high = EXCLUDED.critical_high, \
+               category = EXCLUDED.category, updated_at = now()",
+        )
+        .bind(non_empty(c.first()))
+        .bind(analyte.to_lowercase())
+        .bind(non_empty(c.get(2)))
+        .bind(non_empty(c.get(3)))
+        .bind(non_empty(c.get(4)))
+        .bind(non_empty(c.get(5)))
+        .bind(non_empty(c.get(6)))
+        .bind(non_empty(c.get(7)))
+        .execute(&mut *tx)
+        .await?;
+        count += 1;
+    }
+
+    tx.commit().await?;
+    tracing::info!(rows = count, "Seeded cds_lab_reference");
+    Ok(())
+}
+
 fn non_empty(value: Option<&String>) -> Option<&str> {
     value.map(String::as_str).filter(|s| !s.is_empty())
 }
