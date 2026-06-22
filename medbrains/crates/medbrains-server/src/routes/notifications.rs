@@ -139,6 +139,7 @@ pub async fn mark_all_notifications_read(
 
 // ── Producer helper ──────────────────────────────────────────────
 /// A notification to insert for a recipient user. Use via `create_notification`.
+#[derive(Debug)]
 pub struct NewNotification<'a> {
     pub user_id: Uuid,
     pub kind: &'a str,

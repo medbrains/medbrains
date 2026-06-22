@@ -980,13 +980,13 @@ pub async fn create_attendance(
 //  My Shift — self-service shift session + fatigue guard
 // ══════════════════════════════════════════════════════════
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct FatigueFlagDto {
     code: &'static str,
     message: String,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct FatigueState {
     flags: Vec<FatigueFlagDto>,
     continuous_h: f64,
@@ -995,7 +995,7 @@ pub struct FatigueState {
     acknowledged: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct ScheduledShift {
     shift_type: String,
     shift_name: Option<String>,
@@ -1004,7 +1004,7 @@ pub struct ScheduledShift {
     charge_nurse_user_id: Option<Uuid>,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct MyShiftResponse {
     scheduled: Option<ScheduledShift>,
     session: Option<AttendanceRecord>,
@@ -1468,7 +1468,7 @@ struct DutyHoursAgg {
     overtime_minutes: i64,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct DutyHoursRow {
     employee_id: Uuid,
     employee_name: String,

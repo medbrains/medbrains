@@ -2306,7 +2306,7 @@ pub async fn print_case_sheet_packet(
     Ok(Json(row))
 }
 
-#[derive(serde::Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 pub struct UpdatePageStatusRequest {
     pub status: String,
     pub deficiency_reason: Option<String>,

@@ -907,7 +907,7 @@ fn ensure_handoff_complete(
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct UpsertHandoffRequest {
     pub items: Option<serde_json::Value>,
     pub received_by: Option<Uuid>,

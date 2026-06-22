@@ -5,6 +5,7 @@
 
 use crate::paper::{MarginsMm, Paper};
 
+#[derive(Debug)]
 pub struct SystemTemplate {
     pub code: &'static str,
     pub title: &'static str,

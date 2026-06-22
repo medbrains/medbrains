@@ -661,15 +661,73 @@ impl ProxyHttp for MedBrainsProxy {
                 "proxy request failed"
             );
         } else {
-            tracing::info!(
-                request_id = %ctx.request_id,
-                class = %ctx.edge_policy.class,
-                method = %req.method,
-                path = %req.uri.path(),
-                status,
-                elapsed_ms,
-                "proxy request complete"
-            );
+            // Optimization intelligence: when the backend stamps the raw
+            // (pre-compression) size (dev only — MEDBRAINS_LOG_PAYLOAD_SIZES),
+            // log before→after bytes and flag oversized / slow requests in big
+            // red so they stand out in the live console.
+            //
+            // Rules: raw payload should be < 5 KB unless the path is whitelisted
+            // (genuinely large: reports, exports, search). Slow = > 300 ms.
+            const RAW_FLAG_BYTES: usize = 5 * 1024;
+            const SLOW_MS: u128 = 300;
+            const SIZE_WHITELIST: &[&str] = &[
+                "/api/reports",
+                "/api/export",
+                "/api/search",
+                "/api/documents",
+                "/api/icd",
+            ];
+            const RED: &str = "\x1b[1;97;41m"; // bold white on red
+            const RESET: &str = "\x1b[0m";
+
+            let bytes_sent = session.body_bytes_sent();
+            let path = req.uri.path();
+            let raw_bytes = session
+                .response_written()
+                .and_then(|r| r.headers.get("x-mb-raw-bytes"))
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.parse::<usize>().ok());
+
+            match raw_bytes {
+                Some(raw) => {
+                    let whitelisted = SIZE_WHITELIST.iter().any(|w| path.starts_with(w));
+                    let size_flag = raw >= RAW_FLAG_BYTES && !whitelisted;
+                    let time_flag = elapsed_ms >= SLOW_MS;
+                    let mut banner = String::new();
+                    if size_flag {
+                        banner.push_str(&format!(" {RED} SIZE {:.1} KB raw {RESET}", raw as f64 / 1024.0));
+                    }
+                    if time_flag {
+                        banner.push_str(&format!(" {RED} SLOW {elapsed_ms} ms {RESET}"));
+                    }
+                    let saved = if raw > 0 { 100 - bytes_sent * 100 / raw } else { 0 };
+                    tracing::info!(
+                        request_id = %ctx.request_id,
+                        class = %ctx.edge_policy.class,
+                        method = %req.method,
+                        path = %path,
+                        status,
+                        elapsed_ms,
+                        raw_bytes = raw,
+                        bytes_sent,
+                        "proxy request complete {:.1} KB → {:.1} KB ({saved}% smaller){banner}",
+                        raw as f64 / 1024.0,
+                        bytes_sent as f64 / 1024.0,
+                    );
+                }
+                None => {
+                    tracing::info!(
+                        request_id = %ctx.request_id,
+                        class = %ctx.edge_policy.class,
+                        method = %req.method,
+                        path = %path,
+                        status,
+                        elapsed_ms,
+                        bytes_sent,
+                        "proxy request complete"
+                    );
+                }
+            }
         }
     }
 }

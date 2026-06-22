@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 use crate::error::AppError;
 
+#[derive(Debug)]
 pub struct OnCallContact {
     pub user_id: Option<Uuid>,
     pub phone: String,

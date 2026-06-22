@@ -8,6 +8,7 @@ pub mod cookies;
 pub mod csrf;
 pub mod field_access;
 pub mod ip_restrict;
+pub mod payload_size_log;
 pub mod rate_limit;
 pub mod request_id;
 pub mod system_state;

@@ -16,6 +16,7 @@ const OAUTH_TOKEN_KEY_SECRET: &str = "MEDBRAINS_OAUTH_TOKEN_KEY";
 const DEV_OAUTH_TOKEN_KEY: &[u8] = b"medbrains-dev-oauth-token-key-32";
 const TOKEN_CONTEXT: &[u8] = b"oauth-connection-token";
 
+#[derive(Debug)]
 pub struct OAuthProviderSpec {
     pub code: &'static str,
     pub label: &'static str,

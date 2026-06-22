@@ -79,6 +79,7 @@ async fn module_tokens_enabled(
 }
 
 /// Fields for auto-issuing a token from a module's trigger handler.
+#[derive(Debug)]
 pub struct IssueToken<'a> {
     pub module: &'a str,
     pub scope: &'a str,
