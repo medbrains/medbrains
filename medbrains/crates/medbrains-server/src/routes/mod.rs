@@ -1082,6 +1082,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/ckb/formulary", get(ckb::list_formulary))
         .route("/api/ckb/lab-reference", get(ckb::list_lab_reference))
         .route("/api/ckb/nlem-generics", get(ckb::list_nlem_generics))
+        .route("/api/ckb/state-schemes", get(ckb::list_state_schemes))
+        .route("/api/ckb/state-formulary", get(ckb::list_state_formulary))
         .route("/api/ckb/notifiable-reports", get(ckb::list_notifiable_reports))
         .route(
             "/api/ckb/notifiable-reports/{id}",

@@ -12312,6 +12312,20 @@ export interface LabReference {
   elderly_high?: number | null;
 }
 
+export interface StateScheme {
+  state_code: string;
+  state_name: string;
+  scheme_name: string;
+  coverage: string;
+  drug_count: number;
+}
+
+export interface StateFormularyRow {
+  generic_name: string;
+  scheme_name: string;
+  coverage: string;
+}
+
 export interface DoseAlert {
   drug_name: string;
   per_dose: string;

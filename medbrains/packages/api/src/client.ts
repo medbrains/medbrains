@@ -834,6 +834,8 @@ import type {
   DiagnosisReference,
   DrugReference,
   LabReference,
+  StateScheme,
+  StateFormularyRow,
   NotifiableReport,
   UpdateNotifiableReportRequest,
   DrugInteractionResult,
@@ -6850,6 +6852,9 @@ export const api = {
   listCkbLabReference: (q?: string) =>
     request<LabReference[]>(`/ckb/lab-reference${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   listNlemGenerics: () => request<string[]>("/ckb/nlem-generics"),
+  listCkbStateSchemes: () => request<StateScheme[]>("/ckb/state-schemes"),
+  listCkbStateFormulary: (state: string) =>
+    request<StateFormularyRow[]>(`/ckb/state-formulary?state=${encodeURIComponent(state)}`),
   listNotifiableReports: (status?: string) =>
     request<NotifiableReport[]>(`/ckb/notifiable-reports${status ? `?status=${status}` : ""}`),
   updateNotifiableReport: (id: string, data: UpdateNotifiableReportRequest) =>

@@ -171,6 +171,66 @@ pub async fn list_lab_reference(
     Ok(Json(rows))
 }
 
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct StateScheme {
+    pub state_code: String,
+    pub state_name: String,
+    pub scheme_name: String,
+    pub coverage: String,
+    pub drug_count: i64,
+}
+
+/// GET /api/ckb/state-schemes — the distinct government free/subsidised
+/// medicine schemes, with the count of covered generics (for the selector).
+pub async fn list_state_schemes(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<StateScheme>>, AppError> {
+    require_permission(&claims, "ckb.view")?;
+    let rows = sqlx::query_as::<_, StateScheme>(
+        "SELECT state_code, state_name, scheme_name, coverage, count(*)::int8 AS drug_count \
+         FROM cds_state_formulary \
+         GROUP BY state_code, state_name, scheme_name, coverage \
+         ORDER BY state_name",
+    )
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct StateFormularyRow {
+    pub generic_name: String,
+    pub scheme_name: String,
+    pub coverage: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StateFormularyQuery {
+    pub state: String,
+}
+
+/// GET /api/ckb/state-formulary?state=TN — generics free/subsidised under a
+/// state's government scheme. Used for "free under <state> scheme" hints.
+pub async fn list_state_formulary(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<StateFormularyQuery>,
+) -> Result<Json<Vec<StateFormularyRow>>, AppError> {
+    require_any_permission(
+        &claims,
+        &["ckb.view", "pharmacy.dispensing.create", "pharmacy.prescriptions.list", "opd.visit.update"],
+    )?;
+    let rows = sqlx::query_as::<_, StateFormularyRow>(
+        "SELECT generic_name, scheme_name, coverage FROM cds_state_formulary \
+         WHERE upper(state_code) = upper($1) ORDER BY generic_name",
+    )
+    .bind(q.state.trim())
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ReportListQuery {
     pub status: Option<String>,

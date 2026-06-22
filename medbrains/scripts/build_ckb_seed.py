@@ -386,6 +386,51 @@ def build_drug_ingredients(src: str, out_dir: str) -> None:
     print(f"Wrote {len(INCOMPATIBILITIES)} incompatibility pairs → {inc_path}")
 
 
+# Public state free-medicine schemes. State Essential Drug Lists largely mirror
+# the national NLEM core, so the core essential generics below are marked free
+# under each scheme. (code, state_name, scheme_name, coverage).
+STATE_SCHEMES: list[tuple[str, str, str, str]] = [
+    ("TN", "Tamil Nadu", "TNMSC Free Drug Supply", "free"),
+    ("RJ", "Rajasthan", "Mukhyamantri Nishulk Dawa Yojana (MNDY)", "free"),
+    ("DL", "Delhi", "Delhi Free Medicine Scheme", "free"),
+    ("KL", "Kerala", "KMSCL Free Medicines", "free"),
+    ("MH", "Maharashtra", "Maharashtra Essential Drug Supply", "free"),
+    ("KA", "Karnataka", "KSMSCL Free Drug Supply", "free"),
+    ("GJ", "Gujarat", "GMSCL Free Medicine", "free"),
+    ("UP", "Uttar Pradesh", "UP Free Medicine Scheme", "free"),
+    ("MP", "Madhya Pradesh", "MP Nishulk Dawa Vitaran", "free"),
+    ("WB", "West Bengal", "Fair Price Medicine Shops (FPMS)", "subsidised"),
+]
+
+# Core NLEM essentials free in govt facilities (names match drug_formulary.csv).
+CORE_FREE_GENERICS: list[str] = [
+    "paracetamol", "amoxicillin", "amoxicillin_clav", "azithromycin", "ciprofloxacin",
+    "metronidazole", "cefixime", "ceftriaxone", "doxycycline", "amlodipine", "atenolol",
+    "losartan", "telmisartan", "metformin", "glimepiride", "insulin", "atorvastatin",
+    "omeprazole", "pantoprazole", "ondansetron", "ors", "iron", "folic", "salbutamol",
+    "prednisolone", "ibuprofen", "diclofenac", "cetirizine", "furosemide", "aspirin",
+    "thiamine", "vitamin",
+]
+
+
+def build_state_formulary(out_dir: str) -> None:
+    """Emit state_formulary.csv — per-state government free/subsidised drug
+    schemes mapped to the core essential generics (curated public knowledge)."""
+    rows: list[list[str]] = []
+    for code, state, scheme, coverage in STATE_SCHEMES:
+        for generic in CORE_FREE_GENERICS:
+            rows.append([code, state, scheme, generic, coverage])
+    out_path = os.path.join(out_dir, "state_formulary.csv")
+    with open(out_path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["state_code", "state_name", "scheme_name", "generic_name", "coverage"])
+        w.writerows(rows)
+    print(
+        f"Wrote {len(rows)} state-formulary rows "
+        f"({len(STATE_SCHEMES)} schemes × {len(CORE_FREE_GENERICS)} generics) → {out_path}"
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -445,6 +490,7 @@ def main() -> int:
     build_drug_formulary(args.src, out_dir)
     build_lab_reference(args.src, out_dir)
     build_drug_ingredients(args.src, out_dir)
+    build_state_formulary(out_dir)
     return 0
 
 

@@ -139,6 +139,7 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     ckb::seed_drug_reference(pool).await?; // global CDS drug reference
     ckb::seed_lab_reference(pool).await?; // global CDS lab reference
     ckb::seed_ingredients(pool).await?; // global ingredient model
+    ckb::seed_state_formulary(pool).await?; // global per-state free-drug schemes
     departments::seed_departments(pool, tenant_id).await?;
     lab_catalog::seed_lab_catalog(pool, tenant_id).await?;
     pharmacy_catalog::seed_pharmacy_catalog(pool, tenant_id).await?;

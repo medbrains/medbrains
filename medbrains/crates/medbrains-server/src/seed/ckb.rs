@@ -242,6 +242,44 @@ pub(super) async fn seed_ingredients(pool: &PgPool) -> Result<(), Box<dyn std::e
     Ok(())
 }
 
+const STATE_FORMULARY_CSV: &str = include_str!("data/state_formulary.csv");
+
+/// Seed the GLOBAL `cds_state_formulary` (per-state government free/subsidised
+/// medicine schemes) from the committed CSV. Idempotent
+/// (`ON CONFLICT (state_code, generic_name)`).
+pub(super) async fn seed_state_formulary(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
+    let mut tx = pool.begin().await?;
+    let mut count = 0usize;
+
+    for line in STATE_FORMULARY_CSV.lines().skip(1) {
+        let c = parse_csv_row(line.trim_end());
+        // state_code,state_name,scheme_name,generic_name,coverage
+        let (Some(state_code), Some(generic)) = (non_empty(c.first()), non_empty(c.get(3))) else {
+            continue;
+        };
+        sqlx::query(
+            "INSERT INTO cds_state_formulary \
+               (state_code, state_name, scheme_name, generic_name, coverage) \
+             VALUES ($1, $2, $3, $4, $5) \
+             ON CONFLICT (state_code, generic_name) DO UPDATE SET \
+               state_name = EXCLUDED.state_name, scheme_name = EXCLUDED.scheme_name, \
+               coverage = EXCLUDED.coverage",
+        )
+        .bind(state_code)
+        .bind(non_empty(c.get(1)))
+        .bind(non_empty(c.get(2)))
+        .bind(generic.to_lowercase())
+        .bind(non_empty(c.get(4)).unwrap_or("free"))
+        .execute(&mut *tx)
+        .await?;
+        count += 1;
+    }
+
+    tx.commit().await?;
+    tracing::info!(rows = count, "Seeded cds_state_formulary");
+    Ok(())
+}
+
 fn non_empty(value: Option<&String>) -> Option<&str> {
     value.map(String::as_str).filter(|s| !s.is_empty())
 }
