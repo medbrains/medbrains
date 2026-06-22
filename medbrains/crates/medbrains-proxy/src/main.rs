@@ -693,28 +693,47 @@ impl ProxyHttp for MedBrainsProxy {
                     let whitelisted = SIZE_WHITELIST.iter().any(|w| path.starts_with(w));
                     let size_flag = raw >= RAW_FLAG_BYTES && !whitelisted;
                     let time_flag = elapsed_ms >= SLOW_MS;
-                    let mut banner = String::new();
-                    if size_flag {
-                        banner.push_str(&format!(" 🔴 SIZE {:.1} KB raw", raw as f64 / 1024.0));
+                    // Below this, the wire size is dominated by response headers and
+                    // compression is skipped, so a before→after ratio is meaningless
+                    // (e.g. an 18-byte poll showing "0% smaller"). Log such responses
+                    // plainly unless they're slow.
+                    const RICH_MIN: usize = 1024;
+                    if raw < RICH_MIN && !time_flag {
+                        tracing::info!(
+                            request_id = %ctx.request_id,
+                            class = %ctx.edge_policy.class,
+                            method = %req.method,
+                            path = %path,
+                            status,
+                            elapsed_ms,
+                            raw_bytes = raw,
+                            bytes_sent,
+                            "proxy request complete"
+                        );
+                    } else {
+                        let mut banner = String::new();
+                        if size_flag {
+                            banner.push_str(&format!(" 🔴 SIZE {:.1} KB raw", raw as f64 / 1024.0));
+                        }
+                        if time_flag {
+                            banner.push_str(&format!(" 🔴 SLOW {elapsed_ms} ms"));
+                        }
+                        // saturating: a body can compress larger than raw → 0%, never underflow.
+                        let saved = raw.saturating_sub(bytes_sent).saturating_mul(100) / raw.max(1);
+                        tracing::info!(
+                            request_id = %ctx.request_id,
+                            class = %ctx.edge_policy.class,
+                            method = %req.method,
+                            path = %path,
+                            status,
+                            elapsed_ms,
+                            raw_bytes = raw,
+                            bytes_sent,
+                            "proxy request complete {:.1} KB → {:.1} KB ({saved}% smaller){banner}",
+                            raw as f64 / 1024.0,
+                            bytes_sent as f64 / 1024.0,
+                        );
                     }
-                    if time_flag {
-                        banner.push_str(&format!(" 🔴 SLOW {elapsed_ms} ms"));
-                    }
-                    // saturating: a tiny body can compress LARGER than raw → 0%, never underflow.
-                    let saved = raw.saturating_sub(bytes_sent).saturating_mul(100) / raw.max(1);
-                    tracing::info!(
-                        request_id = %ctx.request_id,
-                        class = %ctx.edge_policy.class,
-                        method = %req.method,
-                        path = %path,
-                        status,
-                        elapsed_ms,
-                        raw_bytes = raw,
-                        bytes_sent,
-                        "proxy request complete {:.1} KB → {:.1} KB ({saved}% smaller){banner}",
-                        raw as f64 / 1024.0,
-                        bytes_sent as f64 / 1024.0,
-                    );
                 }
                 None => {
                     tracing::info!(
