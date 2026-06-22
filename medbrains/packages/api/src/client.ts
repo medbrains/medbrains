@@ -1270,6 +1270,7 @@ import type {
   PainAssessmentPrintData,
   PaRequirementRule,
   Patient,
+  PatientAccessLogRow,
   PatientAddress,
   // Billing Phase 2
   PatientAdvance,
@@ -3354,6 +3355,13 @@ export const api = {
 
   listPatientDocuments: (patientId: string) =>
     request<PatientDocument[]>(`/patients/${patientId}/documents`),
+  listPatientAccessLog: (patientId: string) =>
+    request<PatientAccessLogRow[]>(`/patients/${patientId}/access-log`),
+  recordPatientAccess: (patientId: string, data: { access_type: string; notes?: string }) =>
+    request<PatientAccessLogRow>(`/patients/${patientId}/access-log`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   createPatientDocument: (patientId: string, data: CreateDocumentRequest) =>
     request<PatientDocument>(`/patients/${patientId}/documents`, {
       method: "POST",

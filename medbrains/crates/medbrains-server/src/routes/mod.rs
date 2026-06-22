@@ -674,6 +674,10 @@ pub fn build_router(state: AppState) -> Router {
                 .post(patients::create_patient_document),
         )
         .route(
+            "/api/patients/{patient_id}/access-log",
+            get(patients::list_patient_access_log).post(patients::record_patient_access),
+        )
+        .route(
             "/api/patients/{patient_id}/documents/{id}",
             delete(patients::delete_patient_document),
         )

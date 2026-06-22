@@ -98,6 +98,7 @@ import {
 } from "@/components/OrderBasket/OrderBasketWorkspace";
 import { PageHeader } from "@/components/PageHeader";
 import { ActivePackagesSection } from "@/components/Patient/ActivePackagesSection";
+import { PatientAccessLogSection } from "@/components/Patient/PatientAccessLogSection";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
@@ -3291,7 +3292,10 @@ function PatientDetailPageInner() {
                 <DetailFamilyLinksTab patientId={patient.id} />
               </Tabs.Panel>
               <Tabs.Panel id="patient-documents" value="documents" pt="md">
-                <DetailDocumentsTab patientId={patient.id} />
+                <Stack>
+                  <DetailDocumentsTab patientId={patient.id} />
+                  <PatientAccessLogSection patientId={patient.id} />
+                </Stack>
               </Tabs.Panel>
               <Tabs.Panel id="patient-chronic" value="chronic" pt="md">
                 <ChronicCareTab patientId={patient.id} />

@@ -2473,6 +2473,16 @@ export interface PatientDocument {
   created_at: string;
 }
 
+export interface PatientAccessLogRow {
+  id: string;
+  tenant_id: string;
+  patient_id: string;
+  accessed_by: string;
+  access_type: string;
+  accessed_at: string;
+  notes: string | null;
+}
+
 export interface PatientFamilyLink {
   id: string;
   tenant_id: string;

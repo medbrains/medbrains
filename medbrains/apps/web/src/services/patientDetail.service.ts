@@ -50,6 +50,8 @@ export const patientDetailService = {
     api.deleteFamilyLink(...args),
   listPatientDocuments: (...args: Parameters<typeof api.listPatientDocuments>) =>
     api.listPatientDocuments(...args),
+  listPatientAccessLog: (...args: Parameters<typeof api.listPatientAccessLog>) =>
+    api.listPatientAccessLog(...args),
   createPatientDocument: (patientId: string, data: CreatePatientDocumentInput) =>
     api.createPatientDocument(patientId, data),
   deletePatientDocument: (...args: Parameters<typeof api.deletePatientDocument>) =>

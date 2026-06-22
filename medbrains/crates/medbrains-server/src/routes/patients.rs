@@ -3731,6 +3731,18 @@ pub async fn list_patient_documents(
     .fetch_all(&mut *tx)
     .await?;
 
+    // Read-access trail (DPDP/HIPAA): record who viewed this patient's documents.
+    sqlx::query(
+        "INSERT INTO patient_record_access_log \
+           (tenant_id, patient_id, accessed_by, access_type) \
+         VALUES ($1, $2, $3, 'documents_viewed')",
+    )
+    .bind(claims.tenant_id)
+    .bind(patient_id)
+    .bind(claims.sub)
+    .execute(&mut *tx)
+    .await?;
+
     tx.commit().await?;
     Ok(Json(rows))
 }
@@ -3797,6 +3809,81 @@ pub async fn delete_patient_document(
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "deleted": true })))
+}
+
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct PatientAccessLogRow {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub patient_id: Uuid,
+    pub accessed_by: Uuid,
+    pub access_type: String,
+    pub accessed_at: chrono::DateTime<chrono::Utc>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct RecordAccessRequest {
+    pub access_type: String,
+    pub notes: Option<String>,
+}
+
+/// `POST /api/patients/{patient_id}/access-log` — log a record access
+/// (chart opened, document downloaded, record exported).
+pub async fn record_patient_access(
+    Extension(claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Path(patient_id): Path<Uuid>,
+    Json(body): Json<RecordAccessRequest>,
+) -> Result<Json<PatientAccessLogRow>, AppError> {
+    require_permission(&claims, permissions::patients::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let row = sqlx::query_as::<_, PatientAccessLogRow>(
+        "INSERT INTO patient_record_access_log \
+           (tenant_id, patient_id, accessed_by, access_type, notes) \
+         VALUES ($1, $2, $3, $4, $5) RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(patient_id)
+    .bind(claims.sub)
+    .bind(body.access_type.trim())
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// `GET /api/patients/{patient_id}/access-log` — who has viewed/downloaded
+/// this patient's records (read-access trail).
+pub async fn list_patient_access_log(
+    Extension(claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Path(patient_id): Path<Uuid>,
+) -> Result<Json<Vec<PatientAccessLogRow>>, AppError> {
+    require_permission(&claims, permissions::patients::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let rows = sqlx::query_as::<_, PatientAccessLogRow>(
+        "SELECT * FROM patient_record_access_log \
+         WHERE patient_id = $1 AND tenant_id = $2 \
+         ORDER BY accessed_at DESC LIMIT 200",
+    )
+    .bind(patient_id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
 }
 
 /// PATCH /api/patients/{id}/photo — update patient photo URL.
