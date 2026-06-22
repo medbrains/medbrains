@@ -14,7 +14,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::{require_any_permission, require_permission},
     state::AppState,
 };
 
@@ -122,6 +124,24 @@ pub struct LabReference {
     pub critical_low: Option<f64>,
     pub critical_high: Option<f64>,
     pub category: Option<String>,
+}
+
+/// GET /api/ckb/nlem-generics — lowercased NLEM (government-essential) generic
+/// names, for prescribing / substitution suggestions.
+pub async fn list_nlem_generics(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<String>>, AppError> {
+    require_any_permission(
+        &claims,
+        &["ckb.view", "pharmacy.dispensing.create", "pharmacy.prescriptions.list", "opd.visit.update"],
+    )?;
+    let rows = sqlx::query_scalar::<_, String>(
+        "SELECT lower(generic_name) FROM cds_drug_reference WHERE is_nlem ORDER BY generic_name",
+    )
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows))
 }
 
 /// GET /api/ckb/lab-reference — search the global lab analyte reference.

@@ -7,6 +7,8 @@ export const ckbService = {
     api.listCkbFormulary(...args),
   listCkbLabReference: (...args: Parameters<typeof api.listCkbLabReference>) =>
     api.listCkbLabReference(...args),
+  listNlemGenerics: (...args: Parameters<typeof api.listNlemGenerics>) =>
+    api.listNlemGenerics(...args),
   listNotifiableReports: (...args: Parameters<typeof api.listNotifiableReports>) =>
     api.listNotifiableReports(...args),
   updateNotifiableReport: (...args: Parameters<typeof api.updateNotifiableReport>) =>

@@ -6849,6 +6849,7 @@ export const api = {
     request<DrugReference[]>(`/ckb/formulary${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   listCkbLabReference: (q?: string) =>
     request<LabReference[]>(`/ckb/lab-reference${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  listNlemGenerics: () => request<string[]>("/ckb/nlem-generics"),
   listNotifiableReports: (status?: string) =>
     request<NotifiableReport[]>(`/ckb/notifiable-reports${status ? `?status=${status}` : ""}`),
   updateNotifiableReport: (id: string, data: UpdateNotifiableReportRequest) =>

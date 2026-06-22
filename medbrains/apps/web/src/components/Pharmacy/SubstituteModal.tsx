@@ -1,8 +1,9 @@
 import { Group, Stack, Text } from "@mantine/core";
 import type { PharmacyCatalog, PharmacyOrderItem } from "@medbrains/types";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Alert, Badge, Button, Input, Modal, Select, Switch, toast } from "@/components/ui";
+import { ckbService } from "@/services/ckb.service";
 import { pharmacyService } from "@/services/pharmacy.service";
 
 interface Props {
@@ -32,6 +33,21 @@ export function SubstituteModal({ opened, onClose, item, catalog }: Props) {
   const innMatch = Boolean(
     original?.inn_name && substitute?.inn_name && original.inn_name === substitute.inn_name,
   );
+
+  // NLEM (government-essential / Jan Aushadhi) generics — guide cost-saving swaps.
+  const { data: nlemList = [] } = useQuery({
+    queryKey: ["ckb-nlem-generics"],
+    queryFn: () => ckbService.listNlemGenerics(),
+    staleTime: 600_000,
+    enabled: opened,
+  });
+  const nlemSet = useMemo(() => new Set(nlemList), [nlemList]);
+  const isNlem = (c?: PharmacyCatalog) => {
+    const g = (c?.generic_name ?? c?.inn_name ?? "").trim().toLowerCase();
+    return g.length > 0 && nlemSet.has(g);
+  };
+  const originalGeneric = (original?.generic_name ?? original?.inn_name ?? "").trim();
+  const nlemAvailable = isNlem(original) && !isNlem(substitute);
 
   const options = useMemo(
     () =>
@@ -76,6 +92,12 @@ export function SubstituteModal({ opened, onClose, item, catalog }: Props) {
             This line is not linked to a catalog drug — substitution cannot be recorded.
           </Alert>
         )}
+        {nlemAvailable && (
+          <Alert tone="success">
+            <strong>{originalGeneric}</strong> is on the NLEM (government-essential / Jan Aushadhi)
+            list — substituting the generic can reduce patient cost.
+          </Alert>
+        )}
         <Select
           label="Substitute with"
           placeholder="Search catalog"
@@ -90,6 +112,11 @@ export function SubstituteModal({ opened, onClose, item, catalog }: Props) {
             <Badge tone={innMatch ? "success" : "warning"} size="sm">
               {innMatch ? "Same INN" : "Different INN — therapeutic substitution"}
             </Badge>
+            {isNlem(substitute) && (
+              <Badge tone="success" size="sm">
+                NLEM generic
+              </Badge>
+            )}
           </Group>
         )}
         <Input
