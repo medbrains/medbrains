@@ -677,8 +677,8 @@ impl ProxyHttp for MedBrainsProxy {
                 "/api/documents",
                 "/api/icd",
             ];
-            const RED: &str = "\x1b[1;97;41m"; // bold white on red
-            const RESET: &str = "\x1b[0m";
+            // 🔴 emoji, not ANSI — the log goes to a file then tail|sed, which
+            // shows raw escape codes as literal text. Emoji survive UTF-8 pipes.
 
             let bytes_sent = session.body_bytes_sent();
             let path = req.uri.path();
@@ -695,12 +695,13 @@ impl ProxyHttp for MedBrainsProxy {
                     let time_flag = elapsed_ms >= SLOW_MS;
                     let mut banner = String::new();
                     if size_flag {
-                        banner.push_str(&format!(" {RED} SIZE {:.1} KB raw {RESET}", raw as f64 / 1024.0));
+                        banner.push_str(&format!(" 🔴 SIZE {:.1} KB raw", raw as f64 / 1024.0));
                     }
                     if time_flag {
-                        banner.push_str(&format!(" {RED} SLOW {elapsed_ms} ms {RESET}"));
+                        banner.push_str(&format!(" 🔴 SLOW {elapsed_ms} ms"));
                     }
-                    let saved = if raw > 0 { 100 - bytes_sent * 100 / raw } else { 0 };
+                    // saturating: a tiny body can compress LARGER than raw → 0%, never underflow.
+                    let saved = raw.saturating_sub(bytes_sent).saturating_mul(100) / raw.max(1);
                     tracing::info!(
                         request_id = %ctx.request_id,
                         class = %ctx.edge_policy.class,
