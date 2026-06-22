@@ -5,54 +5,6 @@ import wasm from "vite-plugin-wasm";
 import topLevelAwait from "vite-plugin-top-level-await";
 import path from "path";
 
-function manualChunks(id: string) {
-  if (!id.includes("node_modules")) {
-    return undefined;
-  }
-
-  if (id.includes("@mantine/charts") || id.includes("recharts")) {
-    return "vendor-charts";
-  }
-
-  if (id.includes("echarts")) {
-    return "vendor-echarts";
-  }
-
-  if (id.includes("@mantine/schedule")) {
-    return "vendor-schedule";
-  }
-
-  if (id.includes("@mantine/dates") || id.includes("dayjs")) {
-    return "vendor-dates";
-  }
-
-  if (id.includes("@xyflow/react") || id.includes("@dnd-kit") || id.includes("codemirror")) {
-    return "vendor-workbench";
-  }
-
-  if (id.includes("react-hook-form") || id.includes("@hookform/resolvers")) {
-    return "vendor-forms";
-  }
-
-  if (id.includes("@tanstack/react-query") || id.includes("@tanstack/react-pacer")) {
-    return "vendor-query";
-  }
-
-  if (id.includes("zustand")) {
-    return "vendor-state";
-  }
-
-  if (id.includes("react") || id.includes("i18next")) {
-    return "vendor-react";
-  }
-
-  if (id.includes("@mantine/")) {
-    return "vendor-mantine-core";
-  }
-
-  return undefined;
-}
-
 export default defineConfig(async () => {
   const plugins: PluginOption[] = [
     react(),
@@ -62,7 +14,13 @@ export default defineConfig(async () => {
     // The server serves these directly (ServeDir precompressed_*), so the
     // bundle ships at max ratio with zero per-request CPU. Originals are kept
     // for clients that don't accept the encoding.
-    compression({ algorithms: ["brotliCompress", "gzip"], threshold: 1024 }),
+    compression({
+      algorithms: ["brotliCompress", "gzip"],
+      threshold: 1024,
+      // Default filter excludes .wasm — but the Loro CRDT wasm is the single
+      // largest asset (~3 MB) and compresses ~60% with brotli. Include it.
+      include: [/\.(js|mjs|cjs|json|css|html|svg|wasm)$/i],
+    }),
   ];
   const devHttpsDomain = process.env.DEV_HTTPS_DOMAIN ?? "medbrains.localhost";
   const devPort = Number.parseInt(process.env.VITE_DEV_PORT ?? "5173", 10);
@@ -108,11 +66,13 @@ export default defineConfig(async () => {
       reportCompressedSize: false,
       sourcemap: "hidden",
       target: "es2022",
-      rollupOptions: {
-        output: {
-          manualChunks,
-        },
-      },
+      // No custom manualChunks. A hand-rolled split forced interdependent
+      // modules (Mantine family, dayjs, and app barrel-file re-exports) into
+      // separate chunks, creating cross-chunk circular deps and broken ESM init
+      // order — the prod-only "Cannot access 'X' before initialization" / "Jk is
+      // not a function" crashes. Rollup's automatic chunking computes a
+      // TDZ-safe order and still code-splits the lazy routes. See vitejs/vite
+      // discussion #14090 and issue #12209.
     },
     // Pre-bundle the tiptap editor deps so adding them never triggers a
     // late re-optimize / 504 "Outdated Optimize Dep" on the dev server.
