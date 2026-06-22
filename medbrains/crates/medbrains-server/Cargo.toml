@@ -9,6 +9,8 @@ license.workspace = true
 [dependencies]
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
+# Body::size_hint for the dev payload-size logger (middleware::payload_size_log).
+http-body = "1"
 medbrains-yottadb = { path = "../medbrains-yottadb" }
 medbrains-outbox = { path = "../medbrains-outbox" }
 medbrains-fhir = { path = "../medbrains-fhir" }
