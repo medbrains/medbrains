@@ -8387,6 +8387,7 @@ export interface CreateInfusionInput {
   pump_serial?: string;
   additives?: string[];
   duration_hours?: number;
+  ysite_override_reason?: string;
 }
 
 export interface UpdateInfusionInput {

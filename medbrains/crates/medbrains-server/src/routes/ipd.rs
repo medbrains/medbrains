@@ -3064,6 +3064,8 @@ pub struct CreateInfusionRequest {
     pub pump_serial: Option<String>,
     pub additives: Option<Vec<String>>,
     pub duration_hours: Option<f64>,
+    /// Nurse's reason for co-administering despite a Y-site incompatibility.
+    pub ysite_override_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -3126,6 +3128,62 @@ pub async fn create_infusion(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+
+    // Y-site admixture guard: this infusion's own additives, plus anything
+    // running on the same site, must be chemically compatible. Reuses the CDS
+    // ingredient-incompatibility table. Warn & require an acknowledged reason.
+    let mut new_text = body.fluid_name.to_lowercase();
+    for a in body.additives.as_deref().unwrap_or_default() {
+        new_text.push(' ');
+        new_text.push_str(&a.to_lowercase());
+    }
+    let mut site_text = String::new();
+    if let Some(site) = body.site.as_deref().filter(|s| !s.trim().is_empty()) {
+        let running = sqlx::query_as::<_, (String, Option<Vec<String>>)>(
+            "SELECT fluid_name, additives FROM iv_fluid_orders \
+             WHERE tenant_id = $1 AND admission_id = $2 AND site = $3 \
+               AND status IN ('running', 'paused')",
+        )
+        .bind(claims.tenant_id)
+        .bind(id)
+        .bind(site)
+        .fetch_all(&mut *tx)
+        .await?;
+        for (fluid, adds) in &running {
+            site_text.push_str(&fluid.to_lowercase());
+            site_text.push(' ');
+            for a in adds.as_deref().unwrap_or_default() {
+                site_text.push_str(&a.to_lowercase());
+                site_text.push(' ');
+            }
+        }
+    }
+    let combined = format!("{new_text} {site_text}");
+    let incompat = sqlx::query_as::<_, (String, String, Option<String>)>(
+        "SELECT ingredient_a, ingredient_b, mechanism FROM cds_ingredient_incompatibility",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    let conflicts: Vec<String> = incompat
+        .iter()
+        .filter(|(a, b, _)| {
+            combined.contains(a.as_str())
+                && combined.contains(b.as_str())
+                && (new_text.contains(a.as_str()) || new_text.contains(b.as_str()))
+        })
+        .map(|(a, b, mech)| format!("{a} + {b}{}", mech.as_deref().map_or(String::new(), |m| format!(" ({m})"))))
+        .collect();
+    let ysite_reason = body
+        .ysite_override_reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|r| !r.is_empty());
+    if !conflicts.is_empty() && ysite_reason.is_none() {
+        return Err(AppError::BadRequest(format!(
+            "Y-site / admixture incompatibility: {}. Provide an override reason to proceed.",
+            conflicts.join("; ")
+        )));
+    }
 
     let row = sqlx::query_as::<_, IvFluidOrder>(
         "INSERT INTO iv_fluid_orders \

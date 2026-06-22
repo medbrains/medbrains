@@ -1,4 +1,4 @@
-import { Box, Group, Progress, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Box, Group, Progress, SimpleGrid, Stack, Text, Textarea } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { InfusionStatus, IvFluidOrder, UpdateInfusionInput } from "@medbrains/types";
@@ -279,6 +279,8 @@ function NewInfusionModal({
   const [site, setSite] = useState("");
   const [pump, setPump] = useState("");
   const [hours, setHours] = useState(8);
+  const [ysiteConflict, setYsiteConflict] = useState<string | null>(null);
+  const [ysiteReason, setYsiteReason] = useState("");
 
   const create = useMutation({
     mutationFn: () =>
@@ -289,15 +291,25 @@ function NewInfusionModal({
         site: site.trim() || undefined,
         pump_serial: pump.trim() || undefined,
         duration_hours: hours || undefined,
+        ysite_override_reason: ysiteReason.trim() || undefined,
       }),
     onSuccess: () => {
       setFluidName("");
       setSite("");
       setPump("");
+      setYsiteConflict(null);
+      setYsiteReason("");
       onCreated();
     },
-    onError: (e: Error) => toast.error(e.message, { title: "Could not start infusion" }),
+    onError: (e: Error) => {
+      if (/y-site|incompatibilit/i.test(e.message)) {
+        setYsiteConflict(e.message);
+      } else {
+        toast.error(e.message, { title: "Could not start infusion" });
+      }
+    },
   });
+  const ysiteBlocked = ysiteConflict !== null && ysiteReason.trim().length < 5;
 
   return (
     <Modal opened={opened} onClose={onClose} title="Start IV infusion" size="md">
@@ -342,6 +354,23 @@ function NewInfusionModal({
             ≈ {Math.round((volume / rate) * 10) / 10} h to complete at {rate} ml/hr.
           </Alert>
         )}
+        {ysiteConflict && (
+          <Alert tone="danger" title="Y-site / admixture incompatibility">
+            <Text size="sm" mb="xs">
+              {ysiteConflict}
+            </Text>
+            <Textarea
+              label="Override reason"
+              required
+              autosize
+              minRows={2}
+              placeholder="e.g. Separate lumens used; flushed between; consultant approved"
+              value={ysiteReason}
+              onChange={(e) => setYsiteReason(e.currentTarget.value)}
+              error={ysiteBlocked ? "A reason (≥5 chars) is required to proceed" : undefined}
+            />
+          </Alert>
+        )}
         <Group justify="flex-end">
           <Button tone="ghost" onClick={onClose}>
             Cancel
@@ -349,10 +378,10 @@ function NewInfusionModal({
           <Button
             tone="primary"
             loading={create.isPending}
-            disabled={!fluidName.trim() || volume <= 0}
+            disabled={!fluidName.trim() || volume <= 0 || ysiteBlocked}
             onClick={() => create.mutate()}
           >
-            Start infusion
+            {ysiteConflict ? "Override & start" : "Start infusion"}
           </Button>
         </Group>
       </Stack>
