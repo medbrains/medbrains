@@ -68,7 +68,26 @@
   font-weight: 500;
   line-height: 1.2;
   color: var(--mb-text-secondary, #525252);
-  transition: background 100ms ease, color 100ms ease;
+  // Include box-shadow so the active left-accent bar eases in instead of
+  // snapping when a tab is selected (and transform for a subtle press).
+  transition:
+    background 120ms ease,
+    color 120ms ease,
+    box-shadow 160ms ease,
+    transform 80ms ease;
+}
+
+.railTab:active:not([data-active]) {
+  transform: translateY(0.5px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .railTab {
+    transition: none;
+  }
+  .railTab:active {
+    transform: none;
+  }
 }
 
 .railTab:hover {
