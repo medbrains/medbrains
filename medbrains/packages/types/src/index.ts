@@ -30247,6 +30247,30 @@ export interface QuizAttemptResult {
   pass_percentage: number;
 }
 
+// ── Infrastructure & AI settings ──────────────────────────
+
+export interface InfraStatus {
+  /** Active secrets backend: "env" | "file" | "aws-secrets-manager". */
+  secrets_backend: string;
+  /** Active deploy mode: "saas" | "hybrid" | "onprem". */
+  deploy_mode: string;
+}
+
+export interface AiSettings {
+  provider: string;
+  model: string;
+  /** Reference (not the value) to the API key in the secret backend. */
+  api_key_secret: string | null;
+  /** Whether ANTHROPIC_API_KEY is present as a fallback. */
+  env_fallback: boolean;
+}
+
+export interface UpdateAiSettingsRequest {
+  provider: string;
+  model: string;
+  api_key_secret?: string | null;
+}
+
 // ── AI Course Generation ──────────────────────────────────
 
 export interface AiGeneratedCourse {

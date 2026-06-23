@@ -57,6 +57,10 @@ impl SecretResolver for FileSecretResolver {
         let s = String::from_utf8(bytes).map_err(|e| SecretError::Parse(e.to_string()))?;
         Ok(s.trim_end_matches(['\n', '\r']).to_owned())
     }
+
+    fn backend_label(&self) -> &'static str {
+        "file"
+    }
 }
 
 #[cfg(test)]

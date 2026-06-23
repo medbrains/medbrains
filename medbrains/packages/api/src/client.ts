@@ -58,6 +58,7 @@ import type {
   AiGenerateCodeRequest,
   AiGeneratedCode,
   AiGeneratedCourse,
+  AiSettings,
   AlertThresholdRow,
   AlosRow,
   // Phase 3 Print Data - Medico-Legal
@@ -990,6 +991,7 @@ import type {
   InfectionDeviceDay,
   // Infection Control
   InfectionSurveillanceEvent,
+  InfraStatus,
   IngestionBatch,
   IngestionItem,
   InitDischargeTatRequest,
@@ -1644,6 +1646,7 @@ import type {
   UnreadCountResponse,
   UpdateAdmissionRequest,
   UpdateAdrRequest,
+  UpdateAiSettingsRequest,
   UpdateAlertThresholdRequest,
   UpdateAmbulanceDriverRequest,
   UpdateAmbulanceLocationRequest,
@@ -12999,6 +13002,15 @@ export const api = {
   aiSaveCourse: (data: AiGeneratedCourse) =>
     request<LmsCourse>("/lms/courses/ai-save", {
       method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // ── Infrastructure & AI settings ─────────────────────────
+  getInfraStatus: () => request<InfraStatus>("/admin/infra-status"),
+  getAiSettings: () => request<AiSettings>("/admin/ai-settings"),
+  updateAiSettings: (data: UpdateAiSettingsRequest) =>
+    request<AiSettings>("/admin/ai-settings", {
+      method: "PUT",
       body: JSON.stringify(data),
     }),
 

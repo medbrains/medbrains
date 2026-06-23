@@ -923,6 +923,10 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
       "--mb-gradient-mist": "linear-gradient(135deg, #a6c8ff 0%, #e8f5ec 100%)",
       "--mb-gradient-nightshift": "linear-gradient(160deg, #161616 0%, #0043ce 70%, #0f62fe 100%)",
       "--mb-gradient-text": "linear-gradient(120deg, #0043ce 0%, #0f62fe 45%, #42be65 100%)",
+      // Carbon AI signature — violet → blue. Marks AI-supported surfaces only
+      // (the AiLabel slug border + "AI" glyph). Carbon reserves this for
+      // genuinely AI-touched content; do not use it as generic decoration.
+      "--mb-gradient-ai": "linear-gradient(135deg, #5E5CE6 0%, #4589ff 100%)",
       "--mb-accent-gradient": "var(--mb-gradient-signal)",
       "--mb-accent-gradient-soft": "var(--mb-brand-bg)",
       "--mb-signature-spectrum": "var(--mb-gradient-signal)",

@@ -42,6 +42,13 @@ impl std::error::Error for SecretError {}
 pub trait SecretResolver: Send + Sync + fmt::Debug {
     /// Fetch a single secret value. Implementations may cache.
     async fn get(&self, key: &str) -> Result<String, SecretError>;
+
+    /// Short stable label for the active backend, surfaced in the admin
+    /// infrastructure status (`env` | `file` | `aws-secrets-manager`). Real
+    /// backends override this; the default covers test/mock resolvers.
+    fn backend_label(&self) -> &'static str {
+        "unknown"
+    }
 }
 
 pub use env::EnvSecretResolver;

@@ -103,5 +103,9 @@ mod aws {
                 .map(ToOwned::to_owned)
                 .ok_or_else(|| SecretError::NotFound(key.to_owned()))
         }
+
+        fn backend_label(&self) -> &'static str {
+            "aws-secrets-manager"
+        }
     }
 }

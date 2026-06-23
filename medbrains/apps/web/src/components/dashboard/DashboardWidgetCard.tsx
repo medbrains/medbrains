@@ -2,7 +2,7 @@ import { BarChart, LineChart } from "@mantine/charts";
 import { Box, Card, Group, Loader, Stack, Table, Text, ThemeIcon } from "@mantine/core";
 import { usePermissionStore } from "@medbrains/stores";
 import type { DashboardWidget } from "@medbrains/types";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { StatCard } from "@/components";
 import { Button } from "@/components/ui";
 import { WidgetIcon } from "./widgetIcons";

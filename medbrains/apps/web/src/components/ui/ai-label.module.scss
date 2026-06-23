@@ -1,0 +1,83 @@
+// Carbon AI Label — a small slug whose border + "AI" glyph carry the reserved
+// violet→blue AI gradient (--mb-gradient-ai). Layout only here; colour comes
+// from theme tokens.
+
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  line-height: 1;
+  vertical-align: middle;
+  border-radius: 2px; // Carbon sharp corner
+  // Gradient border via padding-box/border-box trick over the page surface.
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--mb-bg-default, #ffffff), var(--mb-bg-default, #ffffff)) padding-box,
+    var(--mb-gradient-ai) border-box;
+}
+
+.ai {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-family: var(--mb-font-mono, monospace);
+  background: var(--mb-gradient-ai);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.text {
+  font-size: 0.78em;
+  color: var(--mb-text-secondary, #5f6b7a);
+}
+
+.static {
+  display: inline-flex;
+}
+
+.trigger {
+  display: inline-flex;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: filter 120ms ease;
+
+  &:hover {
+    filter: drop-shadow(0 1px 4px rgba(94, 92, 230, 0.35));
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--mb-violet-accent, #5e5ce6);
+    outline-offset: 2px;
+  }
+}
+
+.popHeader {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+// Size scale (slug height + glyph size).
+.xs {
+  height: 18px;
+  font-size: 11px;
+}
+.sm {
+  height: 22px;
+  font-size: 12px;
+}
+.md {
+  height: 28px;
+  font-size: 14px;
+}
+.lg {
+  height: 34px;
+  font-size: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger {
+    transition: none;
+  }
+}

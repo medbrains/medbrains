@@ -15,7 +15,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { PageHeader } from "@/components";
 import { Badge, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -112,8 +112,8 @@ const SEGMENTS: Segment[] = [
     icon: IconServerCog,
     description: "Secrets backend, AI provider, and integration keys.",
     items: [
-      { label: "Secrets backend (KMS / Vault)", to: "/admin/settings", soon: true },
-      { label: "AI provider & keys", to: "/admin/settings", soon: true },
+      { label: "Secrets backend (KMS / Vault)", to: "/setup/infrastructure" },
+      { label: "AI provider & keys", to: "/setup/infrastructure" },
       { label: "Integrations", to: "/admin/integration-hub" },
     ],
   },

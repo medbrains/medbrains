@@ -33,6 +33,10 @@ impl SecretResolver for EnvSecretResolver {
         let env_key = Self::env_key(key);
         env::var(&env_key).map_err(|_| SecretError::NotFound(key.to_owned()))
     }
+
+    fn backend_label(&self) -> &'static str {
+        "env"
+    }
 }
 
 #[cfg(test)]

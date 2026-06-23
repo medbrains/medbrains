@@ -58,6 +58,7 @@ pub mod iam;
 pub mod icu;
 pub mod indent;
 pub mod infection_control;
+pub mod infra_settings;
 pub mod insurance;
 pub mod integration;
 pub mod ipd;
@@ -473,6 +474,14 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/setup/services/import",
             post(catalog_import::import_services),
+        )
+        .route(
+            "/api/admin/infra-status",
+            get(infra_settings::get_infra_status),
+        )
+        .route(
+            "/api/admin/ai-settings",
+            get(infra_settings::get_ai_settings).put(infra_settings::update_ai_settings),
         )
         .route(
             "/api/setup/services/{id}",
