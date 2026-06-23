@@ -186,7 +186,7 @@ export function AppLayout() {
   // Resolve config items to renderable items with translated labels
   const resolveItem = useCallback(
     (cfg: NavItemConfig, childSize = false): ResolvedNavItem => {
-      const size = childSize ? 16 : 20;
+      const size = childSize ? 20 : 26;
       const badge = getModuleBadge(cfg.path);
       return {
         label: t(cfg.i18nKey),

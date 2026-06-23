@@ -21,7 +21,7 @@ export interface ModuleBadgeProps extends BoxProps {
  */
 export function ModuleBadge({ abbr, color, size = 20, title, ...rest }: ModuleBadgeProps) {
   // Shrink the glyph for 3-letter marks (OPD, ICU…) so they fit the square.
-  const fontScale = abbr.length >= 3 ? 0.34 : 0.46;
+  const fontScale = abbr.length >= 3 ? 0.4 : 0.52;
   return (
     <Box
       className={styles.badge}
