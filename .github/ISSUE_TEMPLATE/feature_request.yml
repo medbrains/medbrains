@@ -1,0 +1,35 @@
+name: 💡 Feature request / module proposal
+description: Suggest a feature, module, or improvement
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Proposing a clinical module or workflow? Tell us the real hospital scenario — who uses it and why. That context is what makes MedBrains good.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem / scenario
+      description: What real-world hospital need or pain does this address? Who is the user (role)?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should happen? Screens, endpoints, rules, edge cases.
+    validations:
+      required: true
+  - type: textarea
+    id: regulatory
+    attributes:
+      label: Regulatory / safety considerations
+      description: Any applicable norms (NABH/JCI, NDPS, ICD/LOINC, consent, etc.) this must respect?
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false

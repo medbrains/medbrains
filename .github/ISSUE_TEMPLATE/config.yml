@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 Report a security vulnerability
+    url: https://github.com/DomnicAmalan/MedBrains/security/advisories/new
+    about: Please report security issues privately — never in a public issue. See SECURITY.md.
+  - name: 💬 Questions & discussions
+    url: https://github.com/DomnicAmalan/MedBrains/discussions
+    about: Ask questions, share ideas, or discuss the roadmap.
+  - name: 💚 Funding & partnerships
+    url: https://github.com/DomnicAmalan/MedBrains/blob/master/GRANTS.md
+    about: Funders, ministries, and health programmes — read the public-good thesis.
