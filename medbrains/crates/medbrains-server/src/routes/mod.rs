@@ -470,6 +470,10 @@ pub fn build_router(state: AppState) -> Router {
             get(setup::list_services).post(setup::create_service),
         )
         .route(
+            "/api/setup/services/import",
+            post(catalog_import::import_services),
+        )
+        .route(
             "/api/setup/services/{id}",
             put(setup::update_service).delete(setup::delete_service),
         )

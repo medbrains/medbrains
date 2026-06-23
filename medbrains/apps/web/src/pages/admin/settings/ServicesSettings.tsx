@@ -11,12 +11,14 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { api } from "@medbrains/api";
 import { type ServiceSettingsFormInput, serviceSettingsFormSchema } from "@medbrains/schemas";
 import type { DepartmentRow, ServiceRow } from "@medbrains/types";
-import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconCheck, IconPencil, IconPlus, IconTrash, IconUpload } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { CsvImportModal } from "@/components/CsvImportModal";
 import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
@@ -256,6 +258,7 @@ function ServiceModal({
 export function ServicesSettings() {
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editingService, setEditingService] = useState<ServiceRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ServiceRow | null>(null);
 
@@ -338,9 +341,24 @@ export function ServicesSettings() {
         <Text fw={600} size="lg">
           Services
         </Text>
-        <Button tone="primary" size="sm" leftSection={<IconPlus size={14} />} onClick={openCreate}>
-          Add Service
-        </Button>
+        <Group gap="xs">
+          <Button
+            tone="secondary"
+            size="sm"
+            leftSection={<IconUpload size={14} />}
+            onClick={() => setImportOpen(true)}
+          >
+            Import CSV
+          </Button>
+          <Button
+            tone="primary"
+            size="sm"
+            leftSection={<IconPlus size={14} />}
+            onClick={openCreate}
+          >
+            Add Service
+          </Button>
+        </Group>
       </Group>
 
       <Table striped highlightOnHover>
@@ -421,6 +439,18 @@ export function ServicesSettings() {
         opened={modalOpen}
         onClose={() => setModalOpen(false)}
         editingService={editingService}
+      />
+
+      <CsvImportModal
+        opened={importOpen}
+        onClose={() => {
+          setImportOpen(false);
+          void queryClient.invalidateQueries({ queryKey: ["setup-services"] });
+        }}
+        title="Import Services"
+        requiredColumns={["code", "name"]}
+        optionalColumns={["service_type", "base_price", "description", "department_id"]}
+        onImport={api.importServices}
       />
 
       <Modal

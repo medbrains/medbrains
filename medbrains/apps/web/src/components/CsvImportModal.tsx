@@ -13,7 +13,7 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { CsvImportRequest, CsvImportResult } from "@medbrains/types";
-import { IconAlertCircle, IconCheck, IconFileUpload } from "@tabler/icons-react";
+import { IconAlertCircle, IconCheck, IconDownload, IconFileUpload } from "@tabler/icons-react";
 import { useCallback, useState } from "react";
 
 interface Props {
@@ -138,6 +138,17 @@ export function CsvImportModal({
     }
   };
 
+  const handleDownloadTemplate = () => {
+    const cols = [...requiredColumns, ...optionalColumns];
+    const blob = new Blob([`${cols.join(",")}\n`], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-template.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleClose = () => {
     setFile(null);
     setParsed(null);
@@ -153,9 +164,19 @@ export function CsvImportModal({
   return (
     <Modal opened={opened} onClose={handleClose} title={title} size="lg">
       <Stack gap="md">
-        <Text size="sm" c="dimmed">
-          Upload a CSV file with the following columns:
-        </Text>
+        <Group justify="space-between" align="flex-start">
+          <Text size="sm" c="dimmed">
+            Upload a CSV file with the following columns:
+          </Text>
+          <Button
+            variant="light"
+            size="compact-sm"
+            leftSection={<IconDownload size={14} />}
+            onClick={handleDownloadTemplate}
+          >
+            Download template
+          </Button>
+        </Group>
         <Group gap="xs">
           {requiredColumns.map((col) => (
             <Badge key={col} size="sm" color="primary">

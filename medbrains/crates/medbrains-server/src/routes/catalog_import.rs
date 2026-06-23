@@ -468,6 +468,93 @@ pub async fn import_charge_master(
     }))
 }
 
+/// POST /api/setup/services/import
+///
+/// Columns: code*, name*, service_type, base_price, description, department_id.
+/// `service_type` defaults to `other` when blank; an unknown value fails the row
+/// (the enum cast rejects it). Upserts on (tenant_id, code).
+pub async fn import_services(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CsvImportRequest>,
+) -> Result<Json<CsvImportResult>, AppError> {
+    require_permission(&claims, permissions::admin::settings::services::CREATE)?;
+
+    let col = |name: &str| {
+        body.headers
+            .iter()
+            .position(|h| h.eq_ignore_ascii_case(name))
+    };
+    let code_idx = col("code")
+        .ok_or_else(|| AppError::BadRequest("CSV must have a 'code' column".to_owned()))?;
+    let name_idx = col("name")
+        .ok_or_else(|| AppError::BadRequest("CSV must have a 'name' column".to_owned()))?;
+    let type_idx = col("service_type").or_else(|| col("type"));
+    let price_idx = col("base_price").or_else(|| col("price"));
+    let desc_idx = col("description");
+    let dept_idx = col("department_id");
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let mut imported = 0i64;
+    let mut skipped = 0i64;
+    let mut errors = Vec::new();
+
+    for (i, row) in body.rows.iter().enumerate() {
+        let row_num = i + 2;
+        let values = &row.values;
+        let code = cell(values, Some(code_idx));
+        let name = cell(values, Some(name_idx));
+        if code.is_empty() || name.is_empty() {
+            errors.push(format!("Row {row_num}: code and name are required"));
+            skipped += 1;
+            continue;
+        }
+        let service_type = optional(cell(values, type_idx)).unwrap_or("other");
+        let base_price = parse_decimal(cell(values, price_idx)).unwrap_or(Decimal::ZERO);
+        let department_id = optional(cell(values, dept_idx))
+            .and_then(|v| uuid::Uuid::parse_str(v).ok());
+
+        let result = sqlx::query(
+            "INSERT INTO services \
+             (tenant_id, code, name, service_type, base_price, department_id, description) \
+             VALUES ($1, $2, $3, $4::service_type, $5, $6, $7) \
+             ON CONFLICT (tenant_id, code) DO UPDATE SET \
+               name = EXCLUDED.name, \
+               service_type = EXCLUDED.service_type, \
+               base_price = EXCLUDED.base_price, \
+               department_id = COALESCE(EXCLUDED.department_id, services.department_id), \
+               description = COALESCE(EXCLUDED.description, services.description), \
+               is_active = true, updated_at = now()",
+        )
+        .bind(claims.tenant_id)
+        .bind(code)
+        .bind(name)
+        .bind(service_type)
+        .bind(base_price)
+        .bind(department_id)
+        .bind(optional(cell(values, desc_idx)))
+        .execute(&mut *tx)
+        .await;
+
+        match result {
+            Ok(_) => imported += 1,
+            Err(e) => {
+                errors.push(format!("Row {row_num} ({code}): {e}"));
+                skipped += 1;
+            }
+        }
+    }
+
+    tx.commit().await?;
+    Ok(Json(CsvImportResult {
+        imported,
+        skipped,
+        errors,
+    }))
+}
+
 /// POST /api/setup/masters/insurance-providers/import
 ///
 /// Columns: code*, name*, provider_type*, contact_phone, contact_email,

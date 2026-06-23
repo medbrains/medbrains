@@ -2935,6 +2935,11 @@ export const api = {
     }),
   deleteService: (id: string) =>
     request<{ status: string }>(`/setup/services/${id}`, { method: "DELETE" }),
+  importServices: (data: CsvImportRequest) =>
+    request<CsvImportResult>("/setup/services/import", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // Setup — bed types
   listBedTypes: () => request<BedTypeRow[]>("/setup/bed-types"),
