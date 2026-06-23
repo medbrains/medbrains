@@ -40,6 +40,7 @@ pub struct Dashboard {
     pub is_default: bool,
     pub role_codes: serde_json::Value,
     pub department_ids: serde_json::Value,
+    pub group_ids: serde_json::Value,
     pub layout_config: serde_json::Value,
     pub is_active: bool,
     pub created_by: Option<Uuid>,

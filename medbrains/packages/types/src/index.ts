@@ -3073,6 +3073,7 @@ export interface Dashboard {
   is_default: boolean;
   role_codes: string[];
   department_ids: string[];
+  group_ids: string[];
   layout_config: LayoutConfig;
   is_active: boolean;
   created_by: string | null;
@@ -3216,6 +3217,7 @@ export interface CreateDashboardRequest {
   description?: string;
   role_codes?: string[];
   department_ids?: string[];
+  group_ids?: string[];
   layout_config?: LayoutConfig;
   is_default?: boolean;
 }
@@ -3225,6 +3227,7 @@ export interface UpdateDashboardRequest {
   description?: string;
   role_codes?: string[];
   department_ids?: string[];
+  group_ids?: string[];
   layout_config?: LayoutConfig;
   is_default?: boolean;
   is_active?: boolean;

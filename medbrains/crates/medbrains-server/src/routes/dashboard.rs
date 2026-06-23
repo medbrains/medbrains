@@ -109,6 +109,7 @@ pub struct CreateDashboardRequest {
     pub description: Option<String>,
     pub role_codes: Option<Vec<String>>,
     pub department_ids: Option<Vec<Uuid>>,
+    pub group_ids: Option<Vec<Uuid>>,
     pub layout_config: Option<serde_json::Value>,
     pub is_default: Option<bool>,
 }
@@ -119,6 +120,7 @@ pub struct UpdateDashboardRequest {
     pub description: Option<String>,
     pub role_codes: Option<Vec<String>>,
     pub department_ids: Option<Vec<Uuid>>,
+    pub group_ids: Option<Vec<Uuid>>,
     pub layout_config: Option<serde_json::Value>,
     pub is_default: Option<bool>,
     pub is_active: Option<bool>,
@@ -282,8 +284,9 @@ pub async fn list_dashboards(
 /// Resolution chain (first match wins):
 /// 1. User-specific personal dashboard (`user_id` = current user)
 /// 2. Department-matched dashboard (`department_ids` overlaps user's departments + role match)
-/// 3. Role-matched dashboard (`role_codes` contains user's role)
-/// 4. Default dashboard (`is_default = true` or `role_codes = []`)
+/// 3. Access-group matched dashboard (highest group priority wins)
+/// 4. Role-matched dashboard (`role_codes` contains user's role)
+/// 5. Default dashboard (`is_default = true` or `role_codes = []`)
 pub async fn get_my_dashboard(
     Extension(claims): Extension<Claims>,
     State(state): State<AppState>,
@@ -306,7 +309,27 @@ pub async fn get_my_dashboard(
     .fetch_optional(&mut *tx)
     .await?;
 
-    // 2. Department + role matched dashboard
+    // 2. Access-group matched dashboard (higher group priority wins on overlap).
+    let dashboard = match dashboard {
+        Some(d) => Some(d),
+        None => {
+            sqlx::query_as::<_, Dashboard>(
+                "SELECT d.* FROM dashboards d
+                 JOIN access_groups g ON d.group_ids @> to_jsonb(g.id::text)
+                 JOIN access_group_members m ON m.group_id = g.id
+                 WHERE d.is_active = true AND d.user_id IS NULL
+                   AND d.group_ids != '[]'::jsonb
+                   AND m.user_id = $1
+                   AND (m.expires_at IS NULL OR m.expires_at > now())
+                 ORDER BY g.priority DESC, d.is_default DESC LIMIT 1",
+            )
+            .bind(claims.sub)
+            .fetch_optional(&mut *tx)
+            .await?
+        }
+    };
+
+    // 3. Department + role matched dashboard
     let dashboard = match dashboard {
         Some(d) => Some(d),
         None => {
@@ -325,7 +348,7 @@ pub async fn get_my_dashboard(
         }
     };
 
-    // 3. Role-matched dashboard
+    // 4. Role-matched dashboard
     let dashboard = match dashboard {
         Some(d) => Some(d),
         None => {
@@ -342,7 +365,7 @@ pub async fn get_my_dashboard(
         }
     };
 
-    // 4. Default dashboard
+    // 5. Default dashboard
     let dashboard = match dashboard {
         Some(d) => d,
         None => sqlx::query_as::<_, Dashboard>(
@@ -466,14 +489,16 @@ pub async fn admin_create_dashboard(
         serde_json::to_value(req.role_codes.unwrap_or_default()).unwrap_or(serde_json::json!([]));
     let department_ids = serde_json::to_value(req.department_ids.unwrap_or_default())
         .unwrap_or(serde_json::json!([]));
+    let group_ids =
+        serde_json::to_value(req.group_ids.unwrap_or_default()).unwrap_or(serde_json::json!([]));
     let layout_config = req
         .layout_config
         .unwrap_or_else(|| serde_json::json!({"columns": 12, "row_height": 80, "gap": 16}));
 
     let dashboard = sqlx::query_as::<_, Dashboard>(
         "INSERT INTO dashboards (tenant_id, name, code, description, is_default,
-                role_codes, department_ids, layout_config, created_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                role_codes, department_ids, group_ids, layout_config, created_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -483,6 +508,7 @@ pub async fn admin_create_dashboard(
     .bind(req.is_default.unwrap_or(false))
     .bind(&role_codes)
     .bind(&department_ids)
+    .bind(&group_ids)
     .bind(&layout_config)
     .bind(claims.sub)
     .fetch_one(&mut *tx)
@@ -523,20 +549,25 @@ pub async fn admin_update_dashboard(
         .department_ids
         .map(|d| serde_json::to_value(d).unwrap_or(serde_json::json!([])))
         .unwrap_or(existing.department_ids);
+    let group_ids = req
+        .group_ids
+        .map(|g| serde_json::to_value(g).unwrap_or(serde_json::json!([])))
+        .unwrap_or(existing.group_ids);
     let layout_config = req.layout_config.unwrap_or(existing.layout_config);
     let is_default = req.is_default.unwrap_or(existing.is_default);
     let is_active = req.is_active.unwrap_or(existing.is_active);
 
     let updated = sqlx::query_as::<_, Dashboard>(
         "UPDATE dashboards SET name = $1, description = $2, role_codes = $3,
-                department_ids = $4, layout_config = $5, is_default = $6, is_active = $7,
-                updated_at = now()
-         WHERE id = $8 RETURNING *",
+                department_ids = $4, group_ids = $5, layout_config = $6, is_default = $7,
+                is_active = $8, updated_at = now()
+         WHERE id = $9 RETURNING *",
     )
     .bind(&name)
     .bind(&description)
     .bind(&role_codes)
     .bind(&department_ids)
+    .bind(&group_ids)
     .bind(&layout_config)
     .bind(is_default)
     .bind(is_active)
