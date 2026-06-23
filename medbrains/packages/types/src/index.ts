@@ -32066,6 +32066,13 @@ export interface SsoGroupMapping {
   created_at: string;
 }
 
+/** Non-sensitive provider info for the login page (pre-auth). */
+export interface SsoPublicProvider {
+  id: string;
+  name: string;
+  protocol: "oidc" | "saml";
+}
+
 export interface CreateSsoGroupMappingRequest {
   idp_group: string;
   role_code?: string;

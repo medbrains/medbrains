@@ -1567,6 +1567,7 @@ import type {
   SpecialtyTemplate,
   SsoGroupMapping,
   SsoProvider,
+  SsoPublicProvider,
   StaffAttendanceReportPrintData,
   StaffCredentialFormPrintData,
   StaffCredentialSummary,
@@ -3413,6 +3414,10 @@ export const api = {
     }),
   listWidgetTemplates: () => request<WidgetTemplate[]>("/widget-templates"),
   // ── Enterprise SSO (admin config) ──
+  // Public — active providers for the login page (no auth).
+  listActiveSsoProviders: () => request<SsoPublicProvider[]>("/auth/sso/providers"),
+  ssoAuthorizeUrl: (providerId: string, returnTo = "/dashboard") =>
+    `/api/auth/sso/${providerId}/authorize?return_to=${encodeURIComponent(returnTo)}`,
   listSsoProviders: () => request<SsoProvider[]>("/admin/sso/providers"),
   createSsoProvider: (data: CreateSsoProviderRequest) =>
     request<SsoProvider>("/admin/sso/providers", { method: "POST", body: JSON.stringify(data) }),

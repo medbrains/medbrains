@@ -191,6 +191,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/auth/refresh", post(auth::refresh_token))
         // Enterprise SSO login flow — pre-auth (no JWT yet).
         .route(
+            "/api/auth/sso/providers",
+            get(sso_login::list_active_providers),
+        )
+        .route(
             "/api/auth/sso/{provider_id}/authorize",
             get(sso_login::oidc_authorize),
         )

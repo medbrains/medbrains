@@ -8,6 +8,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, Navigate, useNavigate } from "react-router";
+import { SsoLoginButtons } from "@/components/SsoLoginButtons";
 import { Alert, Button, Image } from "@/components/ui";
 import {
   DEFAULT_LOGIN_FORM_VALUES,
@@ -266,6 +267,8 @@ export function LoginPage() {
               </Button>
             </Stack>
           </form>
+
+          <SsoLoginButtons />
 
           {isDesktop && (
             <div className={classes.desktopSetup}>

@@ -12,19 +12,22 @@
 use std::collections::HashSet;
 
 use axum::{
+    Json,
     extract::{Path, Query, State},
     response::Redirect,
 };
+use axum_extra::extract::CookieJar;
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::Utc;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header, jwk::JwkSet};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::{
     error::AppError,
     middleware::auth::{Claims, encode_jwt},
+    middleware::cookies::{build_access_cookie, build_refresh_cookie, build_csrf_cookie},
     state::AppState,
 };
 
@@ -104,6 +107,28 @@ async fn fetch_discovery(url: &str) -> Result<Discovery, AppError> {
         .json::<Discovery>()
         .await
         .map_err(|e| AppError::Internal(format!("oidc discovery parse: {e}")))
+}
+
+// ── public providers list (login page) ──────────────────────────────────────
+
+/// Non-sensitive provider info for the login page's "Sign in with…" buttons.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct PublicProvider {
+    pub id: Uuid,
+    pub name: String,
+    pub protocol: String,
+}
+
+/// GET /api/auth/sso/providers — active providers (pre-auth, no secrets).
+pub async fn list_active_providers(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<PublicProvider>>, AppError> {
+    let rows = sqlx::query_as::<_, PublicProvider>(
+        "SELECT id, name, protocol FROM sso_active_providers()",
+    )
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows))
 }
 
 // ── authorize ───────────────────────────────────────────────────────────────
@@ -210,10 +235,13 @@ struct SsoIdentity {
 pub async fn oidc_callback(
     State(state): State<AppState>,
     Query(q): Query<CallbackQuery>,
-) -> Result<Redirect, AppError> {
+) -> Result<(CookieJar, Redirect), AppError> {
     if let Some(err) = q.error {
         tracing::warn!(error = %err, "sso callback returned an error");
-        return Ok(Redirect::to(&format!("{}/login?sso_error=1", public_base())));
+        return Ok((
+            CookieJar::new(),
+            Redirect::to(&format!("{}/login?sso_error=1", public_base())),
+        ));
     }
     let state_tok = q.state.ok_or(AppError::Unauthorized)?;
     let code = q.code.ok_or(AppError::Unauthorized)?;
@@ -269,12 +297,11 @@ pub async fn oidc_callback(
     )
     .await?;
 
-    // Federate (find / link / JIT-create + group sync) and issue our JWT.
+    // Federate (find / link / JIT-create + group sync), mint a session.
     let mut tx = state.db.begin().await?;
     let fed = federate_user(&mut tx, &provider, &identity).await?;
-    tx.commit().await?;
 
-    let claims = Claims {
+    let access_claims = Claims {
         sub: fed.user_id,
         tenant_id: provider.tenant_id,
         role: fed.role,
@@ -283,16 +310,42 @@ pub async fn oidc_callback(
         perm_version: fed.perm_version,
         exp: (Utc::now() + chrono::Duration::minutes(15)).timestamp() as usize,
     };
-    let token = encode_jwt(&claims, &state.jwt_encoding_key)
+    let access_token = encode_jwt(&access_claims, &state.jwt_encoding_key)
         .map_err(|e| AppError::Internal(format!("jwt encode: {e}")))?;
 
-    // Hand the token to the SPA in the URL fragment (not sent to servers/logs).
+    // Refresh token (7d), same model as password login — RLS-scoped insert.
+    let refresh_raw = Uuid::new_v4().to_string();
+    let mut hasher = Sha256::new();
+    hasher.update(refresh_raw.as_bytes());
+    let refresh_hash = hex::encode(hasher.finalize());
+    sqlx::query(
+        "INSERT INTO refresh_tokens (tenant_id, user_id, token_hash, expires_at) \
+         VALUES ($1, $2, $3, $4)",
+    )
+    .bind(provider.tenant_id)
+    .bind(fed.user_id)
+    .bind(&refresh_hash)
+    .bind(Utc::now() + chrono::Duration::days(7))
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    // Same HttpOnly cookie session as password login → no frontend token handling.
+    let cfg = &state.cookie_config;
+    let csrf = random_token(32)?;
+    let jar = CookieJar::new()
+        .add(build_access_cookie(&access_token, cfg))
+        .add(build_refresh_cookie(&refresh_raw, cfg))
+        .add(build_csrf_cookie(&csrf, cfg));
+
+    // Land the user on the SPA; the cookie authenticates the session.
     let return_to = auth.return_to.unwrap_or_else(|| "/dashboard".to_owned());
-    Ok(Redirect::to(&format!(
-        "{}/login/sso-callback#access_token={token}&return_to={}",
-        public_base(),
-        enc(&return_to),
-    )))
+    let target = if return_to.starts_with('/') {
+        format!("{}{return_to}", public_base())
+    } else {
+        format!("{}/dashboard", public_base())
+    };
+    Ok((jar, Redirect::to(&target)))
 }
 
 async fn exchange_code(
