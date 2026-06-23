@@ -81,6 +81,31 @@ pub struct ConsentTemplate {
     pub updated_at: DateTime<Utc>,
 }
 
+/// List row — omits `body_text` + the risks/alternatives/benefits sections
+/// (heavy per-language JSONB). The editor fetches the full template by id
+/// (#167 field projection).
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct ConsentTemplateListItem {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub code: String,
+    pub name: String,
+    pub category: ConsentTemplateCategory,
+    pub version: i32,
+    pub required_fields: Vec<String>,
+    pub requires_witness: bool,
+    pub requires_doctor: bool,
+    pub validity_days: Option<i32>,
+    pub applicable_departments: Option<Vec<Uuid>>,
+    pub is_read_aloud_required: bool,
+    pub is_active: bool,
+    pub sort_order: i32,
+    pub created_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ConsentAuditEntry {
     pub id: Uuid,

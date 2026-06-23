@@ -3,6 +3,8 @@ import { api } from "@medbrains/api";
 export const consentService = {
   listConsentTemplates: (...args: Parameters<typeof api.listConsentTemplates>) =>
     api.listConsentTemplates(...args),
+  getConsentTemplate: (...args: Parameters<typeof api.getConsentTemplate>) =>
+    api.getConsentTemplate(...args),
   createConsentTemplate: (...args: Parameters<typeof api.createConsentTemplate>) =>
     api.createConsentTemplate(...args),
   updateConsentTemplate: (...args: Parameters<typeof api.updateConsentTemplate>) =>

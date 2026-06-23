@@ -313,6 +313,7 @@ import type {
   ConsentSummaryItem,
   // Consent Management
   ConsentTemplate,
+  ConsentTemplateListItem,
   ConsignmentUsageRequest,
   Consultation,
   ConsultationTemplate,
@@ -6461,7 +6462,7 @@ export const api = {
     if (params?.category) sp.set("category", params.category);
     if (params?.is_active !== undefined) sp.set("is_active", String(params.is_active));
     const qs = sp.toString();
-    return request<ConsentTemplate[]>(`/consent/templates${qs ? `?${qs}` : ""}`);
+    return request<ConsentTemplateListItem[]>(`/consent/templates${qs ? `?${qs}` : ""}`);
   },
   getConsentTemplate: (id: string) => request<ConsentTemplate>(`/consent/templates/${id}`),
   createConsentTemplate: (data: CreateConsentTemplateRequest) =>

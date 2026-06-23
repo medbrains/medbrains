@@ -5,7 +5,9 @@ use axum::{
     extract::{Path, Query, State},
 };
 use chrono::Utc;
-use medbrains_core::consent::{ConsentAuditEntry, ConsentSignatureMetadata, ConsentTemplate};
+use medbrains_core::consent::{
+    ConsentAuditEntry, ConsentSignatureMetadata, ConsentTemplate, ConsentTemplateListItem,
+};
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -167,14 +169,18 @@ pub async fn list_templates(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListTemplatesQuery>,
-) -> Result<Json<Vec<ConsentTemplate>>, AppError> {
+) -> Result<Json<Vec<ConsentTemplateListItem>>, AppError> {
     require_permission(&claims, permissions::consent::templates::LIST)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, ConsentTemplate>(
-        "SELECT * FROM consent_templates \
+    // List omits body_text + risks/alternatives/benefits sections (heavy JSONB);
+    // the editor fetches the full template via GET /consent/templates/{id}.
+    let rows = sqlx::query_as::<_, ConsentTemplateListItem>(
+        "SELECT id, tenant_id, code, name, category, version, required_fields, requires_witness, \
+         requires_doctor, validity_days, applicable_departments, is_read_aloud_required, \
+         is_active, sort_order, created_by, created_at, updated_at FROM consent_templates \
          WHERE ($1::text IS NULL OR category::text = $1) \
          AND ($2::bool IS NULL OR is_active = $2) \
          ORDER BY sort_order, name LIMIT 500",

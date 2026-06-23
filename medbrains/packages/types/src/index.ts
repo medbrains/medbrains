@@ -10721,6 +10721,27 @@ export interface ConsentTemplate {
   updated_at: string;
 }
 
+/** List row — omits body_text + risks/alternatives/benefits sections (heavy JSONB). */
+export interface ConsentTemplateListItem {
+  id: string;
+  tenant_id: string;
+  code: string;
+  name: string;
+  category: ConsentTemplateCategory;
+  version: number;
+  required_fields: string[];
+  requires_witness: boolean;
+  requires_doctor: boolean;
+  validity_days: number | null;
+  applicable_departments: string[] | null;
+  is_read_aloud_required: boolean;
+  is_active: boolean;
+  sort_order: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ConsentAuditEntry {
   id: string;
   tenant_id: string;

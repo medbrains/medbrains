@@ -1,10 +1,12 @@
 import {
+  Center,
   Code,
   Divider,
   Drawer,
   Grid,
   Group,
   JsonInput,
+  Loader,
   Modal,
   MultiSelect,
   NumberInput,
@@ -26,6 +28,7 @@ import type {
   ConsentSignatureMetadata,
   ConsentSummaryItem,
   ConsentTemplate,
+  ConsentTemplateListItem,
   CreateConsentSignatureRequest,
   CreateConsentTemplateRequest,
   UpdateConsentTemplateRequest,
@@ -216,7 +219,7 @@ function TemplatesTab({
 }) {
   const qc = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
-  const [editing, setEditing] = useState<ConsentTemplate | null>(null);
+  const [editing, setEditing] = useState<ConsentTemplateListItem | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [deathCertOpened, { open: openDeathCert, close: closeDeathCert }] = useDisclosure(false);
   const [mloOpened, { open: openMlo, close: closeMlo }] = useDisclosure(false);
@@ -227,6 +230,14 @@ function TemplatesTab({
       consentService.listConsentTemplates({
         category: categoryFilter ?? undefined,
       }),
+  });
+
+  // The list omits the heavy body/section JSONB — fetch the full template for
+  // the editor (the form reads body_text + the section fields).
+  const { data: editingFull, isLoading: editingLoading } = useQuery({
+    queryKey: ["consent-template", editing?.id],
+    queryFn: () => consentService.getConsentTemplate(editing?.id ?? ""),
+    enabled: Boolean(editing?.id),
   });
 
   const createMut = useMutation({
@@ -257,7 +268,7 @@ function TemplatesTab({
     },
   });
 
-  const columns: Column<ConsentTemplate>[] = [
+  const columns: Column<ConsentTemplateListItem>[] = [
     { key: "code", label: "Code", render: (r) => <Code>{r.code}</Code> },
     { key: "name", label: "Name", render: (r) => <Text size="sm">{r.name}</Text> },
     {
@@ -424,17 +435,24 @@ function TemplatesTab({
         position="right"
         size="lg"
       >
-        <TemplateForm
-          initial={editing}
-          onSubmit={(vals) => {
-            if (editing) {
-              updateMut.mutate({ id: editing.id, data: vals });
-            } else {
-              createMut.mutate(vals as CreateConsentTemplateRequest);
-            }
-          }}
-          loading={createMut.isPending || updateMut.isPending}
-        />
+        {editing && editingLoading ? (
+          <Center py="xl">
+            <Loader />
+          </Center>
+        ) : (
+          <TemplateForm
+            key={editing?.id ?? "new"}
+            initial={editing ? (editingFull ?? null) : null}
+            onSubmit={(vals) => {
+              if (editing) {
+                updateMut.mutate({ id: editing.id, data: vals });
+              } else {
+                createMut.mutate(vals as CreateConsentTemplateRequest);
+              }
+            }}
+            loading={createMut.isPending || updateMut.isPending}
+          />
+        )}
       </Drawer>
       <Drawer
         opened={deathCertOpened}
