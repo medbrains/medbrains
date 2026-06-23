@@ -6778,6 +6778,19 @@ export interface LabReportTemplate {
   updated_at: string;
 }
 
+/** List row — omits header_html/footer_html/report_format (fetched by id when editing). */
+export interface LabReportTemplateListItem {
+  id: string;
+  tenant_id: string;
+  department_id: string | null;
+  template_name: string;
+  logo_url: string | null;
+  is_default: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface LabEqasResult {
   id: string;
   tenant_id: string;
@@ -30531,6 +30544,27 @@ export interface TeleConsultation {
   started_at?: string | null;
   ended_at?: string | null;
   doctor_notes?: string | null;
+  cancel_reason?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Worklist row — omits `doctor_notes` (shown only in the detail view). */
+export interface TeleConsultationListItem {
+  id: string;
+  tenant_id: string;
+  appointment_id?: string | null;
+  encounter_id?: string | null;
+  patient_id: string;
+  doctor_id: string;
+  room_id: string;
+  provider: string;
+  meeting_url?: string | null;
+  status: string;
+  scheduled_at?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
   cancel_reason?: string | null;
   created_by?: string | null;
   created_at: string;

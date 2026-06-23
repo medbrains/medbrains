@@ -11,7 +11,8 @@ use medbrains_core::lab::{
     LabCytologyReport, LabEqasResult, LabHistopathReport, LabHomeCollection, LabMolecularReport,
     LabNablDocument, LabOrder, LabOutsourcedOrder, LabPanelTest, LabPhlebotomyQueue,
     LabProficiencyTest, LabQcResult, LabReagentLot, LabReportDispatch, LabReportTemplate,
-    LabResult, LabResultAmendment, LabSampleArchive, LabTestCatalog, LabTestPanel,
+    LabReportTemplateListItem, LabResult, LabResultAmendment, LabSampleArchive, LabTestCatalog,
+    LabTestPanel,
 };
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
@@ -3313,23 +3314,26 @@ pub async fn list_report_templates(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Query(params): Query<ReportTemplateQuery>,
-) -> Result<Json<Vec<LabReportTemplate>>, AppError> {
+) -> Result<Json<Vec<LabReportTemplateListItem>>, AppError> {
     require_permission(&claims, permissions::lab::dispatch::LIST)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    // List omits header_html/footer_html/report_format — fetched by id when editing.
+    const LIST_COLS: &str = "id, tenant_id, department_id, template_name, logo_url, is_default, \
+                             is_active, created_at, updated_at";
     let rows = if let Some(dept_id) = params.department_id {
-        sqlx::query_as::<_, LabReportTemplate>(
-            "SELECT * FROM lab_report_templates WHERE tenant_id = $1 AND department_id = $2 \
-             ORDER BY template_name LIMIT 5000",
-        )
+        sqlx::query_as::<_, LabReportTemplateListItem>(&format!(
+            "SELECT {LIST_COLS} FROM lab_report_templates WHERE tenant_id = $1 AND department_id = $2 \
+             ORDER BY template_name LIMIT 5000"
+        ))
         .bind(claims.tenant_id)
         .bind(dept_id)
         .fetch_all(&mut *tx)
         .await?
     } else {
-        sqlx::query_as::<_, LabReportTemplate>(
-            "SELECT * FROM lab_report_templates WHERE tenant_id = $1 ORDER BY template_name LIMIT 5000",
-        )
+        sqlx::query_as::<_, LabReportTemplateListItem>(&format!(
+            "SELECT {LIST_COLS} FROM lab_report_templates WHERE tenant_id = $1 ORDER BY template_name LIMIT 5000"
+        ))
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
         .await?

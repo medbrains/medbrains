@@ -32,6 +32,29 @@ pub struct TeleConsultation {
     pub updated_at: DateTime<Utc>,
 }
 
+/// Worklist row — omits `doctor_notes` (free-text, only shown in the detail
+/// view, fetched by id). Keeps the worklist response slim (#167 field projection).
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct TeleConsultationListItem {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub appointment_id: Option<Uuid>,
+    pub encounter_id: Option<Uuid>,
+    pub patient_id: Uuid,
+    pub doctor_id: Uuid,
+    pub room_id: String,
+    pub provider: String,
+    pub meeting_url: Option<String>,
+    pub status: String,
+    pub scheduled_at: Option<DateTime<Utc>>,
+    pub started_at: Option<DateTime<Utc>>,
+    pub ended_at: Option<DateTime<Utc>>,
+    pub cancel_reason: Option<String>,
+    pub created_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 /// Role-specific join info returned to the client (doctor vs patient).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TeleJoinInfo {

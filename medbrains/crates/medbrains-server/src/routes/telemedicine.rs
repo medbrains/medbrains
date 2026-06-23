@@ -8,7 +8,7 @@ use axum::{
     extract::{Path, Query, State},
 };
 use medbrains_core::permissions;
-use medbrains_core::telemedicine::{TeleConsultation, TeleJoinInfo};
+use medbrains_core::telemedicine::{TeleConsultation, TeleConsultationListItem, TeleJoinInfo};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -173,14 +173,17 @@ pub async fn list_tele_consultations(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Query(q): Query<ListTeleConsultationsQuery>,
-) -> Result<Json<Vec<TeleConsultation>>, AppError> {
+) -> Result<Json<Vec<TeleConsultationListItem>>, AppError> {
     require_permission(&claims, permissions::opd::queue::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, TeleConsultation>(
-        "SELECT * FROM tele_consultations \
+    // Worklist omits doctor_notes — the detail view fetches the full record.
+    let rows = sqlx::query_as::<_, TeleConsultationListItem>(
+        "SELECT id, tenant_id, appointment_id, encounter_id, patient_id, doctor_id, room_id, \
+         provider, meeting_url, status, scheduled_at, started_at, ended_at, cancel_reason, \
+         created_by, created_at, updated_at FROM tele_consultations \
          WHERE tenant_id = $1 \
            AND ($2::text IS NULL OR status = $2) \
            AND ($3::uuid IS NULL OR doctor_id = $3) \

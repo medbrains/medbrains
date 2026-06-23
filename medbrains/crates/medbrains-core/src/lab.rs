@@ -474,6 +474,21 @@ pub struct LabReportTemplate {
     pub updated_at: DateTime<Utc>,
 }
 
+/// List row — omits `header_html`/`footer_html`/`report_format` (the heavy
+/// template body + layout JSON), fetched by id when editing (#167 projection).
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct LabReportTemplateListItem {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub department_id: Option<Uuid>,
+    pub template_name: String,
+    pub logo_url: Option<String>,
+    pub is_default: bool,
+    pub is_active: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct LabEqasResult {
     pub id: Uuid,

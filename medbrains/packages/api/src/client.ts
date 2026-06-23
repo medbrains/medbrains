@@ -1095,6 +1095,7 @@ import type {
   LabReportFullPrintData,
   LabReportPrintData,
   LabReportTemplate,
+  LabReportTemplateListItem,
   LabResult,
   // Lab Phase 2
   LabResultAmendment,
@@ -1602,6 +1603,7 @@ import type {
   TdsDeduction,
   TeachingConsentPrintData,
   TeleConsultation,
+  TeleConsultationListItem,
   TeleJoinInfo,
   TemplateWithItems,
   TenantSettingsRow,
@@ -4728,7 +4730,7 @@ export const api = {
   // Lab Phase 3 — Report Templates
   listReportTemplates: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
-    return request<LabReportTemplate[]>(`/lab/report-templates${qs}`);
+    return request<LabReportTemplateListItem[]>(`/lab/report-templates${qs}`);
   },
   createReportTemplate: (data: CreateReportTemplateRequest) =>
     request<LabReportTemplate>("/lab/report-templates", {
@@ -13014,7 +13016,7 @@ export const api = {
           Object.entries(params).filter(([, v]) => v !== undefined) as [string, string][],
         )}`
       : "";
-    return request<TeleConsultation[]>(`/telemedicine/consultations${qs}`);
+    return request<TeleConsultationListItem[]>(`/telemedicine/consultations${qs}`);
   },
   createTeleConsultation: (data: CreateTeleConsultationRequest) =>
     request<TeleConsultation>("/telemedicine/consultations", {
