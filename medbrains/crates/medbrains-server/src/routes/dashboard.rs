@@ -140,6 +140,7 @@ pub struct CreateWidgetRequest {
     pub config: Option<serde_json::Value>,
     pub data_source: Option<serde_json::Value>,
     pub data_filters: Option<serde_json::Value>,
+    pub variants: Option<serde_json::Value>,
     pub position_x: Option<i32>,
     pub position_y: Option<i32>,
     pub width: Option<i32>,
@@ -158,6 +159,7 @@ pub struct UpdateWidgetRequest {
     pub config: Option<serde_json::Value>,
     pub data_source: Option<serde_json::Value>,
     pub data_filters: Option<serde_json::Value>,
+    pub variants: Option<serde_json::Value>,
     pub position_x: Option<i32>,
     pub position_y: Option<i32>,
     pub width: Option<i32>,
@@ -427,10 +429,10 @@ pub async fn personalize_dashboard(
     // Copy all widgets
     sqlx::query(
         "INSERT INTO dashboard_widgets (dashboard_id, widget_type, title, subtitle, icon, color,
-                config, data_source, data_filters, position_x, position_y, width, height,
+                config, data_source, data_filters, variants, position_x, position_y, width, height,
                 min_width, min_height, refresh_interval, is_visible, permission_code, sort_order)
          SELECT $1, widget_type, title, subtitle, icon, color,
-                config, data_source, data_filters, position_x, position_y, width, height,
+                config, data_source, data_filters, variants, position_x, position_y, width, height,
                 min_width, min_height, refresh_interval, is_visible, permission_code, sort_order
          FROM dashboard_widgets WHERE dashboard_id = $2",
     )
@@ -653,10 +655,10 @@ pub async fn admin_duplicate_dashboard(
     // Copy all widgets
     sqlx::query(
         "INSERT INTO dashboard_widgets (dashboard_id, widget_type, title, subtitle, icon, color,
-                config, data_source, data_filters, position_x, position_y, width, height,
+                config, data_source, data_filters, variants, position_x, position_y, width, height,
                 min_width, min_height, refresh_interval, is_visible, permission_code, sort_order)
          SELECT $1, widget_type, title, subtitle, icon, color,
-                config, data_source, data_filters, position_x, position_y, width, height,
+                config, data_source, data_filters, variants, position_x, position_y, width, height,
                 min_width, min_height, refresh_interval, is_visible, permission_code, sort_order
          FROM dashboard_widgets WHERE dashboard_id = $2",
     )
@@ -728,13 +730,14 @@ pub async fn admin_add_widget(
     };
 
     let data_filters = req.data_filters.unwrap_or_else(|| serde_json::json!({}));
+    let variants = req.variants.unwrap_or_else(|| serde_json::json!([]));
 
     let widget = sqlx::query_as::<_, DashboardWidget>(
         "INSERT INTO dashboard_widgets
             (dashboard_id, widget_type, title, subtitle, icon, color,
-             config, data_source, data_filters, position_x, position_y, width, height,
+             config, data_source, data_filters, variants, position_x, position_y, width, height,
              refresh_interval, permission_code)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
          RETURNING *",
     )
     .bind(dashboard_id)
@@ -746,6 +749,7 @@ pub async fn admin_add_widget(
     .bind(&config)
     .bind(&data_source)
     .bind(&data_filters)
+    .bind(&variants)
     .bind(req.position_x.unwrap_or(0))
     .bind(req.position_y.unwrap_or(0))
     .bind(width)
@@ -786,7 +790,7 @@ pub async fn admin_update_widget(
     let updated = sqlx::query_as::<_, DashboardWidget>(
         "UPDATE dashboard_widgets SET
             title = $1, subtitle = $2, icon = $3, color = $4,
-            config = $5, data_source = $6, data_filters = $7,
+            config = $5, data_source = $6, data_filters = $7, variants = $16,
             position_x = $8, position_y = $9, width = $10, height = $11,
             refresh_interval = $12, is_visible = $13, permission_code = $14,
             updated_at = now()
@@ -811,6 +815,7 @@ pub async fn admin_update_widget(
             .or(existing.permission_code.as_ref()),
     )
     .bind(wid)
+    .bind(req.variants.as_ref().unwrap_or(&existing.variants))
     .fetch_one(&mut *tx)
     .await?;
 
@@ -1070,7 +1075,7 @@ pub async fn get_widget_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let widget = sqlx::query_as::<_, DashboardWidget>(
+    let mut widget = sqlx::query_as::<_, DashboardWidget>(
         "SELECT dw.* FROM dashboard_widgets dw
          JOIN dashboards d ON d.id = dw.dashboard_id
          WHERE dw.id = $1",
@@ -1079,6 +1084,10 @@ pub async fn get_widget_data(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    // Apply the viewer's variant overrides (data_source/config) before resolving.
+    let groups = fetch_viewer_groups(&mut tx, claims.tenant_id, claims.sub).await?;
+    apply_variant(&mut widget, &claims.role, claims.sub, &groups);
 
     // Set full department context based on widget's data_filters + viewer claims
     let filters = resolve_data_filters(&widget, &claims);
@@ -1110,7 +1119,7 @@ pub async fn batch_widget_data(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let widgets = sqlx::query_as::<_, DashboardWidget>(
+    let mut widgets = sqlx::query_as::<_, DashboardWidget>(
         "SELECT dw.* FROM dashboard_widgets dw
          JOIN dashboards d ON d.id = dw.dashboard_id
          WHERE dw.id = ANY($1)",
@@ -1118,6 +1127,13 @@ pub async fn batch_widget_data(
     .bind(&req.widget_ids)
     .fetch_all(&mut *tx)
     .await?;
+
+    // Apply per-audience variant overrides so each widget's data_source/config
+    // reflects the viewer's variant before its data is resolved.
+    let groups = fetch_viewer_groups(&mut tx, claims.tenant_id, claims.sub).await?;
+    for widget in &mut widgets {
+        apply_variant(widget, &claims.role, claims.sub, &groups);
+    }
 
     // Field-level access for the viewer — sensitive widget fields are masked or
     // hidden server-side per the role/user field-access map (empty for bypass
@@ -1168,7 +1184,7 @@ async fn fetch_visible_widgets(
 
     // Filter by permission_code if set
     let is_bypass = is_bypass_role(claims);
-    let visible: Vec<DashboardWidget> = all_widgets
+    let mut visible: Vec<DashboardWidget> = all_widgets
         .into_iter()
         .filter(|w| {
             w.permission_code
@@ -1176,6 +1192,14 @@ async fn fetch_visible_widgets(
                 .is_none_or(|perm| is_bypass || claims.permissions.iter().any(|p| p == perm))
         })
         .collect();
+
+    // Apply per-audience variant overrides (title/config/data_source) so the
+    // frontend renders the viewer's variant. Data is resolved with the same
+    // overrides in batch_widget_data.
+    let groups = fetch_viewer_groups(tx, claims.tenant_id, claims.sub).await?;
+    for w in &mut visible {
+        apply_variant(w, &claims.role, claims.sub, &groups);
+    }
 
     Ok(visible)
 }
@@ -1327,6 +1351,93 @@ fn redact_object(
         }
     }
     serde_json::Value::Object(obj)
+}
+
+/// The viewer's active access groups as (group-id-text, priority) — the inputs
+/// to variant/precedence selection. Honours membership expiry.
+async fn fetch_viewer_groups(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    user_id: Uuid,
+) -> Result<Vec<(String, i32)>, AppError> {
+    let rows = sqlx::query_as::<_, (Uuid, i32)>(
+        "SELECT g.id, g.priority FROM access_groups g
+         JOIN access_group_members m ON m.group_id = g.id
+         WHERE m.user_id = $1 AND g.tenant_id = $2 AND g.is_active = true
+           AND (m.expires_at IS NULL OR m.expires_at > now())",
+    )
+    .bind(user_id)
+    .bind(tenant_id)
+    .fetch_all(&mut **tx)
+    .await?;
+    Ok(rows.into_iter().map(|(id, pri)| (id.to_string(), pri)).collect())
+}
+
+/// Score a variant's `match` audience against the viewer. Higher = more specific:
+/// user (1_000_000) > group (1000 + group priority) > role (1). `None` = no match.
+fn variant_match_score(
+    m: Option<&serde_json::Value>,
+    role: &str,
+    user_id: &str,
+    groups: &[(String, i32)],
+) -> Option<u64> {
+    let m = m?;
+    if let Some(users) = m.get("users").and_then(serde_json::Value::as_array) {
+        if users.iter().any(|u| u.as_str() == Some(user_id)) {
+            return Some(1_000_000);
+        }
+    }
+    if let Some(gids) = m.get("groups").and_then(serde_json::Value::as_array) {
+        let best_pri = groups
+            .iter()
+            .filter(|(gid, _)| gids.iter().any(|g| g.as_str() == Some(gid.as_str())))
+            .map(|(_, pri)| *pri)
+            .max();
+        if let Some(p) = best_pri {
+            return Some(1000 + u64::try_from(p.max(0)).unwrap_or(0));
+        }
+    }
+    if let Some(roles) = m.get("roles").and_then(serde_json::Value::as_array) {
+        if roles.iter().any(|r| r.as_str() == Some(role)) {
+            return Some(1);
+        }
+    }
+    None
+}
+
+/// Apply the best-matching variant's overrides onto a widget in place: `title`,
+/// `subtitle` and `data_source` are replaced; `config` is shallow-merged so a
+/// variant can tweak one key (e.g. add `sensitive` or change `format`).
+fn apply_variant(widget: &mut DashboardWidget, role: &str, user_id: Uuid, groups: &[(String, i32)]) {
+    let Some(variants) = widget.variants.as_array() else {
+        return;
+    };
+    let uid = user_id.to_string();
+    let best = variants
+        .iter()
+        .filter_map(|v| variant_match_score(v.get("match"), role, &uid, groups).map(|s| (s, v)))
+        .max_by_key(|(s, _)| *s)
+        .map(|(_, v)| v);
+
+    let Some(v) = best else { return };
+    if let Some(t) = v.get("title").and_then(serde_json::Value::as_str) {
+        widget.title = t.to_owned();
+    }
+    if let Some(sub) = v.get("subtitle").and_then(serde_json::Value::as_str) {
+        widget.subtitle = Some(sub.to_owned());
+    }
+    if let Some(ds) = v.get("data_source") {
+        widget.data_source = ds.clone();
+    }
+    if let Some(cfg) = v.get("config").and_then(serde_json::Value::as_object) {
+        if let serde_json::Value::Object(base) = &mut widget.config {
+            for (k, val) in cfg {
+                base.insert(k.clone(), val.clone());
+            }
+        } else {
+            widget.config = serde_json::Value::Object(cfg.clone());
+        }
+    }
 }
 
 /// Module-specific data resolvers.
@@ -2530,5 +2641,45 @@ mod redaction_tests {
         // sensitive declared but viewer unrestricted (e.g. bypass role)
         let config = json!({ "sensitive": { "value": "billing.amount" } });
         assert_eq!(redact_widget_data(plain.clone(), &config, &HashMap::new()), plain);
+    }
+}
+
+#[cfg(test)]
+mod variant_tests {
+    use serde_json::json;
+
+    use super::variant_match_score;
+
+    #[test]
+    fn user_match_beats_group_and_role() {
+        let m = json!({ "users": ["u1"], "groups": ["g1"], "roles": ["nurse"] });
+        let score = variant_match_score(Some(&m), "nurse", "u1", &[("g1".to_owned(), 5)]);
+        assert_eq!(score, Some(1_000_000));
+    }
+
+    #[test]
+    fn group_match_uses_highest_priority_and_beats_role() {
+        let m = json!({ "groups": ["g1", "g2"], "roles": ["nurse"] });
+        // viewer is in g1(pri 3) and g2(pri 9) → group score 1000+9, role would be 1
+        let score = variant_match_score(
+            Some(&m),
+            "nurse",
+            "u9",
+            &[("g1".to_owned(), 3), ("g2".to_owned(), 9)],
+        );
+        assert_eq!(score, Some(1009));
+    }
+
+    #[test]
+    fn role_match_is_lowest() {
+        let m = json!({ "roles": ["nurse"] });
+        assert_eq!(variant_match_score(Some(&m), "nurse", "u1", &[]), Some(1));
+    }
+
+    #[test]
+    fn no_match_returns_none() {
+        let m = json!({ "roles": ["doctor"], "groups": ["gX"] });
+        assert_eq!(variant_match_score(Some(&m), "nurse", "u1", &[("g1".to_owned(), 5)]), None);
+        assert_eq!(variant_match_score(None, "nurse", "u1", &[]), None);
     }
 }

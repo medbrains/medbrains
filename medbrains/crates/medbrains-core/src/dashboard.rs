@@ -82,6 +82,9 @@ pub struct DashboardWidget {
     pub config: serde_json::Value,
     pub data_source: serde_json::Value,
     pub data_filters: serde_json::Value,
+    /// Per-audience overrides (role/group/user) — see migration 0198.
+    #[serde(default)]
+    pub variants: serde_json::Value,
     pub position_x: i32,
     pub position_y: i32,
     pub width: i32,

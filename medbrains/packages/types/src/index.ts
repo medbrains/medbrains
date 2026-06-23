@@ -3107,6 +3107,7 @@ export interface DashboardWidget {
   config: Record<string, unknown>;
   data_source: WidgetDataSource;
   data_filters: WidgetDataFilters;
+  variants: WidgetVariant[];
   position_x: number;
   position_y: number;
   width: number;
@@ -3119,6 +3120,17 @@ export interface DashboardWidget {
   sort_order: number;
   created_at: string;
   updated_at: string;
+}
+
+/** Per-audience widget override — the matching variant (user > group > role) is
+ *  merged onto the widget server-side, so a widget can show different info per
+ *  viewer. See migration 0198. */
+export interface WidgetVariant {
+  match: { roles?: string[]; groups?: string[]; users?: string[] };
+  title?: string;
+  subtitle?: string;
+  config?: Record<string, unknown>;
+  data_source?: WidgetDataSource;
 }
 
 export interface DashboardWithWidgets {
