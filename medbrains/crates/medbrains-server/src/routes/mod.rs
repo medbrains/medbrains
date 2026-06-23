@@ -121,6 +121,7 @@ pub mod schema_registry;
 pub mod security;
 pub mod setup;
 pub mod sso;
+pub mod sso_login;
 pub mod sharing;
 pub mod signatures;
 pub mod signed_documents;
@@ -188,6 +189,12 @@ pub fn build_router(state: AppState) -> Router {
         .merge(password_reset_routes)
         .route("/api/health", get(health::health_check))
         .route("/api/auth/refresh", post(auth::refresh_token))
+        // Enterprise SSO login flow — pre-auth (no JWT yet).
+        .route(
+            "/api/auth/sso/{provider_id}/authorize",
+            get(sso_login::oidc_authorize),
+        )
+        .route("/api/auth/sso/callback", get(sso_login::oidc_callback))
         // NHCX async-response webhook — gateway authenticates via JWS,
         // not bearer token, so this lives on the public router.
         .route(
