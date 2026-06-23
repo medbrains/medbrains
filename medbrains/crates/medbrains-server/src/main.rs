@@ -206,8 +206,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Build shared state
-    let state_secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver> =
-        Arc::new(medbrains_core::secrets::EnvSecretResolver::new());
+    let state_secret_resolver = medbrains_server::secret_backend::build_secret_resolver().await;
 
     let s3_client = S3PresignClient::from_config(&config).await.map(Arc::new);
 
@@ -421,12 +420,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // dev we reuse the main pool. assert_bypass_rls() panics if the role
     // does not have BYPASSRLS — opted out in dev via env var.
     //
-    // Phase 1.1: real handlers (Razorpay) need a SecretResolver + a
-    // shared reqwest::Client threaded through HandlerCtx. Dev uses
-    // EnvSecretResolver (reads MEDBRAINS_DEV_<TENANT>_RAZORPAY_KEY_ID
-    // etc. from process env). Prod will swap to AwsSecretsManagerResolver
-    // in a follow-up PR; dispatch is via trait object so the swap is
-    // a 2-line change at startup.
+    // Real handlers (Razorpay) need a SecretResolver + a shared
+    // reqwest::Client threaded through HandlerCtx. The backend is chosen by
+    // `secret_backend::build_secret_resolver` (MEDBRAINS_SECRETS_BACKEND or
+    // DeployMode): env in dev, file on-prem, AWS Secrets Manager in cloud.
     if std::env::var("MEDBRAINS_DISABLE_OUTBOX_WORKER")
         .ok()
         .as_deref()
@@ -439,8 +436,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .user_agent(concat!("medbrains-outbox/", env!("CARGO_PKG_VERSION")))
             .build()?;
 
-        let secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver> =
-            Arc::new(medbrains_core::secrets::EnvSecretResolver::new());
+        let secret_resolver = medbrains_server::secret_backend::build_secret_resolver().await;
 
         let worker_config = medbrains_outbox::WorkerConfig::with_substrate(
             secret_resolver,

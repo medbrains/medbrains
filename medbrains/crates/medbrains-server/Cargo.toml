@@ -60,12 +60,20 @@ anyhow = { workspace = true }
 medbrains-authz = { version = "0.1.0", path = "../medbrains-authz" }
 aws-sdk-s3 = { version = "1", default-features = false, features = ["rt-tokio"] }
 aws-config = { version = "1", default-features = false, features = ["rt-tokio"] }
+# Optional secrets backend — only compiled when the `aws-secrets` feature is on,
+# so on-prem / dev builds don't pull the AWS Secrets Manager SDK.
+aws-sdk-secretsmanager = { version = "1", default-features = false, features = ["rt-tokio"], optional = true }
 totp-rs = { version = "5.7.1", features = ["otpauth", "qr"] }
 medbrains-print = { version = "0.1.0", path = "../medbrains-print" }
 
 [dev-dependencies]
 reqwest = { version = "0.12", features = ["json", "cookies", "rustls-tls-native-roots"], default-features = false }
 tokio = { version = "1", features = ["full", "test-util"] }
+
+[features]
+# Compile the AWS Secrets Manager backend (`MEDBRAINS_SECRETS_BACKEND=aws`).
+# Off by default — env/file backends cover dev and on-prem with no AWS SDK.
+aws-secrets = ["dep:aws-sdk-secretsmanager"]
 
 [lints]
 workspace = true
