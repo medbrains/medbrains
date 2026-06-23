@@ -31915,6 +31915,19 @@ export interface NewsFeedArticle {
   published_at: string | null;
 }
 
+/** List row — omits `content` (the reader fetches the full article by id). */
+export interface NewsFeedListItem {
+  id: string;
+  topic: string;
+  source: string;
+  title: string;
+  summary: string | null;
+  url: string;
+  image_url: string | null;
+  author: string | null;
+  published_at: string | null;
+}
+
 export interface IssueTokenInput {
   module: string;
   scope?: string;

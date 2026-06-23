@@ -2,7 +2,7 @@ import { HoverCard, Text } from "@mantine/core";
 import { useFocusWithin, useHover, useInterval, useMergedRef } from "@mantine/hooks";
 import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
-import type { NewsFeedArticle } from "@medbrains/types";
+import type { NewsFeedListItem } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 import { useState } from "react";
@@ -30,7 +30,7 @@ function formatDate(raw: string | null | undefined): string | undefined {
   });
 }
 
-function articleToHeadline(article: NewsFeedArticle): Headline {
+function articleToHeadline(article: NewsFeedListItem): Headline {
   return {
     title: article.title,
     link: article.url,

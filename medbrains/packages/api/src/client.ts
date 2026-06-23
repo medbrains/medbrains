@@ -1203,6 +1203,7 @@ import type {
   NeedleStickIncident,
   NewbornRecord,
   NewsFeedArticle,
+  NewsFeedListItem,
   NmcComplianceReportPrintData,
   NmcNarfAssessmentPrintData,
   // Scheduling
@@ -3109,7 +3110,7 @@ export const api = {
     if (params?.q) qs.set("q", params.q);
     if (params?.limit) qs.set("limit", String(params.limit));
     const suffix = qs.toString();
-    return request<NewsFeedArticle[]>(`/news-feed${suffix ? `?${suffix}` : ""}`);
+    return request<NewsFeedListItem[]>(`/news-feed${suffix ? `?${suffix}` : ""}`);
   },
   getNewsFeedArticle: (id: string) => request<NewsFeedArticle>(`/news-feed/${id}`),
   listBlog: (params?: { include_drafts?: boolean }) =>

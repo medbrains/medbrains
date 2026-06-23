@@ -13,8 +13,12 @@ use uuid::Uuid;
 
 use crate::{error::AppError, state::AppState};
 
-const SELECT_COLS: &str = "id, topic, source, title, summary, content, url, image_url, author, \
+// Full article incl. `content` (body text) — for the single-article reader only.
+const DETAIL_COLS: &str = "id, topic, source, title, summary, content, url, image_url, author, \
                            published_at";
+// List rows omit `content`: cards show title/summary/image. Shipping the full
+// body for every row blew a 100-article feed to ~65 KB raw (#167 field projection).
+const LIST_COLS: &str = "id, topic, source, title, summary, url, image_url, author, published_at";
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct NewsFeedArticle {
@@ -24,6 +28,20 @@ pub struct NewsFeedArticle {
     pub title: String,
     pub summary: Option<String>,
     pub content: Option<String>,
+    pub url: String,
+    pub image_url: Option<String>,
+    pub author: Option<String>,
+    pub published_at: Option<DateTime<Utc>>,
+}
+
+/// List row — the reader's `content` is fetched on demand via the detail route.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct NewsFeedListItem {
+    pub id: Uuid,
+    pub topic: String,
+    pub source: String,
+    pub title: String,
+    pub summary: Option<String>,
     pub url: String,
     pub image_url: Option<String>,
     pub author: Option<String>,
@@ -43,7 +61,7 @@ pub struct NewsFeedQuery {
 pub async fn list_news_feed(
     State(state): State<AppState>,
     Query(params): Query<NewsFeedQuery>,
-) -> Result<Json<Vec<NewsFeedArticle>>, AppError> {
+) -> Result<Json<Vec<NewsFeedListItem>>, AppError> {
     let limit = params.limit.unwrap_or(20).clamp(1, 100);
     let search = params
         .q
@@ -52,11 +70,11 @@ pub async fn list_news_feed(
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned);
 
-    let rows = sqlx::query_as::<_, NewsFeedArticle>(&format!(
+    let rows = sqlx::query_as::<_, NewsFeedListItem>(&format!(
         // The same article lives under several topic feeds, so dedupe by URL
         // (keep the most recent copy) before ranking/ordering.
-        "SELECT {SELECT_COLS} FROM ( \
-           SELECT DISTINCT ON (url) {SELECT_COLS}, search_tsv \
+        "SELECT {LIST_COLS} FROM ( \
+           SELECT DISTINCT ON (url) {LIST_COLS}, search_tsv \
            FROM news_feed_articles \
            WHERE ($1::text IS NULL OR topic = $1) \
              AND ($2::text IS NULL OR search_tsv @@ websearch_to_tsquery('english', $2)) \
@@ -83,7 +101,7 @@ pub async fn get_news_feed_article(
     Path(id): Path<Uuid>,
 ) -> Result<Json<NewsFeedArticle>, AppError> {
     let row = sqlx::query_as::<_, NewsFeedArticle>(&format!(
-        "SELECT {SELECT_COLS} FROM news_feed_articles WHERE id = $1"
+        "SELECT {DETAIL_COLS} FROM news_feed_articles WHERE id = $1"
     ))
     .bind(id)
     .fetch_optional(&state.db)
