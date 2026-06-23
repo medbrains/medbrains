@@ -678,6 +678,8 @@ import type {
   CreateShiftRequest,
   CreateSpecialtyRecordRequest,
   CreateSpecialtyTemplateRequest,
+  CreateSsoGroupMappingRequest,
+  CreateSsoProviderRequest,
   CreateStationHandoffInput,
   CreateStatutoryRecordRequest,
   CreateStewardshipRequest,
@@ -1563,6 +1565,8 @@ import type {
   SpecialtyRecord,
   // Specialty Clinical: Other Specialties
   SpecialtyTemplate,
+  SsoGroupMapping,
+  SsoProvider,
   StaffAttendanceReportPrintData,
   StaffCredentialFormPrintData,
   StaffCredentialSummary,
@@ -1803,6 +1807,7 @@ import type {
   UpdateSecurityIncidentRequest,
   UpdateSecurityZoneRequest,
   UpdateShiftRequest,
+  UpdateSsoProviderRequest,
   UpdateStoreCatalogRequest,
   UpdateStoreCategoryRequest,
   UpdateStoreLocationRequest,
@@ -3407,6 +3412,26 @@ export const api = {
       body: JSON.stringify(data),
     }),
   listWidgetTemplates: () => request<WidgetTemplate[]>("/widget-templates"),
+  // ── Enterprise SSO (admin config) ──
+  listSsoProviders: () => request<SsoProvider[]>("/admin/sso/providers"),
+  createSsoProvider: (data: CreateSsoProviderRequest) =>
+    request<SsoProvider>("/admin/sso/providers", { method: "POST", body: JSON.stringify(data) }),
+  updateSsoProvider: (id: string, data: UpdateSsoProviderRequest) =>
+    request<SsoProvider>(`/admin/sso/providers/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  deleteSsoProvider: (id: string) =>
+    request<{ deleted: boolean }>(`/admin/sso/providers/${id}`, { method: "DELETE" }),
+  listSsoGroupMappings: (providerId: string) =>
+    request<SsoGroupMapping[]>(`/admin/sso/providers/${providerId}/mappings`),
+  createSsoGroupMapping: (providerId: string, data: CreateSsoGroupMappingRequest) =>
+    request<SsoGroupMapping>(`/admin/sso/providers/${providerId}/mappings`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  deleteSsoGroupMapping: (id: string) =>
+    request<{ deleted: boolean }>(`/admin/sso/mappings/${id}`, { method: "DELETE" }),
   getWidgetData: (widgetId: string) =>
     request<WidgetDataResponse>(`/dashboard/widget-data/${widgetId}`),
   batchWidgetData: (widgetIds: string[]) =>

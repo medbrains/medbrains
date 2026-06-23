@@ -258,6 +258,9 @@ const NabhIndicatorsPage = lazy(() => import("./pages/admin/nabh-indicators"));
 const UsersPage = lazy(() => import("./pages/admin/users").then((m) => ({ default: m.UsersPage })));
 const RolesPage = lazy(() => import("./pages/admin/roles").then((m) => ({ default: m.RolesPage })));
 const GroupsPage = lazy(() => import("./pages/admin/groups"));
+const SsoSettingsPage = lazy(() =>
+  import("./pages/admin/sso").then((m) => ({ default: m.SsoSettingsPage })),
+);
 const AdminDoctorsPage = lazy(() =>
   import("./pages/admin/doctors").then((m) => ({ default: m.AdminDoctorsPage })),
 );
@@ -457,6 +460,7 @@ export function App() {
                 <Route path="nabh-indicators" element={<NabhIndicatorsPage />} />
                 <Route path="roles" element={<RolesPage />} />
                 <Route path="groups" element={<GroupsPage />} />
+                <Route path="sso" element={<SsoSettingsPage />} />
                 <Route path="access-requests" element={<AccessRequestsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="document-templates" element={<DocumentTemplatesPage />} />

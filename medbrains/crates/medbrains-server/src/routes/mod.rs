@@ -120,6 +120,7 @@ pub mod scheduling;
 pub mod schema_registry;
 pub mod security;
 pub mod setup;
+pub mod sso;
 pub mod sharing;
 pub mod signatures;
 pub mod signed_documents;
@@ -778,6 +779,23 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/widget-templates",
             get(dashboard::list_widget_templates),
+        )
+        // Enterprise SSO — admin configuration (identity providers + group mappings)
+        .route(
+            "/api/admin/sso/providers",
+            get(sso::list_providers).post(sso::create_provider),
+        )
+        .route(
+            "/api/admin/sso/providers/{id}",
+            put(sso::update_provider).delete(sso::delete_provider),
+        )
+        .route(
+            "/api/admin/sso/providers/{id}/mappings",
+            get(sso::list_mappings).post(sso::create_mapping),
+        )
+        .route(
+            "/api/admin/sso/mappings/{id}",
+            delete(sso::delete_mapping),
         )
         // Dashboard — summary
         .route("/api/dashboard/summary", get(dashboard::dashboard_summary))

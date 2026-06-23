@@ -95,7 +95,9 @@ def extract_api_methods() -> dict[str, int]:
 # Match api.methodName( or api.methodName, or api.methodName;
 # Also match destructured: const { method1, method2 } = api;
 # But the main pattern is direct usage: api.methodName
-RE_API_CALL = re.compile(r"\bapi\.(\w+)")
+# Negative lookbehind rejects `api.` embedded in URLs/identifiers
+# (e.g. https://api.open-meteo.com), only matching real `api.method()` calls.
+RE_API_CALL = re.compile(r"(?<![\w./])api\.(\w+)")
 
 
 def scan_file_for_api_refs(file_path: Path) -> list[tuple[str, int]]:
