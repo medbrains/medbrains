@@ -434,19 +434,7 @@
 // ── Breadcrumbs ──
 
 .breadcrumbs {
-  margin-bottom: 8px;
-}
-
-.breadcrumbLink {
-  cursor: pointer;
-  transition: color 0.15s ease, transform 0.1s ease;
-  display: inline-block;
-
-  &:hover {
-    color: var(--mb-nav-active-text, var(--mantine-color-primary-5, #5B4BC4));
-    text-decoration: underline;
-    transform: translateX(2px);
-  }
+  margin-bottom: 6px;
 }
 
 @keyframes navIconSpark {

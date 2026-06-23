@@ -1,0 +1,40 @@
+// Carbon breadcrumb — compact link trail with a "/" separator. Layout only;
+// colour from theme tokens.
+
+.nav {
+  display: block;
+}
+
+.list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.link {
+  color: var(--mb-brand, #0f62fe);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.current {
+  color: var(--mb-text-secondary, #5f6b7a);
+}
+
+.sep {
+  color: var(--mb-text-muted, #a2a9b0);
+  user-select: none;
+}

@@ -1,4 +1,4 @@
-import { Anchor, Breadcrumbs, Group, Text, ThemeIcon, Title } from "@mantine/core";
+import { Group, Text, ThemeIcon, Title } from "@mantine/core";
 import type { ReactNode } from "react";
 import { useLocation } from "react-router";
 import { ModuleBadge } from "@/components/ui";
@@ -17,6 +17,8 @@ interface PageHeaderProps {
   actions?: ReactNode;
   icon?: ReactNode;
   color?: string;
+  /** @deprecated The global breadcrumb in the app header is the single source;
+   *  per-page breadcrumbs here caused a duplicate trail. No longer rendered. */
   breadcrumbs?: BreadcrumbItem[];
   /** Show the bottom hairline rule. Off when the page's next element is its own
    *  bordered surface (avoids a double divider). Default true. */
@@ -35,29 +37,12 @@ export function PageHeader({
   actions,
   icon,
   color,
-  breadcrumbs,
   divider = true,
 }: PageHeaderProps) {
   const { pathname } = useLocation();
   const badge = matchModuleBadge(pathname);
   return (
     <header className={divider ? styles.card : `${styles.card} ${styles.noDivider}`}>
-      {breadcrumbs && breadcrumbs.length > 0 && (
-        <Breadcrumbs className={styles.breadcrumbs} separator="/">
-          {breadcrumbs.map((item) =>
-            item.href ? (
-              <Anchor href={item.href} key={item.label} size="xs" c="var(--mb-text-muted)">
-                {item.label}
-              </Anchor>
-            ) : (
-              <Text key={item.label} size="xs" c="var(--mb-text-muted)">
-                {item.label}
-              </Text>
-            ),
-          )}
-        </Breadcrumbs>
-      )}
-
       <div className={styles.titleRow}>
         <Group gap="sm" wrap="nowrap" align="center">
           {badge ? (
@@ -70,7 +55,7 @@ export function PageHeader({
             )
           )}
           <div>
-            <Title order={1} size="h3" className={styles.title}>
+            <Title order={1} className={styles.title}>
               {title}
             </Title>
             {subtitle && (

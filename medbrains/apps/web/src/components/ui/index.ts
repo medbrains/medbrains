@@ -14,6 +14,7 @@ export {
 } from "./AiLabel";
 export { Alert, type AlertProps, type AlertTone } from "./Alert";
 export { Badge, type BadgeProps, type BadgeTone } from "./Badge";
+export { Breadcrumb, type BreadcrumbItem, type BreadcrumbProps } from "./Breadcrumb";
 export { Button, type ButtonProps, type ButtonTone } from "./Button";
 export { Card, type CardProps } from "./Card";
 export { Checkbox } from "./Checkbox";

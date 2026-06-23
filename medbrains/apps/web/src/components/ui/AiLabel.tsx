@@ -42,7 +42,13 @@ export interface AiLabelProps {
  * (per Carbon guidance); the violet→blue `--mb-gradient-ai` is reserved for
  * exactly this, never generic decoration.
  */
-export function AiLabel({ size = "sm", variant = "gradient", text, explainer, ...rest }: AiLabelProps) {
+export function AiLabel({
+  size = "sm",
+  variant = "gradient",
+  text,
+  explainer,
+  ...rest
+}: AiLabelProps) {
   const [opened, setOpened] = useState(false);
 
   const slug = (
@@ -60,7 +66,11 @@ export function AiLabel({ size = "sm", variant = "gradient", text, explainer, ..
 
   if (!explainer) {
     return (
-      <Box component="span" className={styles.static} aria-label={rest["aria-label"] ?? "AI supported"}>
+      <Box
+        component="span"
+        className={styles.static}
+        aria-label={rest["aria-label"] ?? "AI supported"}
+      >
         {slug}
       </Box>
     );

@@ -3,7 +3,6 @@ import {
   AppShell,
   Avatar,
   Box,
-  Breadcrumbs,
   Burger,
   Divider,
   Group,
@@ -20,7 +19,6 @@ import { spotlight } from "@mantine/spotlight";
 import { useAuthStore, usePermissionStore } from "@medbrains/stores";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  ChevronRight,
   Languages,
   LogOut,
   PanelLeftClose,
@@ -41,7 +39,7 @@ import { NewsMarquee } from "@/components/NewsMarquee";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { PageTransition } from "@/components/PageTransition";
-import { ModuleBadge } from "@/components/ui";
+import { Breadcrumb, ModuleBadge } from "@/components/ui";
 import {
   buildPathLabels,
   getModuleBadge,
@@ -192,12 +190,7 @@ export function AppLayout() {
         label: t(cfg.i18nKey),
         path: cfg.path,
         icon: badge ? (
-          <ModuleBadge
-            abbr={badge.abbr}
-            color={badge.color}
-            size={size}
-            title={t(cfg.i18nKey)}
-          />
+          <ModuleBadge abbr={badge.abbr} color={badge.color} size={size} title={t(cfg.i18nKey)} />
         ) : (
           resolveIcon(cfg.icon, size, 1.5)
         ),
@@ -595,28 +588,15 @@ export function AppLayout() {
       {/* ── Main content ── */}
       <AppShell.Main>
         {breadcrumbItems.length > 0 && (
-          <Breadcrumbs
-            mb="md"
-            separator={<ChevronRight size={12} color="var(--mb-text-muted)" />}
-            className={classes.breadcrumbs}
-          >
-            {breadcrumbItems.map((item, index) => (
-              <Text
-                key={item.href}
-                size="xs"
-                c={
-                  index === breadcrumbItems.length - 1
-                    ? "var(--mb-text-primary)"
-                    : "var(--mb-text-secondary)"
-                }
-                fw={index === breadcrumbItems.length - 1 ? 600 : 400}
-                className={index < breadcrumbItems.length - 1 ? classes.breadcrumbLink : undefined}
-                onClick={index < breadcrumbItems.length - 1 ? () => navigate(item.href) : undefined}
-              >
-                {item.title}
-              </Text>
-            ))}
-          </Breadcrumbs>
+          <div className={classes.breadcrumbs}>
+            <Breadcrumb
+              items={breadcrumbItems.map((item) => ({
+                label: item.title,
+                href: item.href,
+                onNavigate: () => navigate(item.href),
+              }))}
+            />
+          </div>
         )}
 
         <Suspense fallback={<PageSkeleton />}>

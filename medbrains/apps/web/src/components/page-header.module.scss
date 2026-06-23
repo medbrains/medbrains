@@ -32,9 +32,20 @@
   flex-wrap: wrap;
 }
 
+// Locked enterprise page title — Carbon productive heading scale.
 .title {
   color: var(--mb-text-heading);
   margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+@media (max-width: 640px) {
+  .title {
+    font-size: 20px;
+  }
 }
 
 .actions {
