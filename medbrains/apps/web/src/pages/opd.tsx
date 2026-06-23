@@ -163,6 +163,7 @@ import {
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { useVitalsSource } from "@/hooks/useVitalsSource";
+import { confirmDestructive } from "@/lib/confirm";
 import { toDateString, todayDateString } from "@/lib/date-utils";
 import { statusColor } from "@/lib/status-colors";
 import { campService } from "@/services/camp.service";
@@ -3158,7 +3159,15 @@ function InvestigationsTab({
                         <IconButton
                           tone="danger"
                           size="xs"
-                          onClick={() => cancelMutation.mutate(order.id)}
+                          onClick={() =>
+                            confirmDestructive({
+                              title: "Cancel order",
+                              message: "Cancel this order? This cannot be undone.",
+                              confirmLabel: "Cancel order",
+                              cancelLabel: "Keep",
+                              onConfirm: () => cancelMutation.mutate(order.id),
+                            })
+                          }
                           loading={cancelMutation.isPending}
                           aria-label="Cancel order"
                         >

@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { confirmDestructive } from "@/lib/confirm";
 import "@mantine/charts/styles.css";
 import { LineChart } from "@mantine/charts";
 import {
@@ -1088,7 +1089,7 @@ function LabOrderDetail({
             </Button>
           )}
           {order.status === "ordered" && (
-            <Button tone="subtle-danger" size="xs" onClick={() => cancelMutation.mutate()}>
+            <Button tone="subtle-danger" size="xs" onClick={() => confirmDestructive({ title: "Cancel order", message: "Cancel this lab order? This cannot be undone.", confirmLabel: "Cancel order", cancelLabel: "Keep", onConfirm: () => cancelMutation.mutate() })}>
               {t("cancel")}
             </Button>
           )}
@@ -1850,7 +1851,7 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
       render: (row: LabTestPanel) => (
         <IconButton
           tone="danger"
-          onClick={() => deleteMutation.mutate(row.id)}
+          onClick={() => confirmDestructive({ title: "Delete", message: "Permanently delete this record? This cannot be undone.", onConfirm: () => deleteMutation.mutate(row.id) })}
           aria-label={t("aria.close")}
         >
           <IconX size={14} />

@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { confirmDestructive } from "@/lib/confirm";
 import {
   Card,
   Drawer,
@@ -338,7 +339,7 @@ function TemplatesTab({
               <IconButton
                 size="sm"
                 tone="danger"
-                onClick={() => deleteMut.mutate(r.id)}
+                onClick={() => confirmDestructive({ title: "Delete order set", message: "Permanently delete this order set? This cannot be undone.", onConfirm: () => deleteMut.mutate(r.id) })}
                 aria-label="Delete"
               >
                 <IconTrash size={14} />

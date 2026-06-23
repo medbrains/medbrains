@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { confirmDestructive } from "@/lib/confirm";
 import {
   Checkbox,
   Drawer,
@@ -395,7 +396,7 @@ function RadiologyOrdersTab() {
             <Tooltip label="Cancel">
               <IconButton
                 tone="danger"
-                onClick={() => cancelMutation.mutate(o.id)}
+                onClick={() => confirmDestructive({ title: "Cancel order", message: "Cancel this order? This cannot be undone.", confirmLabel: "Cancel order", cancelLabel: "Keep", onConfirm: () => cancelMutation.mutate(o.id) })}
                 aria-label="Close"
               >
                 <IconX size={16} />
@@ -1090,7 +1091,7 @@ function ModalitiesTab() {
                   <Table.Td>
                     <IconButton
                       tone="danger"
-                      onClick={() => deleteMutation.mutate(m.id)}
+                      onClick={() => confirmDestructive({ title: "Delete", message: "Permanently delete this record? This cannot be undone.", onConfirm: () => deleteMutation.mutate(m.id) })}
                       aria-label="Close"
                     >
                       <IconX size={16} />

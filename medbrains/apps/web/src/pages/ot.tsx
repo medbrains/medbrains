@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { confirmDestructive } from "@/lib/confirm";
 import {
   Card,
   Checkbox,
@@ -2841,7 +2842,7 @@ function ConsumablesSubTab({ bookingId }: { bookingId: string }) {
                     <IconButton
                       size="sm"
                       tone="danger"
-                      onClick={() => deleteMutation.mutate(c.id)}
+                      onClick={() => confirmDestructive({ title: "Delete", message: "Permanently delete this record? This cannot be undone.", onConfirm: () => deleteMutation.mutate(c.id) })}
                       aria-label="Delete"
                     >
                       <IconTrash size={14} />

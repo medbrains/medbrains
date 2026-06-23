@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { confirmDestructive } from "@/lib/confirm";
 import "@mantine/charts/styles.css";
 import { LineChart } from "@mantine/charts";
 import {
@@ -281,7 +282,7 @@ function ProgramsTab({ canCreate }: { canCreate: boolean }) {
               <IconButton
                 tone="danger"
                 size="sm"
-                onClick={() => deleteMut.mutate(r.id)}
+                onClick={() => confirmDestructive({ title: "Delete", message: "Permanently delete this record? This cannot be undone.", onConfirm: () => deleteMut.mutate(r.id) })}
                 aria-label="Delete"
               >
                 <IconTrash size={14} />

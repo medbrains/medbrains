@@ -57,6 +57,7 @@ import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { confirmDestructive } from "@/lib/confirm";
 import { communicationsService } from "@/services/communications.service";
 
 const CHANNEL_COLORS: Record<string, BadgeTone> = {
@@ -1644,7 +1645,13 @@ function DltTab() {
             <IconButton
               tone="danger"
               size="sm"
-              onClick={() => deleteMut.mutate(r.id)}
+              onClick={() =>
+                confirmDestructive({
+                  title: "Delete",
+                  message: "Permanently delete this record? This cannot be undone.",
+                  onConfirm: () => deleteMut.mutate(r.id),
+                })
+              }
               aria-label="Delete"
             >
               <IconTrash size={14} />

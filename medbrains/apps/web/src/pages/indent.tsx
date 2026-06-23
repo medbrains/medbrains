@@ -73,6 +73,7 @@ import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { confirmDestructive } from "@/lib/confirm";
 import { statusColor } from "@/lib/status-colors";
 import { indentService } from "@/services/indent.service";
 
@@ -581,7 +582,15 @@ function IndentDetailView({ id, onClose }: { id: string; onClose: () => void }) 
               tone="subtle-danger"
               leftSection={<IconX size={16} />}
               loading={cancelMutation.isPending}
-              onClick={() => cancelMutation.mutate()}
+              onClick={() =>
+                confirmDestructive({
+                  title: "Cancel indent",
+                  message: "Cancel this indent? This cannot be undone.",
+                  confirmLabel: "Cancel indent",
+                  cancelLabel: "Keep",
+                  onConfirm: () => cancelMutation.mutate(),
+                })
+              }
             >
               Cancel
             </Button>

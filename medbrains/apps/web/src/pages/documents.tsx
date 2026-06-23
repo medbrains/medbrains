@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { confirmDestructive } from "@/lib/confirm";
 import {
   Card,
   Checkbox,
@@ -754,7 +755,7 @@ function TemplatesTab() {
             <IconButton
               size="sm"
               tone="danger"
-              onClick={() => deleteMutation.mutate(row.id)}
+              onClick={() => confirmDestructive({ title: "Delete document", message: "Permanently delete this document? This cannot be undone.", onConfirm: () => deleteMutation.mutate(row.id) })}
               aria-label="Delete"
             >
               <IconTrash size={14} />
@@ -1106,7 +1107,7 @@ function OutputsTab() {
             <IconButton
               size="sm"
               tone="danger"
-              onClick={() => voidMutation.mutate(row.id)}
+              onClick={() => confirmDestructive({ title: "Void document", message: "Void this document? This cannot be undone.", onConfirm: () => voidMutation.mutate(row.id) })}
               loading={voidMutation.isPending}
               aria-label="Delete"
             >
