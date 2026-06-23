@@ -4,6 +4,7 @@
 // consistent and evolves in one place. The wrappers are the seam: swapping
 // the underlying kit later means editing these files, not the call sites.
 
+export { Abbr, type AbbrProps, type AbbrTerm, MEDICAL_ABBR } from "./Abbr";
 export { AiLabel, type AiLabelExplainer, type AiLabelProps, type AiLabelSize } from "./AiLabel";
 export { Alert, type AlertProps, type AlertTone } from "./Alert";
 export { Badge, type BadgeProps, type BadgeTone } from "./Badge";
@@ -16,6 +17,7 @@ export { IconButton, type IconButtonProps, type IconButtonTone } from "./IconBut
 export { Image, type ImageProps } from "./Image";
 export { Input, NumberField, PasswordField, TextArea } from "./Input";
 export { Modal } from "./Modal";
+export { ModuleBadge, type ModuleBadgeProps } from "./ModuleBadge";
 export { Panel, type PanelProps } from "./Panel";
 export { RichTextEditor, type RichTextEditorProps } from "./RichTextEditor";
 export { SegmentedControl } from "./SegmentedControl";

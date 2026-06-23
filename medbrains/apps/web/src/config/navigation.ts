@@ -169,6 +169,110 @@ export function resolveIcon(name: string, size = 20, stroke = 1.5): ReactNode {
   return createElement(Icon, { size, stroke });
 }
 
+// ── Module identity badges (Adobe-style mark, Carbon-styled) ──
+// A short 2–3 letter mark + a hand-picked unique identity colour per module,
+// shown in the nav rail and page headers in place of the icon — a compact,
+// memorable wayfinding aid. Marks use natural clinical acronyms (OPD, IPD, ICU,
+// MRD…); colours are deliberately distinct and dark enough for white text.
+export interface ModuleBadge {
+  abbr: string;
+  color: string;
+}
+
+const MODULE_BADGE_DEFS: Record<string, ModuleBadge> = {
+  "/dashboard": { abbr: "DB", color: "#4f5b67" },
+  "/health-pulse": { abbr: "HP", color: "#0e6027" },
+  "/token-board": { abbr: "TB", color: "#4f2d7f" },
+  "/token-console": { abbr: "TC", color: "#6929c4" },
+  "/patients": { abbr: "Pt", color: "#0f9d8c" },
+  "/opd": { abbr: "OPD", color: "#1192e8" },
+  "/opd/appointments": { abbr: "Apt", color: "#005d5d" },
+  "/telemedicine": { abbr: "Tel", color: "#4589ff" },
+  "/doctor/signoffs": { abbr: "Sig", color: "#491d8b" },
+  "/emergency": { abbr: "ER", color: "#da1e28" },
+  "/order-sets": { abbr: "OS", color: "#009d9a" },
+  "/chronic-care": { abbr: "CC", color: "#5e2750" },
+  "/radiology": { abbr: "Rad", color: "#0043ce" },
+  "/pharmacy": { abbr: "Rx", color: "#8a3ffc" },
+  "/pharmacy/finance": { abbr: "PhF", color: "#6020a0" },
+  "/blood-bank": { abbr: "BB", color: "#a2191f" },
+  "/ipd": { abbr: "IPD", color: "#1f6f8b" },
+  "/care-view": { abbr: "CV", color: "#0072c3" },
+  "/icu": { abbr: "ICU", color: "#b81921" },
+  "/nurse": { abbr: "Nur", color: "#007d79" },
+  "/ot": { abbr: "OT", color: "#9f1853" },
+  "/diet-kitchen": { abbr: "DK", color: "#8e6a00" },
+  "/bedside-portal": { abbr: "BP", color: "#5a6872" },
+  "/billing": { abbr: "Bil", color: "#0e7c95" },
+  "/insurance": { abbr: "Ins", color: "#0050e6" },
+  "/indent": { abbr: "Ind", color: "#6c4b9c" },
+  "/procurement": { abbr: "Pro", color: "#a56403" },
+  "/cssd": { abbr: "CSD", color: "#4d7c0f" },
+  "/housekeeping": { abbr: "HK", color: "#7a5901" },
+  "/front-office": { abbr: "FO", color: "#198038" },
+  "/lms": { abbr: "LMS", color: "#8a3800" },
+  "/bme": { abbr: "BME", color: "#3d5a80" },
+  "/assets": { abbr: "Ast", color: "#565656" },
+  "/ambulance": { abbr: "Amb", color: "#c5172e" },
+  "/communications": { abbr: "Com", color: "#0062ff" },
+  "/camp": { abbr: "Cmp", color: "#2a7e3b" },
+  "/command-center": { abbr: "CMD", color: "#393939" },
+  "/facilities": { abbr: "Fac", color: "#5b6b23" },
+  "/mrd": { abbr: "MRD", color: "#57534e" },
+  "/clinical-kb": { abbr: "KB", color: "#3b1a8c" },
+  "/security": { abbr: "Sec", color: "#6f2da8" },
+  "/occupational-health": { abbr: "OH", color: "#15803d" },
+  "/utilization-review": { abbr: "UR", color: "#475569" },
+  "/case-management": { abbr: "CM", color: "#1c5d4a" },
+  "/scheduling": { abbr: "Sch", color: "#0067a0" },
+  "/quality": { abbr: "QA", color: "#00767a" },
+  "/infection-control": { abbr: "IC", color: "#9a3412" },
+  "/consent": { abbr: "Cns", color: "#5d4037" },
+  "/regulatory": { abbr: "Reg", color: "#7c5e10" },
+  "/analytics": { abbr: "Ana", color: "#1062fe" },
+  "/reports": { abbr: "Rep", color: "#4a5568" },
+  "/audit": { abbr: "Aud", color: "#6b4226" },
+  "/specialty/cath-lab": { abbr: "CL", color: "#9c1a4f" },
+  "/specialty/endoscopy": { abbr: "End", color: "#6b6101" },
+  "/specialty/psychiatry": { abbr: "Psy", color: "#5a3e9c" },
+  "/specialty/pmr": { abbr: "PMR", color: "#3a6b35" },
+  "/specialty/palliative": { abbr: "Pal", color: "#715aa6" },
+  "/specialty/maternity": { abbr: "Mat", color: "#9e2a6e" },
+  "/specialty/other": { abbr: "Spc", color: "#5f5f5f" },
+  "/admin/users": { abbr: "Usr", color: "#0f62fe" },
+  "/admin/doctors": { abbr: "Doc", color: "#0e4f6b" },
+  "/admin/roles": { abbr: "Rol", color: "#5b3ca8" },
+  "/admin/groups": { abbr: "Grp", color: "#3949ab" },
+  "/admin/sso": { abbr: "SSO", color: "#00539a" },
+  "/admin/access-requests": { abbr: "AR", color: "#6d4534" },
+  "/admin/nabh-indicators": { abbr: "NB", color: "#11774e" },
+  "/setup": { abbr: "Set", color: "#3f3f46" },
+  "/admin/settings": { abbr: "Cfg", color: "#525866" },
+  "/admin/document-templates": { abbr: "DT", color: "#6b4f9e" },
+  "/admin/integration-hub": { abbr: "IH", color: "#0e8a8f" },
+  "/admin/doctor-schedules": { abbr: "DS", color: "#00766c" },
+  "/admin/documents": { abbr: "Dcs", color: "#4d5358" },
+  "/retrospective": { abbr: "Rsp", color: "#7a4a2b" },
+  "/admin/devices": { abbr: "Dev", color: "#4151b3" },
+  "/admin/paired-devices": { abbr: "PD", color: "#5457d6" },
+};
+
+/** Module badge for an exact nav path, or undefined if the module has none. */
+export function getModuleBadge(path: string): ModuleBadge | undefined {
+  return MODULE_BADGE_DEFS[path];
+}
+
+/** Module badge for a live location (longest-prefix match, e.g. /patients/42). */
+export function matchModuleBadge(pathname: string): ModuleBadge | undefined {
+  let best: string | undefined;
+  for (const key of Object.keys(MODULE_BADGE_DEFS)) {
+    if ((pathname === key || pathname.startsWith(`${key}/`)) && key.length > (best?.length ?? 0)) {
+      best = key;
+    }
+  }
+  return best ? getModuleBadge(best) : undefined;
+}
+
 // ── Nav Groups ──
 
 const SETTINGS_NAV_PERMISSIONS = [

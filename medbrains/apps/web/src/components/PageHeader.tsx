@@ -1,5 +1,8 @@
 import { Anchor, Breadcrumbs, Group, Text, ThemeIcon, Title } from "@mantine/core";
 import type { ReactNode } from "react";
+import { useLocation } from "react-router";
+import { ModuleBadge } from "@/components/ui";
+import { matchModuleBadge } from "@/config/navigation";
 import styles from "./page-header.module.scss";
 
 interface BreadcrumbItem {
@@ -35,6 +38,8 @@ export function PageHeader({
   breadcrumbs,
   divider = true,
 }: PageHeaderProps) {
+  const { pathname } = useLocation();
+  const badge = matchModuleBadge(pathname);
   return (
     <header className={divider ? styles.card : `${styles.card} ${styles.noDivider}`}>
       {breadcrumbs && breadcrumbs.length > 0 && (
@@ -55,10 +60,14 @@ export function PageHeader({
 
       <div className={styles.titleRow}>
         <Group gap="sm" wrap="nowrap" align="center">
-          {icon && (
-            <ThemeIcon variant="light" color={color ?? "primary"} size={34} radius="sm">
-              {icon}
-            </ThemeIcon>
+          {badge ? (
+            <ModuleBadge abbr={badge.abbr} color={badge.color} size={34} title={title} />
+          ) : (
+            icon && (
+              <ThemeIcon variant="light" color={color ?? "primary"} size={34} radius="sm">
+                {icon}
+              </ThemeIcon>
+            )
           )}
           <div>
             <Title order={1} size="h3" className={styles.title}>

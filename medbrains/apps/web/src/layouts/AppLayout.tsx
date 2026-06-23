@@ -41,7 +41,14 @@ import { NewsMarquee } from "@/components/NewsMarquee";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { PageTransition } from "@/components/PageTransition";
-import { buildPathLabels, NAV_GROUPS, type NavItemConfig, resolveIcon } from "@/config/navigation";
+import { ModuleBadge } from "@/components/ui";
+import {
+  buildPathLabels,
+  getModuleBadge,
+  NAV_GROUPS,
+  type NavItemConfig,
+  resolveIcon,
+} from "@/config/navigation";
 import { preloadRoute } from "@/lib/route-preload";
 import { sessionService } from "@/services/session.service";
 import classes from "./AppLayout.module.scss";
@@ -178,14 +185,27 @@ export function AppLayout() {
 
   // Resolve config items to renderable items with translated labels
   const resolveItem = useCallback(
-    (cfg: NavItemConfig, childSize = false): ResolvedNavItem => ({
-      label: t(cfg.i18nKey),
-      path: cfg.path,
-      icon: resolveIcon(cfg.icon, childSize ? 16 : 20, 1.5),
-      requiredPermission: cfg.requiredPermission,
-      requiredPermissions: cfg.requiredPermissions,
-      children: cfg.children?.map((c) => resolveItem(c, true)),
-    }),
+    (cfg: NavItemConfig, childSize = false): ResolvedNavItem => {
+      const size = childSize ? 16 : 20;
+      const badge = getModuleBadge(cfg.path);
+      return {
+        label: t(cfg.i18nKey),
+        path: cfg.path,
+        icon: badge ? (
+          <ModuleBadge
+            abbr={badge.abbr}
+            color={badge.color}
+            size={size}
+            title={t(cfg.i18nKey)}
+          />
+        ) : (
+          resolveIcon(cfg.icon, size, 1.5)
+        ),
+        requiredPermission: cfg.requiredPermission,
+        requiredPermissions: cfg.requiredPermissions,
+        children: cfg.children?.map((c) => resolveItem(c, true)),
+      };
+    },
     [t],
   );
 
