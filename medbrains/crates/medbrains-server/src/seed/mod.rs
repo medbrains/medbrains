@@ -16,6 +16,7 @@ mod pharmacy_catalog;
 mod procedure_catalog;
 mod radiology_fixtures;
 mod role_dashboards;
+mod widget_catalog;
 // Screen builder removed (see migration 123). seed/screens.rs retained as
 // dead code for git history but not compiled.
 // mod screens;
@@ -140,6 +141,7 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     ckb::seed_lab_reference(pool).await?; // global CDS lab reference
     ckb::seed_ingredients(pool).await?; // global ingredient model
     ckb::seed_state_formulary(pool).await?; // global per-state free-drug schemes
+    widget_catalog::sync_widget_catalog(pool).await?; // global widget catalogue (code registry)
     departments::seed_departments(pool, tenant_id).await?;
     lab_catalog::seed_lab_catalog(pool, tenant_id).await?;
     pharmacy_catalog::seed_pharmacy_catalog(pool, tenant_id).await?;
