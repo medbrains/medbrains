@@ -11,7 +11,7 @@ use medbrains_core::quality::{
     IncidentSeverity, IncidentStatus, IndicatorFrequency, QualityAccreditationCompliance,
     QualityAccreditationStandard, QualityActionItem, QualityAudit, QualityCapa, QualityCommittee,
     QualityCommitteeMeeting, QualityDocument, QualityDocumentAcknowledgment, QualityIncident,
-    QualityIndicator, QualityIndicatorValue,
+    QualityIncidentListItem, QualityIndicator, QualityIndicatorValue,
 };
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -705,7 +705,7 @@ pub async fn list_incidents(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListIncidentsQuery>,
-) -> Result<Json<Vec<QualityIncident>>, AppError> {
+) -> Result<Json<Vec<QualityIncidentListItem>>, AppError> {
     require_permission(&claims, permissions::quality::incidents::LIST)?;
 
     let mut tx = state.db.begin().await?;
@@ -714,8 +714,11 @@ pub async fn list_incidents(
 
     let rows = match (&params.status, &params.severity) {
         (Some(status), Some(severity)) => {
-            sqlx::query_as::<_, QualityIncident>(
-                "SELECT * FROM quality_incidents \
+            sqlx::query_as::<_, QualityIncidentListItem>(
+                "SELECT id, tenant_id, incident_number, title, incident_type, severity, status, \
+                 department_id, location, incident_date, reported_by, is_anonymous, patient_id, \
+                 assigned_to, closed_at, closed_by, is_reportable, regulatory_body, \
+                 regulatory_reported_at, created_at, updated_at FROM quality_incidents \
                  WHERE tenant_id = $1 \
                  AND status = $2::incident_status \
                  AND severity = $3::incident_severity \
@@ -728,8 +731,11 @@ pub async fn list_incidents(
             .await?
         }
         (Some(status), None) => {
-            sqlx::query_as::<_, QualityIncident>(
-                "SELECT * FROM quality_incidents \
+            sqlx::query_as::<_, QualityIncidentListItem>(
+                "SELECT id, tenant_id, incident_number, title, incident_type, severity, status, \
+                 department_id, location, incident_date, reported_by, is_anonymous, patient_id, \
+                 assigned_to, closed_at, closed_by, is_reportable, regulatory_body, \
+                 regulatory_reported_at, created_at, updated_at FROM quality_incidents \
                  WHERE tenant_id = $1 AND status = $2::incident_status \
                  ORDER BY incident_date DESC LIMIT 5000",
             )
@@ -739,8 +745,11 @@ pub async fn list_incidents(
             .await?
         }
         (None, Some(severity)) => {
-            sqlx::query_as::<_, QualityIncident>(
-                "SELECT * FROM quality_incidents \
+            sqlx::query_as::<_, QualityIncidentListItem>(
+                "SELECT id, tenant_id, incident_number, title, incident_type, severity, status, \
+                 department_id, location, incident_date, reported_by, is_anonymous, patient_id, \
+                 assigned_to, closed_at, closed_by, is_reportable, regulatory_body, \
+                 regulatory_reported_at, created_at, updated_at FROM quality_incidents \
                  WHERE tenant_id = $1 AND severity = $2::incident_severity \
                  ORDER BY incident_date DESC LIMIT 5000",
             )
@@ -750,8 +759,11 @@ pub async fn list_incidents(
             .await?
         }
         (None, None) => {
-            sqlx::query_as::<_, QualityIncident>(
-                "SELECT * FROM quality_incidents \
+            sqlx::query_as::<_, QualityIncidentListItem>(
+                "SELECT id, tenant_id, incident_number, title, incident_type, severity, status, \
+                 department_id, location, incident_date, reported_by, is_anonymous, patient_id, \
+                 assigned_to, closed_at, closed_by, is_reportable, regulatory_body, \
+                 regulatory_reported_at, created_at, updated_at FROM quality_incidents \
                  WHERE tenant_id = $1 \
                  ORDER BY incident_date DESC LIMIT 200",
             )

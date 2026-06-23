@@ -2,10 +2,12 @@ import "@mantine/charts/styles.css";
 import { BarChart, DonutChart, LineChart } from "@mantine/charts";
 import {
   Card,
+  Center,
   Checkbox,
   Drawer,
   Grid,
   Group,
+  Loader,
   Modal,
   MultiSelect,
   NumberInput,
@@ -54,6 +56,7 @@ import type {
   QualityCommitteeMeeting,
   QualityDocument,
   QualityIncident,
+  QualityIncidentListItem,
   QualityIndicator,
   QualityIndicatorValue,
   ScheduleAuditsRequest,
@@ -1165,6 +1168,18 @@ function IncidentsTab() {
     enabled: !!selectedIncident,
   });
 
+  // The list omits the heavy free-text/JSONB fields — fetch the full incident
+  // (with description/immediate_action/root_cause) when opening the detail view.
+  const openIncidentDetail = async (id: string) => {
+    setSelectedIncident(null);
+    openDetail();
+    const full = await qc.fetchQuery({
+      queryKey: ["quality-incident", id],
+      queryFn: () => qualityService.getQualityIncident(id),
+    });
+    setSelectedIncident(full);
+  };
+
   const [form, setForm] = useState<CreateQualityIncidentRequest>({
     title: "",
     incident_type: "",
@@ -1246,25 +1261,25 @@ function IncidentsTab() {
     {
       key: "incident_number" as const,
       label: "Incident #",
-      render: (i: QualityIncident) => <Text fw={500}>{i.incident_number}</Text>,
+      render: (i: QualityIncidentListItem) => <Text fw={500}>{i.incident_number}</Text>,
     },
-    { key: "title" as const, label: "Title", render: (i: QualityIncident) => i.title },
+    { key: "title" as const, label: "Title", render: (i: QualityIncidentListItem) => i.title },
     {
       key: "incident_type" as const,
       label: "Type",
-      render: (i: QualityIncident) => i.incident_type,
+      render: (i: QualityIncidentListItem) => i.incident_type,
     },
     {
       key: "severity" as const,
       label: "Severity",
-      render: (i: QualityIncident) => (
+      render: (i: QualityIncidentListItem) => (
         <Badge tone={statusColorTone(i.severity)}>{i.severity.replace(/_/g, " ")}</Badge>
       ),
     },
     {
       key: "status" as const,
       label: "Status",
-      render: (i: QualityIncident) => (
+      render: (i: QualityIncidentListItem) => (
         <Badge tone={incidentStatusColors[i.status] ?? "neutral"}>
           {i.status.replace(/_/g, " ")}
         </Badge>
@@ -1273,12 +1288,12 @@ function IncidentsTab() {
     {
       key: "incident_date" as const,
       label: "Date",
-      render: (i: QualityIncident) => new Date(i.incident_date).toLocaleDateString(),
+      render: (i: QualityIncidentListItem) => new Date(i.incident_date).toLocaleDateString(),
     },
     {
       key: "anonymous" as const,
       label: "Anon",
-      render: (i: QualityIncident) =>
+      render: (i: QualityIncidentListItem) =>
         i.is_anonymous ? (
           <Badge size="sm" tone="accent">
             Yes
@@ -1290,15 +1305,12 @@ function IncidentsTab() {
     {
       key: "actions" as const,
       label: "Actions",
-      render: (i: QualityIncident) => (
+      render: (i: QualityIncidentListItem) => (
         <Group gap="xs">
           <Tooltip label="View Details">
             <IconButton
               tone="primary"
-              onClick={() => {
-                setSelectedIncident(i);
-                openDetail();
-              }}
+              onClick={() => void openIncidentDetail(i.id)}
               aria-label="View Details"
             >
               <IconEye size={16} />
@@ -1485,6 +1497,11 @@ function IncidentsTab() {
         position="right"
         size="lg"
       >
+        {detailOpened && !selectedIncident && (
+          <Center py="xl">
+            <Loader />
+          </Center>
+        )}
         {selectedIncident && (
           <Stack>
             <Group>

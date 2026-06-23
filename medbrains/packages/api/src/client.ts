@@ -1418,6 +1418,7 @@ import type {
   QualityCommitteeMeeting,
   QualityDocument,
   QualityIncident,
+  QualityIncidentListItem,
   // Quality Management
   QualityIndicator,
   QualityIndicatorValue,
@@ -7254,7 +7255,7 @@ export const api = {
     if (params?.status) qs.set("status", params.status);
     if (params?.severity) qs.set("severity", params.severity);
     const q = qs.toString();
-    return request<QualityIncident[]>(`/quality/incidents${q ? `?${q}` : ""}`);
+    return request<QualityIncidentListItem[]>(`/quality/incidents${q ? `?${q}` : ""}`);
   },
 
   getQualityIncident: (id: string) => request<QualityIncident>(`/quality/incidents/${id}`),

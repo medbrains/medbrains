@@ -13,6 +13,8 @@ export const qualityService = {
     api.calculateIndicator(...args),
   listQualityIncidents: (...args: Parameters<typeof api.listQualityIncidents>) =>
     api.listQualityIncidents(...args),
+  getQualityIncident: (...args: Parameters<typeof api.getQualityIncident>) =>
+    api.getQualityIncident(...args),
   createQualityIncident: (...args: Parameters<typeof api.createQualityIncident>) =>
     api.createQualityIncident(...args),
   updateQualityIncident: (...args: Parameters<typeof api.updateQualityIncident>) =>

@@ -13434,6 +13434,30 @@ export interface QualityIncident {
   updated_at: string;
 }
 
+/** List row — omits description/immediate_action/root_cause + the JSONB fields
+ * (affected_persons/contributing_factors/attachments); detail fetched by id. */
+export interface QualityIncidentListItem {
+  id: string;
+  tenant_id: string;
+  incident_number: string;
+  title: string;
+  incident_type: string;
+  severity: IncidentSeverityType;
+  status: IncidentStatusType;
+  department_id?: string;
+  location?: string;
+  incident_date: string;
+  reported_by: string;
+  is_anonymous: boolean;
+  patient_id?: string;
+  assigned_to?: string;
+  closed_at?: string;
+  is_reportable: boolean;
+  regulatory_body?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface QualityCapa {
   id: string;
   tenant_id: string;

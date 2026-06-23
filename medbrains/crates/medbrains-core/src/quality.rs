@@ -217,6 +217,34 @@ pub struct QualityIncident {
     pub updated_at: DateTime<Utc>,
 }
 
+/// List row — omits the heavy free-text + JSONB fields (`description`,
+/// `immediate_action`, `root_cause`, `affected_persons`, `contributing_factors`,
+/// `attachments`); the detail view fetches the full incident by id (#167).
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct QualityIncidentListItem {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub incident_number: String,
+    pub title: String,
+    pub incident_type: String,
+    pub severity: IncidentSeverity,
+    pub status: IncidentStatus,
+    pub department_id: Option<Uuid>,
+    pub location: Option<String>,
+    pub incident_date: DateTime<Utc>,
+    pub reported_by: Uuid,
+    pub is_anonymous: bool,
+    pub patient_id: Option<Uuid>,
+    pub assigned_to: Option<Uuid>,
+    pub closed_at: Option<DateTime<Utc>>,
+    pub closed_by: Option<Uuid>,
+    pub is_reportable: bool,
+    pub regulatory_body: Option<String>,
+    pub regulatory_reported_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct QualityCapa {
     pub id: Uuid,
