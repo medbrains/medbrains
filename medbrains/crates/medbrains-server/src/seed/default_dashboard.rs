@@ -113,7 +113,7 @@ const WIDGETS: &[WidgetDef] = &[
         subtitle: "Monthly billing trend",
         icon: "IconCoin",
         color: "green",
-        config: r#"{"chart_type": "bar", "x_axis": "date", "y_axis": "amount"}"#,
+        config: r#"{"chart_type": "bar", "x_axis": "date", "y_axis": "amount", "sensitive": {"amount": "billing.amount"}}"#,
         data_source: r#"{"type": "api", "endpoint": "/api/dashboard/widget-data/revenue-monthly"}"#,
         x: 0,
         y: 6,

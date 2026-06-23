@@ -4,10 +4,13 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
+use std::collections::HashMap;
+
 use chrono::Utc;
 use medbrains_core::dashboard::{
     Dashboard, DashboardSummary, DashboardWidget, DashboardWithWidgets, WidgetTemplate, WidgetType,
 };
+use medbrains_core::form::FieldAccessLevel;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -16,6 +19,7 @@ use crate::{
     middleware::{
         auth::Claims,
         authorization::{is_bypass_role, require_permission},
+        field_access::resolve_restricted_fields,
     },
     state::AppState,
 };
@@ -1082,8 +1086,12 @@ pub async fn get_widget_data(
         .await?;
 
     let data = resolve_widget_data(&mut tx, &widget, &filters).await?;
-
     tx.commit().await?;
+
+    let restricted =
+        resolve_restricted_fields(&state.db, claims.tenant_id, claims.sub, &claims.role).await?;
+    let data = redact_widget_data(data, &widget.config, &restricted);
+
     Ok(Json(WidgetDataResponse {
         widget_id,
         data,
@@ -1111,6 +1119,12 @@ pub async fn batch_widget_data(
     .fetch_all(&mut *tx)
     .await?;
 
+    // Field-level access for the viewer — sensitive widget fields are masked or
+    // hidden server-side per the role/user field-access map (empty for bypass
+    // roles). Resolved once for the whole batch.
+    let restricted =
+        resolve_restricted_fields(&state.db, claims.tenant_id, claims.sub, &claims.role).await?;
+
     let fetched_at = Utc::now().to_rfc3339();
     let mut results = Vec::with_capacity(widgets.len());
 
@@ -1121,6 +1135,7 @@ pub async fn batch_widget_data(
             .await?;
 
         let data = resolve_widget_data(&mut tx, widget, &filters).await?;
+        let data = redact_widget_data(data, &widget.config, &restricted);
         results.push(WidgetDataResponse {
             widget_id: widget.id,
             data,
@@ -1258,6 +1273,60 @@ async fn resolve_sql_count(
 
     let count = sqlx::query_scalar::<_, i64>(&sql).fetch_one(&mut **tx).await?;
     Ok(serde_json::json!({ "value": count }))
+}
+
+/// Mask/hide sensitive fields in resolved widget data per the viewer's field
+/// access. A widget opts in via `config.sensitive`: a map of data-field name →
+/// field-access permission code, e.g. `{"value": "billing.amount"}` on a revenue
+/// stat card or `{"total": "billing.amount"}` on a billing table. A `mask`-level
+/// field becomes `"•••"`; a `hidden`-level field is dropped. Applies to a scalar
+/// object and to each row of an array. No-op when the widget declares nothing
+/// sensitive or the viewer has no restrictions (e.g. bypass roles).
+fn redact_widget_data(
+    data: serde_json::Value,
+    config: &serde_json::Value,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> serde_json::Value {
+    let Some(sensitive) = config.get("sensitive").and_then(serde_json::Value::as_object) else {
+        return data;
+    };
+    if sensitive.is_empty() || restricted.is_empty() {
+        return data;
+    }
+    match data {
+        serde_json::Value::Array(items) => serde_json::Value::Array(
+            items
+                .into_iter()
+                .map(|item| redact_object(item, sensitive, restricted))
+                .collect(),
+        ),
+        other => redact_object(other, sensitive, restricted),
+    }
+}
+
+fn redact_object(
+    value: serde_json::Value,
+    sensitive: &serde_json::Map<String, serde_json::Value>,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> serde_json::Value {
+    let serde_json::Value::Object(mut obj) = value else {
+        return value;
+    };
+    for (field, code) in sensitive {
+        let Some(code) = code.as_str() else { continue };
+        match restricted.get(code) {
+            Some(FieldAccessLevel::Mask) => {
+                if obj.contains_key(field) {
+                    obj.insert(field.clone(), serde_json::json!("•••"));
+                }
+            }
+            Some(FieldAccessLevel::Hidden) => {
+                obj.remove(field);
+            }
+            _ => {}
+        }
+    }
+    serde_json::Value::Object(obj)
 }
 
 /// Module-specific data resolvers.
@@ -2414,4 +2483,52 @@ struct LabResultRow {
 struct RevenueDayRow {
     day: Option<chrono::NaiveDate>,
     total: rust_decimal::Decimal,
+}
+
+#[cfg(test)]
+mod redaction_tests {
+    use std::collections::HashMap;
+
+    use medbrains_core::form::FieldAccessLevel;
+    use serde_json::json;
+
+    use super::redact_widget_data;
+
+    fn restricted(level: FieldAccessLevel) -> HashMap<String, FieldAccessLevel> {
+        let mut m = HashMap::new();
+        m.insert("billing.amount".to_owned(), level);
+        m
+    }
+
+    #[test]
+    fn masks_scalar_value() {
+        let config = json!({ "sensitive": { "value": "billing.amount" } });
+        let out = redact_widget_data(json!({ "value": 12345 }), &config, &restricted(FieldAccessLevel::Mask));
+        assert_eq!(out, json!({ "value": "•••" }));
+    }
+
+    #[test]
+    fn hides_scalar_value() {
+        let config = json!({ "sensitive": { "value": "billing.amount" } });
+        let out = redact_widget_data(json!({ "value": 12345 }), &config, &restricted(FieldAccessLevel::Hidden));
+        assert_eq!(out, json!({}));
+    }
+
+    #[test]
+    fn redacts_each_array_row() {
+        let config = json!({ "sensitive": { "total": "billing.amount" } });
+        let data = json!([{ "id": 1, "total": 100 }, { "id": 2, "total": 200 }]);
+        let out = redact_widget_data(data, &config, &restricted(FieldAccessLevel::Mask));
+        assert_eq!(out, json!([{ "id": 1, "total": "•••" }, { "id": 2, "total": "•••" }]));
+    }
+
+    #[test]
+    fn noop_without_sensitive_config_or_restrictions() {
+        let plain = json!({ "value": 7 });
+        // no sensitive declaration
+        assert_eq!(redact_widget_data(plain.clone(), &json!({}), &restricted(FieldAccessLevel::Mask)), plain);
+        // sensitive declared but viewer unrestricted (e.g. bypass role)
+        let config = json!({ "sensitive": { "value": "billing.amount" } });
+        assert_eq!(redact_widget_data(plain.clone(), &config, &HashMap::new()), plain);
+    }
 }
