@@ -71,6 +71,15 @@ async fn tenant_setting_days(
 }
 
 async fn run_retention_pass(pool: &PgPool) -> Result<(), AppError> {
+    // Partition maintenance — pre-create upcoming partitions and retire old ones
+    // for every table registered in `partition_config`. Global (not tenant-scoped)
+    // and best-effort: a failure here must not block the retention pass below.
+    // See RFC-DATA-INFRASTRUCTURE.md.
+    match sqlx::query("SELECT ensure_partitions()").execute(pool).await {
+        Ok(_) => tracing::debug!("partition maintenance complete"),
+        Err(error) => tracing::error!(%error, "partition maintenance failed"),
+    }
+
     let tenants: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM tenants WHERE is_active = true")
         .fetch_all(pool)
         .await?;
