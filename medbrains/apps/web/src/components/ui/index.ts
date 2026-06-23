@@ -5,7 +5,13 @@
 // the underlying kit later means editing these files, not the call sites.
 
 export { Abbr, type AbbrProps, type AbbrTerm, MEDICAL_ABBR } from "./Abbr";
-export { AiLabel, type AiLabelExplainer, type AiLabelProps, type AiLabelSize } from "./AiLabel";
+export {
+  AiLabel,
+  type AiLabelExplainer,
+  type AiLabelProps,
+  type AiLabelSize,
+  type AiLabelVariant,
+} from "./AiLabel";
 export { Alert, type AlertProps, type AlertTone } from "./Alert";
 export { Badge, type BadgeProps, type BadgeTone } from "./Badge";
 export { Button, type ButtonProps, type ButtonTone } from "./Button";

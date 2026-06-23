@@ -10,21 +10,51 @@
   line-height: 1;
   vertical-align: middle;
   border-radius: 2px; // Carbon sharp corner
-  // Gradient border via padding-box/border-box trick over the page surface.
   border: 1px solid transparent;
-  background:
-    linear-gradient(var(--mb-bg-default, #ffffff), var(--mb-bg-default, #ffffff)) padding-box,
-    var(--mb-gradient-ai) border-box;
 }
 
 .ai {
   font-weight: 700;
   letter-spacing: 0.02em;
   font-family: var(--mb-font-mono, monospace);
-  background: var(--mb-gradient-ai);
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
+  color: var(--mb-text-primary, #1a1a2e);
+}
+
+// ── Variants ──────────────────────────────────────────────
+// gradient (default): gradient border + gradient "AI" glyph.
+.gradient {
+  background:
+    linear-gradient(var(--mb-bg-default, #ffffff), var(--mb-bg-default, #ffffff)) padding-box,
+    var(--mb-gradient-ai) border-box;
+
+  .ai {
+    background: var(--mb-gradient-ai);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
+}
+
+// outline: neutral hairline border, ink glyph.
+.outline {
+  border-color: var(--mb-border, #e4e7ea);
+  background: var(--mb-bg-default, #ffffff);
+}
+
+// filled: solid dark fill, white glyph (inverse / dark surfaces).
+.filled {
+  border-color: transparent;
+  background: var(--mb-text-primary, #161616);
+
+  .ai {
+    color: #ffffff;
+  }
+}
+
+// active: brand-accent border (selected / focused).
+.active {
+  border-color: var(--mb-brand, #0f62fe);
+  background: var(--mb-bg-default, #ffffff);
 }
 
 .text {
@@ -74,6 +104,10 @@
 .lg {
   height: 34px;
   font-size: 16px;
+}
+.xl {
+  height: 40px;
+  font-size: 18px;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -2,7 +2,16 @@ import { Box, Popover, Stack, Text, UnstyledButton } from "@mantine/core";
 import { type ReactNode, useState } from "react";
 import styles from "./ai-label.module.scss";
 
-export type AiLabelSize = "xs" | "sm" | "md" | "lg";
+export type AiLabelSize = "xs" | "sm" | "md" | "lg" | "xl";
+
+/**
+ * Visual treatment so the label reads on any surface:
+ * - `gradient` (default) — the signature violet→blue AI gradient slug.
+ * - `outline` — hairline border, ink "AI" (dense tables / inputs).
+ * - `filled` — solid dark fill, white "AI" (inverse / dark surfaces).
+ * - `active` — brand-accent border (selected / focused state).
+ */
+export type AiLabelVariant = "gradient" | "outline" | "filled" | "active";
 
 /** Content of the AI explainability popover (Carbon AI Label callout). */
 export interface AiLabelExplainer {
@@ -16,6 +25,7 @@ export interface AiLabelExplainer {
 
 export interface AiLabelProps {
   size?: AiLabelSize;
+  variant?: AiLabelVariant;
   /** Optional trailing text after the "AI" slug, e.g. "suggested". */
   text?: string;
   /**
@@ -32,11 +42,11 @@ export interface AiLabelProps {
  * (per Carbon guidance); the violet→blue `--mb-gradient-ai` is reserved for
  * exactly this, never generic decoration.
  */
-export function AiLabel({ size = "sm", text, explainer, ...rest }: AiLabelProps) {
+export function AiLabel({ size = "sm", variant = "gradient", text, explainer, ...rest }: AiLabelProps) {
   const [opened, setOpened] = useState(false);
 
   const slug = (
-    <Box component="span" className={`${styles.label} ${styles[size]}`}>
+    <Box component="span" className={`${styles.label} ${styles[size]} ${styles[variant]}`}>
       <Box component="span" className={styles.ai}>
         AI
       </Box>
