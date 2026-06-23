@@ -1,399 +1,98 @@
-import {
-  Box,
-  Card,
-  Divider,
-  Grid,
-  Group,
-  SimpleGrid,
-  Stack,
-  Text,
-  ThemeIcon,
-  UnstyledButton,
-} from "@mantine/core";
-import { useHasPermission } from "@medbrains/stores";
-import type {
-  DashboardStatIntentId,
-  DashboardStatsResponse,
-  RecentActivity,
-} from "@medbrains/types";
-import { buildDashboardReportPath, DASHBOARD_STAT_INTENTS, P } from "@medbrains/types";
-import {
-  IconActivity,
-  IconArrowRight,
-  IconBed,
-  IconCalendar,
-  IconClock,
-  IconDashboard,
-  IconFlask,
-  IconHeartbeat,
-  IconReceipt,
-  IconServer,
-  IconSettings,
-  IconStethoscope,
-  IconUserPlus,
-  IconUsers,
-} from "@tabler/icons-react";
+import { Box, Center, Loader, Stack, Text, ThemeIcon } from "@mantine/core";
+import { api } from "@medbrains/api";
+import { P } from "@medbrains/types";
+import { IconLayoutDashboard } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router";
-import { PageHeader, StatCard } from "@/components";
-import { Badge, Button } from "@/components/ui";
+import { useMemo } from "react";
+import { PageHeader } from "@/components";
+import { DashboardWidgetCard } from "@/components/dashboard/DashboardWidgetCard";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
-import { dashboardService } from "@/services/dashboard.service";
+import styles from "./dashboard.module.scss";
 
 export function DashboardPage() {
   useRequirePermission(P.DASHBOARD.VIEW);
-  const { t } = useTranslation("dashboard");
-  const navigate = useNavigate();
-  const canManage = useHasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
 
-  return <DefaultDashboard navigate={navigate} canManage={canManage} t={t} />;
-}
-
-// ── Default Dashboard ───────────────────────────────────
-
-const quickActions = [
-  {
-    label: "Register Patient",
-    description: "Add a new patient record",
-    icon: IconUserPlus,
-    color: "primary",
-    path: "/patients",
-  },
-  {
-    label: "New OPD Visit",
-    description: "Create outpatient visit",
-    icon: IconStethoscope,
-    color: "teal",
-    path: "/opd",
-  },
-  {
-    label: "Lab Order",
-    description: "Request lab investigation",
-    icon: IconFlask,
-    color: "orange",
-    path: "/lab",
-  },
-  {
-    label: "Generate Invoice",
-    description: "Create billing invoice",
-    icon: IconReceipt,
-    color: "violet",
-    path: "/billing",
-  },
-];
-
-const ACTIVITY_ICON_MAP: Record<string, { icon: typeof IconActivity; color: string }> = {
-  patient: { icon: IconUserPlus, color: "info" },
-  opd: { icon: IconStethoscope, color: "teal" },
-  lab: { icon: IconFlask, color: "success" },
-  billing: { icon: IconReceipt, color: "violet" },
-  appointment: { icon: IconCalendar, color: "primary" },
-};
-
-function timeAgo(dateStr: string): string {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
-function CardHeader({
-  title,
-  action,
-}: {
-  title: string;
-  action?: { label: string; onClick: () => void };
-}) {
-  return (
-    <>
-      <Group justify="space-between" px="lg" py="sm">
-        <Text size="sm" fw={600} c="var(--mb-text-primary)">
-          {title}
-        </Text>
-        {action && (
-          <Text
-            size="xs"
-            c="var(--mantine-color-primary-5)"
-            fw={500}
-            style={{ cursor: "pointer" }}
-            onClick={action.onClick}
-          >
-            {action.label}
-          </Text>
-        )}
-      </Group>
-      <Divider />
-    </>
-  );
-}
-
-function DefaultDashboard({
-  navigate,
-  canManage,
-  t,
-}: {
-  navigate: ReturnType<typeof useNavigate>;
-  canManage: boolean;
-  t: (key: string) => string;
-}) {
-  const { data: stats } = useQuery<DashboardStatsResponse>({
-    queryKey: ["dashboard-stats"],
-    queryFn: () => dashboardService.getDashboardStats(),
-    refetchInterval: 30_000, // refresh every 30s
+  const {
+    data: dashboard,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["my-dashboard"],
+    queryFn: () => api.getMyDashboard(),
+    staleTime: 120_000,
   });
 
-  const formatRevenue = (val: string) => {
-    const num = parseFloat(val);
-    if (Number.isNaN(num) || num === 0) return "0";
-    if (num >= 100_000) return `${(num / 100_000).toFixed(1)}L`;
-    if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
-    return num.toFixed(0);
-  };
-  const openDashboardReport = (intentId: DashboardStatIntentId) => {
-    navigate(buildDashboardReportPath(intentId));
-  };
+  const widgetIds = useMemo(() => (dashboard?.widgets ?? []).map((w) => w.id), [dashboard]);
+
+  const { data: widgetData, isLoading: dataLoading } = useQuery({
+    queryKey: ["my-dashboard", "data", widgetIds],
+    queryFn: () => api.batchWidgetData(widgetIds),
+    enabled: widgetIds.length > 0,
+    staleTime: 60_000,
+  });
+
+  const dataById = useMemo(() => {
+    const map = new Map<string, unknown>();
+    for (const r of widgetData ?? []) map.set(r.widget_id, r.data);
+    return map;
+  }, [widgetData]);
+
+  if (isLoading) {
+    return (
+      <Center py="xl">
+        <Loader />
+      </Center>
+    );
+  }
+
+  if (isError || !dashboard) {
+    return (
+      <Stack align="center" gap="xs" py={64}>
+        <ThemeIcon variant="light" color="gray" size={48} radius="xl">
+          <IconLayoutDashboard size={24} />
+        </ThemeIcon>
+        <Text fw={600}>No dashboard configured</Text>
+        <Text size="sm" c="dimmed" ta="center" maw={360}>
+          An administrator hasn't set up a dashboard for your role yet. Once they do, your widgets
+          will appear here.
+        </Text>
+      </Stack>
+    );
+  }
+
+  const columns = dashboard.dashboard.layout_config?.columns ?? 12;
+  const rowHeight = dashboard.dashboard.layout_config?.row_height ?? 80;
 
   return (
-    <div>
+    <Box>
       <PageHeader
-        title={t("title")}
-        subtitle={t("overview")}
-        icon={<IconDashboard size={20} stroke={1.5} />}
-        color="primary"
-        actions={
-          canManage ? (
-            <Button
-              tone="ghost"
-              size="xs"
-              leftSection={<IconSettings size={14} />}
-              onClick={() => navigate("/admin/settings#dashboards")}
-            >
-              {t("customize")}
-            </Button>
-          ) : undefined
-        }
+        title={dashboard.dashboard.name}
+        subtitle={dashboard.dashboard.description ?? undefined}
       />
-
-      {/* Stat Cards — Row 1 */}
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} mb="md">
-        <StatCard
-          label={t("stats.totalPatients")}
-          value={stats?.total_patients ?? 0}
-          icon={<IconUsers size={20} stroke={1.5} />}
-          color="primary"
-          trend={
-            stats?.today_registrations
-              ? { value: stats.today_registrations, label: "new today" }
-              : undefined
-          }
-          onClick={() => openDashboardReport("totalPatients")}
-          actionLabel={DASHBOARD_STAT_INTENTS.totalPatients.webActionLabel}
-        />
-        <StatCard
-          label={t("stats.opdQueue")}
-          value={stats?.opd_queue_count ?? 0}
-          icon={<IconStethoscope size={20} stroke={1.5} />}
-          color="teal"
-          trend={
-            stats?.today_visits ? { value: stats.today_visits, label: "visits today" } : undefined
-          }
-          onClick={() => openDashboardReport("opdQueue")}
-          actionLabel={DASHBOARD_STAT_INTENTS.opdQueue.webActionLabel}
-        />
-        <StatCard
-          label={t("stats.labPending")}
-          value={stats?.lab_pending ?? 0}
-          icon={<IconFlask size={20} stroke={1.5} />}
-          color="orange"
-          onClick={() => openDashboardReport("labPending")}
-          actionLabel={DASHBOARD_STAT_INTENTS.labPending.webActionLabel}
-        />
-        <StatCard
-          label={t("stats.revenueToday")}
-          value={stats ? `₹${formatRevenue(stats.today_revenue)}` : "--"}
-          icon={<IconReceipt size={20} stroke={1.5} />}
-          color="violet"
-          onClick={() => openDashboardReport("revenueToday")}
-          actionLabel={DASHBOARD_STAT_INTENTS.revenueToday.webActionLabel}
-        />
-      </SimpleGrid>
-
-      {/* Stat Cards — Row 2 */}
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} mb="xl">
-        <StatCard
-          label={t("stats.appointments")}
-          value={stats?.today_appointments ?? 0}
-          icon={<IconCalendar size={20} stroke={1.5} />}
-          color="primary"
-          onClick={() => openDashboardReport("todayAppointments")}
-          actionLabel={DASHBOARD_STAT_INTENTS.todayAppointments.webActionLabel}
-        />
-        <StatCard
-          label={t("stats.ipdActive")}
-          value={stats?.ipd_active ?? 0}
-          icon={<IconBed size={20} stroke={1.5} />}
-          color="info"
-          onClick={() => openDashboardReport("ipdActive")}
-          actionLabel={DASHBOARD_STAT_INTENTS.ipdActive.webActionLabel}
-        />
-      </SimpleGrid>
-
-      {/* Quick Actions + Activity */}
-      <Grid mb="xl">
-        <Grid.Col span={{ base: 12, md: 8 }}>
-          <Card padding={0}>
-            <CardHeader title={t("quickActions.title")} />
-            <SimpleGrid cols={{ base: 1, sm: 2 }} p="lg" spacing="md">
-              {quickActions.map((action) => (
-                <UnstyledButton
-                  key={action.label}
-                  onClick={() => navigate(action.path)}
-                  className="clickable-card quick-action-card"
-                  style={{
-                    padding: 16,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                  }}
-                >
-                  <ThemeIcon variant="light" color={action.color} size={40} radius="lg">
-                    <action.icon size={20} stroke={1.5} />
-                  </ThemeIcon>
-                  <div style={{ flex: 1 }}>
-                    <Text size="sm" fw={600} c="var(--mb-text-primary)">
-                      {action.label}
-                    </Text>
-                    <Text size="xs" c="var(--mb-text-muted)">
-                      {action.description}
-                    </Text>
-                  </div>
-                  <IconArrowRight size={16} color="var(--mb-text-muted)" />
-                </UnstyledButton>
-              ))}
-            </SimpleGrid>
-          </Card>
-        </Grid.Col>
-
-        <Grid.Col span={{ base: 12, md: 4 }}>
-          <Card padding={0} h="100%">
-            <CardHeader title={t("recentActivity.title")} />
-            <Stack gap={0}>
-              {stats?.recent_activity && stats.recent_activity.length > 0 ? (
-                stats.recent_activity.map((item: RecentActivity, i: number) => {
-                  const meta = ACTIVITY_ICON_MAP[item.activity_type] ?? {
-                    icon: IconActivity,
-                    color: "slate",
-                  };
-                  const ActivityIcon = meta.icon;
-                  const activityKey = `${item.activity_type}-${item.occurred_at}-${item.description}`;
-                  return (
-                    <Box key={activityKey}>
-                      <Group gap="sm" wrap="nowrap" align="flex-start" px="lg" py="sm">
-                        <ThemeIcon variant="light" color={meta.color} size={28} radius="lg" mt={2}>
-                          <ActivityIcon size={14} stroke={1.5} />
-                        </ThemeIcon>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <Text size="sm" c="var(--mb-text-primary)" lh={1.3}>
-                            {item.description}
-                          </Text>
-                          <Group gap={4} mt={2}>
-                            <IconClock size={11} color="var(--mb-text-muted)" />
-                            <Text size="xs" c="var(--mb-text-muted)">
-                              {timeAgo(item.occurred_at)}
-                            </Text>
-                          </Group>
-                        </div>
-                      </Group>
-                      {i < stats.recent_activity.length - 1 && <Divider />}
-                    </Box>
-                  );
-                })
-              ) : (
-                <Text size="sm" c="dimmed" ta="center" py="lg">
-                  No recent activity
-                </Text>
-              )}
-            </Stack>
-          </Card>
-        </Grid.Col>
-      </Grid>
-
-      {/* Bottom — Module Status + System Health */}
-      <SimpleGrid cols={{ base: 1, sm: 2 }}>
-        <Card padding={0}>
-          <CardHeader title={t("moduleStatus.title")} />
-          <Stack gap="xs" p="lg">
-            {[
-              { name: "Patient Management", status: "Active" },
-              { name: "OPD", status: "Active" },
-              { name: "Appointments", status: "Active" },
-              { name: "Laboratory", status: "Active" },
-              { name: "Pharmacy", status: "Active" },
-              { name: "Billing", status: "Active" },
-              { name: "IPD", status: "Active" },
-              { name: "Indent & Store", status: "Active" },
-            ].map((mod) => (
-              <Group key={mod.name} justify="space-between">
-                <Text size="sm" c="var(--mb-text-secondary)">
-                  {mod.name}
-                </Text>
-                <Badge tone="success" size="sm">
-                  {mod.status}
-                </Badge>
-              </Group>
-            ))}
-          </Stack>
-        </Card>
-        <Card padding={0}>
-          <CardHeader title={t("systemHealth.title")} />
-          <Stack gap="sm" p="lg">
-            <Group justify="space-between">
-              <Group gap="sm">
-                <ThemeIcon variant="light" color="success" size={24} radius="lg">
-                  <IconServer size={14} />
-                </ThemeIcon>
-                <Text size="sm" c="var(--mb-text-secondary)">
-                  {t("systemHealth.apiServer")}
-                </Text>
-              </Group>
-              <Badge tone="success" size="sm">
-                Healthy
-              </Badge>
-            </Group>
-            <Group justify="space-between">
-              <Group gap="sm">
-                <ThemeIcon variant="light" color="success" size={24} radius="lg">
-                  <IconServer size={14} />
-                </ThemeIcon>
-                <Text size="sm" c="var(--mb-text-secondary)">
-                  {t("systemHealth.postgresql")}
-                </Text>
-              </Group>
-              <Badge tone="success" size="sm">
-                Connected
-              </Badge>
-            </Group>
-            <Group justify="space-between">
-              <Group gap="sm">
-                <ThemeIcon variant="light" color="success" size={24} radius="lg">
-                  <IconHeartbeat size={14} />
-                </ThemeIcon>
-                <Text size="sm" c="var(--mb-text-secondary)">
-                  {t("systemHealth.uptime")}
-                </Text>
-              </Group>
-              <Text size="xs" c="var(--mb-text-secondary)" fw={500}>
-                99.9%
-              </Text>
-            </Group>
-          </Stack>
-        </Card>
-      </SimpleGrid>
-    </div>
+      {dashboard.widgets.length === 0 ? (
+        <Text c="dimmed" size="sm" ta="center" py="xl">
+          This dashboard has no widgets yet.
+        </Text>
+      ) : (
+        <Box className={styles.grid}>
+          {dashboard.widgets.map((widget) => (
+            <Box
+              key={widget.id}
+              className={styles.cell}
+              style={{
+                gridColumn: `span ${Math.min(widget.width || 4, columns)}`,
+                minHeight: (widget.height || 2) * rowHeight,
+              }}
+            >
+              <DashboardWidgetCard
+                widget={widget}
+                data={dataById.get(widget.id)}
+                loading={dataLoading}
+              />
+            </Box>
+          ))}
+        </Box>
+      )}
+    </Box>
   );
 }

@@ -1,0 +1,24 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.cell {
+  // Per-widget column span is set inline; min-height comes from the widget's
+  // grid height. Keep content from overflowing the card.
+  min-width: 0;
+  display: flex;
+}
+
+.cell > * {
+  width: 100%;
+}
+
+// Collapse to a single column on small screens so spans don't overflow.
+@media (max-width: 768px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

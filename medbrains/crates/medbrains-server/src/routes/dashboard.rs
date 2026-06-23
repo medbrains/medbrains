@@ -1164,12 +1164,69 @@ async fn resolve_widget_data(
 
             resolve_module_query(tx, module, query, &params, filters).await
         }
+        "sql_count" => resolve_sql_count(tx, source).await,
         "static" => Ok(source
             .get("static_data")
             .cloned()
             .unwrap_or(serde_json::json!(null))),
+        // "api"-sourced widgets are resolved by the client calling the named
+        // endpoint directly (charts/tables); nothing to compute server-side here.
         _ => Ok(serde_json::json!({"error": "unsupported data source type"})),
     }
+}
+
+/// Allowed tables and filter predicates for `sql_count` widgets. Both are STRICT
+/// allowlists: the `table` and `filter` from `data_source` are validated against
+/// these sets and never interpolated from arbitrary input, so an edited/malicious
+/// widget cannot inject SQL. Counts run inside the per-widget tenant/department
+/// context set by `batch_widget_data`, so RLS scopes them automatically.
+/// Extend these as new count widgets are added.
+const SQL_COUNT_TABLES: &[&str] = &[
+    "patients",
+    "encounters",
+    "admissions",
+    "lab_orders",
+    "invoices",
+    "appointments",
+    "prescriptions",
+];
+const SQL_COUNT_FILTERS: &[&str] = &[
+    "status = 'admitted'",
+    "DATE(encounter_date) = CURRENT_DATE",
+    "status IN ('ordered','sample_collected')",
+];
+
+async fn resolve_sql_count(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    source: &serde_json::Value,
+) -> Result<serde_json::Value, AppError> {
+    let Some(table) = source.get("table").and_then(serde_json::Value::as_str) else {
+        return Ok(serde_json::json!({ "value": 0 }));
+    };
+    if !SQL_COUNT_TABLES.contains(&table) {
+        tracing::warn!(table, "sql_count widget references a non-allowlisted table");
+        return Ok(serde_json::json!({ "value": 0 }));
+    }
+
+    let filter = source
+        .get("filter")
+        .and_then(serde_json::Value::as_str)
+        .filter(|f| !f.is_empty());
+
+    let sql = match filter {
+        // Both table and filter are allowlisted literals — safe to format.
+        Some(f) if SQL_COUNT_FILTERS.contains(&f) => {
+            format!("SELECT COUNT(*) FROM {table} WHERE {f}")
+        }
+        Some(f) => {
+            tracing::warn!(filter = f, "sql_count widget filter not allowlisted; counting all");
+            format!("SELECT COUNT(*) FROM {table}")
+        }
+        None => format!("SELECT COUNT(*) FROM {table}"),
+    };
+
+    let count = sqlx::query_scalar::<_, i64>(&sql).fetch_one(&mut **tx).await?;
+    Ok(serde_json::json!({ "value": count }))
 }
 
 /// Module-specific data resolvers.
