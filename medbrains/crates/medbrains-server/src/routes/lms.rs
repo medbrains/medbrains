@@ -1585,16 +1585,10 @@ pub struct AiQuestionOption {
 /// Requires `ANTHROPIC_API_KEY` env var. Returns a preview — admin reviews and saves.
 pub async fn ai_generate_course(
     Extension(claims): Extension<Claims>,
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Json(req): Json<AiGenerateRequest>,
 ) -> Result<Json<AiGeneratedCourse>, AppError> {
-    use rig::client::CompletionClient as _;
-    use rig::providers::anthropic;
-
     require_permission(&claims, medbrains_core::permissions::lms::courses::CREATE)?;
-
-    let api_key = std::env::var("ANTHROPIC_API_KEY")
-        .map_err(|_| AppError::BadRequest("ANTHROPIC_API_KEY not configured".to_owned()))?;
 
     let num_modules = req.num_modules.unwrap_or(4);
     let num_questions = req.num_quiz_questions.unwrap_or(10);
@@ -1606,18 +1600,10 @@ pub async fn ai_generate_course(
     let lang = req.language.as_deref().unwrap_or("English");
     let category = req.category.as_deref().unwrap_or("general");
 
-    let client = anthropic::Client::new(&api_key)
-        .map_err(|e| AppError::BadRequest(format!("Failed to create AI client: {e}")))?;
-
-    let extractor = client
-        .extractor::<AiGeneratedCourse>(anthropic::completion::CLAUDE_SONNET_4_6)
-        .preamble(
-            "You are a medical education expert creating training courses \
-             for hospital staff. Generate comprehensive, clinically accurate \
-             course content with detailed module text (500-800 words each) \
-             and well-crafted quiz questions with explanations.",
-        )
-        .build();
+    let preamble = "You are a medical education expert creating training courses \
+         for hospital staff. Generate comprehensive, clinically accurate \
+         course content with detailed module text (500-800 words each) \
+         and well-crafted quiz questions with explanations.";
 
     let prompt = format!(
         "Generate a training course on: \"{topic}\"\n\
@@ -1638,10 +1624,9 @@ pub async fn ai_generate_course(
         num_questions = num_questions,
     );
 
-    let generated = extractor
-        .extract(&prompt)
-        .await
-        .map_err(|e| AppError::BadRequest(format!("AI generation failed: {e}")))?;
+    let generated =
+        super::ai::extract::<AiGeneratedCourse>(&state, &claims.tenant_id, preamble, &prompt)
+            .await?;
 
     Ok(Json(generated))
 }

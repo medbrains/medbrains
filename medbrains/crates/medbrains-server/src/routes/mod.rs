@@ -5,6 +5,7 @@ pub mod admin_db_topology;
 pub mod admin_simulator;
 pub mod admin_system_state;
 pub mod aebas;
+pub mod ai;
 pub mod ambulance;
 pub mod analytics;
 pub mod appointments;

@@ -273,18 +273,10 @@ pub async fn compile_rust(
 
 pub async fn ai_generate_code(
     Extension(claims): Extension<Claims>,
+    State(state): State<AppState>,
     Json(req): Json<AiGenerateRequest>,
 ) -> Result<Json<AiGeneratedCode>, AppError> {
     require_permission(&claims, permissions::integration::CREATE)?;
-
-    let api_key = std::env::var("ANTHROPIC_API_KEY")
-        .map_err(|_| AppError::BadRequest("ANTHROPIC_API_KEY not configured".into()))?;
-
-    use rig::client::CompletionClient as _;
-    use rig::providers::anthropic;
-
-    let client = anthropic::Client::new(&api_key)
-        .map_err(|e| AppError::BadRequest(format!("Failed to create AI client: {e}")))?;
 
     let preamble = format!(
         "You are writing {} code for a hospital management system pipeline.\n\
@@ -300,15 +292,9 @@ pub async fn ai_generate_code(
         req.context.as_deref().unwrap_or(""),
     );
 
-    let extractor = client
-        .extractor::<AiGeneratedCode>(anthropic::completion::CLAUDE_SONNET_4_6)
-        .preamble(&preamble)
-        .build();
-
-    let result = extractor
-        .extract(&req.prompt)
-        .await
-        .map_err(|e| AppError::BadRequest(format!("AI generation failed: {e}")))?;
+    let result =
+        super::ai::extract::<AiGeneratedCode>(&state, &claims.tenant_id, &preamble, &req.prompt)
+            .await?;
 
     Ok(Json(result))
 }
