@@ -1,0 +1,16 @@
+// Carbon modal footer — full-bleed button bar. Buttons sit flush to the modal
+// edges and bottom (negative margins cancel the Mantine modal body padding),
+// each spanning 50% with a tall Carbon button height. Layout only.
+
+.footer {
+  display: flex;
+  // Cancel the modal body padding so the bar bleeds to all three edges.
+  margin: var(--mantine-spacing-md) calc(-1 * var(--mantine-spacing-md))
+    calc(-1 * var(--mantine-spacing-md));
+}
+
+.footerButton {
+  flex: 1 1 0;
+  height: 64px; // Carbon modal button height
+  border-radius: 0; // Carbon sharp, full-bleed
+}
