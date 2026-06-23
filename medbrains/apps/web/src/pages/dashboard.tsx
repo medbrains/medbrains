@@ -380,19 +380,6 @@ function DefaultDashboard({
             </Group>
             <Group justify="space-between">
               <Group gap="sm">
-                <ThemeIcon variant="light" color="slate" size={24} radius="lg">
-                  <IconServer size={14} />
-                </ThemeIcon>
-                <Text size="sm" c="var(--mb-text-secondary)">
-                  {t("systemHealth.yottadb")}
-                </Text>
-              </Group>
-              <Badge tone="neutral" size="sm">
-                Deferred
-              </Badge>
-            </Group>
-            <Group justify="space-between">
-              <Group gap="sm">
                 <ThemeIcon variant="light" color="success" size={24} radius="lg">
                   <IconHeartbeat size={14} />
                 </ThemeIcon>

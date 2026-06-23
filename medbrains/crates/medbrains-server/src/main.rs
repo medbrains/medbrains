@@ -78,15 +78,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Run migrations
     medbrains_db::pool::run_migrations(&db_pool).await?;
 
-    // Create YottaDB client (optional in Phase 1)
-    let yottadb = config.yottadb_url.as_ref().map(|url| {
-        tracing::info!(%url, "YottaDB client configured");
-        medbrains_yottadb::client::YottaDbClient::new(url)
-    });
-    if yottadb.is_none() {
-        tracing::info!("YottaDB not configured — deferred to Phase 2");
-    }
-
     // Build JWT keys from Ed25519 PEM/base64
     let encoding_key = EncodingKey::from_ed_der(&decode_b64_or_pem(&config.jwt_private_key_pem)?);
     let decoding_key = DecodingKey::from_ed_der(&decode_b64_or_pem(&config.jwt_public_key_pem)?);
@@ -242,7 +233,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let state = AppState {
         db: db_pool.clone(),
-        yottadb,
         jwt_encoding_key: encoding_key,
         jwt_decoding_key: decoding_key,
         cookie_config,

@@ -135,7 +135,6 @@ pub async fn spawn_app() -> TestApp {
 
     let state = AppState {
         db: db.clone(),
-        yottadb: None,
         jwt_encoding_key: encoding_key,
         jwt_decoding_key: decoding_key,
         cookie_config: CookieConfig {
@@ -150,6 +149,11 @@ pub async fn spawn_app() -> TestApp {
         topology: topology_router,
         authz,
         secret_resolver,
+        s3: None,
+        gotenberg: None,
+        documents_store: Arc::new(medbrains_core::object_store::LocalFsObjectStore::new(
+            std::env::temp_dir().join("medbrains-test-docs"),
+        )),
     };
 
     let app = routes::build_router(state);

@@ -15,7 +15,6 @@ http-body = "1"
 # fragmentation tail-latency under concurrent load than the system allocator.
 [target.'cfg(not(target_env = "msvc"))'.dependencies]
 tikv-jemallocator = "0.6"
-medbrains-yottadb = { path = "../medbrains-yottadb" }
 medbrains-outbox = { path = "../medbrains-outbox" }
 medbrains-fhir = { path = "../medbrains-fhir" }
 medbrains-crypto = { path = "../medbrains-crypto" }

@@ -40,9 +40,7 @@ export const handlers = [
   ),
 
   // ── Health ───────────────────────────────────────────────────
-  http.get(`${API}/health`, () =>
-    HttpResponse.json({ status: "healthy", postgres: "ok", yottadb: "deferred" }),
-  ),
+  http.get(`${API}/health`, () => HttpResponse.json({ status: "healthy", postgres: "ok" })),
 
   // ── Catch-all GETs return empty list — keeps pages from
   //    crashing on unmocked endpoints during tests.

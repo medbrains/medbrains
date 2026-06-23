@@ -249,7 +249,6 @@ export {
 export interface HealthResponse {
   status: string;
   postgres: string;
-  yottadb: string;
 }
 
 // ABDM ABHA

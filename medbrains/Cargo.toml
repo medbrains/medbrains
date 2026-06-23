@@ -5,7 +5,6 @@ members = [
     "crates/medbrains-core",
     "crates/medbrains-db",
     "crates/medbrains-abdm",
-    "crates/medbrains-yottadb",
     "crates/medbrains-loadtest",
     "crates/medbrains-adapter-sdk",
     "crates/medbrains-bridge",

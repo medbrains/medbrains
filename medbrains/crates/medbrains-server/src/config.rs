@@ -14,8 +14,6 @@ struct RawConfig {
     medbrains_env: Option<String>,
     #[serde(default)]
     database_url: Option<String>,
-    #[serde(default)]
-    yottadb_url: Option<String>,
     #[serde(default = "default_db_pool_max_connections")]
     db_pool_max_connections: u32,
     #[serde(default = "default_db_pool_min_connections")]
@@ -125,7 +123,6 @@ pub struct AppConfig {
     /// "development" or "production" (MEDBRAINS_ENV).
     pub environment: String,
     pub database_url: String,
-    pub yottadb_url: Option<String>,
     pub db_pool_max_connections: u32,
     pub db_pool_min_connections: u32,
     pub db_pool_acquire_timeout_secs: u64,
@@ -159,7 +156,6 @@ impl AppConfig {
             .merge(Serialized::defaults(RawConfig {
                 medbrains_env: None,
                 database_url: None,
-                yottadb_url: None,
                 db_pool_max_connections: default_db_pool_max_connections(),
                 db_pool_min_connections: default_db_pool_min_connections(),
                 db_pool_acquire_timeout_secs: default_db_pool_acquire_timeout_secs(),
@@ -254,7 +250,6 @@ impl AppConfig {
         Ok(Self {
             environment,
             database_url,
-            yottadb_url: raw.yottadb_url,
             s3_bucket: raw.s3_bucket,
             s3_region: raw.s3_region,
             s3_endpoint: raw.s3_endpoint,

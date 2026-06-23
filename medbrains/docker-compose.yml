@@ -30,28 +30,6 @@ services:
       timeout: 5s
       retries: 5
 
-  yottadb:
-    image: yottadb/yottadb-debian:latest-master
-    ports:
-      - "9080:9080"
-    environment:
-      ydb_dist: /opt/yottadb/current
-      ydb_gbldir: /data/yottadb.gld
-      ydb_routines: "/data/o(/data/r) /opt/yottadb/current/libyottadbutil.so"
-    volumes:
-      - yottadata:/data
-    command: >
-      bash -c "
-        source /opt/yottadb/current/ydb_env_set &&
-        /opt/yottadb/current/ydb -run '^%XCMD' 'do start^%%YDBWEB(9080)' &
-        tail -f /dev/null
-      "
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9080/api/ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # ── Kiwi TCMS (Test Case Management) ──
   kiwi_db:
     image: mariadb:11
@@ -161,6 +139,5 @@ services:
 
 volumes:
   pgdata:
-  yottadata:
   kiwi_dbdata:
   kiwi_uploads:

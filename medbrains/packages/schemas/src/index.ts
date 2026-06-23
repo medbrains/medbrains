@@ -13,7 +13,6 @@ export * from "./onboarding.js";
 export const healthResponseSchema = z.object({
   status: z.string(),
   postgres: z.string(),
-  yottadb: z.string(),
 });
 
 export const tenantSchema = z.object({

@@ -4,7 +4,6 @@ use jsonwebtoken::{DecodingKey, EncodingKey};
 use medbrains_authz::AuthzBackend;
 use medbrains_db_topology::TopologyDispatcher;
 use medbrains_outbox::Registry as OutboxRegistry;
-use medbrains_yottadb::client::YottaDbClient;
 use sqlx::PgPool;
 
 use crate::middleware::system_state::SystemStateCache;
@@ -23,7 +22,6 @@ pub struct CookieConfig {
 #[derive(Clone)]
 pub struct AppState {
     pub db: PgPool,
-    pub yottadb: Option<YottaDbClient>,
     pub jwt_encoding_key: EncodingKey,
     pub jwt_decoding_key: DecodingKey,
     pub cookie_config: CookieConfig,
@@ -65,7 +63,6 @@ impl std::fmt::Debug for AppState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AppState")
             .field("db", &"PgPool")
-            .field("yottadb", &self.yottadb.is_some())
             .field("jwt_encoding_key", &"[redacted]")
             .field("jwt_decoding_key", &"[redacted]")
             .field("cookie_config", &self.cookie_config)

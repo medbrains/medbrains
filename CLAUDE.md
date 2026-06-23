@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-MedBrains is a multi-tenant Hospital Management System (HMS) covering 67+ modules across clinical, administrative, financial, and infrastructure domains. The system follows a 7-layer configuration architecture with hierarchical data storage.
+MedBrains is a multi-tenant Hospital Management System (HMS) covering 67+ modules across clinical, administrative, financial, and infrastructure domains. The system follows a 7-layer configuration architecture, stored in PostgreSQL.
 
 **Always consult the RFC documents before making domain, architectural, or tech stack decisions.**
 
@@ -56,11 +56,13 @@ All RFCs live in `RFCs/` at the project root.
 
 | Database | Purpose |
 |----------|---------|
-| PostgreSQL 16+ | Primary relational store — tenants, users, patients, departments, workflows |
-| YottaDB | Hierarchical clinical data — config trees, sequences, real-time bed state, sessions |
-| Redis / Dragonfly | Cache layer (future) |
+| PostgreSQL 16+ | **Single source of truth** — tenants, users, patients, departments, workflows, config (`tenant_settings`), sequences/UHID, bed state. Declarative partitioning + retention for high-volume tables; Citus-ready sharding by `tenant_id`. |
+| Redis / Dragonfly | Cache layer + hot real-time state (future) |
+| DuckDB / columnar warehouse | Analytics & research, off the OLTP path (future) |
 | Meilisearch | Full-text search (future) |
-| NATS JetStream | Event streaming (future) |
+| NATS JetStream | Event streaming / async (future) |
+
+> **YottaDB was removed.** Every workload it was speced for (config trees, UHID sequences, real-time bed state) is served by PostgreSQL — `tenant_settings`, the `sequences` table (atomic `UPDATE … RETURNING`), and `bed_states`. See `memory/project_oss_and_datastore_decisions.md`.
 
 ### SQL
 
@@ -188,7 +190,7 @@ medbrains/
 ├── Cargo.toml                    # Rust workspace root
 ├── rust-toolchain.toml           # Stable toolchain + clippy + rustfmt
 ├── rustfmt.toml                  # Formatting rules
-├── docker-compose.yml            # PostgreSQL 16 + YottaDB
+├── docker-compose.yml            # PostgreSQL 16
 ├── .env / .env.example           # Environment configuration
 ├── MedBrains_Features.xlsx       # Master feature tracker (2,030+ features)
 ├── RFCs/                         # Specification documents
@@ -200,7 +202,6 @@ medbrains/
 ├── crates/
 │   ├── medbrains-core/           # Domain types — zero framework deps
 │   ├── medbrains-db/             # PostgreSQL via SQLx, migrations, audit
-│   ├── medbrains-yottadb/        # YottaDB REST client (Phase 2)
 │   └── medbrains-server/         # Axum HTTP server, routes, middleware
 ├── apps/
 │   ├── web/                      # React 18 + Mantine v7 + SCSS
@@ -499,8 +500,8 @@ The codebase has been cleared to skeleton. Only infrastructure remains:
 ## Key Architectural Patterns
 
 1. **Multi-tenancy**: Every tenant-scoped table uses `tenant_id` + PostgreSQL RLS. Tenant context is set per-request via middleware.
-2. **7-layer configuration**: Global → Tenant → Campus → Building → Floor → Department → User. Stored hierarchically in YottaDB globals.
+2. **7-layer configuration**: Global → Tenant → Campus → Building → Floor → Department → User. Stored in PostgreSQL (`tenant_settings`, hierarchical keys resolved by layer).
 3. **Workflow engine**: Templates define step sequences as JSONB. Instances track execution state. Step logs provide audit trails.
-4. **YottaDB globals**: `^CONFIG(tenantId,layer,module,key)` for config, `^SEQUENCE(tenantId,type)` for atomic counters (UHID), `^BEDSTATE(tenantId,locationId)` for real-time bed state.
+4. **PostgreSQL primitives** (formerly YottaDB globals): config in `tenant_settings`, atomic counters/UHID via the `sequences` table (`UPDATE … RETURNING`), real-time bed state in `bed_states` — all tenant-scoped under RLS.
 5. **Compile-time safety**: All SQL queries verified at compile time. Strict clippy lints catch common errors before runtime.
 6. **Permission system**: 111 permissions across 8 modules. `P.MODULE.ACTION` typed constants. Page guards via `useRequirePermission()`, element visibility via `useHasPermission()`. Roles stored in `roles` table with JSONB permissions array. Per-user overrides via `users.access_matrix` (`{ extra: [], denied: [] }`). `super_admin`/`hospital_admin` bypass all checks.

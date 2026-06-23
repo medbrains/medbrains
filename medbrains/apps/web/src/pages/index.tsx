@@ -55,7 +55,6 @@ export function IndexPage() {
               <Stack gap="sm">
                 <StatusBadge label="Overall" status={data.status} />
                 <StatusBadge label="PostgreSQL" status={data.postgres} />
-                <StatusBadge label="YottaDB" status={data.yottadb} />
               </Stack>
             )}
           </Card>

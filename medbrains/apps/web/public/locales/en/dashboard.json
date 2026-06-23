@@ -40,8 +40,6 @@
     "healthy": "Healthy",
     "postgresql": "PostgreSQL",
     "connected": "Connected",
-    "yottadb": "YottaDB",
-    "deferred": "Deferred",
     "uptime": "Uptime"
   }
 }

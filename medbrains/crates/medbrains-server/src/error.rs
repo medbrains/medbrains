@@ -11,9 +11,6 @@ pub enum AppError {
     #[error("database error: {0}")]
     Database(#[from] medbrains_db::pool::DbError),
 
-    #[error("YottaDB error: {0}")]
-    YottaDb(#[from] medbrains_yottadb::client::YottaDbError),
-
     #[error("configuration error: {0}")]
     Config(#[from] crate::config::ConfigError),
 
@@ -88,14 +85,6 @@ impl IntoResponse for AppError {
                 }
                 let detail = extract_db_detail(db_err);
                 (status, message, detail)
-            }
-            Self::YottaDb(_) => {
-                tracing::error!(error = %self, "yottadb error");
-                (
-                    StatusCode::BAD_GATEWAY,
-                    "yottadb error",
-                    "yottadb error".to_owned(),
-                )
             }
             Self::Config(_) => {
                 tracing::error!(error = %self, "configuration error");
