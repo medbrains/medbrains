@@ -48,6 +48,7 @@
   "groups": "Access Groups",
   "sso": "Single Sign-On",
   "accessRequests": "Access Requests",
+  "setupCenter": "Setup Center",
   "settings": "Settings",
   "deviceIntegrations": "Device Integrations",
   "formBuilder": "Form Builder",

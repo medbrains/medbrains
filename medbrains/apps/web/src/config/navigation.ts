@@ -1043,6 +1043,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             requiredPermission: "quality.indicators.list",
           },
           {
+            i18nKey: "setupCenter",
+            path: "/setup",
+            icon: "IconListDetails",
+            requiredPermission: "admin.settings.general.manage",
+          },
+          {
             i18nKey: "settings",
             path: "/admin/settings",
             icon: "IconSettings",

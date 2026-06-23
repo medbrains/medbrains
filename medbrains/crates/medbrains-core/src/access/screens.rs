@@ -272,4 +272,12 @@ pub const SCREENS: &[ScreenDef] = &[
         required_permission: Some("admin.settings.general.manage"),
         icon: "IconSettings",
     },
+    ScreenDef {
+        code: "setup-center",
+        label: "Setup Center",
+        route: "/setup",
+        module: "admin",
+        required_permission: Some("admin.settings.general.manage"),
+        icon: "IconChecklist",
+    },
 ];
