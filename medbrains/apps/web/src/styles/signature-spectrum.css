@@ -94,3 +94,30 @@
 .mantine-ActionIcon-root[data-variant="transparent"]:hover svg {
   color: #ffffff !important;
 }
+
+/* Smooth, snappy click — fluid hover/press instead of instant snaps, plus a
+   tactile press nudge. Short, ease-out durations keep it responsive, never
+   floaty. Honours prefers-reduced-motion (accessibility). */
+.mantine-Button-root,
+.mantine-ActionIcon-root {
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease,
+    box-shadow 120ms ease,
+    transform 80ms ease;
+}
+.mantine-Button-root:active:not([data-disabled]):not(:disabled),
+.mantine-ActionIcon-root:active:not([data-disabled]):not(:disabled) {
+  transform: translateY(0.5px) scale(0.985);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mantine-Button-root,
+  .mantine-ActionIcon-root {
+    transition: none;
+  }
+  .mantine-Button-root:active,
+  .mantine-ActionIcon-root:active {
+    transform: none;
+  }
+}

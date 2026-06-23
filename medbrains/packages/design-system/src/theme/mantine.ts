@@ -198,6 +198,11 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
     // Console look: squared corners over the previous soft 8px.
     defaultRadius: "sm",
 
+    // Interactive elements show the hand cursor (Mantine defaults to "default",
+    // which makes buttons feel unclickable). Pairs with the press transition in
+    // signature-spectrum.css for a snappy, tactile click.
+    cursorType: "pointer",
+
     radius: {
       xs: rem(radius.xs),
       sm: rem(radius.sm),
