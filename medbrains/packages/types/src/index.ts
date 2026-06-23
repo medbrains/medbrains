@@ -31892,6 +31892,21 @@ export interface BlogPost {
   updated_at: string;
 }
 
+/** List row — omits `body_html` (the reader/editor fetches the full post by id). */
+export interface BlogPostListItem {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  cover_image_url: string | null;
+  status: "draft" | "published" | "archived";
+  author_id: string | null;
+  author_name: string | null;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface UpsertBlogInput {
   title: string;
   slug?: string;

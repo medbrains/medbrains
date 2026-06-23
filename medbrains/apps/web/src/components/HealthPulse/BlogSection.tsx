@@ -1,8 +1,8 @@
-import { Group, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Group, Loader, SimpleGrid, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
-import type { BlogPost, UpsertBlogInput } from "@medbrains/types";
+import type { BlogPostListItem, UpsertBlogInput } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
@@ -17,6 +17,7 @@ import {
   RichTextEditor,
   Select,
 } from "@/components/ui";
+import { confirmDestructive } from "@/lib/confirm";
 import styles from "./blog-section.module.scss";
 
 const AUTHOR_PERM = "admin.settings.branding.manage";
@@ -40,7 +41,7 @@ const EMPTY_FORM: UpsertBlogInput = {
 export function BlogSection() {
   const canAuthor = useHasPermission(AUTHOR_PERM);
   const queryClient = useQueryClient();
-  const [reading, setReading] = useState<BlogPost | null>(null);
+  const [readingId, setReadingId] = useState<string | null>(null);
   const [editorOpen, editor] = useDisclosure(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<UpsertBlogInput>(EMPTY_FORM);
@@ -49,6 +50,13 @@ export function BlogSection() {
     queryKey: ["blog", canAuthor],
     queryFn: () => api.listBlog({ include_drafts: canAuthor }),
     staleTime: 120_000,
+  });
+
+  // The list omits `body_html` (multi-KB) — fetch the full post on open.
+  const { data: reading, isLoading: readingLoading } = useQuery({
+    queryKey: ["blog", "article", readingId],
+    queryFn: () => api.getBlogPost(readingId as string),
+    enabled: Boolean(readingId),
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["blog"] });
@@ -70,17 +78,29 @@ export function BlogSection() {
     setForm(EMPTY_FORM);
     editor.open();
   };
-  const openEdit = (post: BlogPost) => {
+  const openEdit = async (post: BlogPostListItem) => {
     setEditId(post.id);
+    // `body_html` isn't in the list row — fetch the full post for the editor.
+    const full = await queryClient.fetchQuery({
+      queryKey: ["blog", "article", post.id],
+      queryFn: () => api.getBlogPost(post.id),
+    });
     setForm({
-      title: post.title,
-      excerpt: post.excerpt ?? "",
-      body_html: post.body_html,
-      cover_image_url: post.cover_image_url ?? "",
-      status: post.status,
+      title: full.title,
+      excerpt: full.excerpt ?? "",
+      body_html: full.body_html,
+      cover_image_url: full.cover_image_url ?? "",
+      status: full.status,
     });
     editor.open();
   };
+
+  const confirmRemove = (post: BlogPostListItem) =>
+    confirmDestructive({
+      title: "Delete post",
+      message: `Permanently delete "${post.title}"? This cannot be undone.`,
+      onConfirm: () => remove.mutate(post.id),
+    });
 
   return (
     <Stack gap="md">
@@ -99,7 +119,12 @@ export function BlogSection() {
       ) : (
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
           {posts.map((post) => (
-            <Card key={post.id} withBorder className={styles.card} onClick={() => setReading(post)}>
+            <Card
+              key={post.id}
+              withBorder
+              className={styles.card}
+              onClick={() => setReadingId(post.id)}
+            >
               {post.cover_image_url && (
                 <Image className={styles.cover} src={post.cover_image_url} alt="" />
               )}
@@ -121,14 +146,14 @@ export function BlogSection() {
                     <IconButton
                       tone="default"
                       aria-label="Edit post"
-                      onClick={() => openEdit(post)}
+                      onClick={() => void openEdit(post)}
                     >
                       <Pencil size={14} />
                     </IconButton>
                     <IconButton
                       tone="danger"
                       aria-label="Delete post"
-                      onClick={() => remove.mutate(post.id)}
+                      onClick={() => confirmRemove(post)}
                     >
                       <Trash2 size={14} />
                     </IconButton>
@@ -142,12 +167,13 @@ export function BlogSection() {
 
       {/* Reader */}
       <Drawer
-        opened={Boolean(reading)}
-        onClose={() => setReading(null)}
+        opened={Boolean(readingId)}
+        onClose={() => setReadingId(null)}
         position="right"
         size="lg"
         title="Article"
       >
+        {readingLoading && <Loader />}
         {reading && (
           <Stack gap="sm">
             <Text className={styles.readerTitle}>{reading.title}</Text>

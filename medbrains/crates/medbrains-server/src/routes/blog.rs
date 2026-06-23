@@ -37,6 +37,26 @@ pub struct BlogPost {
 const SELECT_COLS: &str = "id, title, slug, excerpt, body_html, cover_image_url, status, \
                            author_id, author_name, published_at, created_at, updated_at";
 
+/// List row — omits `body_html` (the reader/editor fetches the full post by id).
+/// The body is multi-KB HTML; shipping it for every card bloated the feed (#167).
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct BlogPostListItem {
+    pub id: Uuid,
+    pub title: String,
+    pub slug: String,
+    pub excerpt: Option<String>,
+    pub cover_image_url: Option<String>,
+    pub status: String,
+    pub author_id: Option<Uuid>,
+    pub author_name: Option<String>,
+    pub published_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+const LIST_COLS: &str = "id, title, slug, excerpt, cover_image_url, status, author_id, \
+                         author_name, published_at, created_at, updated_at";
+
 #[derive(Debug, Deserialize)]
 pub struct ListBlogQuery {
     /// Authors can include drafts/archived; readers only see published.
@@ -112,7 +132,7 @@ pub async fn list_blog(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListBlogQuery>,
-) -> Result<Json<Vec<BlogPost>>, AppError> {
+) -> Result<Json<Vec<BlogPostListItem>>, AppError> {
     require_permission(&claims, READ_PERM)?;
     let include_drafts = params.include_drafts.unwrap_or(false);
     if include_drafts {
@@ -121,8 +141,8 @@ pub async fn list_blog(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let rows = sqlx::query_as::<_, BlogPost>(&format!(
-        "SELECT {SELECT_COLS} FROM blog_posts \
+    let rows = sqlx::query_as::<_, BlogPostListItem>(&format!(
+        "SELECT {LIST_COLS} FROM blog_posts \
          WHERE ($1 OR status = 'published') \
          ORDER BY COALESCE(published_at, created_at) DESC LIMIT 200"
     ))
