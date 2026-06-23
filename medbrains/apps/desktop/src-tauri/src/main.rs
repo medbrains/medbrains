@@ -85,6 +85,9 @@ fn main() -> tauri::Result<()> {
             commands::system::open_settings_dir,
             commands::printer::list_printers,
             commands::printer::print_pdf,
+            commands::keyring::keyring_set,
+            commands::keyring::keyring_get,
+            commands::keyring::keyring_delete,
         ])
         .setup(|app| {
             // Main window opens to the SPA's login route. Production

@@ -33,6 +33,16 @@ tauri-plugin-os = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-single-instance = "2"
 
+# OS-native secure credential storage — macOS Keychain, Windows Credential
+# Manager, Linux Secret Service (libsecret/D-Bus). Holds the session/SSO token
+# off webview storage.
+keyring = { version = "3", features = [
+    "apple-native",
+    "windows-native",
+    "sync-secret-service",
+    "crypto-rust",
+] }
+
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
