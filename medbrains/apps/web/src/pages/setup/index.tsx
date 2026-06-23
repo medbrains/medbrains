@@ -101,7 +101,7 @@ const SEGMENTS: Segment[] = [
     icon: IconCpu,
     description: "Recommended deployment + infra cost; enabled modules.",
     items: [
-      { label: "Deployment & cost estimate", to: "/admin/settings", soon: true },
+      { label: "Deployment & cost estimate", to: "/setup/deployment" },
       { label: "Modules", to: "/admin/settings" },
     ],
   },

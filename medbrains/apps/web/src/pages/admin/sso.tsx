@@ -1,4 +1,4 @@
-import { Group, Stack, Table, Text } from "@mantine/core";
+import { Group, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
@@ -9,7 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, Button, Drawer, IconButton, Input, Select, Switch } from "@/components/ui";
+import { Badge, Button, Drawer, IconButton, Input, Select, Switch, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { confirmDestructive } from "@/lib/confirm";
 
