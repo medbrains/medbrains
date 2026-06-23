@@ -241,6 +241,14 @@ pub const SCREENS: &[ScreenDef] = &[
         icon: "IconUsersGroup",
     },
     ScreenDef {
+        code: "admin-sso",
+        label: "Single Sign-On",
+        route: "/admin/sso",
+        module: "admin",
+        required_permission: Some("admin.settings.general.manage"),
+        icon: "IconLockSquareRounded",
+    },
+    ScreenDef {
         code: "admin-integration",
         label: "Integration Hub",
         route: "/admin/integration-hub",

@@ -33,6 +33,7 @@ import {
   IconLayoutDashboard,
   IconLayoutGrid,
   IconListDetails,
+  IconLockSquareRounded,
   IconMessage,
   IconMicroscope,
   IconNews,
@@ -148,6 +149,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: num
   IconBabyCarriage,
   IconScale,
   IconListDetails,
+  IconLockSquareRounded,
   IconShieldHalfFilled,
   IconReportMedical,
   IconVirus,
@@ -1021,6 +1023,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             path: "/admin/groups",
             icon: "IconUsersGroup",
             requiredPermission: "admin.users.list",
+          },
+          {
+            i18nKey: "sso",
+            path: "/admin/sso",
+            icon: "IconLockSquareRounded",
+            requiredPermission: "admin.settings.general.manage",
           },
           {
             i18nKey: "accessRequests",
