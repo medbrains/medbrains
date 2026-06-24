@@ -506,6 +506,11 @@ pub fn build_router(state: AppState) -> Router {
             "/api/admin/email-settings",
             get(infra_settings::get_email_settings).put(infra_settings::update_email_settings),
         )
+        .route("/api/admin/email-log", get(infra_settings::get_email_log))
+        .route(
+            "/api/admin/email-test",
+            post(infra_settings::send_email_test),
+        )
         .route(
             "/api/admin/domain-status",
             get(infra_settings::get_domain_status),

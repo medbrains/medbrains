@@ -30319,6 +30319,17 @@ export interface DomainStatus {
   all_ok: boolean;
 }
 
+export interface EmailLogEntry {
+  id: string;
+  event_type: string;
+  recipient: string | null;
+  status: string;
+  attempts: number;
+  sent_at: string | null;
+  last_error: string | null;
+  created_at: string;
+}
+
 export interface Invitation {
   id: string;
   email: string;

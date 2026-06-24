@@ -6,7 +6,7 @@ import { IconCheck, IconClock, IconMail, IconWorld } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components";
-import { Alert, Badge, Button, Input, Select, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, Input, Select, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 
 const PROVIDERS = [
@@ -92,6 +92,24 @@ export function DomainsEmailPage() {
 
   const isSmtp = value.provider === "smtp" || value.provider === "stalwart";
   const domain = tenant?.custom_domain ?? "";
+
+  const [testTo, setTestTo] = useState("");
+  const { data: log = [] } = useQuery({
+    queryKey: ["email-log"],
+    queryFn: () => api.getEmailLog(),
+  });
+  const test = useMutation({
+    mutationFn: () => api.sendEmailTest(testTo),
+    onSuccess: () => {
+      notifications.show({ title: "Test queued", message: `Sent to ${testTo}.`, color: "success" });
+      setTestTo("");
+      void queryClient.invalidateQueries({ queryKey: ["email-log"] });
+    },
+    onError: (err: Error) =>
+      notifications.show({ title: "Could not send", message: err.message, color: "danger" }),
+  });
+  const statusTone = (s: string): BadgeTone =>
+    s === "sent" ? "success" : s === "failed" || s === "dlq" ? "danger" : "info";
 
   return (
     <Stack>
@@ -281,6 +299,71 @@ export function DomainsEmailPage() {
             </Button>
           </Group>
         </Stack>
+      </Card>
+
+      <Card withBorder padding="lg">
+        <Text fw={600} mb="xs">
+          Mail activity
+        </Text>
+        <Group align="flex-end" gap="md" mb="md" maw={520}>
+          <Input
+            label="Send a test email"
+            placeholder="you@hospital.example"
+            value={testTo}
+            onChange={(e) => setTestTo(e.currentTarget.value)}
+            style={{ flex: 1 }}
+          />
+          <Button
+            tone="secondary"
+            onClick={() => test.mutate()}
+            loading={test.isPending}
+            disabled={!testTo.includes("@")}
+          >
+            Send test
+          </Button>
+        </Group>
+        <Table>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Recipient</Table.Th>
+              <Table.Th>Type</Table.Th>
+              <Table.Th>Status</Table.Th>
+              <Table.Th>When</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {log.length > 0 ? (
+              log.map((entry) => (
+                <Table.Tr key={entry.id}>
+                  <Table.Td>{entry.recipient ?? "—"}</Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c="dimmed">
+                      {entry.event_type.replace("email.", "")}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Badge tone={statusTone(entry.status)} size="sm">
+                      {entry.status}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c="dimmed">
+                      {new Date(entry.created_at).toLocaleString()}
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              ))
+            ) : (
+              <Table.Tr>
+                <Table.Td colSpan={4}>
+                  <Text c="dimmed" ta="center" py="md">
+                    No email sent yet.
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
+            )}
+          </Table.Tbody>
+        </Table>
       </Card>
     </Stack>
   );

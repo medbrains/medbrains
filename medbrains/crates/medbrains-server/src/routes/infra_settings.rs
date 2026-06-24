@@ -10,6 +10,7 @@ use axum::{Extension, Json, extract::State};
 use medbrains_core::deploy_mode::DeployMode;
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
@@ -395,4 +396,78 @@ fn spf_detail(txts: &[String]) -> String {
         .find(|t| t.to_lowercase().starts_with("v=spf1"))
         .cloned()
         .unwrap_or_else(|| "no SPF record".to_owned())
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct EmailLogEntry {
+    pub id: Uuid,
+    pub event_type: String,
+    pub recipient: Option<String>,
+    pub status: String,
+    pub attempts: i32,
+    pub sent_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub last_error: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// GET /api/admin/email-log — recent transactional email sends + status.
+pub async fn get_email_log(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<EmailLogEntry>>, AppError> {
+    require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, EmailLogEntry>(
+        "SELECT id, event_type, payload->>'to' AS recipient, status, attempts, \
+         sent_at, last_error, created_at \
+         FROM outbox_events \
+         WHERE event_type LIKE 'email.%' \
+         ORDER BY created_at DESC LIMIT 50",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EmailTestRequest {
+    pub to: String,
+}
+
+/// POST /api/admin/email-test — queue a test email via the configured provider.
+pub async fn send_email_test(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<EmailTestRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+    let to = body.to.trim();
+    if !to.contains('@') || to.len() < 3 {
+        return Err(AppError::BadRequest("Enter a valid email address".to_owned()));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    medbrains_outbox::queue::queue_in_tx(
+        &mut tx,
+        medbrains_outbox::queue::OutboxRow {
+            tenant_id: claims.tenant_id,
+            aggregate_type: "tenant",
+            aggregate_id: Some(claims.tenant_id),
+            event_type: "email.test",
+            payload: serde_json::json!({
+                "to": to,
+                "subject": "MedBrains test email",
+                "html": "<p>This is a test email from MedBrains. Your mail server is configured correctly.</p>",
+                "text": "This is a test email from MedBrains. Your mail server is configured correctly.",
+            }),
+            idempotency_key: None,
+        },
+    )
+    .await
+    .map_err(|e| AppError::Internal(format!("queue test email: {e}")))?;
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({ "status": "queued" })))
 }

@@ -854,6 +854,7 @@ import type {
   EmployeeIdCardPrintData,
   EmployerViewResponse,
   DomainStatus,
+  EmailLogEntry,
   EmailSettings,
   Invitation,
   Encounter,
@@ -13037,6 +13038,12 @@ export const api = {
     }),
   getEmailSettings: () => request<EmailSettings>("/admin/email-settings"),
   getDomainStatus: () => request<DomainStatus>("/admin/domain-status"),
+  getEmailLog: () => request<EmailLogEntry[]>("/admin/email-log"),
+  sendEmailTest: (to: string) =>
+    request<{ status: string }>("/admin/email-test", {
+      method: "POST",
+      body: JSON.stringify({ to }),
+    }),
   // Team invites
   listInvitations: () => request<Invitation[]>("/admin/invitations"),
   createInvitation: (data: { email: string; role: string; full_name?: string }) =>
