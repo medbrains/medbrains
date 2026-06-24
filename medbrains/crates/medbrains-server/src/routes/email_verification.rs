@@ -5,12 +5,24 @@
 //! endpoint resolves it globally then sets the tenant RLS context for the
 //! `users` update.
 
-use axum::{Json, extract::State};
+use axum::{Extension, Json, extract::State};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use crate::{error::AppError, state::AppState};
+use crate::{error::AppError, middleware::auth::Claims, state::AppState};
+
+/// Best-effort public origin for verify links, from the forwarded host.
+fn verify_base_from_headers(headers: &axum::http::HeaderMap) -> String {
+    headers
+        .get("x-forwarded-host")
+        .or_else(|| headers.get(axum::http::header::HOST))
+        .and_then(|v| v.to_str().ok())
+        .map_or_else(
+            || "https://localhost".to_owned(),
+            |host| format!("https://{}", host.split(':').next().unwrap_or(host)),
+        )
+}
 
 const VERIFY_TTL_HOURS: i64 = 48;
 
@@ -121,4 +133,29 @@ pub async fn verify_email(
     tx.commit().await?;
 
     Ok(Json(VerifyEmailResponse { verified: true }))
+}
+
+/// POST /api/auth/resend-verification (authenticated) — re-send the verify
+/// email to the signed-in user; no-op if already verified.
+pub async fn resend(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<VerifyEmailResponse>, AppError> {
+    let (email, verified): (String, bool) =
+        sqlx::query_as("SELECT email, email_verified FROM users WHERE id = $1")
+            .bind(claims.sub)
+            .fetch_one(&state.db)
+            .await?;
+    if verified {
+        return Ok(Json(VerifyEmailResponse { verified: true }));
+    }
+
+    let verify_base = verify_base_from_headers(&headers);
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    issue(&mut tx, claims.tenant_id, claims.sub, &email, &verify_base).await?;
+    tx.commit().await?;
+
+    Ok(Json(VerifyEmailResponse { verified: false }))
 }

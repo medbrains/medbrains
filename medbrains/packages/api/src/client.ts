@@ -2363,6 +2363,7 @@ export interface MeResponse {
   full_name: string;
   role: string;
   must_change_password: boolean;
+  email_verified: boolean;
   mfa_enabled: boolean;
   mfa_enrollment_required: boolean;
   permissions: string[];
@@ -2395,6 +2396,8 @@ export const api = {
     return resp;
   },
   me: () => request<MeResponse>("/auth/me"),
+  resendVerification: () =>
+    request<{ verified: boolean }>("/auth/resend-verification", { method: "POST" }),
   reportClientError: (data: ClientErrorReportRequest) =>
     request<ClientErrorReportResponse>("/client-errors/report", {
       method: "POST",

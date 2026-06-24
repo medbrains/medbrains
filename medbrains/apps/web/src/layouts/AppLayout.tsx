@@ -40,6 +40,7 @@ import { NotificationCenter } from "@/components/NotificationCenter";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { PageTransition } from "@/components/PageTransition";
 import { Breadcrumb, ModuleBadge } from "@/components/ui";
+import { VerifyEmailBanner } from "@/components/VerifyEmailBanner";
 import {
   buildPathLabels,
   getModuleBadge,
@@ -587,6 +588,7 @@ export function AppLayout() {
 
       {/* ── Main content ── */}
       <AppShell.Main>
+        <VerifyEmailBanner />
         {breadcrumbItems.length > 0 && (
           <div className={classes.breadcrumbs}>
             <Breadcrumb

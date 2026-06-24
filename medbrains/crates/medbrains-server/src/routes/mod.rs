@@ -266,6 +266,10 @@ pub fn build_router(state: AppState) -> Router {
     let protected = Router::new()
         // Auth
         .route("/api/auth/me", get(auth::me))
+        .route(
+            "/api/auth/resend-verification",
+            post(email_verification::resend),
+        )
         .route("/api/client-errors/report", post(client_errors::report_client_error))
         .route("/api/access/manifest", get(access::get_manifest))
         .route(
