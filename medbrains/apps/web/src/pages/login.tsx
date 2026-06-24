@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Anchor, Checkbox, PasswordInput, Stack, Text, TextInput } from "@mantine/core";
+import { Anchor, Checkbox, Group, PasswordInput, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { api } from "@medbrains/api";
 import { userSchema } from "@medbrains/schemas";
@@ -352,6 +352,22 @@ export function LoginPage() {
             </div>
 
             <div className={classes.version}>MedBrains HMS v0.1.0</div>
+            {tenantBrand && (
+              // Open-source attribution on a white-labelled custom domain.
+              <Group gap={6} justify="center" mt={6}>
+                <Image
+                  src="/logo/medbrains-mark-mono.svg"
+                  alt=""
+                  w={14}
+                  h={14}
+                  fit="contain"
+                  loading="lazy"
+                />
+                <Text size="xs" c="var(--mb-text-muted)">
+                  Powered by MedBrains
+                </Text>
+              </Group>
+            )}
           </div>
         </div>
       </div>
