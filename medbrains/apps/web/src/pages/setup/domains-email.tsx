@@ -92,6 +92,7 @@ export function DomainsEmailPage() {
 
   const isSmtp = value.provider === "smtp" || value.provider === "stalwart";
   const domain = tenant?.custom_domain ?? "";
+  const mailHost = domain ? `mail.${domain}` : "mail.<your-domain>";
 
   const [testTo, setTestTo] = useState("");
   const { data: log = [] } = useQuery({
@@ -299,6 +300,54 @@ export function DomainsEmailPage() {
             </Button>
           </Group>
         </Stack>
+      </Card>
+
+      <Card withBorder padding="lg">
+        <Group gap="xs" mb="xs">
+          <IconMail size={18} />
+          <Text fw={600}>Connect a mail client</Text>
+        </Group>
+        <Text size="sm" c="dimmed" mb="sm">
+          Staff use their own mail app (Outlook, Apple Mail, Thunderbird…). Point it at your mail
+          server with these settings — username is the full email address; the password is the one
+          set in Stalwart.
+        </Text>
+        <Table>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Purpose</Table.Th>
+              <Table.Th>Server</Table.Th>
+              <Table.Th>Port</Table.Th>
+              <Table.Th>Security</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            <Table.Tr>
+              <Table.Td>Incoming (IMAP)</Table.Td>
+              <Table.Td>
+                <Code>{mailHost}</Code>
+              </Table.Td>
+              <Table.Td>993</Table.Td>
+              <Table.Td>SSL/TLS</Table.Td>
+            </Table.Tr>
+            <Table.Tr>
+              <Table.Td>Incoming (JMAP, modern)</Table.Td>
+              <Table.Td>
+                <Code>https://{mailHost}/jmap</Code>
+              </Table.Td>
+              <Table.Td>443</Table.Td>
+              <Table.Td>HTTPS</Table.Td>
+            </Table.Tr>
+            <Table.Tr>
+              <Table.Td>Outgoing (SMTP)</Table.Td>
+              <Table.Td>
+                <Code>{mailHost}</Code>
+              </Table.Td>
+              <Table.Td>587</Table.Td>
+              <Table.Td>STARTTLS</Table.Td>
+            </Table.Tr>
+          </Table.Tbody>
+        </Table>
       </Card>
 
       <Card withBorder padding="lg">
