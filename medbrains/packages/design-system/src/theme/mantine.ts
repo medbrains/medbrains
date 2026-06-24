@@ -420,6 +420,21 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
         },
       },
 
+      // Base input height → Carbon field heights (sm 32 / md 40 / lg 48).
+      // All single-line inputs (TextInput, PasswordInput, NumberInput, Select,
+      // DateInput…) share this base, so their rows align with Button heights.
+      Input: {
+        vars: (_theme: unknown, props: { size?: string }) => {
+          const heights: Record<string, string> = {
+            sm: "32px",
+            md: "40px",
+            lg: "48px",
+          };
+          const height = typeof props.size === "string" ? heights[props.size] : undefined;
+          return { wrapper: height ? { "--input-height": height } : {} };
+        },
+      },
+
       TextInput: {
         defaultProps: {
           radius: "md",
@@ -456,6 +471,19 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
         defaultProps: {
           radius: "md",
           fw: 600,
+        },
+        // Carbon button heights per size (sm 32 / md 40 / lg 48 productive /
+        // xl 64). Compact + unlisted sizes keep Mantine's own height.
+        vars: (_theme: unknown, props: { size?: string }) => {
+          const heights: Record<string, string> = {
+            xs: "24px",
+            sm: "32px",
+            md: "40px",
+            lg: "48px",
+            xl: "64px",
+          };
+          const height = typeof props.size === "string" ? heights[props.size] : undefined;
+          return { root: height ? { "--button-height": height } : {} };
         },
       },
 
