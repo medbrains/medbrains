@@ -1,4 +1,4 @@
-import { Group, Pagination, Stack, Tabs, Text } from "@mantine/core";
+import { Box, Group, Pagination, Stack, Tabs, Text, UnstyledButton } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
@@ -77,8 +77,8 @@ export function HealthPulsePage() {
   });
 
   return (
-    <div className={styles.page}>
-      <div className={styles.stickyHeader}>
+    <Box className={styles.page}>
+      <Box className={styles.stickyHeader}>
         <PageHeader
           title="Health Pulse"
           subtitle="Live medical news, curated by specialty"
@@ -119,7 +119,7 @@ export function HealthPulsePage() {
             />
           </Group>
         )}
-      </div>
+      </Box>
 
       {tab === "blog" && <BlogSection />}
 
@@ -133,62 +133,84 @@ export function HealthPulsePage() {
             No articles found. Try a different search or specialty.
           </Text>
         ) : (
-          <div className={styles.editorial}>
+          <Box className={styles.editorial}>
             {hero && (
-              <button type="button" className={styles.hero} onClick={() => setOpenId(hero.id)}>
-                <span className={styles.heroEyebrow}>
+              <UnstyledButton className={styles.hero} onClick={() => setOpenId(hero.id)}>
+                <Box component="span" className={styles.heroEyebrow}>
                   {hero.source} · {hero.topic}
-                </span>
-                <span className={styles.heroTitle}>{hero.title}</span>
-                {hero.summary && <span className={styles.heroSummary}>{hero.summary}</span>}
-                <span className={styles.meta}>{formatDate(hero.published_at)}</span>
-              </button>
+                </Box>
+                <Box component="span" className={styles.heroTitle}>
+                  {hero.title}
+                </Box>
+                {hero.summary && (
+                  <Box component="span" className={styles.heroSummary}>
+                    {hero.summary}
+                  </Box>
+                )}
+                <Box component="span" className={styles.meta}>
+                  {formatDate(hero.published_at)}
+                </Box>
+              </UnstyledButton>
             )}
 
             {secondary.length > 0 && (
-              <div className={styles.secondary}>
+              <Box className={styles.secondary}>
                 {secondary.map((item) => (
-                  <button
-                    type="button"
+                  <UnstyledButton
                     key={item.id}
                     className={styles.secCard}
                     onClick={() => setOpenId(item.id)}
                   >
-                    <span className={styles.eyebrow}>{item.source}</span>
-                    <span className={styles.secTitle}>{item.title}</span>
-                    <span className={styles.meta}>{formatDate(item.published_at)}</span>
-                  </button>
+                    <Box component="span" className={styles.eyebrow}>
+                      {item.source}
+                    </Box>
+                    <Box component="span" className={styles.secTitle}>
+                      {item.title}
+                    </Box>
+                    <Box component="span" className={styles.meta}>
+                      {formatDate(item.published_at)}
+                    </Box>
+                  </UnstyledButton>
                 ))}
-              </div>
+              </Box>
             )}
 
             {latest.length > 0 && (
-              <div className={styles.latest}>
-                <span className={styles.sectionHead}>Latest</span>
+              <Box className={styles.latest}>
+                <Box component="span" className={styles.sectionHead}>
+                  Latest
+                </Box>
                 {latest.map((item, index) => (
-                  <button
-                    type="button"
+                  <UnstyledButton
                     key={item.id}
                     className={styles.latestRow}
                     onClick={() => setOpenId(item.id)}
                   >
-                    <span className={styles.rank}>{String(index + 6).padStart(2, "0")}</span>
-                    <span className={styles.latestBody}>
-                      <span className={styles.eyebrow}>{item.source}</span>
-                      <span className={styles.latestTitle}>{item.title}</span>
-                    </span>
-                    <span className={styles.meta}>{formatDate(item.published_at)}</span>
-                  </button>
+                    <Box component="span" className={styles.rank}>
+                      {String(index + 6).padStart(2, "0")}
+                    </Box>
+                    <Box component="span" className={styles.latestBody}>
+                      <Box component="span" className={styles.eyebrow}>
+                        {item.source}
+                      </Box>
+                      <Box component="span" className={styles.latestTitle}>
+                        {item.title}
+                      </Box>
+                    </Box>
+                    <Box component="span" className={styles.meta}>
+                      {formatDate(item.published_at)}
+                    </Box>
+                  </UnstyledButton>
                 ))}
-              </div>
+              </Box>
             )}
-          </div>
+          </Box>
         ))}
 
       {tab === "news" && totalPages > 1 && (
-        <div className={styles.pagerBar}>
+        <Box className={styles.pagerBar}>
           <Pagination total={totalPages} value={page} onChange={setPage} size="sm" />
-        </div>
+        </Box>
       )}
 
       <Drawer
@@ -221,6 +243,6 @@ export function HealthPulsePage() {
           </Stack>
         )}
       </Drawer>
-    </div>
+    </Box>
   );
 }
