@@ -8,7 +8,7 @@
        mobile-staff-ios mobile-staff-ios-https mobile-staff-ios-devices mobile-staff-ios-doctor mobile-staff-ios-platform \
        mobile-staff-android mobile-staff-prebuild mobile-staff-typecheck \
        check check-backend check-frontend lint check-api check-sqlx prepare-sqlx guard-sqlx-nonprod \
-       check-ui-api check-types check-ui-seam check-all \
+       check-ui-api check-types check-ui-seam check-raw-html check-all \
        check-rls check-sharing check-authz-posture check-tenant-leak check-runtime-sqlx check-audit check-tracing \
        check-migration-headers \
        check-region-pinning check-no-card-logging check-egress-allowlist check-cert-readiness check-encryption-at-rest check-redaction-masking \
@@ -276,7 +276,10 @@ check-nav-drift: ## Verify navigation.ts in sync with access::SCREENS
 check-ui-seam: ## Verify pages use @/components/ui (not raw Mantine Button/Badge)
 	python3 scripts/check_ui_seam.py
 
-check-all: check-api check-ui-api check-types check-circular check-nav-drift check-ui-seam check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
+check-raw-html: ## Verify no raw <button>/<input>/<select>/<textarea> in shipped JSX
+	python3 scripts/check_raw_html.py
+
+check-all: check-api check-ui-api check-types check-circular check-nav-drift check-ui-seam check-raw-html check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
 
 # ── Audit / Authz Static Checks (RFC-INFRA-2026-002 Phase 0) ─
 

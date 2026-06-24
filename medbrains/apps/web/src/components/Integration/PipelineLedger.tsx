@@ -14,6 +14,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
+import { IconButton } from "@/components/ui";
 import { integrationService } from "@/services/integration.service";
 import s from "./PipelineLedger.module.scss";
 import { Sparkline } from "./Sparkline";
@@ -238,32 +239,48 @@ function LedgerRow({
       <td>
         <div className={s.actionsCell}>
           {canExecute && status === "active" && (
-            <button type="button" className={s.actionBtn} title="Test run" onClick={onTrigger}>
+            <IconButton
+              aria-label="Test run"
+              title="Test run"
+              className={s.actionBtn}
+              onClick={onTrigger}
+            >
               <IconPlayerPlay size={14} />
-            </button>
+            </IconButton>
           )}
-          <button type="button" className={s.actionBtn} title="History" onClick={onHistory}>
+          <IconButton
+            aria-label="History"
+            title="History"
+            className={s.actionBtn}
+            onClick={onHistory}
+          >
             <IconHistory size={14} />
-          </button>
+          </IconButton>
           {canUpdate && (
             <>
-              <button type="button" className={s.actionBtn} title="Edit" onClick={onEdit}>
+              <IconButton aria-label="Edit" title="Edit" className={s.actionBtn} onClick={onEdit}>
                 <IconPencil size={14} />
-              </button>
-              <button type="button" className={s.actionBtn} title="Toggle" onClick={onToggle}>
+              </IconButton>
+              <IconButton
+                aria-label="Toggle"
+                title="Toggle"
+                className={s.actionBtn}
+                onClick={onToggle}
+              >
                 <IconToggleLeft size={14} />
-              </button>
+              </IconButton>
             </>
           )}
           {canDelete && (
-            <button
-              type="button"
-              className={`${s.actionBtn} ${s.danger}`}
+            <IconButton
+              aria-label="Delete"
               title="Delete"
+              tone="danger"
+              className={`${s.actionBtn} ${s.danger}`}
               onClick={onDelete}
             >
               <IconTrash size={14} />
-            </button>
+            </IconButton>
           )}
         </div>
       </td>
