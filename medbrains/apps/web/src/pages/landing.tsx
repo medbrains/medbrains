@@ -530,9 +530,16 @@ export function LandingPage() {
                   </a>
                 </li>
                 <li>
-                  <span className={classes.footerLink} onClick={() => navigate("/onboarding")}>
+                  <a
+                    href="/onboarding"
+                    className={classes.footerLink}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigate("/onboarding");
+                    }}
+                  >
                     Get Started
-                  </span>
+                  </a>
                 </li>
               </ul>
             </div>
