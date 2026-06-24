@@ -1,10 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Anchor, Checkbox, PasswordInput, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { api } from "@medbrains/api";
 import { userSchema } from "@medbrains/schemas";
 import { useAuthStore, usePermissionStore } from "@medbrains/stores";
 import { IconLock, IconUser } from "@tabler/icons-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, Navigate, useNavigate } from "react-router";
@@ -41,6 +42,18 @@ export function LoginPage() {
   const user = useAuthStore((s) => s.user);
   const setAuth = useAuthStore((s) => s.setAuth);
   const setPermissions = usePermissionStore((s) => s.setPermissions);
+
+  // Pre-auth: if this host is a hospital's custom domain, brand the login page
+  // with that hospital. 404 (default domain) → fall back to MedBrains.
+  const { data: tenantBrand } = useQuery({
+    queryKey: ["tenant-by-host"],
+    queryFn: () => api.getTenantByHost(),
+    retry: false,
+    staleTime: 300_000,
+  });
+  const brandName = tenantBrand?.name ?? "MedBrains";
+  const brandLogo = tenantBrand?.logo_url || "/logo/medbrains-mark.svg";
+
   const loginForm = useForm<LoginFormInput>({
     resolver: zodResolver(loginFormSchema),
     defaultValues: DEFAULT_LOGIN_FORM_VALUES,
@@ -178,8 +191,8 @@ export function LoginPage() {
         <div className={classes.container}>
           <Stack align="center" gap="sm" mb="xl">
             <Image
-              src="/logo/medbrains-mark.svg"
-              alt="MedBrains"
+              src={brandLogo}
+              alt={brandName}
               w={48}
               h={48}
               fit="contain"
@@ -191,7 +204,7 @@ export function LoginPage() {
               Sign in
             </Text>
             <Text size="sm" c="var(--mb-text-secondary)">
-              Enter your credentials to access MedBrains
+              Enter your credentials to access {brandName}
             </Text>
           </Stack>
 
