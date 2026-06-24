@@ -1,0 +1,22 @@
+# Self-hosted mail for MedBrains — Stalwart (open-source, Rust SMTP/IMAP/JMAP).
+# MedBrains only sends transactional mail (verification, invites, notifications);
+# it authenticates to this server on submission (587). See RFC-MAIL-STALWART.md.
+#
+#   STALWART_ADMIN_SECRET=<strong-secret> docker compose -f deploy/mail/docker-compose.yml up -d
+#   then: open https://<host> → add domain + noreply account → copy the DKIM record to DNS.
+
+services:
+  stalwart:
+    image: stalwartlabs/mail-server:latest
+    container_name: medbrains-mail
+    restart: unless-stopped
+    ports:
+      - "25:25" # MX (inbound + outbound relay to the internet)
+      - "587:587" # submission STARTTLS — MedBrains connects here
+      - "465:465" # submission implicit TLS
+      - "443:443" # admin web UI + JMAP
+    volumes:
+      - ./stalwart-data:/opt/stalwart-mail
+    environment:
+      # First-boot admin password; rotate in the web UI after setup.
+      - STALWART_ADMIN_SECRET=${STALWART_ADMIN_SECRET:?set STALWART_ADMIN_SECRET}

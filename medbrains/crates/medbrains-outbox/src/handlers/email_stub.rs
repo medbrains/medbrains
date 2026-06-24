@@ -3,7 +3,7 @@
 //! and Indian hosting realities (Zoho, Google Workspace, local relay).
 //!
 //! Credentials resolved per-tenant via `ctx.secret_resolver`:
-//!   - `EMAIL_PROVIDER`         — `sendgrid` (default) | `smtp` | `ses`
+//!   - `EMAIL_PROVIDER`         — `sendgrid` (default) | `smtp` | `stalwart` | `ses` (stalwart = self-hosted SMTP, RFC-MAIL-STALWART.md)
 //!   - `SENDGRID_API_KEY`       — when provider=sendgrid
 //!   - `SMTP_HOST`              — when provider=smtp
 //!   - `SMTP_PORT`              — optional (default 587)
@@ -152,7 +152,10 @@ impl Handler for SmtpSendHandler {
                 )
                 .await
             }
-            "smtp" => {
+            // Stalwart is a standard SMTP server, so it rides the SMTP path —
+            // a first-class name for the recommended self-hosted (open-source,
+            // Rust) mail server. See RFC-MAIL-STALWART.md.
+            "smtp" | "stalwart" => {
                 send_via_smtp(
                     ctx,
                     &from_address,
