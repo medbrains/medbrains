@@ -15,7 +15,7 @@ export function SsoLoginButtons({ returnTo = "/dashboard" }: { returnTo?: string
 
   const { data: providers = [] } = useQuery({
     queryKey: ["sso-active-providers"],
-    queryFn: () => api.listActiveSsoProviders(),
+    queryFn: () => api.listActiveSsoProviders(window.location.hostname),
     staleTime: 300_000,
     retry: false,
   });

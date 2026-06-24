@@ -119,13 +119,27 @@ pub struct PublicProvider {
     pub protocol: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ProvidersQuery {
+    /// Browser hostname; scopes the list to that custom domain's tenant.
+    pub domain: Option<String>,
+}
+
 /// GET /api/auth/sso/providers — active providers (pre-auth, no secrets).
+/// Scoped to the tenant resolved from `?domain=` (the login page's host) when
+/// it matches a custom domain; otherwise the global list.
 pub async fn list_active_providers(
     State(state): State<AppState>,
+    Query(query): Query<ProvidersQuery>,
 ) -> Result<Json<Vec<PublicProvider>>, AppError> {
+    let domain = query
+        .domain
+        .map(|d| d.split(':').next().unwrap_or(&d).trim().to_lowercase())
+        .filter(|d| !d.is_empty());
     let rows = sqlx::query_as::<_, PublicProvider>(
-        "SELECT id, name, protocol FROM sso_active_providers()",
+        "SELECT id, name, protocol FROM sso_active_providers_by_host($1)",
     )
+    .bind(domain)
     .fetch_all(&state.db)
     .await?;
     Ok(Json(rows))

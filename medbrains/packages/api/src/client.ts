@@ -3428,7 +3428,10 @@ export const api = {
   listWidgetTemplates: () => request<WidgetTemplate[]>("/widget-templates"),
   // ── Enterprise SSO (admin config) ──
   // Public — active providers for the login page (no auth).
-  listActiveSsoProviders: () => request<SsoPublicProvider[]>("/auth/sso/providers"),
+  listActiveSsoProviders: (domain?: string) =>
+    request<SsoPublicProvider[]>(
+      domain ? `/auth/sso/providers?domain=${encodeURIComponent(domain)}` : "/auth/sso/providers",
+    ),
   ssoAuthorizeUrl: (providerId: string, returnTo = "/dashboard") =>
     `/api/auth/sso/${providerId}/authorize?return_to=${encodeURIComponent(returnTo)}`,
   listSsoProviders: () => request<SsoProvider[]>("/admin/sso/providers"),
