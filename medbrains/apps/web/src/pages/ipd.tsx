@@ -162,6 +162,7 @@ import {
   useProtectedFieldAccess,
 } from "@/components";
 import { BedSelect } from "@/components/BedSelect";
+import { PatientConsumablesPanel } from "@/components/Clinical";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { DamaModal } from "@/components/Ipd/DamaModal";
@@ -339,6 +340,7 @@ const IPD_WORKSPACE_TABS = [
   { value: "checklist", label: "Checklist", section: "Care Context" },
   { value: "transfer", label: "Transfer", section: "Care Context" },
   { value: "investigations", label: "Investigations", section: "Care Context" },
+  { value: "consumables", label: "Consumables", section: "Care Context" },
   { value: "billing-tab", label: "Billing", section: "Finance & Admin" },
   { value: "insurance-pa", label: "Insurance/PA", section: "Finance & Admin" },
   { value: "mlc-tab", label: "MLC", section: "Finance & Admin" },
@@ -1662,6 +1664,13 @@ function AdmissionDetail({
                 canOrder={orderLabAction.enabled || orderImagingAction.enabled}
                 onOrderLab={() => openOrderBasket("lab")}
                 onOrderRadiology={() => openOrderBasket("radiology")}
+              />
+            </Tabs.Panel>
+            <Tabs.Panel value="consumables" pt="md">
+              <PatientConsumablesPanel
+                patientId={adm.patient_id}
+                encounterId={adm.encounter_id}
+                admissionId={adm.id}
               />
             </Tabs.Panel>
             <Tabs.Panel value="billing-tab" pt="md">

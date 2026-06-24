@@ -9,14 +9,15 @@ import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { Alert, Badge, Button, Card, NumberField, Select, Table, toast } from "@/components/ui";
 
-// ── ER Consumables ──────────────────────────────────────
+// ── Patient consumables ─────────────────────────────────
 //
-// Records real store-catalog consumables (gloves, cannulas, IV
-// sets, dressings…) consumed during an ER visit. Reuses the
-// existing indent `issue_to_patient` primitive: each entry
-// decrements stock AND posts a chargeable line onto the patient's
-// bill — it is NOT an abstract billing code. Scoped to the visit
-// via `encounter_id`. Pharmacy drugs use the separate dispensing flow.
+// Records real store-catalog consumables (gloves, cannulas, IV sets,
+// dressings…) consumed during an encounter/admission. Reuses the indent
+// `issue_to_patient` primitive: each entry decrements stock AND posts a
+// chargeable line onto the patient's bill (one line per item, linked
+// back via invoice_item_id). Scoped to the encounter so the same panel
+// serves ER visits and IPD admissions. Pharmacy drugs use the separate
+// dispensing flow.
 
 const consumableSchema = z.object({
   catalog_item_id: z.string().min(1, "Pick a consumable"),
@@ -24,16 +25,23 @@ const consumableSchema = z.object({
 });
 type ConsumableFormValues = z.infer<typeof consumableSchema>;
 
-interface ErConsumablesPanelProps {
-  visitId: string;
+interface PatientConsumablesPanelProps {
   patientId: string;
+  /** Scopes the issue + the visit's recorded-consumables list. */
+  encounterId: string;
+  /** Set for IPD so the issue is tied to the admission too. */
+  admissionId?: string;
 }
 
 function money(value: string | number): string {
   return `₹${Number(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function ErConsumablesPanel({ visitId, patientId }: ErConsumablesPanelProps) {
+export function PatientConsumablesPanel({
+  patientId,
+  encounterId,
+  admissionId,
+}: PatientConsumablesPanelProps) {
   const canList = useHasPermission(P.INDENT.CONSUMABLES_LIST);
   const canManage = useHasPermission(P.INDENT.CONSUMABLES_MANAGE);
   const queryClient = useQueryClient();
@@ -45,8 +53,8 @@ export function ErConsumablesPanel({ visitId, patientId }: ErConsumablesPanelPro
   });
 
   const { data: issues = [], isLoading } = useQuery({
-    queryKey: ["er-consumables", visitId],
-    queryFn: () => api.listPatientConsumables({ encounter_id: visitId }),
+    queryKey: ["patient-consumables", encounterId],
+    queryFn: () => api.listPatientConsumables({ encounter_id: encounterId }),
     enabled: canList,
   });
 
@@ -74,7 +82,8 @@ export function ErConsumablesPanel({ visitId, patientId }: ErConsumablesPanelPro
       return api.issueToPatient({
         patient_id: patientId,
         catalog_item_id: values.catalog_item_id,
-        encounter_id: visitId,
+        encounter_id: encounterId,
+        admission_id: admissionId,
         quantity: values.quantity,
         unit_price: item ? Number(item.base_price) : undefined,
         is_chargeable: true,
@@ -85,7 +94,7 @@ export function ErConsumablesPanel({ visitId, patientId }: ErConsumablesPanelPro
         title: "Consumable added",
       });
       reset({ catalog_item_id: "", quantity: 1 });
-      void queryClient.invalidateQueries({ queryKey: ["er-consumables", visitId] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-consumables", encounterId] });
       void queryClient.invalidateQueries({ queryKey: ["store-catalog"] });
     },
     onError: (error: Error) => toast.error(error.message, { title: "Could not record consumable" }),
@@ -102,7 +111,7 @@ export function ErConsumablesPanel({ visitId, patientId }: ErConsumablesPanelPro
   const submit = handleSubmit((values) => issueMutation.mutate(values));
 
   return (
-    <Box id="er-consumables">
+    <Box id="patient-consumables">
       <Card withBorder>
         <Stack>
           <Group gap="xs">
@@ -161,8 +170,8 @@ export function ErConsumablesPanel({ visitId, patientId }: ErConsumablesPanelPro
             </Text>
           ) : issues.length === 0 ? (
             <Alert tone="info">
-              No consumables recorded for this visit yet. Items added here decrement stock and post
-              a charge to the patient's bill.
+              No consumables recorded yet. Items added here decrement stock and post a charge to the
+              patient's bill.
             </Alert>
           ) : (
             <Table>

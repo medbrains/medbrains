@@ -1,4 +1,5 @@
 export { DiagnosisPanel } from "./DiagnosisPanel";
+export { PatientConsumablesPanel } from "./PatientConsumablesPanel";
 export { PhysicalExamPanel } from "./PhysicalExamPanel";
 export { PrescriptionPrint } from "./PrescriptionPrint";
 export { PrescriptionViews } from "./PrescriptionViews";
