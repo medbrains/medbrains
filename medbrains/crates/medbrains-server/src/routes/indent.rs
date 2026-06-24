@@ -23,6 +23,7 @@ use crate::{
     error::AppError,
     middleware::auth::Claims,
     middleware::authorization::{require_any_permission, require_permission},
+    routes::billing::{AutoChargeInput, auto_charge},
     state::AppState,
 };
 
@@ -1818,7 +1819,7 @@ pub async fn issue_to_patient(
     let unit_price = body.unit_price.unwrap_or(Decimal::ZERO);
     let chargeable = body.is_chargeable.unwrap_or(true);
 
-    let issue = sqlx::query_as::<_, PatientConsumableIssue>(
+    let mut issue = sqlx::query_as::<_, PatientConsumableIssue>(
         "INSERT INTO patient_consumable_issues \
          (tenant_id, patient_id, catalog_item_id, batch_stock_id, department_id, \
           encounter_id, admission_id, quantity, unit_price, is_chargeable, \
@@ -1840,16 +1841,17 @@ pub async fn issue_to_patient(
     .fetch_one(&mut *tx)
     .await?;
 
-    // Decrement stock + update last_issue_date
-    sqlx::query(
+    // Decrement stock + update last_issue_date, returning the item's
+    // billing identity so the charge line is human-readable on the bill.
+    let (item_code, item_name) = sqlx::query_as::<_, (String, String)>(
         "UPDATE store_catalog SET current_stock = current_stock - $1, \
          last_issue_date = now(), updated_at = now() \
-         WHERE id = $2 AND tenant_id = $3",
+         WHERE id = $2 AND tenant_id = $3 RETURNING code, name",
     )
     .bind(body.quantity)
     .bind(body.catalog_item_id)
     .bind(claims.tenant_id)
-    .execute(&mut *tx)
+    .fetch_one(&mut *tx)
     .await?;
 
     // Create stock movement
@@ -1869,6 +1871,40 @@ pub async fn issue_to_patient(
     .bind(claims.sub)
     .execute(&mut *tx)
     .await?;
+
+    // Post the charge onto the patient's running bill (draft invoice for
+    // the encounter, else a patient-only draft). Idempotent on the issue
+    // id. Link the resulting line back so returns can reverse it and the
+    // discharge bill can reconcile what was billed vs issued.
+    if chargeable {
+        let charge = auto_charge(
+            &mut tx,
+            &claims.tenant_id,
+            AutoChargeInput {
+                patient_id: body.patient_id,
+                encounter_id: body.encounter_id,
+                charge_code: item_code,
+                source: "consumable".into(),
+                source_id: issue.id,
+                quantity: body.quantity,
+                description_override: Some(item_name),
+                unit_price_override: Some(unit_price),
+                tax_percent_override: None,
+            },
+        )
+        .await?;
+
+        sqlx::query(
+            "UPDATE patient_consumable_issues SET invoice_item_id = $1, updated_at = now() \
+             WHERE id = $2 AND tenant_id = $3",
+        )
+        .bind(charge.item_id)
+        .bind(issue.id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+        issue.invoice_item_id = Some(charge.item_id);
+    }
 
     tx.commit().await?;
     Ok(Json(issue))
@@ -1973,19 +2009,49 @@ pub async fn return_to_store(
     .execute(&mut *tx)
     .await?;
 
-    // Update patient consumable returned_qty if applicable
+    // Update patient consumable returned_qty if applicable, and reverse the
+    // billed amount so the patient isn't charged for returned items. A
+    // finalized invoice can't be edited, so the reversal is a separate
+    // auditable credit (negative) line keyed on this return movement.
     if let Some(pc_id) = body.patient_consumable_id {
-        sqlx::query(
+        let issue = sqlx::query_as::<_, PatientConsumableIssue>(
             "UPDATE patient_consumable_issues SET returned_qty = returned_qty + $1, \
              status = CASE WHEN returned_qty + $1 >= quantity THEN 'returned'::consumable_issue_status ELSE status END, \
              updated_at = now() \
-             WHERE id = $2 AND tenant_id = $3",
+             WHERE id = $2 AND tenant_id = $3 RETURNING *",
         )
         .bind(body.quantity)
         .bind(pc_id)
         .bind(claims.tenant_id)
-        .execute(&mut *tx)
+        .fetch_one(&mut *tx)
         .await?;
+
+        if issue.is_chargeable && issue.invoice_item_id.is_some() {
+            let item_name = sqlx::query_scalar::<_, String>(
+                "SELECT name FROM store_catalog WHERE id = $1 AND tenant_id = $2",
+            )
+            .bind(issue.catalog_item_id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
+
+            auto_charge(
+                &mut tx,
+                &claims.tenant_id,
+                AutoChargeInput {
+                    patient_id: issue.patient_id,
+                    encounter_id: issue.encounter_id,
+                    charge_code: "CONSUMABLE_RETURN".into(),
+                    source: "consumable".into(),
+                    source_id: movement.id,
+                    quantity: -body.quantity,
+                    description_override: Some(format!("Return: {item_name}")),
+                    unit_price_override: Some(issue.unit_price),
+                    tax_percent_override: None,
+                },
+            )
+            .await?;
+        }
     }
 
     tx.commit().await?;
