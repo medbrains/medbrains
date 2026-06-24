@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { PageHeader } from "@/components";
 import { DashboardWidgetCard } from "@/components/dashboard/DashboardWidgetCard";
+import { GettingStartedWidget } from "@/components/GettingStartedWidget";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import styles from "./dashboard.module.scss";
 
@@ -69,6 +70,7 @@ export function DashboardPage() {
         title={dashboard.dashboard.name}
         subtitle={dashboard.dashboard.description ?? undefined}
       />
+      <GettingStartedWidget />
       {dashboard.widgets.length === 0 ? (
         <Text c="dimmed" size="sm" ta="center" py="xl">
           This dashboard has no widgets yet.
