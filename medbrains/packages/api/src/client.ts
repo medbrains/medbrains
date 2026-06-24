@@ -2626,6 +2626,12 @@ export const api = {
   // Pass the browser's hostname so it works without proxy X-Forwarded-Host.
   getTenantByHost: (domain: string) =>
     request<PublicTenant>(`/public/tenant-by-host?domain=${encodeURIComponent(domain)}`),
+  // Pre-auth: confirm an email-verification token from the emailed link.
+  verifyEmail: (token: string) =>
+    request<{ verified: boolean }>("/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    }),
   updateTenantGeo: (data: { country_id?: string; state_id?: string; district_id?: string }) =>
     request<{ status: string; defaults_applied?: boolean }>("/setup/tenant/geo", {
       method: "PUT",

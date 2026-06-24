@@ -46,6 +46,7 @@ pub mod doctor_profile;
 pub mod document_ingestion;
 pub mod documents;
 pub mod documents_render;
+pub mod email_verification;
 pub mod emergency;
 pub mod facilities;
 pub mod fhir;
@@ -241,6 +242,10 @@ pub fn build_router(state: AppState) -> Router {
         )
         // CMS Public API (no auth required)
         .route("/api/public/tenant-by-host", get(setup::tenant_by_host))
+        .route(
+            "/api/auth/verify-email",
+            post(email_verification::verify_email),
+        )
         .route("/api/public/cms/posts", get(cms::public_list_posts))
         .route("/api/public/cms/posts/featured", get(cms::public_featured_posts))
         .route("/api/public/cms/posts/{slug}", get(cms::public_get_post))

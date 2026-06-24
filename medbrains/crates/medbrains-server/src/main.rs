@@ -569,6 +569,7 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
         "email.refund_notification",
     ));
     registry.register(email_stub::SmtpSendHandler::new("email.dunning_notice"));
+    registry.register(email_stub::SmtpSendHandler::new("email.verify_email"));
 
     // WhatsApp — Meta Cloud API (falls back to stub if creds unset).
     registry.register(whatsapp::WhatsAppSendHandler::new(

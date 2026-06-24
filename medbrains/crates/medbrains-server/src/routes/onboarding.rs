@@ -106,6 +106,7 @@ pub struct InitResponse {
 #[allow(clippy::too_many_lines)]
 pub async fn init(
     State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
     Json(body): Json<InitRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     // ── Field validation ────────────────────────────────
@@ -226,6 +227,19 @@ pub async fn init(
     .bind(&body.admin_full_name)
     .execute(&mut *tx)
     .await?;
+
+    // Issue a verification email (advisory — does not block login). The link
+    // points at the public app origin from the request host.
+    let verify_base = headers
+        .get("x-forwarded-host")
+        .or_else(|| headers.get(axum::http::header::HOST))
+        .and_then(|v| v.to_str().ok())
+        .map_or_else(
+            || "https://localhost".to_owned(),
+            |host| format!("https://{}", host.split(':').next().unwrap_or(host)),
+        );
+    super::email_verification::issue(&mut tx, tenant_id, user_id, &body.admin_email, &verify_base)
+        .await?;
 
     // Create onboarding progress record
     sqlx::query(
