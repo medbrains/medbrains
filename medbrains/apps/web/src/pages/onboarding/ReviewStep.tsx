@@ -275,6 +275,11 @@ export function ReviewStep({ onBack }: Props) {
 
       {setupMutation.isError && <Alert tone="danger">{setupMutation.error.message}</Alert>}
 
+      <Alert tone="info">
+        Launch with what you have now — anything you skipped (branding, beds, tax, more users) can
+        be finished anytime from <b>Setup Center</b> after you go live.
+      </Alert>
+
       <div className={classes.navButtons}>
         <Button tone="secondary" onClick={onBack}>
           Back

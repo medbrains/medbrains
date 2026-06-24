@@ -1,6 +1,6 @@
 import { Container, Group, Loader, Stepper, Text, ThemeIcon, Title } from "@mantine/core";
 import type { OnboardingInitInput } from "@medbrains/schemas";
-import { useAuthStore } from "@medbrains/stores";
+import { useAuthStore, useOnboardingStore } from "@medbrains/stores";
 import { IconArrowLeft, IconBuildingHospital } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
@@ -32,22 +32,36 @@ const steps = [
   { label: "Geography", description: "Location & regulators" },
   { label: "Facilities", description: "Institutional hierarchy" },
   { label: "Locations", description: "Campus to bed tree" },
-  { label: "Departments", description: "Departments & working hours" },
+  { label: "Departments", description: "Departments & working hours", essential: true },
   { label: "Users & Roles", description: "Staff & doctor profiles" },
   { label: "Modules", description: "Enable/disable features" },
-  { label: "Sequences", description: "UHID, invoice & more" },
-  { label: "Services", description: "Service categories" },
+  { label: "Sequences", description: "UHID, invoice & more", essential: true },
+  { label: "Services", description: "Service categories", essential: true },
   { label: "Bed Config", description: "Bed types & rates" },
   { label: "Billing & Tax", description: "Tax slabs & payment modes" },
   { label: "Branding", description: "Colors & logo" },
   { label: "Review", description: "Verify & launch" },
 ];
 
+const REVIEW_STEP = steps.length - 1;
+
 export function OnboardingPage() {
   const [active, setActive] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
+
+  // Staged go-live: the essentials (departments, services, sequences) are all a
+  // tenant needs to operate; the rest can be finished later in the Setup Center.
+  const departments = useOnboardingStore((s) => s.departments);
+  const services = useOnboardingStore((s) => s.services);
+  const sequences = useOnboardingStore((s) => s.sequences);
+  const essentialsReady = departments.length > 0 && services.length > 0 && sequences !== null;
+
+  const goLive = useCallback(() => {
+    setCompletedSteps(steps.map((_, index) => index));
+    setActive(REVIEW_STEP);
+  }, []);
 
   // Persist AdminStep form values across step navigation
   const adminDraftRef = useRef<Partial<OnboardingInitInput>>({});
@@ -134,6 +148,11 @@ export function OnboardingPage() {
           <Title order={4}>MedBrains Setup</Title>
         </Group>
         <Group gap="sm">
+          {user && essentialsReady && active !== REVIEW_STEP && (
+            <Button tone="primary" size="xs" onClick={goLive}>
+              Go live now
+            </Button>
+          )}
           <Badge tone="neutral" size="lg">
             Step {active + 1} of {steps.length}
           </Badge>
@@ -164,7 +183,12 @@ export function OnboardingPage() {
             }}
           >
             {steps.map((step) => (
-              <Stepper.Step key={step.label} label={step.label} description={step.description} />
+              <Stepper.Step
+                key={step.label}
+                label={step.label}
+                description={step.essential ? `${step.description} · essential` : step.description}
+                color={step.essential ? "teal" : undefined}
+              />
             ))}
           </Stepper>
 
