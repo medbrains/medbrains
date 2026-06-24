@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  Box,
   CopyButton,
   Group,
   Loader,
@@ -54,6 +55,7 @@ import { Alert, Badge, type BadgeTone, Button, IconButton } from "@/components/u
 import { useCreateInline } from "@/hooks/useCreateInline";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminAccessService, type CreateSetupUserInput } from "@/services/adminAccess.service";
+import { InviteUsersPanel } from "./InviteUsersPanel";
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -926,6 +928,10 @@ export function UsersPage() {
         }
       />
       <OfflineWriteBanner resource="user role / permission override" />
+
+      <Box mb="md">
+        <InviteUsersPanel />
+      </Box>
 
       <DataTable<SetupUser>
         columns={columns}

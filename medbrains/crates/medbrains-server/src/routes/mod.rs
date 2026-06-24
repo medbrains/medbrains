@@ -60,6 +60,7 @@ pub mod icu;
 pub mod indent;
 pub mod infection_control;
 pub mod infra_settings;
+pub mod invitations;
 pub mod insurance;
 pub mod integration;
 pub mod ipd;
@@ -245,6 +246,14 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/auth/verify-email",
             post(email_verification::verify_email),
+        )
+        .route(
+            "/api/public/invitations/{token}",
+            get(invitations::get_public),
+        )
+        .route(
+            "/api/public/invitations/{token}/accept",
+            post(invitations::accept),
         )
         .route("/api/public/cms/posts", get(cms::public_list_posts))
         .route("/api/public/cms/posts/featured", get(cms::public_featured_posts))
@@ -501,6 +510,11 @@ pub fn build_router(state: AppState) -> Router {
             "/api/admin/domain-status",
             get(infra_settings::get_domain_status),
         )
+        .route(
+            "/api/admin/invitations",
+            get(invitations::list).post(invitations::create),
+        )
+        .route("/api/admin/invitations/{id}", delete(invitations::revoke))
         .route(
             "/api/setup/services/{id}",
             put(setup::update_service).delete(setup::delete_service),

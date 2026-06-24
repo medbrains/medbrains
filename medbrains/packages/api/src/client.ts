@@ -855,6 +855,7 @@ import type {
   EmployerViewResponse,
   DomainStatus,
   EmailSettings,
+  Invitation,
   Encounter,
   // OPD
   EncounterListResponse,
@@ -1412,6 +1413,7 @@ import type {
   // Specialty Clinical: Psychiatry
   PsychPatient,
   PsychRestraint,
+  PublicInvite,
   PublicTenant,
   PurchaseConsumptionTrendRow,
   PurchaseOrder,
@@ -13035,6 +13037,19 @@ export const api = {
     }),
   getEmailSettings: () => request<EmailSettings>("/admin/email-settings"),
   getDomainStatus: () => request<DomainStatus>("/admin/domain-status"),
+  // Team invites
+  listInvitations: () => request<Invitation[]>("/admin/invitations"),
+  createInvitation: (data: { email: string; role: string; full_name?: string }) =>
+    request<Invitation>("/admin/invitations", { method: "POST", body: JSON.stringify(data) }),
+  revokeInvitation: (id: string) =>
+    request<{ status: string }>(`/admin/invitations/${id}`, { method: "DELETE" }),
+  getPublicInvite: (token: string) =>
+    request<PublicInvite>(`/public/invitations/${encodeURIComponent(token)}`),
+  acceptInvite: (token: string, data: { username: string; password: string; full_name?: string }) =>
+    request<{ status: string }>(`/public/invitations/${encodeURIComponent(token)}/accept`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateEmailSettings: (data: UpdateEmailSettingsRequest) =>
     request<EmailSettings>("/admin/email-settings", {
       method: "PUT",

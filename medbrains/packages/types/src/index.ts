@@ -30319,6 +30319,22 @@ export interface DomainStatus {
   all_ok: boolean;
 }
 
+export interface Invitation {
+  id: string;
+  email: string;
+  role: string;
+  full_name: string | null;
+  expires_at: string;
+  created_at: string;
+}
+
+export interface PublicInvite {
+  email: string;
+  role: string;
+  full_name: string | null;
+  hospital_name: string;
+}
+
 // ── AI Course Generation ──────────────────────────────────
 
 export interface AiGeneratedCourse {

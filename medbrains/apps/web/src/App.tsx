@@ -25,6 +25,9 @@ const OnboardingPage = lazy(() =>
 const VerifyEmailPage = lazy(() =>
   import("./pages/verify-email").then((m) => ({ default: m.VerifyEmailPage })),
 );
+const AcceptInvitePage = lazy(() =>
+  import("./pages/accept-invite").then((m) => ({ default: m.AcceptInvitePage })),
+);
 const ForcePasswordChangePage = lazy(() =>
   import("./pages/force-password-change").then((m) => ({ default: m.ForcePasswordChangePage })),
 );
@@ -342,6 +345,7 @@ export function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/onboarding" element={<OnboardingPage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
+            <Route path="/accept-invite" element={<AcceptInvitePage />} />
             <Route path="/force-password-change" element={<ForcePasswordChangePage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/mfa-enroll" element={<MfaEnrollPage />} />
