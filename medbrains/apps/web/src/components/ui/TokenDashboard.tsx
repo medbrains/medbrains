@@ -1,4 +1,4 @@
-import { Group, SimpleGrid, Stack, Text } from "@mantine/core";
+import { Box, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import type { ReactNode } from "react";
 import { Badge, type BadgeTone } from "./Badge";
 import styles from "./token-dashboard.module.scss";
@@ -52,7 +52,7 @@ export function TokenDashboard({
   const className = display ? `${styles.board} ${styles.displayScale}` : styles.board;
 
   return (
-    <section className={className} aria-label={title}>
+    <Box component="section" className={className} aria-label={title}>
       <Group justify="space-between" align="center" className={styles.header}>
         <Text className={styles.title}>{title}</Text>
         {headerRight}
@@ -65,15 +65,17 @@ export function TokenDashboard({
       ) : (
         <Stack gap="lg">
           {serving.length > 0 && (
-            <div>
+            <Box>
               <Text className={styles.sectionLabel}>Now serving</Text>
               <SimpleGrid cols={{ base: 1, sm: 2, lg: Math.min(serving.length, 3) }} spacing="md">
                 {serving.map((token) => (
-                  <div key={token.id} className={styles.hero}>
+                  <Box key={token.id} className={styles.hero}>
                     <Text className={styles.heroToken}>{token.tokenNumber}</Text>
                     {(token.primary || token.meta) && (
                       <Stack gap={2}>
-                        {token.primary && <Text className={styles.heroPrimary}>{token.primary}</Text>}
+                        {token.primary && (
+                          <Text className={styles.heroPrimary}>{token.primary}</Text>
+                        )}
                         {token.meta && (
                           <Text className={styles.heroMeta} c="dimmed">
                             {token.meta}
@@ -81,18 +83,18 @@ export function TokenDashboard({
                         )}
                       </Stack>
                     )}
-                  </div>
+                  </Box>
                 ))}
               </SimpleGrid>
-            </div>
+            </Box>
           )}
 
           {waiting.length > 0 && (
-            <div>
+            <Box>
               <Text className={styles.sectionLabel}>Up next</Text>
               <SimpleGrid cols={{ base: 2, xs: 3, sm: 4, lg: columns }} spacing="sm">
                 {waiting.map((token) => (
-                  <div key={token.id} className={styles.card}>
+                  <Box key={token.id} className={styles.card}>
                     <Group justify="space-between" align="center" wrap="nowrap">
                       <Text className={styles.token}>{token.tokenNumber}</Text>
                       <Badge tone={token.tone}>{token.status}</Badge>
@@ -102,13 +104,13 @@ export function TokenDashboard({
                         {token.primary ?? token.meta}
                       </Text>
                     )}
-                  </div>
+                  </Box>
                 ))}
               </SimpleGrid>
-            </div>
+            </Box>
           )}
         </Stack>
       )}
-    </section>
+    </Box>
   );
 }

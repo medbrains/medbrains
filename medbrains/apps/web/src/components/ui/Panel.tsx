@@ -1,4 +1,4 @@
-import { Card, Group, Stack, Text } from "@mantine/core";
+import { Box, Card, Group, Stack, Text } from "@mantine/core";
 import type { ReactNode } from "react";
 
 export interface PanelProps {
@@ -20,7 +20,7 @@ export interface PanelProps {
 export function Panel({ title, description, actions, bare, children }: PanelProps) {
   const header = (title || actions) && (
     <Group justify="space-between" align="flex-start" mb={description ? 2 : "sm"} wrap="nowrap">
-      <div>
+      <Box>
         {title && (
           <Text size="xs" fw={700} c="dimmed" tt="uppercase">
             {title}
@@ -31,7 +31,7 @@ export function Panel({ title, description, actions, bare, children }: PanelProp
             {description}
           </Text>
         )}
-      </div>
+      </Box>
       {actions && <Group gap="xs">{actions}</Group>}
     </Group>
   );
@@ -48,7 +48,7 @@ export function Panel({ title, description, actions, bare, children }: PanelProp
   return (
     <Card withBorder padding="md">
       {header}
-      {description && <div style={{ height: 8 }} />}
+      {description && <Box h={8} />}
       {children}
     </Card>
   );

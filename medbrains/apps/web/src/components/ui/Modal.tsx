@@ -1,4 +1,4 @@
-import { Modal as MantineModal, type ModalProps as MantineModalProps } from "@mantine/core";
+import { Box, Modal as MantineModal, type ModalProps as MantineModalProps } from "@mantine/core";
 import type { ReactNode } from "react";
 import { Button } from "./Button";
 import styles from "./modal.module.scss";
@@ -58,7 +58,7 @@ export function Modal({
       {primaryAction && (
         // Carbon transactional footer: full-bleed 50/50 bar, secondary left,
         // primary (or danger) right.
-        <div className={styles.footer}>
+        <Box className={styles.footer}>
           {secondaryAction && (
             <Button
               tone="secondary"
@@ -78,7 +78,7 @@ export function Modal({
           >
             {primaryAction.label}
           </Button>
-        </div>
+        </Box>
       )}
     </MantineModal>
   );

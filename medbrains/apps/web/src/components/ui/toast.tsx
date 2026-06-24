@@ -128,7 +128,10 @@ function progressBody(
       />
       <Group justify="space-between" wrap="nowrap" gap="sm">
         <Text size="sm" className={styles.progressLabel}>
-          <span className={styles.progressPct}>{pct}%</span> {label}
+          <Box component="span" className={styles.progressPct}>
+            {pct}%
+          </Box>{" "}
+          {label}
         </Text>
         {onCancel && (
           <Button

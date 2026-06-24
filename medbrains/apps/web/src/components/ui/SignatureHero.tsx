@@ -1,4 +1,4 @@
-import { Group, Text } from "@mantine/core";
+import { Box, Group, Text } from "@mantine/core";
 import type { ReactNode } from "react";
 import styles from "./signature-hero.module.scss";
 
@@ -30,16 +30,20 @@ export function SignatureHero({
   compact,
 }: SignatureHeroProps) {
   return (
-    <div className={styles.hero} data-compact={compact || undefined}>
-      <div className={styles.sheen} aria-hidden="true" />
+    <Box className={styles.hero} data-compact={compact || undefined}>
+      <Box className={styles.sheen} aria-hidden="true" />
       <Group justify="space-between" align="center" wrap="nowrap" className={styles.inner}>
         <Group gap="sm" wrap="nowrap" align="center">
-          {icon && <span className={styles.iconTile}>{icon}</span>}
-          <div>
-            {eyebrow && <div className={styles.eyebrow}>{eyebrow}</div>}
+          {icon && (
+            <Box component="span" className={styles.iconTile}>
+              {icon}
+            </Box>
+          )}
+          <Box>
+            {eyebrow && <Box className={styles.eyebrow}>{eyebrow}</Box>}
             <Text className={styles.title}>{title}</Text>
             {subtitle && <Text className={styles.subtitle}>{subtitle}</Text>}
-          </div>
+          </Box>
         </Group>
         {actions && (
           <Group gap="xs" wrap="nowrap">
@@ -47,6 +51,6 @@ export function SignatureHero({
           </Group>
         )}
       </Group>
-    </div>
+    </Box>
   );
 }
