@@ -1,4 +1,4 @@
-import { Table } from "@mantine/core";
+import { Table, UnstyledButton } from "@mantine/core";
 import { IconArrowDown, IconArrowsSort, IconArrowUp } from "@tabler/icons-react";
 import { Checkbox } from "@/components/ui";
 import styles from "./data-table.module.scss";
@@ -58,13 +58,29 @@ export function DataTableHeader<T>({
               }
               data-sortable={col.sortable || undefined}
               className={col.sortable ? styles.sortableHeader : undefined}
-              onClick={col.sortable ? () => onSort(col.key) : undefined}
             >
-              <span className={styles.columnHeader}>
-                {col.icon && <span className={styles.columnIcon}>{col.icon}</span>}
-                {col.label}
-                {col.sortable && <SortIndicator active={!!isSorted} dir={activeSort?.dir} />}
-              </span>
+              {col.sortable ? (
+                // Keyboard-operable sort control (Enter/Space) — a native button,
+                // not an onClick on the <th>. aria-sort lives on the <th> above.
+                <UnstyledButton
+                  className={styles.sortButton}
+                  onClick={() => onSort(col.key)}
+                  aria-label={
+                    typeof col.label === "string" ? `Sort by ${col.label}` : "Sort column"
+                  }
+                >
+                  <span className={styles.columnHeader}>
+                    {col.icon && <span className={styles.columnIcon}>{col.icon}</span>}
+                    {col.label}
+                    <SortIndicator active={!!isSorted} dir={activeSort?.dir} />
+                  </span>
+                </UnstyledButton>
+              ) : (
+                <span className={styles.columnHeader}>
+                  {col.icon && <span className={styles.columnIcon}>{col.icon}</span>}
+                  {col.label}
+                </span>
+              )}
             </Table.Th>
           );
         })}
