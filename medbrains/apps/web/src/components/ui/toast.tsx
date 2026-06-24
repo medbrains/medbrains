@@ -1,4 +1,4 @@
-import { Group, Text } from "@mantine/core";
+import { Box, Group, Progress, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
   IconAlertTriangle,
@@ -46,6 +46,7 @@ function actionRow(actions: ToastAction[], id: string) {
     <Group gap="sm" mt={10} wrap="nowrap">
       {actions.map((action, index) => (
         <Button
+          // biome-ignore lint/suspicious/noArrayIndexKey: toast actions are a static, non-reordering 1–2 item array
           key={`${index}-${typeof action.label === "string" ? action.label : ""}`}
           tone={action.primary ? "primary" : "secondary"}
           size="xs"
@@ -68,10 +69,10 @@ function show(tone: ToastTone, message: ReactNode, options: ToastOptions = {}): 
   const id = options.id ?? crypto.randomUUID();
   const body =
     hasActions && options.actions ? (
-      <div>
+      <Box>
         {message}
         {actionRow(options.actions, id)}
-      </div>
+      </Box>
     ) : (
       message
     );
@@ -108,13 +109,23 @@ export interface ProgressToastController {
   hide: () => void;
 }
 
-function progressBody(value: number, label: ReactNode, onCancel: (() => void) | undefined, id: string) {
+function progressBody(
+  value: number,
+  label: ReactNode,
+  onCancel: (() => void) | undefined,
+  id: string,
+) {
   const pct = Math.min(100, Math.max(0, Math.round(value)));
   return (
-    <div className={styles.progress}>
-      <div className={styles.progressTrack}>
-        <div className={styles.progressFill} style={{ width: `${pct}%` }} />
-      </div>
+    <Box className={styles.progress}>
+      <Progress
+        value={pct}
+        size="sm"
+        radius="sm"
+        color="primary"
+        aria-label="Progress"
+        aria-valuetext={`${pct}%`}
+      />
       <Group justify="space-between" wrap="nowrap" gap="sm">
         <Text size="sm" className={styles.progressLabel}>
           <span className={styles.progressPct}>{pct}%</span> {label}
@@ -132,14 +143,19 @@ function progressBody(value: number, label: ReactNode, onCancel: (() => void) | 
           </Button>
         )}
       </Group>
-    </div>
+    </Box>
   );
 }
 
 function progress(label: ReactNode, options: ProgressToastOptions = {}): ProgressToastController {
   const id = options.id ?? crypto.randomUUID();
   const persistentClasses = { ...styles, root: `${styles.root} ${styles.persistent}` };
-  const base = { id, autoClose: false as const, withCloseButton: false, classNames: persistentClasses };
+  const base = {
+    id,
+    autoClose: false as const,
+    withCloseButton: false,
+    classNames: persistentClasses,
+  };
 
   notifications.show({
     ...base,
