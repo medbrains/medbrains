@@ -64,6 +64,8 @@ aws-config = { version = "1", default-features = false, features = ["rt-tokio"] 
 # so on-prem / dev builds don't pull the AWS Secrets Manager SDK.
 aws-sdk-secretsmanager = { version = "1", default-features = false, features = ["rt-tokio"], optional = true }
 totp-rs = { version = "5.7.1", features = ["otpauth", "qr"] }
+# DNS verification for custom-domain setup (A/MX/SPF/DMARC lookups).
+hickory-resolver = { version = "0.24", default-features = false, features = ["tokio-runtime"] }
 medbrains-print = { version = "0.1.0", path = "../medbrains-print" }
 
 [dev-dependencies]

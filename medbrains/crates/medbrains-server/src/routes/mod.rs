@@ -489,6 +489,10 @@ pub fn build_router(state: AppState) -> Router {
             get(infra_settings::get_email_settings).put(infra_settings::update_email_settings),
         )
         .route(
+            "/api/admin/domain-status",
+            get(infra_settings::get_domain_status),
+        )
+        .route(
             "/api/setup/services/{id}",
             put(setup::update_service).delete(setup::delete_service),
         )

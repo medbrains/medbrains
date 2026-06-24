@@ -853,6 +853,7 @@ import type {
   // Phase 5: Admin/HR, BME, Blood Bank, OT, Clinical Print Data
   EmployeeIdCardPrintData,
   EmployerViewResponse,
+  DomainStatus,
   EmailSettings,
   Encounter,
   // OPD
@@ -13024,6 +13025,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
   getEmailSettings: () => request<EmailSettings>("/admin/email-settings"),
+  getDomainStatus: () => request<DomainStatus>("/admin/domain-status"),
   updateEmailSettings: (data: UpdateEmailSettingsRequest) =>
     request<EmailSettings>("/admin/email-settings", {
       method: "PUT",

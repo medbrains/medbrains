@@ -30306,6 +30306,19 @@ export interface UpdateEmailSettingsRequest {
   smtp_password_secret?: string | null;
 }
 
+export interface DomainRecordStatus {
+  kind: string;
+  host: string;
+  ok: boolean;
+  detail: string;
+}
+
+export interface DomainStatus {
+  domain: string;
+  records: DomainRecordStatus[];
+  all_ok: boolean;
+}
+
 // ── AI Course Generation ──────────────────────────────────
 
 export interface AiGeneratedCourse {

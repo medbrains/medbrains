@@ -2,7 +2,7 @@ import { Anchor, Card, Code, Group, SimpleGrid, Stack, Text } from "@mantine/cor
 import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
-import { IconMail, IconWorld } from "@tabler/icons-react";
+import { IconCheck, IconClock, IconMail, IconWorld } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components";
@@ -39,6 +39,18 @@ export function DomainsEmailPage() {
   const { data: email } = useQuery({
     queryKey: ["email-settings"],
     queryFn: () => api.getEmailSettings(),
+  });
+  const hasDomain = Boolean(tenant?.custom_domain);
+  // Live DNS verification — polls every 8s while records are still propagating.
+  const {
+    data: status,
+    refetch: recheck,
+    isFetching: checking,
+  } = useQuery({
+    queryKey: ["domain-status"],
+    queryFn: () => api.getDomainStatus(),
+    enabled: hasDomain,
+    refetchInterval: (query) => (query.state.data && !query.state.data.all_ok ? 8000 : false),
   });
 
   const [form, setForm] = useState({
@@ -133,6 +145,68 @@ export function DomainsEmailPage() {
           </Alert>
         )}
       </Card>
+
+      {hasDomain && status && (
+        <Card withBorder padding="lg">
+          <Group justify="space-between" mb="sm">
+            <Group gap="xs">
+              <Text fw={600}>DNS verification</Text>
+              {status.all_ok ? (
+                <Badge tone="success" size="sm">
+                  All records live
+                </Badge>
+              ) : (
+                <Badge tone="warning" size="sm">
+                  Waiting for DNS…
+                </Badge>
+              )}
+            </Group>
+            <Button tone="ghost" size="xs" onClick={() => recheck()} loading={checking}>
+              Re-check
+            </Button>
+          </Group>
+          <Table>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Record</Table.Th>
+                <Table.Th>Status</Table.Th>
+                <Table.Th>Detail</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {status.records.map((r) => (
+                <Table.Tr key={r.kind}>
+                  <Table.Td>
+                    <Badge tone="neutral" size="sm">
+                      {r.kind}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    {r.ok ? (
+                      <Badge tone="success" size="sm" leftSection={<IconCheck size={11} />}>
+                        Verified
+                      </Badge>
+                    ) : (
+                      <Badge tone="warning" size="sm" leftSection={<IconClock size={11} />}>
+                        Pending
+                      </Badge>
+                    )}
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c="dimmed">
+                      {r.detail}
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+          <Text size="xs" c="dimmed" mt="xs">
+            DKIM is verified in Stalwart's own admin UI (per selector). DNS changes can take up to a
+            few hours to propagate — this checks automatically.
+          </Text>
+        </Card>
+      )}
 
       <Card withBorder padding="lg">
         <Group gap="xs" mb="xs">

@@ -267,3 +267,132 @@ pub async fn update_email_settings(
         env_fallback: std::env::var("EMAIL_FROM_ADDRESS").is_ok(),
     }))
 }
+
+#[derive(Debug, Serialize)]
+pub struct DomainRecordStatus {
+    pub kind: String,
+    pub host: String,
+    pub ok: bool,
+    pub detail: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DomainStatus {
+    pub domain: String,
+    pub records: Vec<DomainRecordStatus>,
+    pub all_ok: bool,
+}
+
+/// GET /api/admin/domain-status — live DNS check for the tenant's custom domain
+/// (app A record + mail MX/SPF/DMARC). The frontend polls this while records
+/// propagate. DNS failures degrade to `ok: false`, never an error.
+pub async fn get_domain_status(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<DomainStatus>, AppError> {
+    require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+
+    let domain: Option<String> =
+        sqlx::query_scalar("SELECT custom_domain FROM tenants WHERE id = $1")
+            .bind(claims.tenant_id)
+            .fetch_one(&state.db)
+            .await?;
+    let Some(domain) = domain.map(|d| d.trim().to_lowercase()).filter(|d| !d.is_empty()) else {
+        return Err(AppError::BadRequest(
+            "Set a custom domain first (Settings → Organization)".to_owned(),
+        ));
+    };
+
+    let records = check_domain_dns(&domain).await;
+    let all_ok = records.iter().all(|r| r.ok);
+    Ok(Json(DomainStatus {
+        domain,
+        records,
+        all_ok,
+    }))
+}
+
+async fn check_domain_dns(domain: &str) -> Vec<DomainRecordStatus> {
+    use hickory_resolver::TokioAsyncResolver;
+    use hickory_resolver::config::{ResolverConfig, ResolverOpts};
+
+    let resolver = TokioAsyncResolver::tokio(ResolverConfig::cloudflare(), ResolverOpts::default());
+    let mut out = Vec::with_capacity(4);
+
+    // App: any A record present (we can't know the exact edge IP here).
+    let a_ip = resolver
+        .ipv4_lookup(domain)
+        .await
+        .ok()
+        .and_then(|lookup| lookup.iter().next().map(ToString::to_string));
+    out.push(DomainRecordStatus {
+        kind: "A".to_owned(),
+        host: domain.to_owned(),
+        ok: a_ip.is_some(),
+        detail: a_ip.unwrap_or_else(|| "no A record found".to_owned()),
+    });
+
+    // Mail MX → should point at mail.<domain>.
+    let expected_mx = format!("mail.{domain}");
+    let mx_hosts: Vec<String> = resolver
+        .mx_lookup(domain)
+        .await
+        .map(|lookup| {
+            lookup
+                .iter()
+                .map(|mx| mx.exchange().to_string().trim_end_matches('.').to_owned())
+                .collect()
+        })
+        .unwrap_or_default();
+    out.push(DomainRecordStatus {
+        kind: "MX".to_owned(),
+        host: domain.to_owned(),
+        ok: mx_hosts.iter().any(|h| h.eq_ignore_ascii_case(&expected_mx)),
+        detail: if mx_hosts.is_empty() {
+            "no MX record".to_owned()
+        } else {
+            mx_hosts.join(", ")
+        },
+    });
+
+    // SPF (TXT at apex) and DMARC (_dmarc.<domain>).
+    let apex_txt = lookup_txt(&resolver, domain).await;
+    out.push(DomainRecordStatus {
+        kind: "SPF".to_owned(),
+        host: domain.to_owned(),
+        ok: apex_txt.iter().any(|t| t.to_lowercase().starts_with("v=spf1")),
+        detail: spf_detail(&apex_txt),
+    });
+
+    let dmarc_txt = lookup_txt(&resolver, &format!("_dmarc.{domain}")).await;
+    out.push(DomainRecordStatus {
+        kind: "DMARC".to_owned(),
+        host: format!("_dmarc.{domain}"),
+        ok: dmarc_txt.iter().any(|t| t.to_uppercase().starts_with("V=DMARC1")),
+        detail: if dmarc_txt.is_empty() {
+            "no DMARC record".to_owned()
+        } else {
+            "found".to_owned()
+        },
+    });
+
+    out
+}
+
+async fn lookup_txt(
+    resolver: &hickory_resolver::TokioAsyncResolver,
+    name: &str,
+) -> Vec<String> {
+    resolver
+        .txt_lookup(name)
+        .await
+        .map(|lookup| lookup.iter().map(ToString::to_string).collect())
+        .unwrap_or_default()
+}
+
+fn spf_detail(txts: &[String]) -> String {
+    txts.iter()
+        .find(|t| t.to_lowercase().starts_with("v=spf1"))
+        .cloned()
+        .unwrap_or_else(|| "no SPF record".to_owned())
+}
