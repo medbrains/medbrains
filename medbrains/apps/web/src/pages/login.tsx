@@ -47,7 +47,7 @@ export function LoginPage() {
   // with that hospital. 404 (default domain) → fall back to MedBrains.
   const { data: tenantBrand } = useQuery({
     queryKey: ["tenant-by-host"],
-    queryFn: () => api.getTenantByHost(),
+    queryFn: () => api.getTenantByHost(window.location.hostname),
     retry: false,
     staleTime: 300_000,
   });

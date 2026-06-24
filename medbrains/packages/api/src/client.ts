@@ -2620,7 +2620,9 @@ export const api = {
       body: JSON.stringify(data),
     }),
   // Pre-auth: resolve the tenant for the current custom domain (login branding).
-  getTenantByHost: () => request<PublicTenant>("/public/tenant-by-host"),
+  // Pass the browser's hostname so it works without proxy X-Forwarded-Host.
+  getTenantByHost: (domain: string) =>
+    request<PublicTenant>(`/public/tenant-by-host?domain=${encodeURIComponent(domain)}`),
   updateTenantGeo: (data: { country_id?: string; state_id?: string; district_id?: string }) =>
     request<{ status: string; defaults_applied?: boolean }>("/setup/tenant/geo", {
       method: "PUT",

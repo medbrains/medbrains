@@ -214,20 +214,34 @@ pub struct PublicTenant {
     pub custom_domain: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct TenantByHostQuery {
+    /// Explicit host from the caller (the browser's `window.location.hostname`).
+    /// Preferred over headers so it works without proxy `X-Forwarded-Host`.
+    pub domain: Option<String>,
+}
+
 /// GET /api/public/tenant-by-host — resolve the tenant for the current custom
-/// domain (login-page branding + SSO scoping). The Pingora edge forwards the
-/// browser's Host as `X-Forwarded-Host`; we fall back to `Host`. Returns only
-/// non-sensitive branding, never secrets. 404 when the host isn't a custom
-/// domain (the caller then renders the default MedBrains login).
+/// domain (login-page branding + SSO scoping). Prefers the explicit `?domain=`
+/// the frontend sends (its own hostname), falling back to the Pingora-forwarded
+/// `X-Forwarded-Host` then `Host`. Returns only non-sensitive branding, never
+/// secrets. 404 when the host isn't a custom domain (the caller then renders
+/// the default MedBrains login).
 pub async fn tenant_by_host(
     State(state): State<AppState>,
+    Query(query): Query<TenantByHostQuery>,
     headers: axum::http::HeaderMap,
 ) -> Result<Json<PublicTenant>, AppError> {
-    let host = headers
+    let header_host = headers
         .get("x-forwarded-host")
         .or_else(|| headers.get(axum::http::header::HOST))
         .and_then(|v| v.to_str().ok())
-        .map(|h| h.split(':').next().unwrap_or(h).trim().to_lowercase())
+        .map(ToOwned::to_owned);
+    let host = query
+        .domain
+        .filter(|d| !d.trim().is_empty())
+        .or(header_host)
+        .map(|h| h.split(':').next().unwrap_or(&h).trim().to_lowercase())
         .filter(|h| !h.is_empty())
         .ok_or(AppError::NotFound)?;
 
