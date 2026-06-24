@@ -1904,6 +1904,22 @@ pub async fn issue_to_patient(
         .execute(&mut *tx)
         .await?;
         issue.invoice_item_id = Some(charge.item_id);
+
+        // When the issue is admission-scoped but not encounter-linked (e.g.
+        // OT consumables, which carry admission_id but no real encounter),
+        // stamp the invoice with the admission so the line rolls up onto the
+        // consolidated discharge bill.
+        if let Some(admission_id) = body.admission_id {
+            sqlx::query(
+                "UPDATE invoices SET admission_id = COALESCE(admission_id, $1), updated_at = now() \
+                 WHERE id = $2 AND tenant_id = $3",
+            )
+            .bind(admission_id)
+            .bind(charge.invoice_id)
+            .bind(claims.tenant_id)
+            .execute(&mut *tx)
+            .await?;
+        }
     }
 
     tx.commit().await?;

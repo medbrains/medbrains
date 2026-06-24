@@ -1,5 +1,4 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { confirmDestructive } from "@/lib/confirm";
 import {
   Card,
   Checkbox,
@@ -35,7 +34,6 @@ import {
   otAnesthesiaRecordFormSchema,
   otBookingFormSchema,
   otCaseRecordFormSchema,
-  otConsumableFormSchema,
   otPostopRecordFormSchema,
   otPostopRecordUpdateFormSchema,
   otPreopAssessmentFormSchema,
@@ -52,7 +50,6 @@ import type {
   OtAnesthesiaRecord,
   OtBooking,
   OtCaseRecord,
-  OtConsumableUsage,
   OtHandoffItem,
   OtPostopRecord,
   OtPreopAssessment,
@@ -75,7 +72,6 @@ import {
   IconPlayerPlay,
   IconPlus,
   IconScissors,
-  IconTrash,
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -83,6 +79,7 @@ import { useMemo, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { useSearchParams } from "react-router";
 import { DataTable, PageHeader, StatusDot } from "@/components";
+import { PatientConsumablesPanel } from "@/components/Clinical";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { StationHandoffPanel } from "@/components/Handoff/StationHandoffPanel";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
@@ -93,7 +90,6 @@ import {
   DEFAULT_OT_ANESTHESIA_RECORD_FORM_VALUES,
   DEFAULT_OT_BOOKING_FORM_VALUES,
   DEFAULT_OT_CASE_RECORD_FORM_VALUES,
-  DEFAULT_OT_CONSUMABLE_FORM_VALUES,
   DEFAULT_OT_POSTOP_RECORD_FORM_VALUES,
   DEFAULT_OT_POSTOP_UPDATE_FORM_VALUES,
   DEFAULT_OT_PREOP_ASSESSMENT_FORM_VALUES,
@@ -110,13 +106,11 @@ import {
   OT_ANESTHESIA_TYPE_OPTIONS,
   OT_ASA_OPTIONS,
   OT_CASE_PRIORITY_OPTIONS,
-  OT_CONSUMABLE_CATEGORY_OPTIONS,
   OT_POSTOP_RECOVERY_STATUS_OPTIONS,
   OT_PREOP_CLEARANCE_STATUS_OPTIONS,
   toCreateAnesthesiaRecordRequest,
   toCreateCaseRecordRequest,
   toCreateOtBookingRequest,
-  toCreateOtConsumableRequest,
   toCreateOtRoomRequest,
   toCreatePostopRecordRequest,
   toCreatePreopAssessmentRequest,
@@ -811,7 +805,7 @@ function BookingDetail({ bookingId }: { bookingId: string }) {
         </Stack>
       </Tabs.Panel>
       <Tabs.Panel value="consumables" pt="md">
-        <ConsumablesSubTab bookingId={bookingId} />
+        <ConsumablesSubTab booking={data} />
       </Tabs.Panel>
     </Tabs>
   );
@@ -2626,235 +2620,18 @@ function CreatePreferenceDrawer({ opened, onClose }: { opened: boolean; onClose:
 //  OT Phase 2b — Consumables Sub-Tab
 // ══════════════════════════════════════════════════════════
 
-function ConsumablesSubTab({ bookingId }: { bookingId: string }) {
-  const canManage = useHasPermission(P.OT.CONSUMABLES_MANAGE);
-  const queryClient = useQueryClient();
-  const [formOpened, formHandlers] = useDisclosure(false);
-  const {
-    control,
-    handleSubmit,
-    reset,
-    watch,
-    formState: { errors },
-  } = useForm({
-    resolver: zodResolver(otConsumableFormSchema),
-    defaultValues: DEFAULT_OT_CONSUMABLE_FORM_VALUES,
-    mode: "onTouched",
-  });
-  const consumableValues = watch();
-
-  const { data: consumables = [], isLoading } = useQuery<OtConsumableUsage[]>({
-    queryKey: ["ot-consumables", bookingId],
-    queryFn: () => otService.listOtConsumables(bookingId),
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (data: ReturnType<typeof toCreateOtConsumableRequest>) =>
-      otService.createOtConsumable(bookingId, data),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["ot-consumables", bookingId] });
-      toast.success("Consumable recorded", { title: "Added" });
-      formHandlers.close();
-      reset(DEFAULT_OT_CONSUMABLE_FORM_VALUES);
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (itemId: string) => otService.deleteOtConsumable(bookingId, itemId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["ot-consumables", bookingId] });
-      toast.success("Consumable removed", { title: "Removed" });
-    },
-  });
-
-  const rows = consumables;
-  const totalCost = rows.reduce((sum, r) => sum + (r.unit_price ?? 0) * r.quantity, 0);
-  const handleCreate = handleSubmit((values) => {
-    createMutation.mutate(toCreateOtConsumableRequest(values));
-  });
-  const closeForm = () => {
-    formHandlers.close();
-    reset(DEFAULT_OT_CONSUMABLE_FORM_VALUES);
-  };
-
+// OT consumables/implants are recorded through the shared
+// PatientConsumablesPanel: picked from the store catalog, they decrement
+// real stock and post a chargeable line. Scoped to this booking; when the
+// surgery is tied to an admission the charge rolls up onto the
+// consolidated discharge bill.
+function ConsumablesSubTab({ booking }: { booking: OtBooking }) {
   return (
-    <Stack>
-      <Group justify="space-between">
-        <Text fw={500}>Consumables Used</Text>
-        {canManage && (
-          <Button
-            tone="primary"
-            leftSection={<IconPlus size={16} />}
-            size="sm"
-            onClick={formHandlers.open}
-          >
-            Add Consumable
-          </Button>
-        )}
-      </Group>
-
-      {totalCost > 0 && (
-        <Badge tone="primary" size="lg">
-          Total Cost: {totalCost.toFixed(2)}
-        </Badge>
-      )}
-
-      {formOpened && (
-        <Card withBorder p="sm">
-          <Stack gap="xs">
-            <Controller
-              control={control}
-              name="item_name"
-              render={({ field }) => (
-                <TextInput
-                  label="Item Name"
-                  error={errors.item_name?.message}
-                  required
-                  {...field}
-                />
-              )}
-            />
-            <Controller
-              control={control}
-              name="category"
-              render={({ field }) => (
-                <Select
-                  label="Category"
-                  data={OT_CONSUMABLE_CATEGORY_OPTIONS}
-                  value={field.value}
-                  onChange={field.onChange}
-                  error={errors.category?.message}
-                  required
-                />
-              )}
-            />
-            <Group grow>
-              <Controller
-                control={control}
-                name="quantity"
-                render={({ field }) => (
-                  <NumberInput
-                    label="Quantity"
-                    value={field.value}
-                    onChange={field.onChange}
-                    error={errors.quantity?.message}
-                    min={0.01}
-                    decimalScale={2}
-                    required
-                  />
-                )}
-              />
-              <Controller
-                control={control}
-                name="unit"
-                render={({ field }) => (
-                  <TextInput label="Unit" placeholder="pcs, ml, etc." {...field} />
-                )}
-              />
-            </Group>
-            <Group grow>
-              <Controller
-                control={control}
-                name="unit_price"
-                render={({ field }) => (
-                  <NumberInput
-                    label="Unit Price"
-                    value={field.value}
-                    onChange={field.onChange}
-                    error={errors.unit_price?.message}
-                    min={0}
-                    decimalScale={2}
-                  />
-                )}
-              />
-              <Controller
-                control={control}
-                name="batch_number"
-                render={({ field }) => <TextInput label="Batch Number" {...field} />}
-              />
-            </Group>
-            <Group>
-              <Button
-                tone="primary"
-                size="sm"
-                onClick={handleCreate}
-                loading={createMutation.isPending}
-                disabled={!consumableValues.item_name.trim() || !consumableValues.category}
-              >
-                Save
-              </Button>
-              <Button tone="ghost" size="sm" onClick={closeForm}>
-                Cancel
-              </Button>
-            </Group>
-          </Stack>
-        </Card>
-      )}
-
-      {isLoading ? (
-        <Text c="dimmed">Loading...</Text>
-      ) : rows.length === 0 ? (
-        <Text c="dimmed" size="sm">
-          No consumables recorded for this surgery.
-        </Text>
-      ) : (
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Item</Table.Th>
-              <Table.Th>Category</Table.Th>
-              <Table.Th>Qty</Table.Th>
-              <Table.Th>Unit Price</Table.Th>
-              <Table.Th>Total</Table.Th>
-              <Table.Th>Batch</Table.Th>
-              {canManage && <Table.Th>Actions</Table.Th>}
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {rows.map((c) => (
-              <Table.Tr key={c.id}>
-                <Table.Td>
-                  <Text size="sm">{c.item_name}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Badge tone="neutral" size="sm">
-                    {c.category.replace(/_/g, " ")}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm">
-                    {c.quantity} {c.unit ?? ""}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm">{c.unit_price?.toFixed(2) ?? "—"}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm" fw={500}>
-                    {((c.unit_price ?? 0) * c.quantity).toFixed(2)}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm">{c.batch_number ?? "—"}</Text>
-                </Table.Td>
-                {canManage && (
-                  <Table.Td>
-                    <IconButton
-                      size="sm"
-                      tone="danger"
-                      onClick={() => confirmDestructive({ title: "Delete", message: "Permanently delete this record? This cannot be undone.", onConfirm: () => deleteMutation.mutate(c.id) })}
-                      aria-label="Delete"
-                    >
-                      <IconTrash size={14} />
-                    </IconButton>
-                  </Table.Td>
-                )}
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      )}
-    </Stack>
+    <PatientConsumablesPanel
+      patientId={booking.patient_id}
+      encounterId={booking.id}
+      admissionId={booking.admission_id ?? undefined}
+    />
   );
 }
 
