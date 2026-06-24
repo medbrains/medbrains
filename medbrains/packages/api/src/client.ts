@@ -831,6 +831,7 @@ import type {
   // Documents
   DocumentTemplate,
   DocumentTemplateVersion,
+  DomainStatus,
   // Blood Bank
   DonorListResponse,
   DpdpConsentPrintData,
@@ -848,15 +849,13 @@ import type {
   DutyHoursRow,
   DutyRoster,
   DutyRosterPrintData,
+  EmailLogEntry,
+  EmailSettings,
   Employee,
   EmployeeCredential,
   // Phase 5: Admin/HR, BME, Blood Bank, OT, Clinical Print Data
   EmployeeIdCardPrintData,
   EmployerViewResponse,
-  DomainStatus,
-  EmailLogEntry,
-  EmailSettings,
-  Invitation,
   Encounter,
   // OPD
   EncounterListResponse,
@@ -1020,6 +1019,7 @@ import type {
   InvestigationRequisitionPrintData,
   // IPD Phase 3a
   InvestigationsResponse,
+  Invitation,
   Invoice,
   InvoiceDetailResponse,
   InvoiceDiscount,
@@ -1653,7 +1653,6 @@ import type {
   UpdateAdmissionRequest,
   UpdateAdrRequest,
   UpdateAiSettingsRequest,
-  UpdateEmailSettingsRequest,
   UpdateAlertThresholdRequest,
   UpdateAmbulanceDriverRequest,
   UpdateAmbulanceLocationRequest,
@@ -1737,6 +1736,7 @@ import type {
   UpdateDocumentTemplateRequest,
   UpdateDonationRequest,
   UpdateDrugScreenRequest,
+  UpdateEmailSettingsRequest,
   UpdateEmployeeRequest,
   UpdateEncounterRequest,
   UpdateEnrollmentStatusRequest,
@@ -11434,6 +11434,8 @@ export const api = {
 
   getIpdFinalBillPrintData: (invoiceId: string) =>
     request<IpdFinalBillPrintData>(`/print-data/ipd-final-bill/${invoiceId}`),
+  getAdmissionConsolidatedBillPrintData: (admissionId: string) =>
+    request<IpdFinalBillPrintData>(`/print-data/admission-consolidated-bill/${admissionId}`),
 
   getAdvanceReceiptPrintData: (paymentId: string) =>
     request<AdvanceReceiptPrintData>(`/print-data/advance-receipt/${paymentId}`),

@@ -86,6 +86,16 @@ pub(crate) async fn build_context(
             .await?;
             serde_json::json!({ "discharge": data })
         }
+        "ipd_consolidated_bill" => {
+            let Json(data) =
+                crate::routes::print_data_billing::get_admission_consolidated_bill_print_data(
+                    State(state.clone()),
+                    Extension(claims.clone()),
+                    Path(source_id),
+                )
+                .await?;
+            serde_json::json!({ "bill": data })
+        }
         "lab_report" => {
             let Json(data) = crate::routes::print_data::get_lab_report_print_data(
                 State(state.clone()),

@@ -949,6 +949,200 @@ pub async fn get_ipd_final_bill_print_data(
     }))
 }
 
+// ── Consolidated Discharge Bill (all invoices for an admission) ──
+//
+// The single-invoice final bill above renders ONE invoice. A real
+// discharge bill aggregates EVERY non-cancelled invoice raised against
+// the admission — consultation, room, nursing, procedures, lab,
+// pharmacy and consumables — into one document so the patient settles
+// a single total. Reuses IpdFinalBillPrintData; the invoice_number is a
+// synthesized admission reference rather than one invoice's number.
+
+#[derive(Debug, sqlx::FromRow)]
+struct ConsolidatedBillHeaderRow {
+    patient_name: String,
+    uhid: String,
+    age: Option<f64>,
+    gender: String,
+    admission_date: Option<chrono::DateTime<chrono::Utc>>,
+    discharge_date: Option<chrono::DateTime<chrono::Utc>>,
+    bed_number: Option<String>,
+    ward_name: Option<String>,
+    doctor_name: Option<String>,
+    department: Option<String>,
+    diagnosis: Option<String>,
+    discharge_type: Option<String>,
+    hospital_gstin: Option<String>,
+}
+
+pub async fn get_admission_consolidated_bill_print_data(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(admission_id): Path<Uuid>,
+) -> Result<Json<IpdFinalBillPrintData>, AppError> {
+    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let header = sqlx::query_as::<_, ConsolidatedBillHeaderRow>(
+        "SELECT \
+           (p.first_name || ' ' || p.last_name) AS patient_name, \
+           p.uhid, \
+           EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
+           p.gender::text AS gender, \
+           adm.admitted_at AS admission_date, \
+           adm.discharged_at AS discharge_date, \
+           b.bed_number, \
+           w.name AS ward_name, \
+           u.full_name AS doctor_name, \
+           d.name AS department, \
+           adm.primary_diagnosis AS diagnosis, \
+           adm.discharge_type, \
+           (SELECT ts.value->>'gstin' FROM tenant_settings ts \
+            WHERE ts.tenant_id = adm.tenant_id \
+              AND ts.category = 'billing' AND ts.key = 'hospital_gst' \
+            LIMIT 1) AS hospital_gstin \
+         FROM admissions adm \
+         JOIN patients p ON p.id = adm.patient_id AND p.tenant_id = adm.tenant_id \
+         LEFT JOIN beds b ON b.id = adm.bed_id AND b.tenant_id = adm.tenant_id \
+         LEFT JOIN wards w ON w.id = b.ward_id AND w.tenant_id = b.tenant_id \
+         LEFT JOIN users u ON u.id = COALESCE(adm.attending_doctor_id, adm.admitting_doctor) \
+         LEFT JOIN departments d ON d.id = adm.department_id AND d.tenant_id = adm.tenant_id \
+         WHERE adm.id = $1 AND adm.tenant_id = $2",
+    )
+    .bind(admission_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    // Aggregate invoice totals across every live invoice for the admission.
+    let totals: (String, String, String, String) = sqlx::query_as(
+        "SELECT \
+           COALESCE(SUM(subtotal), 0)::text, \
+           COALESCE(SUM(discount_amount), 0)::text, \
+           COALESCE(SUM(tax_amount), 0)::text, \
+           COALESCE(SUM(total_amount), 0)::text \
+         FROM invoices \
+         WHERE admission_id = $1 AND tenant_id = $2 \
+           AND status NOT IN ('cancelled'::invoice_status, 'refunded'::invoice_status)",
+    )
+    .bind(admission_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let category_totals: Vec<BillCategoryTotal> = sqlx::query_as(
+        "SELECT \
+           COALESCE(it.category, 'Other') AS category, \
+           SUM(it.total_price)::text AS amount \
+         FROM invoice_items it \
+         JOIN invoices inv ON inv.id = it.invoice_id \
+         WHERE inv.admission_id = $1 AND inv.tenant_id = $2 \
+           AND inv.status NOT IN ('cancelled'::invoice_status, 'refunded'::invoice_status) \
+         GROUP BY it.category \
+         ORDER BY it.category LIMIT 5000",
+    )
+    .bind(admission_id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let items = sqlx::query_as::<_, BillLineItem>(
+        "SELECT \
+           it.description, \
+           it.service_code, \
+           it.hsn_sac_code AS hsn_sac, \
+           it.quantity, \
+           it.unit_price::text AS unit_price, \
+           COALESCE(it.discount_amount, 0)::text AS discount, \
+           COALESCE(it.tax_percent, 0)::text AS tax_percent, \
+           it.total_price::text AS total \
+         FROM invoice_items it \
+         JOIN invoices inv ON inv.id = it.invoice_id \
+         WHERE inv.admission_id = $1 AND inv.tenant_id = $2 \
+           AND inv.status NOT IN ('cancelled'::invoice_status, 'refunded'::invoice_status) \
+         ORDER BY it.category, it.created_at LIMIT 5000",
+    )
+    .bind(admission_id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let payments: (String, String, String) = sqlx::query_as(
+        "SELECT \
+           COALESCE(SUM(CASE WHEN pay.payment_type = 'advance' THEN pay.amount ELSE 0 END), 0)::text, \
+           COALESCE(SUM(CASE WHEN pay.payment_type = 'insurance' THEN pay.amount ELSE 0 END), 0)::text, \
+           COALESCE(SUM(pay.amount), 0)::text \
+         FROM payments pay \
+         JOIN invoices inv ON inv.id = pay.invoice_id \
+         WHERE inv.admission_id = $1 AND inv.tenant_id = $2 AND pay.status = 'completed'",
+    )
+    .bind(admission_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let los_days: i32 = header.admission_date.map_or(1, |adm| {
+        let discharge = header.discharge_date.unwrap_or_else(chrono::Utc::now);
+        i32::try_from((discharge - adm).num_days().max(1)).unwrap_or(1)
+    });
+
+    let h_name = hospital_name(&mut tx, claims.tenant_id).await?;
+
+    tx.commit().await?;
+
+    let date = header
+        .discharge_date
+        .unwrap_or_else(chrono::Utc::now)
+        .format("%d-%b-%Y")
+        .to_string();
+    let age_str = header.age.map(|a| format!("{} Y", a as i32));
+    let admission_ref = format!("IP/{}", &admission_id.to_string()[..8].to_uppercase());
+
+    let total: f64 = totals.3.parse().unwrap_or(0.0);
+    let insurance: f64 = payments.1.parse().unwrap_or(0.0);
+    let paid: f64 = payments.2.parse().unwrap_or(0.0);
+    let patient_payable = total - insurance;
+    let balance = total - paid;
+
+    Ok(Json(IpdFinalBillPrintData {
+        invoice_number: admission_ref,
+        invoice_date: date,
+        patient_name: header.patient_name,
+        uhid: header.uhid,
+        age: age_str,
+        gender: header.gender,
+        admission_date: header
+            .admission_date
+            .map(|d| d.format("%d-%b-%Y").to_string())
+            .unwrap_or_default(),
+        discharge_date: header.discharge_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        bed_number: header.bed_number,
+        ward_name: header.ward_name,
+        doctor_name: header.doctor_name,
+        department: header.department,
+        diagnosis: header.diagnosis,
+        discharge_type: header.discharge_type,
+        category_breakup: category_totals,
+        items,
+        subtotal: totals.0,
+        discount_amount: totals.1,
+        tax_amount: totals.2,
+        total_amount: totals.3,
+        advance_paid: payments.0,
+        insurance_approved: payments.1,
+        patient_payable: format!("{patient_payable:.2}"),
+        amount_paid: payments.2,
+        balance_due: format!("{balance:.2}"),
+        los_days,
+        hospital_name: h_name,
+        hospital_gstin: header.hospital_gstin,
+    }))
+}
+
 // ── Advance Receipt ─────────────────────────────────────
 
 #[derive(Debug, sqlx::FromRow)]

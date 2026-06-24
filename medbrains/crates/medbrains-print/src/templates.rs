@@ -71,6 +71,17 @@ pub const SYSTEM_TEMPLATES: &[SystemTemplate] = &[
         sample_context: DISCHARGE_SAMPLE,
     },
     SystemTemplate {
+        code: "ipd_consolidated_bill",
+        title: "Consolidated Discharge Bill",
+        module_code: "ipd",
+        source_table: "admissions",
+        number_prefix: "IPD-BILL",
+        paper: Paper::A4,
+        margins: A4_MARGINS,
+        html: IPD_CONSOLIDATED_BILL_HTML,
+        sample_context: IPD_CONSOLIDATED_BILL_SAMPLE,
+    },
+    SystemTemplate {
         code: "lab_report",
         title: "Laboratory Report",
         module_code: "lab",
@@ -306,6 +317,108 @@ const DISCHARGE_SAMPLE: &str = r#"{
   },
   "watermark": "draft",
   "document_number": "IPD-DSC-20260612-0001"
+}"#;
+
+const IPD_CONSOLIDATED_BILL_HTML: &str = r#"{% extends "base.html" %}
+{% block content %}
+<h2 class="brand" style="margin-bottom:2px;">CONSOLIDATED DISCHARGE BILL</h2>
+<table style="margin-bottom:8px;"><tr>
+  <td>
+    <div><strong>Bill Ref:</strong> <span class="mono">{{ bill.invoice_number }}</span></div>
+    <div><strong>Date:</strong> {{ bill.invoice_date }}</div>
+    {% if bill.hospital_gstin %}<div><strong>GSTIN:</strong> <span class="mono">{{ bill.hospital_gstin }}</span></div>{% endif %}
+  </td>
+  <td class="right">
+    <div><strong>Patient:</strong> {{ bill.patient_name }}{% if bill.age %} · {{ bill.age }}{% endif %} · {{ bill.gender }}</div>
+    <div><strong>UHID:</strong> <span class="mono">{{ bill.uhid }}</span></div>
+    {% if bill.ward_name %}<div><strong>Ward/Bed:</strong> {{ bill.ward_name }}{% if bill.bed_number %} / {{ bill.bed_number }}{% endif %}</div>{% endif %}
+  </td>
+</tr></table>
+<table style="margin-bottom:8px;"><tr>
+  <td>
+    <div><strong>Admitted:</strong> {{ bill.admission_date }}</div>
+    {% if bill.discharge_date %}<div><strong>Discharged:</strong> {{ bill.discharge_date }}</div>{% endif %}
+    <div><strong>LOS:</strong> {{ bill.los_days }} day(s)</div>
+  </td>
+  <td class="right">
+    {% if bill.doctor_name %}<div><strong>Doctor:</strong> {{ bill.doctor_name }}</div>{% endif %}
+    {% if bill.department %}<div><strong>Dept:</strong> {{ bill.department }}</div>{% endif %}
+    {% if bill.diagnosis %}<div><strong>Diagnosis:</strong> {{ bill.diagnosis }}</div>{% endif %}
+  </td>
+</tr></table>
+{% if bill.category_breakup %}
+<table style="margin-bottom:8px;">
+  <thead><tr><th>Category</th><th class="right">Amount</th></tr></thead>
+  <tbody>
+  {% for cat in bill.category_breakup %}
+    <tr><td>{{ cat.category }}</td><td class="right">{{ cat.amount }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+<table>
+  <thead><tr>
+    <th>#</th><th>Description</th><th>Code</th>
+    <th class="right">Qty</th><th class="right">Rate</th>
+    <th class="right">Disc</th><th class="right">GST %</th><th class="right">Amount</th>
+  </tr></thead>
+  <tbody>
+  {% for item in bill.items %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td>{{ item.description }}</td>
+      <td class="mono">{{ item.service_code | default(value="") }}</td>
+      <td class="right">{{ item.quantity }}</td>
+      <td class="right">{{ item.unit_price }}</td>
+      <td class="right">{{ item.discount }}</td>
+      <td class="right">{{ item.tax_percent }}</td>
+      <td class="right">{{ item.total }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<table style="margin-top:8px;"><tr><td></td><td style="width:42%;">
+  <table>
+    <tr><td>Subtotal</td><td class="right">{{ bill.subtotal }}</td></tr>
+    <tr><td>Discount</td><td class="right">{{ bill.discount_amount }}</td></tr>
+    <tr><td>GST</td><td class="right">{{ bill.tax_amount }}</td></tr>
+    <tr><td><strong>Total</strong></td><td class="right"><strong>{{ bill.total_amount }}</strong></td></tr>
+    <tr><td>Advance paid</td><td class="right">{{ bill.advance_paid }}</td></tr>
+    <tr><td>Insurance approved</td><td class="right">{{ bill.insurance_approved }}</td></tr>
+    <tr><td>Amount paid</td><td class="right">{{ bill.amount_paid }}</td></tr>
+    <tr><td><strong>Balance due</strong></td><td class="right"><strong>{{ bill.balance_due }}</strong></td></tr>
+  </table>
+</td></tr></table>
+<p class="muted small" style="margin-top:10px;">
+  Consolidated across every invoice raised during this admission. System-generated; subject to final audit.
+</p>
+{% endblock content %}"#;
+
+const IPD_CONSOLIDATED_BILL_SAMPLE: &str = r#"{
+  "bill": {
+    "invoice_number": "IP/3F2A9B1C", "invoice_date": "12-Jun-2026",
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "age": "42 Y", "gender": "F",
+    "admission_date": "08-Jun-2026", "discharge_date": "12-Jun-2026",
+    "bed_number": "GW-12", "ward_name": "General Ward A",
+    "doctor_name": "Dr. S. Ravi", "department": "General Medicine",
+    "diagnosis": "Community-acquired pneumonia (J18.9)", "discharge_type": "Normal",
+    "category_breakup": [
+      { "category": "Room", "amount": "4000.00" },
+      { "category": "Consumable", "amount": "1250.00" },
+      { "category": "Pharmacy", "amount": "2100.00" }
+    ],
+    "items": [
+      { "description": "Room rent - General Ward", "service_code": "ROOM_IPD", "quantity": 4, "unit_price": "1000.00", "discount": "0", "tax_percent": "0", "total": "4000.00" },
+      { "description": "IV cannula 20G", "service_code": "CONS-IV20", "quantity": 3, "unit_price": "150.00", "discount": "0", "tax_percent": "0", "total": "450.00" }
+    ],
+    "subtotal": "7350.00", "discount_amount": "0.00", "tax_amount": "0.00",
+    "total_amount": "7350.00", "advance_paid": "5000.00", "insurance_approved": "0.00",
+    "patient_payable": "7350.00", "amount_paid": "5000.00", "balance_due": "2350.00",
+    "los_days": 4, "hospital_name": "Alagappa Hospital", "hospital_gstin": "33ABCDE1234F1Z5"
+  },
+  "watermark": "",
+  "document_number": "IPD-BILL-20260612-0001"
 }"#;
 
 const LAB_REPORT_HTML: &str = r#"{% extends "base.html" %}

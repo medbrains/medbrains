@@ -5664,6 +5664,12 @@ function BillingTab({ admissionId }: { admissionId: string }) {
 
   return (
     <Stack>
+      <Group justify="space-between" align="center">
+        <Text size="sm" fw={600}>
+          Billing
+        </Text>
+        <DocumentActions templateCode="ipd_consolidated_bill" sourceId={admissionId} size="sm" />
+      </Group>
       {thresholdExceeded && configWithThreshold && (
         <Card withBorder p="sm" bg="red.0" style={{ borderColor: "var(--mantine-color-red-4)" }}>
           <Group gap="xs">

@@ -6038,6 +6038,10 @@ pub fn build_router(state: AppState) -> Router {
             get(print_data_billing::get_ipd_final_bill_print_data),
         )
         .route(
+            "/api/print-data/admission-consolidated-bill/{admission_id}",
+            get(print_data_billing::get_admission_consolidated_bill_print_data),
+        )
+        .route(
             "/api/print-data/advance-receipt/{payment_id}",
             get(print_data_billing::get_advance_receipt_print_data),
         )
