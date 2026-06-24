@@ -442,6 +442,16 @@ export interface TenantSummary {
   state_id: string | null;
   district_id: string | null;
   phone_code: string | null;
+  /** Hospital's own domain (e.g. hms.apollo.com). Empty string clears it. */
+  custom_domain: string | null;
+}
+
+/** Public (pre-auth) tenant branding resolved from the request host. */
+export interface PublicTenant {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  custom_domain: string | null;
 }
 
 // User

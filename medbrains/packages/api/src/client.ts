@@ -1410,6 +1410,7 @@ import type {
   // Specialty Clinical: Psychiatry
   PsychPatient,
   PsychRestraint,
+  PublicTenant,
   PurchaseConsumptionTrendRow,
   PurchaseOrder,
   PurchaseOrderPrintData,
@@ -2618,6 +2619,8 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  // Pre-auth: resolve the tenant for the current custom domain (login branding).
+  getTenantByHost: () => request<PublicTenant>("/public/tenant-by-host"),
   updateTenantGeo: (data: { country_id?: string; state_id?: string; district_id?: string }) =>
     request<{ status: string; defaults_applied?: boolean }>("/setup/tenant/geo", {
       method: "PUT",

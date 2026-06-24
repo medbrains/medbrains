@@ -73,6 +73,7 @@ const EMPTY_FORM: GeneralSettingsFormInput = {
   timezone: "Asia/Kolkata",
   currency: "INR",
   fy_start_month: "4",
+  custom_domain: "",
 };
 
 function tenantToFormState(tenant: TenantSummary): GeneralSettingsFormInput {
@@ -89,6 +90,7 @@ function tenantToFormState(tenant: TenantSummary): GeneralSettingsFormInput {
     timezone: tenant.timezone,
     currency: tenant.currency,
     fy_start_month: String(tenant.fy_start_month),
+    custom_domain: tenant.custom_domain ?? "",
   };
 }
 
@@ -106,6 +108,8 @@ function formStateToPayload(form: GeneralSettingsFormInput): Partial<TenantSumma
     timezone: form.timezone,
     currency: form.currency,
     fy_start_month: Number(form.fy_start_month),
+    // Empty string clears the domain (backend NULLIFs it); a value sets it.
+    custom_domain: form.custom_domain.trim(),
   };
 }
 
@@ -269,6 +273,17 @@ export function GeneralSettings() {
         placeholder="NABH, JCI, etc."
         error={errors.accreditation?.message}
         {...register("accreditation")}
+      />
+
+      <Text fw={600} size="lg" mt="md">
+        Custom Domain
+      </Text>
+      <TextInput
+        label="Domain"
+        placeholder="hms.hospital.com"
+        description="Serve MedBrains on your hospital's own domain. Point its DNS to the MedBrains edge and have IT add the TLS certificate; the login page then resolves this hospital automatically. Leave blank to use the default address."
+        error={errors.custom_domain?.message}
+        {...register("custom_domain")}
       />
 
       <Text fw={600} size="lg" mt="md">

@@ -43,6 +43,8 @@ pub struct UpdateTenantRequest {
     pub locale: Option<String>,
     pub currency: Option<String>,
     pub fy_start_month: Option<i32>,
+    /// Hospital's own domain (e.g. hms.apollo.com). Empty string clears it.
+    pub custom_domain: Option<String>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -67,6 +69,7 @@ pub struct TenantSummary {
     pub state_id: Option<Uuid>,
     pub district_id: Option<Uuid>,
     pub phone_code: Option<String>,
+    pub custom_domain: Option<String>,
 }
 
 pub async fn update_tenant(
@@ -99,6 +102,13 @@ pub async fn update_tenant(
             errors.add("fy_start_month", "Month must be between 1 and 12");
         }
     }
+    // Normalise the custom domain (trim + lowercase); empty string clears it.
+    let custom_domain = body.custom_domain.as_ref().map(|d| d.trim().to_lowercase());
+    if let Some(domain) = custom_domain.as_deref() {
+        if !domain.is_empty() && !is_valid_domain(domain) {
+            errors.add("custom_domain", "Enter a valid domain like hms.hospital.com");
+        }
+    }
 
     if errors.has_errors() {
         return Err(AppError::ValidationFailed(errors));
@@ -123,17 +133,18 @@ pub async fn update_tenant(
            timezone = COALESCE($10, timezone), \
            locale = COALESCE($11, locale), \
            currency = COALESCE($12, currency), \
-           fy_start_month = COALESCE($13, fy_start_month) \
-           WHERE id = $14 \
+           fy_start_month = COALESCE($13, fy_start_month), \
+           custom_domain = NULLIF(COALESCE($14, custom_domain), '') \
+           WHERE id = $15 \
            RETURNING id, code, name, address_line1, address_line2, city, pincode, \
            phone, email, website, registration_no, accreditation, timezone, locale, \
-           currency, fy_start_month, country_id, state_id, district_id \
+           currency, fy_start_month, country_id, state_id, district_id, custom_domain \
          ) \
          SELECT updated.id, updated.code, updated.name, updated.address_line1, \
          updated.address_line2, updated.city, updated.pincode, updated.phone, updated.email, \
          updated.website, updated.registration_no, updated.accreditation, updated.timezone, \
          updated.locale, updated.currency, updated.fy_start_month, updated.country_id, \
-         updated.state_id, updated.district_id, gc.phone_code \
+         updated.state_id, updated.district_id, updated.custom_domain, gc.phone_code \
          FROM updated \
          LEFT JOIN geo_countries gc ON gc.id = updated.country_id",
     )
@@ -150,6 +161,7 @@ pub async fn update_tenant(
     .bind(&body.locale)
     .bind(&body.currency)
     .bind(body.fy_start_month)
+    .bind(custom_domain)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?;
@@ -168,12 +180,62 @@ pub async fn get_tenant(
     let tenant = sqlx::query_as::<_, TenantSummary>(
         "SELECT t.id, t.code, t.name, t.address_line1, t.address_line2, t.city, t.pincode, \
          t.phone, t.email, t.website, t.registration_no, t.accreditation, t.timezone, t.locale, \
-         t.currency, t.fy_start_month, t.country_id, t.state_id, t.district_id, gc.phone_code \
+         t.currency, t.fy_start_month, t.country_id, t.state_id, t.district_id, t.custom_domain, \
+         gc.phone_code \
          FROM tenants t \
          LEFT JOIN geo_countries gc ON gc.id = t.country_id \
          WHERE t.id = $1",
     )
     .bind(claims.tenant_id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    tenant.map_or_else(|| Err(AppError::NotFound), |t| Ok(Json(t)))
+}
+
+/// A hostname like `hms.apollo.com` — no scheme, port, path, or whitespace.
+fn is_valid_domain(domain: &str) -> bool {
+    domain.len() <= 253
+        && domain.contains('.')
+        && !domain.starts_with('.')
+        && !domain.ends_with('.')
+        && !domain.contains("..")
+        && domain
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
+}
+
+/// Public (pre-auth) tenant branding, resolved from the request host.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct PublicTenant {
+    pub id: Uuid,
+    pub name: String,
+    pub logo_url: Option<String>,
+    pub custom_domain: Option<String>,
+}
+
+/// GET /api/public/tenant-by-host — resolve the tenant for the current custom
+/// domain (login-page branding + SSO scoping). The Pingora edge forwards the
+/// browser's Host as `X-Forwarded-Host`; we fall back to `Host`. Returns only
+/// non-sensitive branding, never secrets. 404 when the host isn't a custom
+/// domain (the caller then renders the default MedBrains login).
+pub async fn tenant_by_host(
+    State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<PublicTenant>, AppError> {
+    let host = headers
+        .get("x-forwarded-host")
+        .or_else(|| headers.get(axum::http::header::HOST))
+        .and_then(|v| v.to_str().ok())
+        .map(|h| h.split(':').next().unwrap_or(h).trim().to_lowercase())
+        .filter(|h| !h.is_empty())
+        .ok_or(AppError::NotFound)?;
+
+    let tenant = sqlx::query_as::<_, PublicTenant>(
+        "SELECT id, name, logo_url, custom_domain FROM tenants \
+         WHERE lower(custom_domain) = $1 AND is_active = true",
+    )
+    .bind(&host)
     .fetch_optional(&state.db)
     .await?;
 

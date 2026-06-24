@@ -4223,6 +4223,12 @@ export const generalSettingsFormSchema = z.object({
     const month = Number(value);
     return Number.isInteger(month) && month >= 1 && month <= 12;
   }, "Financial year start month is required"),
+  custom_domain: z
+    .string()
+    .refine(
+      (value) => value.trim() === "" || /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(value.trim()),
+      "Enter a valid domain like hms.hospital.com",
+    ),
 });
 
 const hexColorField = requiredTrimmed("Color is required", 7).refine(

@@ -240,6 +240,7 @@ pub fn build_router(state: AppState) -> Router {
             get(geo::search_pincode),
         )
         // CMS Public API (no auth required)
+        .route("/api/public/tenant-by-host", get(setup::tenant_by_host))
         .route("/api/public/cms/posts", get(cms::public_list_posts))
         .route("/api/public/cms/posts/featured", get(cms::public_featured_posts))
         .route("/api/public/cms/posts/{slug}", get(cms::public_get_post))
