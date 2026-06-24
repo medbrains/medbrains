@@ -30281,6 +30281,31 @@ export interface UpdateAiSettingsRequest {
   api_key_secret?: string | null;
 }
 
+export interface EmailSettings {
+  /** "sendgrid" | "smtp" | "stalwart". */
+  provider: string;
+  smtp_host: string;
+  smtp_port: string;
+  smtp_tls: string;
+  from_address: string;
+  from_name: string;
+  smtp_username: string;
+  /** Reference (not the value) to the SMTP password in the secret backend. */
+  smtp_password_secret: string | null;
+  env_fallback: boolean;
+}
+
+export interface UpdateEmailSettingsRequest {
+  provider: string;
+  smtp_host: string;
+  smtp_port: string;
+  smtp_tls: string;
+  from_address: string;
+  from_name: string;
+  smtp_username: string;
+  smtp_password_secret?: string | null;
+}
+
 // ── AI Course Generation ──────────────────────────────────
 
 export interface AiGeneratedCourse {

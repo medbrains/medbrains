@@ -48,7 +48,8 @@ const SEGMENTS: Segment[] = [
       { label: "Hospital identity", to: "/admin/settings" },
       { label: "Branding", to: "/admin/settings" },
       { label: "Geography & regulatory", to: "/admin/settings" },
-      { label: "Custom domain", to: "/admin/settings", soon: true },
+      { label: "Custom domain", to: "/admin/settings" },
+      { label: "Domains & email (DNS, mail server)", to: "/setup/domains-email" },
     ],
   },
   {

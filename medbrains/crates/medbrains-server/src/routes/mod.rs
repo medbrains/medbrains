@@ -485,6 +485,10 @@ pub fn build_router(state: AppState) -> Router {
             get(infra_settings::get_ai_settings).put(infra_settings::update_ai_settings),
         )
         .route(
+            "/api/admin/email-settings",
+            get(infra_settings::get_email_settings).put(infra_settings::update_email_settings),
+        )
+        .route(
             "/api/setup/services/{id}",
             put(setup::update_service).delete(setup::delete_service),
         )

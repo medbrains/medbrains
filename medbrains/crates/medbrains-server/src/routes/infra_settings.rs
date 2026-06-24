@@ -135,3 +135,135 @@ pub async fn update_ai_settings(
         env_fallback: std::env::var("ANTHROPIC_API_KEY").is_ok(),
     }))
 }
+
+#[derive(Debug, Serialize)]
+pub struct EmailSettings {
+    /// `sendgrid` | `smtp` | `stalwart`.
+    pub provider: String,
+    pub smtp_host: String,
+    pub smtp_port: String,
+    pub smtp_tls: String,
+    pub from_address: String,
+    pub from_name: String,
+    pub smtp_username: String,
+    /// Reference (not the value) to the SMTP password in the secret backend.
+    pub smtp_password_secret: Option<String>,
+    /// Whether `EMAIL_FROM_ADDRESS` is present in the environment as a fallback.
+    pub env_fallback: bool,
+}
+
+/// GET /api/admin/email-settings
+pub async fn get_email_settings(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<EmailSettings>, AppError> {
+    require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let stored = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'email' AND key = 'config' AND deleted_at IS NULL",
+    )
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    let cfg = stored.unwrap_or_default();
+    let field = |name: &str| {
+        cfg.get(name)
+            .and_then(serde_json::Value::as_str)
+            .map(|s| s.trim().to_owned())
+            .unwrap_or_default()
+    };
+
+    Ok(Json(EmailSettings {
+        provider: {
+            let p = field("provider");
+            if p.is_empty() { "smtp".to_owned() } else { p }
+        },
+        smtp_host: field("smtp_host"),
+        smtp_port: field("smtp_port"),
+        smtp_tls: {
+            let t = field("smtp_tls");
+            if t.is_empty() { "starttls".to_owned() } else { t }
+        },
+        from_address: field("from_address"),
+        from_name: field("from_name"),
+        smtp_username: field("smtp_username"),
+        smtp_password_secret: Some(field("smtp_password_secret")).filter(|s| !s.is_empty()),
+        env_fallback: std::env::var("EMAIL_FROM_ADDRESS").is_ok(),
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateEmailSettings {
+    pub provider: String,
+    pub smtp_host: String,
+    pub smtp_port: String,
+    pub smtp_tls: String,
+    pub from_address: String,
+    pub from_name: String,
+    pub smtp_username: String,
+    pub smtp_password_secret: Option<String>,
+}
+
+/// PUT /api/admin/email-settings — non-secret email config; the SMTP password
+/// is referenced (not stored) via the secret backend.
+pub async fn update_email_settings(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<UpdateEmailSettings>,
+) -> Result<Json<EmailSettings>, AppError> {
+    require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+
+    let provider = body.provider.trim();
+    if !matches!(provider, "sendgrid" | "smtp" | "stalwart") {
+        return Err(AppError::BadRequest(format!(
+            "Email provider '{provider}' is not supported"
+        )));
+    }
+
+    let secret = body
+        .smtp_password_secret
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let value = serde_json::json!({
+        "provider": provider,
+        "smtp_host": body.smtp_host.trim(),
+        "smtp_port": body.smtp_port.trim(),
+        "smtp_tls": body.smtp_tls.trim(),
+        "from_address": body.from_address.trim(),
+        "from_name": body.from_name.trim(),
+        "smtp_username": body.smtp_username.trim(),
+        "smtp_password_secret": secret,
+    });
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    sqlx::query(
+        "INSERT INTO tenant_settings (tenant_id, category, key, value) \
+         VALUES ($1, 'email', 'config', $2) \
+         ON CONFLICT (tenant_id, category, key) \
+         DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
+    )
+    .bind(claims.tenant_id)
+    .bind(&value)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    Ok(Json(EmailSettings {
+        provider: provider.to_owned(),
+        smtp_host: body.smtp_host.trim().to_owned(),
+        smtp_port: body.smtp_port.trim().to_owned(),
+        smtp_tls: body.smtp_tls.trim().to_owned(),
+        from_address: body.from_address.trim().to_owned(),
+        from_name: body.from_name.trim().to_owned(),
+        smtp_username: body.smtp_username.trim().to_owned(),
+        smtp_password_secret: secret.map(ToOwned::to_owned),
+        env_fallback: std::env::var("EMAIL_FROM_ADDRESS").is_ok(),
+    }))
+}

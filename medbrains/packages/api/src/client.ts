@@ -853,6 +853,7 @@ import type {
   // Phase 5: Admin/HR, BME, Blood Bank, OT, Clinical Print Data
   EmployeeIdCardPrintData,
   EmployerViewResponse,
+  EmailSettings,
   Encounter,
   // OPD
   EncounterListResponse,
@@ -1648,6 +1649,7 @@ import type {
   UpdateAdmissionRequest,
   UpdateAdrRequest,
   UpdateAiSettingsRequest,
+  UpdateEmailSettingsRequest,
   UpdateAlertThresholdRequest,
   UpdateAmbulanceDriverRequest,
   UpdateAmbulanceLocationRequest,
@@ -13018,6 +13020,12 @@ export const api = {
   getAiSettings: () => request<AiSettings>("/admin/ai-settings"),
   updateAiSettings: (data: UpdateAiSettingsRequest) =>
     request<AiSettings>("/admin/ai-settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getEmailSettings: () => request<EmailSettings>("/admin/email-settings"),
+  updateEmailSettings: (data: UpdateEmailSettingsRequest) =>
+    request<EmailSettings>("/admin/email-settings", {
       method: "PUT",
       body: JSON.stringify(data),
     }),

@@ -75,6 +75,39 @@ async fn load_attachments(
 
 const SENDGRID_API: &str = "https://api.sendgrid.com/v3/mail/send";
 
+/// Per-tenant email config from `tenant_settings` (category `email`, key
+/// `config`). Fail-safe: any error → empty object, so resolution falls back to
+/// the `SecretResolver`/env keys and behaviour is unchanged.
+async fn load_email_config(ctx: &HandlerCtx) -> Value {
+    let row: Option<(Value,)> = sqlx::query_as(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'email' AND key = 'config' AND deleted_at IS NULL",
+    )
+    .bind(ctx.tenant_id)
+    .fetch_optional(&ctx.pool)
+    .await
+    .ok()
+    .flatten();
+    row.map_or_else(|| json!({}), |(value,)| value)
+}
+
+/// Prefer the per-tenant config field, else the secret backend / env var.
+async fn cfg_or_secret(config: &Value, ctx: &HandlerCtx, json_key: &str, env_key: &str) -> Option<String> {
+    if let Some(value) = config
+        .get(json_key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        return Some(value.to_owned());
+    }
+    ctx.secret_resolver
+        .get(env_key)
+        .await
+        .ok()
+        .filter(|s| !s.is_empty())
+}
+
 #[derive(Debug)]
 pub struct SmtpSendHandler {
     event_type: &'static str,
@@ -109,32 +142,25 @@ impl Handler for SmtpSendHandler {
             ));
         }
 
-        let provider = ctx
-            .secret_resolver
-            .get("EMAIL_PROVIDER")
+        let config = load_email_config(ctx).await;
+        let provider = cfg_or_secret(&config, ctx, "provider", "EMAIL_PROVIDER")
             .await
-            .unwrap_or_else(|_| "sendgrid".to_owned());
-        let from_address = match ctx.secret_resolver.get("EMAIL_FROM_ADDRESS").await {
-            Ok(v) if !v.is_empty() => v,
-            _ => {
-                tracing::warn!(
-                    tenant_id = %ctx.tenant_id,
-                    event_id = %ctx.event_id,
-                    "email: EMAIL_FROM_ADDRESS unset — running as stub"
-                );
-                return Ok(json!({
-                    "provider": provider,
-                    "stub": true,
-                    "reason": "creds_unset",
-                }));
-            }
+            .unwrap_or_else(|| "sendgrid".to_owned());
+        let Some(from_address) =
+            cfg_or_secret(&config, ctx, "from_address", "EMAIL_FROM_ADDRESS").await
+        else {
+            tracing::warn!(
+                tenant_id = %ctx.tenant_id,
+                event_id = %ctx.event_id,
+                "email: EMAIL_FROM_ADDRESS unset — running as stub"
+            );
+            return Ok(json!({
+                "provider": provider,
+                "stub": true,
+                "reason": "creds_unset",
+            }));
         };
-        let from_name = ctx
-            .secret_resolver
-            .get("EMAIL_FROM_NAME")
-            .await
-            .ok()
-            .filter(|s| !s.is_empty());
+        let from_name = cfg_or_secret(&config, ctx, "from_name", "EMAIL_FROM_NAME").await;
 
         let attachments = load_attachments(ctx, payload).await?;
 
@@ -158,6 +184,7 @@ impl Handler for SmtpSendHandler {
             "smtp" | "stalwart" => {
                 send_via_smtp(
                     ctx,
+                    &config,
                     &from_address,
                     from_name.as_deref(),
                     to,
@@ -297,6 +324,7 @@ async fn send_via_sendgrid(
 #[allow(clippy::too_many_lines, clippy::too_many_arguments)]
 async fn send_via_smtp(
     ctx: &HandlerCtx,
+    config: &Value,
     from_addr: &str,
     from_name: Option<&str>,
     to: &str,
@@ -310,33 +338,25 @@ async fn send_via_smtp(
     use lettre::transport::smtp::authentication::Credentials;
     use lettre::{AsyncTransport, Message, Tokio1Executor};
 
-    let host = match ctx.secret_resolver.get("SMTP_HOST").await {
-        Ok(v) if !v.is_empty() => v,
-        _ => {
-            tracing::warn!(
-                tenant_id = %ctx.tenant_id,
-                event_id = %ctx.event_id,
-                "smtp: SMTP_HOST unset — running as stub"
-            );
-            return Ok(json!({
-                "provider": "smtp",
-                "stub": true,
-                "reason": "creds_unset",
-            }));
-        }
+    let Some(host) = cfg_or_secret(config, ctx, "smtp_host", "SMTP_HOST").await else {
+        tracing::warn!(
+            tenant_id = %ctx.tenant_id,
+            event_id = %ctx.event_id,
+            "smtp: SMTP_HOST unset — running as stub"
+        );
+        return Ok(json!({
+            "provider": "smtp",
+            "stub": true,
+            "reason": "creds_unset",
+        }));
     };
-    let port: u16 = ctx
-        .secret_resolver
-        .get("SMTP_PORT")
+    let port: u16 = cfg_or_secret(config, ctx, "smtp_port", "SMTP_PORT")
         .await
-        .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(587);
-    let tls_mode = ctx
-        .secret_resolver
-        .get("SMTP_TLS")
+    let tls_mode = cfg_or_secret(config, ctx, "smtp_tls", "SMTP_TLS")
         .await
-        .unwrap_or_else(|_| "starttls".to_owned());
+        .unwrap_or_else(|| "starttls".to_owned());
 
     let from: Mailbox = match from_name {
         Some(name) => format!("{name} <{from_addr}>"),
@@ -382,8 +402,16 @@ async fn send_via_smtp(
     }
     .port(port);
 
-    let username = ctx.secret_resolver.get("SMTP_USERNAME").await.ok();
-    let password = ctx.secret_resolver.get("SMTP_PASSWORD").await.ok();
+    let username = cfg_or_secret(config, ctx, "smtp_username", "SMTP_USERNAME").await;
+    // The password is always a secret — config holds only a REFERENCE key in the
+    // secret backend (`smtp_password_secret`), defaulting to env `SMTP_PASSWORD`.
+    let password_key = config
+        .get("smtp_password_secret")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("SMTP_PASSWORD");
+    let password = ctx.secret_resolver.get(password_key).await.ok();
     if let (Some(user), Some(pass)) = (
         username.filter(|v| !v.is_empty()),
         password.filter(|v| !v.is_empty()),
