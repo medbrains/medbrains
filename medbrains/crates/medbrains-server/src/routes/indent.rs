@@ -1284,6 +1284,7 @@ pub struct AnalyticsDateQuery {
 pub struct ListConsumablesQuery {
     pub patient_id: Option<Uuid>,
     pub department_id: Option<Uuid>,
+    pub encounter_id: Option<Uuid>,
     pub status: Option<String>,
 }
 
@@ -1887,7 +1888,16 @@ pub async fn list_patient_consumables(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = if let Some(patient_id) = params.patient_id {
+    let rows = if let Some(encounter_id) = params.encounter_id {
+        sqlx::query_as::<_, PatientConsumableIssue>(
+            "SELECT * FROM patient_consumable_issues \
+             WHERE tenant_id = $1 AND encounter_id = $2 ORDER BY created_at DESC LIMIT 5000",
+        )
+        .bind(claims.tenant_id)
+        .bind(encounter_id)
+        .fetch_all(&mut *tx)
+        .await?
+    } else if let Some(patient_id) = params.patient_id {
         sqlx::query_as::<_, PatientConsumableIssue>(
             "SELECT * FROM patient_consumable_issues \
              WHERE tenant_id = $1 AND patient_id = $2 ORDER BY created_at DESC LIMIT 5000",
