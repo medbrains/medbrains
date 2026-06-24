@@ -74,6 +74,7 @@ const SEGMENTS: Segment[] = [
       { label: "Services", to: "/admin/settings", essential: true, signal: "services" },
       { label: "Locations", to: "/admin/settings" },
       { label: "Bed configuration", to: "/admin/settings" },
+      { label: "Sample / demo data", to: "/admin/simulator" },
     ],
   },
   {
