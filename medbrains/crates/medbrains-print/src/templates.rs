@@ -82,6 +82,17 @@ pub const SYSTEM_TEMPLATES: &[SystemTemplate] = &[
         sample_context: IPD_CONSOLIDATED_BILL_SAMPLE,
     },
     SystemTemplate {
+        code: "no_dues_certificate",
+        title: "No-Dues Certificate",
+        module_code: "ipd",
+        source_table: "admissions",
+        number_prefix: "IPD-NOC",
+        paper: Paper::A4,
+        margins: A4_MARGINS,
+        html: NO_DUES_HTML,
+        sample_context: NO_DUES_SAMPLE,
+    },
+    SystemTemplate {
         code: "lab_report",
         title: "Laboratory Report",
         module_code: "lab",
@@ -393,6 +404,57 @@ const IPD_CONSOLIDATED_BILL_HTML: &str = r#"{% extends "base.html" %}
   Consolidated across every invoice raised during this admission. System-generated; subject to final audit.
 </p>
 {% endblock content %}"#;
+
+const NO_DUES_HTML: &str = r#"{% extends "base.html" %}
+{% block content %}
+<h2 class="brand" style="margin-bottom:2px;">NO-DUES CERTIFICATE</h2>
+<p class="muted small" style="margin-top:0;">Financial clearance — Inpatient discharge</p>
+<table style="margin-bottom:8px;"><tr>
+  <td>
+    <div><strong>Patient:</strong> {{ cert.patient_name }}{% if cert.age %} · {{ cert.age }}{% endif %} · {{ cert.gender }}</div>
+    <div><strong>UHID:</strong> <span class="mono">{{ cert.uhid }}</span></div>
+    {% if cert.ward_name %}<div><strong>Ward/Bed:</strong> {{ cert.ward_name }}{% if cert.bed_number %} / {{ cert.bed_number }}{% endif %}</div>{% endif %}
+  </td>
+  <td class="right">
+    <div><strong>Admitted:</strong> {{ cert.admission_date }}</div>
+    {% if cert.discharge_date %}<div><strong>Discharged:</strong> {{ cert.discharge_date }}</div>{% endif %}
+    <div><strong>Issued:</strong> {{ cert.issued_at }}</div>
+  </td>
+</tr></table>
+<p style="margin:12px 0;">
+  This certifies that all hospital charges for the above admission have been
+  reconciled and settled in full. The patient is cleared for discharge with
+  <strong>no outstanding dues</strong>.
+</p>
+<table style="margin-top:8px;"><tr><td></td><td style="width:42%;">
+  <table>
+    <tr><td>Total billed</td><td class="right">{{ cert.total_billed }}</td></tr>
+    <tr><td>Total paid</td><td class="right">{{ cert.total_paid }}</td></tr>
+    <tr><td><strong>Balance due</strong></td><td class="right"><strong>{{ cert.balance }}</strong></td></tr>
+  </table>
+</td></tr></table>
+{% if cert.notes %}<p class="muted small"><strong>Notes:</strong> {{ cert.notes }}</p>{% endif %}
+<p style="margin-top:28px;">
+  {% if cert.issued_by %}Cleared by: <strong>{{ cert.issued_by }}</strong>{% endif %}
+</p>
+<p class="muted small" style="margin-top:24px;">
+  System-generated financial clearance. Valid with the official hospital seal.
+</p>
+{% endblock content %}"#;
+
+const NO_DUES_SAMPLE: &str = r#"{
+  "cert": {
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "age": "42 Y", "gender": "F",
+    "admission_date": "08-Jun-2026", "discharge_date": "12-Jun-2026",
+    "ward_name": "General Ward A", "bed_number": "GW-12",
+    "total_billed": "7350.00", "total_paid": "7350.00", "balance": "0.00",
+    "issued_by": "Anita Kumar (Billing)", "issued_at": "12-Jun-2026 14:30",
+    "notes": null, "hospital_name": "Alagappa Hospital"
+  },
+  "watermark": "",
+  "document_number": "IPD-NOC-20260612-0001"
+}"#;
 
 const IPD_CONSOLIDATED_BILL_SAMPLE: &str = r#"{
   "bill": {

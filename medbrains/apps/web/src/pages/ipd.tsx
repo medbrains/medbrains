@@ -5635,9 +5635,24 @@ function InvestigationsTab({
 }
 
 function BillingTab({ admissionId }: { admissionId: string }) {
+  const billingQueryClient = useQueryClient();
   const { data: costData } = useQuery({
     queryKey: ["ipd-estimated-cost", admissionId],
     queryFn: () => ipdService.getEstimatedCost(admissionId),
+  });
+  const { data: noDues } = useQuery({
+    queryKey: ["ipd-no-dues", admissionId],
+    queryFn: () => ipdService.getNoDuesCertificate(admissionId),
+  });
+  const issueNoDues = useMutation({
+    mutationFn: () => ipdService.issueNoDuesCertificate(admissionId, {}),
+    onSuccess: () => {
+      toast.success("No-Dues certificate issued — patient cleared for discharge.", {
+        title: "Financial clearance",
+      });
+      void billingQueryClient.invalidateQueries({ queryKey: ["ipd-no-dues", admissionId] });
+    },
+    onError: (error: Error) => toast.error(error.message, { title: "Cannot issue No-Dues" }),
   });
   const { data: summaryData } = useQuery({
     queryKey: ["ipd-billing-summary", admissionId],
@@ -5670,6 +5685,38 @@ function BillingTab({ admissionId }: { admissionId: string }) {
         </Text>
         <DocumentActions templateCode="ipd_consolidated_bill" sourceId={admissionId} size="sm" />
       </Group>
+      <Card withBorder p="sm">
+        <Group justify="space-between" align="center">
+          <Stack gap={0}>
+            <Text size="sm" fw={600}>
+              No-Dues certificate
+            </Text>
+            <Text size="xs" c="dimmed">
+              {noDues
+                ? `Issued · balance ₹${noDues.balance}`
+                : "Issue once the admission balance is settled"}
+            </Text>
+          </Stack>
+          <Group gap="xs">
+            {!noDues && (
+              <Button
+                size="sm"
+                onClick={() => issueNoDues.mutate()}
+                loading={issueNoDues.isPending}
+              >
+                Issue No-Dues
+              </Button>
+            )}
+            {noDues && (
+              <DocumentActions
+                templateCode="no_dues_certificate"
+                sourceId={admissionId}
+                size="sm"
+              />
+            )}
+          </Group>
+        </Group>
+      </Card>
       {thresholdExceeded && configWithThreshold && (
         <Card withBorder p="sm" bg="red.0" style={{ borderColor: "var(--mantine-color-red-4)" }}>
           <Group gap="xs">

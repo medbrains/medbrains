@@ -15,8 +15,9 @@ use medbrains_core::ipd::{
     InvestigationsResponse, IpType, IpTypeConfiguration, IpdBirthRecord, IpdCarePlan,
     IpdClinicalAssessment, IpdClinicalDocumentation, IpdDeathSummary, IpdDischargeChecklist,
     IpdDischargeSummary, IpdDischargeTatLog, IpdHandoverReport, IpdIntakeOutput,
-    IpdMedicationAdministration, IpdNursingAssessment, IpdProgressNote, IpdTransferLog,
-    IvFluidOrder, LabOrderSummary, LabResultSummary, MarStatus, NursingShift, NursingTask,
+    IpdMedicationAdministration, IpdNoDuesCertificate, IpdNursingAssessment, IpdProgressNote,
+    IpdTransferLog, IvFluidOrder, LabOrderSummary, LabResultSummary, MarStatus, NursingShift,
+    NursingTask,
     ProgressNoteType, RadiologyOrderSummary, RestraintMonitoringLog, Ward, WardBedMapping,
 };
 use medbrains_core::permissions;
@@ -4645,6 +4646,96 @@ pub async fn finalize_discharge_summary(
         row,
         &restricted_fields,
     )))
+}
+
+// ══════════════════════════════════════════════════════════
+//  No-Dues (financial clearance) certificate
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Deserialize)]
+pub struct IssueNoDuesRequest {
+    pub notes: Option<String>,
+}
+
+pub async fn get_no_dues_certificate(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(admission_id): Path<Uuid>,
+) -> Result<Json<Option<IpdNoDuesCertificate>>, AppError> {
+    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let row = sqlx::query_as::<_, IpdNoDuesCertificate>(
+        "SELECT * FROM ipd_no_dues_certificates WHERE admission_id = $1 AND tenant_id = $2",
+    )
+    .bind(admission_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// Issue (or refresh) the financial-clearance certificate for an
+/// admission. Blocked while a balance remains — the certificate IS the
+/// proof that billing reconciled and settled the stay. Idempotent per
+/// admission so re-issuing after a late payment refreshes the snapshot.
+pub async fn issue_no_dues_certificate(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(admission_id): Path<Uuid>,
+    Json(body): Json<IssueNoDuesRequest>,
+) -> Result<Json<IpdNoDuesCertificate>, AppError> {
+    require_permission(&claims, permissions::billing::invoices::UPDATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let (total_billed, total_paid) = sqlx::query_as::<_, (Decimal, Decimal)>(
+        "SELECT COALESCE(SUM(total_amount), 0), COALESCE(SUM(paid_amount), 0) \
+         FROM invoices \
+         WHERE admission_id = $1 AND tenant_id = $2 \
+           AND status NOT IN ('cancelled'::invoice_status, 'refunded'::invoice_status)",
+    )
+    .bind(admission_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let balance = total_billed - total_paid;
+    if balance > Decimal::ZERO {
+        return Err(AppError::Conflict(format!(
+            "Cannot issue No-Dues certificate — outstanding balance of {balance} must be settled first"
+        )));
+    }
+
+    let row = sqlx::query_as::<_, IpdNoDuesCertificate>(
+        "INSERT INTO ipd_no_dues_certificates \
+           (tenant_id, admission_id, total_billed, total_paid, balance, issued_by, notes) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7) \
+         ON CONFLICT (admission_id) DO UPDATE SET \
+           total_billed = EXCLUDED.total_billed, total_paid = EXCLUDED.total_paid, \
+           balance = EXCLUDED.balance, issued_by = EXCLUDED.issued_by, \
+           notes = EXCLUDED.notes, updated_at = NOW() \
+         RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(admission_id)
+    .bind(total_billed)
+    .bind(total_paid)
+    .bind(balance)
+    .bind(claims.sub)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
 }
 
 // ══════════════════════════════════════════════════════════

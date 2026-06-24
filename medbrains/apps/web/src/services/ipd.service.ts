@@ -48,6 +48,10 @@ export const ipdService = {
     api.updateDischargeSummary(...args),
   finalizeDischargeSummary: (...args: Parameters<typeof api.finalizeDischargeSummary>) =>
     api.finalizeDischargeSummary(...args),
+  getNoDuesCertificate: (...args: Parameters<typeof api.getNoDuesCertificate>) =>
+    api.getNoDuesCertificate(...args),
+  issueNoDuesCertificate: (...args: Parameters<typeof api.issueNoDuesCertificate>) =>
+    api.issueNoDuesCertificate(...args),
   transferBed: (...args: Parameters<typeof api.transferBed>) => api.transferBed(...args),
   listDischargeChecklist: (...args: Parameters<typeof api.listDischargeChecklist>) =>
     api.listDischargeChecklist(...args),

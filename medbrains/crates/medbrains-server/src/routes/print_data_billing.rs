@@ -17,8 +17,9 @@ use medbrains_core::print_data::{
     AdvanceReceiptPrintData, BillCategoryTotal, BillLineItem, CashlessClaimPrintData,
     CreditNoteItem, CreditNotePrintData, EstimateItemLine, EstimatePrintData, GstInvoiceItemLine,
     GstInvoicePrintData, InsuranceClaimPrintData, InsurancePreauthPrintData, IpdFinalBillPrintData,
-    IpdInterimBillPrintData, OpdBillPrintData, PackageAdditionalCharge, PackageBillPrintData,
-    PackageEstimatePrintData, PackageExclusion, ReceiptPrintData, RefundReceiptPrintData,
+    IpdInterimBillPrintData, NoDuesCertificatePrintData, OpdBillPrintData, PackageAdditionalCharge,
+    PackageBillPrintData, PackageEstimatePrintData, PackageExclusion, ReceiptPrintData,
+    RefundReceiptPrintData,
     TdsCertificatePrintData, TdsEntry,
 };
 
@@ -1140,6 +1141,93 @@ pub async fn get_admission_consolidated_bill_print_data(
         los_days,
         hospital_name: h_name,
         hospital_gstin: header.hospital_gstin,
+    }))
+}
+
+// ── No-Dues Certificate ─────────────────────────────────
+
+#[derive(Debug, sqlx::FromRow)]
+struct NoDuesRow {
+    patient_name: String,
+    uhid: String,
+    age: Option<f64>,
+    gender: String,
+    admission_date: Option<chrono::DateTime<chrono::Utc>>,
+    discharge_date: Option<chrono::DateTime<chrono::Utc>>,
+    ward_name: Option<String>,
+    bed_number: Option<String>,
+    total_billed: String,
+    total_paid: String,
+    balance: String,
+    issued_by: Option<String>,
+    issued_at: chrono::DateTime<chrono::Utc>,
+    notes: Option<String>,
+}
+
+pub async fn get_no_dues_certificate_print_data(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(admission_id): Path<Uuid>,
+) -> Result<Json<NoDuesCertificatePrintData>, AppError> {
+    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let row = sqlx::query_as::<_, NoDuesRow>(
+        "SELECT \
+           (p.first_name || ' ' || p.last_name) AS patient_name, \
+           p.uhid, \
+           EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
+           p.gender::text AS gender, \
+           adm.admitted_at AS admission_date, \
+           adm.discharged_at AS discharge_date, \
+           w.name AS ward_name, \
+           b.bed_number, \
+           c.total_billed::text AS total_billed, \
+           c.total_paid::text AS total_paid, \
+           c.balance::text AS balance, \
+           u.full_name AS issued_by, \
+           c.created_at AS issued_at, \
+           c.notes \
+         FROM ipd_no_dues_certificates c \
+         JOIN admissions adm ON adm.id = c.admission_id AND adm.tenant_id = c.tenant_id \
+         JOIN patients p ON p.id = adm.patient_id AND p.tenant_id = adm.tenant_id \
+         LEFT JOIN beds b ON b.id = adm.bed_id AND b.tenant_id = adm.tenant_id \
+         LEFT JOIN wards w ON w.id = b.ward_id AND w.tenant_id = b.tenant_id \
+         LEFT JOIN users u ON u.id = c.issued_by \
+         WHERE c.admission_id = $1 AND c.tenant_id = $2",
+    )
+    .bind(admission_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let h_name = hospital_name(&mut tx, claims.tenant_id).await?;
+    tx.commit().await?;
+
+    Ok(Json(NoDuesCertificatePrintData {
+        patient_name: row.patient_name,
+        uhid: row.uhid,
+        age: row.age.map(|a| format!("{} Y", a as i32)),
+        gender: row.gender,
+        admission_date: row
+            .admission_date
+            .map(|d| d.format("%d-%b-%Y").to_string())
+            .unwrap_or_default(),
+        discharge_date: row.discharge_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        ward_name: row.ward_name,
+        bed_number: row.bed_number,
+        total_billed: row.total_billed,
+        total_paid: row.total_paid,
+        balance: row.balance,
+        issued_by: row.issued_by,
+        issued_at: row.issued_at.format("%d-%b-%Y %H:%M").to_string(),
+        notes: row.notes,
+        hospital_name: h_name,
     }))
 }
 

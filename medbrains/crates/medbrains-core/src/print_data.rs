@@ -698,6 +698,25 @@ pub struct BillCategoryTotal {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NoDuesCertificatePrintData {
+    pub patient_name: String,
+    pub uhid: String,
+    pub age: Option<String>,
+    pub gender: String,
+    pub admission_date: String,
+    pub discharge_date: Option<String>,
+    pub ward_name: Option<String>,
+    pub bed_number: Option<String>,
+    pub total_billed: String,
+    pub total_paid: String,
+    pub balance: String,
+    pub issued_by: Option<String>,
+    pub issued_at: String,
+    pub notes: Option<String>,
+    pub hospital_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdvanceReceiptPrintData {
     pub receipt_number: String,
     pub receipt_date: String,

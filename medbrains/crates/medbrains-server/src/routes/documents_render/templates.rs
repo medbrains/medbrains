@@ -96,6 +96,15 @@ pub(crate) async fn build_context(
                 .await?;
             serde_json::json!({ "bill": data })
         }
+        "no_dues_certificate" => {
+            let Json(data) = crate::routes::print_data_billing::get_no_dues_certificate_print_data(
+                State(state.clone()),
+                Extension(claims.clone()),
+                Path(source_id),
+            )
+            .await?;
+            serde_json::json!({ "cert": data })
+        }
         "lab_report" => {
             let Json(data) = crate::routes::print_data::get_lab_report_print_data(
                 State(state.clone()),

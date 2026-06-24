@@ -1050,6 +1050,7 @@ import type {
   IpdMortalityCreate,
   IpdMortalityReview,
   IpdMortalitySubmit,
+  IpdNoDuesCertificate,
   IpdNursingAssessment,
   IpdPostDischargeRow,
   // IPD Clinical Expansion
@@ -5628,6 +5629,13 @@ export const api = {
   finalizeDischargeSummary: (admissionId: string) =>
     request<IpdDischargeSummary>(`/ipd/admissions/${admissionId}/discharge-summary/finalize`, {
       method: "POST",
+    }),
+  getNoDuesCertificate: (admissionId: string) =>
+    request<IpdNoDuesCertificate | null>(`/ipd/admissions/${admissionId}/no-dues-certificate`),
+  issueNoDuesCertificate: (admissionId: string, data: { notes?: string }) =>
+    request<IpdNoDuesCertificate>(`/ipd/admissions/${admissionId}/no-dues-certificate`, {
+      method: "POST",
+      body: JSON.stringify(data),
     }),
 
   // IPD Phase 2 — Reports

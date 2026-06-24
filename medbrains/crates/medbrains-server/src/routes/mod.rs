@@ -3202,6 +3202,10 @@ pub fn build_router(state: AppState) -> Router {
             "/api/ipd/admissions/{id}/discharge-summary/finalize",
             post(ipd::finalize_discharge_summary),
         )
+        .route(
+            "/api/ipd/admissions/{id}/no-dues-certificate",
+            get(ipd::get_no_dues_certificate).post(ipd::issue_no_dues_certificate),
+        )
         // ── IPD Clinical Expansion ─────────────────────────
         .route(
             "/api/ipd/admissions/{id}/progress-notes",

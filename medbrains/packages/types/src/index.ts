@@ -8075,6 +8075,19 @@ export interface DischargeSummaryTemplate {
   updated_at: string;
 }
 
+export interface IpdNoDuesCertificate {
+  id: string;
+  tenant_id: string;
+  admission_id: string;
+  total_billed: string;
+  total_paid: string;
+  balance: string;
+  issued_by: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface IpdDischargeSummary {
   id: string;
   tenant_id: string;

@@ -836,3 +836,17 @@ pub struct AnesthesiaComplicationEntry {
     pub adverse_events: Option<serde_json::Value>,
     pub case_date: NaiveDate,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct IpdNoDuesCertificate {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub admission_id: Uuid,
+    pub total_billed: rust_decimal::Decimal,
+    pub total_paid: rust_decimal::Decimal,
+    pub balance: rust_decimal::Decimal,
+    pub issued_by: Uuid,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
