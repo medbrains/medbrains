@@ -82,6 +82,7 @@ import { DataTable, PageHeader, StatusDot } from "@/components";
 import { PatientConsumablesPanel } from "@/components/Clinical";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { StationHandoffPanel } from "@/components/Handoff/StationHandoffPanel";
+import { OtImplantRegisterPanel } from "@/components/Ot/OtImplantRegisterPanel";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
@@ -805,7 +806,10 @@ function BookingDetail({ bookingId }: { bookingId: string }) {
         </Stack>
       </Tabs.Panel>
       <Tabs.Panel value="consumables" pt="md">
-        <ConsumablesSubTab booking={data} />
+        <Stack>
+          <ConsumablesSubTab booking={data} />
+          <OtImplantRegisterPanel booking={data} />
+        </Stack>
       </Tabs.Panel>
     </Tabs>
   );
