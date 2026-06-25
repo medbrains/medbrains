@@ -402,6 +402,24 @@ async fn send_via_smtp(
     }
     .port(port);
 
+    // Dev escape hatch: the local Stalwart serves an mkcert cert that rustls's
+    // bundled roots don't trust (it's trusted via the OS keychain, which rustls
+    // ignores), so STARTTLS fails with "invalid peer certificate". When
+    // SMTP_INSECURE_TLS is set, accept the cert — same dev-only flag style as
+    // STALWART_INSECURE_TLS. Never set this in production.
+    if std::env::var("SMTP_INSECURE_TLS").is_ok() && tls_mode != "none" {
+        use lettre::transport::smtp::client::{Tls, TlsParameters};
+        let params = TlsParameters::builder(host.clone())
+            .dangerous_accept_invalid_certs(true)
+            .build()
+            .map_err(|e| HandlerError::Permanent(format!("smtp: tls params: {e}")))?;
+        transport = transport.tls(if tls_mode == "implicit" {
+            Tls::Wrapper(params)
+        } else {
+            Tls::Required(params)
+        });
+    }
+
     let username = cfg_or_secret(config, ctx, "smtp_username", "SMTP_USERNAME").await;
     // The password is always a secret — config holds only a REFERENCE key in the
     // secret backend (`smtp_password_secret`), defaulting to env `SMTP_PASSWORD`.
