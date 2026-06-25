@@ -71,6 +71,17 @@ pub const SYSTEM_TEMPLATES: &[SystemTemplate] = &[
         sample_context: DISCHARGE_SAMPLE,
     },
     SystemTemplate {
+        code: "er_discharge_summary",
+        title: "ER Discharge Summary",
+        module_code: "emergency",
+        source_table: "er_visits",
+        number_prefix: "ER-DSC",
+        paper: Paper::A4,
+        margins: A4_MARGINS,
+        html: ER_DISCHARGE_HTML,
+        sample_context: ER_DISCHARGE_SAMPLE,
+    },
+    SystemTemplate {
         code: "ipd_consolidated_bill",
         title: "Consolidated Discharge Bill",
         module_code: "ipd",
@@ -328,6 +339,61 @@ const DISCHARGE_SAMPLE: &str = r#"{
   },
   "watermark": "draft",
   "document_number": "IPD-DSC-20260612-0001"
+}"#;
+
+const ER_DISCHARGE_HTML: &str = r#"{% extends "base.html" %}
+{% block content %}
+<h2 class="brand" style="margin-bottom:2px;">EMERGENCY DISCHARGE SUMMARY</h2>
+{% if discharge.status != "finalized" %}<p class="muted small" style="margin-top:0;color:#b45309;">DRAFT — not finalized</p>{% endif %}
+<table style="margin-bottom:8px;"><tr>
+  <td>
+    <div><strong>Visit:</strong> <span class="mono">{{ discharge.visit_number }}</span></div>
+    <div><strong>Arrival:</strong> {{ discharge.arrival_time }}</div>
+    {% if discharge.discharge_date %}<div><strong>Discharged:</strong> {{ discharge.discharge_date }}</div>{% endif %}
+  </td>
+  <td class="right">
+    <div><strong>Patient:</strong> {{ discharge.patient_name }}{% if discharge.age %} · {{ discharge.age }}{% endif %} · {{ discharge.gender }}</div>
+    <div><strong>UHID:</strong> <span class="mono">{{ discharge.uhid }}</span></div>
+    {% if discharge.triage_level %}<div><strong>Triage:</strong> {{ discharge.triage_level }}</div>{% endif %}
+  </td>
+</tr></table>
+{% if discharge.chief_complaint %}<p><strong>Presenting complaint:</strong> {{ discharge.chief_complaint }}</p>{% endif %}
+{% if discharge.final_diagnosis %}<p><strong>Diagnosis:</strong> {{ discharge.final_diagnosis }}</p>{% endif %}
+{% if discharge.clinical_course %}<p><strong>Clinical course:</strong> {{ discharge.clinical_course }}</p>{% endif %}
+{% if discharge.treatment_given %}<p><strong>Treatment given:</strong> {{ discharge.treatment_given }}</p>{% endif %}
+{% if discharge.condition_at_discharge %}<p><strong>Condition at discharge:</strong> {{ discharge.condition_at_discharge }}</p>{% endif %}
+{% if discharge.disposition %}<p><strong>Disposition:</strong> {{ discharge.disposition }}</p>{% endif %}
+{% if discharge.medications_on_discharge %}<p><strong>Medications to continue:</strong><br/>{{ discharge.medications_on_discharge }}</p>{% endif %}
+{% if discharge.follow_up_instructions %}<p><strong>Follow-up:</strong> {{ discharge.follow_up_instructions }}{% if discharge.follow_up_date %} (by {{ discharge.follow_up_date }}){% endif %}</p>{% endif %}
+{% if discharge.warning_signs %}
+<div style="border:1px solid #C8102E;border-radius:4px;padding:6px 10px;margin-top:8px;">
+  <strong style="color:#C8102E;">Return immediately if:</strong> {{ discharge.warning_signs }}
+</div>
+{% endif %}
+<table style="margin-top:24px;"><tr>
+  <td>{% if discharge.doctor_name %}Attending: <strong>{{ discharge.doctor_name }}</strong>{% endif %}</td>
+  <td class="right muted small">System-generated discharge summary.</td>
+</tr></table>
+{% endblock content %}"#;
+
+const ER_DISCHARGE_SAMPLE: &str = r#"{
+  "discharge": {
+    "visit_number": "ER-20260625-0007", "patient_name": "M. Suresh", "uhid": "ACMS-2026-00318",
+    "age": "34 yrs", "gender": "M",
+    "arrival_time": "25-Jun-2026 21:40", "discharge_date": "25-Jun-2026 23:55",
+    "chief_complaint": "Laceration to left forearm", "triage_level": "less_urgent",
+    "disposition": "Discharged home", "doctor_name": "Dr. P. Nair", "status": "finalized",
+    "final_diagnosis": "Superficial laceration, left forearm (S51.8)",
+    "condition_at_discharge": "Stable, ambulatory",
+    "clinical_course": "Wound cleaned and irrigated; 4 sutures placed under local anaesthesia.",
+    "treatment_given": "Tetanus toxoid; wound toilet + suturing.",
+    "medications_on_discharge": "Amoxicillin-clavulanate 625mg TID x 5 days; Paracetamol 500mg PRN.",
+    "follow_up_instructions": "Suture removal in OPD after 7 days", "follow_up_date": "02-Jul-2026",
+    "warning_signs": "increasing pain, redness, swelling, pus, or fever",
+    "hospital_name": "Alagappa Hospital"
+  },
+  "watermark": "",
+  "document_number": "ER-DSC-20260625-0001"
 }"#;
 
 const IPD_CONSOLIDATED_BILL_HTML: &str = r#"{% extends "base.html" %}

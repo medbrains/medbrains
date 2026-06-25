@@ -25,6 +25,7 @@ async fn patient_id_for(
         }
         "encounters" => "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
         "admissions" => "SELECT patient_id FROM admissions WHERE id = $1 AND tenant_id = $2",
+        "er_visits" => "SELECT patient_id FROM er_visits WHERE id = $1 AND tenant_id = $2",
         "lab_orders" => "SELECT patient_id FROM lab_orders WHERE id = $1 AND tenant_id = $2",
         "insurance_claims" => {
             "SELECT patient_id FROM insurance_claims WHERE id = $1 AND tenant_id = $2"
@@ -79,6 +80,15 @@ pub(crate) async fn build_context(
         }
         "discharge_summary" => {
             let Json(data) = crate::routes::print_data_clinical::get_discharge_print_data(
+                State(state.clone()),
+                Extension(claims.clone()),
+                Path(source_id),
+            )
+            .await?;
+            serde_json::json!({ "discharge": data })
+        }
+        "er_discharge_summary" => {
+            let Json(data) = crate::routes::print_data_clinical::get_er_discharge_print_data(
                 State(state.clone()),
                 Extension(claims.clone()),
                 Path(source_id),

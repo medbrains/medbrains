@@ -8075,6 +8075,37 @@ export interface DischargeSummaryTemplate {
   updated_at: string;
 }
 
+export interface ErDischargeSummary {
+  id: string;
+  tenant_id: string;
+  er_visit_id: string;
+  status: "draft" | "finalized";
+  final_diagnosis: string | null;
+  condition_at_discharge: string | null;
+  clinical_course: string | null;
+  treatment_given: string | null;
+  medications_on_discharge: string | null;
+  follow_up_instructions: string | null;
+  follow_up_date: string | null;
+  warning_signs: string | null;
+  prepared_by: string | null;
+  verified_by: string | null;
+  finalized_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ErDischargeSummaryRequest {
+  final_diagnosis?: string;
+  condition_at_discharge?: string;
+  clinical_course?: string;
+  treatment_given?: string;
+  medications_on_discharge?: string;
+  follow_up_instructions?: string;
+  follow_up_date?: string;
+  warning_signs?: string;
+}
+
 export interface IpdNoDuesCertificate {
   id: string;
   tenant_id: string;

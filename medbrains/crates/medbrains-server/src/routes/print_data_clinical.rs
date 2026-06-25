@@ -12,7 +12,8 @@ use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
     AppointmentSlipPrintData, CumulativeLabReportPrintData, DeathCertificatePrintData,
-    DischargeSummaryPrintData, EducationSection, InfantWristbandPrintData, KeyImage, LabParameter,
+    DischargeSummaryPrintData, EducationSection, ErDischargeSummaryPrintData, InfantWristbandPrintData,
+    KeyImage, LabParameter,
     LabReportFullPrintData, OpdCertificatePrintData, OpdPrescriptionPrintData,
     OpdProcedureConsentPrintData, OpdVitals, ParameterTrend, PatientEducationPrintData,
     PrescriptionMedication, RadiologyReportFullPrintData, RegistrationCardPrintData, StatOrder,
@@ -806,6 +807,105 @@ pub async fn get_discharge_print_data(
                 legal_class: s.legal_class,
             })
             .collect(),
+    }))
+}
+
+// ── ER Discharge Summary ────────────────────────────────
+
+#[derive(Debug, sqlx::FromRow)]
+struct ErDischargeRow {
+    visit_number: String,
+    patient_name: String,
+    uhid: String,
+    age: Option<f64>,
+    gender: String,
+    arrival_time: chrono::DateTime<Utc>,
+    chief_complaint: Option<String>,
+    triage_level: Option<String>,
+    disposition: Option<String>,
+    doctor_name: Option<String>,
+    status: String,
+    final_diagnosis: Option<String>,
+    condition_at_discharge: Option<String>,
+    clinical_course: Option<String>,
+    treatment_given: Option<String>,
+    medications_on_discharge: Option<String>,
+    follow_up_instructions: Option<String>,
+    follow_up_date: Option<chrono::NaiveDate>,
+    warning_signs: Option<String>,
+    finalized_at: Option<chrono::DateTime<Utc>>,
+}
+
+pub async fn get_er_discharge_print_data(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(er_visit_id): Path<Uuid>,
+) -> Result<Json<ErDischargeSummaryPrintData>, AppError> {
+    require_permission(&claims, permissions::emergency::visits::LIST)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let row = sqlx::query_as::<_, ErDischargeRow>(
+        "SELECT \
+           v.visit_number, \
+           (p.first_name || ' ' || p.last_name) AS patient_name, \
+           p.uhid, \
+           EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
+           p.gender::text AS gender, \
+           v.arrival_time, \
+           v.chief_complaint, \
+           v.triage_level::text AS triage_level, \
+           v.disposition, \
+           doc.full_name AS doctor_name, \
+           ds.status::text AS status, \
+           ds.final_diagnosis, \
+           ds.condition_at_discharge, \
+           ds.clinical_course, \
+           ds.treatment_given, \
+           ds.medications_on_discharge, \
+           ds.follow_up_instructions, \
+           ds.follow_up_date, \
+           ds.warning_signs, \
+           ds.finalized_at \
+         FROM er_discharge_summaries ds \
+         JOIN er_visits v ON v.id = ds.er_visit_id AND v.tenant_id = ds.tenant_id \
+         JOIN patients p ON p.id = v.patient_id AND p.tenant_id = v.tenant_id \
+         LEFT JOIN users doc ON doc.id = v.attending_doctor_id \
+         WHERE ds.er_visit_id = $1 AND ds.tenant_id = $2",
+    )
+    .bind(er_visit_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let h_name = hospital_name(&mut tx, claims.tenant_id).await?;
+    tx.commit().await?;
+
+    Ok(Json(ErDischargeSummaryPrintData {
+        visit_number: row.visit_number,
+        patient_name: row.patient_name,
+        uhid: row.uhid,
+        age: row.age.map(|a| format!("{} yrs", a as i64)),
+        gender: row.gender,
+        arrival_time: row.arrival_time.format("%d-%b-%Y %H:%M").to_string(),
+        discharge_date: row.finalized_at.map(|d| d.format("%d-%b-%Y %H:%M").to_string()),
+        chief_complaint: row.chief_complaint,
+        triage_level: row.triage_level,
+        disposition: row.disposition,
+        doctor_name: row.doctor_name,
+        status: row.status,
+        final_diagnosis: row.final_diagnosis,
+        condition_at_discharge: row.condition_at_discharge,
+        clinical_course: row.clinical_course,
+        treatment_given: row.treatment_given,
+        medications_on_discharge: row.medications_on_discharge,
+        follow_up_instructions: row.follow_up_instructions,
+        follow_up_date: row.follow_up_date.map(|d| d.format("%d-%b-%Y").to_string()),
+        warning_signs: row.warning_signs,
+        hospital_name: h_name,
     }))
 }
 

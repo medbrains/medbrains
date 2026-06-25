@@ -129,6 +129,7 @@ import { PatientConsumablesPanel } from "@/components/Clinical";
 import { ClinicalEventProvider, useClinicalEmit } from "@/components/ClinicalEventProvider";
 import { TriagePanel } from "@/components/crdt/TriagePanel";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
+import { ErDischargeSummaryPanel } from "@/components/Emergency/ErDischargeSummaryPanel";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
@@ -1274,6 +1275,7 @@ export function EmergencyVisitDetailPage() {
                   </Box>
                 )}
                 <PatientConsumablesPanel patientId={visit.patient_id} encounterId={visit.id} />
+                <ErDischargeSummaryPanel visitId={visit.id} />
                 {shouldShowMlcWorkspace && (
                   <Box id="mlc">
                     <Stack>

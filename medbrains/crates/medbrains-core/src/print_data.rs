@@ -201,6 +201,31 @@ pub struct PrintSignatureData {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ErDischargeSummaryPrintData {
+    pub visit_number: String,
+    pub patient_name: String,
+    pub uhid: String,
+    pub age: Option<String>,
+    pub gender: String,
+    pub arrival_time: String,
+    pub discharge_date: Option<String>,
+    pub chief_complaint: Option<String>,
+    pub triage_level: Option<String>,
+    pub disposition: Option<String>,
+    pub doctor_name: Option<String>,
+    pub status: String,
+    pub final_diagnosis: Option<String>,
+    pub condition_at_discharge: Option<String>,
+    pub clinical_course: Option<String>,
+    pub treatment_given: Option<String>,
+    pub medications_on_discharge: Option<String>,
+    pub follow_up_instructions: Option<String>,
+    pub follow_up_date: Option<String>,
+    pub warning_signs: Option<String>,
+    pub hospital_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DischargeSummaryPrintData {
     pub patient_name: String,
     pub uhid: String,

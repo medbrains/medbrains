@@ -25,6 +25,12 @@ export const emergencyService = {
   getErVisit: (id: string) => api.getErVisit(id),
   createErVisit: (data: CreateErVisitInput) => api.createErVisit(data),
   admitFromEr: (visitId: string, data: AdmitFromErInput) => api.admitFromEr(visitId, data),
+  getErDischargeSummary: (visitId: string) => api.getErDischargeSummary(visitId),
+  createErDischargeSummary: (...args: Parameters<typeof api.createErDischargeSummary>) =>
+    api.createErDischargeSummary(...args),
+  updateErDischargeSummary: (...args: Parameters<typeof api.updateErDischargeSummary>) =>
+    api.updateErDischargeSummary(...args),
+  finalizeErDischargeSummary: (visitId: string) => api.finalizeErDischargeSummary(visitId),
   listResuscitationLogs: (visitId: string) => api.listResuscitationLogs(visitId),
   createResuscitationLog: (visitId: string, data: CreateResuscitationLogInput) =>
     api.createResuscitationLog(visitId, data),

@@ -7,8 +7,8 @@ use axum::{
 use chrono::Utc;
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::emergency::{
-    ErCodeActivation, ErResuscitationLog, ErTriageAssessment, ErVisit, MassCasualtyEvent, MlcCase,
-    MlcDocument, MlcPoliceIntimation,
+    ErCodeActivation, ErDischargeSummary, ErResuscitationLog, ErTriageAssessment, ErVisit,
+    MassCasualtyEvent, MlcCase, MlcDocument, MlcPoliceIntimation,
 };
 use medbrains_core::form::FieldAccessLevel;
 use medbrains_core::permissions;
@@ -2204,4 +2204,147 @@ pub async fn admit_from_er(
         "bed_id": body.bed_id,
         "status": "admitted"
     })))
+}
+
+// ══════════════════════════════════════════════════════════
+//  ER Discharge Summary
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Deserialize)]
+pub struct ErDischargeSummaryRequest {
+    pub final_diagnosis: Option<String>,
+    pub condition_at_discharge: Option<String>,
+    pub clinical_course: Option<String>,
+    pub treatment_given: Option<String>,
+    pub medications_on_discharge: Option<String>,
+    pub follow_up_instructions: Option<String>,
+    pub follow_up_date: Option<chrono::NaiveDate>,
+    pub warning_signs: Option<String>,
+}
+
+pub async fn get_discharge_summary(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(er_visit_id): Path<Uuid>,
+) -> Result<Json<Option<ErDischargeSummary>>, AppError> {
+    require_permission(&claims, permissions::emergency::visits::LIST)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, ErDischargeSummary>(
+        "SELECT * FROM er_discharge_summaries WHERE er_visit_id = $1 AND tenant_id = $2",
+    )
+    .bind(er_visit_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn create_discharge_summary(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(er_visit_id): Path<Uuid>,
+    Json(body): Json<ErDischargeSummaryRequest>,
+) -> Result<Json<ErDischargeSummary>, AppError> {
+    require_permission(&claims, permissions::emergency::visits::UPDATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, ErDischargeSummary>(
+        "INSERT INTO er_discharge_summaries \
+           (tenant_id, er_visit_id, final_diagnosis, condition_at_discharge, clinical_course, \
+            treatment_given, medications_on_discharge, follow_up_instructions, follow_up_date, \
+            warning_signs, prepared_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(er_visit_id)
+    .bind(&body.final_diagnosis)
+    .bind(&body.condition_at_discharge)
+    .bind(&body.clinical_course)
+    .bind(&body.treatment_given)
+    .bind(&body.medications_on_discharge)
+    .bind(&body.follow_up_instructions)
+    .bind(body.follow_up_date)
+    .bind(&body.warning_signs)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn update_discharge_summary(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(er_visit_id): Path<Uuid>,
+    Json(body): Json<ErDischargeSummaryRequest>,
+) -> Result<Json<ErDischargeSummary>, AppError> {
+    require_permission(&claims, permissions::emergency::visits::UPDATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, ErDischargeSummary>(
+        "UPDATE er_discharge_summaries SET \
+           final_diagnosis = $3, condition_at_discharge = $4, clinical_course = $5, \
+           treatment_given = $6, medications_on_discharge = $7, follow_up_instructions = $8, \
+           follow_up_date = $9, warning_signs = $10, updated_at = now() \
+         WHERE er_visit_id = $1 AND tenant_id = $2 \
+           AND status = 'draft'::discharge_summary_status RETURNING *",
+    )
+    .bind(er_visit_id)
+    .bind(claims.tenant_id)
+    .bind(&body.final_diagnosis)
+    .bind(&body.condition_at_discharge)
+    .bind(&body.clinical_course)
+    .bind(&body.treatment_given)
+    .bind(&body.medications_on_discharge)
+    .bind(&body.follow_up_instructions)
+    .bind(body.follow_up_date)
+    .bind(&body.warning_signs)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| {
+        AppError::BadRequest("Discharge summary not found or already finalized".to_owned())
+    })?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn finalize_discharge_summary(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(er_visit_id): Path<Uuid>,
+) -> Result<Json<ErDischargeSummary>, AppError> {
+    require_permission(&claims, permissions::emergency::visits::UPDATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, ErDischargeSummary>(
+        "UPDATE er_discharge_summaries SET \
+           status = 'finalized'::discharge_summary_status, verified_by = $3, finalized_at = now(), \
+           updated_at = now() \
+         WHERE er_visit_id = $1 AND tenant_id = $2 \
+           AND status = 'draft'::discharge_summary_status RETURNING *",
+    )
+    .bind(er_visit_id)
+    .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| {
+        AppError::BadRequest("Discharge summary not found or already finalized".to_owned())
+    })?;
+
+    tx.commit().await?;
+    Ok(Json(row))
 }

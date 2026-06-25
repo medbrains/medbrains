@@ -873,6 +873,8 @@ import type {
   EquipmentCondemnationPrintData,
   EquipmentHistoryCardPrintData,
   ErCodeActivation,
+  ErDischargeSummary,
+  ErDischargeSummaryRequest,
   ErFastInvoiceRequest,
   ErpExportLog,
   ErpExportRequest,
@@ -7045,6 +7047,22 @@ export const api = {
     request<ErVisit>(`/emergency/visits/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
+    }),
+  getErDischargeSummary: (visitId: string) =>
+    request<ErDischargeSummary | null>(`/emergency/visits/${visitId}/discharge-summary`),
+  createErDischargeSummary: (visitId: string, data: ErDischargeSummaryRequest) =>
+    request<ErDischargeSummary>(`/emergency/visits/${visitId}/discharge-summary`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateErDischargeSummary: (visitId: string, data: ErDischargeSummaryRequest) =>
+    request<ErDischargeSummary>(`/emergency/visits/${visitId}/discharge-summary`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  finalizeErDischargeSummary: (visitId: string) =>
+    request<ErDischargeSummary>(`/emergency/visits/${visitId}/discharge-summary/finalize`, {
+      method: "POST",
     }),
 
   listTriageAssessments: (visitId: string) =>

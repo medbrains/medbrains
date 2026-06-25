@@ -244,3 +244,27 @@ pub struct MassCasualtyEvent {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+/// Structured ER discharge summary (one per visit, draft → finalized).
+/// Mirrors the IPD discharge summary; ER is acute and not encounter/
+/// diagnosis-backed, so the clinical fields are free text.
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct ErDischargeSummary {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub er_visit_id: Uuid,
+    pub status: crate::ipd::DischargeSummaryStatus,
+    pub final_diagnosis: Option<String>,
+    pub condition_at_discharge: Option<String>,
+    pub clinical_course: Option<String>,
+    pub treatment_given: Option<String>,
+    pub medications_on_discharge: Option<String>,
+    pub follow_up_instructions: Option<String>,
+    pub follow_up_date: Option<chrono::NaiveDate>,
+    pub warning_signs: Option<String>,
+    pub prepared_by: Option<Uuid>,
+    pub verified_by: Option<Uuid>,
+    pub finalized_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
