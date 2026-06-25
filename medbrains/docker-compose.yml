@@ -124,10 +124,13 @@ services:
   # ── Stalwart mail server (self-hosted, Rust) ──
   # Local transactional mail for dev — submission on 587 (matches the
   # seeded dev email config) + the management/JMAP API on 443 (mapped to
-  # host 8086). First-boot admin user is `admin` / STALWART_ADMIN_SECRET;
-  # the domain-provisioning APIs use these. See RFCs/RFC-MAIL-STALWART.md.
+  # host 8086). The image `--init`s a random admin password on first boot;
+  # the entrypoint below pins the fallback-admin secret to a known value
+  # (STALWART_ADMIN_SECRET, default `medbrains_dev`) so the app's
+  # domain-provisioning APIs can authenticate deterministically (admin /
+  # that value). See RFCs/RFC-MAIL-STALWART.md.
   stalwart:
-    image: stalwartlabs/mail-server:latest
+    image: stalwartlabs/stalwart:latest
     ports:
       - "127.0.0.1:587:587"     # SMTP submission (STARTTLS)
       - "127.0.0.1:993:993"     # IMAPS (staff mail clients)
@@ -135,7 +138,14 @@ services:
     environment:
       STALWART_ADMIN_SECRET: ${STALWART_ADMIN_SECRET:-medbrains_dev}
     volumes:
-      - stalwart_data:/opt/stalwart-mail
+      - stalwart_data:/opt/stalwart
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        if [ ! -f /opt/stalwart/etc/config.toml ]; then /usr/local/bin/stalwart --init /opt/stalwart; fi;
+        sed -i "/^\\[authentication.fallback-admin\\]/,/^\\[/ s|^secret = .*|secret = \"$$STALWART_ADMIN_SECRET\"|" /opt/stalwart/etc/config.toml;
+        exec /usr/local/bin/stalwart --config /opt/stalwart/etc/config.toml
     restart: unless-stopped
 
   # ── WHO ICD-API local terminology service ──
