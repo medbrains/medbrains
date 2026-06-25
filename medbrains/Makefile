@@ -87,6 +87,9 @@ dev-backend: db ## Start database + backend only
 	SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret scripts/spicedb_local_schema.sh
 	MAKEFLAGS= cargo run -p medbrains-server --bin medbrains-server
 
+dev-backend-reload: db ## Backend only, RN-Metro style: press `r` to rebuild+restart, `q` to quit
+	SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret scripts/dev_backend_reload.sh
+
 dev-edge: ## Run medbrains-edge appliance locally for offline-mode testing
 	@mkdir -p var/medbrains-edge/docs var/medbrains-edge/chain
 	@cargo run -p medbrains-edge-app -- --config apps/edge/etc/medbrains-edge/dev.toml
