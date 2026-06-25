@@ -1,4 +1,4 @@
-import { Box, Group, Stack, Text, Timeline } from "@mantine/core";
+import { Anchor, Box, Group, Stack, Text, Timeline } from "@mantine/core";
 import type { PatientTimelineEvent } from "@medbrains/types";
 import {
   IconAmbulance,
@@ -11,8 +11,24 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { Link } from "react-router";
 import { Alert, Badge, type BadgeTone, Card } from "@/components/ui";
 import { patientDetailService } from "@/services/patientDetail.service";
+
+// Events whose entity has a detail route become clickable; the rest
+// (lab/imaging/Rx/diagnosis have no per-entity page) stay plain text.
+function linkFor(event: PatientTimelineEvent): string | null {
+  switch (event.category) {
+    case "opd":
+      return `/opd/encounters/${event.ref_id}`;
+    case "ipd":
+      return `/ipd/admissions/${event.ref_id}`;
+    case "emergency":
+      return `/emergency/visits/${event.ref_id}`;
+    default:
+      return null;
+  }
+}
 
 // Unified clinical timeline — one chronological feed across OPD visits,
 // admissions, ER visits, lab + imaging orders and prescriptions. The
@@ -69,14 +85,21 @@ export function ClinicalTimelineTab({ patientId }: { patientId: string }) {
       <Timeline active={-1} bulletSize={28} lineWidth={2}>
         {events.map((e) => {
           const meta = META[e.category];
+          const href = linkFor(e);
           return (
             <Timeline.Item key={`${e.category}-${e.ref_id}`} bullet={meta.icon}>
               <Group justify="space-between" wrap="nowrap">
                 <Stack gap={2}>
                   <Group gap="xs">
-                    <Text size="sm" fw={600}>
-                      {e.title}
-                    </Text>
+                    {href ? (
+                      <Anchor component={Link} to={href} size="sm" fw={600}>
+                        {e.title}
+                      </Anchor>
+                    ) : (
+                      <Text size="sm" fw={600}>
+                        {e.title}
+                      </Text>
+                    )}
                     <Badge tone={meta.tone} size="sm">
                       {meta.label}
                     </Badge>
