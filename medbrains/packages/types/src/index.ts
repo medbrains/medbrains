@@ -12671,6 +12671,37 @@ export type MlcStatus =
   | "closed";
 export type MassCasualtyStatus = "activated" | "ongoing" | "scaling_down" | "deactivated";
 
+export interface ErObservationNote {
+  id: string;
+  tenant_id: string;
+  er_visit_id: string;
+  observed_at: string;
+  pulse: number | null;
+  bp_systolic: number | null;
+  bp_diastolic: number | null;
+  resp_rate: number | null;
+  spo2: number | null;
+  temperature: number | null;
+  gcs: number | null;
+  pain_score: number | null;
+  note: string | null;
+  recorded_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateObservationNoteRequest {
+  pulse?: number;
+  bp_systolic?: number;
+  bp_diastolic?: number;
+  resp_rate?: number;
+  spo2?: number;
+  temperature?: number;
+  gcs?: number;
+  pain_score?: number;
+  note?: string;
+}
+
 export interface ErVisit {
   id: string;
   tenant_id: string;

@@ -571,6 +571,7 @@ import type {
   CreateNuclearMedSourceRequest,
   CreateNursingAssessmentRequest,
   CreateNursingTaskRequest,
+  CreateObservationNoteRequest,
   CreateOccHealthHazardRequest,
   CreateOccScreeningRequest,
   CreateOnCallRequest,
@@ -876,6 +877,7 @@ import type {
   ErDischargeSummary,
   ErDischargeSummaryRequest,
   ErFastInvoiceRequest,
+  ErObservationNote,
   ErpExportLog,
   ErpExportRequest,
   ErQueueDisplay,
@@ -7063,6 +7065,13 @@ export const api = {
   finalizeErDischargeSummary: (visitId: string) =>
     request<ErDischargeSummary>(`/emergency/visits/${visitId}/discharge-summary/finalize`, {
       method: "POST",
+    }),
+  listErObservationNotes: (visitId: string) =>
+    request<ErObservationNote[]>(`/emergency/visits/${visitId}/observation-notes`),
+  createErObservationNote: (visitId: string, data: CreateObservationNoteRequest) =>
+    request<ErObservationNote>(`/emergency/visits/${visitId}/observation-notes`, {
+      method: "POST",
+      body: JSON.stringify(data),
     }),
 
   listTriageAssessments: (visitId: string) =>

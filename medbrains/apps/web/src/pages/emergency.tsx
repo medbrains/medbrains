@@ -130,6 +130,7 @@ import { ClinicalEventProvider, useClinicalEmit } from "@/components/ClinicalEve
 import { TriagePanel } from "@/components/crdt/TriagePanel";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { ErDischargeSummaryPanel } from "@/components/Emergency/ErDischargeSummaryPanel";
+import { ErObservationPanel } from "@/components/Emergency/ErObservationPanel";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
@@ -1278,6 +1279,7 @@ export function EmergencyVisitDetailPage() {
                   patientId={visit.patient_id}
                   encounterId={visit.encounter_id ?? visit.id}
                 />
+                <ErObservationPanel visitId={visit.id} />
                 <ErDischargeSummaryPanel visitId={visit.id} />
                 {shouldShowMlcWorkspace && (
                   <Box id="mlc">

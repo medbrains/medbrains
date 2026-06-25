@@ -3726,6 +3726,10 @@ pub fn build_router(state: AppState) -> Router {
             get(emergency::list_triage).post(emergency::create_triage),
         )
         .route(
+            "/api/emergency/visits/{visit_id}/observation-notes",
+            get(emergency::list_observation_notes).post(emergency::create_observation_note),
+        )
+        .route(
             "/api/emergency/visits/{visit_id}/resuscitation",
             get(emergency::list_resuscitation_logs).post(emergency::create_resuscitation_log),
         )

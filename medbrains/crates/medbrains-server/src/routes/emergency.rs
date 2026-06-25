@@ -7,8 +7,8 @@ use axum::{
 use chrono::Utc;
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::emergency::{
-    ErCodeActivation, ErDischargeSummary, ErResuscitationLog, ErTriageAssessment, ErVisit,
-    MassCasualtyEvent, MlcCase, MlcDocument, MlcPoliceIntimation,
+    ErCodeActivation, ErDischargeSummary, ErObservationNote, ErResuscitationLog, ErTriageAssessment,
+    ErVisit, MassCasualtyEvent, MlcCase, MlcDocument, MlcPoliceIntimation,
 };
 use medbrains_core::form::FieldAccessLevel;
 use medbrains_core::permissions;
@@ -2370,6 +2370,94 @@ pub async fn finalize_discharge_summary(
     .ok_or_else(|| {
         AppError::BadRequest("Discharge summary not found or already finalized".to_owned())
     })?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+// ══════════════════════════════════════════════════════════
+//  ER Observation chart
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Deserialize)]
+pub struct CreateObservationNoteRequest {
+    pub pulse: Option<i32>,
+    pub bp_systolic: Option<i32>,
+    pub bp_diastolic: Option<i32>,
+    pub resp_rate: Option<i32>,
+    pub spo2: Option<i32>,
+    pub temperature: Option<f64>,
+    pub gcs: Option<i32>,
+    pub pain_score: Option<i32>,
+    pub note: Option<String>,
+}
+
+pub async fn list_observation_notes(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(visit_id): Path<Uuid>,
+) -> Result<Json<Vec<ErObservationNote>>, AppError> {
+    require_permission(&claims, permissions::emergency::visits::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, ErObservationNote>(
+        "SELECT * FROM er_observation_notes \
+         WHERE er_visit_id = $1 AND tenant_id = $2 ORDER BY observed_at ASC LIMIT 5000",
+    )
+    .bind(visit_id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+pub async fn create_observation_note(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(visit_id): Path<Uuid>,
+    Json(body): Json<CreateObservationNoteRequest>,
+) -> Result<Json<ErObservationNote>, AppError> {
+    require_permission(&claims, permissions::emergency::visits::UPDATE)?;
+
+    let note = trim_optional_text(body.note.as_deref());
+    let has_vitals = body.pulse.is_some()
+        || body.bp_systolic.is_some()
+        || body.bp_diastolic.is_some()
+        || body.resp_rate.is_some()
+        || body.spo2.is_some()
+        || body.temperature.is_some()
+        || body.gcs.is_some()
+        || body.pain_score.is_some();
+    if note.is_none() && !has_vitals {
+        return Err(AppError::BadRequest(
+            "Record at least one vital or a note".to_owned(),
+        ));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, ErObservationNote>(
+        "INSERT INTO er_observation_notes \
+           (tenant_id, er_visit_id, pulse, bp_systolic, bp_diastolic, resp_rate, spo2, \
+            temperature, gcs, pain_score, note, recorded_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(visit_id)
+    .bind(body.pulse)
+    .bind(body.bp_systolic)
+    .bind(body.bp_diastolic)
+    .bind(body.resp_rate)
+    .bind(body.spo2)
+    .bind(body.temperature)
+    .bind(body.gcs)
+    .bind(body.pain_score)
+    .bind(&note)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
 
     tx.commit().await?;
     Ok(Json(row))

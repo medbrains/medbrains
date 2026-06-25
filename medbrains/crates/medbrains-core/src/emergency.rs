@@ -269,3 +269,25 @@ pub struct ErDischargeSummary {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+/// One timestamped ER observation-chart entry — serial vitals + note
+/// while a patient is held under observation before disposition.
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct ErObservationNote {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub er_visit_id: Uuid,
+    pub observed_at: DateTime<Utc>,
+    pub pulse: Option<i32>,
+    pub bp_systolic: Option<i32>,
+    pub bp_diastolic: Option<i32>,
+    pub resp_rate: Option<i32>,
+    pub spo2: Option<i32>,
+    pub temperature: Option<f64>,
+    pub gcs: Option<i32>,
+    pub pain_score: Option<i32>,
+    pub note: Option<String>,
+    pub recorded_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
