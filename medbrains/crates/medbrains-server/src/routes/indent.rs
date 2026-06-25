@@ -2108,6 +2108,8 @@ pub struct ConsignmentUsageRequest {
     pub batch_stock_id: Uuid,
     pub quantity: i32,
     pub patient_id: Option<Uuid>,
+    pub encounter_id: Option<Uuid>,
+    pub admission_id: Option<Uuid>,
     pub notes: Option<String>,
 }
 
@@ -2146,16 +2148,18 @@ pub async fn record_consignment_usage(
     .execute(&mut *tx)
     .await?;
 
-    // Decrement catalog stock
-    sqlx::query(
+    // Decrement catalog stock, returning the item's billing identity +
+    // selling price (the patient is billed the catalog price, not the
+    // vendor's unit_cost).
+    let (item_code, item_name, base_price) = sqlx::query_as::<_, (String, String, Decimal)>(
         "UPDATE store_catalog SET current_stock = current_stock - $1, \
          last_issue_date = now(), updated_at = now() \
-         WHERE id = $2 AND tenant_id = $3",
+         WHERE id = $2 AND tenant_id = $3 RETURNING code, name, base_price",
     )
     .bind(body.quantity)
     .bind(batch.catalog_item_id)
     .bind(claims.tenant_id)
-    .execute(&mut *tx)
+    .fetch_one(&mut *tx)
     .await?;
 
     let movement = sqlx::query_as::<_, StoreStockMovement>(
@@ -2173,6 +2177,42 @@ pub async fn record_consignment_usage(
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
+
+    // Bill on use — the defining property of consignment (vendor-owned)
+    // stock. When used on a patient, post a chargeable line so the cost is
+    // recovered and the vendor can be reconciled. Keyed on the usage
+    // movement for idempotency; lands on the encounter/admission bill when
+    // provided, else a patient-only draft.
+    if let Some(patient_id) = body.patient_id {
+        let charge = auto_charge(
+            &mut tx,
+            &claims.tenant_id,
+            AutoChargeInput {
+                patient_id,
+                encounter_id: body.encounter_id,
+                charge_code: item_code,
+                source: "consumable".into(),
+                source_id: movement.id,
+                quantity: body.quantity,
+                description_override: Some(format!("Consignment: {item_name}")),
+                unit_price_override: Some(base_price),
+                tax_percent_override: None,
+            },
+        )
+        .await?;
+
+        if let Some(admission_id) = body.admission_id {
+            sqlx::query(
+                "UPDATE invoices SET admission_id = COALESCE(admission_id, $1), updated_at = now() \
+                 WHERE id = $2 AND tenant_id = $3",
+            )
+            .bind(admission_id)
+            .bind(charge.invoice_id)
+            .bind(claims.tenant_id)
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
 
     tx.commit().await?;
     Ok(Json(movement))

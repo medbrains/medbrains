@@ -56,6 +56,7 @@ import {
   IconFileInvoice,
   IconPackage,
   IconPlus,
+  IconReceipt,
   IconTruck,
   IconUsers,
 } from "@tabler/icons-react";
@@ -63,6 +64,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { DataTable, PageHeader, TableValueBadge, VendorSearchSelect } from "@/components";
+import { ConsignmentPanel } from "@/components/Procurement/ConsignmentPanel";
 import { Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
@@ -304,6 +306,13 @@ export function ProcurementPage() {
       icon: <IconBuildingWarehouse size={16} />,
     });
   }
+  if (canViewBatchStock) {
+    visibleTabs.push({
+      value: "consignment",
+      label: "Consignment",
+      icon: <IconReceipt size={16} />,
+    });
+  }
   if (canViewStores) {
     visibleTabs.push({
       value: "store-locations",
@@ -372,6 +381,11 @@ export function ProcurementPage() {
         {canViewBatchStock && (
           <Tabs.Panel value="batch-stock">
             <BatchStockPanel />
+          </Tabs.Panel>
+        )}
+        {canViewBatchStock && (
+          <Tabs.Panel value="consignment">
+            <ConsignmentPanel />
           </Tabs.Panel>
         )}
         {canViewStores && (

@@ -3800,6 +3800,8 @@ export interface ConsignmentUsageRequest {
   batch_stock_id: string;
   quantity: number;
   patient_id?: string;
+  encounter_id?: string;
+  admission_id?: string;
   notes?: string;
 }
 
