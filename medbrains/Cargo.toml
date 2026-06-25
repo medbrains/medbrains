@@ -53,7 +53,7 @@ jsonwebtoken = { version = "10", default-features = false, features = ["aws_lc_r
 argon2 = "0.5"
 
 # Utilities
-uuid = { version = "1", features = ["v4", "serde"] }
+uuid = { version = "1", features = ["v4", "v5", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 cron = "0.15"
 thiserror = "2"

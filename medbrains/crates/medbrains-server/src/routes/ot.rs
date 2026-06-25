@@ -712,6 +712,49 @@ pub async fn update_booking_status(
             },
         )
         .await;
+
+        // Anaesthesia professional fee — only when an anaesthetist was
+        // assigned. Distinct source id (the booking id collides with the
+        // surgery charge under auto_charge's (source, source_id) idempotency).
+        if row.anesthetist_id.is_some() {
+            let _ = super::billing::create_service_charge(
+                &mut tx,
+                super::billing::ServiceChargeInput {
+                    tenant_id: claims.tenant_id,
+                    patient_id: row.patient_id,
+                    encounter_id,
+                    charge_code: "ANAES_OT",
+                    quantity: 1,
+                    source_module: "ot",
+                    source_entity_id: Uuid::new_v5(&row.id, b"ot-anaesthesia"),
+                    requested_by: claims.sub,
+                },
+            )
+            .await;
+        }
+
+        // OT time — billed per hour of actual theatre occupancy, rounded up
+        // (any positive duration bills at least one hour).
+        if let (Some(start), Some(end)) = (row.actual_start, row.actual_end) {
+            let minutes = (end - start).num_minutes();
+            if minutes > 0 {
+                let hours = i32::try_from((minutes + 59) / 60).unwrap_or(1).max(1);
+                let _ = super::billing::create_service_charge(
+                    &mut tx,
+                    super::billing::ServiceChargeInput {
+                        tenant_id: claims.tenant_id,
+                        patient_id: row.patient_id,
+                        encounter_id,
+                        charge_code: "OT_TIME",
+                        quantity: hours,
+                        source_module: "ot",
+                        source_entity_id: Uuid::new_v5(&row.id, b"ot-time"),
+                        requested_by: claims.sub,
+                    },
+                )
+                .await;
+            }
+        }
     }
 
     tx.commit().await?;
