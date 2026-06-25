@@ -33,6 +33,49 @@ use medbrains_core::access::{BUILT_IN_ROLES, DEFAULT_GROUPS};
 use medbrains_core::permissions;
 use sqlx::PgPool;
 
+/// Dev/local convenience: give the default tenant a custom domain and a
+/// starter email config (pointing at a local Stalwart) so the Domains &
+/// Email setup screen is populated out of the box instead of showing
+/// placeholders. Idempotent and non-destructive — never overwrites a
+/// domain or email config that's already set. Never runs in production.
+async fn seed_dev_email_defaults(
+    pool: &PgPool,
+    tenant_id: uuid::Uuid,
+) -> Result<(), Box<dyn std::error::Error>> {
+    sqlx::query(
+        "UPDATE tenants SET custom_domain = 'medbrains.local' \
+         WHERE id = $1 AND (custom_domain IS NULL OR custom_domain = '')",
+    )
+    .bind(tenant_id)
+    .execute(pool)
+    .await?;
+
+    let config = serde_json::json!({
+        "provider": "stalwart",
+        "smtp_host": "localhost",
+        "smtp_port": "587",
+        "smtp_tls": "starttls",
+        "from_address": "noreply@medbrains.local",
+        "from_name": "MedBrains",
+        "smtp_username": "noreply@medbrains.local",
+        "smtp_password_secret": "SMTP_PASSWORD",
+    });
+    let mut tx = pool.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    sqlx::query(
+        "INSERT INTO tenant_settings (tenant_id, category, key, value) \
+         VALUES ($1, 'email', 'config', $2) \
+         ON CONFLICT (tenant_id, category, key) DO NOTHING",
+    )
+    .bind(tenant_id)
+    .bind(&config)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    Ok(())
+}
+
 pub(crate) async fn seed_canonical_fixtures_for_tenant(
     pool: &PgPool,
     tenant_id: uuid::Uuid,
@@ -157,6 +200,10 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     locations::seed_locations(pool, tenant_id).await?;
     default_dashboard::seed_default_dashboard(pool, tenant_id).await?;
     role_dashboards::seed_role_dashboards(pool, tenant_id).await?;
+
+    if !production_env() {
+        seed_dev_email_defaults(pool, tenant_id).await?;
+    }
 
     if demo_fixture_seed_enabled() && production_env() {
         tracing::warn!(

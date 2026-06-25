@@ -397,8 +397,47 @@ async fn on_billing_payment_received(
     let patient_id = uuid_from_payload(payload, "patient_id");
 
     let Some(pay) = payment_id else { return Ok(()) };
-    let mut tx = pool.begin().await?;
 
+    // The SMTP handler requires a recipient + subject + body and permanently
+    // dead-letters without them. Resolve the patient's email here and build
+    // the receipt; if the patient has no email, skip cleanly (no DLQ) — a
+    // missing address is not a delivery failure. (Worker runs BYPASSRLS, so
+    // a tenant_id filter is sufficient.)
+    let to: Option<String> = match patient_id {
+        Some(p) => sqlx::query_scalar(
+            "SELECT NULLIF(email, '') FROM patients WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(p)
+        .bind(tenant_id)
+        .fetch_optional(pool)
+        .await?
+        .flatten(),
+        None => None,
+    };
+    let Some(to) = to else { return Ok(()) };
+
+    let invoice: Option<(String, rust_decimal::Decimal)> = match invoice_id {
+        Some(i) => sqlx::query_as(
+            "SELECT invoice_number, total_amount FROM invoices WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(i)
+        .bind(tenant_id)
+        .fetch_optional(pool)
+        .await?,
+        None => None,
+    };
+    let (inv_no, amount_line) = invoice.map_or_else(
+        || ("your invoice".to_owned(), String::new()),
+        |(number, amount)| (number, format!(" (amount {amount})")),
+    );
+    let subject = format!("Payment receipt — {inv_no}");
+    let text = format!("We have received your payment for {inv_no}{amount_line}. Thank you.");
+    let html = format!(
+        "<p>We have received your payment for <strong>{inv_no}</strong>{amount_line}.</p>\
+         <p>Thank you.</p>"
+    );
+
+    let mut tx = pool.begin().await?;
     let _ = enqueue(
         &mut tx,
         tenant_id,
@@ -406,6 +445,10 @@ async fn on_billing_payment_received(
         Some(pay),
         "email.invoice_receipt",
         json!({
+            "to": to,
+            "subject": subject,
+            "text": text,
+            "html": html,
             "payment_id": pay,
             "invoice_id": invoice_id,
             "patient_id": patient_id,
