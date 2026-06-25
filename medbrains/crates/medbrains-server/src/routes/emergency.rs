@@ -739,6 +739,32 @@ pub async fn create_visit(
         .await?;
     }
 
+    // ER visits are encounter-backed so every charge for the visit
+    // (consultation, consumables, orders) lands on one bill — mirrors the
+    // encounter admit_from_er creates when the patient is admitted.
+    let encounter_id = sqlx::query_scalar::<_, Uuid>(
+        "INSERT INTO encounters \
+         (tenant_id, patient_id, encounter_type, visit_type, notes, attributes) \
+         VALUES ($1, $2, 'emergency'::encounter_type, 'emergency', $3, $4) \
+         RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(row.patient_id)
+    .bind(row.chief_complaint.as_deref())
+    .bind(serde_json::json!({ "source": "er", "er_visit_id": row.id }))
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let row = sqlx::query_as::<_, ErVisit>(
+        "UPDATE er_visits SET encounter_id = $1, updated_at = now() \
+         WHERE id = $2 AND tenant_id = $3 RETURNING *",
+    )
+    .bind(encounter_id)
+    .bind(row.id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
     // Auto-bill ER consultation charge
     if super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "emergency")
         .await
@@ -749,7 +775,7 @@ pub async fn create_visit(
             &claims.tenant_id,
             super::billing::AutoChargeInput {
                 patient_id: row.patient_id,
-                encounter_id: None,
+                encounter_id: Some(encounter_id),
                 charge_code: "CON_EMERGENCY".to_owned(),
                 source: "emergency".to_owned(),
                 source_id: row.id,

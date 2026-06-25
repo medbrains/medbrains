@@ -12675,6 +12675,7 @@ export interface ErVisit {
   id: string;
   tenant_id: string;
   patient_id: string;
+  encounter_id: string | null;
   visit_number: string;
   status: ErVisitStatus;
   arrival_mode: string | null;

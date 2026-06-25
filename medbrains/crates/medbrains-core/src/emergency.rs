@@ -63,6 +63,7 @@ pub struct ErVisit {
     pub id: Uuid,
     pub tenant_id: Uuid,
     pub patient_id: Uuid,
+    pub encounter_id: Option<Uuid>,
     pub visit_number: String,
     pub status: ErVisitStatus,
     pub arrival_mode: Option<String>,

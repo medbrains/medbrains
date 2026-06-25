@@ -1274,7 +1274,10 @@ export function EmergencyVisitDetailPage() {
                     />
                   </Box>
                 )}
-                <PatientConsumablesPanel patientId={visit.patient_id} encounterId={visit.id} />
+                <PatientConsumablesPanel
+                  patientId={visit.patient_id}
+                  encounterId={visit.encounter_id ?? visit.id}
+                />
                 <ErDischargeSummaryPanel visitId={visit.id} />
                 {shouldShowMlcWorkspace && (
                   <Box id="mlc">
