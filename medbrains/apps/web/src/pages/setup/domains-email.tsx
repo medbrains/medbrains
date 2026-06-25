@@ -1,7 +1,7 @@
 import { Anchor, Card, Code, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
-import { P } from "@medbrains/types";
+import { type MailDnsRecord, P } from "@medbrains/types";
 import { IconCheck, IconClock, IconMail, IconWorld } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -90,6 +90,22 @@ export function DomainsEmailPage() {
       notifications.show({ title: "Save failed", message: err.message, color: "danger" }),
   });
 
+  const [provisioned, setProvisioned] = useState<MailDnsRecord[] | null>(null);
+  const provision = useMutation({
+    mutationFn: () => api.provisionMailDomain(tenant?.custom_domain ?? ""),
+    onSuccess: (res) => {
+      setProvisioned(res.dns_records);
+      notifications.show({
+        title: "Domain provisioned",
+        message: `${res.domain} created in the mail server. DKIM and DNS records are below.`,
+        color: "success",
+      });
+      void recheck();
+    },
+    onError: (err: Error) =>
+      notifications.show({ title: "Provisioning failed", message: err.message, color: "danger" }),
+  });
+
   const isSmtp = value.provider === "smtp" || value.provider === "stalwart";
   const domain = tenant?.custom_domain ?? "";
   const mailHost = domain ? `mail.${domain}` : "mail.<your-domain>";
@@ -120,15 +136,25 @@ export function DomainsEmailPage() {
       />
 
       <Card withBorder padding="lg">
-        <Group gap="xs" mb="xs">
-          <IconWorld size={18} />
-          <Text fw={600}>Domain & DNS</Text>
+        <Group justify="space-between" mb="xs">
+          <Group gap="xs">
+            <IconWorld size={18} />
+            <Text fw={600}>Domain & DNS</Text>
+          </Group>
+          {domain && (
+            <Button size="xs" loading={provision.isPending} onClick={() => provision.mutate()}>
+              Provision in mail server
+            </Button>
+          )}
         </Group>
         {domain ? (
           <>
             <Text size="sm" c="dimmed" mb="sm">
-              Add these records at your DNS provider for <Code>{domain}</Code>. The app + mail share
-              the domain; mail needs SPF/DKIM/DMARC to land in inboxes (see RFC-MAIL-STALWART.md).
+              {provisioned
+                ? "Live records from the mail server (real DKIM). Add them at your DNS provider for "
+                : "Add these records at your DNS provider for "}
+              <Code>{domain}</Code>. The app + mail share the domain; mail needs SPF/DKIM/DMARC to
+              land in inboxes (see RFC-MAIL-STALWART.md).
             </Text>
             <Table>
               <Table.Thead>
@@ -139,8 +165,11 @@ export function DomainsEmailPage() {
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {dnsRecords(domain).map((r) => (
-                  <Table.Tr key={`${r.type}-${r.host}`}>
+                {(provisioned
+                  ? provisioned.map((r) => ({ type: r.record_type, host: r.host, value: r.value }))
+                  : dnsRecords(domain)
+                ).map((r) => (
+                  <Table.Tr key={`${r.type}-${r.host}-${r.value}`}>
                     <Table.Td>
                       <Badge tone="neutral" size="sm">
                         {r.type}

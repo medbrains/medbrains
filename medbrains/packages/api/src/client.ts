@@ -1413,6 +1413,7 @@ import type {
   ProcessPharmacyReturnRequest,
   ProfitLossDeptRow,
   ProgressNotePrintData,
+  ProvisionDomainResponse,
   PsychAssessment,
   PsychCounselingSession,
   PsychEctSession,
@@ -13069,6 +13070,16 @@ export const api = {
     }),
   getEmailSettings: () => request<EmailSettings>("/admin/email-settings"),
   getDomainStatus: () => request<DomainStatus>("/admin/domain-status"),
+  provisionMailDomain: (domain: string) =>
+    request<ProvisionDomainResponse>("/admin/mail/provision-domain", {
+      method: "POST",
+      body: JSON.stringify({ domain }),
+    }),
+  createMailbox: (email: string, password: string) =>
+    request<{ email: string; created: boolean }>("/admin/mail/mailboxes", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    }),
   getEmailLog: () => request<EmailLogEntry[]>("/admin/email-log"),
   sendEmailTest: (to: string) =>
     request<{ status: string }>("/admin/email-test", {

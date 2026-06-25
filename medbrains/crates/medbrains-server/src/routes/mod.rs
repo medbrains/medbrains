@@ -61,6 +61,7 @@ pub mod indent;
 pub mod infection_control;
 pub mod infra_settings;
 pub mod invitations;
+pub mod mail_provisioning;
 pub mod insurance;
 pub mod integration;
 pub mod ipd;
@@ -514,6 +515,14 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/admin/domain-status",
             get(infra_settings::get_domain_status),
+        )
+        .route(
+            "/api/admin/mail/provision-domain",
+            post(mail_provisioning::provision_domain),
+        )
+        .route(
+            "/api/admin/mail/mailboxes",
+            post(mail_provisioning::create_mailbox),
         )
         .route(
             "/api/admin/invitations",

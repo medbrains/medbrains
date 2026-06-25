@@ -12673,6 +12673,17 @@ export type MlcStatus =
   | "closed";
 export type MassCasualtyStatus = "activated" | "ongoing" | "scaling_down" | "deactivated";
 
+export interface MailDnsRecord {
+  record_type: string;
+  host: string;
+  value: string;
+}
+
+export interface ProvisionDomainResponse {
+  domain: string;
+  dns_records: MailDnsRecord[];
+}
+
 export interface PatientRadiologyReport {
   report_id: string;
   order_id: string;
