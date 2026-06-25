@@ -1319,6 +1319,7 @@ import type {
   PatientListResponse,
   PatientMergeHistory,
   PatientOutcomeTarget,
+  PatientRadiologyReport,
   PatientReminder,
   PatientSafetyIndicator,
   PatientTimelineEvent,
@@ -14049,6 +14050,8 @@ export const api = {
   },
   getPriorRadiologyDicomStudies: (id: string) =>
     request<RadiologyDicomStudy[]>(`/radiology/dicom-studies/${id}/prior`),
+  listPatientRadiologyReports: (patientId: string) =>
+    request<PatientRadiologyReport[]>(`/radiology/patients/${patientId}/reports`),
   createRadiologyShareLink: (data: Record<string, unknown>) =>
     request<unknown>("/radiology/share-links", {
       method: "POST",

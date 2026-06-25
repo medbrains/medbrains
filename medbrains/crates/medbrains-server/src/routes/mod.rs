@@ -1988,6 +1988,10 @@ pub fn build_router(state: AppState) -> Router {
             put(radiology::cancel_order),
         )
         .route(
+            "/api/radiology/patients/{patient_id}/reports",
+            get(radiology::list_patient_reports),
+        )
+        .route(
             "/api/radiology/orders/{id}/report",
             post(radiology::create_report),
         )

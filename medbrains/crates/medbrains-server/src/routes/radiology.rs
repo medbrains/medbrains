@@ -1473,3 +1473,52 @@ pub async fn get_download_package(
         "download_instructions": "Use Orthanc API to download DICOM files, or share viewer link with patient.",
     })))
 }
+
+// ══════════════════════════════════════════════════════════
+//  Patient radiology reports (EMR view)
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct PatientRadiologyReport {
+    pub report_id: Uuid,
+    pub order_id: Uuid,
+    pub modality: Option<String>,
+    pub ordered_at: chrono::DateTime<chrono::Utc>,
+    pub status: String,
+    pub findings: String,
+    pub impression: Option<String>,
+    pub is_critical: bool,
+    pub verified_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// All of a patient's radiology reports (findings + impression + critical
+/// flag + verification status) for the EMR imaging view — joined to the
+/// order for modality + date.
+pub async fn list_patient_reports(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(patient_id): Path<Uuid>,
+) -> Result<Json<Vec<PatientRadiologyReport>>, AppError> {
+    require_permission(&claims, permissions::radiology::orders::LIST)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let rows = sqlx::query_as::<_, PatientRadiologyReport>(
+        "SELECT r.id AS report_id, r.order_id, m.name AS modality, o.created_at AS ordered_at, \
+                r.status::text AS status, r.findings, r.impression, r.is_critical, r.verified_at \
+         FROM radiology_reports r \
+         JOIN radiology_orders o ON o.id = r.order_id AND o.tenant_id = r.tenant_id \
+         LEFT JOIN radiology_modalities m ON m.id = o.modality_id AND m.tenant_id = o.tenant_id \
+         WHERE o.patient_id = $1 AND r.tenant_id = $2 \
+         ORDER BY o.created_at DESC LIMIT 200",
+    )
+    .bind(patient_id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}

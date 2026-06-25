@@ -12673,6 +12673,18 @@ export type MlcStatus =
   | "closed";
 export type MassCasualtyStatus = "activated" | "ongoing" | "scaling_down" | "deactivated";
 
+export interface PatientRadiologyReport {
+  report_id: string;
+  order_id: string;
+  modality: string | null;
+  ordered_at: string;
+  status: string;
+  findings: string;
+  impression: string | null;
+  is_critical: boolean;
+  verified_at: string | null;
+}
+
 export interface PatientTimelineEvent {
   occurred_at: string;
   category: "opd" | "ipd" | "emergency" | "lab" | "radiology" | "pharmacy" | "diagnosis";
