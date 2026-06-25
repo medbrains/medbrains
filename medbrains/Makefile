@@ -44,7 +44,11 @@ DEV_SIMULATOR_HTTPS_DOMAIN ?= medbrains-simulator.localhost
 DEV_SIMULATOR_HTTPS_ORIGIN ?= https://$(DEV_SIMULATOR_HTTPS_DOMAIN)
 DEV_ICD_HTTPS_DOMAIN ?= medbrains-icd.localhost
 DEV_ICD_HTTPS_ORIGIN ?= https://$(DEV_ICD_HTTPS_DOMAIN)
-DEV_HTTPS_ALT_DOMAINS ?= $(DEV_DESKTOP_HTTPS_DOMAIN),$(DEV_SIMULATOR_HTTPS_DOMAIN),$(DEV_ICD_HTTPS_DOMAIN)
+# Mail hostname for the dev Stalwart (Outlook/Apple Mail point here). Included
+# in the mkcert SAN list so the system-trusted dev cert covers it; the cert is
+# mounted into Stalwart (make stalwart-cert) so mail clients get a trusted TLS.
+DEV_MAIL_HTTPS_DOMAIN ?= mail.medbrains.localhost
+DEV_HTTPS_ALT_DOMAINS ?= $(DEV_DESKTOP_HTTPS_DOMAIN),$(DEV_SIMULATOR_HTTPS_DOMAIN),$(DEV_ICD_HTTPS_DOMAIN),$(DEV_MAIL_HTTPS_DOMAIN)
 DEV_PROXY_CONFIG ?= infra/local/pingora-dev.toml
 SIM_CONFIG ?= configs/simulators/hospital-stream.demo.json
 SIM_RUN_ID ?= nmc-demo

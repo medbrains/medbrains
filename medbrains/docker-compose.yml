@@ -139,12 +139,21 @@ services:
       STALWART_ADMIN_SECRET: ${STALWART_ADMIN_SECRET:-medbrains_dev}
     volumes:
       - stalwart_data:/opt/stalwart
+      # System-trusted mkcert cert (covers mail.medbrains.localhost), generated
+      # by `make local-https-cert`. Mounted read-only; the entrypoint wires it
+      # in as the default TLS cert so Outlook/Apple Mail get a trusted chain
+      # instead of Stalwart's on-the-fly self-signed cert. Absent = falls back
+      # to self-signed (still works, just untrusted).
+      - ./var/local-https:/opt/stalwart/certs:ro
     entrypoint:
       - /bin/sh
       - -c
       - >
         if [ ! -f /opt/stalwart/etc/config.toml ]; then /usr/local/bin/stalwart --init /opt/stalwart; fi;
         sed -i "/^\\[authentication.fallback-admin\\]/,/^\\[/ s|^secret = .*|secret = \"$$STALWART_ADMIN_SECRET\"|" /opt/stalwart/etc/config.toml;
+        if [ -f /opt/stalwart/certs/medbrains.localhost.pem ] && ! grep -q "\\[certificate.default\\]" /opt/stalwart/etc/config.toml; then
+          printf '\n[certificate.default]\ncert = "%%{file:/opt/stalwart/certs/medbrains.localhost.pem}%%"\nprivate-key = "%%{file:/opt/stalwart/certs/medbrains.localhost-key.pem}%%"\ndefault = true\n' >> /opt/stalwart/etc/config.toml;
+        fi;
         exec /usr/local/bin/stalwart --config /opt/stalwart/etc/config.toml
     restart: unless-stopped
 

@@ -169,8 +169,15 @@ pub async fn create_mailbox(
     }
 
     // Stalwart's principal API takes `secrets` (array), not `secret` — a
-    // string 400s with "JSON deserialization failed". Verified against
-    // stalwartlabs/stalwart.
+    // string 400s with "JSON deserialization failed".
+    //
+    // `roles: ["user"]` is REQUIRED. A principal created via the API gets no
+    // role (unlike the admin UI, which assigns `user` automatically), so it
+    // has zero permissions: auth succeeds but the account is then denied the
+    // `authenticate` action — SMTP submission 550s "not authorized to use
+    // this service" and IMAP login fails. The `user` role grants the standard
+    // mail permissions (submit/IMAP/POP3). Verified live against
+    // stalwartlabs/stalwart 0.15.5.
     let client = StalwartClient::from_env()?;
     client
         .post(
@@ -180,6 +187,7 @@ pub async fn create_mailbox(
                 "name": email,
                 "secrets": [body.password],
                 "emails": [email],
+                "roles": ["user"],
             }),
         )
         .await?;

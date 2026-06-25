@@ -43,7 +43,7 @@ async fn seed_dev_email_defaults(
     tenant_id: uuid::Uuid,
 ) -> Result<(), Box<dyn std::error::Error>> {
     sqlx::query(
-        "UPDATE tenants SET custom_domain = 'medbrains.local' \
+        "UPDATE tenants SET custom_domain = 'medbrains.localhost' \
          WHERE id = $1 AND (custom_domain IS NULL OR custom_domain = '')",
     )
     .bind(tenant_id)
@@ -52,12 +52,12 @@ async fn seed_dev_email_defaults(
 
     let config = serde_json::json!({
         "provider": "stalwart",
-        "smtp_host": "localhost",
+        "smtp_host": "mail.medbrains.localhost",
         "smtp_port": "587",
         "smtp_tls": "starttls",
-        "from_address": "noreply@medbrains.local",
+        "from_address": "noreply@medbrains.localhost",
         "from_name": "MedBrains",
-        "smtp_username": "noreply@medbrains.local",
+        "smtp_username": "noreply@medbrains.localhost",
         "smtp_password_secret": "SMTP_PASSWORD",
     });
     let mut tx = pool.begin().await?;
