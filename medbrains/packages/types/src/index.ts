@@ -12683,6 +12683,8 @@ export interface PatientRadiologyReport {
   impression: string | null;
   is_critical: boolean;
   verified_at: string | null;
+  alert_id: string | null;
+  alert_acknowledged_at: string | null;
 }
 
 export interface PatientTimelineEvent {

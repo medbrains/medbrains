@@ -108,7 +108,7 @@ import { deriveCampJourneyCompletedEvents } from "@/components/Patient/patient-j
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { ShareDrawer } from "@/components/Sharing/ShareDrawer";
-import { Alert, Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   DEFAULT_PATIENT_ALLERGY_FORM_VALUES,
   DEFAULT_PATIENT_DOCUMENT_FORM_VALUES,
@@ -841,6 +841,7 @@ function LabOrdersTab({ patientId }: { patientId: string }) {
 // ── Imaging Tab ────────────────────────────────────────────
 
 function ImagingTab({ patientId }: { patientId: string }) {
+  const imagingQueryClient = useQueryClient();
   const { data: studies = [], isLoading } = useQuery({
     queryKey: ["patient-dicom-studies", patientId],
     queryFn: () => patientDetailService.getPriorRadiologyDicomStudies(patientId),
@@ -848,6 +849,17 @@ function ImagingTab({ patientId }: { patientId: string }) {
   const { data: reports = [] } = useQuery({
     queryKey: ["patient-radiology-reports", patientId],
     queryFn: () => patientDetailService.listRadiologyReports(patientId),
+  });
+  const acknowledgeAlert = useMutation({
+    mutationFn: (alertId: string) =>
+      patientDetailService.acknowledgeRadiologyCriticalAlert(alertId),
+    onSuccess: () => {
+      toast.success("Critical finding acknowledged.", { title: "Acknowledged" });
+      void imagingQueryClient.invalidateQueries({
+        queryKey: ["patient-radiology-reports", patientId],
+      });
+    },
+    onError: (error: Error) => toast.error(error.message, { title: "Could not acknowledge" }),
   });
 
   if (isLoading) return <Loader size="sm" />;
@@ -878,6 +890,22 @@ function ImagingTab({ patientId }: { patientId: string }) {
                   <Badge tone={report.verified_at ? "success" : "neutral"} size="sm">
                     {report.verified_at ? "Verified" : report.status}
                   </Badge>
+                  {report.is_critical &&
+                    report.alert_id &&
+                    (report.alert_acknowledged_at ? (
+                      <Badge tone="success" size="sm">
+                        Acknowledged
+                      </Badge>
+                    ) : (
+                      <Button
+                        size="xs"
+                        tone="danger"
+                        loading={acknowledgeAlert.isPending}
+                        onClick={() => report.alert_id && acknowledgeAlert.mutate(report.alert_id)}
+                      >
+                        Acknowledge
+                      </Button>
+                    ))}
                 </Group>
                 <Text size="xs" c="dimmed">
                   {new Date(report.ordered_at).toLocaleDateString()}

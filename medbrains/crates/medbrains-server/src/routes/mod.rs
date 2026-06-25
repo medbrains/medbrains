@@ -2004,6 +2004,10 @@ pub fn build_router(state: AppState) -> Router {
             put(radiology::verify_report),
         )
         .route(
+            "/api/radiology/critical-alerts/{id}/acknowledge",
+            put(radiology::acknowledge_critical_alert),
+        )
+        .route(
             "/api/radiology/modalities",
             get(radiology::list_modalities).post(radiology::create_modality),
         )

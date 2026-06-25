@@ -14052,6 +14052,11 @@ export const api = {
     request<RadiologyDicomStudy[]>(`/radiology/dicom-studies/${id}/prior`),
   listPatientRadiologyReports: (patientId: string) =>
     request<PatientRadiologyReport[]>(`/radiology/patients/${patientId}/reports`),
+  acknowledgeRadiologyCriticalAlert: (alertId: string) =>
+    request<{ id: string; acknowledged_at: string }>(
+      `/radiology/critical-alerts/${alertId}/acknowledge`,
+      { method: "PUT" },
+    ),
   createRadiologyShareLink: (data: Record<string, unknown>) =>
     request<unknown>("/radiology/share-links", {
       method: "POST",

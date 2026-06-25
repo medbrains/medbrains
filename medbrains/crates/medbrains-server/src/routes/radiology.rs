@@ -733,6 +733,64 @@ pub async fn create_report(
     .execute(&mut *tx)
     .await?;
 
+    // Critical finding → raise an alert + notify the responsible clinician
+    // (encounter doctor, else the orderer) so it's actively communicated and
+    // acknowledged — NABH critical-results reporting, same as critical labs.
+    if is_critical {
+        let finding = body
+            .impression
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map_or_else(|| body.findings.clone(), ToOwned::to_owned);
+        sqlx::query(
+            "INSERT INTO radiology_critical_alerts \
+             (tenant_id, order_id, report_id, patient_id, modality, finding, \
+              notified_to, notified_at) \
+             VALUES ($1, $2, $3, $4, \
+               (SELECT name FROM radiology_modalities WHERE id = $5 AND tenant_id = $1), \
+               $6, \
+               COALESCE((SELECT doctor_id FROM encounters WHERE id = $7 AND tenant_id = $1), $8), \
+               now())",
+        )
+        .bind(claims.tenant_id)
+        .bind(order.id)
+        .bind(report.id)
+        .bind(order.patient_id)
+        .bind(order.modality_id)
+        .bind(&finding)
+        .bind(order.encounter_id)
+        .bind(order.ordered_by)
+        .execute(&mut *tx)
+        .await?;
+
+        let recipient: Uuid = sqlx::query_scalar(
+            "SELECT COALESCE( \
+               (SELECT doctor_id FROM encounters WHERE id = $1 AND tenant_id = $2), $3)",
+        )
+        .bind(order.encounter_id)
+        .bind(claims.tenant_id)
+        .bind(order.ordered_by)
+        .fetch_one(&mut *tx)
+        .await?;
+        let snippet: String = finding.chars().take(140).collect();
+        crate::routes::notifications::create_notification(
+            &mut tx,
+            claims.tenant_id,
+            crate::routes::notifications::NewNotification {
+                user_id: recipient,
+                kind: "danger",
+                title: "Critical imaging finding",
+                body: Some(&snippet),
+                category: Some("Radiology"),
+                entity_type: Some("radiology_order"),
+                entity_id: Some(order.id),
+                action_url: Some("/radiology"),
+            },
+        )
+        .await?;
+    }
+
     let mut event = ClinicalEventEnvelope::new(
         claims.tenant_id,
         ClinicalEventName::RadiologyReportCreated,
@@ -1489,6 +1547,8 @@ pub struct PatientRadiologyReport {
     pub impression: Option<String>,
     pub is_critical: bool,
     pub verified_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub alert_id: Option<Uuid>,
+    pub alert_acknowledged_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// All of a patient's radiology reports (findings + impression + critical
@@ -1507,10 +1567,12 @@ pub async fn list_patient_reports(
 
     let rows = sqlx::query_as::<_, PatientRadiologyReport>(
         "SELECT r.id AS report_id, r.order_id, m.name AS modality, o.created_at AS ordered_at, \
-                r.status::text AS status, r.findings, r.impression, r.is_critical, r.verified_at \
+                r.status::text AS status, r.findings, r.impression, r.is_critical, r.verified_at, \
+                ca.id AS alert_id, ca.acknowledged_at AS alert_acknowledged_at \
          FROM radiology_reports r \
          JOIN radiology_orders o ON o.id = r.order_id AND o.tenant_id = r.tenant_id \
          LEFT JOIN radiology_modalities m ON m.id = o.modality_id AND m.tenant_id = o.tenant_id \
+         LEFT JOIN radiology_critical_alerts ca ON ca.report_id = r.id AND ca.tenant_id = r.tenant_id \
          WHERE o.patient_id = $1 AND r.tenant_id = $2 \
          ORDER BY o.created_at DESC LIMIT 200",
     )
@@ -1521,4 +1583,35 @@ pub async fn list_patient_reports(
 
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+/// Acknowledge a radiology critical-finding alert — the treating clinician
+/// confirms they have seen and actioned the critical result.
+pub async fn acknowledge_critical_alert(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(alert_id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::radiology::reports::VERIFY)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let acknowledged_at = sqlx::query_scalar::<_, chrono::DateTime<chrono::Utc>>(
+        "UPDATE radiology_critical_alerts SET \
+           acknowledged_by = $1, acknowledged_at = now() \
+         WHERE id = $2 AND tenant_id = $3 AND acknowledged_at IS NULL \
+         RETURNING acknowledged_at",
+    )
+    .bind(claims.sub)
+    .bind(alert_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    tx.commit().await?;
+    Ok(Json(
+        serde_json::json!({ "id": alert_id, "acknowledged_at": acknowledged_at }),
+    ))
 }
