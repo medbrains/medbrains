@@ -12673,6 +12673,14 @@ export type MlcStatus =
   | "closed";
 export type MassCasualtyStatus = "activated" | "ongoing" | "scaling_down" | "deactivated";
 
+export interface PatientTimelineEvent {
+  occurred_at: string;
+  category: "opd" | "ipd" | "emergency" | "lab" | "radiology" | "pharmacy";
+  title: string;
+  subtitle: string | null;
+  ref_id: string;
+}
+
 export interface ErBay {
   id: string;
   tenant_id: string;

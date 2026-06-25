@@ -4414,3 +4414,66 @@ pub async fn get_patient_context(
         secondary_insurance,
     }))
 }
+
+// ══════════════════════════════════════════════════════════
+//  Unified clinical timeline (EMR longitudinal view)
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct PatientTimelineEvent {
+    pub occurred_at: DateTime<Utc>,
+    pub category: String,
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub ref_id: Uuid,
+}
+
+/// One chronological feed of a patient's clinical record across modules —
+/// OPD visits, admissions, ER visits, lab orders, imaging orders and
+/// prescriptions. IPD/ER-type encounters are excluded so admissions and
+/// er_visits aren't double-counted (every ER visit is encounter-backed).
+pub async fn get_clinical_timeline(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(patient_id): Path<Uuid>,
+) -> Result<Json<Vec<PatientTimelineEvent>>, AppError> {
+    require_permission(&claims, permissions::patients::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let rows = sqlx::query_as::<_, PatientTimelineEvent>(
+        "SELECT * FROM ( \
+           SELECT e.encounter_date::timestamptz AS occurred_at, 'opd'::text AS category, \
+                  'OPD visit'::text AS title, e.status::text AS subtitle, e.id AS ref_id \
+           FROM encounters e \
+           WHERE e.patient_id = $1 AND e.tenant_id = $2 \
+             AND e.encounter_type = 'opd'::encounter_type \
+           UNION ALL \
+           SELECT a.admitted_at, 'ipd'::text, 'Admission'::text, \
+                  COALESCE(a.primary_diagnosis, a.provisional_diagnosis, a.status::text), a.id \
+           FROM admissions a WHERE a.patient_id = $1 AND a.tenant_id = $2 \
+           UNION ALL \
+           SELECT v.created_at, 'emergency'::text, 'Emergency visit'::text, \
+                  COALESCE(v.chief_complaint, v.status::text), v.id \
+           FROM er_visits v WHERE v.patient_id = $1 AND v.tenant_id = $2 \
+           UNION ALL \
+           SELECT lo.created_at, 'lab'::text, 'Lab order'::text, lo.status::text, lo.id \
+           FROM lab_orders lo WHERE lo.patient_id = $1 AND lo.tenant_id = $2 \
+           UNION ALL \
+           SELECT ro.created_at, 'radiology'::text, 'Imaging order'::text, ro.status::text, ro.id \
+           FROM radiology_orders ro WHERE ro.patient_id = $1 AND ro.tenant_id = $2 \
+           UNION ALL \
+           SELECT pr.created_at, 'pharmacy'::text, 'Prescription'::text, NULL::text, pr.id \
+           FROM prescriptions pr WHERE pr.patient_id = $1 AND pr.tenant_id = $2 \
+         ) t ORDER BY occurred_at DESC LIMIT 300",
+    )
+    .bind(patient_id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}

@@ -79,6 +79,7 @@ import {
   IconReceipt,
   IconReportMedical,
   IconStethoscope,
+  IconTimeline,
   IconTrash,
   IconUser,
 } from "@tabler/icons-react";
@@ -98,6 +99,7 @@ import {
 } from "@/components/OrderBasket/OrderBasketWorkspace";
 import { PageHeader } from "@/components/PageHeader";
 import { ActivePackagesSection } from "@/components/Patient/ActivePackagesSection";
+import { ClinicalTimelineTab } from "@/components/Patient/ClinicalTimelineTab";
 import { PatientAccessLogSection } from "@/components/Patient/PatientAccessLogSection";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
@@ -3113,6 +3115,12 @@ function PatientDetailPageInner() {
       icon: <IconAlertTriangle size={14} />,
     },
     {
+      value: "timeline",
+      label: "Timeline",
+      section: "Clinical",
+      icon: <IconTimeline size={14} />,
+    },
+    {
       value: "visits",
       label: "Visits",
       section: "Clinical",
@@ -3289,6 +3297,9 @@ function PatientDetailPageInner() {
               </Tabs.Panel>
               <Tabs.Panel id="patient-allergies" value="allergies" pt="md">
                 <AllergiesTab patient={patient} />
+              </Tabs.Panel>
+              <Tabs.Panel id="patient-timeline" value="timeline" pt="md">
+                <ClinicalTimelineTab patientId={patient.id} />
               </Tabs.Panel>
               <Tabs.Panel id="patient-visits" value="visits" pt="md">
                 <VisitsTab patientId={patient.id} />

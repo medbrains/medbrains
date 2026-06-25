@@ -653,6 +653,10 @@ pub fn build_router(state: AppState) -> Router {
             get(patients::get_patient).put(patients::update_patient),
         )
         .route(
+            "/api/patients/{id}/clinical-timeline",
+            get(patients::get_clinical_timeline),
+        )
+        .route(
             "/api/patients/{id}/context",
             get(patients::get_patient_context),
         )

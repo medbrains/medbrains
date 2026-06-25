@@ -9,6 +9,7 @@ export type DrugTimelineDateRangeInput = Parameters<typeof api.drugTimelineWithL
 
 export const patientDetailService = {
   getPatient: (...args: Parameters<typeof api.getPatient>) => api.getPatient(...args),
+  getClinicalTimeline: (patientId: string) => api.getPatientClinicalTimeline(patientId),
   listPatients: (params: ListPatientsInput) => api.listPatients(params),
   listPatientAllergies: (...args: Parameters<typeof api.listPatientAllergies>) =>
     api.listPatientAllergies(...args),

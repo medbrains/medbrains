@@ -1321,6 +1321,7 @@ import type {
   PatientOutcomeTarget,
   PatientReminder,
   PatientSafetyIndicator,
+  PatientTimelineEvent,
   PatientTransfer,
   PatientTransferDisplay,
   PatientVisitRow,
@@ -3168,6 +3169,8 @@ export const api = {
     request<{ deleted: boolean }>(`/blog/${id}`, { method: "DELETE" }),
   getPatient: (id: string) => request<Patient>(`/patients/${id}`),
   getPatientContext: (id: string) => request<PatientContext>(`/patients/${id}/context`),
+  getPatientClinicalTimeline: (id: string) =>
+    request<PatientTimelineEvent[]>(`/patients/${id}/clinical-timeline`),
   createPatient: (data: CreatePatientRequest) =>
     request<Patient>("/patients", {
       method: "POST",
