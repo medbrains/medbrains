@@ -31,6 +31,9 @@ export const emergencyService = {
   updateErDischargeSummary: (...args: Parameters<typeof api.updateErDischargeSummary>) =>
     api.updateErDischargeSummary(...args),
   finalizeErDischargeSummary: (visitId: string) => api.finalizeErDischargeSummary(visitId),
+  listErBays: () => api.listErBays(),
+  createErBay: (...args: Parameters<typeof api.createErBay>) => api.createErBay(...args),
+  updateErBay: (...args: Parameters<typeof api.updateErBay>) => api.updateErBay(...args),
   listErObservationNotes: (visitId: string) => api.listErObservationNotes(visitId),
   createErObservationNote: (...args: Parameters<typeof api.createErObservationNote>) =>
     api.createErObservationNote(...args),

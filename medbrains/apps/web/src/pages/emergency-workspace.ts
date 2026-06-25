@@ -5,6 +5,7 @@ export const EMERGENCY_TAB_VALUES = [
   "codes",
   "mlc",
   "mass-casualty",
+  "bays",
 ] as const;
 
 export type EmergencyTabKey = (typeof EMERGENCY_TAB_VALUES)[number];
@@ -17,6 +18,7 @@ export function emergencyTabFromSearch(value: string | null): EmergencyTabKey | 
     case "codes":
     case "mlc":
     case "mass-casualty":
+    case "bays":
       return value;
     default:
       return null;

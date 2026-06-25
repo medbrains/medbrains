@@ -90,6 +90,7 @@ import {
   IconAlertOctagon,
   IconAlertTriangle,
   IconArrowLeft,
+  IconBed,
   IconBell,
   IconBuildingHospital,
   IconCheck,
@@ -129,6 +130,7 @@ import { PatientConsumablesPanel } from "@/components/Clinical";
 import { ClinicalEventProvider, useClinicalEmit } from "@/components/ClinicalEventProvider";
 import { TriagePanel } from "@/components/crdt/TriagePanel";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
+import { ErBaysTab } from "@/components/Emergency/ErBaysTab";
 import { ErDischargeSummaryPanel } from "@/components/Emergency/ErDischargeSummaryPanel";
 import { ErObservationPanel } from "@/components/Emergency/ErObservationPanel";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
@@ -919,6 +921,12 @@ export function EmergencyPage() {
         canUpdateMassCasualty ||
         canCloseMassCasualty,
     },
+    {
+      value: "bays" as const,
+      label: "Bays",
+      icon: <IconBed size={16} />,
+      visible: canViewVisits || canUpdateVisit,
+    },
   ].filter((item) => item.visible);
   const fallbackTab = availableTabs[0]?.value ?? "visits";
   const visibleActiveTab = emergencyVisibleTab(
@@ -1031,6 +1039,11 @@ export function EmergencyPage() {
                 canUpdate={canUpdateMassCasualty}
                 canClose={canCloseMassCasualty}
               />
+            </Tabs.Panel>
+          )}
+          {(canViewVisits || canUpdateVisit) && (
+            <Tabs.Panel value="bays">
+              <ErBaysTab />
             </Tabs.Panel>
           )}
         </Tabs>

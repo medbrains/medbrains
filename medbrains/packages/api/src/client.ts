@@ -873,6 +873,8 @@ import type {
   EquipmentCondemnation,
   EquipmentCondemnationPrintData,
   EquipmentHistoryCardPrintData,
+  ErBay,
+  ErBayRequest,
   ErCodeActivation,
   ErDischargeSummary,
   ErDischargeSummaryRequest,
@@ -7030,6 +7032,11 @@ export const api = {
 
   // ── Emergency ─────────────────────────────────────────
 
+  listErBays: () => request<ErBay[]>("/emergency/bays"),
+  createErBay: (data: ErBayRequest) =>
+    request<ErBay>("/emergency/bays", { method: "POST", body: JSON.stringify(data) }),
+  updateErBay: (id: string, data: ErBayRequest) =>
+    request<ErBay>(`/emergency/bays/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   listErVisits: (params?: { patient_id?: string }) => {
     const qs = new URLSearchParams();
     if (params?.patient_id) qs.set("patient_id", params.patient_id);

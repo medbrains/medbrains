@@ -7,8 +7,8 @@ use axum::{
 use chrono::Utc;
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::emergency::{
-    ErCodeActivation, ErDischargeSummary, ErObservationNote, ErResuscitationLog, ErTriageAssessment,
-    ErVisit, MassCasualtyEvent, MlcCase, MlcDocument, MlcPoliceIntimation,
+    ErBay, ErCodeActivation, ErDischargeSummary, ErObservationNote, ErResuscitationLog,
+    ErTriageAssessment, ErVisit, MassCasualtyEvent, MlcCase, MlcDocument, MlcPoliceIntimation,
 };
 use medbrains_core::form::FieldAccessLevel;
 use medbrains_core::permissions;
@@ -2459,6 +2459,97 @@ pub async fn create_observation_note(
     .fetch_one(&mut *tx)
     .await?;
 
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+// ══════════════════════════════════════════════════════════
+//  ER Bays (master)
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Deserialize)]
+pub struct ErBayRequest {
+    pub code: String,
+    pub name: String,
+    pub bay_type: Option<String>,
+    pub is_active: Option<bool>,
+    pub sort_order: Option<i32>,
+    pub notes: Option<String>,
+}
+
+pub async fn list_bays(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<ErBay>>, AppError> {
+    require_permission(&claims, permissions::emergency::visits::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, ErBay>(
+        "SELECT * FROM er_bays WHERE tenant_id = $1 ORDER BY sort_order ASC, name ASC LIMIT 5000",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+pub async fn create_bay(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<ErBayRequest>,
+) -> Result<Json<ErBay>, AppError> {
+    require_permission(&claims, permissions::emergency::visits::UPDATE)?;
+    let code = body.code.trim();
+    let name = body.name.trim();
+    if code.is_empty() || name.is_empty() {
+        return Err(AppError::BadRequest("Code and name are required".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, ErBay>(
+        "INSERT INTO er_bays (tenant_id, code, name, bay_type, is_active, sort_order, notes) \
+         VALUES ($1, $2, $3, $4, COALESCE($5, true), COALESCE($6, 0), $7) RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(code)
+    .bind(name)
+    .bind(trim_optional_text(body.bay_type.as_deref()))
+    .bind(body.is_active)
+    .bind(body.sort_order)
+    .bind(trim_optional_text(body.notes.as_deref()))
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn update_bay(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ErBayRequest>,
+) -> Result<Json<ErBay>, AppError> {
+    require_permission(&claims, permissions::emergency::visits::UPDATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, ErBay>(
+        "UPDATE er_bays SET \
+           code = $3, name = $4, bay_type = $5, is_active = COALESCE($6, is_active), \
+           sort_order = COALESCE($7, sort_order), notes = $8, updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 RETURNING *",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(body.code.trim())
+    .bind(body.name.trim())
+    .bind(trim_optional_text(body.bay_type.as_deref()))
+    .bind(body.is_active)
+    .bind(body.sort_order)
+    .bind(trim_optional_text(body.notes.as_deref()))
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
     tx.commit().await?;
     Ok(Json(row))
 }

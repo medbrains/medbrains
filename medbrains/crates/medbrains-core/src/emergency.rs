@@ -291,3 +291,19 @@ pub struct ErObservationNote {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+/// Configurable ER bay (master). Visits reference a bay by `code`; the
+/// occupancy board is computed from active visits.
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct ErBay {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub code: String,
+    pub name: String,
+    pub bay_type: Option<String>,
+    pub is_active: bool,
+    pub sort_order: i32,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}

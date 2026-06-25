@@ -12671,6 +12671,28 @@ export type MlcStatus =
   | "closed";
 export type MassCasualtyStatus = "activated" | "ongoing" | "scaling_down" | "deactivated";
 
+export interface ErBay {
+  id: string;
+  tenant_id: string;
+  code: string;
+  name: string;
+  bay_type: string | null;
+  is_active: boolean;
+  sort_order: number;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ErBayRequest {
+  code: string;
+  name: string;
+  bay_type?: string;
+  is_active?: boolean;
+  sort_order?: number;
+  notes?: string;
+}
+
 export interface ErObservationNote {
   id: string;
   tenant_id: string;
