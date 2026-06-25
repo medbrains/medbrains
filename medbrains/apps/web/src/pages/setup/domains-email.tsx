@@ -1,13 +1,31 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Anchor, Card, Code, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
 import { type MailDnsRecord, P } from "@medbrains/types";
-import { IconCheck, IconClock, IconMail, IconWorld } from "@tabler/icons-react";
+import { IconCheck, IconClock, IconMail, IconUserPlus, IconWorld } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { z } from "zod";
 import { PageHeader } from "@/components";
-import { Alert, Badge, type BadgeTone, Button, Input, Select, Table } from "@/components/ui";
+import {
+  Alert,
+  Badge,
+  type BadgeTone,
+  Button,
+  Input,
+  PasswordField,
+  Select,
+  Table,
+} from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+
+const mailboxSchema = z.object({
+  email: z.string().email("Enter a valid email address"),
+  password: z.string().min(8, "At least 8 characters"),
+});
+type MailboxFormInput = z.infer<typeof mailboxSchema>;
 
 const PROVIDERS = [
   { value: "stalwart", label: "Stalwart (self-hosted)" },
@@ -109,6 +127,30 @@ export function DomainsEmailPage() {
   const isSmtp = value.provider === "smtp" || value.provider === "stalwart";
   const domain = tenant?.custom_domain ?? "";
   const mailHost = domain ? `mail.${domain}` : "mail.<your-domain>";
+
+  // Create a mailbox in the self-hosted mail server (Stalwart). The sending
+  // identity (noreply@<domain>) needs a real mailbox before mail can flow.
+  const mailboxForm = useForm<MailboxFormInput>({
+    resolver: zodResolver(mailboxSchema),
+    defaultValues: { email: "", password: "" },
+  });
+  const createMailbox = useMutation({
+    mutationFn: (values: MailboxFormInput) => api.createMailbox(values.email, values.password),
+    onSuccess: (res) => {
+      notifications.show({
+        title: "Mailbox created",
+        message: `${res.email} is ready — connect a mail client with the settings below.`,
+        color: "success",
+      });
+      mailboxForm.reset({ email: "", password: "" });
+    },
+    onError: (err: Error) =>
+      notifications.show({
+        title: "Could not create mailbox",
+        message: err.message,
+        color: "danger",
+      }),
+  });
 
   const [testTo, setTestTo] = useState("");
   const { data: log = [] } = useQuery({
@@ -330,6 +372,66 @@ export function DomainsEmailPage() {
           </Group>
         </Stack>
       </Card>
+
+      {value.provider === "stalwart" && hasDomain && (
+        <Card withBorder padding="lg">
+          <Group gap="xs" mb="xs">
+            <IconUserPlus size={18} />
+            <Text fw={600}>Mailboxes</Text>
+          </Group>
+          <Text size="sm" c="dimmed" mb="md">
+            Create a mailbox in your mail server — start with the sending identity (e.g.{" "}
+            <Code>noreply@{domain}</Code>) that matches the From address above, then add per-staff
+            mailboxes. The account is usable immediately with the connection settings below.
+          </Text>
+          <form
+            onSubmit={mailboxForm.handleSubmit((values) => createMailbox.mutate(values))}
+            noValidate
+          >
+            <Stack gap="sm" maw={560}>
+              <Group gap="sm" align="flex-end">
+                <Controller
+                  control={mailboxForm.control}
+                  name="email"
+                  render={({ field, fieldState }) => (
+                    <Input
+                      {...field}
+                      label="Mailbox address"
+                      placeholder={`noreply@${domain}`}
+                      error={fieldState.error?.message}
+                      style={{ flex: 1 }}
+                    />
+                  )}
+                />
+                <Button
+                  tone="ghost"
+                  size="xs"
+                  onClick={() => mailboxForm.setValue("email", `noreply@${domain}`)}
+                >
+                  Use noreply@{domain}
+                </Button>
+              </Group>
+              <Controller
+                control={mailboxForm.control}
+                name="password"
+                render={({ field, fieldState }) => (
+                  <PasswordField
+                    {...field}
+                    label="Mailbox password"
+                    description="Used to log the mail client in. At least 8 characters."
+                    error={fieldState.error?.message}
+                  />
+                )}
+              />
+              <Group justify="flex-end">
+                <Button type="submit" tone="primary" loading={createMailbox.isPending}>
+                  Create mailbox
+                </Button>
+              </Group>
+            </Stack>
+          </form>
+        </Card>
+      )}
 
       <Card withBorder padding="lg">
         <Group gap="xs" mb="xs">
