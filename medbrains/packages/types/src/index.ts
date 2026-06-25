@@ -12675,7 +12675,7 @@ export type MassCasualtyStatus = "activated" | "ongoing" | "scaling_down" | "dea
 
 export interface PatientTimelineEvent {
   occurred_at: string;
-  category: "opd" | "ipd" | "emergency" | "lab" | "radiology" | "pharmacy";
+  category: "opd" | "ipd" | "emergency" | "lab" | "radiology" | "pharmacy" | "diagnosis";
   title: string;
   subtitle: string | null;
   ref_id: string;

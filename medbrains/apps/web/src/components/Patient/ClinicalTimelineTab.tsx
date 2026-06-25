@@ -6,6 +6,7 @@ import {
   IconEye,
   IconFlask,
   IconPill,
+  IconReportMedical,
   IconStethoscope,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
@@ -27,6 +28,7 @@ const META: Record<
   lab: { label: "Lab", tone: "accent", icon: <IconFlask size={14} /> },
   radiology: { label: "Imaging", tone: "warning", icon: <IconEye size={14} /> },
   pharmacy: { label: "Pharmacy", tone: "success", icon: <IconPill size={14} /> },
+  diagnosis: { label: "Diagnosis", tone: "neutral", icon: <IconReportMedical size={14} /> },
 };
 
 function formatWhen(iso: string): string {

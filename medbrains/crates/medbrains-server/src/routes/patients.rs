@@ -4459,14 +4459,25 @@ pub async fn get_clinical_timeline(
                   COALESCE(v.chief_complaint, v.status::text), v.id \
            FROM er_visits v WHERE v.patient_id = $1 AND v.tenant_id = $2 \
            UNION ALL \
-           SELECT lo.created_at, 'lab'::text, 'Lab order'::text, lo.status::text, lo.id \
-           FROM lab_orders lo WHERE lo.patient_id = $1 AND lo.tenant_id = $2 \
+           SELECT lo.created_at, 'lab'::text, \
+                  COALESCE(lt.name, 'Lab order')::text, lo.status::text, lo.id \
+           FROM lab_orders lo \
+           LEFT JOIN lab_test_catalog lt ON lt.id = lo.test_id AND lt.tenant_id = lo.tenant_id \
+           WHERE lo.patient_id = $1 AND lo.tenant_id = $2 \
            UNION ALL \
-           SELECT ro.created_at, 'radiology'::text, 'Imaging order'::text, ro.status::text, ro.id \
-           FROM radiology_orders ro WHERE ro.patient_id = $1 AND ro.tenant_id = $2 \
+           SELECT ro.created_at, 'radiology'::text, \
+                  COALESCE(rm.name, 'Imaging order')::text, ro.status::text, ro.id \
+           FROM radiology_orders ro \
+           LEFT JOIN radiology_modalities rm ON rm.id = ro.modality_id AND rm.tenant_id = ro.tenant_id \
+           WHERE ro.patient_id = $1 AND ro.tenant_id = $2 \
            UNION ALL \
            SELECT pr.created_at, 'pharmacy'::text, 'Prescription'::text, NULL::text, pr.id \
            FROM prescriptions pr WHERE pr.patient_id = $1 AND pr.tenant_id = $2 \
+           UNION ALL \
+           SELECT dx.created_at, 'diagnosis'::text, dx.description::text, dx.icd_code, dx.id \
+           FROM diagnoses dx \
+           JOIN encounters e ON e.id = dx.encounter_id AND e.tenant_id = dx.tenant_id \
+           WHERE e.patient_id = $1 AND dx.tenant_id = $2 \
          ) t ORDER BY occurred_at DESC LIMIT 300",
     )
     .bind(patient_id)
