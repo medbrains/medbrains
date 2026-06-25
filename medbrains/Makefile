@@ -90,6 +90,9 @@ dev-backend: db ## Start database + backend only
 dev-backend-reload: db ## Backend only, RN-Metro style: press `r` to rebuild+restart, `q` to quit
 	SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret scripts/dev_backend_reload.sh
 
+dev-mail-mailboxes: ## Create a local Stalwart mailbox for every seeded user (via the app API)
+	scripts/dev_mail_mailboxes.sh
+
 dev-edge: ## Run medbrains-edge appliance locally for offline-mode testing
 	@mkdir -p var/medbrains-edge/docs var/medbrains-edge/chain
 	@cargo run -p medbrains-edge-app -- --config apps/edge/etc/medbrains-edge/dev.toml

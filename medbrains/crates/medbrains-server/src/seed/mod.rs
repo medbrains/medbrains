@@ -42,9 +42,13 @@ async fn seed_dev_email_defaults(
     pool: &PgPool,
     tenant_id: uuid::Uuid,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // Also rewrite the legacy `medbrains.local` value (mDNS, never resolved
+    // and not hosted by the dev Stalwart) so an existing dev tenant is fixed,
+    // not just a fresh one.
     sqlx::query(
         "UPDATE tenants SET custom_domain = 'medbrains.localhost' \
-         WHERE id = $1 AND (custom_domain IS NULL OR custom_domain = '')",
+         WHERE id = $1 \
+           AND (custom_domain IS NULL OR custom_domain = '' OR custom_domain = 'medbrains.local')",
     )
     .bind(tenant_id)
     .execute(pool)
@@ -62,10 +66,12 @@ async fn seed_dev_email_defaults(
     });
     let mut tx = pool.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    // Refresh on conflict (dev-only seed): an existing tenant may still carry
+    // the old localhost/`.local` config, which would silently send nowhere.
     sqlx::query(
         "INSERT INTO tenant_settings (tenant_id, category, key, value) \
          VALUES ($1, 'email', 'config', $2) \
-         ON CONFLICT (tenant_id, category, key) DO NOTHING",
+         ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value",
     )
     .bind(tenant_id)
     .bind(&config)
@@ -148,7 +154,7 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
         sqlx::query(
             "INSERT INTO users (tenant_id, username, email, password_hash, full_name, role, \
              must_change_password) \
-             VALUES ($1, 'admin', 'admin@medbrains.local', $2, \
+             VALUES ($1, 'admin', 'admin@medbrains.localhost', $2, \
              'System Administrator', 'super_admin', $3)",
         )
         .bind(tenant_id)

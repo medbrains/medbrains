@@ -10,7 +10,7 @@ export const authMeFixture = {
     tenant_id: SEED.tenant,
     username: "admin",
     full_name: "Admin User",
-    email: "admin@medbrains.local",
+    email: "admin@medbrains.localhost",
     role: "super_admin",
     role_display: "Super Admin",
     department_ids: [],

@@ -656,7 +656,7 @@ export async function createProcurementVendor(
     vendor_type: opts.vendorType ?? "supplier",
     contact_person: "E2E Vendor Contact",
     phone: `98${stamp.slice(-8)}`,
-    email: `vendor.${stamp}@e2e.medbrains.local`,
+    email: `vendor.${stamp}@e2e.medbrains.localhost`,
     gst_number: `29ABCDE${stamp.slice(-4)}F1Z5`,
     payment_terms: "Net 15",
     supply_categories: opts.supplyCategories ?? ["general_consumables"],

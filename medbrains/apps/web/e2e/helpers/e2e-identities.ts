@@ -105,7 +105,7 @@ export async function ensureE2EIdentities(
   try {
     for (const roleDef of E2E_ROLE_DEFINITIONS) {
       const username = `e2e_${compactRoleSlug(roleDef.role)}_${usernameRunId}`;
-      const email = `${username}@e2e.medbrains.local`;
+      const email = `${username}@e2e.medbrains.localhost`;
       const payload: Record<string, unknown> = {
         username,
         email,
