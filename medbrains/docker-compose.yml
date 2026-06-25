@@ -133,6 +133,7 @@ services:
     image: stalwartlabs/stalwart:latest
     ports:
       - "127.0.0.1:587:587"     # SMTP submission (STARTTLS)
+      - "127.0.0.1:465:465"     # SMTP submission (implicit SSL/TLS — "Use SSL" clients)
       - "127.0.0.1:993:993"     # IMAPS (staff mail clients)
       - "127.0.0.1:8086:443"    # admin web UI + JMAP + management API
     environment:
