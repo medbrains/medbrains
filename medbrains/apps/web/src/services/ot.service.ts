@@ -47,11 +47,5 @@ export const otService = {
     api.listSurgeonPreferences(...args),
   createSurgeonPreference: (...args: Parameters<typeof api.createSurgeonPreference>) =>
     api.createSurgeonPreference(...args),
-  listOtConsumables: (...args: Parameters<typeof api.listOtConsumables>) =>
-    api.listOtConsumables(...args),
-  createOtConsumable: (...args: Parameters<typeof api.createOtConsumable>) =>
-    api.createOtConsumable(...args),
-  deleteOtConsumable: (...args: Parameters<typeof api.deleteOtConsumable>) =>
-    api.deleteOtConsumable(...args),
   otUtilization: (...args: Parameters<typeof api.otUtilization>) => api.otUtilization(...args),
 };

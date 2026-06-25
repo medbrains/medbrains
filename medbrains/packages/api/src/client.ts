@@ -576,7 +576,6 @@ import type {
   CreateOnCallRequest,
   CreateOrderSetTemplateRequest,
   CreateOtBookingRequest,
-  CreateOtConsumableRequest,
   CreateOtcSaleRequest,
   CreateOtRoomRequest,
   CreateOutbreakContactRequest,
@@ -1264,7 +1263,6 @@ import type {
   OtBooking,
   OtBookingListResponse,
   OtCaseRecord,
-  OtConsumableUsage,
   OtPostopHandoff,
   OtPostopRecord,
   OtPreopAssessment,
@@ -9923,21 +9921,6 @@ export const api = {
     request<IpdDischargeTatLog>(`/ipd/admissions/${admissionId}/discharge-tat`, {
       method: "PUT",
       body: JSON.stringify(data),
-    }),
-
-  // OT Consumables
-  listOtConsumables: (bookingId: string) =>
-    request<OtConsumableUsage[]>(`/ot/bookings/${bookingId}/consumables`),
-
-  createOtConsumable: (bookingId: string, data: CreateOtConsumableRequest) =>
-    request<OtConsumableUsage>(`/ot/bookings/${bookingId}/consumables`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
-
-  deleteOtConsumable: (bookingId: string, itemId: string) =>
-    request<{ deleted: boolean }>(`/ot/bookings/${bookingId}/consumables/${itemId}`, {
-      method: "DELETE",
     }),
 
   // OT Analytics

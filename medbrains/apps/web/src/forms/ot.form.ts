@@ -5,8 +5,6 @@ import type {
   OtBookingFormInput,
   OtCasePriorityFormValue,
   OtCaseRecordFormInput,
-  OtConsumableCategoryFormValue,
-  OtConsumableFormInput,
   OtPostopRecordFormInput,
   OtPostopRecordUpdateFormInput,
   OtPostopRecoveryStatusFormValue,
@@ -19,16 +17,11 @@ import type {
   OtSurgeonPreferenceFormInput,
   OtUtilizationFilterFormInput,
 } from "@medbrains/schemas";
-import {
-  numberFromFormValue,
-  optionalNumberFromFormValue,
-  optionalTextFromFormValue,
-} from "@medbrains/schemas";
+import { optionalNumberFromFormValue, optionalTextFromFormValue } from "@medbrains/schemas";
 import type {
   CreateAnesthesiaRecordRequest,
   CreateCaseRecordRequest,
   CreateOtBookingRequest,
-  CreateOtConsumableRequest,
   CreateOtRoomRequest,
   CreatePostopRecordRequest,
   CreatePreopAssessmentRequest,
@@ -42,16 +35,6 @@ type SelectOption<T extends string> = {
   value: T;
   label: string;
 };
-
-export const OT_CONSUMABLE_CATEGORY_OPTIONS: Array<SelectOption<OtConsumableCategoryFormValue>> = [
-  { value: "surgical_instrument", label: "Surgical Instrument" },
-  { value: "implant", label: "Implant" },
-  { value: "disposable", label: "Disposable" },
-  { value: "suture", label: "Suture" },
-  { value: "drug", label: "Drug" },
-  { value: "blood_product", label: "Blood Product" },
-  { value: "other", label: "Other" },
-];
 
 export const OT_CASE_PRIORITY_OPTIONS: Array<SelectOption<OtCasePriorityFormValue>> = [
   { value: "elective", label: "Elective" },
@@ -183,15 +166,6 @@ export const DEFAULT_OT_POSTOP_UPDATE_FORM_VALUES: OtPostopRecordUpdateFormInput
   notes: "",
 };
 
-export const DEFAULT_OT_CONSUMABLE_FORM_VALUES: OtConsumableFormInput = {
-  item_name: "",
-  category: null,
-  quantity: 1,
-  unit: "",
-  unit_price: "",
-  batch_number: "",
-};
-
 export const DEFAULT_OT_STATUS_REASON_FORM_VALUES: OtStatusReasonFormInput = {
   reason: "",
 };
@@ -205,12 +179,6 @@ export const DEFAULT_OT_UTILIZATION_FILTER_FORM_VALUES: OtUtilizationFilterFormI
   from: "",
   to: "",
 };
-
-function requiredCategory(
-  value: OtConsumableCategoryFormValue | null,
-): OtConsumableCategoryFormValue {
-  return value ?? "other";
-}
 
 export function normalizeOtCasePriority(value: string | null): OtCasePriorityFormValue {
   return OT_CASE_PRIORITY_OPTIONS.find((option) => option.value === value)?.value ?? "elective";
@@ -378,19 +346,6 @@ export function toUpdatePostopRecordRequest(
     discharge_time: optionalTextFromFormValue(values.discharge_time),
     disposition: optionalTextFromFormValue(values.disposition),
     notes: optionalTextFromFormValue(values.notes),
-  };
-}
-
-export function toCreateOtConsumableRequest(
-  values: OtConsumableFormInput,
-): CreateOtConsumableRequest {
-  return {
-    item_name: values.item_name.trim(),
-    category: requiredCategory(values.category),
-    quantity: numberFromFormValue(values.quantity, 1),
-    unit: optionalTextFromFormValue(values.unit),
-    unit_price: optionalNumberFromFormValue(values.unit_price),
-    batch_number: optionalTextFromFormValue(values.batch_number),
   };
 }
 

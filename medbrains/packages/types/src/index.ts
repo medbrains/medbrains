@@ -18946,15 +18946,6 @@ export type RestraintCheckStatus =
   | "escalated";
 export type TransferType = "inter_ward" | "inter_department" | "inter_hospital";
 export type DeathCertFormType = "form_4" | "form_4a";
-export type OtConsumableCategory =
-  | "surgical_instrument"
-  | "implant"
-  | "disposable"
-  | "suture"
-  | "drug"
-  | "blood_product"
-  | "other";
-
 export interface IpTypeConfiguration {
   id: string;
   tenant_id: string;
@@ -19129,21 +19120,6 @@ export interface IpdDischargeTatLog {
   notes: string | null;
   created_at: string;
   updated_at: string;
-}
-
-export interface OtConsumableUsage {
-  id: string;
-  tenant_id: string;
-  booking_id: string;
-  item_name: string;
-  category: OtConsumableCategory;
-  quantity: number;
-  unit: string | null;
-  unit_price: number | null;
-  batch_number: string | null;
-  recorded_by: string;
-  notes: string | null;
-  created_at: string;
 }
 
 export interface RoomUtilization {
@@ -19322,16 +19298,6 @@ export interface UpdateDischargeTatRequest {
   nursing_cleared_at?: string;
   doctor_cleared_at?: string;
   discharge_completed_at?: string;
-  notes?: string;
-}
-
-export interface CreateOtConsumableRequest {
-  item_name: string;
-  category: OtConsumableCategory;
-  quantity: number;
-  unit?: string;
-  unit_price?: number;
-  batch_number?: string;
   notes?: string;
 }
 

@@ -3499,14 +3499,6 @@ pub fn build_router(state: AppState) -> Router {
             get(ot::get_schedule),
         )
         .route(
-            "/api/ot/bookings/{id}/consumables",
-            get(ot::list_consumables).post(ot::create_consumable),
-        )
-        .route(
-            "/api/ot/bookings/{id}/consumables/{item_id}",
-            delete(ot::delete_consumable),
-        )
-        .route(
             "/api/ot/analytics/utilization",
             get(ot::ot_utilization),
         )

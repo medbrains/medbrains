@@ -849,15 +849,6 @@ export const opdCertificateTypeFormSchema = z.enum([
   "custom",
 ]);
 export const opdRatingFormSchema = z.enum(["1", "2", "3", "4", "5"]);
-export const otConsumableCategoryFormSchema = z.enum([
-  "surgical_instrument",
-  "implant",
-  "disposable",
-  "suture",
-  "drug",
-  "blood_product",
-  "other",
-]);
 export const otCasePriorityFormSchema = z.enum(["elective", "urgent", "emergency"]);
 export const otAsaClassificationFormSchema = z.enum([
   "asa_1",
@@ -3937,25 +3928,6 @@ export const opdMedicalCertificateFormSchema = z
     }
   });
 
-export const otConsumableFormSchema = z
-  .object({
-    item_name: requiredTrimmed("Item name is required", 255),
-    category: otConsumableCategoryFormSchema.nullable(),
-    quantity: positiveNumber("Quantity must be greater than zero"),
-    unit: z.string(),
-    unit_price: optionalNumericFormValue("Unit price cannot be negative", 0),
-    batch_number: z.string(),
-  })
-  .superRefine((value, ctx) => {
-    if (value.category === null) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["category"],
-        message: "Category is required",
-      });
-    }
-  });
-
 export const otBookingFormSchema = z.object({
   patient_id: requiredTrimmed("Patient is required"),
   admission_id: z.string(),
@@ -5268,7 +5240,6 @@ export type OpdReminderTypeFormValue = z.infer<typeof opdReminderTypeFormSchema>
 export type OpdProcedureConsentTypeFormValue = z.infer<typeof opdProcedureConsentTypeFormSchema>;
 export type OpdCertificateTypeFormValue = z.infer<typeof opdCertificateTypeFormSchema>;
 export type OpdRatingFormValue = z.infer<typeof opdRatingFormSchema>;
-export type OtConsumableCategoryFormValue = z.infer<typeof otConsumableCategoryFormSchema>;
 export type OtCasePriorityFormValue = z.infer<typeof otCasePriorityFormSchema>;
 export type OtAsaClassificationFormValue = z.infer<typeof otAsaClassificationFormSchema>;
 export type OtPreopClearanceStatusFormValue = z.infer<typeof otPreopClearanceStatusFormSchema>;
@@ -5493,7 +5464,6 @@ export type OpdReminderFormInput = z.infer<typeof opdReminderFormSchema>;
 export type OpdFeedbackFormInput = z.infer<typeof opdFeedbackFormSchema>;
 export type OpdProcedureConsentFormInput = z.infer<typeof opdProcedureConsentFormSchema>;
 export type OpdMedicalCertificateFormInput = z.infer<typeof opdMedicalCertificateFormSchema>;
-export type OtConsumableFormInput = z.infer<typeof otConsumableFormSchema>;
 export type OtBookingFormInput = z.infer<typeof otBookingFormSchema>;
 export type OtPreopAssessmentFormInput = z.infer<typeof otPreopAssessmentFormSchema>;
 export type OtPreopAssessmentUpdateFormInput = z.infer<typeof otPreopAssessmentUpdateFormSchema>;

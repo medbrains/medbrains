@@ -7,8 +7,8 @@ use axum::{
 use chrono::{NaiveDate, Utc};
 use medbrains_core::ipd::{AnesthesiaComplicationEntry, SurgeonCaseloadEntry};
 use medbrains_core::ot::{
-    ChecklistPhase, OtAnesthesiaRecord, OtBooking, OtCaseRecord, OtConsumableCategory,
-    OtConsumableUsage, OtPostopHandoff, OtPostopRecord, OtPreopAssessment, OtPreopHandoff, OtRoom,
+    ChecklistPhase, OtAnesthesiaRecord, OtBooking, OtCaseRecord, OtPostopHandoff, OtPostopRecord,
+    OtPreopAssessment, OtPreopHandoff, OtRoom,
     OtSurgeonPreference, OtSurgicalSafetyChecklist,
 };
 use medbrains_core::permissions;
@@ -1884,104 +1884,6 @@ pub async fn get_schedule(
 
     tx.commit().await?;
     Ok(Json(rows))
-}
-
-// ══════════════════════════════════════════════════════════
-//  Consumables
-// ══════════════════════════════════════════════════════════
-
-#[derive(Debug, Deserialize)]
-pub struct CreateConsumableRequest {
-    pub item_name: String,
-    pub category: OtConsumableCategory,
-    pub quantity: rust_decimal::Decimal,
-    pub unit: Option<String>,
-    pub unit_price: Option<rust_decimal::Decimal>,
-    pub batch_number: Option<String>,
-    pub notes: Option<String>,
-}
-
-pub async fn list_consumables(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(booking_id): Path<Uuid>,
-) -> Result<Json<Vec<OtConsumableUsage>>, AppError> {
-    require_permission(&claims, permissions::ot::consumables::MANAGE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let rows = sqlx::query_as::<_, OtConsumableUsage>(
-        "SELECT * FROM ot_consumable_usage \
-         WHERE tenant_id = $1 AND booking_id = $2 \
-         ORDER BY created_at ASC LIMIT 5000",
-    )
-    .bind(claims.tenant_id)
-    .bind(booking_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(rows))
-}
-
-pub async fn create_consumable(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(booking_id): Path<Uuid>,
-    Json(body): Json<CreateConsumableRequest>,
-) -> Result<Json<OtConsumableUsage>, AppError> {
-    require_permission(&claims, permissions::ot::consumables::MANAGE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let row = sqlx::query_as::<_, OtConsumableUsage>(
-        "INSERT INTO ot_consumable_usage \
-         (tenant_id, booking_id, item_name, category, quantity, unit, \
-          unit_price, batch_number, recorded_by, notes) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) \
-         RETURNING *",
-    )
-    .bind(claims.tenant_id)
-    .bind(booking_id)
-    .bind(&body.item_name)
-    .bind(body.category)
-    .bind(body.quantity)
-    .bind(&body.unit)
-    .bind(body.unit_price)
-    .bind(&body.batch_number)
-    .bind(claims.sub)
-    .bind(&body.notes)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(row))
-}
-
-pub async fn delete_consumable(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path((booking_id, item_id)): Path<(Uuid, Uuid)>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::ot::consumables::MANAGE)?;
-
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    sqlx::query(
-        "DELETE FROM ot_consumable_usage \
-         WHERE id = $1 AND tenant_id = $2 AND booking_id = $3",
-    )
-    .bind(item_id)
-    .bind(claims.tenant_id)
-    .bind(booking_id)
-    .execute(&mut *tx)
-    .await?;
-
-    tx.commit().await?;
-    Ok(Json(serde_json::json!({ "deleted": true })))
 }
 
 // ══════════════════════════════════════════════════════════

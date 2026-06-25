@@ -306,36 +306,3 @@ pub struct OtSurgeonPreference {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
-
-// ── Phase 2b enums ─────────────────────────────────────
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
-#[sqlx(type_name = "ot_consumable_category", rename_all = "snake_case")]
-#[serde(rename_all = "snake_case")]
-pub enum OtConsumableCategory {
-    SurgicalInstrument,
-    Implant,
-    Disposable,
-    Suture,
-    Drug,
-    BloodProduct,
-    Other,
-}
-
-// ── Phase 2b structs ───────────────────────────────────
-
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct OtConsumableUsage {
-    pub id: Uuid,
-    pub tenant_id: Uuid,
-    pub booking_id: Uuid,
-    pub item_name: String,
-    pub category: OtConsumableCategory,
-    pub quantity: rust_decimal::Decimal,
-    pub unit: Option<String>,
-    pub unit_price: Option<rust_decimal::Decimal>,
-    pub batch_number: Option<String>,
-    pub recorded_by: Uuid,
-    pub notes: Option<String>,
-    pub created_at: DateTime<Utc>,
-}
