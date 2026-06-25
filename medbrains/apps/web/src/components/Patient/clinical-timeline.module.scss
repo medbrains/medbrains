@@ -1,0 +1,70 @@
+// Snake-board (serpentine) layout for the clinical timeline. Layout only —
+// colour comes from theme tokens / the per-category Badge.
+
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px 2px;
+}
+
+.row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+
+  &.reverse {
+    flex-direction: row-reverse;
+  }
+}
+
+.node {
+  flex: 0 0 220px;
+  width: 220px;
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: var(--mantine-radius-md);
+  padding: 8px 10px;
+  background: var(--mantine-color-body);
+  transition:
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.nodeLink:hover {
+  box-shadow: var(--mantine-shadow-sm);
+  transform: translateY(-1px);
+}
+
+// horizontal connector between two nodes in a row
+.hconn {
+  flex: 1 1 auto;
+  align-self: center;
+  height: 2px;
+  min-width: 20px;
+  background: var(--mantine-color-gray-3);
+}
+
+// the U-turn between rows: a short vertical drop on the turning side,
+// roughly centred under the 220px end node.
+.turnRow {
+  display: flex;
+  height: 22px;
+
+  &.right {
+    justify-content: flex-end;
+  }
+
+  &.left {
+    justify-content: flex-start;
+  }
+}
+
+.vconn {
+  width: 2px;
+  height: 100%;
+  background: var(--mantine-color-gray-3);
+  margin-inline: 109px;
+}
