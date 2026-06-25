@@ -168,6 +168,9 @@ pub async fn create_mailbox(
         ));
     }
 
+    // Stalwart's principal API takes `secrets` (array), not `secret` — a
+    // string 400s with "JSON deserialization failed". Verified against
+    // stalwartlabs/stalwart.
     let client = StalwartClient::from_env()?;
     client
         .post(
@@ -175,7 +178,7 @@ pub async fn create_mailbox(
             serde_json::json!({
                 "type": "individual",
                 "name": email,
-                "secret": body.password,
+                "secrets": [body.password],
                 "emails": [email],
             }),
         )
