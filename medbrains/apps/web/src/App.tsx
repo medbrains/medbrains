@@ -19,6 +19,8 @@ function ScrollToTop() {
 
 const LandingPage = lazy(() => import("./pages/landing").then((m) => ({ default: m.LandingPage })));
 const LoginPage = lazy(() => import("./pages/login").then((m) => ({ default: m.LoginPage })));
+const TermsPage = lazy(() => import("./pages/legal").then((m) => ({ default: m.TermsPage })));
+const PrivacyPage = lazy(() => import("./pages/legal").then((m) => ({ default: m.PrivacyPage })));
 const OnboardingPage = lazy(() =>
   import("./pages/onboarding").then((m) => ({ default: m.OnboardingPage })),
 );
@@ -344,6 +346,8 @@ export function App() {
             {/* Public */}
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/onboarding" element={<OnboardingPage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route path="/accept-invite" element={<AcceptInvitePage />} />

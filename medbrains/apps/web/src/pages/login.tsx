@@ -349,6 +349,15 @@ export function LoginPage() {
             </div>
 
             <div className={classes.version}>MedBrains HMS v0.1.0</div>
+            <Text size="xs" c="var(--mb-text-secondary)" ta="center" mt={4}>
+              <Anchor component={Link} to="/terms" c="inherit">
+                Terms
+              </Anchor>
+              {" · "}
+              <Anchor component={Link} to="/privacy" c="inherit">
+                Privacy
+              </Anchor>
+            </Text>
             <Brand surface="footer" />
           </div>
         </div>
