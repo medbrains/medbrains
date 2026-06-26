@@ -122,8 +122,8 @@ export function LoginPage() {
 
   return (
     <div className={classes.wrapper}>
-      {/* Left — dark forest manifesto panel */}
-      <div className={classes.manifesto}>
+      {/* Left — marketing panel (complementary landmark) */}
+      <aside className={classes.manifesto} aria-label="About MedBrains">
         <div className={classes.manifestoLogo}>
           <Image
             src="/logo/medbrains-mark.svg"
@@ -177,10 +177,10 @@ export function LoginPage() {
             points="0,20 80,20 100,20 110,18 115,14 118,10 120,20 125,20 140,20 150,18 155,6 157,34 160,14 163,20 170,20 250,20 270,20 280,18 285,14 288,10 290,20 295,20 310,20 320,18 325,6 327,34 330,14 333,20 340,20 420,20 440,20 450,18 455,14 458,10 460,20 465,20 480,20 490,18 495,6 497,34 500,14 503,20 510,20 600,20"
           />
         </svg>
-      </div>
+      </aside>
 
-      {/* Right — white form */}
-      <div className={classes.formSide}>
+      {/* Right — white form (main landmark) */}
+      <main className={classes.formSide}>
         <div className={classes.container}>
           <Stack align="center" gap="xs" mb="xl">
             <Brand surface="signin" />
@@ -213,6 +213,7 @@ export function LoginPage() {
                 {...loginForm.register("username")}
                 required
                 size="md"
+                autoComplete="username"
               />
               <PasswordInput
                 label="Password"
@@ -222,6 +223,7 @@ export function LoginPage() {
                 {...loginForm.register("password")}
                 required
                 size="md"
+                autoComplete="current-password"
                 visibilityToggleButtonProps={{ "aria-label": "Show or hide password" }}
               />
 
@@ -350,7 +352,7 @@ export function LoginPage() {
             <Brand surface="footer" />
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }
