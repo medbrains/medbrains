@@ -1669,6 +1669,9 @@ pub mod doctor {
 
     pub mod signoffs {
         pub const VIEW_OWN: &str = "doctor.signoffs.view_own";
+        /// Ward/compliance-wide verbal & telephone order countersign register
+        /// (NABH audit view) — broader than the prescriber's own queue.
+        pub const VERBAL_REGISTER: &str = "doctor.signoffs.verbal_register";
     }
 }
 

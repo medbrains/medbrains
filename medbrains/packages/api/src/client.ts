@@ -1868,6 +1868,7 @@ import type {
   Vendor,
   VendorComparisonRow,
   VendorPerformanceRow,
+  VerbalOrderEntry,
   VerifyConsentRequest,
   VerifyConsentResponse,
   VerifyPaymentRequest,
@@ -13320,6 +13321,11 @@ export const api = {
     }),
   getMyDay: () => request<MyDayResponse>("/doctors/me/dashboard"),
   getMyPendingSignoffs: () => request<PendingSignoffEntry[]>("/doctors/me/pending-signoffs"),
+
+  listVerbalOrders: (status?: string) =>
+    request<VerbalOrderEntry[]>(
+      `/opd/verbal-orders${status ? `?status=${encodeURIComponent(status)}` : ""}`,
+    ),
 
   adminListSignatureCredentials: (params?: {
     doctor_user_id?: string;

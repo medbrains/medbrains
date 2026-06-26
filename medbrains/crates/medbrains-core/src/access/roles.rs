@@ -38,6 +38,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::doctor::signature::SIGN,
             permissions::doctor::signature::VERIFY,
             permissions::doctor::signoffs::VIEW_OWN,
+            permissions::doctor::signoffs::VERBAL_REGISTER,
             permissions::audit::START,
             permissions::patients::LIST,
             permissions::patients::VIEW,
@@ -364,6 +365,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::nurse::mar::HOLD,
             permissions::nurse::mar::REFUSE,
             permissions::nurse::prescriptions::DRAFT,
+            permissions::doctor::signoffs::VERBAL_REGISTER,
             permissions::nurse::vitals::VIEW,
             permissions::nurse::vitals::RECORD,
             permissions::nurse::intake_output::VIEW,
@@ -850,6 +852,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         description: "Quality & compliance — full regulatory access",
         permissions: &[
             permissions::dashboard::VIEW,
+            permissions::doctor::signoffs::VERBAL_REGISTER,
             permissions::lab::orders::LIST,
             permissions::lab::orders::VIEW,
             permissions::lab::reports::VIEW,

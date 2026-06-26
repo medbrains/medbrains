@@ -5431,3 +5431,95 @@ pub async fn followup_compliance(
     tx.commit().await?;
     Ok(Json(rows))
 }
+
+// ── Verbal / telephone order countersign register (NABH audit) ──────────
+
+#[derive(Debug, Deserialize)]
+pub struct VerbalOrderQuery {
+    /// Optional filter: awaiting | overdue | countersigned_on_time |
+    /// countersigned_late. Omitted = all.
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct VerbalOrderEntry {
+    pub id: Uuid,
+    pub order_mode: String,
+    pub patient_id: Option<Uuid>,
+    pub patient_name: Option<String>,
+    pub uhid: Option<String>,
+    pub ordering_doctor_id: Option<Uuid>,
+    pub ordering_doctor_name: Option<String>,
+    pub transcribed_by: Option<Uuid>,
+    pub transcribed_by_name: Option<String>,
+    pub read_back_confirmed: bool,
+    pub summary: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub countersign_due_at: Option<DateTime<Utc>>,
+    pub is_signed: bool,
+    pub countersigned_at: Option<DateTime<Utc>>,
+    pub countersigned_by: Option<Uuid>,
+    pub countersigned_by_name: Option<String>,
+    pub compliance_status: String,
+}
+
+/// Ward/compliance-wide register of verbal & telephone medication orders and
+/// their countersignature status (NABH/JCI medication-safety evidence). The
+/// closing signature lives in `signed_records` (joined via `signed_record_id`);
+/// `compliance_status` is derived from the deadline vs the signing time.
+pub async fn list_verbal_orders(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(query): Query<VerbalOrderQuery>,
+) -> Result<Json<Vec<VerbalOrderEntry>>, AppError> {
+    require_permission(&claims, permissions::doctor::signoffs::VERBAL_REGISTER)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let mut rows = sqlx::query_as::<_, VerbalOrderEntry>(
+        "SELECT p.id, p.order_mode, p.read_back_confirmed, p.created_at, \
+                p.countersign_due_at, p.is_signed, \
+                COALESCE(p.patient_id, e.patient_id) AS patient_id, \
+                CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name) AS patient_name, \
+                pat.uhid, \
+                p.doctor_id AS ordering_doctor_id, \
+                od.full_name AS ordering_doctor_name, \
+                p.transcribed_by, \
+                tn.full_name AS transcribed_by_name, \
+                COALESCE(NULLIF(p.notes, ''), CONCAT(( \
+                    SELECT COUNT(*) FROM prescription_items pi \
+                    WHERE pi.tenant_id = p.tenant_id AND pi.prescription_id = p.id \
+                ), ' medication(s)')) AS summary, \
+                sr.signed_at AS countersigned_at, \
+                sr.signer_user_id AS countersigned_by, \
+                cs.full_name AS countersigned_by_name, \
+                CASE \
+                    WHEN p.is_signed AND sr.signed_at IS NOT NULL AND p.countersign_due_at IS NOT NULL AND sr.signed_at <= p.countersign_due_at THEN 'countersigned_on_time' \
+                    WHEN p.is_signed THEN 'countersigned_late' \
+                    WHEN p.countersign_due_at IS NOT NULL AND now() > p.countersign_due_at THEN 'overdue' \
+                    ELSE 'awaiting' \
+                END AS compliance_status \
+         FROM prescriptions p \
+         LEFT JOIN encounters e ON e.tenant_id = p.tenant_id AND e.id = p.encounter_id \
+         LEFT JOIN patients pat ON pat.tenant_id = p.tenant_id AND pat.id = COALESCE(p.patient_id, e.patient_id) \
+         LEFT JOIN users od ON od.id = p.doctor_id \
+         LEFT JOIN users tn ON tn.id = p.transcribed_by \
+         LEFT JOIN signed_records sr ON sr.id = p.signed_record_id \
+         LEFT JOIN users cs ON cs.id = sr.signer_user_id \
+         WHERE p.tenant_id = $1 AND p.order_mode <> 'written' \
+         ORDER BY p.is_signed ASC, p.countersign_due_at ASC NULLS LAST \
+         LIMIT 500",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    if let Some(status) = query.status.as_deref().filter(|s| !s.is_empty()) {
+        rows.retain(|r| r.compliance_status == status);
+    }
+
+    Ok(Json(rows))
+}

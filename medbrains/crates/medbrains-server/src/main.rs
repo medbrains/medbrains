@@ -470,6 +470,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // to the doctor's supervisor after the tenant's ack window.
     medbrains_server::services::critical_alert_escalation::spawn(db_pool.clone());
 
+    // Verbal/telephone order countersignature escalation — overdue orders
+    // notify the prescriber + supervisor (NABH medication safety).
+    medbrains_server::services::verbal_order_escalation::spawn(db_pool.clone());
+
     // Retention enforcement — daily housekeeping purges + MRD
     // destruction-due flagging (MEDBRAINS_RETENTION_DRY_RUN=true to preview).
     medbrains_server::services::retention::spawn(db_pool.clone());

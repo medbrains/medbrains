@@ -31772,6 +31772,39 @@ export interface PendingSignoffEntry {
   transcribed?: boolean | null;
 }
 
+/** Compliance state of a verbal/telephone order's countersignature. */
+export type VerbalOrderComplianceStatus =
+  | "awaiting"
+  | "overdue"
+  | "countersigned_on_time"
+  | "countersigned_late";
+
+/**
+ * One row of the ward/compliance verbal & telephone order register.
+ * Mirrors `medbrains_server::routes::opd::VerbalOrderEntry`.
+ */
+export interface VerbalOrderEntry {
+  id: string;
+  /** "verbal" | "telephone". */
+  order_mode: string;
+  patient_id?: string | null;
+  patient_name?: string | null;
+  uhid?: string | null;
+  ordering_doctor_id?: string | null;
+  ordering_doctor_name?: string | null;
+  transcribed_by?: string | null;
+  transcribed_by_name?: string | null;
+  read_back_confirmed: boolean;
+  summary?: string | null;
+  created_at: string;
+  countersign_due_at?: string | null;
+  is_signed: boolean;
+  countersigned_at?: string | null;
+  countersigned_by?: string | null;
+  countersigned_by_name?: string | null;
+  compliance_status: VerbalOrderComplianceStatus;
+}
+
 /**
  * Visual signature block data for printed PDFs.
  * Mirrors `medbrains_core::print_data::PrintSignatureData`.

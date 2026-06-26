@@ -883,6 +883,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/dashboard/widget-data/{widget_id}",
             get(dashboard::get_widget_data),
         )
+        .route("/api/opd/verbal-orders", get(opd::list_verbal_orders))
         // ── OPD Appointments ────────────────────────────
         .route(
             "/api/opd/schedules",

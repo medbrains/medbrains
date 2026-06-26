@@ -5,11 +5,18 @@
  * Per RFCs/sprints/SPRINT-doctor-activities.md §5.2.
  */
 import { Card, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import { P, type PendingSignoffEntry } from "@medbrains/types";
-import { IconAlertTriangle, IconClipboardCheck, IconSignature } from "@tabler/icons-react";
+import {
+  IconAlertTriangle,
+  IconClipboardCheck,
+  IconSignature,
+  IconVolume,
+} from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { SignWorkspace } from "@/components/Doctor/SignWorkspace";
+import { VerbalOrderRegister } from "@/components/Doctor/VerbalOrderRegister";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge, type BadgeTone, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -17,6 +24,7 @@ import { signoffService } from "@/services/signoff.service";
 
 export function SignoffsPage() {
   useRequirePermission(P.DOCTOR.SIGNOFFS.VIEW_OWN);
+  const canViewRegister = useHasPermission(P.DOCTOR.SIGNOFFS.VERBAL_REGISTER);
 
   const [signTarget, setSignTarget] = useState<PendingSignoffEntry | null>(null);
 
@@ -72,6 +80,15 @@ export function SignoffsPage() {
               </Badge>
             </Tabs.Tab>
           ))}
+          {canViewRegister && (
+            <Tabs.Tab
+              value="verbal-register"
+              ml="auto"
+              leftSection={<IconVolume size={14} stroke={1.5} />}
+            >
+              Verbal Order Register
+            </Tabs.Tab>
+          )}
         </Tabs.List>
 
         <Tabs.Panel value="all" pt="md">
@@ -82,6 +99,11 @@ export function SignoffsPage() {
             <SignoffList items={list} onSign={setSignTarget} loading={isLoading} />
           </Tabs.Panel>
         ))}
+        {canViewRegister && (
+          <Tabs.Panel value="verbal-register" pt="md">
+            <VerbalOrderRegister />
+          </Tabs.Panel>
+        )}
       </Tabs>
 
       {signTarget && (

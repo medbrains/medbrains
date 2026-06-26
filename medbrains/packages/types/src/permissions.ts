@@ -4524,6 +4524,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "doctor",
   },
   {
+    code: "doctor.signoffs.verbal_register",
+    label: "View Verbal Order Register",
+    description: "Ward/compliance-wide verbal & telephone order countersign register",
+    module: "doctor",
+  },
+  {
     code: "admin.doctors.list",
     label: "List Doctors",
     description: "Admin list of doctor profiles",
@@ -5903,6 +5909,7 @@ export const P = {
     },
     SIGNOFFS: {
       VIEW_OWN: "doctor.signoffs.view_own" as const,
+      VERBAL_REGISTER: "doctor.signoffs.verbal_register" as const,
     },
   },
   NURSE: {

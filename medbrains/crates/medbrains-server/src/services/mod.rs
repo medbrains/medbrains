@@ -12,3 +12,4 @@ pub mod retention;
 pub mod room_rent;
 pub mod simulator;
 pub mod spicedb_watch;
+pub mod verbal_order_escalation;
