@@ -2714,8 +2714,62 @@ pub async fn create_patient_allergy(
     .fetch_one(&mut *tx)
     .await?;
 
+    // Remember the allergen so it's suggested next time (add-on-the-go
+    // catalogue). Idempotent on (tenant, type, lower(name)); drug allergens
+    // come from the pharmacy catalogue so they're not catalogued here.
+    if allergy_type_str != "drug" {
+        sqlx::query(
+            "INSERT INTO allergen_catalog (tenant_id, allergy_type, name, created_by) \
+             VALUES ($1, $2::allergy_type, $3, $4) \
+             ON CONFLICT (tenant_id, allergy_type, lower(name)) DO NOTHING",
+        )
+        .bind(claims.tenant_id)
+        .bind(&allergy_type_str)
+        .bind(body.allergen_name.trim())
+        .bind(claims.sub)
+        .execute(&mut *tx)
+        .await?;
+    }
+
     tx.commit().await?;
     Ok(Json(row))
+}
+
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct AllergenCatalogEntry {
+    pub allergy_type: String,
+    pub name: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AllergenCatalogQuery {
+    pub allergy_type: Option<String>,
+}
+
+/// The tenant's grown allergen list (every non-drug allergen ever recorded),
+/// for suggesting normalised names on allergy capture.
+pub async fn list_allergen_catalog(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    axum::extract::Query(query): axum::extract::Query<AllergenCatalogQuery>,
+) -> Result<Json<Vec<AllergenCatalogEntry>>, AppError> {
+    require_permission(&claims, permissions::patients::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, AllergenCatalogEntry>(
+        "SELECT allergy_type::text AS allergy_type, name FROM allergen_catalog \
+         WHERE tenant_id = $1 AND is_active \
+           AND ($2::text IS NULL OR allergy_type::text = $2) \
+         ORDER BY name LIMIT 2000",
+    )
+    .bind(claims.tenant_id)
+    .bind(query.allergy_type.as_deref())
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
 }
 
 pub async fn update_patient_allergy(

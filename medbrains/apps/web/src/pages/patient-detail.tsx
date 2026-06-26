@@ -423,11 +423,26 @@ function AllergiesTab({ patient }: { patient: Patient }) {
     queryFn: () => patientDetailService.listPatientAllergies(patient.id),
   });
 
+  // Grown allergen catalogue (per-tenant), merged with the curated presets so
+  // the picker offers both common allergens and ones this hospital has added.
+  const { data: allergenCatalog = [] } = useQuery({
+    queryKey: ["allergen-catalog"],
+    queryFn: () => patientDetailService.listAllergenCatalog(),
+    staleTime: 300_000,
+  });
+  const allergenOptions = useMemo(() => {
+    const fromCatalog = allergenCatalog
+      .filter((e) => e.allergy_type === allergyType)
+      .map((e) => e.name);
+    return Array.from(new Set([...allergenPresetsFor(allergyType), ...fromCatalog])).sort();
+  }, [allergenCatalog, allergyType]);
+
   const createMutation = useMutation({
     mutationFn: (values: PatientDetailAllergyFormInput) =>
       patientDetailService.createPatientAllergy(patient.id, toCreatePatientAllergyRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patient-allergies", patient.id] });
+      void queryClient.invalidateQueries({ queryKey: ["allergen-catalog"] });
       notifications.show({ title: "Allergy added", message: "Allergy recorded", color: "success" });
       handleClose();
     },
@@ -576,8 +591,8 @@ function AllergiesTab({ patient }: { patient: Patient }) {
               render={({ field }) => (
                 <Autocomplete
                   label="Allergen Name"
-                  placeholder="Pick from the list or type the allergen"
-                  data={allergenPresetsFor(allergyType)}
+                  placeholder="Pick from the list or type a new allergen"
+                  data={allergenOptions}
                   value={field.value}
                   onChange={field.onChange}
                   error={errors.allergen_name?.message}

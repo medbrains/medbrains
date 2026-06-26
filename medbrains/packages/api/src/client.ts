@@ -60,6 +60,7 @@ import type {
   AiGeneratedCourse,
   AiSettings,
   AlertThresholdRow,
+  AllergenCatalogEntry,
   AlosRow,
   // Phase 3 Print Data - Medico-Legal
   AmaFormPrintData,
@@ -3259,6 +3260,10 @@ export const api = {
 
   listPatientAllergies: (patientId: string) =>
     request<PatientAllergy[]>(`/patients/${patientId}/allergies`),
+  listAllergenCatalog: (allergyType?: string) =>
+    request<AllergenCatalogEntry[]>(
+      `/patients/allergen-catalog${allergyType ? `?allergy_type=${encodeURIComponent(allergyType)}` : ""}`,
+    ),
   createPatientAllergy: (patientId: string, data: CreatePatientAllergyRequest) =>
     request<PatientAllergy>(`/patients/${patientId}/allergies`, {
       method: "POST",

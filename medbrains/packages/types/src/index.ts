@@ -2431,6 +2431,12 @@ export interface PatientInsurance {
   updated_at: string;
 }
 
+/** A remembered allergen (category + item) from the tenant's grown catalog. */
+export interface AllergenCatalogEntry {
+  allergy_type: string;
+  name: string;
+}
+
 export interface PatientAllergy {
   id: string;
   tenant_id: string;

@@ -716,6 +716,10 @@ pub fn build_router(state: AppState) -> Router {
         )
         // Patient — allergies
         .route(
+            "/api/patients/allergen-catalog",
+            get(patients::list_allergen_catalog),
+        )
+        .route(
             "/api/patients/{patient_id}/allergies",
             get(patients::list_patient_allergies)
                 .post(patients::create_patient_allergy),
