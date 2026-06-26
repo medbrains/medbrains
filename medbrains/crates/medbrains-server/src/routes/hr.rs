@@ -462,6 +462,164 @@ pub async fn get_employee(
     Ok(Json(row))
 }
 
+// ── Employee self-service profile ───────────────────────────────────
+// Any staff member may view + update their OWN employee record (linked by
+// user_id). Self-editable fields are limited to personal details; employment
+// type/status, designation, reporting line, bank + statutory IDs stay
+// HR-managed. A completeness score nudges staff to fill missing details.
+
+const SELF_PROFILE_FIELDS: [&str; 8] = [
+    "phone",
+    "email",
+    "date_of_birth",
+    "gender",
+    "blood_group",
+    "address",
+    "emergency_contact",
+    "qualifications",
+];
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateMyProfileRequest {
+    pub phone: Option<String>,
+    pub email: Option<String>,
+    pub date_of_birth: Option<String>,
+    pub gender: Option<String>,
+    pub blood_group: Option<String>,
+    pub address: Option<serde_json::Value>,
+    pub emergency_contact: Option<serde_json::Value>,
+    pub qualifications: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ProfileCompleteness {
+    pub percent: u8,
+    pub filled: u8,
+    pub total: u8,
+    pub missing: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MyProfileResponse {
+    pub employee: Option<Employee>,
+    pub completeness: ProfileCompleteness,
+}
+
+fn compute_completeness(e: &Employee) -> ProfileCompleteness {
+    let has_str = |o: &Option<String>| o.as_deref().is_some_and(|s| !s.trim().is_empty());
+    let has_obj = |v: &serde_json::Value| v.as_object().is_some_and(|o| !o.is_empty());
+    let has_arr = |v: &serde_json::Value| v.as_array().is_some_and(|a| !a.is_empty());
+    let checks: [(&str, bool); 8] = [
+        ("phone", has_str(&e.phone)),
+        ("email", has_str(&e.email)),
+        ("date_of_birth", e.date_of_birth.is_some()),
+        ("gender", has_str(&e.gender)),
+        ("blood_group", has_str(&e.blood_group)),
+        ("address", has_obj(&e.address)),
+        ("emergency_contact", has_obj(&e.emergency_contact)),
+        ("qualifications", has_arr(&e.qualifications)),
+    ];
+    let total = u8::try_from(checks.len()).unwrap_or(u8::MAX);
+    let filled = u8::try_from(checks.iter().filter(|(_, ok)| *ok).count()).unwrap_or(u8::MAX);
+    let missing = checks
+        .iter()
+        .filter(|(_, ok)| !ok)
+        .map(|(name, _)| (*name).to_owned())
+        .collect();
+    let percent = u8::try_from(u16::from(filled) * 100 / u16::from(total.max(1))).unwrap_or(100);
+    ProfileCompleteness {
+        percent,
+        filled,
+        total,
+        missing,
+    }
+}
+
+fn empty_completeness() -> ProfileCompleteness {
+    ProfileCompleteness {
+        percent: 0,
+        filled: 0,
+        total: u8::try_from(SELF_PROFILE_FIELDS.len()).unwrap_or(u8::MAX),
+        missing: SELF_PROFILE_FIELDS.iter().map(|s| (*s).to_owned()).collect(),
+    }
+}
+
+pub async fn get_my_profile(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<MyProfileResponse>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let employee = sqlx::query_as::<_, Employee>(
+        "SELECT * FROM employees WHERE user_id = $1 AND tenant_id = $2",
+    )
+    .bind(claims.sub)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    let completeness = employee.as_ref().map_or_else(empty_completeness, compute_completeness);
+    Ok(Json(MyProfileResponse {
+        employee,
+        completeness,
+    }))
+}
+
+pub async fn update_my_profile(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<UpdateMyProfileRequest>,
+) -> Result<Json<MyProfileResponse>, AppError> {
+    let dob = match body.date_of_birth.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(s) => Some(
+            s.parse::<chrono::NaiveDate>()
+                .map_err(|_| AppError::BadRequest("Invalid date_of_birth".to_owned()))?,
+        ),
+        None => None,
+    };
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    // COALESCE keeps the stored value when a field is omitted.
+    let employee = sqlx::query_as::<_, Employee>(
+        "UPDATE employees SET \
+            phone = COALESCE($1, phone), \
+            email = COALESCE($2, email), \
+            date_of_birth = COALESCE($3, date_of_birth), \
+            gender = COALESCE($4, gender), \
+            blood_group = COALESCE($5, blood_group), \
+            address = COALESCE($6, address), \
+            emergency_contact = COALESCE($7, emergency_contact), \
+            qualifications = COALESCE($8, qualifications), \
+            updated_at = now() \
+         WHERE user_id = $9 AND tenant_id = $10 \
+         RETURNING *",
+    )
+    .bind(body.phone)
+    .bind(body.email)
+    .bind(dob)
+    .bind(body.gender)
+    .bind(body.blood_group)
+    .bind(body.address)
+    .bind(body.emergency_contact)
+    .bind(body.qualifications)
+    .bind(claims.sub)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    let Some(emp) = employee else {
+        return Err(AppError::NotFound);
+    };
+    let completeness = compute_completeness(&emp);
+    Ok(Json(MyProfileResponse {
+        employee: Some(emp),
+        completeness,
+    }))
+}
+
 pub async fn create_employee(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

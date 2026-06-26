@@ -4008,6 +4008,10 @@ pub fn build_router(state: AppState) -> Router {
             put(hr::update_designation),
         )
         .route(
+            "/api/hr/me/profile",
+            get(hr::get_my_profile).put(hr::update_my_profile),
+        )
+        .route(
             "/api/hr/employees",
             get(hr::list_employees).post(hr::create_employee),
         )

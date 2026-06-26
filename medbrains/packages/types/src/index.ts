@@ -14588,6 +14588,29 @@ export interface Employee {
   updated_at: string;
 }
 
+export interface ProfileCompleteness {
+  percent: number;
+  filled: number;
+  total: number;
+  missing: string[];
+}
+
+export interface MyProfileResponse {
+  employee: Employee | null;
+  completeness: ProfileCompleteness;
+}
+
+export interface UpdateMyProfileRequest {
+  phone?: string;
+  email?: string;
+  date_of_birth?: string;
+  gender?: string;
+  blood_group?: string;
+  address?: unknown;
+  emergency_contact?: unknown;
+  qualifications?: unknown;
+}
+
 export interface EmployeeCredential {
   id: string;
   tenant_id: string;

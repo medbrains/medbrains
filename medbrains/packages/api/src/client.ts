@@ -1201,6 +1201,7 @@ import type {
   MrdRetentionPolicy,
   MrdStorageLocation,
   MyDayResponse,
+  MyProfileResponse,
   MyShiftResponse,
   MyTasksResponse,
   // Phase 4 Print Data - Regulatory
@@ -1780,6 +1781,7 @@ import type {
   UpdateMrdStorageLocationRequest,
   UpdateMvRequest,
   UpdateMyDoctorProfileRequest,
+  UpdateMyProfileRequest,
   UpdateNablDocumentRequest,
   UpdateNotifiableReportRequest,
   UpdateNursingTaskRequest,
@@ -7689,6 +7691,14 @@ export const api = {
   },
 
   getEmployee: (id: string) => request<Employee>(`/hr/employees/${id}`),
+
+  // Self-service: the signed-in staff member's own employee profile.
+  getMyProfile: () => request<MyProfileResponse>("/hr/me/profile"),
+  updateMyProfile: (data: UpdateMyProfileRequest) =>
+    request<MyProfileResponse>("/hr/me/profile", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   createEmployee: (data: CreateEmployeeRequest) =>
     request<Employee>("/hr/employees", {

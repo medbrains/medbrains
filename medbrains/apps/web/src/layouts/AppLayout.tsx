@@ -514,7 +514,12 @@ export function AppLayout() {
                 </Group>
               </Menu.Target>
               <Menu.Dropdown>
-                <Menu.Item leftSection={<AnimatedIcon icon={User} size={14} />}>Profile</Menu.Item>
+                <Menu.Item
+                  leftSection={<AnimatedIcon icon={User} size={14} />}
+                  onClick={() => handleNavigate("/profile")}
+                >
+                  Profile
+                </Menu.Item>
                 <Menu.Item
                   leftSection={<AnimatedIcon icon={Settings} size={14} motion="float" />}
                   onClick={() => navigate("/admin/settings")}

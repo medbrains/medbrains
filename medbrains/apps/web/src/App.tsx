@@ -168,6 +168,7 @@ const HousekeepingPage = lazy(() =>
   import("./pages/housekeeping").then((m) => ({ default: m.HousekeepingPage })),
 );
 const HrPage = lazy(() => import("./pages/hr").then((m) => ({ default: m.HrPage })));
+const ProfilePage = lazy(() => import("./pages/profile").then((m) => ({ default: m.ProfilePage })));
 const BmePage = lazy(() => import("./pages/bme").then((m) => ({ default: m.BmePage })));
 const AssetsPage = lazy(() => import("./pages/assets").then((m) => ({ default: m.AssetsPage })));
 const AmbulancePage = lazy(() =>
@@ -411,6 +412,7 @@ export function App() {
               <Route path="token-board" element={<TokenBoardPage />} />
               <Route path="token-console" element={<TokenConsolePage />} />
               <Route path="housekeeping" element={<HousekeepingPage />} />
+              <Route path="profile" element={<ProfilePage />} />
               <Route path="hr" element={<HrPage />} />
               <Route path="bme" element={<BmePage />} />
               <Route path="assets" element={<AssetsPage />} />
