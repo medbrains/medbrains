@@ -2751,7 +2751,7 @@ pub struct AllergenCatalogQuery {
 pub async fn list_allergen_catalog(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    axum::extract::Query(query): axum::extract::Query<AllergenCatalogQuery>,
+    Query(query): Query<AllergenCatalogQuery>,
 ) -> Result<Json<Vec<AllergenCatalogEntry>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
     let mut tx = state.db.begin().await?;
