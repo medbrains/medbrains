@@ -273,18 +273,21 @@ export const radius = {
 // Fraunces variable axis (optical-size aware); body/control use Inter
 // Tight; metadata uses JetBrains Mono.
 
+// Scaled up for readability + accessibility: 16px body base (the
+// WCAG-friendly default), everything else proportional. Bigger, calmer,
+// easier to read across the app than the previous 14px clinical-dense scale.
 export const fontSize = {
-  xs: "11px", // caption / eyebrow caps
-  sm: "12px", // footnote, dense table
-  md: "14px", // body default (clinical density)
-  lg: "16px", // callout
-  xl: "18px", // headline
-  "2xl": "20px", // title 3
-  "3xl": "24px", // title 2
-  "4xl": "28px", // title 1
-  "5xl": "36px", // large title
-  "6xl": "48px", // display
-  "7xl": "56px", // hero
+  xs: "12px", // caption / eyebrow caps
+  sm: "13px", // footnote, dense table
+  md: "16px", // body default
+  lg: "18px", // callout
+  xl: "20px", // headline
+  "2xl": "22px", // title 3
+  "3xl": "26px", // title 2
+  "4xl": "32px", // title 1
+  "5xl": "40px", // large title
+  "6xl": "52px", // display
+  "7xl": "62px", // hero
 } as const;
 
 export const lineHeight = {
