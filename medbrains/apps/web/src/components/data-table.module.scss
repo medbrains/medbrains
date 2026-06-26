@@ -105,13 +105,6 @@
   border-right: 0;
 }
 
-// Zebra striping: alternate rows take a faint theme-aware layer so adjacent
-// rows are distinguishable in dense tables. Theme-adaptive (subtle dark tint
-// on light, subtle light tint on dark) via a text-colour overlay.
-.tableWrapper tbody tr:nth-of-type(even) {
-  background: color-mix(in srgb, var(--mb-text-primary, #161616) 4%, transparent);
-}
-
 // Row affordances: smooth hover, distinct selected tint.
 .tableWrapper tbody tr {
   transition: background-color 120ms ease;

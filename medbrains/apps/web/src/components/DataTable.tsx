@@ -53,15 +53,15 @@ const DEFAULT_VIRTUALIZE_AT = 80;
 const DEFAULT_VIRTUAL_OVERSCAN = 8;
 
 const VIRTUAL_ROW_HEIGHT_BY_DENSITY: Record<DataTableDensity, number> = {
-  compact: 44,
-  default: 56,
-  comfortable: 64,
+  compact: 32,
+  default: 40,
+  comfortable: 56,
 };
 
 const TABLE_VERTICAL_SPACING_BY_DENSITY: Record<DataTableDensity, number> = {
-  compact: 5,
-  default: 7,
-  comfortable: 10,
+  compact: 2,
+  default: 4,
+  comfortable: 8,
 };
 
 function renderCell<T>(row: T, column: Column<T>, access: ColumnAccessState) {
