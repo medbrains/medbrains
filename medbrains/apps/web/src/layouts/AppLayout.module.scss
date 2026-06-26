@@ -34,7 +34,7 @@
   &::-webkit-scrollbar-track { background: transparent; }
   &::-webkit-scrollbar-thumb {
     background: var(--mb-text-faint);
-    border-radius: 2px;
+    border-radius: 0;
     &:hover { background: var(--mb-text-muted); }
   }
 }
@@ -57,7 +57,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
+  border-radius: 0;
   cursor: pointer;
   color: var(--mb-text-muted);
   transition:
@@ -71,7 +71,7 @@
     inset: 0;
     z-index: 0;
     border-radius: inherit;
-    background: var(--mb-nav-hover-bg, var(--mb-bg-content));
+    background: color-mix(in srgb, var(--item-color, var(--mb-interactive)) 10%, transparent);
     opacity: 0;
     transform: scale(0.92);
     transition:
@@ -82,8 +82,8 @@
   }
 
   &:hover {
-    color: var(--mb-nav-hover-text, var(--mb-text-primary));
-    box-shadow: 0 8px 18px rgba(14, 165, 233, 0.08);
+    color: var(--item-color, var(--mb-text-primary));
+    box-shadow: 0 8px 18px color-mix(in srgb, var(--item-color, var(--mb-interactive)) 12%, transparent);
     transform: scale(1.05);
 
     &::after {
@@ -100,11 +100,11 @@
 .railItemActive {
   composes: railItem;
   background: transparent;
-  color: var(--mb-nav-active-text, var(--mb-brand-fg));
+  color: var(--item-color, var(--mb-brand-fg));
   box-shadow: var(--mb-nav-active-shadow, none);
 
   &::after {
-    background: var(--mb-nav-active-bg, var(--mb-bg-subtle));
+    background: color-mix(in srgb, var(--item-color, var(--mb-interactive)) 16%, transparent);
     opacity: 1;
     transform: scale(1);
   }
@@ -117,14 +117,18 @@
     bottom: 7px;
     width: 3px;
     z-index: 2;
-    border-radius: 2px;
-    background: var(--mb-brand-emphasis, var(--mb-interactive));
+    border-radius: 0;
+    background: var(--item-color, var(--mb-interactive));
     animation: indicatorSlideIn 200ms ease-out;
   }
 
   &:hover {
-    color: var(--mb-nav-active-text, var(--mb-brand-fg));
+    color: var(--item-color, var(--mb-brand-fg));
     transform: translateY(-1px);
+
+    &::after {
+      background: color-mix(in srgb, var(--item-color, var(--mb-interactive)) 16%, transparent);
+    }
   }
 }
 
@@ -173,7 +177,7 @@
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 0;
   margin-bottom: 3px;
   font-weight: 500;
   font-size: 13px;
@@ -190,7 +194,7 @@
     inset: 0;
     z-index: 0;
     border-radius: inherit;
-    background: var(--mb-nav-hover-bg, var(--mb-bg-content));
+    background: color-mix(in srgb, var(--item-color, var(--mb-interactive)) 10%, transparent);
     opacity: 0;
     transform: scaleX(0.96);
     transform-origin: left center;
@@ -202,8 +206,8 @@
   }
 
   &:hover {
-    color: var(--mb-nav-hover-text, var(--mb-text-primary));
-    box-shadow: 0 8px 20px rgba(14, 165, 233, 0.06);
+    color: var(--item-color, var(--mb-text-primary));
+    box-shadow: 0 8px 20px color-mix(in srgb, var(--item-color, var(--mb-interactive)) 10%, transparent);
     padding-left: 2px;
 
     &::after {
@@ -226,12 +230,12 @@
   composes: expandedItem;
   position: relative;
   font-weight: 700;
-  color: var(--mb-nav-active-text, var(--mb-brand-fg));
+  color: var(--item-color, var(--mb-brand-fg));
   background: transparent;
   box-shadow: var(--mb-nav-active-shadow, none);
 
   &::after {
-    background: var(--mb-nav-active-bg, var(--mb-bg-subtle));
+    background: color-mix(in srgb, var(--item-color, var(--mb-interactive)) 16%, transparent);
     opacity: 1;
     transform: scaleX(1);
   }
@@ -240,16 +244,16 @@
     content: "";
     position: absolute;
     left: 0;
-    top: 8px;
-    bottom: 8px;
-    width: 4px;
+    top: 0;
+    bottom: 0;
+    width: 3px;
     z-index: 2;
-    border-radius: 0 999px 999px 0;
-    background: var(--mb-brand-emphasis, var(--mb-interactive));
+    border-radius: 0;
+    background: var(--item-color, var(--mb-interactive));
   }
 
   &:hover {
-    color: var(--mb-nav-active-text, var(--mb-brand-fg));
+    color: var(--item-color, var(--mb-brand-fg));
     padding-left: 0;
   }
 }
@@ -260,7 +264,7 @@
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  border-radius: 6px;
+  border-radius: 0;
   font-size: 12.5px;
   font-weight: 500;
   color: var(--mb-text-secondary);
@@ -276,7 +280,7 @@
     inset: 0;
     z-index: 0;
     border-radius: inherit;
-    background: var(--mb-nav-hover-bg, var(--mb-bg-content));
+    background: color-mix(in srgb, var(--item-color, var(--mb-interactive)) 10%, transparent);
     opacity: 0;
     transform: scaleX(0.96);
     transform-origin: left center;
@@ -288,7 +292,7 @@
   }
 
   &:hover {
-    color: var(--mb-text-primary);
+    color: var(--item-color, var(--mb-text-primary));
 
     &::after {
       opacity: 1;
@@ -309,18 +313,22 @@
 .expandedChildActive {
   composes: expandedChild;
   font-weight: 700;
-  color: var(--mb-nav-child-active-text, #0369a1);
+  color: var(--item-color, var(--mb-interactive));
   background: transparent;
-  border-left: 3px solid var(--mb-nav-child-active-border, #0ea5e9);
+  border-left: 3px solid var(--item-color, var(--mb-interactive));
 
   &::after {
-    background: var(--mb-nav-child-active-bg, #e0f2fe);
+    background: color-mix(in srgb, var(--item-color, var(--mb-interactive)) 16%, transparent);
     opacity: 1;
     transform: scaleX(1);
   }
 
   &:hover {
-    color: var(--mb-nav-child-active-text, #0369a1);
+    color: var(--item-color, var(--mb-interactive));
+
+    &::after {
+      background: color-mix(in srgb, var(--item-color, var(--mb-interactive)) 16%, transparent);
+    }
   }
 }
 
@@ -362,7 +370,7 @@
   align-items: center;
   gap: 8px;
   padding: 7px 12px;
-  border-radius: 8px;
+  border-radius: 0;
   color: var(--mb-text-secondary);
   transition: background 120ms ease, color 120ms ease, transform 120ms ease;
 
@@ -385,7 +393,7 @@
   gap: 6px;
   padding: 4px 10px;
   height: 30px;
-  border-radius: 6px;
+  border-radius: 0;
   background: var(--mb-search-bg, var(--mb-bg-content));
   border: 1px solid var(--mb-border);
   cursor: pointer;
@@ -424,7 +432,7 @@
 .logoIcon {
   width: 30px;
   height: 30px;
-  border-radius: 10px;
+  border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: center;

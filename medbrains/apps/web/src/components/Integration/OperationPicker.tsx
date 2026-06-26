@@ -86,7 +86,7 @@ export function OperationPicker({ onSelect, children }: OperationPickerProps) {
                   px="xs"
                   py={6}
                   style={{
-                    borderRadius: 4,
+                    borderRadius: 0,
                     "&:hover": {
                       background: "var(--mantine-color-gray-0)",
                     },

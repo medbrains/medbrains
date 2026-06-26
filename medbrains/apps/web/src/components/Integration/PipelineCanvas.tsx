@@ -142,7 +142,7 @@ function PipelineCanvasInner() {
       />
       <Controls
         showInteractive={false}
-        style={{ borderRadius: 8, border: "1px solid var(--mantine-color-gray-3)" }}
+        style={{ borderRadius: 0, border: "1px solid var(--mantine-color-gray-3)" }}
       />
       <MiniMap
         pannable
@@ -150,7 +150,7 @@ function PipelineCanvasInner() {
         style={{
           width: 140,
           height: 90,
-          borderRadius: 8,
+          borderRadius: 0,
           border: "1px solid var(--mantine-color-gray-3)",
         }}
         maskColor="rgba(0, 0, 0, 0.08)"

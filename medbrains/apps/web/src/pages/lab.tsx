@@ -1089,7 +1089,19 @@ function LabOrderDetail({
             </Button>
           )}
           {order.status === "ordered" && (
-            <Button tone="subtle-danger" size="xs" onClick={() => confirmDestructive({ title: "Cancel order", message: "Cancel this lab order? This cannot be undone.", confirmLabel: "Cancel order", cancelLabel: "Keep", onConfirm: () => cancelMutation.mutate() })}>
+            <Button
+              tone="subtle-danger"
+              size="xs"
+              onClick={() =>
+                confirmDestructive({
+                  title: "Cancel order",
+                  message: "Cancel this lab order? This cannot be undone.",
+                  confirmLabel: "Cancel order",
+                  cancelLabel: "Keep",
+                  onConfirm: () => cancelMutation.mutate(),
+                })
+              }
+            >
               {t("cancel")}
             </Button>
           )}
@@ -1245,7 +1257,7 @@ function LabOrderDetail({
         <Stack
           gap="xs"
           p="xs"
-          style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}
+          style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 0 }}
         >
           <Text size="sm" fw={600}>
             {t("amendResult")}
@@ -1851,7 +1863,13 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
       render: (row: LabTestPanel) => (
         <IconButton
           tone="danger"
-          onClick={() => confirmDestructive({ title: "Delete", message: "Permanently delete this record? This cannot be undone.", onConfirm: () => deleteMutation.mutate(row.id) })}
+          onClick={() =>
+            confirmDestructive({
+              title: "Delete",
+              message: "Permanently delete this record? This cannot be undone.",
+              onConfirm: () => deleteMutation.mutate(row.id),
+            })
+          }
           aria-label={t("aria.close")}
         >
           <IconX size={14} />
@@ -4616,7 +4634,7 @@ function HistopathSection() {
         <Stack
           gap="xs"
           p="sm"
-          style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}
+          style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 0 }}
         >
           <Text fw={600}>{t("histopathologyReport")}</Text>
           <Text size="sm">
@@ -4842,7 +4860,7 @@ function CytologySection() {
         <Stack
           gap="xs"
           p="sm"
-          style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}
+          style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 0 }}
         >
           <Text fw={600}>{t("cytologyReport")}</Text>
           <Text size="sm">
@@ -5065,7 +5083,7 @@ function MolecularSection() {
         <Stack
           gap="xs"
           p="sm"
-          style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}
+          style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 0 }}
         >
           <Text fw={600}>{t("molecularPcrReport")}</Text>
           <Text size="sm">

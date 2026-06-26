@@ -409,11 +409,7 @@ export function FrontOfficePage() {
 
   if (isTokenBoardKioskMode) {
     return (
-      <Box
-        mih="100vh"
-        p={{ base: "md", lg: "xl" }}
-        style={{ background: "var(--mb-bg-default)" }}
-      >
+      <Box mih="100vh" p={{ base: "md", lg: "xl" }} style={{ background: "var(--mb-bg-default)" }}>
         <TokenBoardsTab
           canViewOpdQueue={canViewOpdQueue}
           canViewLab={canViewLab}
@@ -1303,7 +1299,7 @@ function TokenBoardCard({
               p="xs"
               style={{
                 border: "1px solid var(--mantine-color-gray-3)",
-                borderRadius: 8,
+                borderRadius: 0,
               }}
             >
               <Text size="xs" c="dimmed" tt="uppercase">
@@ -1418,7 +1414,7 @@ function TokenLane({
           p="sm"
           style={{
             border: "1px solid var(--mantine-color-gray-3)",
-            borderRadius: 8,
+            borderRadius: 0,
           }}
         >
           <Text size="sm" c="dimmed">
@@ -1436,7 +1432,7 @@ function TokenLane({
                 p="sm"
                 style={{
                   border: "1px solid var(--mantine-color-gray-3)",
-                  borderRadius: 8,
+                  borderRadius: 0,
                 }}
               >
                 <Group justify="space-between" align="center">
@@ -1482,7 +1478,7 @@ function ErTriageLane({
       p="sm"
       style={{
         border: "1px solid var(--mantine-color-gray-3)",
-        borderRadius: 8,
+        borderRadius: 0,
       }}
     >
       <Group justify="space-between" align="flex-start">
@@ -1577,11 +1573,11 @@ function tokenStatusShapeStyle(signal: TokenBoardStatusSignal, highlight: boolea
     case "ring":
       return { ...base, borderRadius: 999 };
     case "diamond":
-      return { ...base, borderRadius: 3, transform: "rotate(45deg)" };
+      return { ...base, borderRadius: 0, transform: "rotate(45deg)" };
     case "pill":
       return { ...base, borderRadius: 999 };
     default:
-      return { ...base, borderRadius: 4 };
+      return { ...base, borderRadius: 0 };
   }
 }
 

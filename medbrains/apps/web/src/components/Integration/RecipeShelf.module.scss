@@ -152,7 +152,7 @@
 .recipe {
   background: white;
   border: 1px solid var(--mb-border);
-  border-radius: 10px;
+  border-radius: 0;
   padding: 14px 16px 12px;
   display: flex;
   flex-direction: column;
@@ -179,7 +179,7 @@
     bottom: 14px;
     width: 3px;
     background: var(--fc-brand);
-    border-radius: 2px;
+    border-radius: 0;
   }
 }
 
@@ -215,7 +215,7 @@
   background: var(--mb-bg-content);
   border: 1px solid var(--mb-border);
   padding: 3px 7px;
-  border-radius: 4px;
+  border-radius: 0;
   color: var(--mb-text-primary);
   white-space: nowrap;
 }

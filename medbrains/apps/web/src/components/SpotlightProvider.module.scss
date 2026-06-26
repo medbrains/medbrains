@@ -2,7 +2,7 @@
 
 // Modal content wrapper
 .content {
-  border-radius: 6px !important;
+  border-radius: 0 !important;
   border: 1px solid var(--mb-border-default, #e0e0e0);
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
   overflow: hidden;
@@ -52,7 +52,7 @@
   display: flex;
   width: 100%;
   align-items: center;
-  border-radius: 4px;
+  border-radius: 0;
   padding: 9px 12px;
   margin-bottom: 1px;
   transition: background 100ms ease;
@@ -83,7 +83,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 0;
   background: var(--mb-bg-hover, #f4f4f4);
   color: var(--mb-text-secondary, #525252);
   flex-shrink: 0;
@@ -141,7 +141,7 @@
   justify-content: center;
   background: var(--mb-bg-default, #fff);
   border: 1px solid var(--mb-border-strong, #c6c6c6);
-  border-radius: 3px;
+  border-radius: 0;
   font-weight: 600;
   color: var(--mb-text-secondary, #525252);
 }

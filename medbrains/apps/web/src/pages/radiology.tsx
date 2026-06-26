@@ -1,5 +1,4 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { confirmDestructive } from "@/lib/confirm";
 import {
   Checkbox,
   Drawer,
@@ -54,6 +53,7 @@ import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { radiologyOptionalText, radiologyPriorityOptions } from "@/forms/radiology.form";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { confirmDestructive } from "@/lib/confirm";
 import { statusColor } from "@/lib/status-colors";
 import { radiologyService } from "@/services/radiology.service";
 import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "@/utils/printCopies";
@@ -396,7 +396,15 @@ function RadiologyOrdersTab() {
             <Tooltip label="Cancel">
               <IconButton
                 tone="danger"
-                onClick={() => confirmDestructive({ title: "Cancel order", message: "Cancel this order? This cannot be undone.", confirmLabel: "Cancel order", cancelLabel: "Keep", onConfirm: () => cancelMutation.mutate(o.id) })}
+                onClick={() =>
+                  confirmDestructive({
+                    title: "Cancel order",
+                    message: "Cancel this order? This cannot be undone.",
+                    confirmLabel: "Cancel order",
+                    cancelLabel: "Keep",
+                    onConfirm: () => cancelMutation.mutate(o.id),
+                  })
+                }
                 aria-label="Close"
               >
                 <IconX size={16} />
@@ -1014,7 +1022,7 @@ function ModalitiesTab() {
         <Stack
           mb="md"
           p="md"
-          style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}
+          style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 0 }}
         >
           <Group grow>
             <TextInput
@@ -1091,7 +1099,13 @@ function ModalitiesTab() {
                   <Table.Td>
                     <IconButton
                       tone="danger"
-                      onClick={() => confirmDestructive({ title: "Delete", message: "Permanently delete this record? This cannot be undone.", onConfirm: () => deleteMutation.mutate(m.id) })}
+                      onClick={() =>
+                        confirmDestructive({
+                          title: "Delete",
+                          message: "Permanently delete this record? This cannot be undone.",
+                          onConfirm: () => deleteMutation.mutate(m.id),
+                        })
+                      }
                       aria-label="Close"
                     >
                       <IconX size={16} />

@@ -651,7 +651,7 @@ export function VisualFieldMapper({
             <Box
               p="xs"
               style={{
-                borderRadius: 6,
+                borderRadius: 0,
                 border: "1px solid var(--mantine-color-blue-4)",
                 background: "var(--mantine-color-blue-0)",
                 boxShadow: "0 4px 12px rgba(0,0,0,0.15)",

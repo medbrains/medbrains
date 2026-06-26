@@ -183,7 +183,7 @@ function LegalClassBadge({ legalClass }: { legalClass: string }) {
         fontSize: 8,
         fontWeight: 600,
         letterSpacing: "0.06em",
-        borderRadius: 2,
+        borderRadius: 0,
       }}
     >
       {label}

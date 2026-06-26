@@ -159,7 +159,7 @@
     left: 18px;
     right: 18px;
     height: 3px;
-    border-radius: 999px;
+    border-radius: 9999px;
     background: var(--mb-selected-edge);
   }
 }
@@ -209,7 +209,7 @@
   border: none;
   background: none;
   padding: 4px 8px;
-  border-radius: 8px;
+  border-radius: 0;
   transition: color 0.15s ease;
 
   &:hover {
@@ -221,7 +221,7 @@
   margin-top: 8px;
   padding: 10px 14px;
   background: var(--mb-panel-bg);
-  border-radius: 14px;
+  border-radius: 0;
   border: 1px solid var(--mb-border-subtle);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.16);
 }
@@ -238,7 +238,7 @@
   background: var(--mb-action-surface-bg);
   color: var(--mb-action-surface-text);
   cursor: pointer;
-  border-radius: 12px;
+  border-radius: 0;
   padding: 10px 12px;
   font-size: 12px;
   font-weight: var(--mb-font-weight-action);
@@ -262,7 +262,7 @@
   margin-top: 12px;
   padding: 14px;
   border: 1px solid var(--mb-border);
-  border-radius: 14px;
+  border-radius: 0;
   background: var(--mb-panel-bg);
 }
 

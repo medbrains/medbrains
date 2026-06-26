@@ -2824,7 +2824,7 @@ function AdherenceSegment({ patientId }: { patientId: string }) {
               style={{
                 cursor: "pointer",
                 padding: 8,
-                borderRadius: 4,
+                borderRadius: 0,
                 background: selected === e.id ? "var(--mb-nav-active-bg)" : undefined,
               }}
               onClick={() => setSelected(e.id)}

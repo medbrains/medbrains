@@ -556,7 +556,7 @@ function QrCodeDisplay({ value }: { value: string }) {
       style={{
         padding: 16,
         border: "2px dashed var(--mantine-color-gray-4)",
-        borderRadius: 8,
+        borderRadius: 0,
         backgroundColor: "var(--mantine-color-gray-0)",
         width: "100%",
       }}
@@ -569,7 +569,7 @@ function QrCodeDisplay({ value }: { value: string }) {
           alignItems: "center",
           justifyContent: "center",
           backgroundColor: "white",
-          borderRadius: 8,
+          borderRadius: 0,
           border: "1px solid var(--mantine-color-gray-3)",
         }}
       >

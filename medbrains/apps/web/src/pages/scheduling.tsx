@@ -873,7 +873,13 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
                 <IconButton
                   tone="danger"
                   size="sm"
-                  onClick={() => confirmDestructive({ title: "Delete", message: "Permanently delete this record? This cannot be undone.", onConfirm: () => deleteMut.mutate(r.id) })}
+                  onClick={() =>
+                    confirmDestructive({
+                      title: "Delete",
+                      message: "Permanently delete this record? This cannot be undone.",
+                      onConfirm: () => deleteMut.mutate(r.id),
+                    })
+                  }
                   loading={deleteMut.isPending}
                   aria-label="Delete"
                 >

@@ -2211,7 +2211,7 @@ function ProgressNotesTab({ admissionId }: { admissionId: string }) {
                   style={{
                     borderLeft: "3px solid var(--fc-brand, #5B4BC4)",
                     background: "var(--fc-panel, #f7f8f6)",
-                    borderRadius: 4,
+                    borderRadius: 0,
                   }}
                 >
                   <Group justify="space-between" gap="xs">
@@ -2831,7 +2831,7 @@ function NursingTab({ admissionId }: { admissionId: string }) {
           key={cp.id}
           gap={4}
           p="xs"
-          style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}
+          style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 0 }}
         >
           <Group justify="space-between">
             <Text size="sm" fw={500}>
@@ -2864,7 +2864,7 @@ function NursingTab({ admissionId }: { admissionId: string }) {
           key={h.id}
           gap={4}
           p="xs"
-          style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}
+          style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 0 }}
         >
           <Group justify="space-between">
             <Badge size="xs">{h.shift} shift</Badge>
@@ -4639,7 +4639,7 @@ function DischargeStatsReport({ from, to }: { from: string; to: string }) {
             key={r.discharge_type}
             justify="space-between"
             p="xs"
-            style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}
+            style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 0 }}
           >
             <Group>
               <Badge size="lg">{r.discharge_type}</Badge>
@@ -5172,7 +5172,7 @@ function ChecklistTab({ admissionId }: { admissionId: string }) {
             <Group
               key={item.id}
               p="xs"
-              style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}
+              style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 0 }}
             >
               <Checkbox
                 checked={item.is_completed}
@@ -5435,7 +5435,7 @@ function DischargeTatTab({ admissionId }: { admissionId: string }) {
           <Group
             key={m.key}
             p="xs"
-            style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}
+            style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 0 }}
             justify="space-between"
           >
             <Group>

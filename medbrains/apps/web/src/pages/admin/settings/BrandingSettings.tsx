@@ -238,7 +238,7 @@ export function BrandingSettings() {
           backgroundColor: primaryColor,
           color: secondaryColor,
           padding: "24px 32px",
-          borderRadius: 8,
+          borderRadius: 0,
           maxWidth: 480,
         }}
       >

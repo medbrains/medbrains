@@ -2187,7 +2187,7 @@ function TimelineView({
                               width: "100%",
                               height: "32px",
                               background: `linear-gradient(to right, transparent ${daysFromStart * 3}%, var(--mantine-color-${barColor}-4) ${daysFromStart * 3}%, var(--mantine-color-${barColor}-4) 100%)`,
-                              borderRadius: "4px",
+                              borderRadius: "0",
                               border: `1px solid var(--mantine-color-${barColor}-6)`,
                               display: "flex",
                               alignItems: "center",
@@ -2222,15 +2222,15 @@ function TimelineView({
         </Text>
         <Group gap="md">
           <Group gap="xs">
-            <Box w={20} h={20} bg="green.4" style={{ borderRadius: 4 }} />
+            <Box w={20} h={20} bg="green.4" style={{ borderRadius: 0 }} />
             <Text size="sm">Completed</Text>
           </Group>
           <Group gap="xs">
-            <Box w={20} h={20} bg="yellow.4" style={{ borderRadius: 4 }} />
+            <Box w={20} h={20} bg="yellow.4" style={{ borderRadius: 0 }} />
             <Text size="sm">Upcoming</Text>
           </Group>
           <Group gap="xs">
-            <Box w={20} h={20} bg="red.4" style={{ borderRadius: 4 }} />
+            <Box w={20} h={20} bg="red.4" style={{ borderRadius: 0 }} />
             <Text size="sm">Overdue</Text>
           </Group>
         </Group>

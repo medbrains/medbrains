@@ -16,7 +16,7 @@ export function CombinerNode({ data, selected }: NodeProps) {
   return (
     <div
       style={{
-        borderRadius: 8,
+        borderRadius: 0,
         border: `2px solid ${selected ? "var(--mantine-color-violet-5)" : "var(--mantine-color-violet-3)"}`,
         background: "var(--mantine-color-white)",
         minWidth: 160,

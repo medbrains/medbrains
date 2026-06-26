@@ -84,7 +84,11 @@ export function NotificationCenter() {
           color="danger"
           offset={4}
         >
-          <IconButton aria-label="Notifications" tone="default" onClick={() => setOpened((o) => !o)}>
+          <IconButton
+            aria-label="Notifications"
+            tone="default"
+            onClick={() => setOpened((o) => !o)}
+          >
             <IconBell size={18} />
           </IconButton>
         </Indicator>
@@ -105,7 +109,11 @@ export function NotificationCenter() {
             </Button>
           )}
         </Group>
-        <Tabs value={tab} onChange={(value) => setTab(value === "unread" ? "unread" : "all")} px="md">
+        <Tabs
+          value={tab}
+          onChange={(value) => setTab(value === "unread" ? "unread" : "all")}
+          px="md"
+        >
           <Tabs.List>
             <Tabs.Tab value="all">All</Tabs.Tab>
             <Tabs.Tab value="unread">{unread > 0 ? `Unread (${unread})` : "Unread"}</Tabs.Tab>

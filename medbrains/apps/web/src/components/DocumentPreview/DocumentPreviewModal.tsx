@@ -211,7 +211,7 @@ export function DocumentPreviewModal({
           <div
             style={{
               border: "1px solid var(--mantine-color-gray-3)",
-              borderRadius: 8,
+              borderRadius: 0,
               padding: 16,
               minHeight: 600,
               background: "white",

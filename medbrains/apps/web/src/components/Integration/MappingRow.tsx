@@ -209,7 +209,7 @@ export function MappingRow({
       ref={setSortableRef}
       style={{
         ...style,
-        borderRadius: 6,
+        borderRadius: 0,
         border: `1px solid ${
           isOver ? "var(--mantine-color-blue-4)" : "var(--mantine-color-gray-3)"
         }`,

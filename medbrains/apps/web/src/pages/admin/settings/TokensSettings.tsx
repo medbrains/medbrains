@@ -28,7 +28,8 @@ export function TokensSettings() {
         key: `${input.module}_enabled`,
         value: { enabled: input.enabled },
       }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["tenant-settings", "tokens"] }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ["tenant-settings", "tokens"] }),
   });
 
   const isEnabled = (module: string): boolean => {
@@ -39,8 +40,8 @@ export function TokensSettings() {
   return (
     <Stack gap="sm">
       <Text size="sm" c="dimmed">
-        Enable or disable token issuance per module. When a module is off, no new tokens are
-        issued (existing tokens still work) — so on days you don't need a queue, switch it off.
+        Enable or disable token issuance per module. When a module is off, no new tokens are issued
+        (existing tokens still work) — so on days you don't need a queue, switch it off.
       </Text>
       {MODULES.map((module) => (
         <Card key={module.value} withBorder>

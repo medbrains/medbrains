@@ -39,7 +39,7 @@
   position: relative;
   border: 1px solid var(--mb-brand-emphasis, #0f62fe);
   border-left-width: 4px;
-  border-radius: 2px;
+  border-radius: 0;
   background: var(--mb-brand-bg, #edf5ff);
   padding: 16px 20px;
   min-height: 116px;
@@ -71,7 +71,7 @@
 // ── Up next (compact) ──
 .card {
   border: 1px solid var(--mb-border-default, #e0e0e0);
-  border-radius: 2px;
+  border-radius: 0;
   background: var(--mb-bg-default, #fff);
   padding: 12px 14px;
 }

@@ -146,7 +146,7 @@ export function NodePalette() {
                       alignItems: "center",
                       gap: 8,
                       padding: "6px 8px",
-                      borderRadius: 6,
+                      borderRadius: 0,
                       cursor: "grab",
                       marginBottom: 2,
                       border: "1px solid var(--mantine-color-gray-2)",

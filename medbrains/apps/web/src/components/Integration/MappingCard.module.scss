@@ -1,6 +1,6 @@
 .card {
   border: 1px solid var(--mantine-color-gray-3);
-  border-radius: 8px;
+  border-radius: 0;
   background: var(--mantine-color-white);
   margin-bottom: var(--mantine-spacing-sm);
   overflow: hidden;
@@ -32,7 +32,7 @@
 .inputSection {
   padding: 8px;
   border: 2px dashed var(--mantine-color-gray-3);
-  border-radius: 6px;
+  border-radius: 0;
   min-height: 40px;
   transition: all 150ms ease;
 
@@ -47,7 +47,7 @@
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: 0;
   background: var(--mantine-color-green-0);
   border: 1px solid var(--mantine-color-green-3);
   font-size: var(--mantine-font-size-xs);
@@ -76,7 +76,7 @@
   background: var(--mantine-color-violet-0);
   color: var(--mantine-color-violet-8);
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: 0;
   width: 100%;
   user-select: none;
   transition: all 150ms ease;
@@ -89,7 +89,7 @@
 .combineConfig {
   margin-top: 8px;
   padding: 8px;
-  border-radius: 6px;
+  border-radius: 0;
   background: var(--mantine-color-gray-0);
   border: 1px solid var(--mantine-color-gray-2);
 }
@@ -106,7 +106,7 @@
     bottom: 0;
     width: 2px;
     background: var(--mantine-color-gray-3);
-    border-radius: 1px;
+    border-radius: 0;
   }
 }
 
@@ -121,7 +121,7 @@
 .transformDropZone {
   padding: 8px;
   border: 2px dashed var(--mantine-color-gray-3);
-  border-radius: 6px;
+  border-radius: 0;
   min-height: 36px;
   transition: all 150ms ease;
   display: flex;
@@ -137,7 +137,7 @@
 .outputDropZone {
   padding: 8px;
   border: 2px dashed var(--mantine-color-gray-3);
-  border-radius: 6px;
+  border-radius: 0;
   min-height: 36px;
   transition: all 150ms ease;
 

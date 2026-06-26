@@ -106,7 +106,7 @@
   align-items: stretch;
   background: var(--fc-canvas);
   border: 1px solid var(--fc-rule);
-  border-radius: 6px;
+  border-radius: 0;
   font-family: var(--font-mono);
   font-size: 14px;
   letter-spacing: 0.06em;
@@ -172,7 +172,7 @@
   position: relative;
   background: var(--fc-canvas);
   border: 1px solid var(--fc-rule);
-  border-radius: 6px;
+  border-radius: 0;
   padding: 10px 14px;
   display: flex;
   align-items: baseline;
@@ -192,7 +192,7 @@
     color: var(--fc-muted);
     background: var(--fc-rule-soft);
     padding: 3px 7px;
-    border-radius: 3px;
+    border-radius: 0;
     align-self: center;
   }
   .zone {
@@ -201,7 +201,7 @@
     right: 14px;
     bottom: 6px;
     height: 3px;
-    border-radius: 2px;
+    border-radius: 0;
     background: linear-gradient(
       90deg,
       #d4d8d2 0% 18%,
@@ -217,7 +217,7 @@
     width: 2px;
     height: 9px;
     background: var(--fc-ink);
-    border-radius: 1px;
+    border-radius: 0;
   }
 
   &.warn {
@@ -242,7 +242,7 @@
 .drugInput {
   background: var(--fc-canvas);
   border: 1px solid var(--fc-rule);
-  border-radius: 6px;
+  border-radius: 0;
   padding: 14px 16px;
   min-height: 64px;
   display: flex;
@@ -270,7 +270,7 @@
   align-items: baseline;
   gap: 4px;
   padding: 1px 8px;
-  border-radius: 3px;
+  border-radius: 0;
   font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 500;
@@ -309,7 +309,7 @@
   background: var(--fc-canvas);
   border: 1px solid var(--fc-copper);
   border-left: 3px solid var(--fc-copper);
-  border-radius: 4px;
+  border-radius: 0;
   padding: 8px 12px;
   margin-top: 10px;
   font-size: 12px;
@@ -334,7 +334,7 @@
   position: relative;
   background: var(--fc-canvas);
   border: 1px solid var(--fc-rule);
-  border-radius: 6px;
+  border-radius: 0;
   padding: 18px 20px 24px;
 
   .scale {
@@ -418,7 +418,7 @@
       background: var(--fc-ink);
       color: #fff;
       padding: 2px 7px;
-      border-radius: 3px;
+      border-radius: 0;
       letter-spacing: 0.04em;
       white-space: nowrap;
       font-feature-settings: "tnum";
@@ -455,7 +455,7 @@
       content: "";
       width: 14px;
       height: 3px;
-      border-radius: 1px;
+      border-radius: 0;
     }
     &.day::before {
       background: var(--fc-tint-2);
@@ -474,7 +474,7 @@
   display: flex;
   background: var(--fc-canvas);
   border: 1px solid var(--fc-rule);
-  border-radius: 6px;
+  border-radius: 0;
   overflow: hidden;
   align-items: stretch;
 
@@ -535,7 +535,7 @@
   position: absolute;
   background: var(--fc-canvas);
   border: 1px solid var(--fc-rule);
-  border-radius: 6px;
+  border-radius: 0;
   box-shadow: 0 12px 32px rgba(20, 30, 25, 0.08);
   min-width: 160px;
   font-size: 13px;
@@ -575,7 +575,7 @@
   position: relative;
   background: var(--fc-canvas);
   border: 1px solid var(--fc-rule);
-  border-radius: 6px;
+  border-radius: 0;
   display: flex;
   align-items: stretch;
 
@@ -614,7 +614,7 @@
     letter-spacing: 0.16em;
     text-transform: uppercase;
     padding: 3px 8px;
-    border-radius: 3px;
+    border-radius: 0;
     background: var(--fc-copper-tint);
     color: var(--fc-copper-deep);
   }
@@ -641,7 +641,7 @@
   grid-template-columns: repeat(var(--cols, 5), 1fr);
   background: var(--fc-canvas);
   border: 1px solid var(--fc-rule);
-  border-radius: 6px;
+  border-radius: 0;
   overflow: hidden;
 
   .vc {

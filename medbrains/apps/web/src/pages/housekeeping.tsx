@@ -1906,7 +1906,7 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
                   style={{
                     width: 8,
                     height: 32,
-                    borderRadius: 4,
+                    borderRadius: 0,
                     backgroundColor: meta?.color ?? "#999",
                   }}
                 />

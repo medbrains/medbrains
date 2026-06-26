@@ -1605,7 +1605,7 @@ function OutbreakTab() {
               <Group
                 key={c.id}
                 p="xs"
-                style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}
+                style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 0 }}
               >
                 <Text size="sm">{c.contact_type}</Text>
                 {c.quarantine_required && (

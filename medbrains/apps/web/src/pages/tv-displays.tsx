@@ -1,5 +1,4 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { confirmDestructive } from "@/lib/confirm";
 import {
   Box,
   Card,
@@ -73,6 +72,7 @@ import {
 } from "@/forms/tv-displays.form";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { confirmDestructive } from "@/lib/confirm";
 import { tvDisplaysService } from "@/services/tvDisplays.service";
 import styles from "./tv-displays.module.scss";
 
@@ -729,7 +729,13 @@ function DisplaysTab({
               <Tooltip label="Delete">
                 <IconButton
                   tone="danger"
-                  onClick={() => confirmDestructive({ title: "Delete", message: "Permanently delete this record? This cannot be undone.", onConfirm: () => deleteMutation.mutate(row.id) })}
+                  onClick={() =>
+                    confirmDestructive({
+                      title: "Delete",
+                      message: "Permanently delete this record? This cannot be undone.",
+                      onConfirm: () => deleteMutation.mutate(row.id),
+                    })
+                  }
                   aria-label="Delete"
                 >
                   <IconTrash size={16} />

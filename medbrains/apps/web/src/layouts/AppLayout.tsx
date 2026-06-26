@@ -28,7 +28,7 @@ import {
   Star,
   User,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate } from "react-router";
@@ -60,6 +60,8 @@ interface ResolvedNavItem {
   label: string;
   path: string;
   icon: ReactNode;
+  /** Module badge colour — drives the per-item hover/active tint. */
+  color?: string;
   requiredPermission?: string;
   requiredPermissions?: readonly string[];
   children?: ResolvedNavItem[];
@@ -192,6 +194,7 @@ export function AppLayout() {
       return {
         label: t(cfg.i18nKey),
         path: cfg.path,
+        color: badge?.color,
         icon: badge ? (
           <ModuleBadge abbr={badge.abbr} color={badge.color} size={size} title={t(cfg.i18nKey)} />
         ) : (
@@ -289,6 +292,7 @@ export function AppLayout() {
     <Tooltip key={item.path} label={item.label} position="right" withArrow>
       <UnstyledButton
         className={`${classes.railItem} ${active ? classes.railItemActive : ""}`}
+        style={{ "--item-color": item.color ?? "var(--mb-interactive)" } as CSSProperties}
         aria-current={active ? "page" : undefined}
         onFocus={() => handleNavigationIntent(item.path)}
         onClick={() => handleNavigate(item.path)}
@@ -321,6 +325,7 @@ export function AppLayout() {
               <NavLink
                 key={child.path}
                 label={child.label}
+                style={{ "--item-color": child.color ?? "var(--mb-interactive)" } as CSSProperties}
                 leftSection={<span className={classes.navIcon}>{child.icon}</span>}
                 active={isActive(child.path)}
                 aria-current={isActive(child.path) ? "page" : undefined}
@@ -343,6 +348,7 @@ export function AppLayout() {
       <NavLink
         key={item.path}
         label={item.label}
+        style={{ "--item-color": item.color ?? "var(--mb-interactive)" } as CSSProperties}
         leftSection={<span className={classes.navIcon}>{item.icon}</span>}
         rightSection={
           <Tooltip label={pinned ? "Unpin" : "Pin to favorites"} withArrow openDelay={400}>

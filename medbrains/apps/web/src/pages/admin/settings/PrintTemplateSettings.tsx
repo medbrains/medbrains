@@ -486,7 +486,7 @@ export function PrintTemplateSettings() {
                     width: 40,
                     height: 40,
                     backgroundColor: "#e9ecef",
-                    borderRadius: 4,
+                    borderRadius: 0,
                     display: "inline-flex",
                     alignItems: "center",
                     justifyContent: "center",

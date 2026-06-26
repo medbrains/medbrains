@@ -152,7 +152,11 @@ export function DeploymentCostPage() {
             <IconServerCog size={18} />
             <Text fw={600}>Recommended: {SIZES[size].label}</Text>
             <Badge tone="primary" size="sm">
-              {size === "clinic" ? "Smallest viable" : size === "enterprise" ? "HA / dedicated" : "Standard"}
+              {size === "clinic"
+                ? "Smallest viable"
+                : size === "enterprise"
+                  ? "HA / dedicated"
+                  : "Standard"}
             </Badge>
           </Group>
           <Text size="sm" c="dimmed" mb="xs">

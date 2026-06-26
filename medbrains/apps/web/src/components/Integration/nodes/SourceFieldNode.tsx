@@ -9,7 +9,7 @@ export function SourceFieldNode({ data, selected }: NodeProps) {
     <div
       style={{
         padding: "8px 12px",
-        borderRadius: 8,
+        borderRadius: 0,
         border: `2px solid ${selected ? "var(--mantine-color-blue-5)" : "var(--mantine-color-green-4)"}`,
         background: "var(--mantine-color-white)",
         minWidth: 140,

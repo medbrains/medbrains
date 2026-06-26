@@ -62,7 +62,7 @@ function DraggableDestField({
         alignItems: "center",
         gap: 6,
         padding: "4px 8px",
-        borderRadius: 4,
+        borderRadius: 0,
         cursor: "grab",
         opacity: isDragging ? 0.4 : 1,
         background: isMapped ? "var(--mantine-color-green-0)" : "transparent",

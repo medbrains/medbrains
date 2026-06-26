@@ -21,7 +21,7 @@
   display: inline-flex;
   align-items: center;
   padding: 0 6px;
-  border-radius: 2px; // Carbon sharp corner
+  border-radius: 0; // Carbon sharp corner
   border: 1px solid var(--mb-border, #e4e7ea);
   background: var(--mb-panel-bg, #f4f5f6);
   color: var(--mb-text-secondary, #5f6b7a);

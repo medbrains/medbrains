@@ -491,7 +491,7 @@ export function FieldMappingEditor({ nodeId }: FieldMappingEditorProps) {
         <Box
           p="xs"
           style={{
-            borderRadius: 6,
+            borderRadius: 0,
             border: "1px solid var(--mantine-color-blue-4)",
             background: "var(--mantine-color-blue-0)",
             boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
@@ -538,7 +538,7 @@ export function FieldMappingEditor({ nodeId }: FieldMappingEditorProps) {
               mt={4}
               p="xs"
               style={{
-                borderRadius: 6,
+                borderRadius: 0,
                 background: "var(--mantine-color-gray-0)",
                 border: "1px solid var(--mantine-color-gray-2)",
               }}
@@ -592,7 +592,7 @@ export function FieldMappingEditor({ nodeId }: FieldMappingEditorProps) {
               p="md"
               ta="center"
               style={{
-                borderRadius: 8,
+                borderRadius: 0,
                 border: "2px dashed var(--mantine-color-gray-3)",
               }}
             >

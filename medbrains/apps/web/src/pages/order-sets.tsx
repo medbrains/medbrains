@@ -1,5 +1,4 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { confirmDestructive } from "@/lib/confirm";
 import {
   Card,
   Drawer,
@@ -54,6 +53,7 @@ import {
   parseTriggerDiagnoses,
 } from "@/forms/order-sets.form";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { confirmDestructive } from "@/lib/confirm";
 import { statusColor } from "@/lib/status-colors";
 import { orderSetsService } from "@/services/order-sets.service";
 
@@ -339,7 +339,13 @@ function TemplatesTab({
               <IconButton
                 size="sm"
                 tone="danger"
-                onClick={() => confirmDestructive({ title: "Delete order set", message: "Permanently delete this order set? This cannot be undone.", onConfirm: () => deleteMut.mutate(r.id) })}
+                onClick={() =>
+                  confirmDestructive({
+                    title: "Delete order set",
+                    message: "Permanently delete this order set? This cannot be undone.",
+                    onConfirm: () => deleteMut.mutate(r.id),
+                  })
+                }
                 aria-label="Delete"
               >
                 <IconTrash size={14} />

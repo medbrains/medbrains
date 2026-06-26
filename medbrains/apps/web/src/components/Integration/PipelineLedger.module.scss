@@ -86,7 +86,7 @@
   top: 6px;
   bottom: 6px;
   width: 3px;
-  border-radius: 2px;
+  border-radius: 0;
 }
 
 .pname {
@@ -122,7 +122,7 @@
   color: var(--mb-text-secondary);
   padding: 4px 8px;
   border: 1px solid var(--mb-border);
-  border-radius: 4px;
+  border-radius: 0;
   background: white;
   white-space: nowrap;
 }
@@ -182,7 +182,7 @@
 .actionBtn {
   width: 26px;
   height: 26px;
-  border-radius: 5px;
+  border-radius: 0;
   border: none;
   background: transparent;
   cursor: pointer;

@@ -252,14 +252,16 @@ export const space = {
 
 // IBM Carbon — sharp, functional corners.
 export const radius = {
+  // Carbon = fully squared corners. All corner radii collapse to 0;
+  // only `full` survives for genuinely circular elements (avatars, status dots).
   none: "0",
   xs: "0",
-  sm: "2px",
-  md: "2px",
-  lg: "4px",
-  xl: "6px",
-  "2xl": "8px",
-  "3xl": "12px",
+  sm: "0",
+  md: "0",
+  lg: "0",
+  xl: "0",
+  "2xl": "0",
+  "3xl": "0",
   full: "9999px",
 } as const;
 

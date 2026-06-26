@@ -2,7 +2,7 @@
   display: block;
   padding: 8px 10px;
   border: 1px dashed light-dark(var(--mantine-color-gray-4), var(--mantine-color-dark-4));
-  border-radius: 8px;
+  border-radius: 0;
 }
 
 .railActions {
@@ -17,7 +17,7 @@
   min-width: 0;
   padding: 6px;
   border: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
-  border-radius: 8px;
+  border-radius: 0;
   background: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
 }
 

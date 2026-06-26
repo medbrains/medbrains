@@ -201,7 +201,7 @@ export function SignatureCapture({
         <div
           style={{
             border: "2px dashed var(--mantine-color-gray-4)",
-            borderRadius: 8,
+            borderRadius: 0,
             cursor: "crosshair",
           }}
         >

@@ -175,7 +175,7 @@ export function NodePropertyPanel() {
           style={{
             padding: 24,
             textAlign: "center",
-            borderRadius: 8,
+            borderRadius: 0,
             border: "2px dashed var(--mantine-color-gray-3)",
           }}
         >
@@ -228,7 +228,7 @@ export function NodePropertyPanel() {
         mb="md"
         p="sm"
         style={{
-          borderRadius: 8,
+          borderRadius: 0,
           background: "var(--mantine-color-gray-0)",
           border: "1px solid var(--mantine-color-gray-2)",
         }}
@@ -443,7 +443,7 @@ export function NodePropertyPanel() {
                 />
                 <Box
                   style={{
-                    borderRadius: 6,
+                    borderRadius: 0,
                     border: "1px solid var(--mb-border)",
                     background: "var(--mb-bg-content)",
                     padding: 8,
