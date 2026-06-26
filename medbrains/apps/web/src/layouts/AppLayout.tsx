@@ -34,6 +34,7 @@ import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
 import { Brand } from "@/components/Brand";
+import { DlpGuard } from "@/components/DlpGuard";
 import { HeaderWidgets } from "@/components/HeaderWidgets";
 import { NewsMarquee } from "@/components/NewsMarquee";
 import { NotificationCenter } from "@/components/NotificationCenter";
@@ -435,6 +436,7 @@ export function AppLayout() {
       transitionDuration={260}
       transitionTimingFunction="cubic-bezier(0.22, 1, 0.36, 1)"
     >
+      <DlpGuard />
       {/* ── Header ── */}
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">

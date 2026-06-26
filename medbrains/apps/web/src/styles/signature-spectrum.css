@@ -146,3 +146,18 @@
   border-color: transparent;
   border-bottom-color: var(--mb-danger);
 }
+
+/* ── DLP: disable text selection when the org restricts copying ─────
+   Toggled by DlpGuard (security.restrict_copy). Editable fields stay
+   selectable so users can still work; this is a deterrent, paired with
+   the copy/cut/context-menu block in DlpGuard.                       */
+body[data-dlp="on"] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+body[data-dlp="on"] input,
+body[data-dlp="on"] textarea,
+body[data-dlp="on"] [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
