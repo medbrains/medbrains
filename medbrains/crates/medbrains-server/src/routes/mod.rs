@@ -4210,6 +4210,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/materials/requisitions",
             get(materials::list_requisitions),
         )
+        .route("/api/materials/inventory", get(materials::list_inventory))
         .route(
             "/api/assets/movements",
             get(assets::list_asset_movements).post(assets::create_asset_movement),

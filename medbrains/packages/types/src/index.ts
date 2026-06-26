@@ -10051,6 +10051,25 @@ export interface UnifiedAsset {
   open_reservation_count: number;
 }
 
+/** A normalised inventory line — a store-stock item or a capital asset. */
+export interface InventoryItem {
+  id: string;
+  /** "stock" | "asset". */
+  kind: string;
+  code: string | null;
+  name: string;
+  category: string | null;
+  department_name: string | null;
+  unit: string | null;
+  /** Quantity on hand (numeric string from the API). */
+  on_hand: string;
+  reorder_level: number | null;
+  unit_value: string | null;
+  total_value: string | null;
+  /** "in_stock" | "low" | "out" | "na". */
+  stock_status: string;
+}
+
 /** A normalised cross-domain requisition (store indent or asset request). */
 export interface Requisition {
   id: string;

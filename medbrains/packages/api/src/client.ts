@@ -1022,6 +1022,7 @@ import type {
   InternalAssessmentMarksPrintData,
   InternRotationSchedulePrintData,
   InternshipCompletionCertificatePrintData,
+  InventoryItem,
   InventoryValuationRow,
   InvestigationRequisitionPrintData,
   // IPD Phase 3a
@@ -6320,6 +6321,13 @@ export const api = {
     if (params?.state) sp.set("state", params.state);
     const qs = sp.toString();
     return request<Requisition[]>(`/materials/requisitions${qs ? `?${qs}` : ""}`);
+  },
+  listInventory: (params?: { kind?: string; state?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.kind) sp.set("kind", params.kind);
+    if (params?.state) sp.set("state", params.state);
+    const qs = sp.toString();
+    return request<InventoryItem[]>(`/materials/inventory${qs ? `?${qs}` : ""}`);
   },
   listAssetMovements: (params?: { source_type?: string; source_id?: string; status?: string }) => {
     const sp = new URLSearchParams();

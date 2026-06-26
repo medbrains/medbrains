@@ -18,9 +18,11 @@ import {
   IconBuildingWarehouse,
   IconClipboardList,
   IconInbox,
+  IconPackages,
   IconShoppingCart,
 } from "@tabler/icons-react";
 import { type ReactNode, useState } from "react";
+import { InventoryView } from "@/components/Materials/InventoryView";
 import { RequisitionsInbox } from "@/components/Materials/RequisitionsInbox";
 import { PageHeader } from "@/components/PageHeader";
 import { type RailItem, WorkspaceRail } from "@/components/WorkspaceRail";
@@ -47,6 +49,12 @@ export function MaterialsPage() {
       label: "Requisitions",
       icon: <IconInbox size={16} />,
       content: <RequisitionsInbox />,
+    },
+    (canRequisitions || canAssets) && {
+      value: "inventory",
+      label: "Inventory",
+      icon: <IconPackages size={16} />,
+      content: <InventoryView />,
     },
     canRequisitions && {
       value: "requisitions",

@@ -10,6 +10,7 @@
 use axum::{Extension, Json, extract::Query};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -97,6 +98,87 @@ pub async fn list_requisitions(
     .bind(claims.tenant_id)
     .bind(query.kind.as_deref())
     .bind(query.state.as_deref() == Some("open"))
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+// ── Unified inventory cockpit ───────────────────────────────────────────
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct InventoryItem {
+    pub id: Uuid,
+    /// "stock" (consumable store item) | "asset" (capital equipment).
+    pub kind: String,
+    pub code: Option<String>,
+    pub name: String,
+    pub category: Option<String>,
+    pub department_name: Option<String>,
+    pub unit: Option<String>,
+    pub on_hand: Decimal,
+    pub reorder_level: Option<i32>,
+    pub unit_value: Option<Decimal>,
+    pub total_value: Option<Decimal>,
+    /// "in_stock" | "low" | "out" | "na" (assets carry no reorder level).
+    pub stock_status: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct InventoryQuery {
+    /// "stock" | "asset" — omit for both.
+    pub kind: Option<String>,
+    /// "low" → only stock items at/under reorder level (or out).
+    pub state: Option<String>,
+}
+
+pub async fn list_inventory(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(query): Query<InventoryQuery>,
+) -> Result<Json<Vec<InventoryItem>>, AppError> {
+    require_any_permission(
+        &claims,
+        &[permissions::indent::LIST, permissions::assets::LIST],
+    )?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, InventoryItem>(
+        "SELECT * FROM (\
+            SELECT sc.id, 'stock'::text AS kind, sc.code, sc.name, sc.category, \
+                   NULL::text AS department_name, sc.unit, \
+                   sc.current_stock::numeric AS on_hand, sc.reorder_level, \
+                   sc.base_price AS unit_value, \
+                   (sc.current_stock * sc.base_price) AS total_value, \
+                   CASE WHEN sc.current_stock <= 0 THEN 'out' \
+                        WHEN sc.reorder_level > 0 AND sc.current_stock <= sc.reorder_level THEN 'low' \
+                        ELSE 'in_stock' END AS stock_status \
+            FROM store_catalog sc \
+            WHERE sc.tenant_id = $1 AND sc.is_active \
+            UNION ALL \
+            SELECT be.id, 'asset'::text, COALESCE(be.asset_tag, be.serial_number), be.name, \
+                   'biomedical'::text, d.name, 'unit'::text, 1::numeric, NULL::int, \
+                   be.purchase_cost, be.purchase_cost, 'na'::text \
+            FROM bme_equipment be LEFT JOIN departments d ON d.id = be.department_id \
+            WHERE be.tenant_id = $1 \
+            UNION ALL \
+            SELECT eq.id, 'asset'::text, COALESCE(eq.asset_tag, eq.serial_number), eq.name, \
+                   COALESCE(eq.category, 'general'), d.name, 'unit'::text, 1::numeric, NULL::int, \
+                   eq.cost, eq.cost, 'na'::text \
+            FROM equipment eq LEFT JOIN departments d ON d.id = eq.department_id \
+            WHERE eq.tenant_id = $1 \
+         ) inv \
+         WHERE ($2::text IS NULL OR inv.kind = $2) \
+           AND (NOT $3 OR inv.stock_status IN ('low', 'out')) \
+         ORDER BY inv.kind, inv.name \
+         LIMIT 5000",
+    )
+    .bind(claims.tenant_id)
+    .bind(query.kind.as_deref())
+    .bind(query.state.as_deref() == Some("low"))
     .fetch_all(&mut *tx)
     .await?;
 
