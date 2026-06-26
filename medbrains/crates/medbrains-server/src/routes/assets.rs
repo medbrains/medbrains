@@ -1273,3 +1273,322 @@ pub async fn cancel_camp_asset_reservation(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── Asset movements / inter-department request workflow ─────────────────
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct AssetMovement {
+    pub id: Uuid,
+    pub source_type: String,
+    pub source_id: Uuid,
+    pub movement_type: String,
+    pub status: String,
+    pub from_department_id: Option<Uuid>,
+    pub to_department_id: Option<Uuid>,
+    pub from_department_name: Option<String>,
+    pub to_department_name: Option<String>,
+    pub from_location: Option<String>,
+    pub to_location: Option<String>,
+    pub reason: Option<String>,
+    pub requested_by: Option<Uuid>,
+    pub requested_by_name: Option<String>,
+    pub completed_by: Option<Uuid>,
+    pub completed_by_name: Option<String>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub rejection_reason: Option<String>,
+    pub asset_name: Option<String>,
+    pub asset_code: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListMovementsQuery {
+    /// Filter to one asset's history (both required together).
+    pub source_type: Option<String>,
+    pub source_id: Option<Uuid>,
+    /// "open" → only status = 'requested' (the custodian worklist).
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateAssetMovementRequest {
+    pub source_type: String,
+    pub source_id: Uuid,
+    pub movement_type: Option<String>,
+    pub to_department_id: Option<Uuid>,
+    pub to_location: Option<String>,
+    pub reason: Option<String>,
+    /// When true the mover is also the custodian — record + relocate in one
+    /// step (status = 'completed'). Otherwise it lands as a 'requested' row
+    /// for the custodian to satisfy via `complete_asset_movement`.
+    pub complete_now: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RejectAssetMovementRequest {
+    pub rejection_reason: Option<String>,
+}
+
+const MOVEMENT_SELECT: &str = "SELECT m.id, m.source_type, m.source_id, m.movement_type, m.status, \
+        m.from_department_id, m.to_department_id, \
+        fd.name AS from_department_name, td.name AS to_department_name, \
+        m.from_location, m.to_location, m.reason, \
+        m.requested_by, ru.full_name AS requested_by_name, \
+        m.completed_by, cu.full_name AS completed_by_name, \
+        m.completed_at, m.rejection_reason, \
+        CASE m.source_type WHEN 'bme_equipment' THEN be.name ELSE eq.name END AS asset_name, \
+        CASE m.source_type \
+            WHEN 'bme_equipment' THEN COALESCE(be.asset_tag, be.serial_number) \
+            ELSE COALESCE(eq.asset_tag, eq.serial_number) END AS asset_code, \
+        m.created_at \
+     FROM asset_movements m \
+     LEFT JOIN departments fd ON fd.id = m.from_department_id \
+     LEFT JOIN departments td ON td.id = m.to_department_id \
+     LEFT JOIN users ru ON ru.id = m.requested_by \
+     LEFT JOIN users cu ON cu.id = m.completed_by \
+     LEFT JOIN bme_equipment be ON m.source_type = 'bme_equipment' AND be.id = m.source_id \
+     LEFT JOIN equipment eq ON m.source_type = 'equipment' AND eq.id = m.source_id";
+
+/// Current department + free-text location for an asset, by source.
+async fn asset_current_placement(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    source_type: &str,
+    source_id: Uuid,
+) -> Result<(Option<Uuid>, Option<String>), AppError> {
+    let row = match source_type {
+        "bme_equipment" => sqlx::query_as::<_, (Option<Uuid>, Option<String>)>(
+            "SELECT department_id, location_description FROM bme_equipment \
+             WHERE id = $1 AND tenant_id = $2",
+        ),
+        "equipment" => sqlx::query_as::<_, (Option<Uuid>, Option<String>)>(
+            "SELECT department_id, NULL::text FROM equipment WHERE id = $1 AND tenant_id = $2",
+        ),
+        _ => {
+            return Err(AppError::BadRequest(
+                "source_type must be bme_equipment or equipment".to_owned(),
+            ));
+        }
+    }
+    .bind(source_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    Ok(row)
+}
+
+pub async fn list_asset_movements(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(query): Query<ListMovementsQuery>,
+) -> Result<Json<Vec<AssetMovement>>, AppError> {
+    require_permission(&claims, permissions::assets::LIST)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let open_only = query.status.as_deref() == Some("open");
+    let sql = format!(
+        "{MOVEMENT_SELECT} WHERE m.tenant_id = $1 \
+         AND ($2::text IS NULL OR m.source_type = $2) \
+         AND ($3::uuid IS NULL OR m.source_id = $3) \
+         AND (NOT $4 OR m.status = 'requested') \
+         ORDER BY m.created_at DESC LIMIT 1000"
+    );
+    let rows = sqlx::query_as::<_, AssetMovement>(&sql)
+        .bind(claims.tenant_id)
+        .bind(query.source_type)
+        .bind(query.source_id)
+        .bind(open_only)
+        .fetch_all(&mut *tx)
+        .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+pub async fn create_asset_movement(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateAssetMovementRequest>,
+) -> Result<Json<AssetMovement>, AppError> {
+    require_permission(&claims, permissions::assets::ISSUE)?;
+
+    let movement_type = body.movement_type.as_deref().unwrap_or("transfer");
+    if !["transfer", "issue", "return", "repair", "disposal"].contains(&movement_type) {
+        return Err(AppError::BadRequest("invalid movement_type".to_owned()));
+    }
+    let complete_now = body.complete_now.unwrap_or(false);
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let (from_department_id, from_location) =
+        asset_current_placement(&mut tx, claims.tenant_id, &body.source_type, body.source_id)
+            .await?;
+
+    let status = if complete_now { "completed" } else { "requested" };
+    let completed_by = if complete_now { Some(claims.sub) } else { None };
+
+    let row = sqlx::query_as::<_, AssetMovement>(&format!(
+        "WITH ins AS (\
+            INSERT INTO asset_movements \
+              (tenant_id, source_type, source_id, movement_type, status, \
+               from_department_id, to_department_id, from_location, to_location, reason, \
+               requested_by, completed_by, completed_at) \
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, \
+                    CASE WHEN $5 = 'completed' THEN now() ELSE NULL END) \
+            RETURNING id\
+         ) {MOVEMENT_SELECT} WHERE m.id = (SELECT id FROM ins)"
+    ))
+    .bind(claims.tenant_id)
+    .bind(&body.source_type)
+    .bind(body.source_id)
+    .bind(movement_type)
+    .bind(status)
+    .bind(from_department_id)
+    .bind(body.to_department_id)
+    .bind(from_location)
+    .bind(body.to_location.as_deref())
+    .bind(body.reason.as_deref())
+    .bind(claims.sub)
+    .bind(completed_by)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if complete_now {
+        apply_movement_placement(
+            &mut tx,
+            claims.tenant_id,
+            &body.source_type,
+            body.source_id,
+            body.to_department_id,
+            body.to_location.as_deref(),
+        )
+        .await?;
+    }
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// Relocate the asset's source row to the movement destination.
+async fn apply_movement_placement(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    source_type: &str,
+    source_id: Uuid,
+    to_department_id: Option<Uuid>,
+    to_location: Option<&str>,
+) -> Result<(), AppError> {
+    match source_type {
+        "bme_equipment" => {
+            sqlx::query(
+                "UPDATE bme_equipment SET \
+                   department_id = COALESCE($1, department_id), \
+                   location_description = COALESCE($2, location_description), \
+                   updated_at = now() \
+                 WHERE id = $3 AND tenant_id = $4",
+            )
+            .bind(to_department_id)
+            .bind(to_location)
+            .bind(source_id)
+            .bind(tenant_id)
+            .execute(&mut **tx)
+            .await?;
+        }
+        "equipment" => {
+            sqlx::query(
+                "UPDATE equipment SET department_id = COALESCE($1, department_id), \
+                   updated_at = now() WHERE id = $2 AND tenant_id = $3",
+            )
+            .bind(to_department_id)
+            .bind(source_id)
+            .bind(tenant_id)
+            .execute(&mut **tx)
+            .await?;
+        }
+        _ => {
+            return Err(AppError::BadRequest("invalid source_type".to_owned()));
+        }
+    }
+    Ok(())
+}
+
+pub async fn complete_asset_movement(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<AssetMovement>, AppError> {
+    require_permission(&claims, permissions::assets::MANAGE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let pending = sqlx::query_as::<_, (String, Uuid, Option<Uuid>, Option<String>)>(
+        "SELECT source_type, source_id, to_department_id, to_location \
+         FROM asset_movements WHERE id = $1 AND tenant_id = $2 AND status = 'requested'",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    apply_movement_placement(
+        &mut tx,
+        claims.tenant_id,
+        &pending.0,
+        pending.1,
+        pending.2,
+        pending.3.as_deref(),
+    )
+    .await?;
+
+    let row = sqlx::query_as::<_, AssetMovement>(&format!(
+        "WITH upd AS (\
+            UPDATE asset_movements SET status = 'completed', completed_by = $1, \
+              completed_at = now(), updated_at = now() \
+            WHERE id = $2 AND tenant_id = $3 RETURNING id\
+         ) {MOVEMENT_SELECT} WHERE m.id = (SELECT id FROM upd)"
+    ))
+    .bind(claims.sub)
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn reject_asset_movement(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RejectAssetMovementRequest>,
+) -> Result<Json<AssetMovement>, AppError> {
+    require_permission(&claims, permissions::assets::MANAGE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, AssetMovement>(&format!(
+        "WITH upd AS (\
+            UPDATE asset_movements SET status = 'rejected', \
+              rejection_reason = $1, completed_by = $2, completed_at = now(), updated_at = now() \
+            WHERE id = $3 AND tenant_id = $4 AND status = 'requested' RETURNING id\
+         ) {MOVEMENT_SELECT} WHERE m.id = (SELECT id FROM upd)"
+    ))
+    .bind(body.rejection_reason.as_deref())
+    .bind(claims.sub)
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}

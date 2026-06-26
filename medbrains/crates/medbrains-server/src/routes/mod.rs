@@ -4206,6 +4206,18 @@ pub fn build_router(state: AppState) -> Router {
             post(assets::upsert_asset_classification),
         )
         .route(
+            "/api/assets/movements",
+            get(assets::list_asset_movements).post(assets::create_asset_movement),
+        )
+        .route(
+            "/api/assets/movements/{id}/complete",
+            put(assets::complete_asset_movement),
+        )
+        .route(
+            "/api/assets/movements/{id}/reject",
+            put(assets::reject_asset_movement),
+        )
+        .route(
             "/api/bme/calibrations/{id}",
             put(bme::update_calibration),
         )

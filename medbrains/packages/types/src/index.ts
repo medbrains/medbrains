@@ -10051,6 +10051,46 @@ export interface UnifiedAsset {
   open_reservation_count: number;
 }
 
+/** One row of the asset-movement ledger / inter-department request flow. */
+export interface AssetMovement {
+  id: string;
+  source_type: string;
+  source_id: string;
+  movement_type: string;
+  status: "requested" | "completed" | "rejected" | "cancelled";
+  from_department_id: string | null;
+  to_department_id: string | null;
+  from_department_name: string | null;
+  to_department_name: string | null;
+  from_location: string | null;
+  to_location: string | null;
+  reason: string | null;
+  requested_by: string | null;
+  requested_by_name: string | null;
+  completed_by: string | null;
+  completed_by_name: string | null;
+  completed_at: string | null;
+  rejection_reason: string | null;
+  asset_name: string | null;
+  asset_code: string | null;
+  created_at: string;
+}
+
+export interface CreateAssetMovementRequest {
+  source_type: string;
+  source_id: string;
+  movement_type?: string;
+  to_department_id?: string;
+  to_location?: string;
+  reason?: string;
+  /** True → record + relocate in one step; otherwise lands as a request. */
+  complete_now?: boolean;
+}
+
+export interface RejectAssetMovementRequest {
+  rejection_reason?: string;
+}
+
 export interface AssetCategory {
   id: string;
   tenant_id: string | null;

@@ -27,6 +27,7 @@ import { useHasPermission } from "@medbrains/stores";
 import type { AssetCategory, StoreCategory, UnifiedAsset } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
+  IconArrowsExchange,
   IconBuildingWarehouse,
   IconEdit,
   IconPackage,
@@ -45,6 +46,7 @@ import {
   PageHeader,
   TableValueBadge,
 } from "@/components";
+import { AssetMovementsTab, MoveAssetModal } from "@/components/Assets/AssetMovements";
 import type { Column } from "@/components/DataTable";
 import { Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -166,6 +168,7 @@ export function AssetsPage() {
   const [storeCategoryDrawerOpen, storeCategoryDrawerHandlers] = useDisclosure(false);
   const [editingAssetCategory, setEditingAssetCategory] = useState<AssetCategory | null>(null);
   const [editingStoreCategory, setEditingStoreCategory] = useState<StoreCategory | null>(null);
+  const [moveTarget, setMoveTarget] = useState<UnifiedAsset | null>(null);
 
   const {
     control: assetCategoryControl,
@@ -393,6 +396,20 @@ export function AssetsPage() {
         </Group>
       ),
     },
+    {
+      key: "move",
+      label: "",
+      render: (row) => (
+        <Button
+          tone="ghost"
+          size="xs"
+          leftSection={<IconArrowsExchange size={14} />}
+          onClick={() => setMoveTarget(row)}
+        >
+          {canManage ? "Move" : "Request"}
+        </Button>
+      ),
+    },
   ];
 
   const assetCategoryColumns: Column<AssetCategory>[] = [
@@ -609,6 +626,9 @@ export function AssetsPage() {
           <Tabs.Tab value="store-categories" leftSection={<IconBuildingWarehouse size={16} />}>
             Store Categories
           </Tabs.Tab>
+          <Tabs.Tab value="movements" leftSection={<IconArrowsExchange size={16} />}>
+            Movements
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="assets" pt="md">
@@ -677,7 +697,18 @@ export function AssetsPage() {
             emptyTitle="No store categories found"
           />
         </Tabs.Panel>
+
+        <Tabs.Panel value="movements" pt="md">
+          <AssetMovementsTab canManage={canManage} />
+        </Tabs.Panel>
       </Tabs>
+
+      <MoveAssetModal
+        asset={moveTarget}
+        opened={moveTarget !== null}
+        canManage={canManage}
+        onClose={() => setMoveTarget(null)}
+      />
 
       <Drawer
         opened={assetCategoryDrawerOpen}

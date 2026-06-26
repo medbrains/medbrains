@@ -9,4 +9,9 @@ export const assetsService = {
   createStoreCategory: api.createStoreCategory,
   updateStoreCategory: api.updateStoreCategory,
   upsertAssetClassification: api.upsertAssetClassification,
+  listAssetMovements: api.listAssetMovements,
+  createAssetMovement: api.createAssetMovement,
+  completeAssetMovement: api.completeAssetMovement,
+  rejectAssetMovement: api.rejectAssetMovement,
+  listDepartments: api.listDepartments,
 };

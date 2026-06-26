@@ -89,6 +89,7 @@ import type {
   ApproveWriteOffRequest,
   AssetCategory,
   AssetClassification,
+  AssetMovement,
   AssignBedToWardRequest,
   AssignHospitalToGroup,
   AssignIncentivePlanRequest,
@@ -343,6 +344,7 @@ import type {
   CreateAppraisalRequest,
   CreateAssessmentRequest,
   CreateAssetCategoryRequest,
+  CreateAssetMovementRequest,
   CreateAttendanceRequest,
   CreateAttenderRequest,
   CreateAudiologyTestRequest,
@@ -1493,6 +1495,7 @@ import type {
   // Specialty Clinical: PMR / Audiology
   RehabPlan,
   RehabSession,
+  RejectAssetMovementRequest,
   RejectSampleRequest,
   ReorderAlert,
   ReportCatalogResponse,
@@ -6307,6 +6310,27 @@ export const api = {
   upsertAssetClassification: (data: UpsertAssetClassificationRequest) =>
     request<AssetClassification>("/assets/classifications", {
       method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  listAssetMovements: (params?: { source_type?: string; source_id?: string; status?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.source_type) sp.set("source_type", params.source_type);
+    if (params?.source_id) sp.set("source_id", params.source_id);
+    if (params?.status) sp.set("status", params.status);
+    const qs = sp.toString();
+    return request<AssetMovement[]>(`/assets/movements${qs ? `?${qs}` : ""}`);
+  },
+  createAssetMovement: (data: CreateAssetMovementRequest) =>
+    request<AssetMovement>("/assets/movements", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  completeAssetMovement: (id: string) =>
+    request<AssetMovement>(`/assets/movements/${id}/complete`, { method: "PUT" }),
+  rejectAssetMovement: (id: string, data: RejectAssetMovementRequest) =>
+    request<AssetMovement>(`/assets/movements/${id}/reject`, {
+      method: "PUT",
       body: JSON.stringify(data),
     }),
 
