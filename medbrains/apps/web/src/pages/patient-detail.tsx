@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  Autocomplete,
   Card,
   Grid,
   Group,
@@ -109,6 +110,7 @@ import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { ShareDrawer } from "@/components/Sharing/ShareDrawer";
 import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
+import { allergenPresetsFor } from "@/data/allergen-presets";
 import {
   DEFAULT_PATIENT_ALLERGY_FORM_VALUES,
   DEFAULT_PATIENT_DOCUMENT_FORM_VALUES,
@@ -572,12 +574,14 @@ function AllergiesTab({ patient }: { patient: Patient }) {
               name="allergen_name"
               control={control}
               render={({ field }) => (
-                <TextInput
+                <Autocomplete
                   label="Allergen Name"
-                  placeholder="e.g., Peanuts, Latex, Dust"
+                  placeholder="Pick from the list or type the allergen"
+                  data={allergenPresetsFor(allergyType)}
                   value={field.value}
                   onChange={field.onChange}
                   error={errors.allergen_name?.message}
+                  limit={20}
                   required
                 />
               )}
