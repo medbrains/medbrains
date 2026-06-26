@@ -1161,6 +1161,7 @@ import type {
   MasterItem,
   MatchBankTransactionRequest,
   MaterialIssueVoucherPrintData,
+  MaterialsAnalytics,
   MateriovigilanceReport,
   MateriovigilanceReportPrintData,
   // Specialty Clinical: Maternity
@@ -6329,6 +6330,7 @@ export const api = {
     const qs = sp.toString();
     return request<InventoryItem[]>(`/materials/inventory${qs ? `?${qs}` : ""}`);
   },
+  getMaterialsAnalytics: () => request<MaterialsAnalytics>("/materials/analytics"),
   listAssetMovements: (params?: { source_type?: string; source_id?: string; status?: string }) => {
     const sp = new URLSearchParams();
     if (params?.source_type) sp.set("source_type", params.source_type);

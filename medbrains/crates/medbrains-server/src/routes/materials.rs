@@ -185,3 +185,100 @@ pub async fn list_inventory(
     tx.commit().await?;
     Ok(Json(rows))
 }
+
+// ── Materials analytics summary ─────────────────────────────────────────
+
+#[derive(Debug, sqlx::FromRow)]
+struct AnalyticsSummary {
+    stock_value: Decimal,
+    asset_value: Decimal,
+    stock_item_count: i64,
+    asset_count: i64,
+    low_stock_count: i64,
+    out_of_stock_count: i64,
+    dead_stock_count: i64,
+    open_requisitions: i64,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct CategoryValue {
+    pub category: Option<String>,
+    pub item_count: i64,
+    pub stock_value: Decimal,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MaterialsAnalytics {
+    pub stock_value: Decimal,
+    pub asset_value: Decimal,
+    pub total_value: Decimal,
+    pub stock_item_count: i64,
+    pub asset_count: i64,
+    pub low_stock_count: i64,
+    pub out_of_stock_count: i64,
+    /// Items with stock on hand but no issue in the last 90 days.
+    pub dead_stock_count: i64,
+    pub open_requisitions: i64,
+    /// Store stock value by category, highest first.
+    pub categories: Vec<CategoryValue>,
+}
+
+pub async fn materials_analytics(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<MaterialsAnalytics>, AppError> {
+    require_any_permission(
+        &claims,
+        &[permissions::indent::LIST, permissions::assets::LIST],
+    )?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let summary = sqlx::query_as::<_, AnalyticsSummary>(
+        "SELECT \
+            (SELECT COALESCE(SUM(current_stock * base_price), 0)::numeric FROM store_catalog \
+                WHERE tenant_id = $1 AND is_active) AS stock_value, \
+            (COALESCE((SELECT SUM(purchase_cost) FROM bme_equipment WHERE tenant_id = $1), 0) \
+             + COALESCE((SELECT SUM(cost) FROM equipment WHERE tenant_id = $1), 0))::numeric AS asset_value, \
+            (SELECT COUNT(*) FROM store_catalog WHERE tenant_id = $1 AND is_active) AS stock_item_count, \
+            ((SELECT COUNT(*) FROM bme_equipment WHERE tenant_id = $1) \
+             + (SELECT COUNT(*) FROM equipment WHERE tenant_id = $1)) AS asset_count, \
+            (SELECT COUNT(*) FROM store_catalog WHERE tenant_id = $1 AND is_active \
+                AND reorder_level > 0 AND current_stock > 0 AND current_stock <= reorder_level) AS low_stock_count, \
+            (SELECT COUNT(*) FROM store_catalog WHERE tenant_id = $1 AND is_active AND current_stock <= 0) AS out_of_stock_count, \
+            (SELECT COUNT(*) FROM store_catalog WHERE tenant_id = $1 AND is_active AND current_stock > 0 \
+                AND (last_issue_date IS NULL OR last_issue_date < now() - INTERVAL '90 days')) AS dead_stock_count, \
+            ((SELECT COUNT(*) FROM indents WHERE tenant_id = $1 \
+                AND status IN ('draft', 'submitted', 'approved', 'partially_issued')) \
+             + (SELECT COUNT(*) FROM asset_movements WHERE tenant_id = $1 AND status = 'requested')) AS open_requisitions",
+    )
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let categories = sqlx::query_as::<_, CategoryValue>(
+        "SELECT category, COUNT(*) AS item_count, \
+            COALESCE(SUM(current_stock * base_price), 0)::numeric AS stock_value \
+         FROM store_catalog WHERE tenant_id = $1 AND is_active \
+         GROUP BY category ORDER BY stock_value DESC LIMIT 12",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    Ok(Json(MaterialsAnalytics {
+        total_value: summary.stock_value + summary.asset_value,
+        stock_value: summary.stock_value,
+        asset_value: summary.asset_value,
+        stock_item_count: summary.stock_item_count,
+        asset_count: summary.asset_count,
+        low_stock_count: summary.low_stock_count,
+        out_of_stock_count: summary.out_of_stock_count,
+        dead_stock_count: summary.dead_stock_count,
+        open_requisitions: summary.open_requisitions,
+        categories,
+    }))
+}

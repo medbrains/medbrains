@@ -4211,6 +4211,7 @@ pub fn build_router(state: AppState) -> Router {
             get(materials::list_requisitions),
         )
         .route("/api/materials/inventory", get(materials::list_inventory))
+        .route("/api/materials/analytics", get(materials::materials_analytics))
         .route(
             "/api/assets/movements",
             get(assets::list_asset_movements).post(assets::create_asset_movement),

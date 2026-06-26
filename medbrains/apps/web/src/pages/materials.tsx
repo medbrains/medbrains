@@ -16,12 +16,14 @@ import { P } from "@medbrains/types";
 import {
   IconArrowsExchange,
   IconBuildingWarehouse,
+  IconChartBar,
   IconClipboardList,
   IconInbox,
   IconPackages,
   IconShoppingCart,
 } from "@tabler/icons-react";
 import { type ReactNode, useState } from "react";
+import { AnalyticsView } from "@/components/Materials/AnalyticsView";
 import { InventoryView } from "@/components/Materials/InventoryView";
 import { RequisitionsInbox } from "@/components/Materials/RequisitionsInbox";
 import { PageHeader } from "@/components/PageHeader";
@@ -73,6 +75,12 @@ export function MaterialsPage() {
       label: "Procurement",
       icon: <IconShoppingCart size={16} />,
       content: <ProcurementPage />,
+    },
+    (canRequisitions || canAssets) && {
+      value: "analytics",
+      label: "Analytics",
+      icon: <IconChartBar size={16} />,
+      content: <AnalyticsView />,
     },
   ];
   const sections: Section[] = sectionDefs.filter((s): s is Section => s !== false);

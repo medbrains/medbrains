@@ -10051,6 +10051,27 @@ export interface UnifiedAsset {
   open_reservation_count: number;
 }
 
+/** Store stock value rolled up by category. */
+export interface MaterialsCategoryValue {
+  category: string | null;
+  item_count: number;
+  stock_value: string;
+}
+
+/** Cross-domain materials KPIs for the workspace analytics section. */
+export interface MaterialsAnalytics {
+  stock_value: string;
+  asset_value: string;
+  total_value: string;
+  stock_item_count: number;
+  asset_count: number;
+  low_stock_count: number;
+  out_of_stock_count: number;
+  dead_stock_count: number;
+  open_requisitions: number;
+  categories: MaterialsCategoryValue[];
+}
+
 /** A normalised inventory line — a store-stock item or a capital asset. */
 export interface InventoryItem {
   id: string;

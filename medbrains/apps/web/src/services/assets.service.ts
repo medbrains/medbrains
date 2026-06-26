@@ -16,4 +16,5 @@ export const assetsService = {
   listDepartments: api.listDepartments,
   listRequisitions: api.listRequisitions,
   listInventory: api.listInventory,
+  getMaterialsAnalytics: api.getMaterialsAnalytics,
 };
