@@ -15,13 +15,12 @@ from `CLAUDE.md`; every UI PR must comply.
 | [CARBON-ICONOGRAPHY-RULES.md](./CARBON-ICONOGRAPHY-RULES.md) | One family (tabler), sizes 16/20/24/32, monochrome, UI-icons vs app-icons, real glyphs not letter-badges, a11y |
 | [CARBON-PHOTOGRAPHY-RULES.md](./CARBON-PHOTOGRAPHY-RULES.md) | Authentic/human/dignified imagery, patient privacy (no identifiable patients/PHI), scrim behind text, a11y |
 | [CARBON-DATAVIZ-RULES.md](./CARBON-DATAVIZ-RULES.md) | Right chart per question, honest scales + clinical reference ranges, Carbon palettes, colour-blind-safe, text/data-table alt |
+| [CARBON-COLOR-RULES.md](./CARBON-COLOR-RULES.md) | Semantic `--mb-*` tokens (never raw hex), layer/elevation, support + emergency colours, contrast, never colour-alone |
+| [CARBON-TYPOGRAPHY-RULES.md](./CARBON-TYPOGRAPHY-RULES.md) | IBM Plex, type scale (14px body / clinical density), weights, hierarchy, readability + a11y |
+| [CARBON-CONTENT-RULES.md](./CARBON-CONTENT-RULES.md) | Voice & tone, sentence case, error messages, clinical accuracy, inclusive/accessible content, i18n |
 
 Existing companions: [UI_GUIDELINES.md](./UI_GUIDELINES.md),
 [ACCESSIBILITY.md](./ACCESSIBILITY.md), [ui-plan-before-build.md](./ui-plan-before-build.md).
 
-## Not yet extracted (add on request)
-
-IBM Design Language topics not yet turned into rule docs: **colour**, **typography**
-(IBM Plex scale/tokens — partly in the theme), **2x-grid deep-dive**, **voice &
-tone / content**, **inclusive/accessible content**. The theme tokens already encode
-colour + type; a doc can formalize the usage rules when needed.
+The IBM Design Language + WCAG 2.2 are now covered. (Deep dives like a full 2x-grid
+spec or data-viz component recipes can be added if a screen needs them.)
