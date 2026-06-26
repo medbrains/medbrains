@@ -589,6 +589,7 @@ function PatientRegisterPageInner() {
   const [duplicateMatches, setDuplicateMatches] = useState<MpiMatchResult[]>([]);
   const pendingRegistrationRef = useRef<RegisterPatientMutationInput | null>(null);
   const [dupModalOpen, dupModalHandlers] = useDisclosure(false);
+  const [checklistOpen, checklistHandlers] = useDisclosure(false);
 
   const createMutation = useMutation({
     mutationFn: async ({
@@ -826,84 +827,105 @@ function PatientRegisterPageInner() {
         }
       />
 
-      <Grid align="flex-start" className={classes.registrationGrid}>
-        <Grid.Col span={{ base: 12, lg: 8 }}>
-          {isCampRegistration && campContextLoading ? (
-            <Card withBorder>
-              <Text c="dimmed">{t("registrationPage.loadingCampContext")}</Text>
-            </Card>
-          ) : (
-            <Card withBorder p={0}>
-              <PatientRegisterForm
-                onSubmit={handleRegisterSubmit}
-                onCancel={() => navigate(backTarget)}
-                isSubmitting={createMutation.isPending}
-                submitLabel={t("actions.register")}
-                initialValues={campInitialValues}
-              />
-            </Card>
-          )}
-        </Grid.Col>
+      <Stack gap="sm">
+        <Group justify="flex-end">
+          <Button
+            tone="secondary"
+            size="xs"
+            leftSection={<IconClipboardCheck size={14} />}
+            rightSection={
+              <Badge size="xs" tone="primary">
+                3
+              </Badge>
+            }
+            onClick={checklistHandlers.toggle}
+            aria-pressed={checklistOpen}
+          >
+            {checklistOpen
+              ? t("registrationPage.hideChecklist", "Hide checklist")
+              : t("registrationPage.showChecklist", "Show checklist")}
+          </Button>
+        </Group>
 
-        <Grid.Col span={{ base: 12, lg: 4 }}>
-          <Card withBorder className={classes.registrationRail}>
-            <Stack gap="sm">
-              <Group gap="xs">
-                <Badge tone={isCampRegistration ? "success" : "primary"}>
-                  {registrationModeLabel}
-                </Badge>
-                {isCampRegistration && selectedCamp?.venue_name && (
-                  <Text size="xs" c="dimmed">
-                    {selectedCamp.venue_name}
-                  </Text>
-                )}
-              </Group>
-              <Divider />
-              <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-                {t("registrationPage.checklistTitle")}
-              </Text>
-              <Stack gap="sm">
-                {[
-                  {
-                    icon: <IconClipboardCheck size={15} />,
-                    title: t("registrationPage.checklist.minimumSave.title"),
-                    desc: t("registrationPage.checklist.minimumSave.description"),
-                  },
-                  {
-                    icon: <IconShieldCheck size={15} />,
-                    title: t("registrationPage.checklist.duplicateGuard.title"),
-                    desc: t("registrationPage.checklist.duplicateGuard.description"),
-                  },
-                  {
-                    icon: <IconStethoscope size={15} />,
-                    title: t("registrationPage.checklist.opdHandoff.title"),
-                    desc: t("registrationPage.checklist.opdHandoff.description"),
-                  },
-                ].map((item) => (
-                  <Group key={item.title} gap="xs" align="flex-start" wrap="nowrap">
-                    <Text c="var(--mb-text-muted)" mt={2}>
-                      {item.icon}
-                    </Text>
-                    <div>
-                      <Text size="sm" fw={600}>
-                        {item.title}
-                      </Text>
+        <Grid align="flex-start" className={classes.registrationGrid}>
+          <Grid.Col span={checklistOpen ? { base: 12, lg: 9 } : 12}>
+            {isCampRegistration && campContextLoading ? (
+              <Card withBorder>
+                <Text c="dimmed">{t("registrationPage.loadingCampContext")}</Text>
+              </Card>
+            ) : (
+              <Card withBorder p={0}>
+                <PatientRegisterForm
+                  onSubmit={handleRegisterSubmit}
+                  onCancel={() => navigate(backTarget)}
+                  isSubmitting={createMutation.isPending}
+                  submitLabel={t("actions.register")}
+                  initialValues={campInitialValues}
+                />
+              </Card>
+            )}
+          </Grid.Col>
+
+          {checklistOpen && (
+            <Grid.Col span={{ base: 12, lg: 3 }}>
+              <Card withBorder className={classes.registrationRail}>
+                <Stack gap="sm">
+                  <Group gap="xs">
+                    <Badge tone={isCampRegistration ? "success" : "primary"}>
+                      {registrationModeLabel}
+                    </Badge>
+                    {isCampRegistration && selectedCamp?.venue_name && (
                       <Text size="xs" c="dimmed">
-                        {item.desc}
+                        {selectedCamp.venue_name}
                       </Text>
-                    </div>
+                    )}
                   </Group>
-                ))}
-              </Stack>
-              {isCampRegistration && (
-                <Alert tone="success" icon={<IconUsers size={16} />}>
-                  {t("registrationPage.campLinkedAlert")}
-                </Alert>
-              )}
-            </Stack>
-          </Card>
-        </Grid.Col>
-      </Grid>
+                  <Divider />
+                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                    {t("registrationPage.checklistTitle")}
+                  </Text>
+                  {[
+                    {
+                      icon: <IconClipboardCheck size={15} />,
+                      title: t("registrationPage.checklist.minimumSave.title"),
+                      desc: t("registrationPage.checklist.minimumSave.description"),
+                    },
+                    {
+                      icon: <IconShieldCheck size={15} />,
+                      title: t("registrationPage.checklist.duplicateGuard.title"),
+                      desc: t("registrationPage.checklist.duplicateGuard.description"),
+                    },
+                    {
+                      icon: <IconStethoscope size={15} />,
+                      title: t("registrationPage.checklist.opdHandoff.title"),
+                      desc: t("registrationPage.checklist.opdHandoff.description"),
+                    },
+                  ].map((item) => (
+                    <Group key={item.title} gap="xs" align="flex-start" wrap="nowrap">
+                      <Text c="var(--mb-text-muted)" mt={2}>
+                        {item.icon}
+                      </Text>
+                      <div>
+                        <Text size="sm" fw={600}>
+                          {item.title}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {item.desc}
+                        </Text>
+                      </div>
+                    </Group>
+                  ))}
+                  {isCampRegistration && (
+                    <Alert tone="success" icon={<IconUsers size={16} />}>
+                      {t("registrationPage.campLinkedAlert")}
+                    </Alert>
+                  )}
+                </Stack>
+              </Card>
+            </Grid.Col>
+          )}
+        </Grid>
+      </Stack>
 
       <Modal
         opened={dupModalOpen}

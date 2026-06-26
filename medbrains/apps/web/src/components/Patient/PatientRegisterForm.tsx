@@ -767,7 +767,7 @@ export function PatientRegisterForm({
   ];
 
   return (
-    <Box w="100%">
+    <Box w="100%" pb={84}>
       <ClinicalForm
         title={isEdit ? t("registrationForm.title.edit") : t("registrationForm.title.create")}
         titleAccent={isEdit ? undefined : t("registrationForm.titleAccent.opd")}
@@ -807,23 +807,6 @@ export function PatientRegisterForm({
           </>
         }
       >
-        <Stepper
-          active={activeStep}
-          onStepClick={(idx) => {
-            if (idx <= activeStep) {
-              setActiveStep(idx);
-              setStepError(null);
-            }
-          }}
-          allowNextStepsSelect={false}
-          mb="lg"
-          size="sm"
-        >
-          {stepLabels.map((label) => (
-            <Stepper.Step key={label} label={label} />
-          ))}
-        </Stepper>
-
         {stepError && (
           <Alert
             color="red"
@@ -1907,6 +1890,39 @@ export function PatientRegisterForm({
 
         {activeStep === 4 && <ReviewSummary values={watch()} dobEstimated={dobEstimated} />}
       </ClinicalForm>
+
+      <Box
+        style={{
+          position: "fixed",
+          bottom: 0,
+          // Align to the content area, not the whole viewport — clear the nav rail.
+          left: "var(--app-shell-navbar-width, 0px)",
+          right: 0,
+          zIndex: 190,
+          padding: "12px 24px",
+          background: "var(--mb-bg-content, var(--mantine-color-body))",
+          borderTop: "1px solid var(--mb-border-subtle)",
+          boxShadow: "0 -2px 12px rgba(0, 0, 0, 0.08)",
+          overflowX: "auto",
+        }}
+      >
+        <Stepper
+          active={activeStep}
+          onStepClick={(idx) => {
+            if (idx <= activeStep) {
+              setActiveStep(idx);
+              setStepError(null);
+            }
+          }}
+          allowNextStepsSelect={false}
+          size="sm"
+          styles={{ root: { minWidth: "min-content" } }}
+        >
+          {stepLabels.map((label) => (
+            <Stepper.Step key={label} label={label} />
+          ))}
+        </Stepper>
+      </Box>
     </Box>
   );
 }
