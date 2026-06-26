@@ -200,7 +200,7 @@ function AppWithDirection() {
     <DirectionProvider initialDirection={dir}>
       <MantineProvider
         theme={theme}
-        forceColorScheme="light"
+        forceColorScheme="dark"
         cssVariablesResolver={cssVariableResolver}
       >
         <ModalsProvider>

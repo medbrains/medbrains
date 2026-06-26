@@ -59,7 +59,7 @@ import {
   violetTuple,
   zIndex,
 } from "./primitives";
-import { lightScheme, type SchemeName, sharedReferences } from "./semantic";
+import { darkScheme, lightScheme, type SchemeName, sharedReferences } from "./semantic";
 
 export type { SchemeName, SemanticScheme, StatusScale } from "./semantic";
 export { darkScheme, lightScheme, schemes } from "./semantic";
@@ -928,10 +928,8 @@ function buildSchemePalette(scheme: typeof lightScheme, name: SchemeName) {
 
 export const cssVariableResolver: CSSVariablesResolver = (t) => {
   const lightPalette = buildSchemePalette(lightScheme, "light");
-  // Dark theme is retired — the app is forced to light (MantineProvider
-  // forceColorScheme="light"). The dark slot renders light so nothing can
-  // ever paint dark, even if a stray data-mantine-color-scheme="dark" appears.
-  const darkPalette = lightPalette;
+  // Dark theme (Apple pure-black scheme) re-enabled.
+  const darkPalette = buildSchemePalette(darkScheme, "dark");
   return {
     variables: {
       // ── Geometry / sizing (mode-agnostic) ────────────────────
