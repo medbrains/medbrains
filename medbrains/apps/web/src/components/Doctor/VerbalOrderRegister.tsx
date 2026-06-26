@@ -7,20 +7,47 @@
  * ordered, who transcribed, whether read-back was confirmed, and whether the
  * countersignature landed on time, late, or is still overdue.
  */
-import { Group, Stack, Text } from "@mantine/core";
-import type { VerbalOrderComplianceStatus, VerbalOrderEntry } from "@medbrains/types";
+import { Group, Stack, Text, Tooltip } from "@mantine/core";
+import { useAuthStore } from "@medbrains/stores";
+import type {
+  PendingSignoffEntry,
+  VerbalOrderComplianceStatus,
+  VerbalOrderEntry,
+} from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconCircleCheck,
   IconClock,
   IconPhone,
+  IconSignature,
   IconVolume,
 } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import type { Column, DataTableFilter } from "@/components/DataTable";
 import { DataTable } from "@/components/DataTable";
-import { Badge, type BadgeTone } from "@/components/ui";
+import { SignWorkspace } from "@/components/Doctor/SignWorkspace";
+import { Badge, type BadgeTone, IconButton } from "@/components/ui";
 import { signoffService } from "@/services/signoff.service";
+
+/** Build the SignWorkspace target for a verbal order the prescriber owns. */
+function toSignTarget(r: VerbalOrderEntry): PendingSignoffEntry {
+  return {
+    record_type: "prescription",
+    record_id: r.id,
+    created_at: r.created_at,
+    legal_class: "clinical",
+    patient_id: r.patient_id ?? null,
+    patient_name: r.patient_name ?? null,
+    uhid: r.uhid ?? null,
+    summary: r.summary ?? null,
+    context: null,
+    risk_label: null,
+    order_mode: r.order_mode,
+    countersign_due_at: r.countersign_due_at ?? null,
+    transcribed: r.transcribed_by != null,
+  };
+}
 
 const COMPLIANCE: Record<VerbalOrderComplianceStatus, { label: string; tone: BadgeTone }> = {
   awaiting: { label: "Awaiting", tone: "info" },
@@ -34,11 +61,19 @@ function formatDateTime(value?: string | null): string {
 }
 
 export function VerbalOrderRegister() {
+  const currentUserId = useAuthStore((s) => s.user?.id);
+  const queryClient = useQueryClient();
+  const [signTarget, setSignTarget] = useState<PendingSignoffEntry | null>(null);
+
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["verbal-order-register"],
     queryFn: () => signoffService.listVerbalOrders(),
     refetchInterval: 60_000,
   });
+
+  // The prescriber can countersign their own un-signed order inline.
+  const canCountersign = (r: VerbalOrderEntry) =>
+    !r.is_signed && r.ordering_doctor_id != null && r.ordering_doctor_id === currentUserId;
 
   const columns: Column<VerbalOrderEntry>[] = [
     {
@@ -150,6 +185,23 @@ export function VerbalOrderRegister() {
         );
       },
     },
+    {
+      key: "action",
+      label: "",
+      render: (r) =>
+        canCountersign(r) ? (
+          <Tooltip label="Countersign now" withArrow>
+            <IconButton
+              tone="primary"
+              size="sm"
+              aria-label={`Countersign verbal order for ${r.patient_name ?? "patient"}`}
+              onClick={() => setSignTarget(toSignTarget(r))}
+            >
+              <IconSignature size={16} />
+            </IconButton>
+          </Tooltip>
+        ) : null,
+    },
   ];
 
   const filters: DataTableFilter<VerbalOrderEntry>[] = [
@@ -176,18 +228,32 @@ export function VerbalOrderRegister() {
   ];
 
   return (
-    <DataTable<VerbalOrderEntry>
-      columns={columns}
-      data={rows}
-      loading={isLoading}
-      rowKey={(r) => r.id}
-      searchable
-      searchPlaceholder="Search patient, doctor, nurse, order"
-      filters={filters}
-      exportable
-      exportFileName="verbal-order-register"
-      emptyIcon={<IconVolume size={28} stroke={1.5} />}
-      emptyTitle="No verbal or telephone orders"
-    />
+    <>
+      <DataTable<VerbalOrderEntry>
+        columns={columns}
+        data={rows}
+        loading={isLoading}
+        rowKey={(r) => r.id}
+        searchable
+        searchPlaceholder="Search patient, doctor, nurse, order"
+        filters={filters}
+        exportable
+        exportFileName="verbal-order-register"
+        emptyIcon={<IconVolume size={28} stroke={1.5} />}
+        emptyTitle="No verbal or telephone orders"
+      />
+
+      {signTarget && (
+        <SignWorkspace
+          opened={!!signTarget}
+          target={signTarget}
+          onClose={() => setSignTarget(null)}
+          onSigned={() => {
+            setSignTarget(null);
+            void queryClient.invalidateQueries({ queryKey: ["verbal-order-register"] });
+          }}
+        />
+      )}
+    </>
   );
 }
