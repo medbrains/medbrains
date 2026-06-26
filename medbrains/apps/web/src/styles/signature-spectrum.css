@@ -161,3 +161,26 @@ body[data-dlp="on"] [contenteditable="true"] {
   -webkit-user-select: text;
   user-select: text;
 }
+
+/* ── Subtle app background pattern ──────────────────────────────────
+   A very faint dot grid behind the main content — token-driven so it
+   adapts to light/dark and stays within Carbon's flat aesthetic.    */
+.mantine-AppShell-main {
+  background-image: radial-gradient(var(--mb-border-subtle) 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-position: -1px -1px;
+}
+
+/* Smooth the colour change when toggling theme (View Transitions handles
+   the crossfade where supported; this is the fallback for key surfaces). */
+@media (prefers-reduced-motion: no-preference) {
+  body,
+  .mantine-AppShell-main,
+  .mantine-AppShell-navbar,
+  .mantine-AppShell-header {
+    transition:
+      background-color 0.3s ease,
+      border-color 0.3s ease,
+      color 0.3s ease;
+  }
+}

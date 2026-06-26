@@ -1,0 +1,42 @@
+.iconWrap {
+  position: relative;
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+}
+
+.sun,
+.moon {
+  position: absolute;
+  inset: 0;
+  transition:
+    transform 0.45s cubic-bezier(0.2, 0, 0.38, 0.9),
+    opacity 0.3s ease;
+}
+
+// Light mode → the sun is up; the moon waits below, rotated out.
+.iconWrap[data-dark="false"] .sun {
+  transform: rotate(0) scale(1);
+  opacity: 1;
+}
+.iconWrap[data-dark="false"] .moon {
+  transform: rotate(-90deg) scale(0.4);
+  opacity: 0;
+}
+
+// Dark mode → the sun sets, the moon rises.
+.iconWrap[data-dark="true"] .sun {
+  transform: rotate(90deg) scale(0.4);
+  opacity: 0;
+}
+.iconWrap[data-dark="true"] .moon {
+  transform: rotate(0) scale(1);
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sun,
+  .moon {
+    transition: none;
+  }
+}

@@ -40,6 +40,7 @@ import { NewsMarquee } from "@/components/NewsMarquee";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { PageTransition } from "@/components/PageTransition";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { Breadcrumb, ModuleBadge } from "@/components/ui";
 import { VerifyEmailBanner } from "@/components/VerifyEmailBanner";
 import {
@@ -479,6 +480,8 @@ export function AppLayout() {
             </ActionIcon>
 
             <NotificationCenter />
+
+            <ThemeToggle />
 
             <Menu shadow="md" width={160} position="bottom-end">
               <Menu.Target>
