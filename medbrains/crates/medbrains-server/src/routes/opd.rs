@@ -321,6 +321,10 @@ pub struct CreatePrescriptionRequest {
     /// Clinician's reason for prescribing despite a documented drug allergy.
     /// Required (non-blank) when a line conflicts with the patient's allergies.
     pub allergy_override_reason: Option<String>,
+    /// Clinician's reason for prescribing despite a major/contraindicated
+    /// drug-drug interaction. Required (non-blank) when the order pairs two
+    /// drugs flagged in `drug_interactions` at major/contraindicated severity.
+    pub interaction_override_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2330,6 +2334,33 @@ pub async fn create_prescription(
         )));
     }
 
+    // Drug-drug interaction backstop: a major or contraindicated pair on the
+    // same order is a medication-safety risk (NABH IPSG). Warn & require an
+    // acknowledged reason (logged) — minor/moderate pairs stay advisory and the
+    // pharmacist re-checks at review.
+    let rx_drug_names: Vec<String> = body.items.iter().map(|i| i.drug_name.clone()).collect();
+    let interaction_alerts =
+        super::cds::interaction_alerts_for_drugs(&mut tx, claims.tenant_id, &rx_drug_names).await?;
+    let serious_interactions: Vec<&super::cds::DrugInteractionAlert> = interaction_alerts
+        .iter()
+        .filter(|i| matches!(i.severity.as_str(), "major" | "contraindicated"))
+        .collect();
+    let interaction_reason = body
+        .interaction_override_reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|r| !r.is_empty());
+    if !serious_interactions.is_empty() && interaction_reason.is_none() {
+        let summary = serious_interactions
+            .iter()
+            .map(|i| format!("{} × {} ({})", i.drug_a, i.drug_b, i.severity))
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(AppError::BadRequest(format!(
+            "Order has a serious drug-drug interaction: {summary}. Provide an override reason to proceed."
+        )));
+    }
+
     let rx = sqlx::query_as::<_, Prescription>(
         "INSERT INTO prescriptions \
            (tenant_id, encounter_id, doctor_id, notes, order_mode, transcribed_by, \
@@ -2393,6 +2424,39 @@ pub async fn create_prescription(
                     tenant_id: claims.tenant_id,
                     user_id: Some(claims.sub),
                     action: "prescription.allergy_override",
+                    entity_type: "prescription",
+                    entity_id: Some(rx.id),
+                    old_values: None,
+                    new_values: Some(&audit_values),
+                    ip_address: None,
+                },
+            )
+            .await?;
+        }
+    }
+
+    if let Some(reason) = interaction_reason {
+        if !serious_interactions.is_empty() {
+            let audit_values = serde_json::json!({
+                "prescription_id": rx.id,
+                "encounter_id": encounter_id,
+                "override_reason": reason,
+                "interactions": serious_interactions
+                    .iter()
+                    .map(|i| serde_json::json!({
+                        "drug_a": i.drug_a,
+                        "drug_b": i.drug_b,
+                        "severity": i.severity,
+                        "description": i.description,
+                    }))
+                    .collect::<Vec<_>>(),
+            });
+            medbrains_db::audit::AuditLogger::log(
+                &mut tx,
+                &medbrains_db::audit::AuditEntry {
+                    tenant_id: claims.tenant_id,
+                    user_id: Some(claims.sub),
+                    action: "prescription.interaction_override",
                     entity_type: "prescription",
                     entity_id: Some(rx.id),
                     old_values: None,

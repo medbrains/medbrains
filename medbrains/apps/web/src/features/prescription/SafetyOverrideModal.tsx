@@ -6,8 +6,11 @@ import { z } from "zod";
 import { Alert, Button, Modal } from "@/components/ui";
 
 export interface SafetyIssue {
-  /** "allergy" is a sentinel-event class (danger); "dose" is a ceiling breach (warning). */
-  kind: "allergy" | "dose";
+  /**
+   * "allergy" is a sentinel-event class (danger); "interaction" is a serious
+   * drug-drug pair (danger); "dose" is a ceiling breach (warning).
+   */
+  kind: "allergy" | "dose" | "interaction";
   name: string;
   detail: string;
 }
@@ -27,6 +30,7 @@ interface Props {
 
 function IssueGroup({ issues }: { issues: SafetyIssue[] }) {
   const allergy = issues.filter((i) => i.kind === "allergy");
+  const interaction = issues.filter((i) => i.kind === "interaction");
   const dose = issues.filter((i) => i.kind === "dose");
   return (
     <>
@@ -34,6 +38,21 @@ function IssueGroup({ issues }: { issues: SafetyIssue[] }) {
         <Alert tone="danger" icon={<IconAlertTriangle size={16} />} title="Documented drug allergy">
           <Stack gap={2}>
             {allergy.map((e) => (
+              <Text key={e.name} size="sm">
+                <b>{e.name}</b> — {e.detail}
+              </Text>
+            ))}
+          </Stack>
+        </Alert>
+      )}
+      {interaction.length > 0 && (
+        <Alert
+          tone="danger"
+          icon={<IconAlertTriangle size={16} />}
+          title="Serious drug-drug interaction"
+        >
+          <Stack gap={2}>
+            {interaction.map((e) => (
               <Text key={e.name} size="sm">
                 <b>{e.name}</b> — {e.detail}
               </Text>
@@ -87,15 +106,15 @@ export function SafetyOverrideModal({ opened, issues, saving, onConfirm, onClose
     reset({ reason: "" });
   });
 
-  const hasAllergy = issues.some((i) => i.kind === "allergy");
+  const hasSentinel = issues.some((i) => i.kind === "allergy" || i.kind === "interaction");
 
   return (
     <Modal opened={opened} onClose={close} title="Confirm safety override" size="md">
       <Stack gap="sm">
         <IssueGroup issues={issues} />
         <Text size="sm" c="dimmed">
-          {hasAllergy
-            ? "Prescribing despite a documented allergy is allowed only with a recorded clinical justification (e.g. prior tolerance, desensitisation, no alternative). The override is logged against this prescription."
+          {hasSentinel
+            ? "Prescribing despite a documented allergy or a serious drug-drug interaction is allowed only with a recorded clinical justification (e.g. prior tolerance, monitoring, no alternative). The override is logged against this prescription."
             : "Prescribing above the daily ceiling is allowed with a recorded reason (titration, specialist regimen, etc.). The override is logged against this prescription."}
         </Text>
         <Controller

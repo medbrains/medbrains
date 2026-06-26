@@ -169,11 +169,15 @@ export function RxSuiteWriter({
     void runSafety(items);
   };
 
-  const doSave = (items: RxItem[], overrides?: { dose?: string; allergy?: string }) => {
+  const doSave = (
+    items: RxItem[],
+    overrides?: { dose?: string; allergy?: string; interaction?: string },
+  ) => {
     onSave({
       items: rxItemsToInput(items),
       ...(overrides?.dose ? { dose_override_reason: overrides.dose } : {}),
       ...(overrides?.allergy ? { allergy_override_reason: overrides.allergy } : {}),
+      ...(overrides?.interaction ? { interaction_override_reason: overrides.interaction } : {}),
       ...(isVerbal
         ? {
             order_mode: orderMode,
@@ -206,6 +210,17 @@ export function RxSuiteWriter({
       const hit = drug ? maxDoseExceeded(it, drug) : null;
       if (hit) issues.push({ kind: "dose", name: it.name, detail: hit.totalLabel });
     }
+    // Serious drug-drug interactions come from the live safety service; the
+    // server re-checks them independently at save as a backstop.
+    for (const ix of safety.interactions) {
+      if (ix.severity === "major" || ix.severity === "contraindicated") {
+        issues.push({
+          kind: "interaction",
+          name: `${ix.drug_a} × ${ix.drug_b}`,
+          detail: `${ix.severity} — ${ix.description}`,
+        });
+      }
+    }
     return issues;
   };
 
@@ -233,6 +248,7 @@ export function RxSuiteWriter({
       doSave(pendingItems, {
         dose: overrideIssues.some((i) => i.kind === "dose") ? reason : undefined,
         allergy: overrideIssues.some((i) => i.kind === "allergy") ? reason : undefined,
+        interaction: overrideIssues.some((i) => i.kind === "interaction") ? reason : undefined,
       });
     }
     setPendingItems(null);

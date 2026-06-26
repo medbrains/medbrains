@@ -311,34 +311,7 @@ pub async fn check_drug_safety(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Check drug-drug interactions for all pairs
-    let mut interactions = Vec::new();
-    let drug_names: Vec<String> = body.drug_names.iter().map(|n| n.to_lowercase()).collect();
-
-    if drug_names.len() > 1 {
-        let rows = sqlx::query_as::<_, DrugInteraction>(
-            "SELECT * FROM drug_interactions \
-             WHERE tenant_id = $1 AND is_active = true \
-             AND (lower(drug_a_name) = ANY($2) OR lower(drug_b_name) = ANY($2))",
-        )
-        .bind(claims.tenant_id)
-        .bind(&drug_names)
-        .fetch_all(&mut *tx)
-        .await?;
-
-        for row in &rows {
-            let a_lower = row.drug_a_name.to_lowercase();
-            let b_lower = row.drug_b_name.to_lowercase();
-            if drug_names.contains(&a_lower) && drug_names.contains(&b_lower) {
-                interactions.push(DrugInteractionAlert {
-                    drug_a: row.drug_a_name.clone(),
-                    drug_b: row.drug_b_name.clone(),
-                    severity: row.severity.clone(),
-                    description: row.description.clone(),
-                    management: row.management.clone(),
-                });
-            }
-        }
-    }
+    let interactions = interaction_alerts_for_drugs(&mut tx, claims.tenant_id, &body.drug_names).await?;
 
     // Check allergy conflicts
     let mut allergy_conflicts = Vec::new();
@@ -747,6 +720,46 @@ async fn weight_alerts_for_items(
 /// Looks up each line's catalogue `max_dose_per_day`, derives doses/day from
 /// the frequency, and flags lines whose daily total exceeds the maximum.
 /// Shared by the CDS advisory check and the prescribe-time backstop.
+/// Active drug-drug interaction alerts for the given drug names (both members
+/// of the pair must be present). Shared by the CDS safety-check endpoint and
+/// the prescribing backstop in `opd::create_prescription`.
+pub async fn interaction_alerts_for_drugs(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    drug_names: &[String],
+) -> Result<Vec<DrugInteractionAlert>, AppError> {
+    let lowered: Vec<String> = drug_names.iter().map(|n| n.to_lowercase()).collect();
+    if lowered.len() < 2 {
+        return Ok(Vec::new());
+    }
+
+    let rows = sqlx::query_as::<_, DrugInteraction>(
+        "SELECT * FROM drug_interactions \
+         WHERE tenant_id = $1 AND is_active = true \
+         AND (lower(drug_a_name) = ANY($2) OR lower(drug_b_name) = ANY($2))",
+    )
+    .bind(tenant_id)
+    .bind(&lowered)
+    .fetch_all(&mut **tx)
+    .await?;
+
+    let mut alerts = Vec::new();
+    for row in &rows {
+        let a_lower = row.drug_a_name.to_lowercase();
+        let b_lower = row.drug_b_name.to_lowercase();
+        if lowered.contains(&a_lower) && lowered.contains(&b_lower) {
+            alerts.push(DrugInteractionAlert {
+                drug_a: row.drug_a_name.clone(),
+                drug_b: row.drug_b_name.clone(),
+                severity: row.severity.clone(),
+                description: row.description.clone(),
+                management: row.management.clone(),
+            });
+        }
+    }
+    Ok(alerts)
+}
+
 pub async fn dose_alerts_for_items(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,

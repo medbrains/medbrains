@@ -4385,6 +4385,8 @@ export interface CreatePrescriptionRequest {
   dose_override_reason?: string;
   /** Reason for prescribing despite a documented drug allergy — required on conflict. */
   allergy_override_reason?: string;
+  /** Reason for prescribing despite a major/contraindicated drug-drug interaction — required on conflict. */
+  interaction_override_reason?: string;
 }
 
 export interface UpdatePrescriptionRequest {
