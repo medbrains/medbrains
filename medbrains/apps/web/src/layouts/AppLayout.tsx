@@ -39,9 +39,15 @@ import { NewsMarquee } from "@/components/NewsMarquee";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { PageTransition } from "@/components/PageTransition";
-import { Breadcrumb } from "@/components/ui";
+import { Breadcrumb, ModuleBadge } from "@/components/ui";
 import { VerifyEmailBanner } from "@/components/VerifyEmailBanner";
-import { buildPathLabels, NAV_GROUPS, type NavItemConfig, resolveIcon } from "@/config/navigation";
+import {
+  buildPathLabels,
+  getModuleBadge,
+  NAV_GROUPS,
+  type NavItemConfig,
+  resolveIcon,
+} from "@/config/navigation";
 import { preloadRoute } from "@/lib/route-preload";
 import { sessionService } from "@/services/session.service";
 import classes from "./AppLayout.module.scss";
@@ -180,11 +186,15 @@ export function AppLayout() {
   const resolveItem = useCallback(
     (cfg: NavItemConfig, childSize = false): ResolvedNavItem => {
       const size = childSize ? 20 : 26;
+      const badge = getModuleBadge(cfg.path);
       return {
         label: t(cfg.i18nKey),
         path: cfg.path,
-        // Real Carbon-style icons in the rail (not letter-abbreviation badges).
-        icon: resolveIcon(cfg.icon, size, 1.5),
+        icon: badge ? (
+          <ModuleBadge abbr={badge.abbr} color={badge.color} size={size} title={t(cfg.i18nKey)} />
+        ) : (
+          resolveIcon(cfg.icon, size, 1.5)
+        ),
         requiredPermission: cfg.requiredPermission,
         requiredPermissions: cfg.requiredPermissions,
         children: cfg.children?.map((c) => resolveItem(c, true)),
