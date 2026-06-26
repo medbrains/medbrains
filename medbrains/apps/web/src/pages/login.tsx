@@ -9,6 +9,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, Navigate, useNavigate } from "react-router";
 import { Brand } from "@/components/Brand";
+import { HealthTipsSlider } from "@/components/HealthTipsSlider";
 import { SsoLoginButtons } from "@/components/SsoLoginButtons";
 import { Alert, Button, Image } from "@/components/ui";
 import {
@@ -137,29 +138,7 @@ export function LoginPage() {
           <span className={classes.manifestoLogoText}>MedBrains</span>
         </div>
 
-        <p className={classes.manifestoTitle}>
-          The hospital operating system built for <em>everyone</em>
-        </p>
-
-        <p className={classes.manifestoBody}>
-          From OPD to ICU, pharmacy to billing — one platform that runs the entire hospital. Open
-          source, multi-tenant, compliance-ready.
-        </p>
-
-        <div className={classes.manifestoStats}>
-          <div className={classes.manifestoStat}>
-            <span className={classes.manifestoStatValue}>67+</span>
-            <span className={classes.manifestoStatLabel}>Modules</span>
-          </div>
-          <div className={classes.manifestoStat}>
-            <span className={classes.manifestoStatValue}>2,189</span>
-            <span className={classes.manifestoStatLabel}>Features</span>
-          </div>
-          <div className={classes.manifestoStat}>
-            <span className={classes.manifestoStatValue}>NABH</span>
-            <span className={classes.manifestoStatLabel}>Compliant</span>
-          </div>
-        </div>
+        <HealthTipsSlider />
 
         {/* Subtle ECG line */}
         <svg
