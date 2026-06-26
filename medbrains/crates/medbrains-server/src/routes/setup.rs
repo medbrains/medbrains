@@ -242,18 +242,83 @@ pub async fn tenant_by_host(
         .filter(|d| !d.trim().is_empty())
         .or(header_host)
         .map(|h| h.split(':').next().unwrap_or(&h).trim().to_lowercase())
-        .filter(|h| !h.is_empty())
-        .ok_or(AppError::NotFound)?;
+        .filter(|h| !h.is_empty());
 
-    let tenant = sqlx::query_as::<_, PublicTenant>(
+    // SaaS path: resolve the tenant from the custom domain.
+    if let Some(host) = host {
+        if let Some(tenant) = sqlx::query_as::<_, PublicTenant>(
+            "SELECT id, name, logo_url, custom_domain FROM tenants \
+             WHERE lower(custom_domain) = $1 AND is_active = true",
+        )
+        .bind(&host)
+        .fetch_optional(&state.db)
+        .await?
+        {
+            return Ok(Json(tenant));
+        }
+    }
+
+    // On-prem path: a single-hospital deployment is bound to its tenant by
+    // `MEDBRAINS_TENANT_ID` in the backend env (stable, host-independent), so
+    // the sign-in page brands correctly without a custom-domain match.
+    if let Some(tenant) = env_bound_tenant(&state).await? {
+        return Ok(Json(tenant));
+    }
+
+    // Neither matched — the caller renders the default MedBrains login.
+    Err(AppError::NotFound)
+}
+
+/// The deployment's primary tenant, pinned in the backend env. `*_NAME`/`*_LOGO`
+/// override the DB row (and let branding work before the tenant is even seeded).
+/// Returns `None` when no `MEDBRAINS_TENANT_ID` is configured (SaaS / dev).
+async fn env_bound_tenant(state: &AppState) -> Result<Option<PublicTenant>, AppError> {
+    let env_str = |key: &str| {
+        std::env::var(key)
+            .ok()
+            .map(|v| v.trim().to_owned())
+            .filter(|v| !v.is_empty())
+    };
+    let Some(id_str) = env_str("MEDBRAINS_TENANT_ID") else {
+        return Ok(None);
+    };
+    let Ok(id) = Uuid::parse_str(&id_str) else {
+        tracing::warn!("MEDBRAINS_TENANT_ID is not a valid UUID — ignoring");
+        return Ok(None);
+    };
+    let env_name = env_str("MEDBRAINS_TENANT_NAME");
+    let env_logo = env_str("MEDBRAINS_TENANT_LOGO");
+
+    let db_row = sqlx::query_as::<_, PublicTenant>(
         "SELECT id, name, logo_url, custom_domain FROM tenants \
-         WHERE lower(custom_domain) = $1 AND is_active = true",
+         WHERE id = $1 AND is_active = true",
     )
-    .bind(&host)
+    .bind(id)
     .fetch_optional(&state.db)
     .await?;
 
-    tenant.map_or_else(|| Err(AppError::NotFound), |t| Ok(Json(t)))
+    let tenant = match db_row {
+        Some(mut t) => {
+            if let Some(name) = env_name {
+                t.name = name;
+            }
+            if env_logo.is_some() {
+                t.logo_url = env_logo;
+            }
+            t
+        }
+        // Tenant not seeded yet — synthesize from env so sign-in still brands.
+        None => match env_name {
+            Some(name) => PublicTenant {
+                id,
+                name,
+                logo_url: env_logo,
+                custom_domain: None,
+            },
+            None => return Ok(None),
+        },
+    };
+    Ok(Some(tenant))
 }
 
 // ── PUT /api/setup/tenant/geo ───────────────────────────────

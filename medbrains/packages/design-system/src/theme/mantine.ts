@@ -437,7 +437,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
 
       TextInput: {
         defaultProps: {
-          radius: "md",
+          radius: "none",
           size: "sm",
           variant: "default",
         },
@@ -445,7 +445,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
 
       PasswordInput: {
         defaultProps: {
-          radius: "md",
+          radius: "none",
           size: "sm",
           variant: "default",
         },
@@ -453,7 +453,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
 
       Textarea: {
         defaultProps: {
-          radius: "md",
+          radius: "none",
           size: "sm",
           variant: "default",
         },
@@ -461,7 +461,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
 
       NumberInput: {
         defaultProps: {
-          radius: "md",
+          radius: "none",
           size: "sm",
           variant: "default",
         },

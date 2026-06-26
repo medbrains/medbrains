@@ -33,7 +33,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
-import { BrandLogo } from "@/components/BrandLogo";
+import { Brand } from "@/components/Brand";
 import { HeaderWidgets } from "@/components/HeaderWidgets";
 import { NewsMarquee } from "@/components/NewsMarquee";
 import { NotificationCenter } from "@/components/NotificationCenter";
@@ -441,7 +441,7 @@ export function AppLayout() {
           <Group gap="sm" wrap="nowrap">
             <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
             <Group gap={8} className={classes.logoArea} onClick={() => navigate("/dashboard")}>
-              <BrandLogo />
+              <Brand surface="header" />
             </Group>
           </Group>
 

@@ -148,7 +148,7 @@
   position: relative;
   padding: 28px;
   border: 1px solid var(--mb-border);
-  border-radius: 18px;
+  border-radius: 0; // Carbon: sharp corners
   background: var(--mb-card-bg);
   box-shadow: var(--mb-shadow-soft);
 
