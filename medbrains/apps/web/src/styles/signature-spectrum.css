@@ -121,3 +121,28 @@
     transform: none;
   }
 }
+
+/* ── Carbon text input ─────────────────────────────────────────────
+   Carbon fields are a filled box with a single bottom border at rest,
+   and a 2px focus border on the whole field. We keep the filled bg +
+   sharp corners from the theme and convert the boxed border to the
+   Carbon underline; focus draws an inset 2px box (no layout shift) so
+   the focus indicator stays strong for accessibility.            */
+.mantine-Input-input {
+  border-color: transparent;
+  border-bottom-color: var(--mb-input-border);
+}
+.mantine-Input-input:hover:not(:focus):not([aria-invalid="true"]) {
+  border-bottom-color: var(--mb-input-border-hover);
+}
+.mantine-Input-input:focus,
+.mantine-Input-input:focus-within,
+.mantine-Input-input:focus-visible {
+  outline: 2px solid var(--mb-border-focus);
+  outline-offset: -2px;
+  border-bottom-color: transparent;
+}
+.mantine-Input-input[aria-invalid="true"] {
+  border-color: transparent;
+  border-bottom-color: var(--mb-danger);
+}
