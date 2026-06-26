@@ -146,10 +146,6 @@ const CareViewPage = lazy(() =>
   import("./pages/care-view").then((m) => ({ default: m.CareViewPage })),
 );
 const OtPage = lazy(() => import("./pages/ot").then((m) => ({ default: m.OtPage })));
-const IndentPage = lazy(() => import("./pages/indent").then((m) => ({ default: m.IndentPage })));
-const ProcurementPage = lazy(() =>
-  import("./pages/procurement").then((m) => ({ default: m.ProcurementPage })),
-);
 const QualityPage = lazy(() => import("./pages/quality").then((m) => ({ default: m.QualityPage })));
 const FrontOfficePage = lazy(() =>
   import("./pages/front-office").then((m) => ({ default: m.FrontOfficePage })),
@@ -172,7 +168,9 @@ const HousekeepingPage = lazy(() =>
 const HrPage = lazy(() => import("./pages/hr").then((m) => ({ default: m.HrPage })));
 const ProfilePage = lazy(() => import("./pages/profile").then((m) => ({ default: m.ProfilePage })));
 const BmePage = lazy(() => import("./pages/bme").then((m) => ({ default: m.BmePage })));
-const AssetsPage = lazy(() => import("./pages/assets").then((m) => ({ default: m.AssetsPage })));
+const MaterialsPage = lazy(() =>
+  import("./pages/materials").then((m) => ({ default: m.MaterialsPage })),
+);
 const AmbulancePage = lazy(() =>
   import("./pages/ambulance").then((m) => ({ default: m.AmbulancePage })),
 );
@@ -408,8 +406,10 @@ export function App() {
               <Route path="billing/worklist" element={<BillingWorklistPage />} />
               <Route path="billing/tpa-pipeline" element={<BillingTpaPipelinePage />} />
               <Route path="billing/invoices/:invoiceId" element={<BillingInvoiceDetailPage />} />
-              <Route path="indent/*" element={<IndentPage />} />
-              <Route path="procurement" element={<ProcurementPage />} />
+              <Route path="materials" element={<MaterialsPage />} />
+              {/* Consolidated into the unified Materials workspace. */}
+              <Route path="indent/*" element={<Navigate to="/materials" replace />} />
+              <Route path="procurement" element={<Navigate to="/materials" replace />} />
               <Route path="quality" element={<QualityPage />} />
               <Route path="front-office" element={<FrontOfficePage />} />
               <Route path="health-pulse" element={<HealthPulsePage />} />
@@ -419,7 +419,7 @@ export function App() {
               <Route path="profile" element={<ProfilePage />} />
               <Route path="hr" element={<HrPage />} />
               <Route path="bme" element={<BmePage />} />
-              <Route path="assets" element={<AssetsPage />} />
+              <Route path="assets" element={<Navigate to="/materials" replace />} />
               <Route path="ambulance" element={<AmbulancePage />} />
               <Route path="communications" element={<CommunicationsPage />} />
               <Route path="camp" element={<CampPage />} />

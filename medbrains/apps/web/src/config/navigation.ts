@@ -205,6 +205,7 @@ const MODULE_BADGE_DEFS: Record<string, ModuleBadge> = {
   "/bedside-portal": { abbr: "BP", color: "#00539a" },
   "/billing": { abbr: "Bil", color: "#4d5358" },
   "/insurance": { abbr: "Ins", color: "#0043ce" },
+  "/materials": { abbr: "Mat", color: "#005d5d" },
   "/indent": { abbr: "Ind", color: "#005d5d" },
   "/procurement": { abbr: "Pro", color: "#8a3ffc" },
   "/cssd": { abbr: "CSD", color: "#0e6027" },
@@ -817,16 +818,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     key: "operations",
     items: [
       {
-        i18nKey: "indent",
-        path: "/indent",
-        icon: "IconPackage",
-        requiredPermission: "indent.list",
-      },
-      {
-        i18nKey: "procurement",
-        path: "/procurement",
-        icon: "IconTruck",
+        i18nKey: "materials",
+        path: "/materials",
+        icon: "IconBuildingWarehouse",
         requiredPermissions: [
+          "indent.list",
+          "assets.list",
           "procurement.vendors.list",
           "procurement.po.list",
           "procurement.grn.list",
@@ -883,12 +880,6 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         path: "/bme",
         icon: "IconDeviceDesktopAnalytics",
         requiredPermission: "bme.equipment.list",
-      },
-      {
-        i18nKey: "assets",
-        path: "/assets",
-        icon: "IconPackage",
-        requiredPermission: "assets.list",
       },
       {
         i18nKey: "ambulance",

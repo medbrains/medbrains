@@ -104,5 +104,6 @@
   "healthPulse": "Health Pulse",
   "lms": "Learning (LMS)",
   "nabhIndicators": "NABH Indicators",
-  "pairedDevices": "Paired Devices"
+  "pairedDevices": "Paired Devices",
+  "materials": "Materials"
 }
