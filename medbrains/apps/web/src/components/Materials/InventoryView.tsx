@@ -13,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { Column, DataTableFilter } from "@/components/DataTable";
 import { DataTable } from "@/components/DataTable";
+import { PageHeader } from "@/components/PageHeader";
 import { Badge, type BadgeTone, Card } from "@/components/ui";
 import { assetsService } from "@/services/assets.service";
 
@@ -173,6 +174,11 @@ export function InventoryView() {
 
   return (
     <Stack gap="md">
+      <PageHeader
+        title="Inventory"
+        subtitle="Store stock and capital assets — on hand, value and reorder status"
+        icon={<IconPackages size={20} stroke={1.5} />}
+      />
       <SimpleGrid cols={{ base: 2, sm: 4 }}>
         <StatCard label="Inventory value" value={money(String(summary.totalValue))} />
         <StatCard label="Low / out of stock" value={String(summary.lowOrOut)} />

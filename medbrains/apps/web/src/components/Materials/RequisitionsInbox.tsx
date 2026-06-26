@@ -12,6 +12,7 @@ import { IconBox, IconInbox, IconTool } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import type { Column, DataTableFilter } from "@/components/DataTable";
 import { DataTable } from "@/components/DataTable";
+import { PageHeader } from "@/components/PageHeader";
 import { Badge, type BadgeTone } from "@/components/ui";
 import { assetsService } from "@/services/assets.service";
 
@@ -148,19 +149,28 @@ export function RequisitionsInbox() {
     },
   ];
 
+  const openCount = rows.filter((r) => r.open).length;
+
   return (
-    <DataTable<Requisition>
-      columns={columns}
-      data={rows}
-      loading={isLoading}
-      rowKey={(r) => `${r.kind}:${r.id}`}
-      searchable
-      searchPlaceholder="Search request, reference, department, requester"
-      filters={filters}
-      exportable
-      exportFileName="requisitions"
-      emptyIcon={<IconInbox size={28} stroke={1.5} />}
-      emptyTitle="No requisitions"
-    />
+    <Stack gap="md">
+      <PageHeader
+        title="Requisitions"
+        subtitle={`${openCount} open · ${rows.length} total — store indents and asset requests`}
+        icon={<IconInbox size={20} stroke={1.5} />}
+      />
+      <DataTable<Requisition>
+        columns={columns}
+        data={rows}
+        loading={isLoading}
+        rowKey={(r) => `${r.kind}:${r.id}`}
+        searchable
+        searchPlaceholder="Search request, reference, department, requester"
+        filters={filters}
+        exportable
+        exportFileName="requisitions"
+        emptyIcon={<IconInbox size={28} stroke={1.5} />}
+        emptyTitle="No requisitions"
+      />
+    </Stack>
   );
 }

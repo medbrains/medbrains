@@ -5,7 +5,9 @@
  * per-domain reports (indent dead-stock / valuation) into a single glance.
  */
 import { Progress, SimpleGrid, Stack, Text } from "@mantine/core";
+import { IconChartBar } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
+import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui";
 import { assetsService } from "@/services/assets.service";
 
@@ -65,6 +67,11 @@ export function AnalyticsView() {
 
   return (
     <Stack gap="lg">
+      <PageHeader
+        title="Analytics"
+        subtitle="Inventory value, stock health and requisition load across materials"
+        icon={<IconChartBar size={20} stroke={1.5} />}
+      />
       <SimpleGrid cols={{ base: 2, sm: 3, lg: 6 }}>
         <Kpi label="Total value" value={money(data.total_value)} />
         <Kpi label="Stock value" value={money(data.stock_value)} />
