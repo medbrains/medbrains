@@ -81,12 +81,35 @@
 
 // ─── Bolder console restyle ───
 
-// Tinted, weightier header band with a clear bottom rule.
+// Tinted, weightier header band with a clear bottom rule + column rules.
 .stickyHead th {
   background: var(--mb-bg-subtle, #f4f5f8);
   color: var(--mb-text-secondary);
   font-weight: 600;
-  border-bottom: 1px solid var(--mb-border, #d5dbdb);
+  border-bottom: 2px solid var(--mb-border, #d5dbdb);
+  border-right: 1px solid var(--mb-border-subtle, #e0e0e0);
+}
+
+.stickyHead th:last-child {
+  border-right: 0;
+}
+
+// Gridlines: every body cell carries a hairline bottom + right rule so the
+// table reads as a true grid (Carbon "bordered" data table).
+.tableWrapper tbody td {
+  border-bottom: 1px solid var(--mb-border-subtle, #e0e0e0);
+  border-right: 1px solid var(--mb-border-subtle, #e0e0e0);
+}
+
+.tableWrapper tbody td:last-child {
+  border-right: 0;
+}
+
+// Zebra striping: alternate rows take a faint theme-aware layer so adjacent
+// rows are distinguishable in dense tables. Theme-adaptive (subtle dark tint
+// on light, subtle light tint on dark) via a text-colour overlay.
+.tableWrapper tbody tr:nth-of-type(even) {
+  background: color-mix(in srgb, var(--mb-text-primary, #161616) 4%, transparent);
 }
 
 // Row affordances: smooth hover, distinct selected tint.
