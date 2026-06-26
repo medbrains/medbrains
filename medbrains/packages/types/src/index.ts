@@ -10051,6 +10051,21 @@ export interface UnifiedAsset {
   open_reservation_count: number;
 }
 
+/** A normalised cross-domain requisition (store indent or asset request). */
+export interface Requisition {
+  id: string;
+  /** "store_indent" | "asset_request". */
+  kind: string;
+  reference: string | null;
+  title: string;
+  department_name: string | null;
+  requested_by_name: string | null;
+  priority: string | null;
+  status: string;
+  open: boolean;
+  created_at: string;
+}
+
 /** One row of the asset-movement ledger / inter-department request flow. */
 export interface AssetMovement {
   id: string;

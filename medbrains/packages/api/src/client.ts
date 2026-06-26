@@ -1501,6 +1501,7 @@ import type {
   ReportCatalogResponse,
   ReportDataResponse,
   ReportToCertInRequest,
+  Requisition,
   RescheduleAppointmentRequest,
   ResearchConsentPrintData,
   ResearchProposalFormPrintData,
@@ -6313,6 +6314,13 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  listRequisitions: (params?: { kind?: string; state?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.kind) sp.set("kind", params.kind);
+    if (params?.state) sp.set("state", params.state);
+    const qs = sp.toString();
+    return request<Requisition[]>(`/materials/requisitions${qs ? `?${qs}` : ""}`);
+  },
   listAssetMovements: (params?: { source_type?: string; source_id?: string; status?: string }) => {
     const sp = new URLSearchParams();
     if (params?.source_type) sp.set("source_type", params.source_type);

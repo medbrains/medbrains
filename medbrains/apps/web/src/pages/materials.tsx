@@ -17,9 +17,11 @@ import {
   IconArrowsExchange,
   IconBuildingWarehouse,
   IconClipboardList,
+  IconInbox,
   IconShoppingCart,
 } from "@tabler/icons-react";
 import { type ReactNode, useState } from "react";
+import { RequisitionsInbox } from "@/components/Materials/RequisitionsInbox";
 import { PageHeader } from "@/components/PageHeader";
 import { type RailItem, WorkspaceRail } from "@/components/WorkspaceRail";
 import { AssetsPage } from "./assets";
@@ -40,9 +42,15 @@ export function MaterialsPage() {
   ]);
 
   const sectionDefs: Array<Section | false> = [
+    (canRequisitions || canAssets) && {
+      value: "inbox",
+      label: "Requisitions",
+      icon: <IconInbox size={16} />,
+      content: <RequisitionsInbox />,
+    },
     canRequisitions && {
       value: "requisitions",
-      label: "Requisitions & Store",
+      label: "Stores & Indents",
       icon: <IconClipboardList size={16} />,
       content: <IndentPage />,
     },

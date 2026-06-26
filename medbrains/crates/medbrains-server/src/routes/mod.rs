@@ -69,6 +69,7 @@ pub mod ipd_post_discharge;
 pub mod it_security;
 pub mod lab;
 pub mod lms;
+pub mod materials;
 pub mod mfa;
 pub mod mrd;
 pub mod multi_hospital;
@@ -4204,6 +4205,10 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/assets/classifications",
             post(assets::upsert_asset_classification),
+        )
+        .route(
+            "/api/materials/requisitions",
+            get(materials::list_requisitions),
         )
         .route(
             "/api/assets/movements",

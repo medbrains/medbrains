@@ -14,4 +14,5 @@ export const assetsService = {
   completeAssetMovement: api.completeAssetMovement,
   rejectAssetMovement: api.rejectAssetMovement,
   listDepartments: api.listDepartments,
+  listRequisitions: api.listRequisitions,
 };
