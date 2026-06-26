@@ -298,7 +298,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
           comboboxProps: MODAL_DROPDOWN_PROPS,
           maxDropdownHeight: MODAL_DROPDOWN_MAX_HEIGHT,
           radius: "md",
-          size: "sm",
+          size: "md",
           variant: "default",
         },
       }),
@@ -309,7 +309,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
           comboboxProps: MODAL_DROPDOWN_PROPS,
           maxDropdownHeight: MODAL_DROPDOWN_MAX_HEIGHT,
           radius: "md",
-          size: "sm",
+          size: "md",
           variant: "default",
         },
       }),
@@ -319,7 +319,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
           comboboxProps: MODAL_DROPDOWN_PROPS,
           maxDropdownHeight: MODAL_DROPDOWN_MAX_HEIGHT,
           radius: "md",
-          size: "sm",
+          size: "md",
           variant: "default",
         },
       }),
@@ -329,7 +329,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
           comboboxProps: MODAL_DROPDOWN_PROPS,
           maxDropdownHeight: MODAL_DROPDOWN_MAX_HEIGHT,
           radius: "md",
-          size: "sm",
+          size: "md",
           variant: "default",
         },
       }),
@@ -347,7 +347,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
         defaultProps: {
           popoverProps: MODAL_DROPDOWN_PROPS,
           radius: "md",
-          size: "sm",
+          size: "md",
           variant: "default",
         },
       }),
@@ -356,7 +356,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
         defaultProps: {
           popoverProps: MODAL_DROPDOWN_PROPS,
           radius: "md",
-          size: "sm",
+          size: "md",
           variant: "default",
         },
       }),
@@ -365,7 +365,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
         defaultProps: {
           popoverProps: MODAL_DROPDOWN_PROPS,
           radius: "md",
-          size: "sm",
+          size: "md",
           variant: "default",
         },
       }),
@@ -438,7 +438,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
       TextInput: {
         defaultProps: {
           radius: "none",
-          size: "sm",
+          size: "md",
           variant: "default",
         },
       },
@@ -446,7 +446,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
       PasswordInput: {
         defaultProps: {
           radius: "none",
-          size: "sm",
+          size: "md",
           variant: "default",
         },
       },
@@ -454,7 +454,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
       Textarea: {
         defaultProps: {
           radius: "none",
-          size: "sm",
+          size: "md",
           variant: "default",
         },
       },
@@ -462,7 +462,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
       NumberInput: {
         defaultProps: {
           radius: "none",
-          size: "sm",
+          size: "md",
           variant: "default",
         },
       },
