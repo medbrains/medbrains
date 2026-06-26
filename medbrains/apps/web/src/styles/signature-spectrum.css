@@ -171,8 +171,23 @@ body[data-dlp="on"] [contenteditable="true"] {
   background-position: -1px -1px;
 }
 
-/* Smooth the colour change when toggling theme (View Transitions handles
-   the crossfade where supported; this is the fallback for key surfaces). */
+/* Theme toggle uses the View Transitions API for a directional clip-path
+   reveal (see ThemeToggle). Disable the default crossfade and stack the new
+   snapshot on top so the expanding circle reveals it. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-new(root) {
+  z-index: 1;
+}
+::view-transition-old(root) {
+  z-index: 0;
+}
+
+/* Fallback for browsers without View Transitions (theme change is instant):
+   ease the key surfaces' colours. */
 @media (prefers-reduced-motion: no-preference) {
   body,
   .mantine-AppShell-main,

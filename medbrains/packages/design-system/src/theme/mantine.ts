@@ -146,7 +146,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
 
   return createTheme({
     primaryColor: "primary",
-    primaryShade: { light: 5, dark: 3 },
+    primaryShade: { light: 5, dark: 5 },
 
     colors: {
       primary: blueTuple,
