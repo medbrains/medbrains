@@ -101,5 +101,8 @@
   "bedsidePortal": "Bedside Portal",
   "documentTemplates": "Document Templates",
   "groupFavorites": "Favorites",
-  "healthPulse": "Health Pulse"
+  "healthPulse": "Health Pulse",
+  "lms": "Learning (LMS)",
+  "nabhIndicators": "NABH Indicators",
+  "pairedDevices": "Paired Devices"
 }

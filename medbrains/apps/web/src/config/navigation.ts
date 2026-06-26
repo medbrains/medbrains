@@ -255,6 +255,8 @@ const MODULE_BADGE_DEFS: Record<string, ModuleBadge> = {
   "/retrospective": { abbr: "Rsp", color: "#6929c4" },
   "/admin/devices": { abbr: "Dev", color: "#198038" },
   "/admin/paired-devices": { abbr: "PD", color: "#9f1853" },
+  "/lab": { abbr: "Lab", color: "#0072c3" },
+  "/hr": { abbr: "HR", color: "#6929c4" },
 };
 
 /** Module badge for an exact nav path, or undefined if the module has none. */
