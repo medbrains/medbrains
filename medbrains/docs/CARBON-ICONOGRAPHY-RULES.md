@@ -16,6 +16,24 @@ legible, and accessible. Pairs with `docs/UI_GUIDELINES.md` + the WCAG rules.
   real glyph (this was the #3479 fix). Abbr badges are allowed only as a labelled
   identity mark in page headers, never as a substitute for a nav icon.
 
+## UI icons vs App icons (Carbon distinguishes them)
+
+Carbon has two libraries — use the right one:
+
+- **UI icons** (https://www.ibm.com/design/language/iconography/ui-icons/library) —
+  functional, **monochrome line** icons inside the interface: nav, buttons, status,
+  inputs, table actions. Single colour (currentColor), 16/20/24/32px, ~2px stroke.
+  **This is 99% of MedBrains icons → `@tabler/icons-react`.** One concept = one UI
+  icon, reused via `ICON_MAP`.
+- **App / product icons**
+  (https://www.ibm.com/design/language/iconography/app-icons/library) — larger,
+  **more detailed, may use a brand accent colour**, represent a product/module/
+  launcher tile (not an in-UI control). In MedBrains these are the **brand mark**
+  (`/logo/medbrains-mark.svg`) and the per-module identity marks. Rules: keep them
+  on their own grid, don't drop them inline as UI icons, and don't restyle them
+  with `currentColor` (they carry their own brand colour). A UI control never uses
+  an app icon and vice-versa.
+
 ## Grid & size
 
 - Icons sit on the Carbon icon grid. Standard sizes (px, on the 8px system):
