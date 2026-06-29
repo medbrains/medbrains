@@ -18,6 +18,7 @@ export const specialtyService = {
   listRehabSessions: api.listRehabSessions,
   listAudiologyTests: api.listAudiologyTests,
   createRehabPlan: api.createRehabPlan,
+  createRehabSession: api.createRehabSession,
   listPsychPatients: api.listPsychPatients,
   listPsychAssessments: api.listPsychAssessments,
   listEctSessions: api.listEctSessions,

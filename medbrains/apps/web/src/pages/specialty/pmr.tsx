@@ -1,10 +1,11 @@
-import { Drawer, NumberInput, Select, Stack, Tabs, Text, Textarea, TextInput } from "@mantine/core";
+import { Drawer, Group, NumberInput, Select, Stack, Tabs, Text, Textarea } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { useHasPermission } from "@medbrains/stores";
+import { useAuthStore, useHasPermission } from "@medbrains/stores";
 import type {
   AudiologyTest,
   CreateRehabPlanRequest,
+  CreateRehabSessionRequest,
   RehabDiscipline,
   RehabPlan,
   RehabSession,
@@ -16,6 +17,7 @@ import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
@@ -45,9 +47,11 @@ export function PmrPage() {
   const qc = useQueryClient();
   const canPlan = useHasPermission(P.SPECIALTY.PMR.PLANS_CREATE);
 
+  const currentUserId = useAuthStore((s) => s.user?.id);
   const [tab, setTab] = useState<string | null>("plans");
   const [planOpen, planHandlers] = useDisclosure(false);
-  const [selectedPlanId] = useState<string | null>(null);
+  const [sessionOpen, sessionHandlers] = useDisclosure(false);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
   const { data: plans = [], isLoading } = useQuery({
     queryKey: ["rehab-plans"],
@@ -76,6 +80,31 @@ export function PmrPage() {
       notifications.show({ title: "Created", message: "Rehab plan created", color: "success" });
     },
   });
+
+  const selectedPlan = plans.find((p) => p.id === selectedPlanId) ?? null;
+  const blankSession = (): CreateRehabSessionRequest => ({
+    session_number: sessions.length + 1,
+    therapist_id: currentUserId ?? "",
+    intervention: "",
+  });
+  const [sessionForm, setSessionForm] = useState<CreateRehabSessionRequest>(blankSession);
+
+  const createSession = useMutation({
+    mutationFn: (data: CreateRehabSessionRequest) =>
+      specialtyService.createRehabSession(selectedPlanId ?? "", data),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["rehab-sessions", selectedPlanId] });
+      sessionHandlers.close();
+      notifications.show({ title: "Recorded", message: "Session logged", color: "success" });
+    },
+    onError: (e: Error) =>
+      notifications.show({ title: "Failed", message: e.message, color: "red" }),
+  });
+
+  const openSession = () => {
+    setSessionForm(blankSession());
+    sessionHandlers.open();
+  };
 
   const planCols: Column<RehabPlan>[] = [
     {
@@ -179,13 +208,47 @@ export function PmrPage() {
           <Tabs.Tab value="audiology">Audiology</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="plans" pt="md">
-          <DataTable columns={planCols} data={plans} loading={isLoading} rowKey={(r) => r.id} />
+          <DataTable
+            columns={planCols}
+            data={plans}
+            loading={isLoading}
+            rowKey={(r) => r.id}
+            onRowClick={(r) => {
+              setSelectedPlanId(r.id);
+              setTab("sessions");
+            }}
+          />
         </Tabs.Panel>
         <Tabs.Panel value="sessions" pt="md">
-          {selectedPlanId ? (
-            <DataTable columns={sessionCols} data={sessions} loading={false} rowKey={(r) => r.id} />
+          {selectedPlan ? (
+            <Stack gap="sm">
+              <Group justify="space-between">
+                <Text size="sm" c="dimmed">
+                  {selectedPlan.discipline.replace(/_/g, " ")} plan · {sessions.length} session
+                  {sessions.length === 1 ? "" : "s"}
+                </Text>
+                {canPlan && (
+                  <Button
+                    size="xs"
+                    tone="primary"
+                    leftSection={<IconPlus size={14} />}
+                    onClick={openSession}
+                  >
+                    Record session
+                  </Button>
+                )}
+              </Group>
+              <DataTable
+                columns={sessionCols}
+                data={sessions}
+                loading={false}
+                rowKey={(r) => r.id}
+              />
+            </Stack>
           ) : (
-            <Text c="dimmed">Select a rehab plan to view sessions</Text>
+            <Text c="dimmed">
+              Select a rehab plan (from the Plans tab) to view and record sessions
+            </Text>
           )}
         </Tabs.Panel>
         <Tabs.Panel value="audiology" pt="md">
@@ -200,11 +263,9 @@ export function PmrPage() {
         position="right"
       >
         <Stack>
-          <TextInput
-            label="Patient ID"
-            required
+          <PatientSearchSelect
             value={planForm.patient_id}
-            onChange={(e) => setPlanForm((p) => ({ ...p, patient_id: e.currentTarget.value }))}
+            onChange={(patientId) => setPlanForm((p) => ({ ...p, patient_id: patientId }))}
           />
           <Select
             label="Discipline"
@@ -244,6 +305,67 @@ export function PmrPage() {
             loading={createPlan.isPending}
           >
             Create Plan
+          </Button>
+        </Stack>
+      </Drawer>
+
+      <Drawer
+        opened={sessionOpen}
+        onClose={sessionHandlers.close}
+        title="Record rehabilitation session"
+        size="lg"
+        position="right"
+      >
+        <Stack>
+          <NumberInput
+            label="Session number"
+            required
+            min={1}
+            value={sessionForm.session_number}
+            onChange={(v) =>
+              setSessionForm((p) => ({ ...p, session_number: typeof v === "number" ? v : 1 }))
+            }
+          />
+          <Textarea
+            label="Intervention"
+            required
+            placeholder="Therapy performed this session (e.g. gait training, ROM exercises)"
+            value={sessionForm.intervention ?? ""}
+            onChange={(e) => setSessionForm((p) => ({ ...p, intervention: e.currentTarget.value }))}
+          />
+          <NumberInput
+            label="Pain score (0–10)"
+            min={0}
+            max={10}
+            value={sessionForm.pain_score ?? ""}
+            onChange={(v) =>
+              setSessionForm((p) => ({ ...p, pain_score: typeof v === "number" ? v : undefined }))
+            }
+          />
+          <NumberInput
+            label="FIM score"
+            value={sessionForm.fim_score ?? ""}
+            onChange={(v) =>
+              setSessionForm((p) => ({ ...p, fim_score: typeof v === "number" ? v : undefined }))
+            }
+          />
+          <NumberInput
+            label="Barthel score"
+            value={sessionForm.barthel_score ?? ""}
+            onChange={(v) =>
+              setSessionForm((p) => ({
+                ...p,
+                barthel_score: typeof v === "number" ? v : undefined,
+              }))
+            }
+          />
+          <Button
+            tone="primary"
+            disabled={!sessionForm.intervention?.trim()}
+            loading={createSession.isPending}
+            onClick={() => createSession.mutate(sessionForm)}
+          >
+            Save session
           </Button>
         </Stack>
       </Drawer>
