@@ -18,6 +18,7 @@ import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
@@ -360,11 +361,9 @@ export function PsychiatryPage() {
         position="right"
       >
         <Stack>
-          <TextInput
-            label="Patient ID"
-            required
+          <PatientSearchSelect
             value={patForm.patient_id}
-            onChange={(e) => setPatForm((p) => ({ ...p, patient_id: e.currentTarget.value }))}
+            onChange={(patientId) => setPatForm((p) => ({ ...p, patient_id: patientId }))}
           />
           <Select
             label="Admission Category"

@@ -16,6 +16,7 @@ import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
@@ -269,11 +270,9 @@ export function EndoscopyPage() {
         position="right"
       >
         <Stack>
-          <TextInput
-            label="Patient ID"
-            required
+          <PatientSearchSelect
             value={procForm.patient_id}
-            onChange={(e) => setProcForm((p) => ({ ...p, patient_id: e.currentTarget.value }))}
+            onChange={(patientId) => setProcForm((p) => ({ ...p, patient_id: patientId }))}
           />
           <TextInput
             label="Procedure Type"

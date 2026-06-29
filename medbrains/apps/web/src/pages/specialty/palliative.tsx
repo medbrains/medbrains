@@ -19,6 +19,7 @@ import { useSearchParams } from "react-router";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
@@ -440,11 +441,9 @@ export function PalliativePage() {
         position="right"
       >
         <Stack>
-          <TextInput
-            label="Patient ID"
-            required
+          <PatientSearchSelect
             value={dnrForm.patient_id}
-            onChange={(e) => setDnrForm((p) => ({ ...p, patient_id: e.currentTarget.value }))}
+            onChange={(patientId) => setDnrForm((p) => ({ ...p, patient_id: patientId }))}
           />
           <TextInput
             label="Admission ID"
@@ -474,11 +473,9 @@ export function PalliativePage() {
         position="right"
       >
         <Stack>
-          <TextInput
-            label="Patient ID"
-            required
+          <PatientSearchSelect
             value={painForm.patient_id}
-            onChange={(e) => setPainForm((p) => ({ ...p, patient_id: e.currentTarget.value }))}
+            onChange={(patientId) => setPainForm((p) => ({ ...p, patient_id: patientId }))}
           />
           <NumberInput
             label="Pain Score (0-10)"
