@@ -8,9 +8,10 @@ import { Alert, Button, Modal } from "@/components/ui";
 export interface SafetyIssue {
   /**
    * "allergy" is a sentinel-event class (danger); "interaction" is a serious
-   * drug-drug pair (danger); "dose" is a ceiling breach (warning).
+   * drug-drug pair (danger); "duplicate" is a therapeutic duplication
+   * (warning); "dose" is a ceiling breach (warning).
    */
-  kind: "allergy" | "dose" | "interaction";
+  kind: "allergy" | "dose" | "interaction" | "duplicate";
   name: string;
   detail: string;
 }
@@ -31,6 +32,7 @@ interface Props {
 function IssueGroup({ issues }: { issues: SafetyIssue[] }) {
   const allergy = issues.filter((i) => i.kind === "allergy");
   const interaction = issues.filter((i) => i.kind === "interaction");
+  const duplicate = issues.filter((i) => i.kind === "duplicate");
   const dose = issues.filter((i) => i.kind === "dose");
   return (
     <>
@@ -53,6 +55,21 @@ function IssueGroup({ issues }: { issues: SafetyIssue[] }) {
         >
           <Stack gap={2}>
             {interaction.map((e) => (
+              <Text key={e.name} size="sm">
+                <b>{e.name}</b> — {e.detail}
+              </Text>
+            ))}
+          </Stack>
+        </Alert>
+      )}
+      {duplicate.length > 0 && (
+        <Alert
+          tone="warning"
+          icon={<IconAlertTriangle size={16} />}
+          title="Therapeutic duplication"
+        >
+          <Stack gap={2}>
+            {duplicate.map((e) => (
               <Text key={e.name} size="sm">
                 <b>{e.name}</b> — {e.detail}
               </Text>

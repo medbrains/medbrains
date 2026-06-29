@@ -325,6 +325,10 @@ pub struct CreatePrescriptionRequest {
     /// drug-drug interaction. Required (non-blank) when the order pairs two
     /// drugs flagged in `drug_interactions` at major/contraindicated severity.
     pub interaction_override_reason: Option<String>,
+    /// Clinician's reason for prescribing two drugs with the same active
+    /// ingredient (therapeutic duplication). Required (non-blank) when two
+    /// catalogued lines share a generic / INN.
+    pub duplicate_override_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2361,6 +2365,54 @@ pub async fn create_prescription(
         )));
     }
 
+    // Therapeutic-duplication backstop: two catalogued lines that share an
+    // active ingredient (generic / INN) are a common prescribing error. Warn &
+    // require an acknowledged reason (logged). Free-text lines without a
+    // catalogue id are skipped — we can't resolve their ingredient.
+    let dup_catalog_ids: Vec<Uuid> = body.items.iter().filter_map(|i| i.catalog_item_id).collect();
+    let mut duplicate_groups: Vec<String> = Vec::new();
+    if dup_catalog_ids.len() > 1 {
+        let ingredients = sqlx::query_as::<_, (Uuid, String)>(
+            "SELECT id, lower(COALESCE(NULLIF(generic_name, ''), NULLIF(inn_name, ''), name)) \
+             FROM pharmacy_catalog WHERE tenant_id = $1 AND id = ANY($2)",
+        )
+        .bind(claims.tenant_id)
+        .bind(&dup_catalog_ids)
+        .fetch_all(&mut *tx)
+        .await?;
+        let id_to_ingredient: HashMap<Uuid, String> =
+            ingredients.into_iter().collect();
+
+        let mut by_ingredient: HashMap<String, Vec<String>> =
+            HashMap::new();
+        for item in &body.items {
+            if let Some(cid) = item.catalog_item_id {
+                if let Some(ingredient) = id_to_ingredient.get(&cid) {
+                    by_ingredient
+                        .entry(ingredient.clone())
+                        .or_default()
+                        .push(item.drug_name.clone());
+                }
+            }
+        }
+        for (ingredient, drugs) in by_ingredient {
+            if drugs.len() > 1 {
+                duplicate_groups.push(format!("{} ({})", ingredient, drugs.join(", ")));
+            }
+        }
+    }
+    let duplicate_reason = body
+        .duplicate_override_reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|r| !r.is_empty());
+    if !duplicate_groups.is_empty() && duplicate_reason.is_none() {
+        return Err(AppError::BadRequest(format!(
+            "Therapeutic duplication — same active ingredient on multiple lines: {}. Provide an override reason to proceed.",
+            duplicate_groups.join("; ")
+        )));
+    }
+
     let rx = sqlx::query_as::<_, Prescription>(
         "INSERT INTO prescriptions \
            (tenant_id, encounter_id, doctor_id, notes, order_mode, transcribed_by, \
@@ -2457,6 +2509,31 @@ pub async fn create_prescription(
                     tenant_id: claims.tenant_id,
                     user_id: Some(claims.sub),
                     action: "prescription.interaction_override",
+                    entity_type: "prescription",
+                    entity_id: Some(rx.id),
+                    old_values: None,
+                    new_values: Some(&audit_values),
+                    ip_address: None,
+                },
+            )
+            .await?;
+        }
+    }
+
+    if let Some(reason) = duplicate_reason {
+        if !duplicate_groups.is_empty() {
+            let audit_values = serde_json::json!({
+                "prescription_id": rx.id,
+                "encounter_id": encounter_id,
+                "override_reason": reason,
+                "duplicates": duplicate_groups,
+            });
+            medbrains_db::audit::AuditLogger::log(
+                &mut tx,
+                &medbrains_db::audit::AuditEntry {
+                    tenant_id: claims.tenant_id,
+                    user_id: Some(claims.sub),
+                    action: "prescription.duplicate_override",
                     entity_type: "prescription",
                     entity_id: Some(rx.id),
                     old_values: None,

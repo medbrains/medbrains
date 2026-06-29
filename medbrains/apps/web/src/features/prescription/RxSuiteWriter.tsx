@@ -171,13 +171,14 @@ export function RxSuiteWriter({
 
   const doSave = (
     items: RxItem[],
-    overrides?: { dose?: string; allergy?: string; interaction?: string },
+    overrides?: { dose?: string; allergy?: string; interaction?: string; duplicate?: string },
   ) => {
     onSave({
       items: rxItemsToInput(items),
       ...(overrides?.dose ? { dose_override_reason: overrides.dose } : {}),
       ...(overrides?.allergy ? { allergy_override_reason: overrides.allergy } : {}),
       ...(overrides?.interaction ? { interaction_override_reason: overrides.interaction } : {}),
+      ...(overrides?.duplicate ? { duplicate_override_reason: overrides.duplicate } : {}),
       ...(isVerbal
         ? {
             order_mode: orderMode,
@@ -221,6 +222,25 @@ export function RxSuiteWriter({
         });
       }
     }
+    // Therapeutic duplication: two catalogued lines sharing an active
+    // ingredient (salt). The server re-checks against the catalogue at save.
+    const bySalt = new Map<string, string[]>();
+    for (const it of items) {
+      const salt = formularyById[it.id]?.salt?.trim().toLowerCase();
+      if (!salt) continue;
+      const names = bySalt.get(salt) ?? [];
+      names.push(it.name);
+      bySalt.set(salt, names);
+    }
+    for (const names of bySalt.values()) {
+      if (names.length > 1) {
+        issues.push({
+          kind: "duplicate",
+          name: names.join(" + "),
+          detail: "Same active ingredient on multiple lines",
+        });
+      }
+    }
     return issues;
   };
 
@@ -249,6 +269,7 @@ export function RxSuiteWriter({
         dose: overrideIssues.some((i) => i.kind === "dose") ? reason : undefined,
         allergy: overrideIssues.some((i) => i.kind === "allergy") ? reason : undefined,
         interaction: overrideIssues.some((i) => i.kind === "interaction") ? reason : undefined,
+        duplicate: overrideIssues.some((i) => i.kind === "duplicate") ? reason : undefined,
       });
     }
     setPendingItems(null);

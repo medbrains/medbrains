@@ -4393,6 +4393,8 @@ export interface CreatePrescriptionRequest {
   allergy_override_reason?: string;
   /** Reason for prescribing despite a major/contraindicated drug-drug interaction — required on conflict. */
   interaction_override_reason?: string;
+  /** Reason for prescribing two drugs with the same active ingredient (therapeutic duplication) — required on conflict. */
+  duplicate_override_reason?: string;
 }
 
 export interface UpdatePrescriptionRequest {
