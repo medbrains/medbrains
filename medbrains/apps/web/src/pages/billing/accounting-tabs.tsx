@@ -19,11 +19,13 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
+  type BillingConcessionFormInput,
   type BillingErpExportFormInput,
   type BillingGstrFormInput,
   type BillingJournalEntryFormInput,
   type BillingJournalLineFormInput,
   type BillingTdsFormInput,
+  billingConcessionFormSchema,
   billingErpExportFormSchema,
   billingGstrFormSchema,
   billingJournalEntryFormSchema,
@@ -34,6 +36,7 @@ import {
   type AutoConcessionRule,
   type BankTransaction,
   type BillingConcession,
+  type CreateConcessionRequest,
   type CreateJournalEntryRequest,
   type CreateTdsRequest,
   type ErpExportLog,
@@ -62,6 +65,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   billingErpExportTypeOptions,
@@ -1749,6 +1753,8 @@ export function ErpExportTab() {
 
 export function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
   const queryClient = useQueryClient();
+  const canCreate = useHasPermission(P.BILLING.CONCESSIONS_CREATE);
+  const [createOpened, createDrawer] = useDisclosure(false);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [view, setView] = useState<"list" | "rules">("list");
 
@@ -1903,7 +1909,7 @@ export function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
 
       {view === "list" && (
         <>
-          <Group>
+          <Group justify="space-between">
             <Select
               placeholder="Filter by status"
               data={[
@@ -1917,6 +1923,15 @@ export function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
               clearable
               w={200}
             />
+            {canCreate && (
+              <Button
+                tone="primary"
+                leftSection={<IconPlus size={16} />}
+                onClick={createDrawer.open}
+              >
+                New concession
+              </Button>
+            )}
           </Group>
           <DataTable
             columns={columns}
@@ -1955,6 +1970,223 @@ export function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
           </Button>
         </Card>
       )}
+
+      <ConcessionCreateDrawer
+        opened={createOpened}
+        onClose={createDrawer.close}
+        onCreated={() => queryClient.invalidateQueries({ queryKey: ["billing", "concessions"] })}
+      />
     </Stack>
+  );
+}
+
+const CONCESSION_TYPE_OPTIONS = [
+  { value: "charity", label: "Charity" },
+  { value: "staff", label: "Staff" },
+  { value: "camp", label: "Camp" },
+  { value: "senior_citizen", label: "Senior citizen" },
+  { value: "management", label: "Management" },
+  { value: "corporate", label: "Corporate" },
+  { value: "other", label: "Other" },
+];
+
+const concessionDefaults: BillingConcessionFormInput = {
+  invoice_id: "",
+  invoice_item_id: "",
+  concession_type: "charity",
+  concession_amount: 0,
+  reason: "",
+};
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function ConcessionCreateDrawer({
+  opened,
+  onClose,
+  onCreated,
+}: {
+  opened: boolean;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [patientId, setPatientId] = useState("");
+  const {
+    control,
+    handleSubmit,
+    watch,
+    reset,
+    setValue,
+    formState: { errors },
+  } = useForm<BillingConcessionFormInput>({
+    resolver: zodResolver(billingConcessionFormSchema),
+    defaultValues: concessionDefaults,
+  });
+
+  const invoiceId = watch("invoice_id");
+  const itemId = watch("invoice_item_id");
+  const concessionAmount = watch("concession_amount");
+
+  const { data: invoiceList } = useQuery({
+    queryKey: ["billing", "concession-invoices", patientId],
+    queryFn: () => billingService.listInvoices({ patient_id: patientId }),
+    enabled: patientId.length > 0,
+  });
+
+  const { data: invoiceDetail } = useQuery({
+    queryKey: ["billing", "concession-invoice-detail", invoiceId],
+    queryFn: () => billingService.getInvoice(invoiceId),
+    enabled: invoiceId.length > 0,
+  });
+
+  const invoiceOptions = (invoiceList?.invoices ?? []).map((inv) => ({
+    value: inv.id,
+    label: `${inv.invoice_number} · ₹${inv.total_amount}`,
+  }));
+  const itemOptions = (invoiceDetail?.items ?? []).map((item) => ({
+    value: item.id,
+    label: `${item.description} · ₹${item.total_price}`,
+  }));
+  const selectedItem = invoiceDetail?.items.find((item) => item.id === itemId);
+  const originalAmount = selectedItem ? Number(selectedItem.total_price) : 0;
+  const finalAmount = round2(Math.max(0, originalAmount - (Number(concessionAmount) || 0)));
+
+  const handleClose = () => {
+    reset(concessionDefaults);
+    setPatientId("");
+    onClose();
+  };
+
+  const createMut = useMutation({
+    mutationFn: (data: BillingConcessionFormInput) => {
+      const item = invoiceDetail?.items.find((i) => i.id === data.invoice_item_id);
+      const original = item ? Number(item.total_price) : 0;
+      const request: CreateConcessionRequest = {
+        invoice_id: data.invoice_id,
+        invoice_item_id: data.invoice_item_id,
+        patient_id: patientId,
+        concession_type: data.concession_type,
+        original_amount: original,
+        concession_amount: Number(data.concession_amount),
+        final_amount: round2(original - Number(data.concession_amount)),
+        reason: data.reason,
+        source_module: "manual",
+      };
+      return billingService.createConcession(request);
+    },
+    onSuccess: () => {
+      toast.success("Concession submitted for approval", { title: "Created" });
+      reset(concessionDefaults);
+      setPatientId("");
+      onCreated();
+      onClose();
+    },
+    onError: (err: Error) => toast.error(err.message, { title: "Could not create concession" }),
+  });
+
+  return (
+    <Drawer opened={opened} onClose={handleClose} title="New concession" position="right" size="lg">
+      <Stack component="form" onSubmit={handleSubmit((data) => createMut.mutate(data))}>
+        <PatientSearchSelect
+          value={patientId}
+          onChange={(id) => {
+            setPatientId(id);
+            setValue("invoice_id", "");
+            setValue("invoice_item_id", "");
+          }}
+          required
+        />
+        <Controller
+          control={control}
+          name="invoice_id"
+          render={({ field }) => (
+            <Select
+              label="Invoice"
+              placeholder={patientId ? "Select an invoice" : "Pick a patient first"}
+              data={invoiceOptions}
+              value={field.value}
+              onChange={(value) => {
+                field.onChange(value ?? "");
+                setValue("invoice_item_id", "");
+              }}
+              disabled={!patientId}
+              searchable
+              required
+              error={errors.invoice_id?.message}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="invoice_item_id"
+          render={({ field }) => (
+            <Select
+              label="Line item"
+              placeholder={invoiceId ? "Select a line item" : "Pick an invoice first"}
+              data={itemOptions}
+              value={field.value}
+              onChange={(value) => field.onChange(value ?? "")}
+              disabled={!invoiceId}
+              searchable
+              required
+              error={errors.invoice_item_id?.message}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="concession_type"
+          render={({ field }) => (
+            <Select
+              label="Concession type"
+              data={CONCESSION_TYPE_OPTIONS}
+              value={field.value}
+              onChange={(value) => field.onChange(value ?? "charity")}
+              required
+              error={errors.concession_type?.message}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="concession_amount"
+          render={({ field }) => (
+            <NumberInput
+              label="Concession amount (₹)"
+              value={field.value}
+              onChange={field.onChange}
+              min={0}
+              max={originalAmount || undefined}
+              error={errors.concession_amount?.message}
+              required
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="reason"
+          render={({ field }) => (
+            <Textarea
+              label="Reason"
+              placeholder="Why is this concession being granted?"
+              value={field.value}
+              onChange={field.onChange}
+              minRows={2}
+              error={errors.reason?.message}
+              required
+            />
+          )}
+        />
+        <Group justify="space-between">
+          <Text size="sm" c="dimmed">
+            Original ₹{originalAmount.toFixed(2)} → Final ₹{finalAmount.toFixed(2)}
+          </Text>
+          <Button type="submit" tone="primary" loading={createMut.isPending}>
+            Submit for approval
+          </Button>
+        </Group>
+      </Stack>
+    </Drawer>
   );
 }
