@@ -2577,7 +2577,13 @@ function CreatePreferenceDrawer({ opened, onClose }: { opened: boolean; onClose:
           control={control}
           name="surgeon_id"
           render={({ field }) => (
-            <TextInput label="Surgeon ID" required {...field} error={errors.surgeon_id?.message} />
+            <DoctorSearchSelect
+              label="Surgeon"
+              required
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.surgeon_id?.message}
+            />
           )}
         />
         <Controller

@@ -69,6 +69,7 @@ import {
   StatusDot,
   useClinicalEmit,
 } from "@/components";
+import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
@@ -2510,12 +2511,7 @@ function CreateImplantForm({ onSuccess }: { onSuccess: () => void }) {
         value={implantSite}
         onChange={(e) => setImplantSite(e.currentTarget.value)}
       />
-      <TextInput
-        label="Surgeon ID"
-        placeholder="Enter surgeon user ID"
-        value={surgeonId}
-        onChange={(e) => setSurgeonId(e.currentTarget.value)}
-      />
+      <DoctorSearchSelect label="Surgeon" value={surgeonId} onChange={setSurgeonId} />
       <TextInput
         label="Manufacturer"
         value={manufacturer}

@@ -60,6 +60,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { DataTable, IpdContextStrip, ipdContextFromSearchParams, PageHeader } from "@/components";
+import { VendorSearchSelect } from "@/components/VendorSearchSelect";
 import type { Column } from "@/components/DataTable";
 import type { BadgeTone } from "@/components/ui";
 import { Alert, Badge, Button, IconButton, Table } from "@/components/ui";
@@ -1600,11 +1601,11 @@ function ContractsTab() {
               })
             }
           />
-          <TextInput
-            label="Vendor ID"
+          <VendorSearchSelect
+            label="Vendor"
             required
             value={contractForm.vendor_id}
-            onChange={(e) => setContractForm({ ...contractForm, vendor_id: e.target.value })}
+            onChange={(vendorId) => setContractForm({ ...contractForm, vendor_id: vendorId })}
           />
           <Group grow>
             <DateInput
@@ -1684,11 +1685,11 @@ function ContractsTab() {
         size="xl"
       >
         <Stack>
-          <TextInput
-            label="Vendor ID"
+          <VendorSearchSelect
+            label="Vendor"
             required
             value={evalForm.vendor_id}
-            onChange={(e) => setEvalForm({ ...evalForm, vendor_id: e.target.value })}
+            onChange={(vendorId) => setEvalForm({ ...evalForm, vendor_id: vendorId })}
           />
           <DateInput
             label="Evaluation Date"
