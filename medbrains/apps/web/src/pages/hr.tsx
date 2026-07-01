@@ -2055,6 +2055,7 @@ function TrainingTab({ canManage }: { canManage: boolean }) {
         trainer_name: recForm.trainer_name || undefined,
       }),
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["hr-training-compliance"] });
       closeRecord();
       setRecForm({
         employee_id: "",

@@ -1153,6 +1153,7 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
   const blockMut = useMutation({
     mutationFn: (data: CreateBlockRequest) => schedulingService.createScheduleBlock(data),
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["scheduling-conflicts"] });
       closeBlock();
       resetBlock(emptyBlockForm);
       toast.success("Schedule block created successfully", { title: "Block Created" });

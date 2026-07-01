@@ -796,6 +796,7 @@ function DocumentsTab() {
   const acknowledgeMut = useMutation({
     mutationFn: (id: string) => qualityService.acknowledgeDocument(id),
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["quality-documents"] });
       toast.success("", { title: "Document acknowledged" });
     },
   });
