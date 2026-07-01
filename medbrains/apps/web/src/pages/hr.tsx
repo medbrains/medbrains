@@ -18,6 +18,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type {
+  Appraisal,
   AttendanceRecord,
   Designation,
   DutyHoursRow,
@@ -28,6 +29,7 @@ import type {
   LeaveRequest,
   OnCallSchedule,
   ShiftDefinition,
+  StatutoryRecord,
   TrainingComplianceRow,
   TrainingProgram,
 } from "@medbrains/types";
@@ -49,6 +51,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
+import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -2414,6 +2417,14 @@ function TrainingTab({ canManage }: { canManage: boolean }) {
 //  Compliance Tab
 // ══════════════════════════════════════════════════════════
 
+function statutoryStatus(expiry?: string): { label: string; tone: BadgeTone } {
+  if (!expiry) return { label: "No expiry", tone: "neutral" };
+  const days = Math.ceil((new Date(expiry).getTime() - Date.now()) / 86_400_000);
+  if (days < 0) return { label: "Expired", tone: "danger" };
+  if (days <= 30) return { label: `Expiring (${days}d)`, tone: "warning" };
+  return { label: "Valid", tone: "success" };
+}
+
 function ComplianceTab({
   canManageCredentials,
   canManageAppraisal,
@@ -2430,6 +2441,96 @@ function ComplianceTab({
     queryKey: ["hr-employees"],
     queryFn: () => hrService.listEmployees({}),
   });
+
+  const qc = useQueryClient();
+  const [appraisalEmpId, setAppraisalEmpId] = useState("");
+  const [statutoryEmpId, setStatutoryEmpId] = useState("");
+
+  const { data: appraisals = [], isLoading: appraisalsLoading } = useQuery({
+    queryKey: ["hr-appraisals", appraisalEmpId],
+    queryFn: () => hrService.listAppraisals(appraisalEmpId),
+    enabled: appraisalEmpId.length > 0,
+  });
+  const { data: statutoryRecords = [], isLoading: statutoryLoading } = useQuery({
+    queryKey: ["hr-statutory", statutoryEmpId],
+    queryFn: () => hrService.listStatutoryRecords(statutoryEmpId),
+    enabled: statutoryEmpId.length > 0,
+  });
+
+  const appraisalColumns: Column<Appraisal>[] = [
+    {
+      key: "appraisal_year",
+      label: "Year",
+      render: (r) => <Text size="sm">{r.appraisal_year}</Text>,
+    },
+    {
+      key: "rating",
+      label: "Rating",
+      render: (r) => <Text size="sm">{r.rating != null ? `${r.rating}/5` : "—"}</Text>,
+    },
+    {
+      key: "strengths",
+      label: "Strengths",
+      render: (r) => (
+        <Text size="sm" lineClamp={2}>
+          {r.strengths || "—"}
+        </Text>
+      ),
+    },
+    {
+      key: "improvements",
+      label: "Areas for improvement",
+      render: (r) => (
+        <Text size="sm" lineClamp={2}>
+          {r.improvements || "—"}
+        </Text>
+      ),
+    },
+    {
+      key: "created_at",
+      label: "Recorded",
+      render: (r) => <Text size="sm">{new Date(r.created_at).toLocaleDateString()}</Text>,
+    },
+  ];
+
+  const statutoryColumns: Column<StatutoryRecord>[] = [
+    {
+      key: "record_type",
+      label: "Type",
+      render: (r) => (
+        <Badge tone="neutral" size="sm">
+          {r.record_type}
+        </Badge>
+      ),
+    },
+    {
+      key: "title",
+      label: "Title",
+      render: (r) => <Text size="sm">{r.title}</Text>,
+    },
+    {
+      key: "compliance_date",
+      label: "Compliant on",
+      render: (r) => <Text size="sm">{r.compliance_date || "—"}</Text>,
+    },
+    {
+      key: "expiry_date",
+      label: "Expires",
+      render: (r) => <Text size="sm">{r.expiry_date || "—"}</Text>,
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (r) => {
+        const status = statutoryStatus(r.expiry_date);
+        return (
+          <Badge tone={status.tone} size="sm">
+            {status.label}
+          </Badge>
+        );
+      },
+    },
+  ];
 
   // ── Appraisal form ──
   const [apprForm, setApprForm] = useState({
@@ -2449,6 +2550,7 @@ function ComplianceTab({
         improvements: apprForm.improvements || undefined,
       }),
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["hr-appraisals"] });
       closeAppraisal();
       setApprForm({
         employee_id: "",
@@ -2479,6 +2581,7 @@ function ComplianceTab({
         expiry_date: statForm.expiry_date || undefined,
       }),
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["hr-statutory"] });
       closeStat();
       setStatForm({
         employee_id: "",
@@ -2556,9 +2659,27 @@ function ComplianceTab({
             </Button>
           )}
         </Group>
-        <Text size="sm" c="dimmed">
-          Select an employee in the Employees tab to view their appraisal history.
-        </Text>
+        <Stack gap="sm">
+          <EmployeeSearchSelect
+            label="Employee"
+            value={appraisalEmpId}
+            onChange={setAppraisalEmpId}
+          />
+          {appraisalEmpId ? (
+            <DataTable
+              columns={appraisalColumns}
+              data={appraisals}
+              loading={appraisalsLoading}
+              rowKey={(r) => r.id}
+              emptyTitle="No appraisals"
+              emptyDescription="This employee has no recorded appraisals yet."
+            />
+          ) : (
+            <Text size="sm" c="dimmed">
+              Select an employee to view their appraisal history.
+            </Text>
+          )}
+        </Stack>
 
         <Drawer
           opened={appraisalOpen}
@@ -2625,9 +2746,28 @@ function ComplianceTab({
             </Button>
           )}
         </Group>
-        <Text size="sm" c="dimmed">
-          Track POSH training, fire safety certifications, and other statutory compliance records.
-        </Text>
+        <Stack gap="sm">
+          <EmployeeSearchSelect
+            label="Employee"
+            value={statutoryEmpId}
+            onChange={setStatutoryEmpId}
+          />
+          {statutoryEmpId ? (
+            <DataTable
+              columns={statutoryColumns}
+              data={statutoryRecords}
+              loading={statutoryLoading}
+              rowKey={(r) => r.id}
+              emptyTitle="No statutory records"
+              emptyDescription="No POSH, fire-safety, or other statutory records for this employee yet."
+            />
+          ) : (
+            <Text size="sm" c="dimmed">
+              Track POSH training, fire safety, and other statutory compliance. Select an employee to
+              view their records and expiry status.
+            </Text>
+          )}
+        </Stack>
 
         <Drawer
           opened={statOpen}

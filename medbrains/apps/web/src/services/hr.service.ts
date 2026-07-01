@@ -49,6 +49,10 @@ export const hrService = {
     api.trainingCompliance(...args),
   createAppraisal: (...args: Parameters<typeof api.createAppraisal>) =>
     api.createAppraisal(...args),
+  listAppraisals: (...args: Parameters<typeof api.listAppraisals>) =>
+    api.listAppraisals(...args),
   createStatutoryRecord: (...args: Parameters<typeof api.createStatutoryRecord>) =>
     api.createStatutoryRecord(...args),
+  listStatutoryRecords: (...args: Parameters<typeof api.listStatutoryRecords>) =>
+    api.listStatutoryRecords(...args),
 };
