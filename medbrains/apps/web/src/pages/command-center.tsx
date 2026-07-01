@@ -59,6 +59,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader, StatCard } from "@/components";
+import { DepartmentSelect } from "@/components/DepartmentSelect";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import type { Column } from "@/components/DataTable";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -996,9 +999,9 @@ function TransportTab() {
     defaultValues: EMPTY_TRANSPORT_FORM,
   });
   const {
+    control: assignControl,
     formState: { errors: assignErrors },
     handleSubmit: handleAssignSubmit,
-    register: registerAssign,
     reset: resetAssign,
   } = useForm<CommandCenterAssignTransportFormInput>({
     resolver: zodResolver(commandCenterAssignTransportFormSchema),
@@ -1230,10 +1233,17 @@ function TransportTab() {
         size="md"
       >
         <Stack component="form" gap="sm" onSubmit={submitTransport}>
-          <TextInput
-            label="Patient ID (optional)"
-            error={transportErrors.patient_id?.message}
-            {...registerTransport("patient_id")}
+          <Controller
+            control={transportControl}
+            name="patient_id"
+            render={({ field }) => (
+              <PatientSearchSelect
+                label="Patient (optional)"
+                value={field.value}
+                onChange={field.onChange}
+                error={transportErrors.patient_id?.message}
+              />
+            )}
           />
           <TextInput
             label="From Location ID"
@@ -1297,11 +1307,18 @@ function TransportTab() {
         size="sm"
       >
         <Stack component="form" gap="sm" onSubmit={submitAssign}>
-          <TextInput
-            label="Assign To (Staff ID)"
-            required
-            error={assignErrors.assigned_to?.message}
-            {...registerAssign("assigned_to")}
+          <Controller
+            control={assignControl}
+            name="assigned_to"
+            render={({ field }) => (
+              <EmployeeSearchSelect
+                label="Assign to"
+                required
+                value={field.value}
+                onChange={field.onChange}
+                error={assignErrors.assigned_to?.message}
+              />
+            )}
           />
           <Group justify="flex-end" mt="sm">
             <Button tone="ghost" onClick={closeAssignTransport}>
@@ -1329,7 +1346,6 @@ function AlertsThresholdsTab() {
     control: thresholdControl,
     formState: { errors: thresholdErrors },
     handleSubmit: handleThresholdSubmit,
-    register: registerThreshold,
     reset: resetThreshold,
   } = useForm<CommandCenterAlertThresholdFormInput>({
     resolver: zodResolver(commandCenterAlertThresholdFormSchema),
@@ -1609,12 +1625,18 @@ function AlertsThresholdsTab() {
         size="md"
       >
         <Stack component="form" gap="sm" onSubmit={submitThreshold}>
-          <TextInput
-            label="Department ID"
-            required
-            error={thresholdErrors.department_id?.message}
-            {...registerThreshold("department_id")}
-            placeholder="Enter department UUID"
+          <Controller
+            control={thresholdControl}
+            name="department_id"
+            render={({ field }) => (
+              <DepartmentSelect
+                label="Department"
+                required
+                value={field.value}
+                onChange={field.onChange}
+                error={thresholdErrors.department_id?.message}
+              />
+            )}
           />
           <Controller
             name="metric_code"

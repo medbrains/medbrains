@@ -60,6 +60,7 @@ import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import {
@@ -511,11 +512,18 @@ function AccessControlTab() {
           component="form"
           onSubmit={cardForm.handleSubmit((values) => createCardMut.mutate(values))}
         >
-          <TextInput
-            label="Employee ID"
-            required
-            {...cardForm.register("employee_id")}
-            error={cardForm.formState.errors.employee_id?.message}
+          <Controller
+            control={cardForm.control}
+            name="employee_id"
+            render={({ field }) => (
+              <EmployeeSearchSelect
+                label="Employee"
+                required
+                value={field.value}
+                onChange={field.onChange}
+                error={cardForm.formState.errors.employee_id?.message}
+              />
+            )}
           />
           <TextInput
             label="Card Number"
@@ -1326,10 +1334,17 @@ function PatientSafetyTab() {
               />
             )}
           />
-          <TextInput
-            label="Mother ID (for infant tags)"
-            {...tagForm.register("mother_id")}
-            error={tagForm.formState.errors.mother_id?.message}
+          <Controller
+            control={tagForm.control}
+            name="mother_id"
+            render={({ field }) => (
+              <PatientSearchSelect
+                label="Mother (for infant tags)"
+                value={field.value}
+                onChange={field.onChange}
+                error={tagForm.formState.errors.mother_id?.message}
+              />
+            )}
           />
           <Button tone="primary" type="submit" loading={createTagMut.isPending}>
             Activate Tag
