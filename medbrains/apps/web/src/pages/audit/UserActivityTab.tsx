@@ -1,9 +1,10 @@
-import { Group, Stack, Text, TextInput } from "@mantine/core";
+import { Group, Stack, Text } from "@mantine/core";
 import type { AuditLogSummary } from "@medbrains/types";
 import { IconSearch, IconUserSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { type Column, DataTable } from "@/components/DataTable";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { formatDateTime } from "@/lib/date-utils";
 import { statusColor } from "@/lib/status-colors";
@@ -102,13 +103,11 @@ export function UserActivityTab() {
           </Text>
         </Stack>
         <Group align="end" gap="xs">
-          <TextInput
-            label="User ID"
-            placeholder="Paste user UUID"
+          <EmployeeSearchSelect
+            label="User"
             value={userId}
-            onChange={(event) => setUserId(event.currentTarget.value)}
-            error={trimmedUserId && !canSearch ? "Enter a valid user UUID" : undefined}
-            w={320}
+            onChange={setUserId}
+            size="sm"
           />
           <Button
             tone="primary"

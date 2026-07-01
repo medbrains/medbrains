@@ -60,6 +60,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import type { Column } from "@/components/DataTable";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import {
@@ -1018,10 +1019,11 @@ function DriversTab() {
             name="employee_id"
             control={control}
             render={({ field }) => (
-              <TextInput
-                label="Employee ID"
+              <EmployeeSearchSelect
+                label="Employee"
                 required
-                {...field}
+                value={field.value}
+                onChange={field.onChange}
                 error={errors.employee_id?.message}
               />
             )}

@@ -64,6 +64,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import type { Column } from "@/components/DataTable";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
@@ -614,10 +615,11 @@ function CaseBoardTab() {
             name="case_manager_id"
             control={createControl}
             render={({ field }) => (
-              <TextInput
-                label="Case Manager ID"
+              <EmployeeSearchSelect
+                label="Case manager"
                 required
-                {...field}
+                value={field.value}
+                onChange={field.onChange}
                 error={createErrors.case_manager_id?.message}
               />
             )}
