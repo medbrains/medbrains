@@ -47,6 +47,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { insuranceService } from "@/services/insurance.service";
@@ -286,11 +287,9 @@ function VerificationTab() {
       {/* Run Verification Drawer */}
       <Drawer opened={opened} onClose={close} title="Run Verification" position="right" size="xl">
         <Stack gap="sm">
-          <TextInput
-            label="Patient ID"
-            required
+          <PatientSearchSelect
             value={form.patient_id}
-            onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })}
+            onChange={(patientId) => setForm({ ...form, patient_id: patientId })}
           />
           <TextInput
             label="Patient Insurance ID"
@@ -676,11 +675,9 @@ function PriorAuthTab() {
         size="lg"
       >
         <Stack gap="sm">
-          <TextInput
-            label="Patient ID"
-            required
+          <PatientSearchSelect
             value={form.patient_id}
-            onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })}
+            onChange={(patientId) => setForm({ ...form, patient_id: patientId })}
           />
           <TextInput
             label="Patient Insurance ID"

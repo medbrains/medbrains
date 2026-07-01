@@ -4235,11 +4235,12 @@ function InsuranceClaimsTab({
                   error={claimErrors.invoice_id?.message}
                   {...registerClaim("invoice_id")}
                 />
-                <TextInput
-                  label="Patient ID"
-                  required
-                  error={claimErrors.patient_id?.message}
-                  {...registerClaim("patient_id")}
+                <Controller
+                  name="patient_id"
+                  control={claimControl}
+                  render={({ field }) => (
+                    <PatientSearchSelect value={field.value ?? ""} onChange={field.onChange} />
+                  )}
                 />
               </Group>
               <Group grow>
@@ -5039,11 +5040,12 @@ function AdvancesTab() {
       {showForm && (
         <Stack component="form" gap="xs" onSubmit={handleSubmitAdvance(handleCreateAdvance)}>
           <Group grow>
-            <TextInput
-              label="Patient ID"
-              required
-              error={advanceErrors.patient_id?.message}
-              {...registerAdvance("patient_id")}
+            <Controller
+              name="patient_id"
+              control={advanceControl}
+              render={({ field }) => (
+                <PatientSearchSelect value={field.value ?? ""} onChange={field.onChange} />
+              )}
             />
             <TextInput
               label="Encounter ID"
@@ -7057,11 +7059,12 @@ function CreditPatientsTab() {
           })}
         >
           {!editId && (
-            <TextInput
-              label="Patient ID"
-              error={errors.patient_id?.message}
-              {...register("patient_id")}
-              required
+            <Controller
+              name="patient_id"
+              control={control}
+              render={({ field }) => (
+                <PatientSearchSelect value={field.value ?? ""} onChange={field.onChange} />
+              )}
             />
           )}
           <Controller
