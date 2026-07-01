@@ -58,6 +58,8 @@ import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import {
   defaultQueueTokenFormValues,
@@ -1366,19 +1368,33 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
                     />
                   )}
                 />
-                <TextInput
-                  label="Patient ID"
-                  placeholder="Optional"
-                  error={tokenForm.formState.errors.patient_id?.message}
-                  className={styles.tokenFormField}
-                  {...tokenForm.register("patient_id")}
+                <Controller
+                  control={tokenForm.control}
+                  name="patient_id"
+                  render={({ field }) => (
+                    <Box className={styles.tokenFormField}>
+                      <PatientSearchSelect
+                        label="Patient (optional)"
+                        value={field.value}
+                        onChange={field.onChange}
+                        error={tokenForm.formState.errors.patient_id?.message}
+                      />
+                    </Box>
+                  )}
                 />
-                <TextInput
-                  label="Doctor ID"
-                  placeholder="Optional"
-                  error={tokenForm.formState.errors.doctor_id?.message}
-                  className={styles.tokenFormField}
-                  {...tokenForm.register("doctor_id")}
+                <Controller
+                  control={tokenForm.control}
+                  name="doctor_id"
+                  render={({ field }) => (
+                    <Box className={styles.tokenFormField}>
+                      <DoctorSearchSelect
+                        label="Doctor (optional)"
+                        value={field.value}
+                        onChange={field.onChange}
+                        error={tokenForm.formState.errors.doctor_id?.message}
+                      />
+                    </Box>
+                  )}
                 />
                 <Controller
                   control={tokenForm.control}

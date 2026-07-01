@@ -24,6 +24,7 @@ interface SearchOrCreateProps<T> {
   searchText: string;
   minSearchLength?: number;
   required?: boolean;
+  disabled?: boolean;
   size?: string;
   error?: string;
   leftSection?: ReactNode;
@@ -52,6 +53,7 @@ export function SearchOrCreate<T>({
   searchText,
   minSearchLength = 2,
   required,
+  disabled,
   size = "sm",
   error,
   leftSection = <IconSearch size={14} />,
@@ -103,6 +105,7 @@ export function SearchOrCreate<T>({
             label={label}
             placeholder={placeholder}
             required={required}
+            disabled={disabled}
             size={size}
             error={error}
             leftSection={leftSection}

@@ -942,11 +942,12 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
             name="doctor_id"
             control={control}
             render={({ field }) => (
-              <TextInput
-                label="Doctor ID"
+              <DoctorSearchSelect
+                label="Doctor"
                 required
                 disabled={!!editing}
-                {...field}
+                value={field.value}
+                onChange={field.onChange}
                 error={errors.doctor_id?.message}
               />
             )}
@@ -955,11 +956,12 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
             name="department_id"
             control={control}
             render={({ field }) => (
-              <TextInput
-                label="Department ID"
+              <DepartmentSelect
+                label="Department"
                 required
                 disabled={!!editing}
-                {...field}
+                value={field.value}
+                onChange={field.onChange}
                 error={errors.department_id?.message}
               />
             )}

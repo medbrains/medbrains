@@ -14,6 +14,7 @@ interface DepartmentSelectProps {
   label?: string;
   placeholder?: string;
   required?: boolean;
+  disabled?: boolean;
   size?: string;
   clearable?: boolean;
   error?: string;
@@ -26,6 +27,7 @@ export function DepartmentSelect({
   label = "Department",
   placeholder = "Select department...",
   required,
+  disabled,
   size = "sm",
   clearable = true,
   error,
@@ -91,6 +93,7 @@ export function DepartmentSelect({
       onSearchChange={setSearch}
       minSearchLength={0}
       required={required}
+      disabled={disabled}
       size={size}
       error={error}
       leftSection={<IconBuilding size={14} />}

@@ -14,6 +14,7 @@ interface DoctorSearchSelectProps {
   label?: string;
   placeholder?: string;
   required?: boolean;
+  disabled?: boolean;
   size?: string;
   clearable?: boolean;
   error?: string;
@@ -27,6 +28,7 @@ export function DoctorSearchSelect({
   label = "Doctor",
   placeholder = "Select doctor...",
   required,
+  disabled,
   size = "sm",
   clearable = true,
   error,
@@ -114,6 +116,7 @@ export function DoctorSearchSelect({
       onSearchChange={setSearch}
       minSearchLength={0}
       required={required}
+      disabled={disabled}
       size={size}
       error={error}
       leftSection={<IconStethoscope size={14} />}
