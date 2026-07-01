@@ -429,6 +429,7 @@ pub struct DrugMarginDaily {
     pub revenue: Decimal,
     pub cost_total: Decimal,
     pub margin_total: Decimal,
+    pub drug_name: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -453,12 +454,14 @@ pub async fn list_margins(
 
     let limit = q.limit.unwrap_or(200).min(2000);
     let rows = sqlx::query_as::<_, DrugMarginDaily>(
-        "SELECT * FROM pharmacy_drug_margin_daily \
-         WHERE tenant_id = $1 \
-           AND ($2::date IS NULL OR snapshot_date >= $2) \
-           AND ($3::date IS NULL OR snapshot_date <= $3) \
-           AND ($4::uuid IS NULL OR drug_id = $4) \
-         ORDER BY snapshot_date DESC, margin_total DESC LIMIT $5",
+        "SELECT m.*, c.name AS drug_name \
+         FROM pharmacy_drug_margin_daily m \
+         LEFT JOIN pharmacy_catalog c ON c.id = m.drug_id AND c.tenant_id = m.tenant_id \
+         WHERE m.tenant_id = $1 \
+           AND ($2::date IS NULL OR m.snapshot_date >= $2) \
+           AND ($3::date IS NULL OR m.snapshot_date <= $3) \
+           AND ($4::uuid IS NULL OR m.drug_id = $4) \
+         ORDER BY m.snapshot_date DESC, m.margin_total DESC LIMIT $5",
     )
     .bind(claims.tenant_id)
     .bind(q.from_date)

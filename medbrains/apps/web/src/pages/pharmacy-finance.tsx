@@ -25,7 +25,8 @@ import { fieldAccessText } from "@medbrains/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { PageHeader } from "@/components";
+import { DataTable, PageHeader } from "@/components";
+import type { Column } from "@/components/DataTable";
 import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { pharmacyService } from "@/services/pharmacy.service";
@@ -63,6 +64,28 @@ interface SupplierPaymentRow {
   net_payable: string;
   status: string;
   paid_at?: string | null;
+}
+
+interface FreeDispensingRow {
+  id: string;
+  pharmacy_order_id: string;
+  category: string;
+  scheme_code?: string | null;
+  cost_value: string;
+  notes?: string | null;
+  created_at: string;
+}
+
+interface DrugMarginRow {
+  id: string;
+  drug_id: string;
+  drug_name?: string | null;
+  snapshot_date: string;
+  sale_price: string;
+  margin_pct: string;
+  qty_sold: number;
+  revenue: string;
+  margin_total: string;
 }
 
 const drawerStatusColor: Record<string, BadgeTone> = {
@@ -179,14 +202,12 @@ export function PharmacyFinancePage() {
         )}
         {canViewFreeDispensing && (
           <Tabs.Panel value="free-dispensing" pt="md">
-            <Text c="dimmed">
-              Free dispensings audit list — read via /api/pharmacy/free-dispensings.
-            </Text>
+            <FreeDispensingTab amountAccess={amountAccess} />
           </Tabs.Panel>
         )}
         {canViewFinanceReports && (
           <Tabs.Panel value="margins" pt="md">
-            <Text c="dimmed">Daily drug margins — read via /api/pharmacy/drug-margins/daily.</Text>
+            <MarginsTab amountAccess={amountAccess} />
           </Tabs.Panel>
         )}
       </Tabs>
@@ -634,5 +655,133 @@ function SupplierPaymentsTab({
         {data?.length === 0 && <Text c="dimmed">No payments.</Text>}
       </Stack>
     </Stack>
+  );
+}
+
+// ── Free Dispensing Tab ─────────────────────────────────────────────
+
+function FreeDispensingTab({ amountAccess }: { amountAccess: FieldAccessLevel }) {
+  const { data = [], isLoading } = useQuery({
+    queryKey: ["pharmacy-free-dispensings"],
+    queryFn: () =>
+      pharmacyFinanceService.listFreeDispensings({ limit: 200 }) as Promise<FreeDispensingRow[]>,
+  });
+
+  const columns: Column<FreeDispensingRow>[] = [
+    {
+      key: "created_at",
+      label: "Date",
+      render: (r) => <Text size="sm">{new Date(r.created_at).toLocaleDateString()}</Text>,
+    },
+    {
+      key: "category",
+      label: "Category",
+      render: (r) => (
+        <Badge tone="neutral" size="sm">
+          {r.category}
+        </Badge>
+      ),
+    },
+    {
+      key: "scheme_code",
+      label: "Scheme",
+      render: (r) => <Text size="sm">{r.scheme_code || "—"}</Text>,
+    },
+    {
+      key: "cost_value",
+      label: "Cost",
+      render: (r) => <Text size="sm">{financeAmountText(amountAccess, r.cost_value)}</Text>,
+    },
+    {
+      key: "notes",
+      label: "Notes",
+      render: (r) => (
+        <Text size="sm" c="dimmed">
+          {r.notes || "—"}
+        </Text>
+      ),
+    },
+  ];
+
+  return (
+    <DataTable
+      columns={columns}
+      data={data}
+      loading={isLoading}
+      rowKey={(r) => r.id}
+      emptyTitle="No free dispensings"
+      emptyDescription="Approved free or subsidised dispensings will appear here."
+    />
+  );
+}
+
+// ── Margins Tab ─────────────────────────────────────────────────────
+
+function marginTone(pct: string): BadgeTone {
+  const value = Number(pct);
+  if (Number.isNaN(value)) return "neutral";
+  if (value < 0) return "danger";
+  if (value < 10) return "warning";
+  return "success";
+}
+
+function MarginsTab({ amountAccess }: { amountAccess: FieldAccessLevel }) {
+  const { data = [], isLoading } = useQuery({
+    queryKey: ["pharmacy-drug-margins"],
+    queryFn: () =>
+      pharmacyFinanceService.listDrugMargins({ limit: 500 }) as Promise<DrugMarginRow[]>,
+  });
+
+  const columns: Column<DrugMarginRow>[] = [
+    {
+      key: "snapshot_date",
+      label: "Date",
+      render: (r) => <Text size="sm">{r.snapshot_date}</Text>,
+    },
+    {
+      key: "drug_name",
+      label: "Drug",
+      render: (r) => <Text size="sm">{r.drug_name || r.drug_id.slice(0, 8)}</Text>,
+    },
+    {
+      key: "qty_sold",
+      label: "Qty sold",
+      render: (r) => <Text size="sm">{r.qty_sold}</Text>,
+    },
+    {
+      key: "sale_price",
+      label: "Sale price",
+      render: (r) => <Text size="sm">{financeAmountText(amountAccess, r.sale_price)}</Text>,
+    },
+    {
+      key: "margin_pct",
+      label: "Margin %",
+      render: (r) => (
+        <Badge tone={marginTone(r.margin_pct)} size="sm">
+          {r.margin_pct}%
+        </Badge>
+      ),
+    },
+    {
+      key: "revenue",
+      label: "Revenue",
+      render: (r) => <Text size="sm">{financeAmountText(amountAccess, r.revenue)}</Text>,
+    },
+    {
+      key: "margin_total",
+      label: "Margin total",
+      render: (r) => <Text size="sm">{financeAmountText(amountAccess, r.margin_total)}</Text>,
+    },
+  ];
+
+  return (
+    <DataTable
+      columns={columns}
+      data={data}
+      loading={isLoading}
+      rowKey={(r) => r.id}
+      emptyTitle="No margin data"
+      emptyDescription="Daily drug-margin snapshots will appear here."
+    />
   );
 }

@@ -13,4 +13,8 @@ export const pharmacyFinanceService = {
     api.decidePettyCash(...args),
   listPharmacySupplierPayments: (...args: Parameters<typeof api.listPharmacySupplierPayments>) =>
     api.listPharmacySupplierPayments(...args),
+  listFreeDispensings: (...args: Parameters<typeof api.listFreeDispensings>) =>
+    api.listFreeDispensings(...args),
+  listDrugMargins: (...args: Parameters<typeof api.listDrugMargins>) =>
+    api.listDrugMargins(...args),
 };
