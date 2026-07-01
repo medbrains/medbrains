@@ -156,8 +156,6 @@ pub async fn list_orders(
                 per_page,
             }));
         }
-        conditions.push(format!("id = ANY(${bind_idx}::uuid[])"));
-        bind_idx += 1;
     }
 
     #[allow(clippy::items_after_statements)]
@@ -197,6 +195,14 @@ pub async fn list_orders(
             uuid_val: Some(mid),
             string_val: None,
         });
+        bind_idx += 1;
+    }
+
+    // ReBAC scope clause is appended LAST so its `$bind_idx` placeholder lines up
+    // with the bind order below (filters bind before visible_ids). Placing it first
+    // misaligned it with `$2` while visible_ids was bound after the filters.
+    if visible_ids.is_some() {
+        conditions.push(format!("id = ANY(${bind_idx}::uuid[])"));
         bind_idx += 1;
     }
 

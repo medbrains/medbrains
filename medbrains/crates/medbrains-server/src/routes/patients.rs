@@ -2465,12 +2465,35 @@ pub async fn delete_patient_contact(
 //  Patient Insurance — CRUD
 // ══════════════════════════════════════════════════════════
 
+/// Per-patient ReBAC read gate: a module-wide `patients.view` permission is NOT
+/// sufficient — the caller must hold a Viewer relation on THIS patient
+/// (deny-by-default PgAuthzBackend). Returns 404 (not 403) so existence isn't
+/// leaked. Every patient sub-resource read must call this, mirroring get_patient.
+async fn require_patient_viewer(
+    state: &AppState,
+    claims: &Claims,
+    patient_id: Uuid,
+) -> Result<(), AppError> {
+    let authz_ctx = crate::middleware::authorization::authz_context(claims);
+    let allowed = state
+        .authz
+        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", patient_id)
+        .await
+        .unwrap_or(false);
+    if allowed {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
+}
+
 pub async fn list_patient_insurance(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientInsurance>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    require_patient_viewer(&state, &claims, patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -2649,6 +2672,7 @@ pub async fn list_patient_allergies(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientAllergy>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    require_patient_viewer(&state, &claims, patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -2859,6 +2883,7 @@ pub async fn list_patient_consents(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientConsent>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    require_patient_viewer(&state, &claims, patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -3264,6 +3289,7 @@ pub async fn list_patient_visits(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientVisitRow>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    require_patient_viewer(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3315,6 +3341,7 @@ pub async fn list_patient_consultations(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientConsultationHistoryRow>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    require_patient_viewer(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3385,6 +3412,7 @@ pub async fn list_patient_lab_orders(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientLabOrderRow>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    require_patient_viewer(&state, &claims, patient_id).await?;
     require_permission(&claims, permissions::lab::orders::LIST)?;
 
     let mut tx = state.db.begin().await?;
@@ -3437,6 +3465,7 @@ pub async fn list_patient_invoices(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientInvoiceRow>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    require_patient_viewer(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3821,6 +3850,7 @@ pub async fn list_patient_documents(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientDocument>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    require_patient_viewer(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4492,6 +4522,7 @@ pub async fn get_clinical_timeline(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientTimelineEvent>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    require_patient_viewer(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

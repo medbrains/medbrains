@@ -3419,6 +3419,30 @@ pub async fn create_otc_sale(
     // OTC sale: patient_id is optional (NULL for walk-in customers)
     let patient_id = body.patient_id;
 
+    // OTC = over-the-counter: no prescription, no witness, no encounter. Scheduled
+    // and controlled drugs (Schedule H/H1/X/NDPS or is_controlled) may NOT be sold
+    // here — they require the prescription-backed dispense_order path, which enforces
+    // schedule compliance (witness, authorised prescriber) and the NDPS register write.
+    let catalog_ids: Vec<Uuid> = body.items.iter().filter_map(|i| i.catalog_item_id).collect();
+    if !catalog_ids.is_empty() {
+        let blocked: Vec<String> = sqlx::query_scalar(
+            "SELECT name FROM pharmacy_catalog \
+             WHERE tenant_id = $1 AND id = ANY($2) \
+               AND (is_controlled OR drug_schedule::text IN ('H', 'H1', 'X', 'NDPS'))",
+        )
+        .bind(claims.tenant_id)
+        .bind(&catalog_ids)
+        .fetch_all(&mut *tx)
+        .await?;
+        if !blocked.is_empty() {
+            return Err(AppError::BadRequest(format!(
+                "Cannot sell scheduled/controlled drug(s) over the counter: {}. \
+                 Use the prescription dispensing flow.",
+                blocked.join(", ")
+            )));
+        }
+    }
+
     // Allergy guard — only when the sale is linked to a patient.
     let allergy_reason = body
         .allergy_override_reason
@@ -3491,16 +3515,16 @@ pub async fn create_otc_sale(
         .fetch_one(&mut *tx)
         .await?;
 
-        // Deduct stock
+        // Deduct stock atomically with a floor guard (mirrors dispense_order):
+        // prevents overselling below zero and double-spend on concurrent sales.
         if let Some(catalog_id) = item.catalog_item_id {
-            sqlx::query(
-                "UPDATE pharmacy_catalog SET current_stock = current_stock - $1, \
-                 updated_at = now() WHERE id = $2 AND tenant_id = $3",
+            decrement_catalog_stock_for_dispense_in_tx(
+                &mut tx,
+                &claims.tenant_id,
+                catalog_id,
+                item.quantity,
+                &item.drug_name,
             )
-            .bind(item.quantity)
-            .bind(catalog_id)
-            .bind(claims.tenant_id)
-            .execute(&mut *tx)
             .await?;
         }
 
