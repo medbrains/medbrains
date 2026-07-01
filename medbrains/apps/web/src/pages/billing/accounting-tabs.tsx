@@ -1756,9 +1756,10 @@ export function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
   const canCreate = useHasPermission(P.BILLING.CONCESSIONS_CREATE);
   const [createOpened, createDrawer] = useDisclosure(false);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
   const [view, setView] = useState<"list" | "rules">("list");
 
-  const params: Record<string, string> = {};
+  const params: Record<string, string> = { page: String(page), per_page: "20" };
   if (statusFilter) params.status = statusFilter;
 
   const { data, isLoading } = useQuery({
@@ -1919,7 +1920,10 @@ export function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
                 { value: "auto_applied", label: "Auto-Applied" },
               ]}
               value={statusFilter}
-              onChange={setStatusFilter}
+              onChange={(value) => {
+                setStatusFilter(value);
+                setPage(1);
+              }}
               clearable
               w={200}
             />
@@ -1937,9 +1941,9 @@ export function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
             columns={columns}
             data={data?.concessions ?? []}
             loading={isLoading}
-            page={1}
+            page={page}
             totalPages={Math.ceil((data?.total ?? 0) / 20)}
-            onPageChange={() => {}}
+            onPageChange={setPage}
             rowKey={(r) => r.id}
           />
         </>
