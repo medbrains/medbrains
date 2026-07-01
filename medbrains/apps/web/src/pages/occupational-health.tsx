@@ -55,6 +55,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
@@ -557,11 +558,11 @@ function ScreeningsPanel() {
         size="md"
       >
         <Stack>
-          <TextInput
-            label="Employee ID"
+          <EmployeeSearchSelect
+            label="Employee"
             required
             value={form.employee_id}
-            onChange={(e) => setForm({ ...form, employee_id: e.currentTarget.value })}
+            onChange={(employeeId) => setForm({ ...form, employee_id: employeeId })}
           />
           <Select
             label="Screening Type"
@@ -690,10 +691,10 @@ function ScreeningsPanel() {
               })
             }
           />
-          <TextInput
-            label="Examiner ID"
+          <EmployeeSearchSelect
+            label="Examiner"
             value={form.examiner_id ?? ""}
-            onChange={(e) => setForm({ ...form, examiner_id: e.currentTarget.value || undefined })}
+            onChange={(employeeId) => setForm({ ...form, examiner_id: employeeId || undefined })}
           />
           <Textarea
             label="Notes"
@@ -998,11 +999,11 @@ function DrugScreensPanel() {
         size="md"
       >
         <Stack>
-          <TextInput
-            label="Employee ID"
+          <EmployeeSearchSelect
+            label="Employee"
             required
             value={form.employee_id}
-            onChange={(e) => setForm({ ...form, employee_id: e.currentTarget.value })}
+            onChange={(employeeId) => setForm({ ...form, employee_id: employeeId })}
           />
           <TextInput
             label="Screening ID"
@@ -1201,11 +1202,11 @@ function VaccinationsPanel() {
         size="md"
       >
         <Stack>
-          <TextInput
-            label="Employee ID"
+          <EmployeeSearchSelect
+            label="Employee"
             required
             value={form.employee_id}
-            onChange={(e) => setForm({ ...form, employee_id: e.currentTarget.value })}
+            onChange={(employeeId) => setForm({ ...form, employee_id: employeeId })}
           />
           <TextInput
             label="Vaccine Name"
@@ -1463,11 +1464,11 @@ function InjuriesPanel() {
         size="md"
       >
         <Stack>
-          <TextInput
-            label="Employee ID"
+          <EmployeeSearchSelect
+            label="Employee"
             required
             value={form.employee_id}
-            onChange={(e) => setForm({ ...form, employee_id: e.currentTarget.value })}
+            onChange={(employeeId) => setForm({ ...form, employee_id: employeeId })}
           />
           <DateInput
             label="Injury Date"
@@ -1976,12 +1977,11 @@ function ReturnToWorkPanel() {
           medical absence. A screening record will be automatically generated.
         </Text>
         <Stack gap="sm">
-          <TextInput
-            label="Employee ID"
+          <EmployeeSearchSelect
+            label="Employee"
             required
-            placeholder="UUID of the employee"
             value={form.employee_id}
-            onChange={(e) => setForm({ ...form, employee_id: e.currentTarget.value })}
+            onChange={(employeeId) => setForm({ ...form, employee_id: employeeId })}
           />
           <DateInput
             label="Clearance Date"

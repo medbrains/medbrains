@@ -85,6 +85,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
@@ -1003,10 +1004,10 @@ function DocumentsTab() {
             value={form.summary ?? ""}
             onChange={(e) => setForm({ ...form, summary: e.currentTarget.value || undefined })}
           />
-          <TextInput
-            label="Reviewer ID"
+          <EmployeeSearchSelect
+            label="Reviewer"
             value={form.reviewer_id ?? ""}
-            onChange={(e) => setForm({ ...form, reviewer_id: e.currentTarget.value || undefined })}
+            onChange={(employeeId) => setForm({ ...form, reviewer_id: employeeId || undefined })}
           />
           <Checkbox
             label="Training Required"
@@ -1766,11 +1767,11 @@ function IncidentsTab() {
                     setCapaForm({ ...capaForm, action_plan: e.currentTarget.value || undefined })
                   }
                 />
-                <TextInput
-                  label="Assigned To (User ID)"
+                <EmployeeSearchSelect
+                  label="Assigned to"
                   required
                   value={capaForm.assigned_to}
-                  onChange={(e) => setCapaForm({ ...capaForm, assigned_to: e.currentTarget.value })}
+                  onChange={(employeeId) => setCapaForm({ ...capaForm, assigned_to: employeeId })}
                 />
                 <TextInput
                   label="Due Date"
@@ -2260,23 +2261,23 @@ function CommitteesTab() {
             value={committeeForm.committee_type}
             onChange={(v) => setCommitteeForm({ ...committeeForm, committee_type: v ?? "" })}
           />
-          <TextInput
-            label="Chairperson ID"
+          <EmployeeSearchSelect
+            label="Chairperson"
             value={committeeForm.chairperson_id ?? ""}
-            onChange={(e) =>
+            onChange={(employeeId) =>
               setCommitteeForm({
                 ...committeeForm,
-                chairperson_id: e.currentTarget.value || undefined,
+                chairperson_id: employeeId || undefined,
               })
             }
           />
-          <TextInput
-            label="Secretary ID"
+          <EmployeeSearchSelect
+            label="Secretary"
             value={committeeForm.secretary_id ?? ""}
-            onChange={(e) =>
+            onChange={(employeeId) =>
               setCommitteeForm({
                 ...committeeForm,
-                secretary_id: e.currentTarget.value || undefined,
+                secretary_id: employeeId || undefined,
               })
             }
           />
@@ -2764,13 +2765,13 @@ function AccreditationTab() {
               })
             }
           />
-          <TextInput
-            label="Responsible Person ID"
+          <EmployeeSearchSelect
+            label="Responsible person"
             value={complianceForm.responsible_person_id ?? ""}
-            onChange={(e) =>
+            onChange={(employeeId) =>
               setComplianceForm({
                 ...complianceForm,
-                responsible_person_id: e.currentTarget.value || undefined,
+                responsible_person_id: employeeId || undefined,
               })
             }
           />
