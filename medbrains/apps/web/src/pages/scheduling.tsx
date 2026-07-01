@@ -64,6 +64,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
@@ -635,10 +636,11 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
             name="patient_id"
             control={control}
             render={({ field }) => (
-              <TextInput
-                label="Patient ID"
+              <PatientSearchSelect
+                label="Patient"
                 required
-                {...field}
+                value={field.value ?? ""}
+                onChange={field.onChange}
                 error={errors.patient_id?.message}
               />
             )}

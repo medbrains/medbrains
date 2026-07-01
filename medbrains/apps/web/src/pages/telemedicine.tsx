@@ -15,6 +15,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { telemedicineService } from "@/services/telemedicine.service";
@@ -315,12 +316,11 @@ export function TelemedicinePage() {
 
       <Modal opened={modalOpen} onClose={modal.close} title="New tele-consultation" size="md">
         <Stack gap="md">
-          <TextInput
-            label="Patient ID"
-            placeholder="Patient UUID"
+          <PatientSearchSelect
+            label="Patient"
             required
             value={form.patient_id}
-            onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })}
+            onChange={(patientId) => setForm({ ...form, patient_id: patientId })}
           />
           <Select
             label="Provider"

@@ -45,6 +45,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -343,11 +344,10 @@ export function BedsidePortalPage() {
                   onChange={(e) => setAdmissionId(e.currentTarget.value)}
                   size="lg"
                 />
-                <TextInput
-                  label="Patient ID"
-                  placeholder="UUID of the patient"
+                <PatientSearchSelect
+                  label="Patient"
                   value={patientId}
-                  onChange={(e) => setPatientId(e.currentTarget.value)}
+                  onChange={setPatientId}
                   size="lg"
                 />
               </Stack>
