@@ -1583,6 +1583,12 @@ function InvoiceDetail({
     },
   });
 
+  const { data: receipts = [] } = useQuery({
+    queryKey: ["invoice-receipts", invoiceId],
+    queryFn: () => billingService.listReceipts(invoiceId),
+    enabled: canPrintBillingDocs,
+  });
+
   const receiptMutation = useMutation({
     mutationFn: async (paymentId: string) => {
       const receipt = await billingService.generateReceipt(invoiceId, paymentId);
@@ -1592,6 +1598,7 @@ function InvoiceDetail({
     onSuccess: ({ printData }) => {
       printReceiptPacket(printData, billingDisplayAccess);
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
+      void queryClient.invalidateQueries({ queryKey: ["invoice-receipts", invoiceId] });
       toast.success("Customer and office copies are ready to print", {
         title: "Receipt generated",
       });
@@ -2188,6 +2195,56 @@ function InvoiceDetail({
                 )}
               </Stack>
             </Card>
+
+            {canPrintBillingDocs && receipts.length > 0 && (
+              <Card id="billing-receipts" withBorder>
+                <Stack gap="sm">
+                  <Text fw={700}>Issued receipts</Text>
+                  <Table striped>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>Receipt #</Table.Th>
+                        <Table.Th>{t("label.date")}</Table.Th>
+                        <Table.Th>{t("label.amount")}</Table.Th>
+                        <Table.Th>Printed</Table.Th>
+                        <Table.Th />
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {receipts.map((r) => (
+                        <Table.Tr key={r.id}>
+                          <Table.Td>
+                            <Text ff="monospace" size="sm">
+                              {r.receipt_number}
+                            </Text>
+                          </Table.Td>
+                          <Table.Td>{new Date(r.receipt_date).toLocaleString()}</Table.Td>
+                          <Table.Td>{billingAmountText(r.amount, amountAccess)}</Table.Td>
+                          <Table.Td>
+                            <Badge tone={r.printed_at ? "success" : "neutral"} size="sm">
+                              {r.printed_at ? "Printed" : "Not printed"}
+                            </Badge>
+                          </Table.Td>
+                          <Table.Td>
+                            <Tooltip label="Reprint receipt">
+                              <IconButton
+                                tone="default"
+                                aria-label="Reprint receipt"
+                                size="sm"
+                                loading={receiptMutation.isPending}
+                                onClick={() => receiptMutation.mutate(r.payment_id)}
+                              >
+                                <IconReceipt size={14} />
+                              </IconButton>
+                            </Tooltip>
+                          </Table.Td>
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                </Stack>
+              </Card>
+            )}
 
             <Card id="billing-discounts" withBorder>
               <Stack gap="sm">
