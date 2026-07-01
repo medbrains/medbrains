@@ -71,6 +71,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
+import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { Alert, Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import {
@@ -2039,12 +2040,11 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
         centered
       >
         <Stack>
-          <TextInput
-            label="Department ID"
-            placeholder="Source department UUID"
+          <DepartmentSelect
+            label="Department"
             required
             value={sharpForm.location_id}
-            onChange={(e) => setSharpForm({ ...sharpForm, location_id: e.currentTarget.value })}
+            onChange={(departmentId) => setSharpForm({ ...sharpForm, location_id: departmentId })}
           />
           <Select
             label="Container Type"
@@ -2102,12 +2102,18 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
             {...registerManifest("manifest_number")}
             required
           />
-          <TextInput
-            label="Department ID"
-            error={manifestErrors.department_id?.message}
-            {...registerManifest("department_id")}
-            required
-            placeholder="Source department"
+          <Controller
+            control={manifestControl}
+            name="department_id"
+            render={({ field }) => (
+              <DepartmentSelect
+                label="Department"
+                required
+                value={field.value}
+                onChange={field.onChange}
+                error={manifestErrors.department_id?.message}
+              />
+            )}
           />
           <Controller
             name="waste_category"

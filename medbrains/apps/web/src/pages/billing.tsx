@@ -195,6 +195,7 @@ import { PatientContextBanner } from "@/components/Patient/PatientContextBanner"
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { EncounterSelect } from "@/components/EncounterSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PaymentModal, type PaymentModalSettlement } from "@/components/PaymentModal";
 import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
@@ -5104,10 +5105,17 @@ function AdvancesTab() {
                 <PatientSearchSelect value={field.value ?? ""} onChange={field.onChange} />
               )}
             />
-            <TextInput
-              label="Encounter ID"
-              error={advanceErrors.encounter_id?.message}
-              {...registerAdvance("encounter_id")}
+            <Controller
+              control={advanceControl}
+              name="encounter_id"
+              render={({ field }) => (
+                <EncounterSelect
+                  label="Encounter"
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={advanceErrors.encounter_id?.message}
+                />
+              )}
             />
           </Group>
           <Group grow>

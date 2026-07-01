@@ -178,6 +178,7 @@ import {
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import {
   Alert,
@@ -2036,10 +2037,17 @@ function OverviewTab({
             error={errors.description?.message}
             {...register("description")}
           />
-          <TextInput
-            label="Assigned To (User ID)"
-            error={errors.assigned_to?.message}
-            {...register("assigned_to")}
+          <Controller
+            control={control}
+            name="assigned_to"
+            render={({ field }) => (
+              <EmployeeSearchSelect
+                label="Assigned to"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.assigned_to?.message}
+              />
+            )}
           />
           <TextInput label="Notes" error={errors.notes?.message} {...register("notes")} />
           <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
