@@ -64,6 +64,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { DepartmentSelect } from "@/components/DepartmentSelect";
+import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
@@ -648,12 +650,16 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
           <Controller
             name="doctor_id"
             control={control}
-            render={({ field }) => <TextInput label="Doctor ID" {...field} />}
+            render={({ field }) => (
+              <DoctorSearchSelect label="Doctor" value={field.value} onChange={field.onChange} />
+            )}
           />
           <Controller
             name="department_id"
             control={control}
-            render={({ field }) => <TextInput label="Department ID" {...field} />}
+            render={({ field }) => (
+              <DepartmentSelect label="Department" value={field.value} onChange={field.onChange} />
+            )}
           />
           <Controller
             name="preferred_date_from"

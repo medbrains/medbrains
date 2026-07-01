@@ -47,6 +47,7 @@ import {
   StatusDot,
   useClinicalEmit,
 } from "@/components";
+import { EncounterSelect } from "@/components/EncounterSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
@@ -1292,11 +1293,18 @@ function AppointmentsTab() {
               />
             )}
           />
-          <TextInput
-            label="Encounter ID"
-            required
-            error={errors.encounter_id?.message}
-            {...register("encounter_id")}
+          <Controller
+            control={control}
+            name="encounter_id"
+            render={({ field }) => (
+              <EncounterSelect
+                label="Encounter"
+                required
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.encounter_id?.message}
+              />
+            )}
           />
           <Controller
             control={control}
