@@ -4,11 +4,11 @@ import {
   Group,
   Modal,
   NumberInput,
+  Select,
   Stack,
   Tabs,
   Text,
   Textarea,
-  TextInput,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type {
@@ -28,6 +28,7 @@ import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "@/components";
 import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { pharmacyService } from "@/services/pharmacy.service";
 import { pharmacyFinanceService } from "@/services/pharmacyFinance.service";
 
 interface CashDrawerRow {
@@ -341,6 +342,15 @@ function OpenDrawerModal({
     defaultValues: { pharmacy_location_id: "", opening_float: 0, notes: "" },
   });
 
+  const { data: storeLocations = [] } = useQuery({
+    queryKey: ["pharmacy-store-locations"],
+    queryFn: () => pharmacyService.listStoreLocations(),
+  });
+  const locationOptions = storeLocations.map((store) => ({
+    value: store.id,
+    label: [store.name, store.location_type, store.code].filter(Boolean).join(" - "),
+  }));
+
   const open = useMutation({
     mutationFn: (values: PharmacyCashDrawerOpenFormInput) =>
       pharmacyFinanceService.openCashDrawer({
@@ -368,12 +378,15 @@ function OpenDrawerModal({
             control={control}
             name="pharmacy_location_id"
             render={({ field }) => (
-              <TextInput
-                label="Pharmacy location ID"
-                placeholder="UUID"
+              <Select
+                label="Pharmacy location"
+                placeholder="Select the dispensing location"
                 required
+                searchable
+                data={locationOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "")}
                 error={errors.pharmacy_location_id?.message}
-                {...field}
               />
             )}
           />
