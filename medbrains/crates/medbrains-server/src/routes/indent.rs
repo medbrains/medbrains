@@ -1999,6 +1999,29 @@ pub async fn return_to_store(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // When tied to a specific patient-consumable issue, cap the return at the
+    // outstanding issued quantity BEFORE posting movement/stock/billing.
+    // Over-returning would corrupt returned_qty (> issued), inflate store stock
+    // with phantom units, and over-credit the patient's bill by an arbitrary
+    // amount. FOR UPDATE serialises concurrent returns of the same issue.
+    if let Some(pc_id) = body.patient_consumable_id {
+        let outstanding = sqlx::query_scalar::<_, i32>(
+            "SELECT quantity - returned_qty FROM patient_consumable_issues \
+             WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+        )
+        .bind(pc_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+        if body.quantity > outstanding {
+            return Err(AppError::BadRequest(format!(
+                "Cannot return {} — only {outstanding} unit(s) remain outstanding on this issue.",
+                body.quantity
+            )));
+        }
+    }
+
     let movement = sqlx::query_as::<_, StoreStockMovement>(
         "INSERT INTO store_stock_movements \
          (tenant_id, catalog_item_id, movement_type, quantity, \

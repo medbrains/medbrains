@@ -853,6 +853,24 @@ pub async fn approve_purchase_order(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    // Segregation of duties (maker-checker): the PO creator may not approve their
+    // own order — mirrors billing write-off / concession approval. FOR UPDATE also
+    // serialises concurrent approvals.
+    let created_by = sqlx::query_scalar::<_, Uuid>(
+        "SELECT created_by FROM purchase_orders \
+         WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if created_by == claims.sub {
+        return Err(AppError::Conflict(
+            "purchase order creator cannot approve their own PO".to_owned(),
+        ));
+    }
+
     let po = sqlx::query_as::<_, PurchaseOrder>(
         "UPDATE purchase_orders SET \
          status = 'approved', approved_by = $3, approved_at = now(), updated_at = now() \

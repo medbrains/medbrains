@@ -1981,7 +1981,8 @@ pub async fn record_payment(
 
     let invoice = sqlx::query_as::<_, InvoicePaymentGate>(
         "SELECT patient_id, encounter_id, admission_id, status, total_amount, paid_amount \
-         FROM invoices WHERE id = $1 AND tenant_id = $2",
+         FROM invoices WHERE id = $1 AND tenant_id = $2 \
+         FOR UPDATE",
     )
     .bind(invoice_id)
     .bind(claims.tenant_id)
@@ -2949,7 +2950,7 @@ pub async fn create_refund(
     }
 
     let invoice = sqlx::query_as::<_, RefundInvoiceGate>(
-        "SELECT status, paid_amount FROM invoices WHERE id = $1 AND tenant_id = $2",
+        "SELECT status, paid_amount FROM invoices WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
     )
     .bind(body.invoice_id)
     .bind(claims.tenant_id)
