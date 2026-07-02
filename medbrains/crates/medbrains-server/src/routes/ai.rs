@@ -67,36 +67,50 @@ async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConfig, 
             .filter(|s| !s.is_empty())
     };
 
-    // Default to OpenRouter when only OPENROUTER_API_KEY is set (frictionless
-    // testing), else Anthropic. An explicit tenant `provider` always wins.
+    // Provider precedence: tenant config > AI_PROVIDER env > (openrouter if its
+    // key is set, else anthropic). Set AI_PROVIDER=ollama for local/private
+    // inference (no PHI egress).
     let provider = match str_field("provider") {
         Some(p) => p.to_owned(),
-        None if std::env::var("OPENROUTER_API_KEY").is_ok() => "openrouter".to_owned(),
-        None => "anthropic".to_owned(),
+        None => std::env::var("AI_PROVIDER").ok().unwrap_or_else(|| {
+            if std::env::var("OPENROUTER_API_KEY").is_ok() {
+                "openrouter".to_owned()
+            } else {
+                "anthropic".to_owned()
+            }
+        }),
     };
-    let default_model = if provider == "openrouter" {
-        "openai/gpt-4o-mini"
-    } else {
-        DEFAULT_MODEL
+    let default_model = match provider.as_str() {
+        "openrouter" => "openai/gpt-4o-mini",
+        "ollama" => "llama3.2",
+        _ => DEFAULT_MODEL,
     };
-    let model = str_field("model").unwrap_or(default_model).to_owned();
+    let model = str_field("model")
+        .map(str::to_owned)
+        .or_else(|| std::env::var("AI_MODEL").ok())
+        .unwrap_or_else(|| default_model.to_owned());
     let enabled = cfg.get("assistant_enabled").and_then(serde_json::Value::as_bool) != Some(false);
 
-    let api_key = match str_field("api_key_secret") {
-        Some(secret) => state.secret_resolver.get(secret).await.map_err(|e| {
-            AppError::BadRequest(format!("AI key secret '{secret}' unavailable: {e}"))
-        })?,
-        None => {
-            let env_var = if provider == "openrouter" {
-                "OPENROUTER_API_KEY"
-            } else {
-                "ANTHROPIC_API_KEY"
-            };
-            std::env::var(env_var).map_err(|_| {
-                AppError::BadRequest(format!(
-                    "No AI provider configured: set tenant ai.config.api_key_secret or {env_var}"
-                ))
-            })?
+    // Ollama is keyless (local). Others resolve a key from the secret store or env.
+    let api_key = if provider == "ollama" {
+        String::new()
+    } else {
+        match str_field("api_key_secret") {
+            Some(secret) => state.secret_resolver.get(secret).await.map_err(|e| {
+                AppError::BadRequest(format!("AI key secret '{secret}' unavailable: {e}"))
+            })?,
+            None => {
+                let env_var = if provider == "openrouter" {
+                    "OPENROUTER_API_KEY"
+                } else {
+                    "ANTHROPIC_API_KEY"
+                };
+                std::env::var(env_var).map_err(|_| {
+                    AppError::BadRequest(format!(
+                        "No AI provider configured: set tenant ai.config.api_key_secret or {env_var}"
+                    ))
+                })?
+            }
         }
     };
 
@@ -648,11 +662,15 @@ async fn open_turn(
         .and_then(|c| c.get("patient_id"))
         .and_then(serde_json::Value::as_str)
         .and_then(|s| Uuid::parse_str(s).ok());
+    // Admins bypass every other check, so they bypass the patient-viewer gate too
+    // (otherwise a missing SpiceDB relation silently drops grounding for them).
+    let is_admin = crate::middleware::authorization::BYPASS_ROLES.contains(&claims.role.as_str());
     let grounded_patient = match patient_id {
         Some(pid)
-            if crate::routes::patients::require_patient_viewer(state, claims, pid)
-                .await
-                .is_ok() =>
+            if is_admin
+                || crate::routes::patients::require_patient_viewer(state, claims, pid)
+                    .await
+                    .is_ok() =>
         {
             Some(pid)
         }
@@ -827,6 +845,42 @@ pub async fn chat(
         "openrouter" => {
             let client = rig::providers::openrouter::Client::new(&cfg.api_key)
                 .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?;
+            let agent = client
+                .agent(cfg.model.as_str())
+                .preamble(preamble.as_str())
+                .tool(DrugSafetyTool {
+                    db: state.db.clone(),
+                    tenant_id,
+                    department_ids: claims.department_ids.clone(),
+                    patient_id: grounded_patient,
+                })
+                .tool(DraftPrescriptionTool {
+                    db: state.db.clone(),
+                    tenant_id,
+                    department_ids: claims.department_ids.clone(),
+                    patient_id: grounded_patient,
+                    user_id: claims.sub,
+                })
+                .build();
+            Box::pin(run_turn(
+                agent,
+                message,
+                history,
+                state,
+                tenant_id,
+                conversation_id,
+                kb_hits,
+            ))
+        }
+        "ollama" => {
+            // Local, keyless inference — no PHI leaves the machine.
+            let base = std::env::var("OLLAMA_API_BASE_URL")
+                .unwrap_or_else(|_| "http://localhost:11434".to_owned());
+            let client = rig::providers::ollama::Client::builder()
+                .api_key(rig::client::Nothing)
+                .base_url(&base)
+                .build()
+                .map_err(|e| AppError::BadRequest(format!("Ollama client error: {e}")))?;
             let agent = client
                 .agent(cfg.model.as_str())
                 .preamble(preamble.as_str())
