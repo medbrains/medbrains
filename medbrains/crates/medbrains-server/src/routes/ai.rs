@@ -149,9 +149,10 @@ where
 // turns to `ai_conversations`/`ai_messages` so a thread survives reloads.
 //
 // Grounding: when the turn carries a `context.patient_id` and the caller passes
-// the patient-viewer ReBAC, the patient's allergies are injected as de-identified
-// clinical context (allergen names only — never name/UHID/identifiers). Guarded
-// tools + broader chart grounding + a general free-text redactor are later phases.
+// the patient-viewer ReBAC, the patient's allergies + active medications + active
+// problems are injected as de-identified clinical context (clinical facts only —
+// never name/UHID/identifiers). Guarded tools + RAG over notes/KB + a general
+// free-text redactor are later phases.
 
 #[derive(Debug, Deserialize)]
 pub struct ChatRequest {
@@ -165,6 +166,83 @@ pub struct ChatRequest {
 struct HistoryRow {
     role: String,
     content: String,
+}
+
+/// De-identified clinical snapshot injected as grounding — clinical facts only
+/// (allergen / drug / diagnosis names), never patient name / UHID / identifiers.
+#[derive(Default)]
+struct Grounding {
+    allergies: Vec<String>,
+    medications: Vec<String>,
+    diagnoses: Vec<String>,
+}
+
+impl Grounding {
+    /// Render as a compact context block, or `None` when nothing is known.
+    fn as_context(&self) -> Option<String> {
+        let mut lines = Vec::new();
+        if !self.allergies.is_empty() {
+            lines.push(format!("Known allergies: {}", self.allergies.join(", ")));
+        }
+        if !self.medications.is_empty() {
+            lines.push(format!("Active medications: {}", self.medications.join(", ")));
+        }
+        if !self.diagnoses.is_empty() {
+            lines.push(format!("Active problems: {}", self.diagnoses.join(", ")));
+        }
+        (!lines.is_empty()).then(|| lines.join("\n"))
+    }
+}
+
+/// Fetch a patient's allergies, active medications, and active problems, under
+/// the caller's RLS. Caller must have already passed the patient-viewer ReBAC.
+async fn fetch_patient_grounding(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+) -> Result<Grounding, AppError> {
+    let allergies = sqlx::query_scalar::<_, String>(
+        "SELECT allergen_name FROM patient_allergies \
+         WHERE patient_id = $1 AND tenant_id = $2 ORDER BY created_at",
+    )
+    .bind(patient_id)
+    .bind(tenant_id)
+    .fetch_all(&mut **tx)
+    .await?;
+
+    let medications = sqlx::query_scalar::<_, String>(
+        "SELECT DISTINCT drug_name FROM medication_timeline_events \
+         WHERE patient_id = $1 AND tenant_id = $2 \
+         AND event_type IN ('started', 'resumed', 'dose_changed') \
+         AND NOT EXISTS ( \
+           SELECT 1 FROM medication_timeline_events mte2 \
+           WHERE mte2.patient_id = medication_timeline_events.patient_id \
+           AND mte2.drug_name = medication_timeline_events.drug_name \
+           AND mte2.event_type IN ('discontinued', 'switched') \
+           AND mte2.effective_date > medication_timeline_events.effective_date \
+         ) ORDER BY drug_name LIMIT 30",
+    )
+    .bind(patient_id)
+    .bind(tenant_id)
+    .fetch_all(&mut **tx)
+    .await?;
+
+    let diagnoses = sqlx::query_scalar::<_, String>(
+        "SELECT d.description FROM diagnoses d \
+         JOIN encounters e ON e.id = d.encounter_id \
+         WHERE e.patient_id = $1 AND d.tenant_id = $2 AND d.resolved_date IS NULL \
+         ORDER BY d.created_at DESC LIMIT 15",
+    )
+    .bind(patient_id)
+    .bind(tenant_id)
+    .fetch_all(&mut **tx)
+    .await?;
+
+    Ok(Grounding {
+        allergies,
+        medications,
+        diagnoses,
+    })
 }
 
 /// The boxed SSE body type — one alias so both provider branches unify.
@@ -263,17 +341,10 @@ pub async fn chat(
     .fetch_all(&mut *tx)
     .await?;
 
-    let allergies: Vec<String> = if let Some(pid) = grounded_patient {
-        sqlx::query_scalar::<_, String>(
-            "SELECT allergen_name FROM patient_allergies \
-             WHERE patient_id = $1 AND tenant_id = $2 ORDER BY created_at",
-        )
-        .bind(pid)
-        .bind(tenant_id)
-        .fetch_all(&mut *tx)
-        .await?
+    let grounding = if let Some(pid) = grounded_patient {
+        fetch_patient_grounding(&mut tx, tenant_id, pid).await?
     } else {
-        Vec::new()
+        Grounding::default()
     };
 
     sqlx::query(
@@ -295,14 +366,12 @@ pub async fn chat(
         })
         .collect();
 
-    let preamble = if allergies.is_empty() {
-        SYSTEM_PROMPT.to_owned()
-    } else {
-        format!(
-            "{SYSTEM_PROMPT}\n\nClinical context for the patient currently in view — \
-             known allergies: {}. Factor these into any medication guidance and flag conflicts.",
-            allergies.join(", ")
-        )
+    let preamble = match grounding.as_context() {
+        Some(ctx) => format!(
+            "{SYSTEM_PROMPT}\n\nClinical context for the patient currently in view \
+             (de-identified) —\n{ctx}\nFactor these into any medication guidance and flag conflicts."
+        ),
+        None => SYSTEM_PROMPT.to_owned(),
     };
 
     use rig::client::CompletionClient as _;
