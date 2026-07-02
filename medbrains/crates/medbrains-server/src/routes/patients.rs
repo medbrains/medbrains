@@ -3052,12 +3052,55 @@ pub async fn delete_patient_consent(
 //  MPI Duplicate Match — POST /api/patients/match
 // ══════════════════════════════════════════════════════════
 
+/// Field-access masking for MPI match rows — mirrors filter_patient_response so
+/// /patients/match honours patients.uhid/first_name/last_name/date_of_birth/phone
+/// Mask/Hidden levels instead of leaking cleartext PHI (an unmasked lookup oracle).
+fn filter_match_result(
+    mut row: MatchResult,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> MatchResult {
+    if patient_field_is_hidden(restricted, PATIENT_UHID_FIELD) {
+        row.uhid = "Restricted".to_owned();
+    } else if patient_field_is_masked(restricted, PATIENT_UHID_FIELD) {
+        row.uhid = mask_identifier_keep_last(&row.uhid, 4);
+    }
+    if patient_field_is_hidden(restricted, PATIENT_FIRST_NAME_FIELD) {
+        row.first_name = "Restricted".to_owned();
+    } else if patient_field_is_masked(restricted, PATIENT_FIRST_NAME_FIELD) {
+        row.first_name = mask_name(&row.first_name);
+    }
+    if patient_field_is_hidden(restricted, PATIENT_LAST_NAME_FIELD) {
+        row.last_name.clear();
+    } else if patient_field_is_masked(restricted, PATIENT_LAST_NAME_FIELD) {
+        row.last_name = mask_name(&row.last_name);
+    }
+    if patient_field_is_hidden(restricted, PATIENT_DATE_OF_BIRTH_FIELD)
+        || patient_field_is_masked(restricted, PATIENT_DATE_OF_BIRTH_FIELD)
+    {
+        row.date_of_birth = None;
+    }
+    if patient_field_is_hidden(restricted, PATIENT_PHONE_FIELD) {
+        row.phone = "Restricted".to_owned();
+    } else if patient_field_is_masked(restricted, PATIENT_PHONE_FIELD) {
+        row.phone = mask_phone(&row.phone);
+    }
+    row
+}
+
 pub async fn match_patients(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<MatchRequest>,
 ) -> Result<Json<Vec<MatchResult>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+
+    let restricted = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3083,6 +3126,10 @@ pub async fn match_patients(
 
         if !id_matches.is_empty() {
             tx.commit().await?;
+            let id_matches: Vec<MatchResult> = id_matches
+                .into_iter()
+                .map(|m| filter_match_result(m, &restricted))
+                .collect();
             return Ok(Json(id_matches));
         }
     }
@@ -3123,9 +3170,11 @@ pub async fn match_patients(
     .fetch_all(&mut *tx)
     .await?;
 
-    let matches = matches
+    // Mask AFTER the phone-equality filter so masking doesn't break match scoring.
+    let matches: Vec<MatchResult> = matches
         .into_iter()
         .filter(|m| m.score >= 0.55 || (!phone.is_empty() && m.phone == phone))
+        .map(|m| filter_match_result(m, &restricted))
         .collect();
 
     tx.commit().await?;
@@ -3577,6 +3626,21 @@ pub async fn merge_patients(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    // Validate the surviving patient belongs to the caller's tenant before writing
+    // it into merged_into_patient_id — that FK references the GLOBAL patients table,
+    // so without this a foreign-tenant survivor UUID would produce a cross-tenant
+    // dangling pointer on a patient-identity record + a misleading merge-history row.
+    let survivor_exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM patients WHERE id = $1 AND tenant_id = $2)",
+    )
+    .bind(body.surviving_patient_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if !survivor_exists {
+        return Err(AppError::NotFound);
+    }
 
     // Snapshot the merged patient before marking
     let merged_patient = sqlx::query_as_unchecked!(

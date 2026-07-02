@@ -563,6 +563,13 @@ pub async fn create_encounter(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // Validate the patient belongs to the caller's tenant before creating an
+    // encounter — encounters.patient_id FKs the GLOBAL patients table and RLS only
+    // gates the new row's own tenant_id, so a foreign-tenant patient UUID would
+    // otherwise be accepted (tenant-isolation break + existence oracle). Mirrors
+    // create_certificate / create_referral / create_consent.
+    ensure_opd_patient_context_in_tx(&mut tx, &claims.tenant_id, body.patient_id, None).await?;
+
     // An admitted (active IPD) patient cannot start a fresh OPD visit. Admitting
     // FROM an OPD encounter is a different endpoint (`admit_from_opd`) and stays allowed.
     let active_admission: Option<Uuid> = sqlx::query_scalar(
@@ -5006,6 +5013,11 @@ pub async fn book_appointment_group(
     let group_id = Uuid::new_v4();
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // appointments.patient_id FKs the GLOBAL patients table; RLS only gates the
+    // new row's tenant_id. Validate the patient belongs to the caller's tenant so
+    // a foreign-tenant patient UUID can't be booked (tenant-isolation break).
+    ensure_opd_patient_context_in_tx(&mut tx, &claims.tenant_id, body.patient_id, None).await?;
 
     let mut appointments = Vec::with_capacity(body.slot_requests.len());
 
