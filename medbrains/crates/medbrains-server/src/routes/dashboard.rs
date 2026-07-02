@@ -402,11 +402,27 @@ pub async fn personalize_dashboard(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let source = sqlx::query_as::<_, Dashboard>("SELECT * FROM dashboards WHERE id = $1")
-        .bind(req.source_dashboard_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    // Only personalize (clone) a dashboard the caller may actually see — same
+    // visibility filter as list_dashboards. Previously any dashboard.view holder
+    // could clone another user's/admin's dashboard by ID (IDOR).
+    let role = &claims.role;
+    let dept_ids =
+        serde_json::to_value(&claims.department_ids).unwrap_or_else(|_| serde_json::json!([]));
+    let source = sqlx::query_as::<_, Dashboard>(
+        "SELECT * FROM dashboards \
+         WHERE id = $1 AND is_active = true \
+           AND (user_id IS NULL OR user_id = $2) \
+           AND (role_codes = '[]'::jsonb OR role_codes @> $3::jsonb) \
+           AND (department_ids = '[]'::jsonb \
+                OR department_ids ?| ARRAY(SELECT jsonb_array_elements_text($4)))",
+    )
+    .bind(req.source_dashboard_id)
+    .bind(claims.sub)
+    .bind(serde_json::json!([role]))
+    .bind(&dept_ids)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let new_code = format!("personal_{}_{}", claims.sub, Utc::now().timestamp());
 
@@ -461,11 +477,28 @@ pub async fn get_dashboard(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let dashboard = sqlx::query_as::<_, Dashboard>("SELECT * FROM dashboards WHERE id = $1")
-        .bind(id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    // Resource-level visibility: only return a dashboard the caller may actually
+    // see (own personal, or one matching their role/department), mirroring the
+    // list_dashboards filter. Previously any dashboard.view holder could read any
+    // dashboard's config by ID (IDOR). 404 (not 403) avoids leaking existence.
+    let role = &claims.role;
+    let dept_ids =
+        serde_json::to_value(&claims.department_ids).unwrap_or_else(|_| serde_json::json!([]));
+    let dashboard = sqlx::query_as::<_, Dashboard>(
+        "SELECT * FROM dashboards \
+         WHERE id = $1 AND is_active = true \
+           AND (user_id IS NULL OR user_id = $2) \
+           AND (role_codes = '[]'::jsonb OR role_codes @> $3::jsonb) \
+           AND (department_ids = '[]'::jsonb \
+                OR department_ids ?| ARRAY(SELECT jsonb_array_elements_text($4)))",
+    )
+    .bind(id)
+    .bind(claims.sub)
+    .bind(serde_json::json!([role]))
+    .bind(&dept_ids)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let widgets = fetch_visible_widgets(&mut tx, dashboard.id, &claims).await?;
 
