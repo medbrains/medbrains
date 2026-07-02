@@ -1291,14 +1291,31 @@ struct CriticalAlertRow {
     created_at: chrono::DateTime<chrono::Utc>,
 }
 
-async fn fetch_new_critical_alerts(
+#[derive(sqlx::FromRow)]
+struct CodeRow {
+    code_type: String,
+    location: Option<String>,
+    created_at: chrono::DateTime<chrono::Utc>,
+}
+
+struct Whisper {
+    created_at: chrono::DateTime<chrono::Utc>,
+    payload: serde_json::Value,
+}
+
+/// Poll the committed alert tables for whisper-worthy events fired since `since`:
+/// critical lab values + emergency-code activations. Tenant-scoped under RLS.
+async fn fetch_new_whispers(
     state: &AppState,
     tenant_id: Uuid,
     since: chrono::DateTime<chrono::Utc>,
-) -> Result<Vec<CriticalAlertRow>, AppError> {
+) -> Result<Vec<Whisper>, AppError> {
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
-    let rows = sqlx::query_as::<_, CriticalAlertRow>(
+
+    let mut out: Vec<Whisper> = Vec::new();
+
+    let alerts = sqlx::query_as::<_, CriticalAlertRow>(
         "SELECT patient_id, parameter_name, value, flag::text AS flag, created_at \
          FROM lab_critical_alerts \
          WHERE tenant_id = $1 AND created_at > $2 AND acknowledged_at IS NULL \
@@ -1308,8 +1325,41 @@ async fn fetch_new_critical_alerts(
     .bind(since)
     .fetch_all(&mut *tx)
     .await?;
+    for a in alerts {
+        out.push(Whisper {
+            created_at: a.created_at,
+            payload: serde_json::json!({
+                "type": "whisper", "severity": "critical", "kind": "critical_lab_value",
+                "title": "Critical lab value",
+                "message": format!("{} = {} [{}]", a.parameter_name, a.value, a.flag),
+                "patientId": a.patient_id,
+            }),
+        });
+    }
+
+    let codes = sqlx::query_as::<_, CodeRow>(
+        "SELECT code_type, location, created_at FROM er_code_activations \
+         WHERE tenant_id = $1 AND created_at > $2 ORDER BY created_at LIMIT 20",
+    )
+    .bind(tenant_id)
+    .bind(since)
+    .fetch_all(&mut *tx)
+    .await?;
+    for c in codes {
+        let at = c.location.map(|l| format!(" at {l}")).unwrap_or_default();
+        out.push(Whisper {
+            created_at: c.created_at,
+            payload: serde_json::json!({
+                "type": "whisper", "severity": "critical", "kind": "emergency_code",
+                "title": format!("Emergency: {}", c.code_type),
+                "message": format!("{} activated{at}", c.code_type),
+            }),
+        });
+    }
+
     tx.commit().await?;
-    Ok(rows)
+    out.sort_by_key(|w| w.created_at);
+    Ok(out)
 }
 
 pub async fn whispers(
@@ -1322,25 +1372,18 @@ pub async fn whispers(
         let mut since = chrono::Utc::now();
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-            let alerts = match fetch_new_critical_alerts(&state, tenant_id, since).await {
-                Ok(a) => a,
+            let whispers = match fetch_new_whispers(&state, tenant_id, since).await {
+                Ok(w) => w,
                 Err(e) => {
                     tracing::warn!(error = %e, "whisper poll failed");
                     Vec::new()
                 }
             };
-            for alert in alerts {
-                if alert.created_at > since {
-                    since = alert.created_at;
+            for whisper in whispers {
+                if whisper.created_at > since {
+                    since = whisper.created_at;
                 }
-                yield sse(&serde_json::json!({
-                    "type": "whisper",
-                    "severity": "critical",
-                    "kind": "critical_lab_value",
-                    "title": "Critical lab value",
-                    "message": format!("{} = {} [{}]", alert.parameter_name, alert.value, alert.flag),
-                    "patientId": alert.patient_id,
-                }));
+                yield sse(&whisper.payload);
             }
         }
     };
