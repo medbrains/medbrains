@@ -552,26 +552,20 @@ fn sse(payload: &serde_json::Value) -> Result<Event, std::convert::Infallible> {
         .unwrap_or_else(|_| Event::default().data("{}")))
 }
 
-pub async fn chat(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Json(req): Json<ChatRequest>,
-) -> Result<Sse<axum::response::sse::KeepAliveStream<SseBody>>, AppError> {
-    let message = req.message.trim().to_owned();
-    if message.is_empty() {
-        return Err(AppError::BadRequest("message must not be empty".to_owned()));
-    }
+/// Resolve the grounded patient (ReBAC), persist the user turn, and load prior
+/// history + de-identified grounding — all under one RLS transaction. Returns
+/// `(conversation_id, rig history, grounding, grounded_patient)`.
+async fn open_turn(
+    state: &AppState,
+    claims: &Claims,
+    req: &ChatRequest,
+    cfg: &AiConfig,
+    message: &str,
+) -> Result<(Uuid, Vec<rig::completion::Message>, Grounding, Option<Uuid>), AppError> {
+    let tenant_id = claims.tenant_id;
 
-    let cfg = resolve_config(&state, &claims.tenant_id).await?;
-    if !cfg.enabled {
-        return Err(AppError::Forbidden);
-    }
-
-    // Clinical grounding: if the turn carries a patient_id and the caller may
-    // view that patient (ReBAC), inject that patient's allergies below. Only
-    // de-identified clinical facts (allergen names) are sent — never the name /
-    // UHID / any identifier. Access-denied simply skips the context (never blocks
-    // the chat, never leaks).
+    // Grounding gate: only inject a patient's clinical facts if the caller may
+    // view that patient. Access-denied silently skips (never blocks, never leaks).
     let patient_id = req
         .context
         .as_ref()
@@ -580,7 +574,7 @@ pub async fn chat(
         .and_then(|s| Uuid::parse_str(s).ok());
     let grounded_patient = match patient_id {
         Some(pid)
-            if crate::routes::patients::require_patient_viewer(&state, &claims, pid)
+            if crate::routes::patients::require_patient_viewer(state, claims, pid)
                 .await
                 .is_ok() =>
         {
@@ -589,8 +583,6 @@ pub async fn chat(
         _ => None,
     };
 
-    // Persist the user turn + load prior history — owner-scoped, under RLS.
-    let tenant_id = claims.tenant_id;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &tenant_id, &claims.department_ids).await?;
 
@@ -645,18 +637,40 @@ pub async fn chat(
     )
     .bind(tenant_id)
     .bind(conversation_id)
-    .bind(&message)
+    .bind(message)
     .execute(&mut *tx)
     .await?;
     tx.commit().await?;
 
-    let history: Vec<rig::completion::Message> = history_rows
+    let history = history_rows
         .into_iter()
         .map(|r| match r.role.as_str() {
             "assistant" => rig::completion::Message::assistant(r.content),
             _ => rig::completion::Message::user(r.content),
         })
         .collect();
+
+    Ok((conversation_id, history, grounding, grounded_patient))
+}
+
+pub async fn chat(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(req): Json<ChatRequest>,
+) -> Result<Sse<axum::response::sse::KeepAliveStream<SseBody>>, AppError> {
+    let message = req.message.trim().to_owned();
+    if message.is_empty() {
+        return Err(AppError::BadRequest("message must not be empty".to_owned()));
+    }
+
+    let cfg = resolve_config(&state, &claims.tenant_id).await?;
+    if !cfg.enabled {
+        return Err(AppError::Forbidden);
+    }
+
+    let (conversation_id, history, grounding, grounded_patient) =
+        open_turn(&state, &claims, &req, &cfg, &message).await?;
+    let tenant_id = claims.tenant_id;
 
     let preamble = match grounding.as_context() {
         Some(ctx) => format!(
