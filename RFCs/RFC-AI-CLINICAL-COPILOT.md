@@ -102,6 +102,36 @@ The mascot brief says the brain-crab *"guards, never drops its claws, always ale
 - A backend tool registry maps each candidate endpoint (§3.3) to a tool schema. The agent may **stage** a tool call; the frontend renders it as a `tool` part (a confirm card). On confirm, the server executes the tool **through the real endpoint** — so `evaluate_medication_safety_in_tx` / NDPS / Schedule-X / dose guards run exactly as on the manual path, gated by the caller's permissions, and audited. A violation returns a blocked result + the cited rule; the crab surfaces the refusal.
 - "read-only vs can-act": `ai.assistant.use` (chat/read) vs `ai.assistant.act` (may stage tools) mapped onto the 111-permission RBAC; every act is a permission-gated, audited, reversible stage-then-sign.
 
+### 4.4 Conversation history, context assembly & "spilling" (compaction)
+
+**Tables** (extend §4.2, all `tenant_id` + RLS):
+- `ai_conversations` — `id, tenant_id, owner_user_id, title, patient_id?, encounter_id?, admission_id?, visibility ('private'|'shared'|'group'|'department'), model, last_message_at, archived_at?, created_at, updated_at`.
+- `ai_messages` — `id, tenant_id, conversation_id, role, parts jsonb, token_count, provenance jsonb, created_at`.
+- `ai_conversation_summaries` — `id, conversation_id, up_to_message_id, summary, token_count` (the compaction).
+- `ai_message_embeddings` — `message_id, embedding vector` (pgvector, semantic recall).
+- `ai_conversation_shares` — see §4.5.
+
+**Per-turn context assembly** — token-budgeted, then PHI-redacted before egress:
+1. Versioned **system prompt**.
+2. **Live clinical context** (allergies / meds / vitals) from `usePatientContext` → `ChatContext` — injected **fresh every turn, never trusted from stale history**.
+3. **Rolling summary** (compacted old turns).
+4. **Recent window** — last K verbatim turns.
+5. **Semantic recall** — top-M relevant past turns/summaries via pgvector for the current query.
+6. **RAG grounding** for the query (Clinical KB + tenant chart, RLS-scoped).
+
+Budget = `model_context − reserved_output − pinned`; fill 3→6 until budget.
+
+**"Spilling" (overflow):** when a thread exceeds the budget, the oldest turns are **summarized into `ai_conversation_summaries`** and dropped from the prompt — but **retained in `ai_messages`** (medico-legal record) and indexed in `ai_message_embeddings` for recall. Context spills into a *summary + semantic index*, never blindly truncated; live clinical facts (step 2) are re-injected fresh so they are never summarized away or allowed to go stale.
+
+### 4.5 Access & sharing — user / group / department, PHI-guarded
+
+- **Default private** to `owner_user_id`.
+- **Share** to specific **users**, a **group** (reuse `access_groups` / `access_group_members`), a **department**, or a **role**; per-share permission **view** vs **contribute**.
+- **Hard PHI guard (non-negotiable):** a patient-scoped conversation (`patient_id` set) is only viewable/shareable to principals who **also** hold per-patient access — the same `require_patient_viewer` ReBAC gate added in the deepsec fix (#3536). **Sharing never bypasses patient need-to-know** (VIP / psychiatric / staff-as-patient). Effective access = `(owner ∪ shares) ∩ patient-access`. A share to a principal lacking patient access is rejected, not silently granted.
+- Every share / unshare / view is **audited** (the SHA-256 chain).
+- **Organization ("grid"):** My threads · By patient (care-team shared) · By group · Department · Recent / Pinned / Archived.
+- **Retention & DPDP:** clinical threads retained per medico-legal policy; DPDP right-to-erasure honored (redact/delete on request with an audit tombstone); controlled-substance-related threads flagged for longer retention.
+
 ## 5. Safety / regulatory / PHI (mandatory)
 
 - **PHI redaction seam** (`medbrains-core`, net-new): de-identify (names/UHID/IDs/DOB) **before** any external-LLM egress; per-tenant `tenant_settings('ai').assistant_enabled` **opt-in**; on-prem model path skips egress entirely.
@@ -111,7 +141,44 @@ The mascot brief says the brain-crab *"guards, never drops its claws, always ale
 - **Audit**: every AI query, staged action, and outcome logged via `AuditLogger` (the provenance chain).
 - **India norms**: NDPS / D&C Schedule H/H1/X enforced at the tool layer; notifiable-disease via `flag_notifiable_diagnosis`; ABDM/ABHA harmonised consent.
 
-## 6. Phasing (each a focused, gated PR)
+## 6. Enterprise features & governance
+
+**AI admin console** (per tenant, IT/admin-gated): enable/disable per tenant · dept · role; model + provider selection (incl. on-prem); allowed-tools allowlist; per-tenant/user **spend caps + token quotas**; **kill switch**; consent + retention policy; an **approved-model registry with an eval gate** before any model rollout.
+
+**Security & data control:** SSO (OIDC/SAML — see the SSO/AD-groups work) + the 111-permission RBAC + transaction-scoped RLS; tamper-audit; secret store + **BYO-key / BYO-model**; **DLP on egress** (block PHI/secrets leaving, prompt-injection defenses, output filters); **data residency** (on-prem / region pin); the PHI-redaction seam (§5).
+
+**Compliance & transparency:** DPDP / ABDM / HIPAA-posture; retention + **legal hold**; DPDP **right-to-erasure**; consent capture; **audit export**; HTI-1 transparency (expose inputs / logic / model per answer to the clinician).
+
+**Reliability & scale:** per-tenant isolation; **rate limits + quotas**; **fallback models** + graceful degradation (cache-only / cheaper tier when a budget or latency ceiling is hit); OpenTelemetry observability (data-infra RFC); SLOs.
+
+**Usage, cost & quality analytics:** per-tenant/user/dept **token + ₹ dashboards**, chargeback, anomaly/abuse detection; a **feedback loop** (👍/👎 + corrections → an eval set); a **red-team / eval suite** run before model rollout; grounding/citation + hallucination monitoring.
+
+## 7. Memory architecture (durable, cross-conversation)
+
+Beyond conversation history (§4.4), enterprise memory = governed, cross-thread knowledge, retrieved via pgvector scoped by access:
+
+- **Personal memory** (per user, RLS-owned): preferences (note style, default department, language), recurring context.
+- **Org / tenant memory** (shared, admin-curated + versioned): hospital protocols, formulary preferences, local guidelines, templates — the tenant's institutional knowledge.
+- **Patient memory** (per patient, care-team, **ReBAC-guarded**): a durable running problem-list / clinical summary any *authorized* thread can draw on; audited; PHI-governed.
+- **Governance (the discipline):** **explicit, confirmed writes** — the assistant proposes "remember X"; a user/admin confirms (no silent capture, and never silent PHI). Every memory is **typed**, audited, and **erasable** (DPDP); org memory is admin-approved + versioned. (Mirrors this repo's own file-memory model: one typed fact, an index, governed writes.)
+- **Recall:** pgvector over `(personal ∪ org ∪ patient-access)` memories, filtered by the same ReBAC as sharing (§4.5).
+
+## 8. Cost optimization — "ponytail for tokens" (the cheapest thing that works)
+
+A cost ladder; stop at the first rung that answers:
+1. **Don't call the LLM** — deterministic/rule answers, FAQ, or a **semantic response-cache** hit (freshness- + patient-scope-guarded) → zero tokens.
+2. **Prompt caching** — cache the system prompt + org memory + tool schemas + stable RAG context (Anthropic prompt cache, ~5-min TTL) so multi-turn threads reuse them cheaply. The single biggest win.
+3. **Model routing / tiering** — a cheap model (Haiku) routes/classifies + answers simple Q&A; mid (Sonnet) for most; expensive (Opus) **only** for hard clinical reasoning. Tier chosen per turn.
+4. **Retrieve, don't stuff** — RAG the *relevant* context (§4.4), never dump the whole chart/history.
+5. **Compact** — the §4.4 "spill" (summarize old turns) shrinks input tokens.
+6. **Bound output** — `max_tokens`, stop sequences, stream + early-stop; structured tool schemas over prose (caveman-terse prompts).
+7. **Batch** the non-interactive work — proactive whispers, bulk summaries, embeddings via the **batch API (~50% cheaper)**; cache + incrementally index embeddings.
+8. **Per-tenant/user spend caps** — a hard ₹/token budget; when hit, **degrade gracefully** (cache-only or cheapest tier), the `budget.remaining()` pattern, not a hard failure.
+9. **On-prem model** for high volume + sovereignty — the marginal-cost-zero optimizer (reuse `resolve_config`).
+
+Each LLM call carries a `// cost:` rationale (tier chosen + why) so inference cost is a first-class, reviewable decision — the ponytail/caveman ethos applied to the model itself.
+
+## 9. Phasing (each a focused, gated PR)
 
 1. **Backend chat (SSE, resumable)** — `POST /api/ai/chat` on `rig` streaming; `ai_conversations`/`ai_messages` + RLS; PHI-redaction seam + tenant opt-in + audit; swap `MockTransport` → `SseTransport`. *(Foundation.)*
 2. **Grounded citations** — RAG over Clinical KB + tenant chart (RLS-scoped) → `Sources` parts; refuse-if-empty; the refusal pose.
@@ -119,19 +186,24 @@ The mascot brief says the brain-crab *"guards, never drops its claws, always ale
 4. **Proactive whispers** — assistant subscribes to the clinical event bus (§3.2) → inline nudges + `custom` widgets (DDI table, K⁺-trend card).
 5. **Multimodal + voice + on-prem** — "explain this" on lab/ECG/report; ambient scribe → SOAP draft into the encounter (vernacular ASR); on-prem model toggle in AI settings.
 
-## 7. Verification
+**Cross-cutting from Phase 1** (not a separate phase): the cost ladder (§8) — prompt caching, model routing, spend caps — and the enterprise governance (§6) — admin console, quotas, kill switch, audit/analytics — are built incrementally alongside each phase, not bolted on after. **Memory (§7)** lands with Phase 2 (personal + org) and Phase 3 (patient memory, ReBAC-guarded).
+
+## 10. Verification
 
 - **P1**: `POST /api/ai/chat` streams tokens end-to-end over SSE under the normal auth/RLS/audit middleware; a unit test proves the redactor strips PHI before egress; tenant opt-in gates the assistant; `audit_log` records each call; drop-and-resume via `Last-Event-ID` continues a run. `make check-api`/`check-types`, `cargo clippy`, `pnpm typecheck`/`build`.
 - **P3 (guarded tools)**: staging a Schedule-X dispense without a duplicate record is **blocked with the cited rule + audited** (the regulatory-enforcement claim), and an allowed order stages → signs → posts through the real endpoint under the caller's permissions.
 - **P4**: a `lab.result.posted` critical value produces an inline whisper within the open thread.
 - **Frontend**: the crab shows the refusal state when ungrounded; a11y (keyboard, focus, aria); Storybook covers the new `custom` widgets.
 
-## 8. Open decisions
+## 11. Open decisions
 
 - **RAG store** for grounding — pgvector in the existing Postgres vs a dedicated store (Meilisearch is already speced for full-text). Recommend **pgvector** first (single source of truth, RLS-scoped).
 - **Voice/ASR provider** for the vernacular scribe (on-prem Whisper vs a managed API) — gate on the on-prem/sovereignty requirement.
 - **Tool-confirm granularity** — per-action confirm vs a batch "sign all staged" for a plan.
+- **Memory write policy** — always-confirm vs auto-propose-with-review; org-memory approval workflow.
+- **Model-routing thresholds** — what routes to Haiku vs Sonnet vs Opus (a classifier vs heuristics); the accuracy/cost trade for clinical turns (bias to the stronger model on anything clinical-decision).
+- **Semantic response-cache invalidation** — freshness TTL + the rule for busting the cache when the underlying chart/labs change (patient-scoped cache keys).
 
-## 9. References
+## 12. References
 
 Research sources (SOTA scan, mid-2026): Abridge, Microsoft Dragon Copilot (Ignite 2025), Suki ambient order staging, Nabla, Ambience, OpenEvidence, UpToDate Expert AI, Glass Health, Epic Art/Cosmos/In-Basket ART, Oracle Health Clinical AI Agent, Hippocratic AI (Polaris), Google Med-Gemini/MedLM, AWS HealthScribe; agentic guardrails / kill switches (Becker's, AWS HITL); hallucination/RAG/citation-enforced prompting (MDPI, npj Digital Medicine); FDA PCCP/SaMD; India DPDP Act 2023 + DPDP Rules 2025, ABDM/ABHA/NDHM, NDPS/CDSCO Schedule H/H1/X; Eka Care + NVIDIA offline multilingual scribe; on-prem open medical LLMs (vLLM/TGI). Full URL list in the research brief accompanying this RFC.
