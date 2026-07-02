@@ -104,6 +104,21 @@ pub async fn issue_token_in_tx(
     if !module_tokens_enabled(tx, tenant_id, input.module).await? {
         return Ok(None);
     }
+    // Serialise concurrent check-ins for the same queue+day so two callers can't
+    // read the same MAX(seq) and mint duplicate token numbers. Transaction-scoped
+    // advisory lock, auto-released at commit (tokens has no unique seq constraint).
+    sqlx::query(
+        "SELECT pg_advisory_xact_lock(hashtextextended(\
+           $1::text || ':' || $2::text || ':' || $3::text || ':' \
+           || COALESCE($4::text, '') || ':' || CURRENT_DATE::text, 0))",
+    )
+    .bind(tenant_id)
+    .bind(input.module)
+    .bind(input.scope)
+    .bind(input.scope_id)
+    .execute(&mut **tx)
+    .await?;
+
     let seq: i32 = sqlx::query_scalar(
         "SELECT COALESCE(MAX(seq), 0) + 1 FROM tokens \
          WHERE tenant_id = $1 AND module = $2 AND scope = $3 \
@@ -213,6 +228,20 @@ pub async fn issue_token(
     if !module_tokens_enabled(&mut tx, claims.tenant_id, &body.module).await? {
         return Err(AppError::Forbidden);
     }
+
+    // Serialise concurrent check-ins for the same queue+day (see issue_token_in_tx)
+    // so two callers can't compute the same MAX(seq) and mint duplicate tokens.
+    sqlx::query(
+        "SELECT pg_advisory_xact_lock(hashtextextended(\
+           $1::text || ':' || $2::text || ':' || $3::text || ':' \
+           || COALESCE($4::text, '') || ':' || CURRENT_DATE::text, 0))",
+    )
+    .bind(claims.tenant_id)
+    .bind(&body.module)
+    .bind(&scope)
+    .bind(body.scope_id)
+    .execute(&mut *tx)
+    .await?;
 
     let seq: i32 = sqlx::query_scalar(
         "SELECT COALESCE(MAX(seq), 0) + 1 FROM tokens \
