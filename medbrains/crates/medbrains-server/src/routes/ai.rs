@@ -248,9 +248,11 @@ async fn fetch_patient_grounding(
 }
 
 // ── Guarded clinical tool: drug safety check (RFC Phase 3) ────────────
-// The assistant can call this before endorsing any medication; it checks the
-// drug against the current patient's recorded allergies (de-identified grounding
-// captured at request time). First step toward tool-layer regulation enforcement.
+// The assistant calls this before endorsing any medication; it runs the drug
+// through the SAME pharmacy safety engine as the manual dispensing path
+// (evaluate_medication_safety_in_tx — allergies + interactions), under the
+// caller's RLS, and returns authoritative warnings the model is told to heed.
+// Tool-layer regulation enforcement: same guard as the human workflow.
 
 #[derive(serde::Deserialize)]
 struct DrugSafetyArgs {
@@ -260,13 +262,43 @@ struct DrugSafetyArgs {
 #[derive(serde::Serialize)]
 struct DrugSafetyResult {
     drug: String,
-    allergy_conflict: bool,
+    safe: bool,
+    warnings: Vec<String>,
     notes: String,
 }
 
 struct DrugSafetyTool {
-    has_patient: bool,
-    allergies: Vec<String>,
+    db: sqlx::PgPool,
+    tenant_id: Uuid,
+    department_ids: Vec<Uuid>,
+    patient_id: Option<Uuid>,
+}
+
+impl DrugSafetyTool {
+    /// Run the pharmacy safety engine (allergies + interactions) for one drug,
+    /// under the caller's RLS. Read-only.
+    async fn evaluate(
+        &self,
+        drug: &str,
+        patient_id: Uuid,
+    ) -> Result<Vec<crate::routes::pharmacy::MedicationSafetyWarning>, AppError> {
+        let mut tx = self.db.begin().await?;
+        medbrains_db::pool::set_full_context(&mut tx, &self.tenant_id, &self.department_ids).await?;
+        let items = [crate::routes::pharmacy::MedicationSafetyItem {
+            catalog_item_id: None,
+            drug_name: drug.to_owned(),
+            quantity: 1,
+        }];
+        let warnings = crate::routes::pharmacy::evaluate_medication_safety_in_tx(
+            &mut tx,
+            &self.tenant_id,
+            &patient_id,
+            &items,
+        )
+        .await?;
+        drop(tx);
+        Ok(warnings)
+    }
 }
 
 impl rig::tool::Tool for DrugSafetyTool {
@@ -278,8 +310,9 @@ impl rig::tool::Tool for DrugSafetyTool {
     async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
         rig::completion::ToolDefinition {
             name: Self::NAME.to_owned(),
-            description: "Check whether a proposed drug conflicts with the current patient's \
-                recorded allergies. ALWAYS call this before suggesting or endorsing a medication."
+            description: "Check a proposed drug against the current patient's allergies and drug \
+                interactions using the pharmacy safety engine. ALWAYS call this before suggesting or \
+                endorsing a medication, and never recommend a drug that returns a warning."
                 .to_owned(),
             parameters: serde_json::json!({
                 "type": "object",
@@ -295,40 +328,51 @@ impl rig::tool::Tool for DrugSafetyTool {
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        if !self.has_patient {
+        let Some(patient_id) = self.patient_id else {
             return Ok(DrugSafetyResult {
                 drug: args.drug,
-                allergy_conflict: false,
-                notes: "No patient chart is loaded, so allergies cannot be checked — ask the \
-                    clinician to open the patient's chart before relying on a drug suggestion."
+                safe: true,
+                warnings: Vec::new(),
+                notes: "No patient chart is loaded, so safety cannot be checked — ask the clinician \
+                    to open the patient's chart before relying on a drug suggestion."
                     .to_owned(),
             });
-        }
-        let drug_l = args.drug.to_lowercase();
-        let hit = self.allergies.iter().find(|a| {
-            let a_l = a.to_lowercase();
-            drug_l.contains(&a_l) || a_l.contains(&drug_l)
-        });
-        let (allergy_conflict, notes) = match hit {
-            Some(a) => (
-                true,
-                format!(
-                    "ALLERGY CONFLICT — the patient is recorded allergic to '{a}', which matches \
-                     '{}'. Do NOT recommend this drug; flag it to the clinician.",
-                    args.drug
-                ),
-            ),
-            None => (
-                false,
-                "No recorded allergy conflict. Still verify interactions and dosing clinically."
-                    .to_owned(),
-            ),
         };
-        Ok(DrugSafetyResult {
-            drug: args.drug,
-            allergy_conflict,
-            notes,
-        })
+        match self.evaluate(&args.drug, patient_id).await {
+            Ok(warnings) if warnings.is_empty() => Ok(DrugSafetyResult {
+                drug: args.drug,
+                safe: true,
+                warnings: Vec::new(),
+                notes: "No allergy or interaction warnings from the safety engine. Still verify \
+                    dosing clinically."
+                    .to_owned(),
+            }),
+            Ok(warnings) => {
+                let messages: Vec<String> = warnings
+                    .iter()
+                    .map(|w| format!("[{:?}] {}", w.severity, w.message))
+                    .collect();
+                let notes = format!(
+                    "SAFETY WARNINGS from the pharmacy engine — do NOT recommend this drug without \
+                     resolving these and flagging to the clinician: {}",
+                    messages.join("; ")
+                );
+                Ok(DrugSafetyResult {
+                    drug: args.drug,
+                    safe: false,
+                    warnings: messages,
+                    notes,
+                })
+            }
+            Err(_) => Ok(DrugSafetyResult {
+                drug: args.drug,
+                safe: false,
+                warnings: Vec::new(),
+                notes: "Could not verify drug safety (system error) — do not rely on an unchecked \
+                    recommendation; escalate to the clinician."
+                    .to_owned(),
+            }),
+        }
     }
 }
 
@@ -470,8 +514,10 @@ pub async fn chat(
                 .agent(cfg.model.as_str())
                 .preamble(preamble.as_str())
                 .tool(DrugSafetyTool {
-                    has_patient: grounded_patient.is_some(),
-                    allergies: grounding.allergies.clone(),
+                    db: state.db.clone(),
+                    tenant_id,
+                    department_ids: claims.department_ids.clone(),
+                    patient_id: grounded_patient,
                 })
                 .build();
             Box::pin(run_turn(agent, message, history, state, tenant_id, conversation_id))
@@ -483,8 +529,10 @@ pub async fn chat(
                 .agent(cfg.model.as_str())
                 .preamble(preamble.as_str())
                 .tool(DrugSafetyTool {
-                    has_patient: grounded_patient.is_some(),
-                    allergies: grounding.allergies.clone(),
+                    db: state.db.clone(),
+                    tenant_id,
+                    department_ids: claims.department_ids.clone(),
+                    patient_id: grounded_patient,
                 })
                 .build();
             Box::pin(run_turn(agent, message, history, state, tenant_id, conversation_id))
