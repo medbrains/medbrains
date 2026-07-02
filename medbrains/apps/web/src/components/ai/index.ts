@@ -14,6 +14,7 @@ export { Message, type MessageProps } from "./Message";
 export { PromptInput, type PromptInputProps } from "./PromptInput";
 export { Response } from "./Response";
 export { MockTransport, type MockTransportOptions } from "./transport/mock";
+export { SseTransport } from "./transport/sse";
 export {
   type ChatChunk,
   type ChatContext,

@@ -1,11 +1,11 @@
 import { Drawer, UnstyledButton } from "@mantine/core";
 import { useEffect, useMemo } from "react";
 import { AiChatPanel } from "./AiChatPanel";
+import styles from "./ai-assistant-mount.module.scss";
 import { useAiAssistantStore } from "./assistant-store";
 import { CrabMascot } from "./CrabMascot";
-import { MockTransport } from "./transport/mock";
+import { SseTransport } from "./transport/sse";
 import { useAiChat } from "./useAiChat";
-import styles from "./ai-assistant-mount.module.scss";
 
 const DEFAULT_SUGGESTIONS = [
   "Summarize this patient's labs",
@@ -30,7 +30,7 @@ export function AiAssistantMount({ suggestions = DEFAULT_SUGGESTIONS }: AiAssist
   const consumeQuery = useAiAssistantStore((state) => state.consumeQuery);
   const context = useAiAssistantStore((state) => state.context);
 
-  const transport = useMemo(() => new MockTransport(), []);
+  const transport = useMemo(() => new SseTransport(), []);
   const controller = useAiChat({ transport, context });
 
   // When a surface calls ask(), flush the queued question into the shared thread.

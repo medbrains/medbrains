@@ -2403,6 +2403,33 @@ export interface RefreshResponse {
 export const api = {
   health: () => request<HealthResponse>("/health"),
 
+  // AI copilot — streaming chat (SSE). Returns the raw Response so the caller
+  // reads the event stream; auth/CSRF/base-URL match `request`, but SSE isn't
+  // JSON so it can't use the typed helper.
+  chatStream: (
+    body: { message: string; conversation_id?: string; context?: unknown },
+    signal?: AbortSignal,
+  ): Promise<Response> => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (nativeClientName) {
+      headers["X-MedBrains-Client"] = nativeClientName;
+    }
+    if (nativeAccessToken) {
+      headers.Authorization = `Bearer ${nativeAccessToken}`;
+    }
+    const csrf = getCsrfToken();
+    if (csrf) {
+      headers["X-CSRF-Token"] = csrf;
+    }
+    return fetch(`${getApiBase()}/ai/chat`, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: JSON.stringify(body),
+      signal,
+    });
+  },
+
   // Auth
   login: async (data: LoginRequest): Promise<LoginResponse> => {
     const resp = await request<LoginResponse>("/auth/login", {
