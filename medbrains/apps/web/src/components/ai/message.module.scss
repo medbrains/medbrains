@@ -1,0 +1,56 @@
+// Chat message layout — bubble treatment ported from the design system
+// (assistant left / white card, user right / primary fill).
+
+.row {
+  width: 100%;
+}
+
+.assistantStack {
+  align-items: flex-start;
+  max-width: 84%;
+}
+
+.userStack {
+  align-items: flex-end;
+  max-width: 84%;
+}
+
+.assistantBubble {
+  padding: 11px 14px;
+  border-radius: 14px;
+  border-bottom-left-radius: 4px;
+  background: var(--mb-surface, var(--mantine-color-white));
+  border: 1px solid var(--mb-border, var(--mantine-color-gray-3));
+  color: var(--mb-text-primary, var(--mantine-color-text));
+
+  &[data-status="error"] {
+    border-color: var(--mb-danger, var(--mantine-color-red-6));
+  }
+}
+
+.userBubble {
+  padding: 11px 14px;
+  border-radius: 14px;
+  border-bottom-right-radius: 4px;
+  background: var(--mb-primary, var(--mantine-color-blue-6));
+}
+
+.userText {
+  color: var(--mantine-color-white);
+}
+
+.actions {
+  padding-inline: 2px;
+}
+
+// The brain-crab mascot avatar — a soft rounded tile (design `.av`).
+.crabAvatar {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--mb-primary-soft, #eef4ff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

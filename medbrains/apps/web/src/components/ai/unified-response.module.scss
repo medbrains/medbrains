@@ -1,0 +1,32 @@
+.tool {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--mb-border, var(--mantine-color-gray-3));
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mb-surface-2, var(--mantine-color-gray-1));
+}
+
+.sources {
+  padding: 8px 10px;
+  border-inline-start: 2px solid var(--mb-border, var(--mantine-color-gray-3));
+}
+
+.reasoning {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.reasoningToggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reasoningBody {
+  padding-inline-start: var(--mantine-spacing-sm);
+  border-inline-start: 2px solid var(--mb-border, var(--mantine-color-gray-3));
+  white-space: pre-wrap;
+}

@@ -1,0 +1,20 @@
+.wrap {
+  border: 1px solid var(--mb-border, var(--mantine-color-gray-3));
+  border-radius: var(--mantine-radius-sm);
+  overflow: hidden;
+}
+
+.header {
+  padding: 6px 10px;
+  background: var(--mb-surface-2, var(--mantine-color-gray-1));
+  border-bottom: 1px solid var(--mb-border, var(--mantine-color-gray-3));
+}
+
+.code {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  font-size: 0.8rem;
+  max-height: 340px;
+  overflow: auto;
+}

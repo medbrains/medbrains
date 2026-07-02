@@ -1,0 +1,75 @@
+.response {
+  font-size: var(--mantine-font-size-sm);
+  line-height: 1.6;
+  color: var(--mb-text-primary, var(--mantine-color-text));
+  word-break: break-word;
+
+  // Tight vertical rhythm for chat prose.
+  > :first-child {
+    margin-top: 0;
+  }
+
+  > :last-child {
+    margin-bottom: 0;
+  }
+
+  p,
+  ul,
+  ol,
+  pre,
+  blockquote,
+  table {
+    margin-block: var(--mantine-spacing-xs);
+  }
+
+  ul,
+  ol {
+    padding-inline-start: var(--mantine-spacing-lg);
+  }
+
+  code {
+    font-family: var(--mantine-font-family-monospace);
+    font-size: 0.85em;
+    background: var(--mb-surface-2, var(--mantine-color-gray-1));
+    padding: 0.1em 0.35em;
+    border-radius: var(--mantine-radius-sm);
+  }
+
+  pre {
+    background: var(--mb-surface-2, var(--mantine-color-gray-1));
+    border: 1px solid var(--mb-border, var(--mantine-color-gray-3));
+    border-radius: var(--mantine-radius-sm);
+    padding: var(--mantine-spacing-sm);
+    overflow-x: auto;
+
+    code {
+      background: transparent;
+      padding: 0;
+      font-size: 0.8rem;
+    }
+  }
+
+  blockquote {
+    border-inline-start: 3px solid var(--mb-border, var(--mantine-color-gray-3));
+    padding-inline-start: var(--mantine-spacing-sm);
+    color: var(--mb-text-secondary, var(--mantine-color-dimmed));
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.85em;
+
+    th,
+    td {
+      border: 1px solid var(--mb-border, var(--mantine-color-gray-3));
+      padding: 0.35em 0.5em;
+      text-align: start;
+    }
+  }
+
+  a {
+    color: var(--mb-primary, var(--mantine-color-blue-6));
+    text-decoration: underline;
+  }
+}
