@@ -148,10 +148,10 @@ where
 // auth/RLS/audit middleware (a WebSocket upgrade would bypass it). Persists both
 // turns to `ai_conversations`/`ai_messages` so a thread survives reloads.
 //
-// Phase 1 sends only the system prompt + the user's own prior turns to the model
-// — no auto-injected patient/chart data — so there is no system PHI egress yet.
-// Grounding + guarded tools + the PHI-redaction of injected context land in later
-// phases. `context` is accepted (for patient/encounter grouping) but not sent.
+// Grounding: when the turn carries a `context.patient_id` and the caller passes
+// the patient-viewer ReBAC, the patient's allergies are injected as de-identified
+// clinical context (allergen names only — never name/UHID/identifiers). Guarded
+// tools + broader chart grounding + a general free-text redactor are later phases.
 
 #[derive(Debug, Deserialize)]
 pub struct ChatRequest {
@@ -197,10 +197,32 @@ pub async fn chat(
         return Err(AppError::Forbidden);
     }
 
+    // Clinical grounding: if the turn carries a patient_id and the caller may
+    // view that patient (ReBAC), inject that patient's allergies below. Only
+    // de-identified clinical facts (allergen names) are sent — never the name /
+    // UHID / any identifier. Access-denied simply skips the context (never blocks
+    // the chat, never leaks).
+    let patient_id = req
+        .context
+        .as_ref()
+        .and_then(|c| c.get("patient_id"))
+        .and_then(serde_json::Value::as_str)
+        .and_then(|s| Uuid::parse_str(s).ok());
+    let grounded_patient = match patient_id {
+        Some(pid)
+            if crate::routes::patients::require_patient_viewer(&state, &claims, pid)
+                .await
+                .is_ok() =>
+        {
+            Some(pid)
+        }
+        _ => None,
+    };
+
     // Persist the user turn + load prior history — owner-scoped, under RLS.
     let tenant_id = claims.tenant_id;
     let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    medbrains_db::pool::set_full_context(&mut tx, &tenant_id, &claims.department_ids).await?;
 
     let conversation_id = match req.conversation_id {
         Some(id) => {
@@ -241,6 +263,19 @@ pub async fn chat(
     .fetch_all(&mut *tx)
     .await?;
 
+    let allergies: Vec<String> = if let Some(pid) = grounded_patient {
+        sqlx::query_scalar::<_, String>(
+            "SELECT allergen_name FROM patient_allergies \
+             WHERE patient_id = $1 AND tenant_id = $2 ORDER BY created_at",
+        )
+        .bind(pid)
+        .bind(tenant_id)
+        .fetch_all(&mut *tx)
+        .await?
+    } else {
+        Vec::new()
+    };
+
     sqlx::query(
         "INSERT INTO ai_messages (tenant_id, conversation_id, role, content) \
          VALUES ($1, $2, 'user', $3)",
@@ -260,18 +295,28 @@ pub async fn chat(
         })
         .collect();
 
+    let preamble = if allergies.is_empty() {
+        SYSTEM_PROMPT.to_owned()
+    } else {
+        format!(
+            "{SYSTEM_PROMPT}\n\nClinical context for the patient currently in view — \
+             known allergies: {}. Factor these into any medication guidance and flag conflicts.",
+            allergies.join(", ")
+        )
+    };
+
     use rig::client::CompletionClient as _;
     let boxed: SseBody = match cfg.provider.as_str() {
         "anthropic" => {
             let client = rig::providers::anthropic::Client::new(&cfg.api_key)
                 .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?;
-            let agent = client.agent(cfg.model.as_str()).preamble(SYSTEM_PROMPT).build();
+            let agent = client.agent(cfg.model.as_str()).preamble(preamble.as_str()).build();
             Box::pin(run_turn(agent, message, history, state, tenant_id, conversation_id))
         }
         "openrouter" => {
             let client = rig::providers::openrouter::Client::new(&cfg.api_key)
                 .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?;
-            let agent = client.agent(cfg.model.as_str()).preamble(SYSTEM_PROMPT).build();
+            let agent = client.agent(cfg.model.as_str()).preamble(preamble.as_str()).build();
             Box::pin(run_turn(agent, message, history, state, tenant_id, conversation_id))
         }
         other => {

@@ -2469,7 +2469,7 @@ pub async fn delete_patient_contact(
 /// sufficient — the caller must hold a Viewer relation on THIS patient
 /// (deny-by-default PgAuthzBackend). Returns 404 (not 403) so existence isn't
 /// leaked. Every patient sub-resource read must call this, mirroring get_patient.
-async fn require_patient_viewer(
+pub(crate) async fn require_patient_viewer(
     state: &AppState,
     claims: &Claims,
     patient_id: Uuid,
