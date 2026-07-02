@@ -1,10 +1,15 @@
-import { Drawer, UnstyledButton } from "@mantine/core";
+import { Drawer, Group, Menu, UnstyledButton } from "@mantine/core";
+import { api } from "@medbrains/api";
+import { IconHistory, IconPlus } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
+import { IconButton } from "@/components/ui";
 import { AiChatPanel } from "./AiChatPanel";
 import styles from "./ai-assistant-mount.module.scss";
 import { useAiAssistantStore } from "./assistant-store";
 import { CrabMascot } from "./CrabMascot";
 import { SseTransport } from "./transport/sse";
+import type { ChatRole } from "./transport/types";
 import { useAiChat } from "./useAiChat";
 
 const DEFAULT_SUGGESTIONS = [
@@ -43,6 +48,60 @@ export function AiAssistantMount({ suggestions = DEFAULT_SUGGESTIONS }: AiAssist
     }
   }, [pendingQuery, isOpen]);
 
+  // History list — eventually-consistent (fetches while the drawer is open;
+  // a brand-new thread appears on the next refetch/focus).
+  const { data: conversations = [] } = useQuery({
+    queryKey: ["ai-conversations"],
+    queryFn: () => api.listAiConversations(),
+    enabled: isOpen,
+  });
+
+  const openConversation = async (id: string) => {
+    const loaded = await api.getAiConversationMessages(id);
+    controller.hydrate(
+      loaded.map((m) => ({
+        id: m.id,
+        role: m.role as ChatRole,
+        content: m.content,
+        createdAt: m.created_at,
+        status: "complete" as const,
+      })),
+    );
+    transport.setConversationId(id);
+  };
+
+  const newChat = () => {
+    controller.reset();
+    transport.setConversationId(undefined);
+  };
+
+  const headerAction = (
+    <Group gap={4} wrap="nowrap">
+      <IconButton tone="default" size="sm" aria-label="New chat" onClick={newChat}>
+        <IconPlus size={16} />
+      </IconButton>
+      <Menu position="bottom-end" width={280} withinPortal>
+        <Menu.Target>
+          <IconButton tone="default" size="sm" aria-label="Conversation history">
+            <IconHistory size={16} />
+          </IconButton>
+        </Menu.Target>
+        <Menu.Dropdown>
+          <Menu.Label>Recent</Menu.Label>
+          {conversations.length === 0 ? (
+            <Menu.Item disabled>No conversations yet</Menu.Item>
+          ) : (
+            conversations.map((c) => (
+              <Menu.Item key={c.id} onClick={() => void openConversation(c.id)}>
+                {c.title ?? "Untitled"}
+              </Menu.Item>
+            ))
+          )}
+        </Menu.Dropdown>
+      </Menu>
+    </Group>
+  );
+
   return (
     <>
       {!isOpen && (
@@ -65,7 +124,12 @@ export function AiAssistantMount({ suggestions = DEFAULT_SUGGESTIONS }: AiAssist
         overlayProps={{ backgroundOpacity: 0.15 }}
         classNames={{ body: styles.drawerBody }}
       >
-        <AiChatPanel controller={controller} context={context} suggestions={suggestions} />
+        <AiChatPanel
+          controller={controller}
+          context={context}
+          suggestions={suggestions}
+          headerAction={headerAction}
+        />
       </Drawer>
     </>
   );

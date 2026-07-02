@@ -1,5 +1,5 @@
 import { Box, Group, Stack, Text } from "@mantine/core";
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 import { Button } from "@/components/ui";
 import styles from "./ai-chat-panel.module.scss";
 import { Conversation } from "./Conversation";
@@ -21,6 +21,8 @@ export interface AiChatPanelProps {
   title?: string;
   /** Quick-prompt chips shown on the empty state. */
   suggestions?: string[];
+  /** Controls rendered at the right of the header (e.g. history / new chat). */
+  headerAction?: ReactNode;
 }
 
 /**
@@ -35,6 +37,7 @@ export function AiChatPanel({
   controller,
   title = "MedBrains Assistant",
   suggestions = [],
+  headerAction,
 }: AiChatPanelProps) {
   const activeTransport = useMemo(() => transport ?? new MockTransport(), [transport]);
   const internal = useAiChat({ transport: activeTransport, context });
@@ -56,6 +59,7 @@ export function AiChatPanel({
             online
           </Text>
         </div>
+        {headerAction && <Box ml="auto">{headerAction}</Box>}
       </Group>
 
       <Conversation

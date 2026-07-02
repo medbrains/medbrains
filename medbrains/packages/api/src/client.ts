@@ -2400,6 +2400,19 @@ export interface RefreshResponse {
   field_access: Record<string, FieldAccessLevel>;
 }
 
+export interface AiConversationSummary {
+  id: string;
+  title: string | null;
+  last_message_at: string;
+}
+
+export interface AiConversationMessage {
+  id: string;
+  role: string;
+  content: string;
+  created_at: string;
+}
+
 export const api = {
   health: () => request<HealthResponse>("/health"),
 
@@ -2429,6 +2442,9 @@ export const api = {
       signal,
     });
   },
+  listAiConversations: () => request<AiConversationSummary[]>("/ai/conversations"),
+  getAiConversationMessages: (id: string) =>
+    request<AiConversationMessage[]>(`/ai/conversations/${id}/messages`),
 
   // Auth
   login: async (data: LoginRequest): Promise<LoginResponse> => {

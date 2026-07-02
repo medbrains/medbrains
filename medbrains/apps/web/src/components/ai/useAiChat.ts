@@ -18,6 +18,8 @@ export interface UseAiChat {
   stop: () => void;
   reset: () => void;
   regenerate: () => Promise<void>;
+  /** Replace the thread with loaded messages (e.g. resuming a saved conversation). */
+  hydrate: (messages: ChatMessage[]) => void;
 }
 
 function newId(): string {
@@ -125,5 +127,11 @@ export function useAiChat({
     setStatus("idle");
   }, [initialMessages]);
 
-  return { messages, status, send, stop, reset, regenerate };
+  const hydrate = useCallback((loaded: ChatMessage[]) => {
+    abortRef.current?.abort();
+    setMessages(loaded);
+    setStatus("idle");
+  }, []);
+
+  return { messages, status, send, stop, reset, regenerate, hydrate };
 }

@@ -3132,8 +3132,13 @@ pub fn build_router(state: AppState) -> Router {
             "/api/integration/code/ai-generate",
             post(custom_code::ai_generate_code),
         )
-        // ── AI Clinical Copilot — streaming chat (SSE) ─
+        // ── AI Clinical Copilot — streaming chat (SSE) + history ─
         .route("/api/ai/chat", post(ai::chat))
+        .route("/api/ai/conversations", get(ai::list_conversations))
+        .route(
+            "/api/ai/conversations/{id}/messages",
+            get(ai::conversation_messages),
+        )
         // ── IPD Phase 2: Wards, Bed Dashboard, Reports, Templates ─
         // Registered BEFORE /api/ipd/admissions/{id} to avoid path collision
         .route(

@@ -11,7 +11,7 @@
 
 use axum::{
     Extension, Json,
-    extract::State,
+    extract::{Path, State},
     response::sse::{Event, KeepAlive, Sse},
 };
 use futures::{Stream, StreamExt as _};
@@ -314,4 +314,76 @@ async fn persist_assistant_turn(
         .await?;
     tx.commit().await?;
     Ok(())
+}
+
+// ── Conversation history (resume a thread) ───────────────────────────
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct ConversationSummary {
+    pub id: Uuid,
+    pub title: Option<String>,
+    pub last_message_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct ConversationMessage {
+    pub id: Uuid,
+    pub role: String,
+    pub content: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// The caller's own conversations, newest first — the assistant's history menu.
+pub async fn list_conversations(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<ConversationSummary>>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, ConversationSummary>(
+        "SELECT id, title, last_message_at FROM ai_conversations \
+         WHERE tenant_id = $1 AND owner_user_id = $2 AND archived_at IS NULL \
+         ORDER BY last_message_at DESC LIMIT 100",
+    )
+    .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+/// Messages of one conversation — owner-checked, so a thread only reopens for
+/// its owner (sharing is a later phase).
+pub async fn conversation_messages(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<ConversationMessage>>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let owner = sqlx::query_scalar::<_, Uuid>(
+        "SELECT owner_user_id FROM ai_conversations WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    match owner {
+        Some(o) if o == claims.sub => {}
+        Some(_) => return Err(AppError::Forbidden),
+        None => return Err(AppError::BadRequest("conversation not found".to_owned())),
+    }
+
+    let rows = sqlx::query_as::<_, ConversationMessage>(
+        "SELECT id, role, content, created_at FROM ai_messages \
+         WHERE conversation_id = $1 AND tenant_id = $2 ORDER BY created_at",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
 }

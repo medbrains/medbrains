@@ -20,6 +20,11 @@ function parseFrame(frame: string): Record<string, unknown> | null {
 export class SseTransport implements ChatTransport {
   private conversationId?: string;
 
+  /** Continue a saved thread (resume) or start fresh when `undefined`. */
+  setConversationId(id?: string): void {
+    this.conversationId = id;
+  }
+
   async *send(messages: ChatMessage[], opts: SendOptions): AsyncIterable<ChatChunk> {
     const lastUser = [...messages].reverse().find((m) => m.role === "user");
     if (!lastUser) return;
