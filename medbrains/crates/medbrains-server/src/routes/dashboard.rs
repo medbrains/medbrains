@@ -1118,6 +1118,15 @@ pub async fn get_widget_data(
     .await?
     .ok_or(AppError::NotFound)?;
 
+    // Enforce the widget's own permission_code — fetching a widget by ID must not
+    // bypass the gate fetch_visible_widgets applies when rendering dashboards.
+    // 404 (not 403) so a widget the caller can't see isn't confirmed to exist.
+    if let Some(perm) = widget.permission_code.as_ref() {
+        if !is_bypass_role(&claims) && !claims.permissions.iter().any(|p| p == perm) {
+            return Err(AppError::NotFound);
+        }
+    }
+
     // Apply the viewer's variant overrides (data_source/config) before resolving.
     let groups = fetch_viewer_groups(&mut tx, claims.tenant_id, claims.sub).await?;
     apply_variant(&mut widget, &claims.role, claims.sub, &groups);
@@ -1160,6 +1169,15 @@ pub async fn batch_widget_data(
     .bind(&req.widget_ids)
     .fetch_all(&mut *tx)
     .await?;
+
+    // Drop widgets the caller isn't permitted to see (permission_code gate) — a
+    // batch fetch by ID must not bypass fetch_visible_widgets' filter.
+    let is_bypass = is_bypass_role(&claims);
+    widgets.retain(|w| {
+        w.permission_code
+            .as_ref()
+            .is_none_or(|perm| is_bypass || claims.permissions.iter().any(|p| p == perm))
+    });
 
     // Apply per-audience variant overrides so each widget's data_source/config
     // reflects the viewer's variant before its data is resolved.
