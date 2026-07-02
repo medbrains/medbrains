@@ -4,6 +4,7 @@ import { IconHistory, IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import { IconButton } from "@/components/ui";
+import { useWhispers } from "@/hooks/useWhispers";
 import { AiChatPanel } from "./AiChatPanel";
 import styles from "./ai-assistant-mount.module.scss";
 import { useAiAssistantStore } from "./assistant-store";
@@ -104,6 +105,7 @@ export function AiAssistantMount({ suggestions = DEFAULT_SUGGESTIONS }: AiAssist
   );
 
   const fab = useDraggableFab(toggle);
+  useWhispers();
 
   return (
     <>
@@ -114,7 +116,12 @@ export function AiAssistantMount({ suggestions = DEFAULT_SUGGESTIONS }: AiAssist
             aria-label="Open MedBrains assistant (drag to reposition)"
             {...fab}
           >
-            <CrabMascot size={40} pose="greet" accent="#ffffff" accentSoft="rgba(255,255,255,0.3)" />
+            <CrabMascot
+              size={40}
+              pose="greet"
+              accent="#ffffff"
+              accentSoft="rgba(255,255,255,0.3)"
+            />
           </UnstyledButton>
         </Tooltip>
       )}

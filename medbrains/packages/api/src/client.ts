@@ -2442,6 +2442,23 @@ export const api = {
       signal,
     });
   },
+  // Proactive whispers — a long-lived SSE of critical alerts. Raw Response so
+  // the caller reads the event stream (GET → no CSRF needed).
+  whisperStream: (signal?: AbortSignal): Promise<Response> => {
+    const headers: Record<string, string> = {};
+    if (nativeClientName) {
+      headers["X-MedBrains-Client"] = nativeClientName;
+    }
+    if (nativeAccessToken) {
+      headers.Authorization = `Bearer ${nativeAccessToken}`;
+    }
+    return fetch(`${getApiBase()}/ai/whispers`, {
+      method: "GET",
+      headers,
+      credentials: "include",
+      signal,
+    });
+  },
   listAiConversations: () => request<AiConversationSummary[]>("/ai/conversations"),
   getAiConversationMessages: (id: string) =>
     request<AiConversationMessage[]>(`/ai/conversations/${id}/messages`),
