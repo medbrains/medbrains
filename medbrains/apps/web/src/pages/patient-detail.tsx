@@ -88,6 +88,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useParams, useSearchParams } from "react-router";
+import { AskAiButton } from "@/components/ai";
 import { PrescriptionViews } from "@/components/Clinical";
 import { ClinicalEventProvider, useClinicalEmit } from "@/components/ClinicalEventProvider";
 import { NotesPanel } from "@/components/crdt/NotesPanel";
@@ -3265,6 +3266,11 @@ function PatientDetailPageInner() {
         divider={false}
         actions={
           <Group gap="xs">
+            <AskAiButton
+              prompt="Summarize this patient and flag any allergy or medication-safety concerns."
+              context={{ patient_id: patient.id }}
+              label="Ask AI"
+            />
             {canViewBillingLedger && (
               <Button
                 tone="secondary"
