@@ -11,6 +11,7 @@ import { CrabMascot } from "./CrabMascot";
 import { SseTransport } from "./transport/sse";
 import type { ChatRole } from "./transport/types";
 import { useAiChat } from "./useAiChat";
+import { useDraggableFab } from "./useDraggableFab";
 
 const DEFAULT_SUGGESTIONS = [
   "Summarize this patient's labs",
@@ -102,13 +103,15 @@ export function AiAssistantMount({ suggestions = DEFAULT_SUGGESTIONS }: AiAssist
     </Group>
   );
 
+  const fab = useDraggableFab(toggle);
+
   return (
     <>
       {!isOpen && (
         <UnstyledButton
           className={styles.fab}
-          onClick={toggle}
-          aria-label="Open MedBrains assistant"
+          aria-label="Open MedBrains assistant (drag to reposition)"
+          {...fab}
         >
           <CrabMascot size={40} pose="greet" />
         </UnstyledButton>

@@ -1,7 +1,6 @@
 .fab {
+  // Position (edge + offset) is driven by useDraggableFab via inline style.
   position: fixed;
-  right: 24px;
-  bottom: 24px;
   z-index: 300;
   width: 60px;
   height: 60px;
@@ -9,6 +8,8 @@
   background: var(--mb-surface, var(--mantine-color-white));
   border: 1px solid var(--mb-border, var(--mantine-color-gray-3));
   box-shadow: var(--mantine-shadow-md);
+  touch-action: none;
+  cursor: grab;
   display: flex;
   align-items: center;
   justify-content: center;
