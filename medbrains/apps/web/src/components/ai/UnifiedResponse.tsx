@@ -1,11 +1,11 @@
-import { Anchor, Box, Image, List, Stack, Text, UnstyledButton } from "@mantine/core";
+import { Anchor, Box, Group, Image, List, Stack, Text, UnstyledButton } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { IconChevronRight, IconTool } from "@tabler/icons-react";
+import { IconAlertTriangle, IconChevronRight, IconTool } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui";
 import { CodeBlock } from "./CodeBlock";
 import { Response } from "./Response";
-import type { ChatMessage, ChatPart } from "./transport/types";
+import type { ChatMessage, ChatPart, ChatToolCall } from "./transport/types";
 import { messageParts } from "./transport/types";
 import styles from "./unified-response.module.scss";
 
@@ -69,21 +69,7 @@ function PartView({
     case "reasoning":
       return <>{renderers?.reasoning?.(part) ?? <ReasoningView text={part.text} />}</>;
     case "tool":
-      return (
-        <>
-          {renderers?.tool?.(part) ?? (
-            <Box className={styles.tool}>
-              <IconTool size={14} />
-              <Text size="xs" ff="monospace">
-                {part.toolCall.name}
-              </Text>
-              <Badge tone={part.toolCall.status === "error" ? "danger" : "neutral"} size="sm">
-                {part.toolCall.status}
-              </Badge>
-            </Box>
-          )}
-        </>
-      );
+      return <>{renderers?.tool?.(part) ?? <ToolView toolCall={part.toolCall} />}</>;
     case "sources":
       return (
         <>
@@ -115,6 +101,49 @@ function PartView({
     default:
       return null;
   }
+}
+
+const TOOL_LABELS: Record<string, string> = {
+  check_drug_safety: "Drug safety check",
+  draft_prescription: "Prescription draft",
+};
+
+/** Read the block decision out of a tool result (shape varies by tool). */
+function toolResultInfo(result: unknown): { blocked: boolean; message?: string } {
+  if (result && typeof result === "object") {
+    const r = result as Record<string, unknown>;
+    return {
+      blocked: r.decision === "blocked" || r.safe === false,
+      message: typeof r.message === "string" ? r.message : undefined,
+    };
+  }
+  return { blocked: false };
+}
+
+/** A tool-call chip — turns prominently red when the server BLOCKED the action. */
+function ToolView({ toolCall }: { toolCall: ChatToolCall }) {
+  const { blocked, message } = toolResultInfo(toolCall.result);
+  const label = TOOL_LABELS[toolCall.name] ?? toolCall.name;
+  const running = toolCall.status === "running" || toolCall.status === "pending";
+
+  return (
+    <Box className={blocked ? styles.toolBlocked : styles.tool}>
+      <Group gap={8} wrap="nowrap">
+        {blocked ? <IconAlertTriangle size={15} /> : <IconTool size={14} />}
+        <Text size="xs" fw={blocked ? 700 : 500}>
+          {label}
+        </Text>
+        <Badge tone={blocked ? "danger" : running ? "neutral" : "success"} size="sm">
+          {blocked ? "BLOCKED" : toolCall.status}
+        </Badge>
+      </Group>
+      {blocked && message && (
+        <Text size="xs" mt={4} className={styles.toolBlockedMsg}>
+          {message}
+        </Text>
+      )}
+    </Box>
+  );
 }
 
 function ReasoningView({ text }: { text: string }) {

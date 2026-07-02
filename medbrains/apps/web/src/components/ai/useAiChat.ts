@@ -69,7 +69,23 @@ export function useAiChat({
           } else if (chunk.type === "reasoning") {
             patch((m) => ({ ...m, reasoning: (m.reasoning ?? "") + chunk.delta }));
           } else if (chunk.type === "tool") {
-            patch((m) => ({ ...m, toolCalls: [...(m.toolCalls ?? []), chunk.toolCall] }));
+            // Upsert by id so the running chip becomes the resolved one.
+            patch((m) => {
+              const existing = m.toolCalls ?? [];
+              const idx = existing.findIndex((t) => t.id === chunk.toolCall.id);
+              const toolCalls =
+                idx >= 0
+                  ? existing.map((t, i) => (i === idx ? { ...t, ...chunk.toolCall } : t))
+                  : [...existing, chunk.toolCall];
+              return { ...m, toolCalls };
+            });
+          } else if (chunk.type === "tool_result") {
+            patch((m) => ({
+              ...m,
+              toolCalls: (m.toolCalls ?? []).map((t) =>
+                t.id === chunk.id ? { ...t, result: chunk.result, status: "done" } : t,
+              ),
+            }));
           } else if (chunk.type === "source") {
             patch((m) => ({ ...m, sources: [...(m.sources ?? []), chunk.source] }));
           } else if (chunk.type === "error") {

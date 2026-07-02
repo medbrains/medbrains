@@ -740,7 +740,7 @@ where
     P: rig::agent::PromptHook<M> + 'static,
 {
     use rig::agent::MultiTurnStreamItem;
-    use rig::streaming::{StreamedAssistantContent, StreamingPrompt as _};
+    use rig::streaming::{StreamedAssistantContent, StreamedUserContent, StreamingPrompt as _};
 
     async_stream::stream! {
         let mut answer = String::new();
@@ -755,15 +755,32 @@ where
                     tool_call,
                     internal_call_id,
                 })) => {
-                    // Surface the guard the assistant ran, so the user sees it check.
+                    // Surface the guard the assistant is running.
                     yield sse(&serde_json::json!({
                         "type": "tool",
                         "toolCall": {
                             "id": internal_call_id,
                             "name": tool_call.function.name,
                             "args": tool_call.function.arguments,
-                            "status": "done"
+                            "status": "running"
                         }
+                    }));
+                }
+                Ok(MultiTurnStreamItem::StreamUserItem(StreamedUserContent::ToolResult {
+                    tool_result,
+                    internal_call_id,
+                })) => {
+                    // The tool's JSON output (e.g. a block decision) → to the UI.
+                    let text = tool_result.content.iter().find_map(|c| match c {
+                        rig::completion::message::ToolResultContent::Text(t) => Some(t.text.clone()),
+                        rig::completion::message::ToolResultContent::Image(_) => None,
+                    });
+                    let result: Option<serde_json::Value> =
+                        text.and_then(|t| serde_json::from_str(&t).ok());
+                    yield sse(&serde_json::json!({
+                        "type": "tool_result",
+                        "id": internal_call_id,
+                        "result": result
                     }));
                 }
                 Ok(_) => {}

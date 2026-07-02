@@ -8,6 +8,20 @@
   background: var(--mb-surface-2, var(--mantine-color-gray-1));
 }
 
+.toolBlocked {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--mb-danger, var(--mantine-color-red-6));
+  border-radius: var(--mantine-radius-sm);
+  background: color-mix(in srgb, var(--mb-danger, var(--mantine-color-red-6)) 8%, transparent);
+}
+
+.toolBlockedMsg {
+  color: var(--mb-danger, var(--mantine-color-red-7));
+}
+
 .sources {
   padding: 8px 10px;
   border-inline-start: 2px solid var(--mb-border, var(--mantine-color-gray-3));

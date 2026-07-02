@@ -80,6 +80,7 @@ export type ChatChunk =
   | { type: "text"; delta: string }
   | { type: "reasoning"; delta: string }
   | { type: "tool"; toolCall: ChatToolCall }
+  | { type: "tool_result"; id: string; result: unknown }
   | { type: "source"; source: ChatSource }
   | { type: "done" }
   | { type: "error"; error: string };
