@@ -2,9 +2,10 @@
 // Backend-agnostic (transport seam); ships against a mock so surfaces work now.
 
 export { AiAssistantMount, type AiAssistantMountProps } from "./AiAssistantMount";
-export { useAiAssistant } from "./useAiAssistant";
-export { useAiAssistantStore } from "./assistant-store";
 export { AiChatPanel, type AiChatPanelProps } from "./AiChatPanel";
+export { AiInlinePanel, type AiInlinePanelProps } from "./AiInlinePanel";
+export { AskAiButton, type AskAiButtonProps } from "./AskAiButton";
+export { useAiAssistantStore } from "./assistant-store";
 export { CodeBlock, type CodeBlockProps } from "./CodeBlock";
 export { Conversation, type ConversationProps } from "./Conversation";
 export { CrabLottie, type CrabLottieProps } from "./CrabLottie";
@@ -31,4 +32,5 @@ export {
   UnifiedResponse,
   type UnifiedResponseProps,
 } from "./UnifiedResponse";
+export { useAiAssistant } from "./useAiAssistant";
 export { type ChatStatus, type UseAiChat, type UseAiChatOptions, useAiChat } from "./useAiChat";

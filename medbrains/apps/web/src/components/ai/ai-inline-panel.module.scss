@@ -1,0 +1,8 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--mb-border, var(--mantine-color-gray-3));
+  border-radius: var(--mantine-radius-lg);
+  overflow: hidden;
+}
