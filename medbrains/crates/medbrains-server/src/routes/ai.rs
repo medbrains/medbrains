@@ -1275,6 +1275,78 @@ async fn persist_assistant_turn(
     Ok(())
 }
 
+// ── Proactive whispers (step 1: critical-value SSE) ──────────────────
+// A long-lived SSE the assistant UI subscribes to; it surfaces newly-fired,
+// unacknowledged critical lab values (post-commit, polled) as "whispers". Rides
+// the normal auth/RLS middleware; tenant-scoped. ponytail: polling (~10s) for a
+// simple, reliable first version — a push bus off the outbox worker is the
+// upgrade path. Per-patient access filtering is a later refinement.
+
+#[derive(sqlx::FromRow)]
+struct CriticalAlertRow {
+    patient_id: Uuid,
+    parameter_name: String,
+    value: String,
+    flag: String,
+    created_at: chrono::DateTime<chrono::Utc>,
+}
+
+async fn fetch_new_critical_alerts(
+    state: &AppState,
+    tenant_id: Uuid,
+    since: chrono::DateTime<chrono::Utc>,
+) -> Result<Vec<CriticalAlertRow>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    let rows = sqlx::query_as::<_, CriticalAlertRow>(
+        "SELECT patient_id, parameter_name, value, flag::text AS flag, created_at \
+         FROM lab_critical_alerts \
+         WHERE tenant_id = $1 AND created_at > $2 AND acknowledged_at IS NULL \
+         ORDER BY created_at LIMIT 20",
+    )
+    .bind(tenant_id)
+    .bind(since)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(rows)
+}
+
+pub async fn whispers(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> impl axum::response::IntoResponse {
+    let tenant_id = claims.tenant_id;
+    let stream = async_stream::stream! {
+        // Only surface alerts that fire AFTER the stream opens.
+        let mut since = chrono::Utc::now();
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+            let alerts = match fetch_new_critical_alerts(&state, tenant_id, since).await {
+                Ok(a) => a,
+                Err(e) => {
+                    tracing::warn!(error = %e, "whisper poll failed");
+                    Vec::new()
+                }
+            };
+            for alert in alerts {
+                if alert.created_at > since {
+                    since = alert.created_at;
+                }
+                yield sse(&serde_json::json!({
+                    "type": "whisper",
+                    "severity": "critical",
+                    "kind": "critical_lab_value",
+                    "title": "Critical lab value",
+                    "message": format!("{} = {} [{}]", alert.parameter_name, alert.value, alert.flag),
+                    "patientId": alert.patient_id,
+                }));
+            }
+        }
+    };
+    Sse::new(stream).keep_alive(KeepAlive::default())
+}
+
 // ── Conversation history (resume a thread) ───────────────────────────
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
