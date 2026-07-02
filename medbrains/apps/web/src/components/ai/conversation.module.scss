@@ -1,7 +1,7 @@
 .scroll {
   flex: 1;
   min-height: 0;
-  background: var(--mb-canvas, var(--mantine-color-body));
+  background: var(--mb-bg-content, var(--mantine-color-body));
 }
 
 .body {

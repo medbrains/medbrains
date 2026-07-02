@@ -19,7 +19,7 @@
   padding: 11px 14px;
   border-radius: 14px;
   border-bottom-left-radius: 4px;
-  background: var(--mb-surface, var(--mantine-color-white));
+  background: var(--mb-card-bg, var(--mantine-color-white));
   border: 1px solid var(--mb-border, var(--mantine-color-gray-3));
   color: var(--mb-text-primary, var(--mantine-color-text));
 
@@ -32,7 +32,7 @@
   padding: 11px 14px;
   border-radius: 14px;
   border-bottom-right-radius: 4px;
-  background: var(--mb-primary, var(--mantine-color-blue-6));
+  background: var(--mb-interactive, var(--mantine-color-blue-6));
 }
 
 .userText {
@@ -49,7 +49,7 @@
   height: 38px;
   flex-shrink: 0;
   border-radius: 10px;
-  background: var(--mb-primary-soft, #eef4ff);
+  background: var(--mb-brand-bg, #eef4ff);
   display: flex;
   align-items: center;
   justify-content: center;
