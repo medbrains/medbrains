@@ -1,4 +1,4 @@
-import { Drawer, Group, Menu, UnstyledButton } from "@mantine/core";
+import { Drawer, Group, Menu, Tooltip, UnstyledButton } from "@mantine/core";
 import { api } from "@medbrains/api";
 import { IconHistory, IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
@@ -108,13 +108,15 @@ export function AiAssistantMount({ suggestions = DEFAULT_SUGGESTIONS }: AiAssist
   return (
     <>
       {!isOpen && (
-        <UnstyledButton
-          className={styles.fab}
-          aria-label="Open MedBrains assistant (drag to reposition)"
-          {...fab}
-        >
-          <CrabMascot size={40} pose="greet" accent="#ffffff" accentSoft="rgba(255,255,255,0.3)" />
-        </UnstyledButton>
+        <Tooltip label="Ask MedBrains AI · drag to move" position="top" withArrow>
+          <UnstyledButton
+            className={styles.fab}
+            aria-label="Open MedBrains assistant (drag to reposition)"
+            {...fab}
+          >
+            <CrabMascot size={40} pose="greet" accent="#ffffff" accentSoft="rgba(255,255,255,0.3)" />
+          </UnstyledButton>
+        </Tooltip>
       )}
       <Drawer
         opened={isOpen}
