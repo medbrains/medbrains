@@ -1234,10 +1234,11 @@ pub async fn list_dicom_studies(
         "SELECT id, patient_id, study_instance_uid, modality, study_date, study_description, \
          instance_count, series_count, viewer_url, orthanc_id, pacs_url, file_size_bytes \
          FROM radiology_dicom_studies \
-         WHERE ($1::uuid IS NULL OR patient_id = $1) \
+         WHERE tenant_id = $2 AND ($1::uuid IS NULL OR patient_id = $1) \
          ORDER BY study_date DESC NULLS LAST LIMIT 100",
     )
     .bind(params.patient_id)
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
@@ -1290,10 +1291,11 @@ pub async fn get_prior_studies(
     >(
         "SELECT id, study_instance_uid, modality, study_date, study_description, \
          instance_count, series_count, viewer_url, pacs_url, file_size_bytes \
-         FROM radiology_dicom_studies WHERE patient_id = $1 \
+         FROM radiology_dicom_studies WHERE patient_id = $1 AND tenant_id = $2 \
          ORDER BY study_date DESC LIMIT 50",
     )
     .bind(patient_id)
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
@@ -1445,8 +1447,12 @@ pub async fn list_dosimetry_records(
     let rows = sqlx::query_as::<_, (Uuid, Uuid, String, chrono::NaiveDate, chrono::NaiveDate, Decimal, bool)>(
         "SELECT d.id, d.staff_id, d.badge_number, d.monitoring_period_start, d.monitoring_period_end, \
          d.dose_value, d.is_compliant \
-         FROM radiology_dosimetry_records d ORDER BY d.monitoring_period_end DESC LIMIT 100",
-    ).fetch_all(&mut *tx).await?;
+         FROM radiology_dosimetry_records d WHERE d.tenant_id = $1 \
+         ORDER BY d.monitoring_period_end DESC LIMIT 100",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
 
     let result: Vec<serde_json::Value> = rows
         .iter()
@@ -1527,8 +1533,13 @@ pub async fn get_download_package(
 
     let study = sqlx::query_as::<_, (String, String, Option<chrono::NaiveDate>, Option<String>, i32, Option<String>)>(
         "SELECT study_instance_uid, modality, study_date, study_description, instance_count, viewer_url \
-         FROM radiology_dicom_studies WHERE id = $1",
-    ).bind(study_id).fetch_optional(&mut *tx).await?.ok_or(AppError::NotFound)?;
+         FROM radiology_dicom_studies WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(study_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({

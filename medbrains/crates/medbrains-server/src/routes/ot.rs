@@ -1953,7 +1953,10 @@ pub async fn ot_utilization(
     Extension(claims): Extension<Claims>,
     Query(params): Query<UtilizationQuery>,
 ) -> Result<Json<Vec<RoomUtilization>>, AppError> {
-    require_permission(&claims, permissions::ot::consumables::MANAGE)?;
+    // Read-only OT analytics — gate on the reports read permission like its
+    // siblings (get_surgeon_caseload, list_anesthesia_complications), not the
+    // unrelated consumables-management grant.
+    require_permission(&claims, permissions::ot::reports::VIEW)?;
 
     let from = params
         .from
