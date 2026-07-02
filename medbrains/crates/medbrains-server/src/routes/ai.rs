@@ -26,14 +26,48 @@ use crate::{error::AppError, state::AppState};
 /// can dispatch requests in-process (reusing auth/RLS/permission/audit). Set once.
 pub static AI_ROUTER: std::sync::OnceLock<axum::Router> = std::sync::OnceLock::new();
 
-/// GET-only path prefixes the `call_api` read tool may reach (the safety boundary).
+/// GET-only path prefixes the `call_api` read tool may reach. Second line of
+/// defence — the real per-route `require_permission` is the primary one, so the
+/// model only ever reads what the caller's own permissions allow. Excludes
+/// auth/admin/setup/security/integration/audit (sensitive config) and print-data.
 const CALL_API_ALLOWLIST: &[&str] = &[
+    // Clinical
     "/api/patients/",
+    "/api/opd/",
     "/api/lab/",
     "/api/pharmacy/",
-    "/api/opd/",
     "/api/ipd/",
+    "/api/radiology/",
+    "/api/blood-bank/",
+    "/api/emergency/",
+    "/api/nurse/",
+    "/api/ot/",
+    "/api/chronic-care/",
+    "/api/cds/",
+    "/api/order-sets/",
+    "/api/infection-control/",
+    "/api/bedside/",
+    "/api/diet/",
+    "/api/mrd/",
+    "/api/documents/",
+    "/api/specialty/",
+    // Operational / non-clinical
     "/api/billing/",
+    "/api/insurance/",
+    "/api/payments/",
+    "/api/indent/",
+    "/api/procurement/",
+    "/api/hr/",
+    "/api/scheduling/",
+    "/api/quality/",
+    "/api/front-office/",
+    "/api/facilities/",
+    "/api/housekeeping/",
+    "/api/camp/",
+    "/api/communications/",
+    "/api/command-center/",
+    "/api/regulatory/",
+    "/api/lms/",
 ];
 
 /// Default model when the tenant has not configured one.
@@ -780,12 +814,15 @@ impl rig::tool::Tool for CallApiTool {
     async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
         rig::completion::ToolDefinition {
             name: Self::NAME.to_owned(),
-            description: "Fetch data from a MedBrains read API (GET) for ids in the screen context; \
-                runs with your own permissions. Prefer this over asking the user for data. Useful: \
-                GET /api/patients/{id} · /api/patients/{id}/allergies · /api/patients/{id}/visits · \
+            description: "Fetch data from any MedBrains read API (GET). Runs with your own \
+                permissions, so you can only read what you're allowed to — prefer this over asking \
+                the user. Clinical domains: patients, opd, lab, pharmacy, ipd, radiology, \
+                blood-bank, emergency, nurse, ot, chronic-care, cds. Operational: billing, \
+                insurance, indent, procurement, hr, scheduling, quality, facilities, front-office. \
+                Examples: GET /api/patients/{id} · /api/patients/{id}/allergies · \
                 /api/patients/{id}/lab-orders · /api/lab/orders/{orderId}/results · \
-                /api/billing/invoices/{id}. Only GET under \
-                /api/{patients,lab,pharmacy,opd,ipd,billing}/ is allowed."
+                /api/billing/invoices/{id}. Hit a collection endpoint first to discover ids, e.g. \
+                GET /api/billing/invoices?patient_id={id}."
                 .to_owned(),
             parameters: serde_json::json!({
                 "type": "object",
