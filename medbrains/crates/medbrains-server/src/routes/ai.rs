@@ -528,6 +528,21 @@ where
                     answer.push_str(&t.text);
                     yield sse(&serde_json::json!({ "type": "text", "text": t.text }));
                 }
+                Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::ToolCall {
+                    tool_call,
+                    internal_call_id,
+                })) => {
+                    // Surface the guard the assistant ran, so the user sees it check.
+                    yield sse(&serde_json::json!({
+                        "type": "tool",
+                        "toolCall": {
+                            "id": internal_call_id,
+                            "name": tool_call.function.name,
+                            "args": tool_call.function.arguments,
+                            "status": "done"
+                        }
+                    }));
+                }
                 Ok(_) => {}
                 Err(e) => {
                     yield sse(&serde_json::json!({ "type": "error", "message": e.to_string() }));

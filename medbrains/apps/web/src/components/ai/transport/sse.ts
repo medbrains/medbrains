@@ -1,5 +1,5 @@
 import { api } from "@medbrains/api";
-import type { ChatChunk, ChatMessage, ChatTransport, SendOptions } from "./types";
+import type { ChatChunk, ChatMessage, ChatToolCall, ChatTransport, SendOptions } from "./types";
 
 /** Pull the JSON payload out of one `data: {...}` SSE frame. */
 function parseFrame(frame: string): Record<string, unknown> | null {
@@ -80,6 +80,10 @@ export class SseTransport implements ChatTransport {
     switch (payload.type) {
       case "text":
         return typeof payload.text === "string" ? { type: "text", delta: payload.text } : null;
+      case "tool":
+        return payload.toolCall
+          ? { type: "tool", toolCall: payload.toolCall as ChatToolCall }
+          : null;
       case "done":
         if (typeof payload.conversationId === "string") {
           this.conversationId = payload.conversationId;
