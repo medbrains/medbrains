@@ -249,6 +249,52 @@ async fn fetch_patient_grounding(
     })
 }
 
+/// One retrieved clinical-knowledge-base entry (grounding source).
+#[derive(sqlx::FromRow, Clone)]
+struct KbHit {
+    term: String,
+    snippet: Option<String>,
+    source_name: String,
+    source_url: Option<String>,
+}
+
+/// Full-text retrieval over the clinical knowledge base for the user's query.
+/// RLS-scoped (tenant + global entries) via the caller's transaction context.
+/// ponytail: on-the-fly `to_tsvector` scan; add a stored tsvector + GIN index
+/// (and a pgvector semantic layer) when the corpus grows.
+async fn retrieve_kb(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    query: &str,
+) -> Result<Vec<KbHit>, AppError> {
+    let hits = sqlx::query_as::<_, KbHit>(
+        "SELECT term, coalesce(short_text, left(insert_text, 400)) AS snippet, \
+                source_name, source_url \
+         FROM clinical_corpus_entries \
+         WHERE is_active \
+           AND to_tsvector('english', coalesce(term,'') || ' ' || coalesce(short_text,'') \
+                 || ' ' || coalesce(insert_text,'') || ' ' || array_to_string(aliases,' ')) \
+               @@ websearch_to_tsquery('english', $1) \
+         ORDER BY ts_rank( \
+             to_tsvector('english', coalesce(term,'') || ' ' || coalesce(short_text,'') \
+               || ' ' || coalesce(insert_text,'')), \
+             websearch_to_tsquery('english', $1)) DESC \
+         LIMIT 5",
+    )
+    .bind(query)
+    .fetch_all(&mut **tx)
+    .await?;
+    Ok(hits)
+}
+
+/// Everything `open_turn` prepares for one assistant turn.
+struct PreparedTurn {
+    conversation_id: Uuid,
+    history: Vec<rig::completion::Message>,
+    grounding: Grounding,
+    grounded_patient: Option<Uuid>,
+    kb_hits: Vec<KbHit>,
+}
+
 // ── Guarded clinical tool: drug safety check (RFC Phase 3) ────────────
 // The assistant calls this before endorsing any medication; it runs the drug
 // through the SAME pharmacy safety engine as the manual dispensing path
@@ -561,7 +607,7 @@ async fn open_turn(
     req: &ChatRequest,
     cfg: &AiConfig,
     message: &str,
-) -> Result<(Uuid, Vec<rig::completion::Message>, Grounding, Option<Uuid>), AppError> {
+) -> Result<PreparedTurn, AppError> {
     let tenant_id = claims.tenant_id;
 
     // Grounding gate: only inject a patient's clinical facts if the caller may
@@ -631,6 +677,8 @@ async fn open_turn(
         Grounding::default()
     };
 
+    let kb_hits = retrieve_kb(&mut tx, message).await?;
+
     sqlx::query(
         "INSERT INTO ai_messages (tenant_id, conversation_id, role, content) \
          VALUES ($1, $2, 'user', $3)",
@@ -650,7 +698,42 @@ async fn open_turn(
         })
         .collect();
 
-    Ok((conversation_id, history, grounding, grounded_patient))
+    Ok(PreparedTurn {
+        conversation_id,
+        history,
+        grounding,
+        grounded_patient,
+        kb_hits,
+    })
+}
+
+/// Compose the turn preamble: system prompt + de-identified patient context +
+/// knowledge-base references (the model is told to cite the latter).
+fn build_preamble(grounding: &Grounding, kb_hits: &[KbHit]) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    if let Some(ctx) = grounding.as_context() {
+        parts.push(format!("Patient context (de-identified) —\n{ctx}"));
+    }
+    if !kb_hits.is_empty() {
+        let refs: Vec<String> = kb_hits
+            .iter()
+            .map(|h| {
+                format!("- {} [{}]: {}", h.term, h.source_name, h.snippet.as_deref().unwrap_or(""))
+            })
+            .collect();
+        parts.push(format!(
+            "Knowledge-base references (cite these by name when you use them) —\n{}",
+            refs.join("\n")
+        ));
+    }
+    if parts.is_empty() {
+        SYSTEM_PROMPT.to_owned()
+    } else {
+        format!(
+            "{SYSTEM_PROMPT}\n\n{}\n\nFactor these into any medication guidance and flag conflicts.",
+            parts.join("\n\n")
+        )
+    }
 }
 
 pub async fn chat(
@@ -668,17 +751,16 @@ pub async fn chat(
         return Err(AppError::Forbidden);
     }
 
-    let (conversation_id, history, grounding, grounded_patient) =
-        open_turn(&state, &claims, &req, &cfg, &message).await?;
+    let PreparedTurn {
+        conversation_id,
+        history,
+        grounding,
+        grounded_patient,
+        kb_hits,
+    } = open_turn(&state, &claims, &req, &cfg, &message).await?;
     let tenant_id = claims.tenant_id;
 
-    let preamble = match grounding.as_context() {
-        Some(ctx) => format!(
-            "{SYSTEM_PROMPT}\n\nClinical context for the patient currently in view \
-             (de-identified) —\n{ctx}\nFactor these into any medication guidance and flag conflicts."
-        ),
-        None => SYSTEM_PROMPT.to_owned(),
-    };
+    let preamble = build_preamble(&grounding, &kb_hits);
 
     use rig::client::CompletionClient as _;
     let boxed: SseBody = match cfg.provider.as_str() {
@@ -702,7 +784,15 @@ pub async fn chat(
                     user_id: claims.sub,
                 })
                 .build();
-            Box::pin(run_turn(agent, message, history, state, tenant_id, conversation_id))
+            Box::pin(run_turn(
+                agent,
+                message,
+                history,
+                state,
+                tenant_id,
+                conversation_id,
+                kb_hits,
+            ))
         }
         "openrouter" => {
             let client = rig::providers::openrouter::Client::new(&cfg.api_key)
@@ -724,7 +814,15 @@ pub async fn chat(
                     user_id: claims.sub,
                 })
                 .build();
-            Box::pin(run_turn(agent, message, history, state, tenant_id, conversation_id))
+            Box::pin(run_turn(
+                agent,
+                message,
+                history,
+                state,
+                tenant_id,
+                conversation_id,
+                kb_hits,
+            ))
         }
         other => {
             return Err(AppError::BadRequest(format!(
@@ -747,6 +845,7 @@ fn run_turn<M, P>(
     state: AppState,
     tenant_id: Uuid,
     conversation_id: Uuid,
+    kb_hits: Vec<KbHit>,
 ) -> impl Stream<Item = Result<Event, std::convert::Infallible>>
 where
     M: rig::completion::CompletionModel + 'static,
@@ -757,6 +856,19 @@ where
     use rig::streaming::{StreamedAssistantContent, StreamedUserContent, StreamingPrompt as _};
 
     async_stream::stream! {
+        // Emit the retrieved KB entries as grounding sources (cited in the UI).
+        for (i, hit) in kb_hits.iter().enumerate() {
+            yield sse(&serde_json::json!({
+                "type": "source",
+                "source": {
+                    "id": format!("kb-{i}"),
+                    "title": hit.term,
+                    "url": hit.source_url,
+                    "snippet": hit.snippet,
+                }
+            }));
+        }
+
         let mut answer = String::new();
         let mut chunks = agent.stream_prompt(message.as_str()).with_history(history).await;
         while let Some(item) = chunks.next().await {
