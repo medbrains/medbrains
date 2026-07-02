@@ -11,6 +11,12 @@ import { MockTransport } from "./transport/mock";
 import type { ChatContext, ChatTransport } from "./transport/types";
 import { type UseAiChat, useAiChat } from "./useAiChat";
 
+const DEFAULT_FOLLOW_UPS = [
+  "Flag any critical values",
+  "Draft a progress note",
+  "Check drug interactions",
+];
+
 export interface AiChatPanelProps {
   /** Backend adapter. Defaults to a MockTransport so the panel works standalone. */
   transport?: ChatTransport;
@@ -21,6 +27,8 @@ export interface AiChatPanelProps {
   title?: string;
   /** Quick-prompt chips shown on the empty state. */
   suggestions?: string[];
+  /** Follow-up action chips shown under the assistant's last answer. */
+  followUps?: string[];
   /** Controls rendered at the right of the header (e.g. history / new chat). */
   headerAction?: ReactNode;
 }
@@ -37,6 +45,7 @@ export function AiChatPanel({
   controller,
   title = "MedBrains Assistant",
   suggestions = [],
+  followUps = DEFAULT_FOLLOW_UPS,
   headerAction,
 }: AiChatPanelProps) {
   const activeTransport = useMemo(() => transport ?? new MockTransport(), [transport]);
@@ -44,6 +53,13 @@ export function AiChatPanel({
   const { messages, status, send, stop } = controller ?? internal;
   const streaming = status === "streaming";
   const stickToken = `${messages.map((m) => m.content.length).join(",")}:${status}`;
+  const lastMessage = messages.at(-1);
+  const showFollowUps =
+    !streaming &&
+    lastMessage?.role === "assistant" &&
+    lastMessage.status !== "streaming" &&
+    !!lastMessage.content &&
+    followUps.length > 0;
 
   return (
     <Stack gap={0} className={styles.panel}>
@@ -95,6 +111,16 @@ export function AiChatPanel({
           <Message key={message.id} message={message} />
         ))}
       </Conversation>
+
+      {showFollowUps && (
+        <Group gap="xs" className={styles.followUps} wrap="wrap">
+          {followUps.map((followUp) => (
+            <Button key={followUp} tone="secondary" size="xs" onClick={() => send(followUp)}>
+              {followUp}
+            </Button>
+          ))}
+        </Group>
+      )}
 
       <PromptInput onSubmit={send} onStop={stop} streaming={streaming} />
     </Stack>
