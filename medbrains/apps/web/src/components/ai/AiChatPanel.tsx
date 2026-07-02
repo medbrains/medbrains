@@ -9,13 +9,15 @@ import { Message } from "./Message";
 import { PromptInput } from "./PromptInput";
 import { MockTransport } from "./transport/mock";
 import type { ChatContext, ChatTransport } from "./transport/types";
-import { useAiChat } from "./useAiChat";
+import { type UseAiChat, useAiChat } from "./useAiChat";
 
 export interface AiChatPanelProps {
   /** Backend adapter. Defaults to a MockTransport so the panel works standalone. */
   transport?: ChatTransport;
   /** Clinical/page context injected into every turn (patient, encounter…). */
   context?: ChatContext;
+  /** Share an externally-owned chat controller (e.g. the global assistant). */
+  controller?: UseAiChat;
   title?: string;
   /** Quick-prompt chips shown on the empty state. */
   suggestions?: string[];
@@ -25,15 +27,18 @@ export interface AiChatPanelProps {
  * The assembled MedBrains assistant — the crab-mascot chat that every surface
  * (drawer, popover, page, inline) mounts. Backend-agnostic via the transport
  * seam; ships against a mock so it's usable before the streaming API lands.
+ * Pass `controller` to share one conversation across surfaces (the global mount).
  */
 export function AiChatPanel({
   transport,
   context,
+  controller,
   title = "MedBrains Assistant",
   suggestions = [],
 }: AiChatPanelProps) {
   const activeTransport = useMemo(() => transport ?? new MockTransport(), [transport]);
-  const { messages, status, send, stop } = useAiChat({ transport: activeTransport, context });
+  const internal = useAiChat({ transport: activeTransport, context });
+  const { messages, status, send, stop } = controller ?? internal;
   const streaming = status === "streaming";
   const stickToken = `${messages.map((m) => m.content.length).join(",")}:${status}`;
 

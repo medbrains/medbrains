@@ -38,6 +38,7 @@ import { DlpGuard } from "@/components/DlpGuard";
 import { HeaderWidgets } from "@/components/HeaderWidgets";
 import { NewsMarquee } from "@/components/NewsMarquee";
 import { NotificationCenter } from "@/components/NotificationCenter";
+import { AiAssistantMount } from "@/components/ai";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { PageTransition } from "@/components/PageTransition";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -623,6 +624,11 @@ export function AppLayout() {
           </PageTransition>
         </Suspense>
       </AppShell.Main>
+
+      {/* App-wide crab assistant — floating launcher + drawer, openable from
+          anywhere via useAiAssistant(). Outside PageTransition so its fixed
+          launcher anchors to the viewport. */}
+      <AiAssistantMount />
     </AppShell>
   );
 }

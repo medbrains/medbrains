@@ -1,0 +1,34 @@
+.fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 300;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--mb-surface, var(--mantine-color-white));
+  border: 1px solid var(--mb-border, var(--mantine-color-gray-3));
+  box-shadow: var(--mantine-shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 120ms ease;
+
+  &:hover {
+    transform: translateY(-2px);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+    &:hover {
+      transform: none;
+    }
+  }
+}
+
+.drawerBody {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}

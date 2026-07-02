@@ -19,6 +19,7 @@ import {
 import { type ReactNode, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
+import { CrabMascot, useAiAssistantStore } from "@/components/ai";
 import { NAV_GROUPS, type NavItemConfig, resolveIcon } from "@/config/navigation";
 import styles from "./SpotlightProvider.module.scss";
 
@@ -83,7 +84,19 @@ function buildNavEntries(t: (key: string) => string): SpotlightEntry[] {
 }
 
 /** Quick action entries (action-oriented, not nav duplication). */
+/** Sentinel path handled specially in handleAction (opens the assistant). */
+const ASK_AI_PATH = "ai:assistant";
+
 const QUICK_ACTIONS: SpotlightEntry[] = [
+  {
+    id: "action-ask-ai",
+    label: "Ask MedBrains AI",
+    description: "Open the crab assistant",
+    path: ASK_AI_PATH,
+    icon: <CrabMascot size={20} animate={false} />,
+    group: "Quick Actions",
+    keywords: ["assistant", "chat", "ai", "help", "crab"],
+  },
   {
     id: "action-new-patient",
     label: "Create New Patient",
@@ -129,6 +142,7 @@ function filterActions(query: string, entries: SpotlightEntry[]): SpotlightEntry
 
 export function SpotlightProvider() {
   const navigate = useNavigate();
+  const openAssistant = useAiAssistantStore((s) => s.open);
   const hasPermission = usePermissionStore((s) => s.hasPermission);
   const [query, setQuery] = useState("");
   const { t } = useTranslation("nav");
@@ -160,6 +174,10 @@ export function SpotlightProvider() {
   }, [filtered]);
 
   const handleAction = (path: string) => {
+    if (path === ASK_AI_PATH) {
+      openAssistant();
+      return;
+    }
     navigate(path);
   };
 

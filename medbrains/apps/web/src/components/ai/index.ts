@@ -1,6 +1,9 @@
 // MedBrains AI chat component family — the crab-mascot assistant.
 // Backend-agnostic (transport seam); ships against a mock so surfaces work now.
 
+export { AiAssistantMount, type AiAssistantMountProps } from "./AiAssistantMount";
+export { useAiAssistant } from "./useAiAssistant";
+export { useAiAssistantStore } from "./assistant-store";
 export { AiChatPanel, type AiChatPanelProps } from "./AiChatPanel";
 export { CodeBlock, type CodeBlockProps } from "./CodeBlock";
 export { Conversation, type ConversationProps } from "./Conversation";
