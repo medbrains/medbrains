@@ -1,6 +1,10 @@
 .slider {
   width: 100%;
   max-width: 520px;
+  // Sit above the login panel's ::after spectrum overlay (which otherwise
+  // washes the tip text out — the .manifesto* text sits at z-index 2 too).
+  position: relative;
+  z-index: 2;
 }
 
 .slide {
