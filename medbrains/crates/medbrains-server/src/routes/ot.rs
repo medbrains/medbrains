@@ -543,6 +543,34 @@ pub async fn create_booking(
         }
     }
 
+    // Prevent double-booking a theatre: no other active booking in the same room
+    // may overlap this window. The advisory lock serialises concurrent bookings for
+    // the room+date so the check-then-insert can't race (ot_bookings has no
+    // exclusion constraint).
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1::text || ':' || $2::text, 0))")
+        .bind(body.ot_room_id)
+        .bind(body.scheduled_date)
+        .execute(&mut *tx)
+        .await?;
+    let room_conflict = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM ot_bookings \
+         WHERE tenant_id = $1 AND ot_room_id = $2 AND scheduled_date = $3 \
+           AND status <> 'cancelled' \
+           AND scheduled_start < $5 AND scheduled_end > $4)",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.ot_room_id)
+    .bind(body.scheduled_date)
+    .bind(body.scheduled_start)
+    .bind(body.scheduled_end)
+    .fetch_one(&mut *tx)
+    .await?;
+    if room_conflict {
+        return Err(AppError::Conflict(
+            "That theatre is already booked for an overlapping time.".to_owned(),
+        ));
+    }
+
     let row = sqlx::query_as::<_, OtBooking>(
         "INSERT INTO ot_bookings \
            (tenant_id, patient_id, admission_id, ot_room_id, primary_surgeon_id, \
