@@ -127,6 +127,7 @@ import {
   toMergePatientRequest,
 } from "@/forms/patient-detail.form";
 import { useHashTabs } from "@/hooks/useHashTabs";
+import { usePatientAssistantContext } from "@/hooks/usePatientAssistantContext";
 import { usePatientContext } from "@/hooks/usePatientContext";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { confirmDestructive } from "@/lib/confirm";
@@ -3002,6 +3003,7 @@ function PatientDetailPageInner() {
   useRequirePermission(P.PATIENTS.VIEW);
   const { id } = useParams<{ id: string }>();
   const patientId = id ?? "";
+  usePatientAssistantContext(patientId);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const emit = useClinicalEmit();

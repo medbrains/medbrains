@@ -13,6 +13,8 @@ interface AiAssistantState {
   open: (opts?: { query?: string; context?: ChatContext }) => void;
   close: () => void;
   toggle: () => void;
+  /** Ambiently set the page context (e.g. the patient screen currently open). */
+  setContext: (context: ChatContext | undefined) => void;
   /** Read + clear the queued query (the panel calls this after sending it). */
   consumeQuery: () => string | null;
 }
@@ -29,6 +31,7 @@ export const useAiAssistantStore = create<AiAssistantState>((set, get) => ({
     })),
   close: () => set({ isOpen: false }),
   toggle: () => set((state) => ({ isOpen: !state.isOpen })),
+  setContext: (context) => set({ context }),
   consumeQuery: () => {
     const query = get().pendingQuery;
     if (query !== null) set({ pendingQuery: null });
