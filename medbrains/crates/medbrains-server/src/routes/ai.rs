@@ -33,7 +33,9 @@ suggest options and defer to the treating clinician. Cite sources when you have 
 unsure or lack grounded evidence, say so plainly rather than guessing. Never invent patient data, \
 drug doses, or lab values. When you suggest or endorse a medication, FIRST call the \
 `check_drug_safety` tool with the drug name and heed its result — never recommend a drug that \
-conflicts with the patient's recorded allergies.";
+conflicts with the patient's recorded allergies. To propose a prescription, call \
+`draft_prescription`; if it returns decision 'blocked', the safety system has REFUSED the order — \
+you must NOT recommend that drug. You never create or sign orders yourself; a clinician does.";
 
 #[derive(Debug)]
 struct AiConfig {
@@ -376,6 +378,165 @@ impl rig::tool::Tool for DrugSafetyTool {
     }
 }
 
+// ── Guarded WRITE-action tool: draft a prescription ──────────────────
+// The differentiator's hard edge: the assistant can DRAFT a prescription, but
+// the SERVER — not the model — runs the pharmacy safety engine and REFUSES to
+// stage it when the engine returns a Block-severity warning (contraindication).
+// The block lives in server code, so the model cannot talk its way past it. Both
+// the refusal and the staged draft are audited. The AI never creates the order:
+// a clean draft is handed to a clinician to sign via the normal workflow.
+
+#[derive(serde::Deserialize)]
+struct DraftPrescriptionArgs {
+    drug: String,
+    #[serde(default)]
+    dose: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct DraftPrescriptionResult {
+    decision: String,
+    drug: String,
+    warnings: Vec<String>,
+    message: String,
+}
+
+struct DraftPrescriptionTool {
+    db: sqlx::PgPool,
+    tenant_id: Uuid,
+    department_ids: Vec<Uuid>,
+    patient_id: Option<Uuid>,
+    user_id: Uuid,
+}
+
+impl DraftPrescriptionTool {
+    /// Run the safety engine for the drug and audit the decision. Returns
+    /// `(blocked, warning_messages)`. Any Block-severity warning => blocked.
+    async fn stage(
+        &self,
+        patient_id: Uuid,
+        drug: &str,
+        dose: Option<&str>,
+    ) -> Result<(bool, Vec<String>), AppError> {
+        let mut tx = self.db.begin().await?;
+        medbrains_db::pool::set_full_context(&mut tx, &self.tenant_id, &self.department_ids).await?;
+        let items = [crate::routes::pharmacy::MedicationSafetyItem {
+            catalog_item_id: None,
+            drug_name: drug.to_owned(),
+            quantity: 1,
+        }];
+        let warnings = crate::routes::pharmacy::evaluate_medication_safety_in_tx(
+            &mut tx,
+            &self.tenant_id,
+            &patient_id,
+            &items,
+        )
+        .await?;
+        let blocked = warnings.iter().any(|w| {
+            matches!(w.severity, crate::routes::pharmacy::MedicationSafetySeverity::Block)
+        });
+        let messages: Vec<String> = warnings
+            .iter()
+            .map(|w| format!("[{:?}] {}", w.severity, w.message))
+            .collect();
+        let detail = serde_json::json!({
+            "drug": drug, "dose": dose, "blocked": blocked, "warnings": messages,
+        });
+        let action = if blocked {
+            "ai_prescription_blocked"
+        } else {
+            "ai_prescription_drafted"
+        };
+        medbrains_db::audit::AuditLogger::log(
+            &mut tx,
+            &medbrains_db::audit::AuditEntry {
+                tenant_id: self.tenant_id,
+                user_id: Some(self.user_id),
+                action,
+                entity_type: "ai_assistant",
+                entity_id: Some(patient_id),
+                old_values: None,
+                new_values: Some(&detail),
+                ip_address: None,
+            },
+        )
+        .await?;
+        tx.commit().await?;
+        Ok((blocked, messages))
+    }
+}
+
+impl rig::tool::Tool for DraftPrescriptionTool {
+    const NAME: &'static str = "draft_prescription";
+    type Error = std::convert::Infallible;
+    type Args = DraftPrescriptionArgs;
+    type Output = DraftPrescriptionResult;
+
+    async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
+        rig::completion::ToolDefinition {
+            name: Self::NAME.to_owned(),
+            description: "Draft a prescription for the current patient. The server runs the pharmacy \
+                safety engine and REFUSES (decision='blocked') on a contraindication — you cannot \
+                override it. On success the draft is staged for a clinician to sign; you never \
+                prescribe directly."
+                .to_owned(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "drug": { "type": "string", "description": "Drug (generic or brand name)" },
+                    "dose": { "type": "string", "description": "Dose/frequency, optional" }
+                },
+                "required": ["drug"]
+            }),
+        }
+    }
+
+    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        let Some(patient_id) = self.patient_id else {
+            return Ok(DraftPrescriptionResult {
+                decision: "no_patient".to_owned(),
+                drug: args.drug,
+                warnings: Vec::new(),
+                message: "No patient chart is loaded — cannot draft a prescription.".to_owned(),
+            });
+        };
+        match self.stage(patient_id, &args.drug, args.dose.as_deref()).await {
+            Ok((true, messages)) => Ok(DraftPrescriptionResult {
+                decision: "blocked".to_owned(),
+                message: format!(
+                    "REFUSED by the safety system — this prescription was NOT staged: {}. Do not \
+                     recommend it; escalate to the clinician.",
+                    messages.join("; ")
+                ),
+                warnings: messages,
+                drug: args.drug,
+            }),
+            Ok((false, messages)) => Ok(DraftPrescriptionResult {
+                decision: "staged".to_owned(),
+                message: if messages.is_empty() {
+                    "Draft staged for the clinician to review and sign. You have NOT prescribed it."
+                        .to_owned()
+                } else {
+                    format!(
+                        "Draft staged with advisories: {}. The clinician must review and sign; you \
+                         have NOT prescribed it.",
+                        messages.join("; ")
+                    )
+                },
+                warnings: messages,
+                drug: args.drug,
+            }),
+            Err(_) => Ok(DraftPrescriptionResult {
+                decision: "error".to_owned(),
+                drug: args.drug,
+                warnings: Vec::new(),
+                message: "Could not verify safety — draft NOT staged. Escalate to the clinician."
+                    .to_owned(),
+            }),
+        }
+    }
+}
+
 /// The boxed SSE body type — one alias so both provider branches unify.
 type SseBody = std::pin::Pin<
     Box<dyn Stream<Item = Result<Event, std::convert::Infallible>> + Send>,
@@ -519,6 +680,13 @@ pub async fn chat(
                     department_ids: claims.department_ids.clone(),
                     patient_id: grounded_patient,
                 })
+                .tool(DraftPrescriptionTool {
+                    db: state.db.clone(),
+                    tenant_id,
+                    department_ids: claims.department_ids.clone(),
+                    patient_id: grounded_patient,
+                    user_id: claims.sub,
+                })
                 .build();
             Box::pin(run_turn(agent, message, history, state, tenant_id, conversation_id))
         }
@@ -533,6 +701,13 @@ pub async fn chat(
                     tenant_id,
                     department_ids: claims.department_ids.clone(),
                     patient_id: grounded_patient,
+                })
+                .tool(DraftPrescriptionTool {
+                    db: state.db.clone(),
+                    tenant_id,
+                    department_ids: claims.department_ids.clone(),
+                    patient_id: grounded_patient,
+                    user_id: claims.sub,
                 })
                 .build();
             Box::pin(run_turn(agent, message, history, state, tenant_id, conversation_id))
