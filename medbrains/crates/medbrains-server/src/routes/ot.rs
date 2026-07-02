@@ -685,6 +685,26 @@ pub async fn update_booking_status(
                 "Complete the ward → OT pre-op send-off before starting surgery.".to_owned(),
             ));
         }
+
+        // WHO Surgical Safety Checklist hard-gate (NABH/JCI IPSG-4): sign-in and
+        // time-out phases must be completed before a case can start.
+        for phase in ["sign_in", "time_out"] {
+            if !who_phase_complete(&mut tx, &claims.tenant_id, id, phase).await? {
+                return Err(AppError::BadRequest(format!(
+                    "WHO Surgical Safety Checklist '{phase}' must be completed before starting surgery."
+                )));
+            }
+        }
+    }
+
+    // Sign-out must be completed before a case can be marked completed.
+    if body.status == "completed"
+        && !who_phase_complete(&mut tx, &claims.tenant_id, id, "sign_out").await?
+    {
+        return Err(AppError::BadRequest(
+            "WHO Surgical Safety Checklist 'sign_out' must be completed before completing the case."
+                .to_owned(),
+        ));
     }
 
     let (actual_start, actual_end) = match body.status.as_str() {
@@ -1227,6 +1247,27 @@ pub async fn get_checklists(
 
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+/// Whether a booking's WHO checklist phase (sign_in/time_out/sign_out) is
+/// completed — used to hard-gate the surgery lifecycle (NABH/JCI IPSG-4).
+async fn who_phase_complete(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    booking_id: Uuid,
+    phase: &str,
+) -> Result<bool, AppError> {
+    let complete = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM ot_surgical_safety_checklists \
+         WHERE booking_id = $1 AND tenant_id = $2 \
+           AND phase = $3::checklist_phase AND completed = true)",
+    )
+    .bind(booking_id)
+    .bind(tenant_id)
+    .bind(phase)
+    .fetch_one(&mut **tx)
+    .await?;
+    Ok(complete)
 }
 
 /// The WHO Surgical Safety Checklist — required items per phase (key, label).
