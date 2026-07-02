@@ -323,6 +323,9 @@ pub struct CallTokenInput {
     pub counter_label: Option<String>,
 }
 
+const VALID_TOKEN_STATUSES: [&str; 6] =
+    ["waiting", "called", "serving", "completed", "no_show", "cancelled"];
+
 async fn transition(
     state: &AppState,
     claims: &Claims,
@@ -330,6 +333,15 @@ async fn transition(
     status: &str,
     counter_label: Option<String>,
 ) -> Result<Token, AppError> {
+    // `status` reaches here from advance_token as an arbitrary client string
+    // (tokens.status is a plain text column with no CHECK). Reject anything
+    // outside the queue lifecycle so a caller can't set 'foo' or skip states.
+    if !VALID_TOKEN_STATUSES.contains(&status) {
+        return Err(AppError::BadRequest(format!(
+            "Invalid token status '{status}'"
+        )));
+    }
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 

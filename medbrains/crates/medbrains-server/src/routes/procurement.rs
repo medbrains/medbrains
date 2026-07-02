@@ -1168,15 +1168,28 @@ pub async fn create_grn(
 
         // Update PO item received quantity
         if let Some(po_item_id) = item.po_item_id {
-            sqlx::query(
-                "UPDATE purchase_order_items SET quantity_received = quantity_received + $1 \
-                 WHERE id = $2 AND tenant_id = $3",
+            // Verify the line belongs to THIS PO and cap receipt at the ordered
+            // quantity — otherwise a GRN could over-receive (phantom stock) or
+            // credit received qty onto a different PO's line in the same tenant.
+            let updated = sqlx::query(
+                "UPDATE purchase_order_items \
+                 SET quantity_received = quantity_received + $1 \
+                 WHERE id = $2 AND tenant_id = $3 AND po_id = $4 \
+                   AND quantity_received + $1 <= quantity_ordered",
             )
             .bind(item.quantity_accepted)
             .bind(po_item_id)
             .bind(claims.tenant_id)
+            .bind(body.po_id)
             .execute(&mut *tx)
             .await?;
+            if updated.rows_affected() == 0 {
+                return Err(AppError::BadRequest(format!(
+                    "GRN line for '{}' exceeds the ordered quantity or references a line item \
+                     that is not on this purchase order.",
+                    item.item_name
+                )));
+            }
         }
 
         // Create batch stock for accepted items

@@ -621,24 +621,34 @@ pub async fn create_transfusion(
     .fetch_one(&mut *tx)
     .await?;
 
-    if let (Some(patient_bg), Some(component_bg)) = (&patient_blood_group, &component_blood_group) {
-        let compatible = match (patient_bg.as_str(), component_bg.as_str()) {
-            (p, c) if p == c => true,
-            ("AB+" | "ab_positive", _) => true,
-            ("AB-" | "ab_negative", c) if !c.ends_with('+') && !c.contains("positive") => true,
-            (_, "O-" | "o_negative") => true,
-            (p, "O+" | "o_positive") if p.ends_with('+') || p.contains("positive") => true,
-            ("A+" | "a_positive", "A-" | "a_negative") => true,
-            ("A-" | "a_negative", "A-" | "a_negative") => true,
-            ("B+" | "b_positive", "B-" | "b_negative") => true,
-            ("B-" | "b_negative", "B-" | "b_negative") => true,
-            _ => false,
-        };
-        if !compatible {
-            return Err(AppError::BadRequest(format!(
-                "ABO/Rh incompatibility: patient {patient_bg} cannot receive component {component_bg}"
-            )));
-        }
+    // Fail SAFE, not open: if either blood group is unrecorded we cannot verify
+    // ABO/Rh compatibility, so the transfusion must not proceed. Previously the
+    // whole check was skipped when the patient's group was NULL, allowing any
+    // component to be transfused against an unknown group (hemovigilance/NABH hole).
+    let (Some(patient_bg), Some(component_bg)) = (&patient_blood_group, &component_blood_group)
+    else {
+        return Err(AppError::BadRequest(
+            "Cannot verify ABO/Rh compatibility — both patient and component blood groups \
+             must be recorded before transfusion."
+                .to_owned(),
+        ));
+    };
+    let compatible = match (patient_bg.as_str(), component_bg.as_str()) {
+        (p, c) if p == c => true,
+        ("AB+" | "ab_positive", _) => true,
+        ("AB-" | "ab_negative", c) if !c.ends_with('+') && !c.contains("positive") => true,
+        (_, "O-" | "o_negative") => true,
+        (p, "O+" | "o_positive") if p.ends_with('+') || p.contains("positive") => true,
+        ("A+" | "a_positive", "A-" | "a_negative") => true,
+        ("A-" | "a_negative", "A-" | "a_negative") => true,
+        ("B+" | "b_positive", "B-" | "b_negative") => true,
+        ("B-" | "b_negative", "B-" | "b_negative") => true,
+        _ => false,
+    };
+    if !compatible {
+        return Err(AppError::BadRequest(format!(
+            "ABO/Rh incompatibility: patient {patient_bg} cannot receive component {component_bg}"
+        )));
     }
 
     let record = sqlx::query_as::<_, TransfusionRecord>(
