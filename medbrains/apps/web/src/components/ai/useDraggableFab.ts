@@ -6,22 +6,21 @@ import {
   useState,
 } from "react";
 
-const FAB_SIZE = 60;
 const MARGIN = 16;
 const DRAG_THRESHOLD = 6;
 
-/** Persisted dock position: a horizontal edge + a vertical offset (null = bottom). */
-type FabPos = { side: "left" | "right"; top: number | null };
+/** Persisted dock: one of the four corners. */
+type FabPos = { side: "left" | "right"; vert: "top" | "bottom" };
 
 /**
- * Makes the floating launcher draggable: drag it anywhere, it snaps to the
- * nearest left/right edge on release and the position persists. A plain click
- * (no drag) still activates it, and keyboard activation is unaffected.
+ * Makes the floating launcher draggable: drag it anywhere, and on release it
+ * snaps to the NEAREST of the four corners (by quadrant); the choice persists.
+ * A plain click (no drag) still activates it; keyboard activation is unaffected.
  */
 export function useDraggableFab(onActivate: () => void) {
   const [pos, setPos] = useLocalStorage<FabPos>({
     key: "ai-fab-pos",
-    defaultValue: { side: "right", top: null },
+    defaultValue: { side: "right", vert: "bottom" },
     getInitialValueInEffect: false,
   });
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
@@ -65,12 +64,10 @@ export function useDraggableFab(onActivate: () => void) {
     setDrag(null);
     if (!d || !d.moved) return; // a plain click falls through to onClick
     justDragged.current = true;
+    // Snap to the nearest corner by which quadrant it was dropped in.
     const side = e.clientX < window.innerWidth / 2 ? "left" : "right";
-    const top = Math.min(
-      Math.max(e.clientY - d.offsetY, MARGIN),
-      window.innerHeight - FAB_SIZE - MARGIN,
-    );
-    setPos({ side, top });
+    const vert = e.clientY < window.innerHeight / 2 ? "top" : "bottom";
+    setPos({ side, vert });
   };
 
   const onClick = () => {
@@ -81,13 +78,20 @@ export function useDraggableFab(onActivate: () => void) {
     onActivate();
   };
 
+  // Background/radius set inline so they beat Mantine's UnstyledButton reset
+  // (which otherwise leaves the launcher transparent → shows the page bg).
+  const base: CSSProperties = {
+    background: "var(--mb-brand-emphasis, #0f62fe)",
+    borderRadius: 16,
+  };
   const style: CSSProperties = drag
-    ? { left: drag.x, top: drag.y, right: "auto", bottom: "auto", cursor: "grabbing" }
+    ? { ...base, left: drag.x, top: drag.y, right: "auto", bottom: "auto", cursor: "grabbing" }
     : {
+        ...base,
         left: pos.side === "left" ? MARGIN : "auto",
         right: pos.side === "right" ? MARGIN : "auto",
-        top: pos.top ?? "auto",
-        bottom: pos.top === null ? MARGIN : "auto",
+        top: pos.vert === "top" ? MARGIN : "auto",
+        bottom: pos.vert === "bottom" ? MARGIN : "auto",
       };
 
   return { style, onPointerDown, onPointerMove, onPointerUp, onClick };

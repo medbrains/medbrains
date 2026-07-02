@@ -4,10 +4,10 @@
   z-index: 300;
   width: 60px;
   height: 60px;
-  // Carbon: rounded-square, not a circle. Dual-mode --mb-interactive (blue in
+  // Carbon: rounded-square, not a circle. Dual-mode --mb-brand-emphasis (blue in
   // both light + dark) with a white crab.
   border-radius: 16px;
-  background: var(--mb-interactive, #0f62fe);
+  background: var(--mb-brand-emphasis, #0f62fe);
   border: none;
   box-shadow: var(--mb-float-shadow, var(--mantine-shadow-lg));
   touch-action: none;
