@@ -63,20 +63,37 @@ async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConfig, 
             .filter(|s| !s.is_empty())
     };
 
-    let provider = str_field("provider").unwrap_or("anthropic").to_owned();
-    let model = str_field("model").unwrap_or(DEFAULT_MODEL).to_owned();
+    // Default to OpenRouter when only OPENROUTER_API_KEY is set (frictionless
+    // testing), else Anthropic. An explicit tenant `provider` always wins.
+    let provider = match str_field("provider") {
+        Some(p) => p.to_owned(),
+        None if std::env::var("OPENROUTER_API_KEY").is_ok() => "openrouter".to_owned(),
+        None => "anthropic".to_owned(),
+    };
+    let default_model = if provider == "openrouter" {
+        "openai/gpt-4o-mini"
+    } else {
+        DEFAULT_MODEL
+    };
+    let model = str_field("model").unwrap_or(default_model).to_owned();
     let enabled = cfg.get("assistant_enabled").and_then(serde_json::Value::as_bool) != Some(false);
 
     let api_key = match str_field("api_key_secret") {
         Some(secret) => state.secret_resolver.get(secret).await.map_err(|e| {
             AppError::BadRequest(format!("AI key secret '{secret}' unavailable: {e}"))
         })?,
-        None => std::env::var("ANTHROPIC_API_KEY").map_err(|_| {
-            AppError::BadRequest(
-                "No AI provider configured: set tenant ai.config.api_key_secret or ANTHROPIC_API_KEY"
-                    .to_owned(),
-            )
-        })?,
+        None => {
+            let env_var = if provider == "openrouter" {
+                "OPENROUTER_API_KEY"
+            } else {
+                "ANTHROPIC_API_KEY"
+            };
+            std::env::var(env_var).map_err(|_| {
+                AppError::BadRequest(format!(
+                    "No AI provider configured: set tenant ai.config.api_key_secret or {env_var}"
+                ))
+            })?
+        }
     };
 
     Ok(AiConfig {
@@ -150,6 +167,11 @@ struct HistoryRow {
     content: String,
 }
 
+/// The boxed SSE body type — one alias so both provider branches unify.
+type SseBody = std::pin::Pin<
+    Box<dyn Stream<Item = Result<Event, std::convert::Infallible>> + Send>,
+>;
+
 /// One SSE frame carrying a JSON payload; falls back to `{}` if serialisation
 /// somehow fails (avoids `unwrap`, which clippy denies).
 // The `Result<_, Infallible>` wrap is required: it is the `Sse` stream item type.
@@ -164,7 +186,7 @@ pub async fn chat(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(req): Json<ChatRequest>,
-) -> Result<Sse<impl Stream<Item = Result<Event, std::convert::Infallible>>>, AppError> {
+) -> Result<Sse<axum::response::sse::KeepAliveStream<SseBody>>, AppError> {
     let message = req.message.trim().to_owned();
     if message.is_empty() {
         return Err(AppError::BadRequest("message must not be empty".to_owned()));
@@ -173,12 +195,6 @@ pub async fn chat(
     let cfg = resolve_config(&state, &claims.tenant_id).await?;
     if !cfg.enabled {
         return Err(AppError::Forbidden);
-    }
-    if cfg.provider != "anthropic" {
-        return Err(AppError::BadRequest(format!(
-            "AI provider '{}' does not support streaming chat in this build",
-            cfg.provider
-        )));
     }
 
     // Persist the user turn + load prior history — owner-scoped, under RLS.
@@ -244,21 +260,51 @@ pub async fn chat(
         })
         .collect();
 
-    let stream = async_stream::stream! {
-        use rig::agent::MultiTurnStreamItem;
-        use rig::client::CompletionClient as _;
-        use rig::providers::anthropic;
-        use rig::streaming::{StreamedAssistantContent, StreamingPrompt as _};
+    use rig::client::CompletionClient as _;
+    let boxed: SseBody = match cfg.provider.as_str() {
+        "anthropic" => {
+            let client = rig::providers::anthropic::Client::new(&cfg.api_key)
+                .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?;
+            let agent = client.agent(cfg.model.as_str()).preamble(SYSTEM_PROMPT).build();
+            Box::pin(run_turn(agent, message, history, state, tenant_id, conversation_id))
+        }
+        "openrouter" => {
+            let client = rig::providers::openrouter::Client::new(&cfg.api_key)
+                .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?;
+            let agent = client.agent(cfg.model.as_str()).preamble(SYSTEM_PROMPT).build();
+            Box::pin(run_turn(agent, message, history, state, tenant_id, conversation_id))
+        }
+        other => {
+            return Err(AppError::BadRequest(format!(
+                "AI provider '{other}' does not support streaming chat in this build"
+            )));
+        }
+    };
 
-        let client = match anthropic::Client::new(&cfg.api_key) {
-            Ok(c) => c,
-            Err(e) => {
-                yield sse(&serde_json::json!({ "type": "error", "message": format!("AI client error: {e}") }));
-                return;
-            }
-        };
-        let agent = client.agent(cfg.model.as_str()).preamble(SYSTEM_PROMPT).build();
+    // Heartbeat comments (default 15s) keep the connection alive through idle
+    // gaps + proxy idle-timeouts (nginx/ALB) so a slow first token isn't dropped.
+    Ok(Sse::new(boxed).keep_alive(KeepAlive::default()))
+}
 
+/// Stream one assistant turn from a built agent (provider-agnostic) and persist
+/// the result. Generic so anthropic + openrouter share the exact same loop.
+fn run_turn<M, P>(
+    agent: rig::agent::Agent<M, P>,
+    message: String,
+    history: Vec<rig::completion::Message>,
+    state: AppState,
+    tenant_id: Uuid,
+    conversation_id: Uuid,
+) -> impl Stream<Item = Result<Event, std::convert::Infallible>>
+where
+    M: rig::completion::CompletionModel + 'static,
+    M::StreamingResponse: rig::completion::GetTokenUsage,
+    P: rig::agent::PromptHook<M> + 'static,
+{
+    use rig::agent::MultiTurnStreamItem;
+    use rig::streaming::{StreamedAssistantContent, StreamingPrompt as _};
+
+    async_stream::stream! {
         let mut answer = String::new();
         let mut chunks = agent.stream_prompt(message.as_str()).with_history(history).await;
         while let Some(item) = chunks.next().await {
@@ -285,9 +331,7 @@ pub async fn chat(
         }
 
         yield sse(&serde_json::json!({ "type": "done", "conversationId": conversation_id }));
-    };
-
-    Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
+    }
 }
 
 /// Write the completed assistant message and touch the conversation, under RLS.
