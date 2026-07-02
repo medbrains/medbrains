@@ -411,6 +411,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(TraceLayer::new_for_http())
         .layer(SetRequestIdLayer::new(request_id_header(), MakeRequestUuid));
 
+    // Make the finalized router available to the AI assistant's in-process read
+    // tool (call_api), so it dispatches GETs through the real middleware stack.
+    let _ = routes::ai::AI_ROUTER.set(app.clone());
+
     // Start orchestration background tasks
     orchestration::jobs::start_job_worker(db_pool.clone());
     orchestration::scheduler::start_scheduler(db_pool.clone());

@@ -22,6 +22,20 @@ use uuid::Uuid;
 use crate::middleware::auth::Claims;
 use crate::{error::AppError, state::AppState};
 
+/// The finalized app router, stashed by `main` after construction, so read tools
+/// can dispatch requests in-process (reusing auth/RLS/permission/audit). Set once.
+pub static AI_ROUTER: std::sync::OnceLock<axum::Router> = std::sync::OnceLock::new();
+
+/// GET-only path prefixes the `call_api` read tool may reach (the safety boundary).
+const CALL_API_ALLOWLIST: &[&str] = &[
+    "/api/patients/",
+    "/api/lab/",
+    "/api/pharmacy/",
+    "/api/opd/",
+    "/api/ipd/",
+    "/api/billing/",
+];
+
 /// Default model when the tenant has not configured one.
 const DEFAULT_MODEL: &str = rig::providers::anthropic::completion::CLAUDE_SONNET_4_6;
 
@@ -35,7 +49,9 @@ drug doses, or lab values. When you suggest or endorse a medication, FIRST call 
 `check_drug_safety` tool with the drug name and heed its result — never recommend a drug that \
 conflicts with the patient's recorded allergies. To propose a prescription, call \
 `draft_prescription`; if it returns decision 'blocked', the safety system has REFUSED the order — \
-you must NOT recommend that drug. You never create or sign orders yourself; a clinician does.";
+you must NOT recommend that drug. You never create or sign orders yourself; a clinician does. \
+When the screen context gives you record ids (a patient, an invoice, a lab order…), FETCH the \
+details with your tools (get_patient_overview, call_api) instead of asking the user to provide data.";
 
 #[derive(Debug)]
 struct AiConfig {
@@ -334,7 +350,6 @@ async fn retrieve_kb(
 struct PreparedTurn {
     conversation_id: Uuid,
     history: Vec<rig::completion::Message>,
-    grounding: Grounding,
     grounded_patient: Option<Uuid>,
     kb_hits: Vec<KbHit>,
 }
@@ -627,6 +642,172 @@ impl rig::tool::Tool for DraftPrescriptionTool {
     }
 }
 
+// ── Read tool: patient overview (a REST API plugged in as a tool) ────
+// Generalised context pattern: the screen context carries the ids on screen; the
+// assistant calls this to fetch a patient's clinical facts on demand (instead of
+// pre-injecting them). Access-checked per patient. Add more tools (invoice,
+// report…) the same way as new surfaces need them.
+
+#[derive(serde::Deserialize)]
+struct PatientOverviewArgs {
+    patient_id: String,
+}
+
+struct PatientOverviewTool {
+    state: AppState,
+    claims: Claims,
+}
+
+impl PatientOverviewTool {
+    async fn overview(&self, patient_id: Uuid) -> Result<String, AppError> {
+        // Same access rule as the grounding gate: admins bypass, others ReBAC.
+        let is_admin =
+            crate::middleware::authorization::BYPASS_ROLES.contains(&self.claims.role.as_str());
+        if !is_admin {
+            crate::routes::patients::require_patient_viewer(&self.state, &self.claims, patient_id)
+                .await?;
+        }
+        let mut tx = self.state.db.begin().await?;
+        medbrains_db::pool::set_full_context(
+            &mut tx,
+            &self.claims.tenant_id,
+            &self.claims.department_ids,
+        )
+        .await?;
+        let grounding = fetch_patient_grounding(&mut tx, self.claims.tenant_id, patient_id).await?;
+        drop(tx);
+        Ok(grounding.as_context().unwrap_or_else(|| {
+            "This patient has no recorded allergies, active medications, active problems, or recent \
+             lab results."
+                .to_owned()
+        }))
+    }
+}
+
+impl rig::tool::Tool for PatientOverviewTool {
+    const NAME: &'static str = "get_patient_overview";
+    type Error = std::convert::Infallible;
+    type Args = PatientOverviewArgs;
+    type Output = String;
+
+    async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
+        rig::completion::ToolDefinition {
+            name: Self::NAME.to_owned(),
+            description: "Fetch a patient's allergies, active medications, active problems, and \
+                recent lab results. Call this with the patient_id from the screen context whenever \
+                the user asks about the patient — never ask the user to provide this data."
+                .to_owned(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "patient_id": {
+                        "type": "string",
+                        "description": "The patient's id from the screen context"
+                    }
+                },
+                "required": ["patient_id"]
+            }),
+        }
+    }
+
+    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        let Ok(pid) = Uuid::parse_str(&args.patient_id) else {
+            return Ok("Invalid patient id.".to_owned());
+        };
+        Ok(match self.overview(pid).await {
+            Ok(text) => text,
+            Err(_) => {
+                "You do not have access to this patient, or their data could not be loaded."
+                    .to_owned()
+            }
+        })
+    }
+}
+
+// ── Generic read tool: the whole GET API surface as ONE tool ─────────
+// Dispatches a GET into the app's own router IN-PROCESS (single binary), so the
+// request runs through the real auth/RLS/permission/audit stack and can never
+// exceed the user's access. No per-endpoint code — new GET routes are instantly
+// callable; the allowlist + the model's catalog (in the description) bound it.
+
+#[derive(serde::Deserialize)]
+struct CallApiArgs {
+    path: String,
+}
+
+struct CallApiTool {
+    state: AppState,
+    claims: Claims,
+}
+
+impl CallApiTool {
+    async fn get(&self, path: &str) -> Result<String, AppError> {
+        if !CALL_API_ALLOWLIST.iter().any(|p| path.starts_with(p)) {
+            return Ok(format!("Path '{path}' is not permitted for the assistant."));
+        }
+        let router = AI_ROUTER
+            .get()
+            .ok_or_else(|| AppError::Internal("router unavailable".to_owned()))?
+            .clone();
+        // Mint a token for the caller so the request goes through the real auth path.
+        let token = crate::middleware::auth::encode_jwt(&self.claims, &self.state.jwt_encoding_key)
+            .map_err(|_| AppError::Internal("token mint failed".to_owned()))?;
+        let request = axum::http::Request::builder()
+            .method(axum::http::Method::GET)
+            .uri(path)
+            .header(axum::http::header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(axum::body::Body::empty())
+            .map_err(|_| AppError::BadRequest("invalid path".to_owned()))?;
+        use tower::ServiceExt as _;
+        let response = match router.oneshot(request).await {
+            Ok(r) => r,
+            Err(never) => match never {},
+        };
+        let status = response.status().as_u16();
+        let bytes = axum::body::to_bytes(response.into_body(), 256 * 1024)
+            .await
+            .map_err(|_| AppError::Internal("read body failed".to_owned()))?;
+        Ok(format!("HTTP {status}\n{}", String::from_utf8_lossy(&bytes)))
+    }
+}
+
+impl rig::tool::Tool for CallApiTool {
+    const NAME: &'static str = "call_api";
+    type Error = std::convert::Infallible;
+    type Args = CallApiArgs;
+    type Output = String;
+
+    async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
+        rig::completion::ToolDefinition {
+            name: Self::NAME.to_owned(),
+            description: "Fetch data from a MedBrains read API (GET) for ids in the screen context; \
+                runs with your own permissions. Prefer this over asking the user for data. Useful: \
+                GET /api/patients/{id} · /api/patients/{id}/allergies · /api/patients/{id}/visits · \
+                /api/patients/{id}/lab-orders · /api/lab/orders/{orderId}/results · \
+                /api/billing/invoices/{id}. Only GET under \
+                /api/{patients,lab,pharmacy,opd,ipd,billing}/ is allowed."
+                .to_owned(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "GET path, e.g. /api/patients/<id>/allergies"
+                    }
+                },
+                "required": ["path"]
+            }),
+        }
+    }
+
+    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        Ok(match self.get(&args.path).await {
+            Ok(text) => text,
+            Err(e) => format!("Error calling {}: {e}", args.path),
+        })
+    }
+}
+
 /// The boxed SSE body type — one alias so both provider branches unify.
 type SseBody = std::pin::Pin<
     Box<dyn Stream<Item = Result<Event, std::convert::Infallible>> + Send>,
@@ -719,12 +900,6 @@ async fn open_turn(
     .fetch_all(&mut *tx)
     .await?;
 
-    let grounding = if let Some(pid) = grounded_patient {
-        fetch_patient_grounding(&mut tx, tenant_id, pid).await?
-    } else {
-        Grounding::default()
-    };
-
     let kb_hits = retrieve_kb(&mut tx, message).await?;
 
     sqlx::query(
@@ -749,18 +924,21 @@ async fn open_turn(
     Ok(PreparedTurn {
         conversation_id,
         history,
-        grounding,
         grounded_patient,
         kb_hits,
     })
 }
 
-/// Compose the turn preamble: system prompt + de-identified patient context +
-/// knowledge-base references (the model is told to cite the latter).
-fn build_preamble(grounding: &Grounding, kb_hits: &[KbHit]) -> String {
+/// Compose the turn preamble: system prompt + the generic screen context (the
+/// ids of whatever the user is viewing) + knowledge-base references. Data for
+/// those ids is fetched on demand by the assistant's tools, not pre-injected.
+fn build_preamble(context: Option<&serde_json::Value>, kb_hits: &[KbHit]) -> String {
     let mut parts: Vec<String> = Vec::new();
-    if let Some(ctx) = grounding.as_context() {
-        parts.push(format!("Patient context (de-identified) —\n{ctx}"));
+    if let Some(ctx) = context.filter(|c| !c.is_null()) {
+        parts.push(format!(
+            "Current screen context (the record ids the user is viewing) — {ctx}\n\
+             Use your tools to fetch details for these ids rather than asking the user for data."
+        ));
     }
     if !kb_hits.is_empty() {
         let refs: Vec<String> = kb_hits
@@ -777,10 +955,7 @@ fn build_preamble(grounding: &Grounding, kb_hits: &[KbHit]) -> String {
     if parts.is_empty() {
         SYSTEM_PROMPT.to_owned()
     } else {
-        format!(
-            "{SYSTEM_PROMPT}\n\n{}\n\nFactor these into any medication guidance and flag conflicts.",
-            parts.join("\n\n")
-        )
+        format!("{SYSTEM_PROMPT}\n\n{}", parts.join("\n\n"))
     }
 }
 
@@ -802,13 +977,12 @@ pub async fn chat(
     let PreparedTurn {
         conversation_id,
         history,
-        grounding,
         grounded_patient,
         kb_hits,
     } = open_turn(&state, &claims, &req, &cfg, &message).await?;
     let tenant_id = claims.tenant_id;
 
-    let preamble = build_preamble(&grounding, &kb_hits);
+    let preamble = build_preamble(req.context.as_ref(), &kb_hits);
 
     use rig::client::CompletionClient as _;
     let boxed: SseBody = match cfg.provider.as_str() {
@@ -830,6 +1004,14 @@ pub async fn chat(
                     department_ids: claims.department_ids.clone(),
                     patient_id: grounded_patient,
                     user_id: claims.sub,
+                })
+                .tool(PatientOverviewTool {
+                    state: state.clone(),
+                    claims: claims.clone(),
+                })
+                .tool(CallApiTool {
+                    state: state.clone(),
+                    claims: claims.clone(),
                 })
                 .build();
             Box::pin(run_turn(
@@ -860,6 +1042,14 @@ pub async fn chat(
                     department_ids: claims.department_ids.clone(),
                     patient_id: grounded_patient,
                     user_id: claims.sub,
+                })
+                .tool(PatientOverviewTool {
+                    state: state.clone(),
+                    claims: claims.clone(),
+                })
+                .tool(CallApiTool {
+                    state: state.clone(),
+                    claims: claims.clone(),
                 })
                 .build();
             Box::pin(run_turn(
@@ -896,6 +1086,14 @@ pub async fn chat(
                     department_ids: claims.department_ids.clone(),
                     patient_id: grounded_patient,
                     user_id: claims.sub,
+                })
+                .tool(PatientOverviewTool {
+                    state: state.clone(),
+                    claims: claims.clone(),
+                })
+                .tool(CallApiTool {
+                    state: state.clone(),
+                    claims: claims.clone(),
                 })
                 .build();
             Box::pin(run_turn(
