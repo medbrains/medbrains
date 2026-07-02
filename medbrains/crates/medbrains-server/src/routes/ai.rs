@@ -31,7 +31,9 @@ const SYSTEM_PROMPT: &str = "You are the MedBrains clinical assistant for hospit
 Be concise and clinically accurate. Do not give definitive diagnoses or treatment orders — \
 suggest options and defer to the treating clinician. Cite sources when you have them. If you are \
 unsure or lack grounded evidence, say so plainly rather than guessing. Never invent patient data, \
-drug doses, or lab values.";
+drug doses, or lab values. When you suggest or endorse a medication, FIRST call the \
+`check_drug_safety` tool with the drug name and heed its result — never recommend a drug that \
+conflicts with the patient's recorded allergies.";
 
 #[derive(Debug)]
 struct AiConfig {
@@ -245,6 +247,91 @@ async fn fetch_patient_grounding(
     })
 }
 
+// ── Guarded clinical tool: drug safety check (RFC Phase 3) ────────────
+// The assistant can call this before endorsing any medication; it checks the
+// drug against the current patient's recorded allergies (de-identified grounding
+// captured at request time). First step toward tool-layer regulation enforcement.
+
+#[derive(serde::Deserialize)]
+struct DrugSafetyArgs {
+    drug: String,
+}
+
+#[derive(serde::Serialize)]
+struct DrugSafetyResult {
+    drug: String,
+    allergy_conflict: bool,
+    notes: String,
+}
+
+struct DrugSafetyTool {
+    has_patient: bool,
+    allergies: Vec<String>,
+}
+
+impl rig::tool::Tool for DrugSafetyTool {
+    const NAME: &'static str = "check_drug_safety";
+    type Error = std::convert::Infallible;
+    type Args = DrugSafetyArgs;
+    type Output = DrugSafetyResult;
+
+    async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
+        rig::completion::ToolDefinition {
+            name: Self::NAME.to_owned(),
+            description: "Check whether a proposed drug conflicts with the current patient's \
+                recorded allergies. ALWAYS call this before suggesting or endorsing a medication."
+                .to_owned(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "drug": {
+                        "type": "string",
+                        "description": "Proposed drug (generic or brand name)"
+                    }
+                },
+                "required": ["drug"]
+            }),
+        }
+    }
+
+    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        if !self.has_patient {
+            return Ok(DrugSafetyResult {
+                drug: args.drug,
+                allergy_conflict: false,
+                notes: "No patient chart is loaded, so allergies cannot be checked — ask the \
+                    clinician to open the patient's chart before relying on a drug suggestion."
+                    .to_owned(),
+            });
+        }
+        let drug_l = args.drug.to_lowercase();
+        let hit = self.allergies.iter().find(|a| {
+            let a_l = a.to_lowercase();
+            drug_l.contains(&a_l) || a_l.contains(&drug_l)
+        });
+        let (allergy_conflict, notes) = match hit {
+            Some(a) => (
+                true,
+                format!(
+                    "ALLERGY CONFLICT — the patient is recorded allergic to '{a}', which matches \
+                     '{}'. Do NOT recommend this drug; flag it to the clinician.",
+                    args.drug
+                ),
+            ),
+            None => (
+                false,
+                "No recorded allergy conflict. Still verify interactions and dosing clinically."
+                    .to_owned(),
+            ),
+        };
+        Ok(DrugSafetyResult {
+            drug: args.drug,
+            allergy_conflict,
+            notes,
+        })
+    }
+}
+
 /// The boxed SSE body type — one alias so both provider branches unify.
 type SseBody = std::pin::Pin<
     Box<dyn Stream<Item = Result<Event, std::convert::Infallible>> + Send>,
@@ -379,13 +466,27 @@ pub async fn chat(
         "anthropic" => {
             let client = rig::providers::anthropic::Client::new(&cfg.api_key)
                 .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?;
-            let agent = client.agent(cfg.model.as_str()).preamble(preamble.as_str()).build();
+            let agent = client
+                .agent(cfg.model.as_str())
+                .preamble(preamble.as_str())
+                .tool(DrugSafetyTool {
+                    has_patient: grounded_patient.is_some(),
+                    allergies: grounding.allergies.clone(),
+                })
+                .build();
             Box::pin(run_turn(agent, message, history, state, tenant_id, conversation_id))
         }
         "openrouter" => {
             let client = rig::providers::openrouter::Client::new(&cfg.api_key)
                 .map_err(|e| AppError::BadRequest(format!("AI client error: {e}")))?;
-            let agent = client.agent(cfg.model.as_str()).preamble(preamble.as_str()).build();
+            let agent = client
+                .agent(cfg.model.as_str())
+                .preamble(preamble.as_str())
+                .tool(DrugSafetyTool {
+                    has_patient: grounded_patient.is_some(),
+                    allergies: grounding.allergies.clone(),
+                })
+                .build();
             Box::pin(run_turn(agent, message, history, state, tenant_id, conversation_id))
         }
         other => {
