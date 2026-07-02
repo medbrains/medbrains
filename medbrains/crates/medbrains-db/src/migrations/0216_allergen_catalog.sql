@@ -21,11 +21,14 @@ CREATE TABLE IF NOT EXISTS public.allergen_catalog (
     is_active     boolean NOT NULL DEFAULT true,
     created_by    uuid,
     created_at    timestamptz NOT NULL DEFAULT now(),
-    updated_at    timestamptz NOT NULL DEFAULT now(),
-    -- One row per (type, allergen) per tenant, case-insensitive — the upsert
-    -- on allergy capture relies on this.
-    UNIQUE (tenant_id, allergy_type, lower(name))
+    updated_at    timestamptz NOT NULL DEFAULT now()
 );
+
+-- One row per (type, allergen) per tenant, case-insensitive — the upsert on
+-- allergy capture relies on this. Expression uniqueness (lower(name)) must be a
+-- unique INDEX; Postgres rejects an expression in a table UNIQUE constraint.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_allergen_catalog_type_name
+    ON public.allergen_catalog (tenant_id, allergy_type, lower(name));
 
 ALTER TABLE public.allergen_catalog ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS allergen_catalog_tenant ON public.allergen_catalog;
