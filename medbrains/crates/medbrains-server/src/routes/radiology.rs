@@ -1320,7 +1320,9 @@ pub async fn create_share_link(
     Extension(claims): Extension<Claims>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::radiology::orders::LIST)?;
+    // Minting a PUBLIC DICOM viewer link is a management action, not a read —
+    // gate on modalities::MANAGE, not the orders::LIST read permission.
+    require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1330,6 +1332,21 @@ pub async fn create_share_link(
         .as_str()
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or_else(|| AppError::BadRequest("study_id required".into()))?;
+
+    // Confirm the study belongs to the caller's tenant before minting the link —
+    // the share_links FK to radiology_dicom_studies is validated as the table
+    // owner (RLS-exempt), so without this a foreign-tenant study_id would pass and
+    // expose another tenant's imaging via the public viewer.
+    let study_exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM radiology_dicom_studies WHERE id = $1 AND tenant_id = $2)",
+    )
+    .bind(study_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if !study_exists {
+        return Err(AppError::NotFound);
+    }
     let hours = body["expires_hours"].as_i64().unwrap_or(72);
     let expires = chrono::Utc::now() + chrono::Duration::hours(hours);
 
@@ -1415,7 +1432,9 @@ pub async fn update_pacs_config(
     Extension(claims): Extension<Claims>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::radiology::orders::LIST)?;
+    // Overwriting the tenant's PACS/Orthanc integration config is a management
+    // action — gate on modalities::MANAGE, not the orders::LIST read permission.
+    require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1474,7 +1493,9 @@ pub async fn create_dosimetry_record(
     Extension(claims): Extension<Claims>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::radiology::orders::LIST)?;
+    // Recording staff radiation-dosimetry compliance is a management action —
+    // gate on modalities::MANAGE, not the orders::LIST read permission.
+    require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
