@@ -179,6 +179,7 @@ struct Grounding {
     allergies: Vec<String>,
     medications: Vec<String>,
     diagnoses: Vec<String>,
+    labs: Vec<String>,
 }
 
 impl Grounding {
@@ -193,6 +194,9 @@ impl Grounding {
         }
         if !self.diagnoses.is_empty() {
             lines.push(format!("Active problems: {}", self.diagnoses.join(", ")));
+        }
+        if !self.labs.is_empty() {
+            lines.push(format!("Recent lab results: {}", self.labs.join("; ")));
         }
         (!lines.is_empty()).then(|| lines.join("\n"))
     }
@@ -242,10 +246,36 @@ async fn fetch_patient_grounding(
     .fetch_all(&mut **tx)
     .await?;
 
+    #[derive(sqlx::FromRow)]
+    struct LabRow {
+        parameter_name: String,
+        value: String,
+        unit: Option<String>,
+        flag: Option<String>,
+    }
+    let labs = sqlx::query_as::<_, LabRow>(
+        "SELECT lr.parameter_name, lr.value, lr.unit, lr.flag::text AS flag \
+         FROM lab_results lr JOIN lab_orders lo ON lr.order_id = lo.id \
+         WHERE lo.patient_id = $1 AND lr.tenant_id = $2 \
+         ORDER BY lr.created_at DESC LIMIT 30",
+    )
+    .bind(patient_id)
+    .bind(tenant_id)
+    .fetch_all(&mut **tx)
+    .await?
+    .into_iter()
+    .map(|r| {
+        let unit = r.unit.map(|u| format!(" {u}")).unwrap_or_default();
+        let flag = r.flag.map(|f| format!(" [{f}]")).unwrap_or_default();
+        format!("{}: {}{unit}{flag}", r.parameter_name, r.value)
+    })
+    .collect();
+
     Ok(Grounding {
         allergies,
         medications,
         diagnoses,
+        labs,
     })
 }
 
