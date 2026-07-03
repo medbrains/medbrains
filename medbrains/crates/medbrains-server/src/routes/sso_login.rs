@@ -315,6 +315,34 @@ pub async fn oidc_callback(
     let mut tx = state.db.begin().await?;
     let fed = federate_user(&mut tx, &provider, &identity).await?;
 
+    // Compliance audit (parity with password login) — who logged in via which
+    // IdP, the groups presented, the role/access-groups synced, and the outcome.
+    // Same tx as federation → a login can't happen without its audit trail.
+    let details = serde_json::json!({
+        "provider_id": provider.id,
+        "external_subject": identity.subject,
+        "email": identity.email,
+        "groups": identity.groups,
+        "role": fed.role,
+        "access_groups_synced": fed.access_groups,
+        "outcome": fed.outcome,
+    });
+    medbrains_db::audit::AuditLogger::log(
+        &mut tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: provider.tenant_id,
+            user_id: Some(fed.user_id),
+            action: "sso_login",
+            entity_type: "user",
+            entity_id: Some(fed.user_id),
+            old_values: None,
+            new_values: Some(&details),
+            ip_address: None,
+        },
+    )
+    .await
+    .map_err(AppError::from)?;
+
     let access_claims = Claims {
         sub: fed.user_id,
         tenant_id: provider.tenant_id,
@@ -481,6 +509,12 @@ struct Federated {
     user_id: Uuid,
     role: String,
     perm_version: i32,
+    /// How the user was resolved — for the login audit: "returning" (matched
+    /// idp+subject), "linked" (matched an existing account by email), or
+    /// "provisioned" (JIT-created on first login).
+    outcome: &'static str,
+    /// Count of SSO-synced access groups this login (for the audit detail).
+    access_groups: usize,
 }
 
 async fn federate_user(
@@ -513,7 +547,7 @@ async fn federate_user(
     .fetch_optional(&mut **tx)
     .await?;
 
-    let user_id = match existing {
+    let (user_id, outcome) = match existing {
         Some(id) => {
             sqlx::query(
                 "UPDATE users SET role = $2::user_role, perm_version = perm_version + 1, updated_at = now() WHERE id = $1",
@@ -522,7 +556,7 @@ async fn federate_user(
             .bind(&role)
             .execute(&mut **tx)
             .await?;
-            id
+            (id, "returning")
         }
         None => {
             let linked = match identity.email.as_deref() {
@@ -546,13 +580,13 @@ async fn federate_user(
                     .bind(&role)
                     .execute(&mut **tx)
                     .await?;
-                    id
+                    (id, "linked")
                 }
                 None => {
                     if !provider.jit_enabled {
                         return Err(AppError::Unauthorized);
                     }
-                    jit_create(tx, provider, identity, &role).await?
+                    (jit_create(tx, provider, identity, &role).await?, "provisioned")
                 }
             }
         }
@@ -584,6 +618,8 @@ async fn federate_user(
         user_id,
         role,
         perm_version,
+        outcome,
+        access_groups: access_groups.len(),
     })
 }
 
