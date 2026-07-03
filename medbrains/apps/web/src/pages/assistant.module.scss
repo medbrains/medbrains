@@ -1,0 +1,80 @@
+.page {
+  display: flex;
+  gap: 12px;
+  height: calc(100dvh - 132px);
+  min-height: 480px;
+}
+
+.side {
+  width: 288px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--mb-border, var(--mantine-color-gray-3));
+  border-radius: var(--mantine-radius-md);
+  background: var(--mb-card-bg, var(--mantine-color-white));
+  overflow: hidden;
+}
+
+.sideHead {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--mb-border, var(--mantine-color-gray-3));
+  flex-shrink: 0;
+}
+
+.sideBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+.list {
+  flex: 1;
+  min-height: 0;
+}
+
+.convItem {
+  padding: 6px 8px;
+  border-radius: var(--mantine-radius-sm);
+  width: 100%;
+  text-align: left;
+
+  &:hover {
+    background: var(--mb-bg-hover, var(--mantine-color-gray-1));
+  }
+}
+
+.sourceItem {
+  padding: 8px;
+  border: 1px solid var(--mb-border, var(--mantine-color-gray-3));
+  border-radius: var(--mantine-radius-sm);
+}
+
+.center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  border: 1px solid var(--mb-border, var(--mantine-color-gray-3));
+  border-radius: var(--mantine-radius-md);
+  overflow: hidden;
+}
+
+.collapsed {
+  width: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12px;
+  border: 1px solid var(--mb-border, var(--mantine-color-gray-3));
+  border-radius: var(--mantine-radius-md);
+  background: var(--mb-card-bg, var(--mantine-color-white));
+  color: var(--mb-text-secondary, var(--mantine-color-dimmed));
+
+  &:hover {
+    background: var(--mb-bg-hover, var(--mantine-color-gray-1));
+  }
+}

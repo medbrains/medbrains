@@ -66,6 +66,9 @@ const PatientsPage = lazy(() =>
 const PatientRegisterPage = lazy(() =>
   import("./pages/patients").then((m) => ({ default: m.PatientRegisterPage })),
 );
+const AssistantPage = lazy(() =>
+  import("./pages/assistant").then((m) => ({ default: m.AssistantPage })),
+);
 const PatientDetailPage = lazy(() =>
   import("./pages/patient-detail").then((m) => ({ default: m.PatientDetailPage })),
 );
@@ -384,6 +387,7 @@ export function App() {
               <Route path="oauth/callback" element={<OAuthCallbackPage />} />
               <Route path="components-inputs" element={<ComponentsInputsPage />} />
               <Route path="demo/dicom/*" element={<DemoDicomFixturesPage />} />
+              <Route path="assistant" element={<AssistantPage />} />
               <Route path="patients" element={<PatientsPage />} />
               <Route path="patients/register" element={<PatientRegisterPage />} />
               <Route path="patients/:id/edit" element={<PatientEditPage />} />

@@ -1,8 +1,9 @@
 import { Drawer, Group, Menu, Tooltip, UnstyledButton } from "@mantine/core";
 import { api } from "@medbrains/api";
-import { IconHistory, IconPlus } from "@tabler/icons-react";
+import { IconHistory, IconMaximize, IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
+import { useNavigate } from "react-router";
 import { IconButton } from "@/components/ui";
 import { useWhispers } from "@/hooks/useWhispers";
 import { AiChatPanel } from "./AiChatPanel";
@@ -37,6 +38,7 @@ export function AiAssistantMount({ suggestions = DEFAULT_SUGGESTIONS }: AiAssist
   const consumeQuery = useAiAssistantStore((state) => state.consumeQuery);
   const context = useAiAssistantStore((state) => state.context);
 
+  const navigate = useNavigate();
   const transport = useMemo(() => new SseTransport(), []);
   const controller = useAiChat({ transport, context });
 
@@ -79,6 +81,17 @@ export function AiAssistantMount({ suggestions = DEFAULT_SUGGESTIONS }: AiAssist
 
   const headerAction = (
     <Group gap={4} wrap="nowrap">
+      <IconButton
+        tone="default"
+        size="sm"
+        aria-label="Open full-screen assistant"
+        onClick={() => {
+          close();
+          navigate("/assistant");
+        }}
+      >
+        <IconMaximize size={16} />
+      </IconButton>
       <IconButton tone="default" size="sm" aria-label="New chat" onClick={newChat}>
         <IconPlus size={16} />
       </IconButton>
