@@ -698,6 +698,23 @@ pub async fn logout(
     .execute(&mut *tx)
     .await?;
 
+    // Audit the session end (parity with login + logout_all).
+    medbrains_db::audit::AuditLogger::log(
+        &mut tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: "logout",
+            entity_type: "user",
+            entity_id: Some(claims.sub),
+            old_values: None,
+            new_values: None,
+            ip_address: None,
+        },
+    )
+    .await
+    .map_err(AppError::from)?;
+
     tx.commit().await?;
 
     // Clear all cookies
