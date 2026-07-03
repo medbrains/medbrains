@@ -1,8 +1,9 @@
-//! IP-based access restriction middleware.
-//!
-//! Checks the request IP against the tenant's allowed IP ranges.
-//! Runs after auth middleware (needs Claims for tenant lookup).
-//! Empty `allowed_ips` means no restriction.
+//! IP-based access restriction middleware — the optional network access layer
+//! (LAN / VPN). Checks the request IP against the tenant's `allowed_ips` and
+//! `blocked_ips` CIDR lists: DENY wins, then the allowlist (empty allowlist = no
+//! restriction). Both empty = fully open (opt-in; most on-LAN hospitals set
+//! neither). Runs after auth (needs Claims for the tenant); bypass roles skip.
+//! Tailscale/corporate-VPN CIDRs go in `allowed_ips`.
 
 use std::net::IpAddr;
 
@@ -57,27 +58,47 @@ fn ip_in_cidr(ip: IpAddr, cidr: &str) -> bool {
     }
 }
 
-/// Load allowed IP ranges for a tenant from the database.
-async fn load_allowed_ips(db: &PgPool, tenant_id: uuid::Uuid) -> Result<Vec<String>, AppError> {
-    let json: Option<serde_json::Value> =
-        sqlx::query_scalar("SELECT allowed_ips FROM tenants WHERE id = $1")
-            .bind(tenant_id)
-            .fetch_optional(db)
-            .await?;
+/// A tenant's optional network rules: an allowlist and a denylist of CIDRs.
+struct IpRules {
+    allowed: Vec<String>,
+    blocked: Vec<String>,
+}
 
-    let Some(val) = json else {
-        return Ok(Vec::new());
-    };
-
-    Ok(val
-        .as_array()
+fn json_to_cidrs(v: &serde_json::Value) -> Vec<String> {
+    v.as_array()
         .map(|a| {
             a.iter()
                 .filter_map(serde_json::Value::as_str)
                 .map(String::from)
                 .collect()
         })
-        .unwrap_or_default())
+        .unwrap_or_default()
+}
+
+/// Load a tenant's allow + deny CIDR lists in one query.
+async fn load_ip_rules(db: &PgPool, tenant_id: uuid::Uuid) -> Result<IpRules, AppError> {
+    let row: Option<(serde_json::Value, serde_json::Value)> =
+        sqlx::query_as("SELECT allowed_ips, blocked_ips FROM tenants WHERE id = $1")
+            .bind(tenant_id)
+            .fetch_optional(db)
+            .await?;
+
+    let Some((allowed, blocked)) = row else {
+        return Ok(IpRules { allowed: Vec::new(), blocked: Vec::new() });
+    };
+    Ok(IpRules {
+        allowed: json_to_cidrs(&allowed),
+        blocked: json_to_cidrs(&blocked),
+    })
+}
+
+/// Access decision: DENY wins (a blocked CIDR is rejected even if also allowed);
+/// then the allowlist (an empty allowlist imposes no restriction). Pure + tested.
+fn ip_allowed(ip: IpAddr, rules: &IpRules) -> bool {
+    if rules.blocked.iter().any(|cidr| ip_in_cidr(ip, cidr)) {
+        return false;
+    }
+    rules.allowed.is_empty() || rules.allowed.iter().any(|cidr| ip_in_cidr(ip, cidr))
 }
 
 /// Middleware that enforces tenant IP restrictions.
@@ -105,16 +126,17 @@ pub async fn ip_restrict_middleware(
         return Ok(next.run(request).await);
     };
 
-    let allowed = load_allowed_ips(&state.db, claims.tenant_id).await?;
+    let rules = load_ip_rules(&state.db, claims.tenant_id).await?;
 
-    // Empty list = no restriction
-    if allowed.is_empty() {
+    // No lists configured = no restriction (opt-in).
+    if rules.allowed.is_empty() && rules.blocked.is_empty() {
         return Ok(next.run(request).await);
     }
 
-    if allowed.iter().any(|cidr| ip_in_cidr(ip, cidr)) {
+    if ip_allowed(ip, &rules) {
         Ok(next.run(request).await)
     } else {
+        tracing::warn!(tenant = %claims.tenant_id, %ip, "request rejected by tenant IP rules");
         Err(AppError::Forbidden)
     }
 }
@@ -151,4 +173,47 @@ fn extract_ip(request: &Request) -> Option<IpAddr> {
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ip_allowed, ip_in_cidr, IpRules};
+
+    fn ip(s: &str) -> std::net::IpAddr {
+        s.parse()
+            .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED))
+    }
+    fn rules(allowed: &[&str], blocked: &[&str]) -> IpRules {
+        IpRules {
+            allowed: allowed.iter().map(|s| (*s).to_owned()).collect(),
+            blocked: blocked.iter().map(|s| (*s).to_owned()).collect(),
+        }
+    }
+
+    #[test]
+    fn cidr_matching() {
+        assert!(ip_in_cidr(ip("10.5.5.5"), "10.0.0.0/8"));
+        assert!(!ip_in_cidr(ip("11.0.0.1"), "10.0.0.0/8"));
+        assert!(ip_in_cidr(ip("192.168.1.7"), "192.168.1.7")); // exact, no prefix
+    }
+
+    #[test]
+    fn empty_rules_allow_everything() {
+        assert!(ip_allowed(ip("1.2.3.4"), &rules(&[], &[])));
+    }
+
+    #[test]
+    fn deny_wins_over_allow() {
+        let r = rules(&["10.0.0.0/8"], &["10.1.2.3/32"]);
+        assert!(ip_allowed(ip("10.5.5.5"), &r)); // in allowlist, not blocked
+        assert!(!ip_allowed(ip("10.1.2.3"), &r)); // blocked wins even though in allow range
+        assert!(!ip_allowed(ip("192.168.1.1"), &r)); // not in allowlist
+    }
+
+    #[test]
+    fn denylist_only_blocks_listed() {
+        let r = rules(&[], &["1.2.3.0/24"]);
+        assert!(!ip_allowed(ip("1.2.3.9"), &r)); // blocked
+        assert!(ip_allowed(ip("9.9.9.9"), &r)); // not blocked, empty allow = allowed
+    }
 }
