@@ -477,12 +477,34 @@ async fn validate_id_token(
     })
 }
 
+/// Extract IdP groups from the id_token claim, tolerating the shapes real IdPs
+/// emit: a JSON array of strings (Entra/Okta/Keycloak), an array with numbers or
+/// group objects (coerced to their id/name), or a single bare string (one
+/// group). A space/comma-delimited multi-group string is intentionally NOT
+/// auto-split — AD group names contain spaces, so splitting would corrupt them;
+/// that case needs a configured delimiter (future, migration-backed).
 fn extract_groups(extra: &serde_json::Map<String, serde_json::Value>, claim: &str) -> Vec<String> {
-    extra
-        .get(claim)
-        .and_then(serde_json::Value::as_array)
-        .map(|a| a.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect())
-        .unwrap_or_default()
+    match extra.get(claim) {
+        Some(serde_json::Value::Array(items)) => {
+            items.iter().filter_map(group_value_as_string).collect()
+        }
+        Some(serde_json::Value::String(s)) if !s.is_empty() => vec![s.clone()],
+        _ => Vec::new(),
+    }
+}
+
+/// Coerce one array element to a group identifier: a string as-is, a number as
+/// text, or an object's common group key (value/id/name/displayName).
+fn group_value_as_string(v: &serde_json::Value) -> Option<String> {
+    match v {
+        serde_json::Value::String(s) => Some(s.clone()),
+        serde_json::Value::Number(n) => Some(n.to_string()),
+        serde_json::Value::Object(o) => ["value", "id", "name", "displayName"]
+            .iter()
+            .find_map(|k| o.get(*k).and_then(serde_json::Value::as_str))
+            .map(str::to_owned),
+        _ => None,
+    }
 }
 
 // ── federation core ─────────────────────────────────────────────────────────
@@ -754,10 +776,34 @@ mod tests {
 
     use uuid::Uuid;
 
-    use super::{base_username, pkce_challenge, resolve_group_targets, SsoIdentity};
+    use super::{base_username, extract_groups, pkce_challenge, resolve_group_targets, SsoIdentity};
 
     fn groups(items: &[&str]) -> HashSet<String> {
         items.iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    #[test]
+    fn extract_groups_tolerates_idp_shapes() {
+        let m = |v: serde_json::Value| v.as_object().cloned().unwrap_or_default();
+        let want = |xs: &[&str]| xs.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+        // Array of strings (Entra/Okta/Keycloak).
+        assert_eq!(
+            extract_groups(&m(serde_json::json!({ "groups": ["doctors", "nurses"] })), "groups"),
+            want(&["doctors", "nurses"])
+        );
+        // Array of group objects → coerced to a common key.
+        assert_eq!(
+            extract_groups(
+                &m(serde_json::json!({ "groups": [{ "value": "doctors" }, { "id": "n1" }] })),
+                "groups"
+            ),
+            want(&["doctors", "n1"])
+        );
+        // Single bare string → one group.
+        assert_eq!(extract_groups(&m(serde_json::json!({ "g": "doctors" })), "g"), want(&["doctors"]));
+        // Missing claim / empty string → no groups.
+        assert!(extract_groups(&m(serde_json::json!({})), "groups").is_empty());
+        assert!(extract_groups(&m(serde_json::json!({ "g": "" })), "g").is_empty());
     }
 
     #[test]
