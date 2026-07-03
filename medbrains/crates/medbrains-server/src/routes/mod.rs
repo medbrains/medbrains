@@ -128,6 +128,7 @@ pub mod security;
 pub mod setup;
 pub mod sso;
 pub mod sso_login;
+pub mod vpn;
 pub mod sharing;
 pub mod signatures;
 pub mod signed_documents;
@@ -3135,6 +3136,10 @@ pub fn build_router(state: AppState) -> Router {
         // ── AI Clinical Copilot — streaming chat (SSE) + history + whispers ─
         .route("/api/ai/chat", post(ai::chat))
         .route("/api/ai/whispers", get(ai::whispers))
+        // ── VPN platform — device enrollment (RFC-VPN-PLATFORM) ─
+        .route("/api/vpn/enroll", post(vpn::enroll))
+        .route("/api/vpn/status", get(vpn::status))
+        .route("/api/vpn/devices/{id}/revoke", post(vpn::revoke))
         .route("/api/ai/conversations", get(ai::list_conversations))
         .route(
             "/api/ai/conversations/{id}/messages",

@@ -4889,6 +4889,12 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "View pharmacy finance reports (margins, P&L)",
     module: "pharmacy_finance",
   },
+  {
+    code: "vpn.enroll",
+    label: "Enroll VPN device",
+    description: "Enroll a device for remote (VPN) access to the HIMS",
+    module: "vpn",
+  },
 ];
 
 // ── Set of all valid codes (for validation) ──────────────
@@ -5964,6 +5970,9 @@ export const P = {
     SUPPLIER_PAYMENTS_MANAGE: "pharmacy_finance.supplier_payments.manage" as const,
     CASHIER_AUDIT_VIEW: "pharmacy_finance.cashier_audit.view" as const,
     FINANCE_REPORTS_VIEW: "pharmacy_finance.finance_reports.view" as const,
+  },
+  VPN: {
+    ENROLL: "vpn.enroll" as const,
   },
 } as const;
 
