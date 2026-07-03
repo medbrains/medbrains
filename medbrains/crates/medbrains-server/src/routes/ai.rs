@@ -1189,7 +1189,13 @@ where
         }
 
         let mut answer = String::new();
-        let mut chunks = agent.stream_prompt(message.as_str()).with_history(history).await;
+        // multi_turn > 0 is REQUIRED for the tool loop — rig defaults to 0
+        // ("one round-trip"), which errors after the first tool call.
+        let mut chunks = agent
+            .stream_prompt(message.as_str())
+            .multi_turn(8)
+            .with_history(history)
+            .await;
         while let Some(item) = chunks.next().await {
             match item {
                 Ok(MultiTurnStreamItem::StreamAssistantItem(StreamedAssistantContent::Text(t))) => {
@@ -1220,8 +1226,11 @@ where
                         rig::completion::message::ToolResultContent::Text(t) => Some(t.text.clone()),
                         rig::completion::message::ToolResultContent::Image(_) => None,
                     });
-                    let result: Option<serde_json::Value> =
-                        text.and_then(|t| serde_json::from_str(&t).ok());
+                    // Tool output may be JSON (a decision) or a plain string —
+                    // fall back to the raw text so the UI never shows null.
+                    let result: Option<serde_json::Value> = text.map(|t| {
+                        serde_json::from_str(&t).unwrap_or(serde_json::Value::String(t))
+                    });
                     yield sse(&serde_json::json!({
                         "type": "tool_result",
                         "id": internal_call_id,
