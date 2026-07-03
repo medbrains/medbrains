@@ -43,6 +43,9 @@ export function useAiChat({
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [status, setStatus] = useState<ChatStatus>("idle");
   const abortRef = useRef<AbortController | null>(null);
+  // A context supplied mid-thread (e.g. picking a patient) sticks for the rest
+  // of the conversation, so the assistant doesn't ask to pick again each turn.
+  const sessionContextRef = useRef<ChatContext | undefined>(undefined);
 
   const runTurn = useCallback(
     async (history: ChatMessage[], contextOverride?: ChatContext) => {
@@ -114,6 +117,9 @@ export function useAiChat({
     async (text: string, opts?: { context?: ChatContext }) => {
       const trimmed = text.trim();
       if (!trimmed || status === "streaming") return;
+      if (opts?.context) sessionContextRef.current = opts.context;
+      // Precedence: this turn's context > sticky session context > page context.
+      const effective = opts?.context ?? sessionContextRef.current ?? context;
       const user: ChatMessage = {
         id: newId(),
         role: "user",
@@ -121,9 +127,9 @@ export function useAiChat({
         createdAt: now(),
         status: "complete",
       };
-      await runTurn([...messages, user], opts?.context);
+      await runTurn([...messages, user], effective);
     },
-    [messages, status, runTurn],
+    [messages, status, runTurn, context],
   );
 
   const regenerate = useCallback(async () => {
@@ -142,6 +148,7 @@ export function useAiChat({
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
+    sessionContextRef.current = undefined;
     setMessages(initialMessages);
     setStatus("idle");
   }, [initialMessages]);
