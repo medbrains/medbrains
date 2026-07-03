@@ -46,32 +46,53 @@ function showWhisper(whisper: WhisperPayload) {
 export function useWhispers() {
   useEffectOnce(() => {
     const controller = new AbortController();
-    void (async () => {
-      try {
-        const response = await api.whisperStream(controller.signal);
-        if (!response.ok || !response.body) return;
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          for (;;) {
-            const sep = buffer.indexOf("\n\n");
-            if (sep === -1) break;
-            const frame = buffer.slice(0, sep);
-            buffer = buffer.slice(sep + 2);
-            const payload = parseFrame(frame);
-            if (payload?.type === "whisper") {
-              showWhisper(payload);
-            }
+    let stopped = false;
+    let backoff = 3000;
+
+    const readStream = async () => {
+      const response = await api.whisperStream(controller.signal);
+      if (!response.ok || !response.body) {
+        throw new Error(`whisper stream ${response.status}`);
+      }
+      backoff = 3000; // a good connection resets the backoff
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (!stopped) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        for (;;) {
+          const sep = buffer.indexOf("\n\n");
+          if (sep === -1) break;
+          const frame = buffer.slice(0, sep);
+          buffer = buffer.slice(sep + 2);
+          const payload = parseFrame(frame);
+          if (payload?.type === "whisper") {
+            showWhisper(payload);
           }
         }
-      } catch {
-        // Aborted on unmount, or the stream dropped — nothing to do.
+      }
+    };
+
+    // Long-lived: if the stream drops (backend restart, network blip) reconnect
+    // with capped exponential backoff so whispers resume without a page reload.
+    void (async () => {
+      while (!stopped) {
+        try {
+          await readStream();
+        } catch {
+          if (stopped || controller.signal.aborted) return;
+        }
+        if (stopped) return;
+        await new Promise((resolve) => setTimeout(resolve, backoff));
+        backoff = Math.min(backoff * 2, 30_000);
       }
     })();
-    return () => controller.abort();
+
+    return () => {
+      stopped = true;
+      controller.abort();
+    };
   });
 }
