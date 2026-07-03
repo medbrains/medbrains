@@ -33,14 +33,15 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
+import { AiAssistantMount } from "@/components/ai";
 import { Brand } from "@/components/Brand";
 import { DlpGuard } from "@/components/DlpGuard";
 import { HeaderWidgets } from "@/components/HeaderWidgets";
 import { NewsMarquee } from "@/components/NewsMarquee";
 import { NotificationCenter } from "@/components/NotificationCenter";
-import { AiAssistantMount } from "@/components/ai";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { PageTransition } from "@/components/PageTransition";
+import { StepUpGate } from "@/components/StepUpGate";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Breadcrumb, ModuleBadge } from "@/components/ui";
 import { VerifyEmailBanner } from "@/components/VerifyEmailBanner";
@@ -629,6 +630,7 @@ export function AppLayout() {
           anywhere via useAiAssistant(). Outside PageTransition so its fixed
           launcher anchors to the viewport. */}
       <AiAssistantMount />
+      <StepUpGate />
     </AppShell>
   );
 }

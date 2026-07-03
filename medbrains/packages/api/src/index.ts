@@ -5,5 +5,6 @@ export {
   configureNativeAuth,
   setCsrfToken,
   setNativeAuthSession,
+  setStepUpHandler,
 } from "./client.js";
 export { getApiBase, setApiBase } from "./config.js";

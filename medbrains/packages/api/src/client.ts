@@ -2147,6 +2147,13 @@ export function setCsrfToken(token: string | null): void {
   persistCsrfToken(token);
 }
 
+// UI-provided step-up prompt: shows a re-auth modal, resolves true once the user
+// re-proves identity (POST /auth/step-up) so the original request can retry.
+let stepUpHandler: (() => Promise<boolean>) | null = null;
+export function setStepUpHandler(fn: (() => Promise<boolean>) | null): void {
+  stepUpHandler = fn;
+}
+
 function persistCsrfToken(token: string | null): void {
   if (!canUseBrowserStorage()) return;
   try {
@@ -2273,6 +2280,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       clearNativeAuthTokens();
       throw new Error("session_expired");
     }
+
+    // Step-up: a 403 asking for fresh re-auth. Prompt via the registered UI
+    // handler, then retry the original request once (the step_up cookie is set).
+    if (response.status === 403 && stepUpHandler) {
+      const peek = (await response
+        .clone()
+        .json()
+        .catch(() => ({}))) as { error?: string };
+      if (peek.error === "step_up_required") {
+        const proven = await stepUpHandler();
+        if (proven) {
+          const retry = await fetch(url, { ...init, headers, credentials: "include" });
+          if (retry.ok) {
+            return retry.json() as Promise<T>;
+          }
+        }
+        throw new Error("step_up_required");
+      }
+    }
+
     const body = await response.json().catch(() => ({}));
     const errorMessage =
       (body as { error?: string; detail?: string }).detail ??

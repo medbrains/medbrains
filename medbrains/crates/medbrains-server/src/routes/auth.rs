@@ -739,6 +739,7 @@ pub struct LogoutAllRequest {
 pub async fn logout_all(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    jar: CookieJar,
     body: Option<Json<LogoutAllRequest>>,
 ) -> Result<impl IntoResponse, AppError> {
     let target_user = body.as_ref().and_then(|b| b.user_id).unwrap_or(claims.sub);
@@ -751,6 +752,8 @@ pub async fn logout_all(
         if !is_bypass && !perms.iter().any(|p| p == "admin.users.force_logout") {
             return Err(AppError::Forbidden);
         }
+        // Force-logging out another user is high-risk → require fresh re-auth.
+        crate::routes::step_up::require_step_up(&state, &jar, &claims)?;
     }
 
     let mut tx = state.db.begin().await?;
