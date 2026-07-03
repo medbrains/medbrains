@@ -2496,6 +2496,13 @@ export const api = {
     return resp;
   },
   me: () => request<MeResponse>("/auth/me"),
+
+  // Step-up re-auth — verify password → 5-min step_up cookie for high-risk actions.
+  stepUp: (password: string) =>
+    request<{ status: string }>("/auth/step-up", {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    }),
   resendVerification: () =>
     request<{ verified: boolean }>("/auth/resend-verification", { method: "POST" }),
   reportClientError: (data: ClientErrorReportRequest) =>

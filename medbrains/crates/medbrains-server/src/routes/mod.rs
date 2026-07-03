@@ -128,6 +128,7 @@ pub mod security;
 pub mod setup;
 pub mod sso;
 pub mod sso_login;
+pub mod step_up;
 pub mod vpn;
 pub mod sharing;
 pub mod signatures;
@@ -341,6 +342,7 @@ pub fn build_router(state: AppState) -> Router {
             post(iam::revoke_access_request),
         )
         .route("/api/auth/logout", post(auth::logout))
+        .route("/api/auth/step-up", post(step_up::step_up))
         .route("/api/auth/logout-all", post(auth::logout_all))
         .route("/api/auth/change-password", post(auth::change_password))
         .route("/api/auth/mfa/enroll", post(mfa::enroll))

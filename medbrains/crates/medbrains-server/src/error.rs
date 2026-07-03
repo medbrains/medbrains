@@ -20,6 +20,9 @@ pub enum AppError {
     #[error("forbidden")]
     Forbidden,
 
+    #[error("step-up required")]
+    StepUpRequired,
+
     #[error("not found")]
     NotFound,
 
@@ -105,6 +108,14 @@ impl IntoResponse for AppError {
             Self::Forbidden => {
                 tracing::warn!("forbidden request");
                 (StatusCode::FORBIDDEN, "forbidden", "forbidden".to_owned())
+            }
+            Self::StepUpRequired => {
+                tracing::debug!("step-up required");
+                (
+                    StatusCode::FORBIDDEN,
+                    "step_up_required",
+                    "Re-authenticate to continue.".to_owned(),
+                )
             }
             Self::NotFound => (StatusCode::NOT_FOUND, "not found", "not found".to_owned()),
             Self::BadRequest(msg) => {
