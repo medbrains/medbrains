@@ -3,7 +3,7 @@ import { api } from "@medbrains/api";
 import { IconHistory, IconMaximize, IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { IconButton } from "@/components/ui";
 import { useWhispers } from "@/hooks/useWhispers";
 import { AiChatPanel } from "./AiChatPanel";
@@ -39,6 +39,7 @@ export function AiAssistantMount({ suggestions = DEFAULT_SUGGESTIONS }: AiAssist
   const context = useAiAssistantStore((state) => state.context);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const transport = useMemo(() => new SseTransport(), []);
   const controller = useAiChat({ transport, context });
 
@@ -119,6 +120,11 @@ export function AiAssistantMount({ suggestions = DEFAULT_SUGGESTIONS }: AiAssist
 
   const fab = useDraggableFab(toggle);
   useWhispers();
+
+  // The full-screen page owns the assistant — no floating FAB/drawer there.
+  if (location.pathname === "/assistant") {
+    return null;
+  }
 
   return (
     <>

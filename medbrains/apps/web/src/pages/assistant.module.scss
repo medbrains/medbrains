@@ -1,8 +1,20 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: calc(100dvh - 92px);
+  min-height: 520px;
+}
+
+.pageHead {
+  flex-shrink: 0;
+}
+
 .page {
   display: flex;
   gap: 12px;
-  height: calc(100dvh - 132px);
-  min-height: 480px;
+  flex: 1;
+  min-height: 0;
 }
 
 .side {
@@ -10,15 +22,15 @@
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--mb-border, var(--mantine-color-gray-3));
+  border: 1px solid var(--mb-border);
   border-radius: var(--mantine-radius-md);
-  background: var(--mb-card-bg, var(--mantine-color-white));
+  background: var(--mb-panel-bg);
   overflow: hidden;
 }
 
 .sideHead {
   padding: 10px 12px;
-  border-bottom: 1px solid var(--mb-border, var(--mantine-color-gray-3));
+  border-bottom: 1px solid var(--mb-border);
   flex-shrink: 0;
 }
 
@@ -41,25 +53,42 @@
   border-radius: var(--mantine-radius-sm);
   width: 100%;
   text-align: left;
+  transition: background 120ms ease;
 
   &:hover {
-    background: var(--mb-bg-hover, var(--mantine-color-gray-1));
+    background: var(--mb-bg-muted);
   }
 }
 
 .sourceItem {
   padding: 8px;
-  border: 1px solid var(--mb-border, var(--mantine-color-gray-3));
+  border: 1px solid var(--mb-border);
   border-radius: var(--mantine-radius-sm);
+  background: var(--mb-card-bg);
 }
 
 .center {
   flex: 1;
   min-width: 0;
   display: flex;
-  border: 1px solid var(--mb-border, var(--mantine-color-gray-3));
+  border: 1px solid var(--mb-border);
   border-radius: var(--mantine-radius-md);
   overflow: hidden;
+  background: var(--mb-card-bg);
+
+  // Fill the column with the chat panel (else it renders at its natural
+  // width, leaving a large empty area + a small input).
+  > * {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .convItem,
+  .collapsed {
+    transition: none;
+  }
 }
 
 .collapsed {
@@ -69,12 +98,13 @@
   align-items: flex-start;
   justify-content: center;
   padding-top: 12px;
-  border: 1px solid var(--mb-border, var(--mantine-color-gray-3));
+  border: 1px solid var(--mb-border);
   border-radius: var(--mantine-radius-md);
-  background: var(--mb-card-bg, var(--mantine-color-white));
-  color: var(--mb-text-secondary, var(--mantine-color-dimmed));
+  background: var(--mb-panel-bg);
+  color: var(--mb-text-secondary);
+  transition: background 120ms ease;
 
   &:hover {
-    background: var(--mb-bg-hover, var(--mantine-color-gray-1));
+    background: var(--mb-bg-muted);
   }
 }
