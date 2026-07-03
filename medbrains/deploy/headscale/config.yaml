@@ -1,0 +1,35 @@
+# Headscale dev config — MedBrains VPN platform (RFC-VPN-PLATFORM).
+# Minimal single-node dev setup. PROD: Terraform + TLS terminated at the proxy +
+# a persistent volume + (optionally) a Postgres backend; set server_url to the
+# VPN-internal hostname. Config keys track headscale 0.23 — adjust per version.
+
+server_url: http://127.0.0.1:8080
+listen_addr: 0.0.0.0:8080
+metrics_listen_addr: 127.0.0.1:9090
+grpc_listen_addr: 127.0.0.1:50443
+grpc_allow_insecure: false
+
+# The tailnet address range. Whatever a device gets here must be allowlisted in
+# tenants.allowed_ips so ip_restrict.rs + Pingora admit it.
+prefixes:
+  v4: 100.64.0.0/10
+  v6: fd7a:115c:a1e0::/48
+  allocation: sequential
+
+noise:
+  private_key_path: /var/lib/headscale/noise_private.key
+
+database:
+  type: sqlite
+  sqlite:
+    path: /var/lib/headscale/db.sqlite
+
+# MagicDNS off for dev; enable + set base_domain in prod if you want name-based
+# access to on-prem services.
+dns:
+  magic_dns: false
+  base_domain: medbrains.internal
+
+log:
+  level: info
+  format: text

@@ -174,8 +174,26 @@ services:
       saveAnalytics: ${ICD_API_SAVE_ANALYTICS:-false}
     restart: unless-stopped
 
+  # ── Headscale — self-hosted VPN control plane (RFC-VPN-PLATFORM) ──
+  # Opt-in (most hospitals run on LAN — leave it off). Start with:
+  #   docker compose --profile vpn up -d headscale
+  # MedBrains then mints per-device pre-auth keys via the Headscale API
+  # (POST /api/vpn/enroll). The tailnet CIDR (prefixes.v4 below) goes into
+  # tenants.allowed_ips so ip_restrict + Pingora admit VPN clients.
+  headscale:
+    image: headscale/headscale:0.23.0
+    profiles: ["vpn"]
+    ports:
+      - "127.0.0.1:${HEADSCALE_PORT:-8080}:8080"   # coordination + HTTP API
+    volumes:
+      - headscale_data:/var/lib/headscale
+      - ./deploy/headscale/config.yaml:/etc/headscale/config.yaml:ro
+    command: serve
+    restart: unless-stopped
+
 volumes:
   pgdata:
   kiwi_dbdata:
   kiwi_uploads:
   stalwart_data:
+  headscale_data:
