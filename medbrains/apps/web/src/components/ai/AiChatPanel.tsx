@@ -107,8 +107,13 @@ export function AiChatPanel({
           </>
         }
       >
-        {messages.map((message) => (
-          <Message key={message.id} message={message} />
+        {messages.map((message, i) => (
+          <Message
+            key={message.id}
+            message={message}
+            active={i === messages.length - 1 && !streaming}
+            onToolAction={(text, opts) => void send(text, opts)}
+          />
         ))}
       </Conversation>
 

@@ -14,7 +14,7 @@ export interface UseAiChatOptions {
 export interface UseAiChat {
   messages: ChatMessage[];
   status: ChatStatus;
-  send: (text: string) => Promise<void>;
+  send: (text: string, opts?: { context?: ChatContext }) => Promise<void>;
   stop: () => void;
   reset: () => void;
   regenerate: () => Promise<void>;
@@ -45,7 +45,7 @@ export function useAiChat({
   const abortRef = useRef<AbortController | null>(null);
 
   const runTurn = useCallback(
-    async (history: ChatMessage[]) => {
+    async (history: ChatMessage[], contextOverride?: ChatContext) => {
       const assistant: ChatMessage = {
         id: newId(),
         role: "assistant",
@@ -63,7 +63,10 @@ export function useAiChat({
         setMessages((prev) => prev.map((m) => (m.id === assistant.id ? fn(m) : m)));
 
       try {
-        for await (const chunk of transport.send(history, { signal: controller.signal, context })) {
+        for await (const chunk of transport.send(history, {
+          signal: controller.signal,
+          context: contextOverride ?? context,
+        })) {
           if (chunk.type === "text") {
             patch((m) => ({ ...m, content: m.content + chunk.delta }));
           } else if (chunk.type === "reasoning") {
@@ -108,7 +111,7 @@ export function useAiChat({
   );
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, opts?: { context?: ChatContext }) => {
       const trimmed = text.trim();
       if (!trimmed || status === "streaming") return;
       const user: ChatMessage = {
@@ -118,7 +121,7 @@ export function useAiChat({
         createdAt: now(),
         status: "complete",
       };
-      await runTurn([...messages, user]);
+      await runTurn([...messages, user], opts?.context);
     },
     [messages, status, runTurn],
   );

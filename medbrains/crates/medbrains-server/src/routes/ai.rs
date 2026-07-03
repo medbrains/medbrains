@@ -75,17 +75,28 @@ const DEFAULT_MODEL: &str = rig::providers::anthropic::completion::CLAUDE_SONNET
 
 /// System preamble for the clinical assistant. Safety-framed: suggest, don't
 /// order; defer to the treating clinician; never invent clinical data.
-const SYSTEM_PROMPT: &str = "You are the MedBrains clinical assistant for hospital staff. \
-Be concise and clinically accurate. Do not give definitive diagnoses or treatment orders — \
-suggest options and defer to the treating clinician. Cite sources when you have them. If you are \
-unsure or lack grounded evidence, say so plainly rather than guessing. Never invent patient data, \
-drug doses, or lab values. When you suggest or endorse a medication, FIRST call the \
-`check_drug_safety` tool with the drug name and heed its result — never recommend a drug that \
-conflicts with the patient's recorded allergies. To propose a prescription, call \
-`draft_prescription`; if it returns decision 'blocked', the safety system has REFUSED the order — \
-you must NOT recommend that drug. You never create or sign orders yourself; a clinician does. \
-When the screen context gives you record ids (a patient, an invoice, a lab order…), FETCH the \
-details with your tools (get_patient_overview, call_api) instead of asking the user to provide data.";
+const SYSTEM_PROMPT: &str = "\
+You are the MedBrains clinical assistant, embedded in a hospital information system and used by \
+clinical staff (doctors, nurses, pharmacists).\n\n\
+CLINICAL SAFETY (patient-safety context — when unsure, over-comply):\n\
+- You SUGGEST and inform; you do not diagnose definitively or issue orders. Always defer the final \
+decision to the treating clinician.\n\
+- Never invent or guess patient data, drug names, doses, or lab values. If you lack grounded \
+evidence, say so plainly.\n\
+- Before suggesting or endorsing a medication, FIRST call `check_drug_safety` and heed it; never \
+recommend a drug that conflicts with the patient's recorded allergies.\n\
+- To propose a prescription, call `draft_prescription`. If it returns decision 'blocked', the safety \
+system has REFUSED the order and you must not recommend that drug. You never create or sign orders — \
+a clinician does.\n\n\
+TOOL DISCIPLINE:\n\
+- Prefer fetching over asking: when you need data, call a tool — do not ask the user to paste it.\n\
+- When you need input you cannot infer (e.g. which patient), ask via the matching `request_*` tool \
+(it shows the user the right picker) rather than guessing or asking in prose.\n\
+- Call each tool at most once for a given need and USE what it returns, even if terse — never \
+re-call a tool hoping for a better result.\n\
+- Work silently: do not narrate that you are about to call a tool or think out loud.\n\n\
+OUTPUT: be concise and decisive. Use plain, precise clinical language. Cite sources when you have \
+them. When information is genuinely missing, say so briefly and stop.";
 
 #[derive(Debug)]
 struct AiConfig {
@@ -728,8 +739,10 @@ impl rig::tool::Tool for PatientOverviewTool {
         rig::completion::ToolDefinition {
             name: Self::NAME.to_owned(),
             description: "Fetch a patient's allergies, active medications, active problems, and \
-                recent lab results. Call this with the patient_id from the screen context whenever \
-                the user asks about the patient — never ask the user to provide this data."
+                recent lab results. Pass a REAL patient_id taken verbatim from the screen context. \
+                If no patient is in context, do NOT call this — call `request_patient` so the user \
+                can choose one; never guess or invent an id. Call it at most once and use whatever \
+                it returns."
                 .to_owned(),
             parameters: serde_json::json!({
                 "type": "object",
@@ -746,7 +759,9 @@ impl rig::tool::Tool for PatientOverviewTool {
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let Ok(pid) = Uuid::parse_str(&args.patient_id) else {
-            return Ok("Invalid patient id.".to_owned());
+            return Ok("No valid patient id was provided. If no patient is in the screen context, \
+                call `request_patient` so the user can choose one — do not guess an id."
+                .to_owned());
         };
         Ok(match self.overview(pid).await {
             Ok(text) => text,
@@ -814,15 +829,11 @@ impl rig::tool::Tool for CallApiTool {
     async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
         rig::completion::ToolDefinition {
             name: Self::NAME.to_owned(),
-            description: "Fetch data from any MedBrains read API (GET). Runs with your own \
-                permissions, so you can only read what you're allowed to — prefer this over asking \
-                the user. Clinical domains: patients, opd, lab, pharmacy, ipd, radiology, \
-                blood-bank, emergency, nurse, ot, chronic-care, cds. Operational: billing, \
-                insurance, indent, procurement, hr, scheduling, quality, facilities, front-office. \
-                Examples: GET /api/patients/{id} · /api/patients/{id}/allergies · \
-                /api/patients/{id}/lab-orders · /api/lab/orders/{orderId}/results · \
-                /api/billing/invoices/{id}. Hit a collection endpoint first to discover ids, e.g. \
-                GET /api/billing/invoices?patient_id={id}."
+            description: "Fetch data from any MedBrains read API (GET). Runs with YOUR permissions, \
+                so you can only read what you're allowed to — prefer this over asking the user. If \
+                unsure which endpoint exists, call `list_apis` first to see them all. Pass a full \
+                path with ids filled from the screen context, e.g. GET /api/patients/{id}/allergies, \
+                /api/lab/orders/{orderId}/results, /api/billing/invoices?patient_id={id}."
                 .to_owned(),
             parameters: serde_json::json!({
                 "type": "object",
@@ -842,6 +853,79 @@ impl rig::tool::Tool for CallApiTool {
             Ok(text) => text,
             Err(e) => format!("Error calling {}: {e}", args.path),
         })
+    }
+}
+
+// ── Interactive tool: request a patient (client renders a picker) ────
+// The model calls this when it needs a patient but none is in context. The
+// backend stays UI-agnostic — it just surfaces the tool call; the CLIENT renders
+// the patient search picker and continues the turn with the chosen patient.
+
+#[derive(serde::Deserialize)]
+struct RequestPatientArgs {}
+
+struct RequestPatientTool;
+
+impl rig::tool::Tool for RequestPatientTool {
+    const NAME: &'static str = "request_patient";
+    type Error = std::convert::Infallible;
+    type Args = RequestPatientArgs;
+    type Output = String;
+
+    async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
+        rig::completion::ToolDefinition {
+            name: Self::NAME.to_owned(),
+            description: "Show the user a patient search box to choose a patient. Call this \
+                WHENEVER you need a patient but none is in the screen context — NEVER invent or \
+                guess a patient id. The chosen patient will be in context on the next message."
+                .to_owned(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "reason": { "type": "string", "description": "Why a patient is needed" }
+                }
+            }),
+        }
+    }
+
+    async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {
+        Ok("A patient search box is now shown to the user. STOP and wait for their selection; do \
+            not call patient tools or invent an id. The chosen patient arrives in the next message."
+            .to_owned())
+    }
+}
+
+// ── Discovery tool: list all read (GET) endpoints ───────────────────
+// The whole read surface is large (650+ GET endpoints); rather than dump it into
+// every request, the model calls this on demand to discover which path to hit,
+// then uses call_api. Catalog is generated from mod.rs by
+// scripts/gen_ai_read_catalog.py — regenerate after route changes.
+const READ_CATALOG: &str = include_str!("ai_read_catalog.txt");
+
+#[derive(serde::Deserialize)]
+struct ListApisArgs {}
+
+struct ListApisTool;
+
+impl rig::tool::Tool for ListApisTool {
+    const NAME: &'static str = "list_apis";
+    type Error = std::convert::Infallible;
+    type Args = ListApisArgs;
+    type Output = String;
+
+    async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
+        rig::completion::ToolDefinition {
+            name: Self::NAME.to_owned(),
+            description: "List the read (GET) API endpoints available via call_api, grouped by \
+                domain (patients, lab, pharmacy, billing, ipd, …). Call this to discover the right \
+                endpoint before calling call_api. Call it at most once."
+                .to_owned(),
+            parameters: serde_json::json!({ "type": "object", "properties": {} }),
+        }
+    }
+
+    async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {
+        Ok(READ_CATALOG.to_owned())
     }
 }
 
@@ -1050,6 +1134,8 @@ pub async fn chat(
                     state: state.clone(),
                     claims: claims.clone(),
                 })
+                .tool(RequestPatientTool)
+                .tool(ListApisTool)
                 .build();
             Box::pin(run_turn(
                 agent,
@@ -1088,6 +1174,8 @@ pub async fn chat(
                     state: state.clone(),
                     claims: claims.clone(),
                 })
+                .tool(RequestPatientTool)
+                .tool(ListApisTool)
                 .build();
             Box::pin(run_turn(
                 agent,
@@ -1132,6 +1220,8 @@ pub async fn chat(
                     state: state.clone(),
                     claims: claims.clone(),
                 })
+                .tool(RequestPatientTool)
+                .tool(ListApisTool)
                 .build();
             Box::pin(run_turn(
                 agent,

@@ -1,11 +1,23 @@
-import { Anchor, Box, Group, Image, List, Stack, Text, UnstyledButton } from "@mantine/core";
+import {
+  Anchor,
+  Box,
+  Group,
+  Image,
+  List,
+  Loader,
+  Stack,
+  Text,
+  UnstyledButton,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { IconAlertTriangle, IconChevronRight, IconTool } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { Badge } from "@/components/ui";
 import { CodeBlock } from "./CodeBlock";
 import { Response } from "./Response";
-import type { ChatMessage, ChatPart, ChatToolCall } from "./transport/types";
+import { TOOL_WIDGETS } from "./tool-widgets";
+import { AI_TOOL_LABELS } from "./tools";
+import type { ChatContext, ChatMessage, ChatPart, ChatToolCall } from "./transport/types";
 import { messageParts } from "./transport/types";
 import styles from "./unified-response.module.scss";
 
@@ -25,6 +37,10 @@ export interface UnifiedResponseProps {
   renderers?: PartRenderers;
   /** Renderers for `custom` parts, keyed by `kind` (clinical widgets etc.). */
   customRenderers?: Record<string, (data: unknown) => ReactNode>;
+  /** Continue the turn from an interactive tool widget (e.g. the patient picker). */
+  onToolAction?: (message: string, opts?: { context?: ChatContext }) => void;
+  /** True only for the latest turn — interactive widgets render live, not read-only. */
+  active?: boolean;
 }
 
 /**
@@ -33,7 +49,13 @@ export interface UnifiedResponseProps {
  * registered type; `custom` parts route by `kind` so app surfaces can register
  * clinical widgets (patient card, lab result…) without touching the core.
  */
-export function UnifiedResponse({ message, renderers, customRenderers }: UnifiedResponseProps) {
+export function UnifiedResponse({
+  message,
+  renderers,
+  customRenderers,
+  onToolAction,
+  active,
+}: UnifiedResponseProps) {
   const parts = messageParts(message);
   return (
     <Stack gap="xs">
@@ -44,6 +66,8 @@ export function UnifiedResponse({ message, renderers, customRenderers }: Unified
           part={part}
           renderers={renderers}
           customRenderers={customRenderers}
+          onToolAction={onToolAction}
+          active={active}
         />
       ))}
     </Stack>
@@ -54,10 +78,14 @@ function PartView({
   part,
   renderers,
   customRenderers,
+  onToolAction,
+  active,
 }: {
   part: ChatPart;
   renderers?: PartRenderers;
   customRenderers?: Record<string, (data: unknown) => ReactNode>;
+  onToolAction?: (message: string, opts?: { context?: ChatContext }) => void;
+  active?: boolean;
 }) {
   switch (part.type) {
     case "markdown":
@@ -68,8 +96,18 @@ function PartView({
       );
     case "reasoning":
       return <>{renderers?.reasoning?.(part) ?? <ReasoningView text={part.text} />}</>;
-    case "tool":
+    case "tool": {
+      // Plugin: an interactive widget registered for this tool renders inline.
+      const widget = TOOL_WIDGETS[part.toolCall.name];
+      if (widget && onToolAction) {
+        return (
+          <>
+            {widget({ toolCall: part.toolCall, active: active ?? false, onAction: onToolAction })}
+          </>
+        );
+      }
       return <>{renderers?.tool?.(part) ?? <ToolView toolCall={part.toolCall} />}</>;
+    }
     case "sources":
       return (
         <>
@@ -103,11 +141,6 @@ function PartView({
   }
 }
 
-const TOOL_LABELS: Record<string, string> = {
-  check_drug_safety: "Drug safety check",
-  draft_prescription: "Prescription draft",
-};
-
 /** Read the block decision out of a tool result (shape varies by tool). */
 function toolResultInfo(result: unknown): { blocked: boolean; message?: string } {
   if (result && typeof result === "object") {
@@ -123,19 +156,27 @@ function toolResultInfo(result: unknown): { blocked: boolean; message?: string }
 /** A tool-call chip — turns prominently red when the server BLOCKED the action. */
 function ToolView({ toolCall }: { toolCall: ChatToolCall }) {
   const { blocked, message } = toolResultInfo(toolCall.result);
-  const label = TOOL_LABELS[toolCall.name] ?? toolCall.name;
+  const label = AI_TOOL_LABELS[toolCall.name] ?? toolCall.name;
   const running = toolCall.status === "running" || toolCall.status === "pending";
 
   return (
     <Box className={blocked ? styles.toolBlocked : styles.tool}>
       <Group gap={8} wrap="nowrap">
-        {blocked ? <IconAlertTriangle size={15} /> : <IconTool size={14} />}
+        {blocked ? (
+          <IconAlertTriangle size={15} />
+        ) : running ? (
+          <Loader size={14} />
+        ) : (
+          <IconTool size={14} />
+        )}
         <Text size="xs" fw={blocked ? 700 : 500}>
           {label}
         </Text>
-        <Badge tone={blocked ? "danger" : running ? "neutral" : "success"} size="sm">
-          {blocked ? "BLOCKED" : toolCall.status}
-        </Badge>
+        {!running && (
+          <Badge tone={blocked ? "danger" : "success"} size="sm">
+            {blocked ? "BLOCKED" : "done"}
+          </Badge>
+        )}
       </Group>
       {blocked && message && (
         <Text size="xs" mt={4} className={styles.toolBlockedMsg}>

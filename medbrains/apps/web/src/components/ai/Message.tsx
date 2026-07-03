@@ -3,7 +3,7 @@ import { IconUser } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { CrabMascot } from "./CrabMascot";
 import styles from "./message.module.scss";
-import type { ChatMessage, ChatMessageStatus, ChatRole } from "./transport/types";
+import type { ChatContext, ChatMessage, ChatMessageStatus, ChatRole } from "./transport/types";
 import { UnifiedResponse } from "./UnifiedResponse";
 
 export interface MessageProps {
@@ -12,10 +12,14 @@ export interface MessageProps {
   avatar?: ReactNode;
   /** Action row rendered under the bubble (copy / regenerate / thumbs…). */
   actions?: ReactNode;
+  /** Continue the turn from an interactive tool widget. */
+  onToolAction?: (message: string, opts?: { context?: ChatContext }) => void;
+  /** True only for the latest turn (interactive widgets render live). */
+  active?: boolean;
 }
 
 /** One chat turn — user bubbles align right, assistant/system/tool align left. */
-export function Message({ message, avatar, actions }: MessageProps) {
+export function Message({ message, avatar, actions, onToolAction, active }: MessageProps) {
   const isUser = message.role === "user";
   const isStreaming = message.status === "streaming";
   const isEmpty = message.content.length === 0;
@@ -41,7 +45,7 @@ export function Message({ message, avatar, actions }: MessageProps) {
               {message.content}
             </Text>
           ) : (
-            <UnifiedResponse message={message} />
+            <UnifiedResponse message={message} onToolAction={onToolAction} active={active} />
           )}
         </Box>
         {actions && !isUser && <Box className={styles.actions}>{actions}</Box>}
