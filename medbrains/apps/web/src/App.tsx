@@ -69,6 +69,9 @@ const PatientRegisterPage = lazy(() =>
 const AssistantPage = lazy(() =>
   import("./pages/assistant").then((m) => ({ default: m.AssistantPage })),
 );
+const RemoteAccessPage = lazy(() =>
+  import("./pages/remote-access").then((m) => ({ default: m.RemoteAccessPage })),
+);
 const PatientDetailPage = lazy(() =>
   import("./pages/patient-detail").then((m) => ({ default: m.PatientDetailPage })),
 );
@@ -388,6 +391,7 @@ export function App() {
               <Route path="components-inputs" element={<ComponentsInputsPage />} />
               <Route path="demo/dicom/*" element={<DemoDicomFixturesPage />} />
               <Route path="assistant" element={<AssistantPage />} />
+              <Route path="remote-access" element={<RemoteAccessPage />} />
               <Route path="patients" element={<PatientsPage />} />
               <Route path="patients/register" element={<PatientRegisterPage />} />
               <Route path="patients/:id/edit" element={<PatientEditPage />} />
