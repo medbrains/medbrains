@@ -24,9 +24,9 @@ export interface IconButtonProps
 }
 
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  { tone = "default", ...rest },
+  { tone = "default", type = "button", ...rest },
   ref,
 ) {
-  return <ActionIcon ref={ref} {...TONE_PROPS[tone]} {...rest} />;
+  return <ActionIcon ref={ref} type={type} {...TONE_PROPS[tone]} {...rest} />;
 });
 IconButton.displayName = "IconButton";

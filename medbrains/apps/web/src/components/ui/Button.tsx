@@ -50,7 +50,7 @@ export interface ButtonProps extends Omit<MantineButtonProps, "variant" | "color
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { tone = "secondary", size = "sm", justify = "flex-start", ...rest },
+  { tone = "secondary", size = "sm", justify = "flex-start", type = "button", ...rest },
   ref,
 ) {
   // Carbon: labels are left-aligned; an icon (rightSection) sits to the right.
@@ -63,6 +63,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       ref={ref}
       size={size}
       justify={justify}
+      type={type}
       {...TONE_PROPS[tone]}
       {...(rest as MantineButtonProps)}
     />
