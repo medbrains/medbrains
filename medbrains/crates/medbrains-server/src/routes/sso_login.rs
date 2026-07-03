@@ -313,7 +313,16 @@ pub async fn oidc_callback(
 
     // Federate (find / link / JIT-create + group sync), mint a session.
     let mut tx = state.db.begin().await?;
-    let fed = federate_user(&mut tx, &provider, &identity).await?;
+    let fed = match federate_user(&mut tx, &provider, &identity).await {
+        Ok(f) => f,
+        Err(e) => {
+            // Authenticated at the IdP but refused here (no authorized role, or
+            // JIT disabled for a new user) — audit the refused attempt.
+            let _ = tx.rollback().await;
+            audit_sso_denied(&state, &provider, &identity).await;
+            return Err(e);
+        }
+    };
 
     // Compliance audit (parity with password login) — who logged in via which
     // IdP, the groups presented, the role/access-groups synced, and the outcome.
@@ -621,6 +630,46 @@ async fn federate_user(
         outcome,
         access_groups: access_groups.len(),
     })
+}
+
+/// Best-effort audit of a REFUSED SSO login — the user authenticated at the IdP
+/// but is not authorized here (no matching group mapping + no default role, or
+/// JIT disabled for a new user). Uses its own tx so it survives the rolled-back
+/// federation tx. `user_id` is null (no session was created).
+async fn audit_sso_denied(state: &AppState, provider: &LoginProvider, identity: &SsoIdentity) {
+    let details = serde_json::json!({
+        "provider_id": provider.id,
+        "external_subject": identity.subject,
+        "email": identity.email,
+        "groups": identity.groups,
+        "reason": "no authorized role: no matching group mapping and no default role, or JIT disabled",
+    });
+    let Ok(mut tx) = state.db.begin().await else {
+        return;
+    };
+    if medbrains_db::pool::set_tenant_context(&mut tx, &provider.tenant_id)
+        .await
+        .is_err()
+    {
+        return;
+    }
+    let logged = medbrains_db::audit::AuditLogger::log(
+        &mut tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: provider.tenant_id,
+            user_id: None,
+            action: "sso_login_denied",
+            entity_type: "identity_provider",
+            entity_id: Some(provider.id),
+            old_values: None,
+            new_values: Some(&details),
+            ip_address: None,
+        },
+    )
+    .await;
+    if logged.is_ok() {
+        let _ = tx.commit().await;
+    }
 }
 
 /// Sanitise an email/subject into a unique username matching the users CHECK
