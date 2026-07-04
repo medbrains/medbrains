@@ -1,3 +1,4 @@
+import { userSchema } from "@medbrains/schemas";
 import { useAuthStore, useLocaleStore, usePermissionStore } from "@medbrains/stores";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Navigate } from "react-router";
@@ -31,16 +32,31 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!hasHydrated) return;
 
-    if (!user) {
-      setVerified(false);
-      return;
-    }
-
     let cancelled = false;
     sessionService
       .me()
       .then(async (resp) => {
         if (cancelled) return;
+        // The HttpOnly cookie is the source of truth. Hydrate the store on a cold
+        // load when it's empty — SSO lands via a full-page redirect that sets the
+        // cookie but never populates the store (password login does). Without this,
+        // a valid SSO session bounces straight back to /login.
+        if (!useAuthStore.getState().user) {
+          useAuthStore.getState().setAuth(
+            userSchema.parse({
+              id: resp.id,
+              tenant_id: resp.tenant_id,
+              username: resp.username,
+              email: resp.email,
+              full_name: resp.full_name,
+              role: resp.role,
+              access_matrix: {},
+              is_active: true,
+              created_at: "",
+              updated_at: "",
+            }),
+          );
+        }
         setMustChangePassword(resp.must_change_password);
         setMfaEnrollmentRequired(resp.mfa_enrollment_required);
         setPermissions(resp.role, resp.permissions, resp.field_access);
@@ -81,15 +97,16 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
           clearPermissions();
           setVerified(false);
         } else {
-          // Backend unreachable (network error) — trust stored auth, show the app
-          setVerified(true);
+          // Backend unreachable (network error) — trust stored auth if present,
+          // otherwise treat as unauthenticated.
+          setVerified(Boolean(useAuthStore.getState().user));
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [hasHydrated, user, clearAuth, clearPermissions, setPermissions]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hasHydrated, clearAuth, clearPermissions, setPermissions]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Proactive token refresh — keeps session alive during continuous work ──
   useEffect(() => {
@@ -119,21 +136,14 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     clearPermissions,
   ]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!hasHydrated) {
+  // Wait for store hydration + the /auth/me verification (which also hydrates the
+  // store from the cookie on a cold SSO load) before deciding.
+  if (!hasHydrated || verified === null) {
     return <PageSkeleton />;
-  }
-
-  if (!user) {
-    return <Navigate to="/login" replace />;
   }
 
   if (verified === false) {
     return <Navigate to="/login" replace />;
-  }
-
-  // Wait for session verification to complete and permissions to load before rendering
-  if (verified === null) {
-    return <PageSkeleton />;
   }
 
   // Seeded/provisioned credential — block the app until the password is rotated
