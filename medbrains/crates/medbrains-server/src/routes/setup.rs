@@ -1566,7 +1566,7 @@ pub async fn update_role_permissions(
     .fetch_optional(&mut *tx)
     .await?;
 
-    // Bump perm_version for all users with this role
+    // Bump perm_version for all users with this role + audit the privilege change.
     if let Some(ref role) = row {
         sqlx::query(
             "UPDATE users SET perm_version = perm_version + 1 \
@@ -1576,6 +1576,21 @@ pub async fn update_role_permissions(
         .bind(&role.code)
         .execute(&mut *tx)
         .await?;
+        medbrains_db::audit::AuditLogger::log(
+            &mut tx,
+            &medbrains_db::audit::AuditEntry {
+                tenant_id: claims.tenant_id,
+                user_id: Some(claims.sub),
+                action: "role_permissions_changed",
+                entity_type: "role",
+                entity_id: Some(role.id),
+                old_values: None,
+                new_values: Some(&perms_json),
+                ip_address: None,
+            },
+        )
+        .await
+        .map_err(AppError::from)?;
     }
 
     tx.commit().await?;
@@ -5456,6 +5471,22 @@ pub async fn add_access_group_member(
     .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
+    let member_audit = serde_json::json!({ "user_id": body.user_id, "expires_at": body.expires_at });
+    medbrains_db::audit::AuditLogger::log(
+        &mut tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: "access_group_member_added",
+            entity_type: "access_group",
+            entity_id: Some(group_id),
+            old_values: None,
+            new_values: Some(&member_audit),
+            ip_address: None,
+        },
+    )
+    .await
+    .map_err(AppError::from)?;
     tx.commit().await?;
 
     // Mirror to SpiceDB if configured. Failures are non-fatal — the
@@ -5569,6 +5600,22 @@ pub async fn remove_access_group_member(
     .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
+    let member_audit = serde_json::json!({ "user_id": user_id });
+    medbrains_db::audit::AuditLogger::log(
+        &mut tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: "access_group_member_removed",
+            entity_type: "access_group",
+            entity_id: Some(group_id),
+            old_values: None,
+            new_values: Some(&member_audit),
+            ip_address: None,
+        },
+    )
+    .await
+    .map_err(AppError::from)?;
     tx.commit().await?;
 
     let ctx = crate::middleware::authorization::authz_context(&claims);
