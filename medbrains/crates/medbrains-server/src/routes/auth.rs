@@ -835,6 +835,14 @@ pub async fn logout_all(
 
     tx.commit().await?;
 
+    // A full session cut-off must sever every channel: revoke the target's VPN
+    // devices too (best-effort — a VPN/Headscale hiccup must not fail logout).
+    if let Err(e) =
+        crate::routes::vpn::revoke_user_devices(&state, claims.tenant_id, target_user).await
+    {
+        tracing::warn!(error = %e, user = %target_user, "logout-all: VPN device revoke failed");
+    }
+
     // Clear cookies on the calling response only when self-logout.
     let cfg = &state.cookie_config;
     let response_jar = if target_user == claims.sub {

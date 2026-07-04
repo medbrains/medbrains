@@ -218,3 +218,39 @@ pub async fn revoke(
     }
     Ok(Json(serde_json::json!({ "status": "revoked" })))
 }
+
+/// Revoke ALL of a user's VPN devices — called on logout-all / force-logout /
+/// deprovision so a session cut-off severs every access channel, not just the
+/// web/app session. Marks them revoked (own tx, under RLS) and best-effort
+/// expires each node in Headscale so no key can reconnect.
+pub async fn revoke_user_devices(
+    state: &AppState,
+    tenant_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    let node_ids = sqlx::query_scalar::<_, Option<String>>(
+        "UPDATE vpn_devices SET revoked_at = now() \
+         WHERE tenant_id = $1 AND user_id = $2 AND revoked_at IS NULL \
+         RETURNING headscale_node_id",
+    )
+    .bind(tenant_id)
+    .bind(user_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    if node_ids.iter().any(Option::is_some) {
+        if let Ok((url, api_key)) = headscale_config(state).await {
+            for nid in node_ids.into_iter().flatten() {
+                let _ = reqwest::Client::new()
+                    .post(format!("{url}/api/v1/node/{nid}/expire"))
+                    .bearer_auth(&api_key)
+                    .send()
+                    .await;
+            }
+        }
+    }
+    Ok(())
+}
