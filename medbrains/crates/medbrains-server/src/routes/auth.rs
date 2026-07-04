@@ -169,6 +169,39 @@ fn wants_native_token_response(headers: &HeaderMap) -> bool {
     )
 }
 
+/// SSO-first tenant policy: when `tenant_settings(auth, password_login_disabled)`
+/// is true, password login is refused for everyone except the break-glass admin
+/// named in `tenant_settings(auth, break_glass_username)`. Returns true if this
+/// password attempt must be rejected. Absent settings = passwords allowed (default).
+async fn password_login_blocked(
+    db: &PgPool,
+    tenant_id: Uuid,
+    username: &str,
+) -> Result<bool, AppError> {
+    let disabled: Option<serde_json::Value> = sqlx::query_scalar(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'auth' AND key = 'password_login_disabled'",
+    )
+    .bind(tenant_id)
+    .fetch_optional(db)
+    .await?;
+    let is_disabled =
+        disabled.is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("true"));
+    if !is_disabled {
+        return Ok(false);
+    }
+    // Passwords disabled — allow only the break-glass admin through.
+    let break_glass: Option<serde_json::Value> = sqlx::query_scalar(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'auth' AND key = 'break_glass_username'",
+    )
+    .bind(tenant_id)
+    .fetch_optional(db)
+    .await?;
+    let break_glass = break_glass.and_then(|v| v.as_str().map(str::to_owned));
+    Ok(break_glass.as_deref() != Some(username))
+}
+
 #[allow(clippy::too_many_lines)]
 pub async fn login(
     State(state): State<AppState>,
@@ -191,6 +224,15 @@ pub async fn login(
 
     if !row.is_active {
         return Err(AppError::Unauthorized);
+    }
+
+    // SSO-first policy: when the tenant disables password login, only the
+    // designated break-glass admin may still use a password — everyone else
+    // must sign in via SSO (so an IdP outage can't lock the hospital out).
+    if password_login_blocked(&state.db, row.tenant_id, &body.username).await? {
+        return Err(AppError::BadRequest(
+            "This organization requires single sign-on. Please sign in with SSO.".to_owned(),
+        ));
     }
 
     // Per-account lockout — independent of the per-IP rate limit so a
