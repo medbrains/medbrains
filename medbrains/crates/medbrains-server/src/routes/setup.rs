@@ -1454,6 +1454,14 @@ pub async fn delete_user(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::users::DELETE)?;
+
+    // Deprovision: expire the user's VPN nodes in Headscale BEFORE the row (and
+    // its cascade-deleted vpn_devices) disappear — else the keys would outlive
+    // the account. Best-effort so a Headscale hiccup never blocks the delete.
+    if let Err(e) = crate::routes::vpn::revoke_user_devices(&state, claims.tenant_id, id).await {
+        tracing::warn!(error = %e, user = %id, "delete_user: VPN device revoke failed");
+    }
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
