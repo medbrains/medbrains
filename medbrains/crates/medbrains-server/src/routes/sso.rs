@@ -40,8 +40,10 @@ fn encrypt_secret(key: &[u8], secret: &str) -> Result<String, AppError> {
 struct SsoSeedConfig {
     #[serde(default = "seed_default_code")]
     code: String,
-    #[serde(default = "seed_default_name")]
-    name: String,
+    /// Button label. Blank → best-effort auto-fetch the org name from the IdP
+    /// (Microsoft Graph for Entra); falls back to "SSO".
+    #[serde(default)]
+    name: Option<String>,
     discovery_url: String,
     client_id: Option<String>,
     client_secret: Option<String>,
@@ -56,11 +58,59 @@ struct SsoSeedConfig {
 fn seed_default_code() -> String {
     "entra".to_owned()
 }
-fn seed_default_name() -> String {
-    "SSO".to_owned()
-}
 fn seed_default_group_claim() -> String {
     "groups".to_owned()
+}
+
+/// Best-effort fetch of the tenant's org display name from Microsoft Graph, used
+/// as the SSO button label when none is configured. Client-credentials against the
+/// tenant (needs the `Organization.Read.All` app permission + admin consent);
+/// returns None on any failure (non-Entra, no permission, network) → caller falls
+/// back. 5s timeout so a slow/unreachable Graph never stalls startup.
+async fn fetch_entra_org_name(
+    discovery_url: &str,
+    client_id: &str,
+    client_secret: &str,
+) -> Option<String> {
+    // Derive the token endpoint from the standard Entra discovery URL shape.
+    let token_url =
+        discovery_url.replace("/v2.0/.well-known/openid-configuration", "/oauth2/v2.0/token");
+    if token_url == discovery_url {
+        return None; // not the expected Entra URL — skip Graph
+    }
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .ok()?;
+    let token: serde_json::Value = client
+        .post(&token_url)
+        .form(&[
+            ("client_id", client_id),
+            ("client_secret", client_secret),
+            ("scope", "https://graph.microsoft.com/.default"),
+            ("grant_type", "client_credentials"),
+        ])
+        .send()
+        .await
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+    let access = token.get("access_token")?.as_str()?;
+    let org: serde_json::Value = client
+        .get("https://graph.microsoft.com/v1.0/organization")
+        .bearer_auth(access)
+        .send()
+        .await
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+    org.get("value")?
+        .get(0)?
+        .get("displayName")?
+        .as_str()
+        .map(str::to_owned)
 }
 
 /// Provision the SSO provider + group mappings from a local JSON file at startup,
@@ -80,9 +130,18 @@ pub async fn seed_from_config(state: &AppState) -> Result<(), AppError> {
         Some(s) => Some(encrypt_secret(&secret_key(state).await, s)?),
         None => None,
     };
-    let (code, name, discovery_url, group_claim, client_id, default_role) = (
+    // Button label: configured value, else best-effort org name from Entra Graph, else "SSO".
+    let name = match cfg.name.as_deref().filter(|s| !s.is_empty()) {
+        Some(n) => n.to_owned(),
+        None => match (cfg.client_id.as_deref(), cfg.client_secret.as_deref()) {
+            (Some(cid), Some(sec)) => fetch_entra_org_name(&cfg.discovery_url, cid, sec)
+                .await
+                .unwrap_or_else(|| "SSO".to_owned()),
+            _ => "SSO".to_owned(),
+        },
+    };
+    let (code, discovery_url, group_claim, client_id, default_role) = (
         cfg.code,
-        cfg.name,
         cfg.discovery_url,
         cfg.group_claim,
         cfg.client_id,

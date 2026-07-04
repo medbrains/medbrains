@@ -1,10 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Anchor, Checkbox, PasswordInput, Stack, Text, TextInput } from "@mantine/core";
+import { Anchor, Center, Checkbox, PasswordInput, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { api } from "@medbrains/api";
 import { userSchema } from "@medbrains/schemas";
 import { useAuthStore, usePermissionStore } from "@medbrains/stores";
 import { IconLock, IconUser } from "@tabler/icons-react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Link, Navigate, useNavigate } from "react-router";
@@ -47,6 +48,19 @@ export function LoginPage() {
   // A configured hospital means the install is already set up — hide the
   // "new installation" onboarding prompt.
   const isConfigured = Boolean(useTenantBrand());
+
+  // SSO-first: when the tenant has an active identity provider, lead with the
+  // SSO button and hide the password form — but keep a break-glass escape hatch
+  // so an IdP outage can't lock out the local admin.
+  const { data: ssoProviders = [] } = useQuery({
+    queryKey: ["sso-active-providers"],
+    queryFn: () => api.listActiveSsoProviders(window.location.hostname),
+    staleTime: 300_000,
+    retry: false,
+  });
+  const hasSso = ssoProviders.length > 0;
+  const [usePasswordLogin, setUsePasswordLogin] = useState(false);
+  const showPasswordForm = !hasSso || usePasswordLogin;
 
   const loginForm = useForm<LoginFormInput>({
     resolver: zodResolver(loginFormSchema),
@@ -178,83 +192,113 @@ export function LoginPage() {
             </Text>
           </Stack>
 
-          <form
-            onSubmit={loginForm.handleSubmit((values) =>
-              loginMutation.mutate(mfaStep ? { ...values, mfa_code: mfaCode } : values),
-            )}
-          >
-            <Stack gap="md">
-              <TextInput
-                label="Username"
-                placeholder="Enter your username"
-                leftSection={<IconUser size={16} />}
-                error={loginForm.formState.errors.username?.message}
-                {...loginForm.register("username")}
-                required
-                size="md"
-                autoComplete="username"
-              />
-              <PasswordInput
-                label="Password"
-                placeholder="Enter your password"
-                leftSection={<IconLock size={16} />}
-                error={loginForm.formState.errors.password?.message}
-                {...loginForm.register("password")}
-                required
-                size="md"
-                autoComplete="current-password"
-                visibilityToggleButtonProps={{ "aria-label": "Show or hide password" }}
-              />
-
-              <div className={classes.formFooter}>
-                <Controller
-                  control={loginForm.control}
-                  name="remember_me"
-                  render={({ field }) => (
-                    <Checkbox
-                      label="Remember me"
-                      size="xs"
-                      checked={field.value}
-                      onChange={(event) => field.onChange(event.currentTarget.checked)}
-                    />
-                  )}
-                />
-                <Anchor component={Link} to="/forgot-password" size="xs" c="primary">
-                  Forgot password?
-                </Anchor>
-              </div>
-
-              {loginMutation.isError && (
-                <Alert tone="danger" radius="md">
-                  {loginMutation.error.message}
-                </Alert>
+          {showPasswordForm && (
+            <form
+              onSubmit={loginForm.handleSubmit((values) =>
+                loginMutation.mutate(mfaStep ? { ...values, mfa_code: mfaCode } : values),
               )}
-
-              {mfaStep && (
+            >
+              <Stack gap="md">
                 <TextInput
-                  label="Two-factor code"
-                  placeholder="6-digit code or recovery code"
-                  value={mfaCode}
-                  onChange={(event) => setMfaCode(event.currentTarget.value)}
-                  inputMode="numeric"
-                  autoFocus
+                  label="Username"
+                  placeholder="Enter your username"
+                  leftSection={<IconUser size={16} />}
+                  error={loginForm.formState.errors.username?.message}
+                  {...loginForm.register("username")}
+                  required
                   size="md"
+                  autoComplete="username"
                 />
-              )}
+                <PasswordInput
+                  label="Password"
+                  placeholder="Enter your password"
+                  leftSection={<IconLock size={16} />}
+                  error={loginForm.formState.errors.password?.message}
+                  {...loginForm.register("password")}
+                  required
+                  size="md"
+                  autoComplete="current-password"
+                  visibilityToggleButtonProps={{ "aria-label": "Show or hide password" }}
+                />
 
-              <Button
-                tone="primary"
-                type="submit"
-                fullWidth
-                loading={loginMutation.isPending}
-                size="md"
-              >
-                {mfaStep ? "Verify & Sign In" : "Sign In"}
-              </Button>
-            </Stack>
-          </form>
+                <div className={classes.formFooter}>
+                  <Controller
+                    control={loginForm.control}
+                    name="remember_me"
+                    render={({ field }) => (
+                      <Checkbox
+                        label="Remember me"
+                        size="xs"
+                        checked={field.value}
+                        onChange={(event) => field.onChange(event.currentTarget.checked)}
+                      />
+                    )}
+                  />
+                  <Anchor component={Link} to="/forgot-password" size="xs" c="primary">
+                    Forgot password?
+                  </Anchor>
+                </div>
 
-          <SsoLoginButtons />
+                {loginMutation.isError && (
+                  <Alert tone="danger" radius="md">
+                    {loginMutation.error.message}
+                  </Alert>
+                )}
+
+                {mfaStep && (
+                  <TextInput
+                    label="Two-factor code"
+                    placeholder="6-digit code or recovery code"
+                    value={mfaCode}
+                    onChange={(event) => setMfaCode(event.currentTarget.value)}
+                    inputMode="numeric"
+                    autoFocus
+                    size="md"
+                  />
+                )}
+
+                <Button
+                  tone="primary"
+                  type="submit"
+                  fullWidth
+                  loading={loginMutation.isPending}
+                  size="md"
+                >
+                  {mfaStep ? "Verify & Sign In" : "Sign In"}
+                </Button>
+              </Stack>
+            </form>
+          )}
+
+          {hasSso &&
+            (usePasswordLogin ? (
+              <Center mt="sm">
+                <Anchor
+                  component="button"
+                  type="button"
+                  onClick={() => setUsePasswordLogin(false)}
+                  size="sm"
+                  c="dimmed"
+                >
+                  ← Back to single sign-on
+                </Anchor>
+              </Center>
+            ) : (
+              <Stack gap="sm" mt="md">
+                <SsoLoginButtons hideDivider />
+                <Center>
+                  <Anchor
+                    component="button"
+                    type="button"
+                    onClick={() => setUsePasswordLogin(true)}
+                    size="sm"
+                    c="dimmed"
+                  >
+                    Use a username &amp; password instead
+                  </Anchor>
+                </Center>
+              </Stack>
+            ))}
 
           {isDesktop && (
             <div className={classes.desktopSetup}>

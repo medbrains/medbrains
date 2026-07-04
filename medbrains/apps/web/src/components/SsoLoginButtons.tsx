@@ -10,7 +10,13 @@ import { Button } from "@/components/ui";
  * one button per active provider, and a redirecting interstitial while the
  * browser hands off to the identity provider. Renders nothing if no SSO is set up.
  */
-export function SsoLoginButtons({ returnTo = "/dashboard" }: { returnTo?: string }) {
+export function SsoLoginButtons({
+  returnTo = "/dashboard",
+  hideDivider = false,
+}: {
+  returnTo?: string;
+  hideDivider?: boolean;
+}) {
   const [redirectingTo, setRedirectingTo] = useState<string | null>(null);
 
   const { data: providers = [] } = useQuery({
@@ -43,14 +49,16 @@ export function SsoLoginButtons({ returnTo = "/dashboard" }: { returnTo?: string
 
   return (
     <Stack gap="sm" mt="md">
-      <Divider
-        label={
-          <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
-            Or continue with
-          </Text>
-        }
-        labelPosition="center"
-      />
+      {!hideDivider && (
+        <Divider
+          label={
+            <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+              Or continue with
+            </Text>
+          }
+          labelPosition="center"
+        />
+      )}
       {providers.map((p) => (
         <Button
           key={p.id}
