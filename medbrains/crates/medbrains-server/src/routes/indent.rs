@@ -117,6 +117,8 @@ pub struct CreateCatalogRequest {
     pub unit: Option<String>,
     pub base_price: Option<Decimal>,
     pub reorder_level: Option<i32>,
+    /// 'consumable' (default) | 'stationery'.
+    pub domain: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1046,8 +1048,8 @@ pub async fn create_catalog_item(
 
     let item = sqlx::query_as::<_, StoreCatalog>(
         "INSERT INTO store_catalog \
-         (tenant_id, code, name, category, sub_category, unit, base_price, reorder_level) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+         (tenant_id, code, name, category, sub_category, unit, base_price, reorder_level, domain) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -1058,6 +1060,7 @@ pub async fn create_catalog_item(
     .bind(body.unit.as_deref().unwrap_or("unit"))
     .bind(body.base_price.unwrap_or(Decimal::ZERO))
     .bind(body.reorder_level.unwrap_or(0))
+    .bind(body.domain.as_deref().unwrap_or("consumable"))
     .fetch_one(&mut *tx)
     .await?;
 

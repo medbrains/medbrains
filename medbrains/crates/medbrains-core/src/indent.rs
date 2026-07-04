@@ -89,6 +89,8 @@ pub struct StoreCatalog {
     pub current_stock: i32,
     pub reorder_level: i32,
     pub is_active: bool,
+    /// 'consumable' (clinical) | 'stationery' (office supplies).
+    pub domain: String,
     pub is_implant: bool,
     pub is_high_value: bool,
     pub ved_class: Option<VedClass>,

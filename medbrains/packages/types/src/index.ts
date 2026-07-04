@@ -3375,6 +3375,8 @@ export interface StoreCatalog {
   current_stock: number;
   reorder_level: number;
   is_active: boolean;
+  /** 'consumable' (clinical) | 'stationery' (office supplies). */
+  domain: string;
   is_implant: boolean;
   is_high_value: boolean;
   ved_class: VedClass | null;
@@ -3497,6 +3499,8 @@ export interface CreateStoreCatalogRequest {
   unit?: string;
   base_price?: number;
   reorder_level?: number;
+  /** 'consumable' (default) | 'stationery'. */
+  domain?: string;
 }
 
 export interface UpdateStoreCatalogRequest {

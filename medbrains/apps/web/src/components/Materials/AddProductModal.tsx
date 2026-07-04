@@ -10,10 +10,10 @@ import { z } from "zod";
 import { Button, Input, Modal, NumberField, Select } from "@/components/ui";
 import { useAddProductStore } from "./add-product-store";
 
-// Two stock catalogs are quick-addable here (assets are individually-tracked with
-// asset tags/serials → managed on the Assets page). Stationery joins as a store
-// variant in A2.
-type ProductType = "consumable" | "drug";
+// Quick-addable stock catalogs. Consumable + stationery are both store_catalog
+// rows (distinguished by `domain`); drug is the pharmacy catalog. Assets are
+// individually-tracked (asset tags/serials) → managed on the Assets page.
+type ProductType = "consumable" | "stationery" | "drug";
 
 const PHARMACY_PERM = "pharmacy.stock.manage";
 const STORE_PERM = "indent.stock.manage";
@@ -53,8 +53,8 @@ export function AddProductModal() {
 
   const availableTypes = useMemo<ProductType[]>(
     () => [
-      ...(canConsumable ? ["consumable" as const] : []),
-      ...(canDrug ? ["drug" as const] : []),
+      ...(canConsumable ? (["consumable", "stationery"] as ProductType[]) : []),
+      ...(canDrug ? (["drug"] as ProductType[]) : []),
     ],
     [canConsumable, canDrug],
   );
@@ -86,6 +86,7 @@ export function AddProductModal() {
         unit: values.unit || undefined,
         base_price: values.base_price,
         reorder_level: values.reorder_level,
+        domain: effectiveType === "stationery" ? "stationery" : "consumable",
       });
     },
     onSuccess: () => {
@@ -118,6 +119,7 @@ export function AddProductModal() {
               onChange={(v) => setType(v as ProductType)}
               data={[
                 { value: "consumable", label: "Consumable" },
+                { value: "stationery", label: "Stationery" },
                 { value: "drug", label: "Drug" },
               ]}
             />
