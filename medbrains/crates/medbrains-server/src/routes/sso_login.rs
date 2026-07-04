@@ -581,7 +581,8 @@ async fn federate_user(
     let (user_id, outcome) = match existing {
         Some(id) => {
             sqlx::query(
-                "UPDATE users SET role = $2::user_role, perm_version = perm_version + 1, updated_at = now() WHERE id = $1",
+                "UPDATE users SET role = $2::user_role, email_verified = true, \
+                 perm_version = perm_version + 1, updated_at = now() WHERE id = $1",
             )
             .bind(id)
             .bind(&role)
@@ -603,7 +604,8 @@ async fn federate_user(
                 Some(id) => {
                     sqlx::query(
                         "UPDATE users SET idp_id = $2, external_subject = $3, role = $4::user_role, \
-                         perm_version = perm_version + 1, updated_at = now() WHERE id = $1",
+                         email_verified = true, perm_version = perm_version + 1, updated_at = now() \
+                         WHERE id = $1",
                     )
                     .bind(id)
                     .bind(provider.id)
@@ -754,9 +756,11 @@ async fn jit_create(
         .unwrap_or_else(|| username.clone());
 
     let id = sqlx::query_scalar::<_, Uuid>(
+        // email_verified = true: the IdP already verified the address, so don't
+        // nag federated users with the verify-email banner.
         "INSERT INTO users (tenant_id, username, email, password_hash, full_name, role, \
-         idp_id, external_subject) \
-         VALUES ($1, $2, $3, NULL, $4, $5::user_role, $6, $7) RETURNING id",
+         idp_id, external_subject, email_verified) \
+         VALUES ($1, $2, $3, NULL, $4, $5::user_role, $6, $7, true) RETURNING id",
     )
     .bind(provider.tenant_id)
     .bind(&username)
