@@ -3,15 +3,23 @@
 Status: DRAFT · Owner: platform · Supersedes: the "Phase 4/5 VPN" section of the auth-revamp plan
 
 ## 1. Thesis
-Give hospitals a **first-party, on-prem VPN** for remote staff to reach the HIMS — owned and run by
-the hospital, **no third-party cloud, no PHI-adjacent metadata leaving the building**, and identity
-tied to MedBrains auth + access-groups. We do **not** invent a VPN protocol: we stand on **WireGuard**
-(kernel-audited crypto) and a **self-hosted control plane (Headscale**, the open-source Tailscale
-server). MedBrains owns the **identity, enrollment, ACL policy, client UX, and audit**; WireGuard owns
-the tunnel. This is "our own VPN platform" the safe way.
+MedBrains is a **world-scale, turnkey HIMS** — trying it must be *easy*, so remote access is a
+**built-in, one-click experience**, not something IT stands up separately. The **default** is a
+**first-party, on-prem VPN** owned and run by the hospital: **no third-party cloud, no PHI-adjacent
+metadata leaving the building**, identity tied to MedBrains auth + access-groups, and — critically —
+**the user never learns what a VPN is**. They click **Connect** in the MedBrains desktop app and
+they're on. We do **not** invent a VPN protocol: we stand on **WireGuard** (kernel-audited crypto) +
+a **self-hosted control plane (Headscale**, the open-source Tailscale server). MedBrains owns the
+**identity, enrollment, ACL policy, one-click client UX, and audit**; WireGuard owns the tunnel.
 
-Non-goals: rolling our own crypto/handshake; a public multi-tenant VPN SaaS; replacing the hospital's
-existing corporate VPN if they already have one (they just allowlist its CIDR — see §8).
+**Ease is the product requirement** (cost is not the constraint): a first-time user must reach the
+HIMS remotely without touching a config file, a command line, or a separate install. The web page's
+`tailscale up` command is a stopgap — the real deliverable is the **desktop one-click Connect** (P2)
+and **auto-offer-on-login**.
+
+Non-goals: rolling our own crypto/handshake; a public multi-tenant VPN SaaS. **Bring-your-own** — a
+hospital that insists on an existing VPN (OpenVPN, corporate WireGuard, AnyConnect) just allowlists
+its CIDR (§8) and skips the platform; that's the fallback, not the default experience.
 
 ## 2. Why Headscale (not Tailscale-cloud, not custom)
 - **On-prem + data-sovereign** — the coordination server runs in the hospital; no metadata to a vendor.
