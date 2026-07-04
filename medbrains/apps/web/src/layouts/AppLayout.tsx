@@ -34,6 +34,7 @@ import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
 import { AiAssistantMount } from "@/components/ai";
+import { AddProductModal } from "@/components/Materials/AddProductModal";
 import { Brand } from "@/components/Brand";
 import { DlpGuard } from "@/components/DlpGuard";
 import { HeaderWidgets } from "@/components/HeaderWidgets";
@@ -630,6 +631,7 @@ export function AppLayout() {
           anywhere via useAiAssistant(). Outside PageTransition so its fixed
           launcher anchors to the viewport. */}
       <AiAssistantMount />
+      <AddProductModal />
       <StepUpGate />
     </AppShell>
   );

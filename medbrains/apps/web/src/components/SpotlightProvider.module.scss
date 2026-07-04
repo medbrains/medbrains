@@ -1,19 +1,22 @@
-// ── Spotlight command palette — clean IBM Carbon styling (flat, sharp) ──
+// ── Spotlight command palette — flat/sharp Carbon styling, fully theme-driven ──
+// All colours come from the design-system --mb-* tokens (dual-mode: adapt to
+// dark/light). No hardcoded hex fallbacks — a missing token must show as a
+// visible bug, never silently render light-on-dark.
 
 // Modal content wrapper
 .content {
   border-radius: 0 !important;
-  border: 1px solid var(--mb-border-default, #e0e0e0);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--mb-border-default);
+  box-shadow: var(--mb-shadow-xl, 0 8px 28px rgba(0, 0, 0, 0.28));
   overflow: hidden;
-  background: var(--mb-bg-default, #fff);
+  background: var(--mb-bg-default);
 }
 
 // Search input area
 .search {
   padding: 4px 8px;
-  border-bottom: 1px solid var(--mb-border-default, #e0e0e0);
-  background: var(--mb-bg-default, #fff);
+  border-bottom: 1px solid var(--mb-border-default);
+  background: var(--mb-bg-default);
 
   input {
     font-size: 15px;
@@ -23,10 +26,10 @@
     padding-left: 42px;
     padding-right: 16px;
     height: 48px;
-    color: var(--mb-text-primary, #161616);
+    color: var(--mb-text-primary);
 
     &::placeholder {
-      color: var(--mb-text-muted, #a8a8a8);
+      color: var(--mb-text-muted);
     }
   }
 }
@@ -42,11 +45,11 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--mb-text-muted, #6f6f6f);
+  color: var(--mb-text-muted);
   padding: 12px 12px 4px;
 }
 
-// Individual action row — full-width flat row with a blue selected accent.
+// Individual action row — full-width flat row with a brand selected accent.
 .action {
   position: relative;
   display: flex;
@@ -58,20 +61,20 @@
   transition: background 100ms ease;
 
   &:hover {
-    background: var(--mb-bg-hover, #f4f4f4);
+    background: var(--mb-bg-subtle);
   }
 
   &[data-selected] {
-    background: var(--mb-brand-bg, #edf5ff);
-    box-shadow: inset 2px 0 0 var(--mb-interactive, #0f62fe);
+    background: var(--mb-brand-bg);
+    box-shadow: inset 2px 0 0 var(--mb-brand-emphasis);
 
     .actionLabel {
-      color: var(--mb-interactive, #0f62fe);
+      color: var(--mb-brand-emphasis);
     }
 
     .actionIcon {
-      background: var(--mb-brand-bg-hover, #d0e2ff);
-      color: var(--mb-interactive, #0f62fe);
+      background: var(--mb-brand-tint-strong);
+      color: var(--mb-brand-emphasis);
     }
   }
 }
@@ -84,9 +87,12 @@
   align-items: center;
   justify-content: center;
   border-radius: 0;
-  background: var(--mb-bg-hover, #f4f4f4);
-  color: var(--mb-text-secondary, #525252);
+  background: var(--mb-bg-subtle);
+  color: var(--mb-text-secondary);
   flex-shrink: 0;
+  transition:
+    background 100ms ease,
+    color 100ms ease;
 }
 
 // Action label
@@ -94,14 +100,14 @@
   font-size: 14px;
   font-weight: 600;
   line-height: 1.3;
-  color: var(--mb-text-primary, #161616);
+  color: var(--mb-text-primary);
 }
 
 // Action description
 .actionDescription {
   font-size: 12px;
   line-height: 1.3;
-  color: var(--mb-text-muted, #6f6f6f);
+  color: var(--mb-text-muted);
   margin-top: 1px;
 }
 
@@ -109,15 +115,15 @@
 .empty {
   padding: 40px 16px;
   text-align: center;
-  color: var(--mb-text-muted, #6f6f6f);
+  color: var(--mb-text-muted);
   font-size: 13px;
 }
 
 // Footer
 .footer {
   padding: 10px 16px;
-  border-top: 1px solid var(--mb-border-default, #e0e0e0);
-  background: var(--mb-bg-hover, #f4f4f4);
+  border-top: 1px solid var(--mb-border-default);
+  background: var(--mb-bg-subtle);
   display: flex;
   align-items: center;
   gap: 16px;
@@ -128,7 +134,7 @@
   align-items: center;
   gap: 5px;
   font-size: 11px;
-  color: var(--mb-text-muted, #6f6f6f);
+  color: var(--mb-text-muted);
 }
 
 .footerKbd {
@@ -139,16 +145,16 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--mb-bg-default, #fff);
-  border: 1px solid var(--mb-border-strong, #c6c6c6);
+  background: var(--mb-bg-default);
+  border: 1px solid var(--mb-border-strong);
   border-radius: 0;
   font-weight: 600;
-  color: var(--mb-text-secondary, #525252);
+  color: var(--mb-text-secondary);
 }
 
-// Overlay
+// Overlay — a scrim, correct in both themes.
 .overlay {
-  background: rgba(22, 22, 22, 0.5);
+  background: var(--mb-overlay-bg, rgba(0, 0, 0, 0.55));
 }
 
 // Inner modal positioning

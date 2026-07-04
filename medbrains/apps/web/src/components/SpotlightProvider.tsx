@@ -10,6 +10,7 @@ import {
 } from "@mantine/spotlight";
 import { usePermissionStore } from "@medbrains/stores";
 import {
+  IconBox,
   IconCornerDownLeft,
   IconFileInvoice,
   IconReportMedical,
@@ -20,6 +21,7 @@ import { type ReactNode, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { CrabMascot, useAiAssistantStore } from "@/components/ai";
+import { useAddProductStore } from "@/components/Materials/add-product-store";
 import { NAV_GROUPS, type NavItemConfig, resolveIcon } from "@/config/navigation";
 import styles from "./SpotlightProvider.module.scss";
 
@@ -86,6 +88,8 @@ function buildNavEntries(t: (key: string) => string): SpotlightEntry[] {
 /** Quick action entries (action-oriented, not nav duplication). */
 /** Sentinel path handled specially in handleAction (opens the assistant). */
 const ASK_AI_PATH = "ai:assistant";
+/** Sentinel path handled in handleAction (opens the add-product quick-add modal). */
+const ADD_PRODUCT_PATH = "product:add";
 
 const QUICK_ACTIONS: SpotlightEntry[] = [
   {
@@ -127,6 +131,16 @@ const QUICK_ACTIONS: SpotlightEntry[] = [
     requiredPermission: "billing.invoices.create",
     keywords: ["bill", "charge"],
   },
+  {
+    id: "action-add-product",
+    label: "Add Product",
+    description: "Add a consumable or drug to the catalog",
+    path: ADD_PRODUCT_PATH,
+    icon: <IconBox size={18} stroke={1.5} />,
+    group: "Quick Actions",
+    requiredPermissions: ["indent.stock.manage", "pharmacy.stock.manage"],
+    keywords: ["inventory", "consumable", "drug", "stock", "item", "catalog", "materials", "add"],
+  },
 ];
 
 function filterActions(query: string, entries: SpotlightEntry[]): SpotlightEntry[] {
@@ -143,6 +157,7 @@ function filterActions(query: string, entries: SpotlightEntry[]): SpotlightEntry
 export function SpotlightProvider() {
   const navigate = useNavigate();
   const openAssistant = useAiAssistantStore((s) => s.open);
+  const openAddProduct = useAddProductStore((s) => s.open);
   const hasPermission = usePermissionStore((s) => s.hasPermission);
   const [query, setQuery] = useState("");
   const { t } = useTranslation("nav");
@@ -176,6 +191,10 @@ export function SpotlightProvider() {
   const handleAction = (path: string) => {
     if (path === ASK_AI_PATH) {
       openAssistant();
+      return;
+    }
+    if (path === ADD_PRODUCT_PATH) {
+      openAddProduct();
       return;
     }
     navigate(path);
