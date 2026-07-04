@@ -2129,6 +2129,15 @@ pub fn build_router(state: AppState) -> Router {
             get(pharmacy::list_store_assignments).post(pharmacy::create_store_assignment),
         )
         .route(
+            "/api/pharmacy/staff",
+            get(pharmacy::list_pharmacy_staff).post(pharmacy::assign_pharmacy_staff),
+        )
+        .route(
+            "/api/pharmacy/staff/{id}",
+            delete(pharmacy::remove_pharmacy_staff),
+        )
+        .route("/api/pharmacy/my-locations", get(pharmacy::my_pharmacies))
+        .route(
             "/api/pharmacy/transfers",
             get(pharmacy::list_transfers).post(pharmacy::create_transfer),
         )

@@ -3686,7 +3686,19 @@ function StockTab({ canManage }: { canManage: boolean }) {
     canEditPharmacyField(purchaseRateAccess) && canEditPharmacyField(sellingRateAccess);
   const canEditBatchSource = canEditPharmacyField(sourceAccess);
 
-  const [stockLocationId, setStockLocationId] = useState<string | null>(null);
+  const { data: myPharms = [] } = useQuery({
+    queryKey: ["my-pharmacies"],
+    queryFn: () => pharmacyService.myPharmacies(),
+    staleTime: 10 * 60 * 1000,
+  });
+  // Default the stock view to the user's home pharmacy; `undefined` override means
+  // "use default", `null` means the user explicitly chose all locations.
+  const defaultPharmacyId = useMemo(
+    () => myPharms.find((p) => p.is_default)?.id ?? myPharms[0]?.id ?? null,
+    [myPharms],
+  );
+  const [locationOverride, setLocationOverride] = useState<string | null | undefined>(undefined);
+  const stockLocationId = locationOverride !== undefined ? locationOverride : defaultPharmacyId;
   const { data: stock = [], isLoading } = useQuery({
     queryKey: ["pharmacy-stock", stockLocationId],
     queryFn: () =>
@@ -3888,7 +3900,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
           searchable
           data={storeLocations.map((l) => ({ value: l.id, label: l.name }))}
           value={stockLocationId}
-          onChange={setStockLocationId}
+          onChange={setLocationOverride}
           w={280}
         />
       </Group>

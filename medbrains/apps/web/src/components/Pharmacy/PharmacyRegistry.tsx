@@ -6,12 +6,13 @@ import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { type Column, DataTable } from "@/components/DataTable";
 import { Badge, Button, Input, Modal, Select, Switch } from "@/components/ui";
 import { pharmacyService } from "@/services/pharmacy.service";
+import { PharmacyStaffModal } from "./PharmacyStaffModal";
 
 // The hub-and-spoke pharmacy kinds (constrains the free-text store_locations.location_type
 // to real pharmacy roles without a schema change).
@@ -54,6 +55,7 @@ function codeFromName(name: string): string {
 
 interface PharmacyRow {
   assignmentId: string;
+  locationId: string;
   name: string;
   type: string;
   isCentral: boolean;
@@ -70,6 +72,7 @@ export function PharmacyRegistry() {
   const qc = useQueryClient();
   const canManage = useHasPermission(P.PHARMACY.STORES_MANAGE);
   const [opened, { open, close }] = useDisclosure(false);
+  const [staffFor, setStaffFor] = useState<PharmacyRow | null>(null);
 
   const { data: assignments = [], isLoading } = useQuery({
     queryKey: ["pharmacy-store-assignments"],
@@ -96,6 +99,7 @@ export function PharmacyRegistry() {
         const loc = locById.get(a.store_location_id);
         return {
           assignmentId: a.id,
+          locationId: a.store_location_id,
           name: loc?.name ?? a.store_location_id.slice(0, 8),
           type: loc?.location_type ?? "—",
           isCentral: a.is_central,
@@ -173,6 +177,16 @@ export function PharmacyRegistry() {
       render: (r) => (
         <Badge tone={r.active ? "success" : "neutral"}>{r.active ? "Active" : "Inactive"}</Badge>
       ),
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (r) =>
+        canManage ? (
+          <Button tone="ghost" size="xs" onClick={() => setStaffFor(r)}>
+            Staff
+          </Button>
+        ) : null,
     },
   ];
 
@@ -275,6 +289,13 @@ export function PharmacyRegistry() {
           </Stack>
         </form>
       </Modal>
+
+      <PharmacyStaffModal
+        pharmacyId={staffFor?.locationId ?? null}
+        pharmacyName={staffFor?.name ?? ""}
+        opened={!!staffFor}
+        onClose={() => setStaffFor(null)}
+      />
     </Stack>
   );
 }

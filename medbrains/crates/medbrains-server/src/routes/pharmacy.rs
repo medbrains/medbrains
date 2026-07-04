@@ -4440,6 +4440,144 @@ pub async fn list_store_assignments(
     Ok(Json(rows))
 }
 
+// ── Multi-pharmacy staff scoping (MP3) ──────────────────────────────────────
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct UserPharmacyAssignment {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub store_location_id: Uuid,
+    pub is_default: bool,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct MyPharmacy {
+    pub id: Uuid,
+    pub code: String,
+    pub name: String,
+    pub location_type: String,
+    pub is_default: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AssignPharmacyStaffRequest {
+    pub user_id: Uuid,
+    pub store_location_id: Uuid,
+    pub is_default: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PharmacyStaffQuery {
+    pub store_location_id: Option<Uuid>,
+}
+
+/// POST /api/pharmacy/staff — assign a user to a pharmacy location.
+pub async fn assign_pharmacy_staff(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<AssignPharmacyStaffRequest>,
+) -> Result<Json<UserPharmacyAssignment>, AppError> {
+    require_permission(&claims, permissions::pharmacy::stores::MANAGE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    let row = sqlx::query_as::<_, UserPharmacyAssignment>(
+        "INSERT INTO user_pharmacy_assignments (tenant_id, user_id, store_location_id, is_default) \
+         VALUES ($1, $2, $3, $4) \
+         ON CONFLICT (user_id, store_location_id) DO UPDATE SET is_default = EXCLUDED.is_default \
+         RETURNING id, user_id, store_location_id, is_default, created_at",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.user_id)
+    .bind(body.store_location_id)
+    .bind(body.is_default.unwrap_or(false))
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// GET /api/pharmacy/staff?store_location_id= — staff assigned to a pharmacy (or all).
+pub async fn list_pharmacy_staff(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<PharmacyStaffQuery>,
+) -> Result<Json<Vec<UserPharmacyAssignment>>, AppError> {
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::stores::LIST,
+            permissions::pharmacy::stores::MANAGE,
+        ],
+    )?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    let rows = match params.store_location_id {
+        Some(loc) => {
+            sqlx::query_as::<_, UserPharmacyAssignment>(
+                "SELECT id, user_id, store_location_id, is_default, created_at \
+                 FROM user_pharmacy_assignments \
+                 WHERE tenant_id = $1 AND store_location_id = $2 ORDER BY created_at LIMIT 5000",
+            )
+            .bind(claims.tenant_id)
+            .bind(loc)
+            .fetch_all(&mut *tx)
+            .await?
+        }
+        None => {
+            sqlx::query_as::<_, UserPharmacyAssignment>(
+                "SELECT id, user_id, store_location_id, is_default, created_at \
+                 FROM user_pharmacy_assignments WHERE tenant_id = $1 ORDER BY created_at LIMIT 5000",
+            )
+            .bind(claims.tenant_id)
+            .fetch_all(&mut *tx)
+            .await?
+        }
+    };
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+/// GET /api/pharmacy/my-locations — the pharmacies the current user is assigned to.
+pub async fn my_pharmacies(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<MyPharmacy>>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    let rows = sqlx::query_as::<_, MyPharmacy>(
+        "SELECT sl.id, sl.code, sl.name, sl.location_type, upa.is_default \
+         FROM store_locations sl \
+         JOIN user_pharmacy_assignments upa \
+           ON upa.store_location_id = sl.id AND upa.tenant_id = sl.tenant_id \
+         WHERE upa.tenant_id = $1 AND upa.user_id = $2 \
+         ORDER BY upa.is_default DESC, sl.name LIMIT 200",
+    )
+    .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+/// DELETE /api/pharmacy/staff/{id} — unassign a user from a pharmacy.
+pub async fn remove_pharmacy_staff(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::pharmacy::stores::MANAGE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+    sqlx::query("DELETE FROM user_pharmacy_assignments WHERE id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({ "status": "removed" })))
+}
+
 pub async fn create_store_assignment(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

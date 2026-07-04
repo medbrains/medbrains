@@ -76,6 +76,14 @@ export const pharmacyService = {
     api.createPharmacyStoreAssignment(...args),
   listDepartments: (...args: Parameters<typeof api.listDepartments>) =>
     api.listDepartments(...args),
+  listSetupUsers: (...args: Parameters<typeof api.listSetupUsers>) => api.listSetupUsers(...args),
+  myPharmacies: (...args: Parameters<typeof api.myPharmacies>) => api.myPharmacies(...args),
+  listPharmacyStaff: (...args: Parameters<typeof api.listPharmacyStaff>) =>
+    api.listPharmacyStaff(...args),
+  assignPharmacyStaff: (...args: Parameters<typeof api.assignPharmacyStaff>) =>
+    api.assignPharmacyStaff(...args),
+  removePharmacyStaff: (...args: Parameters<typeof api.removePharmacyStaff>) =>
+    api.removePharmacyStaff(...args),
   listPharmacyTransfers: (...args: Parameters<typeof api.listPharmacyTransfers>) =>
     api.listPharmacyTransfers(...args),
   approvePharmacyTransfer: (...args: Parameters<typeof api.approvePharmacyTransfer>) =>

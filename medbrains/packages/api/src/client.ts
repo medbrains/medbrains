@@ -2427,6 +2427,28 @@ export interface RefreshResponse {
   field_access: Record<string, FieldAccessLevel>;
 }
 
+export interface UserPharmacyAssignment {
+  id: string;
+  user_id: string;
+  store_location_id: string;
+  is_default: boolean;
+  created_at: string;
+}
+
+export interface MyPharmacy {
+  id: string;
+  code: string;
+  name: string;
+  location_type: string;
+  is_default: boolean;
+}
+
+export interface AssignPharmacyStaffRequest {
+  user_id: string;
+  store_location_id: string;
+  is_default?: boolean;
+}
+
 export interface AiConversationSummary {
   id: string;
   title: string | null;
@@ -5233,6 +5255,18 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  listPharmacyStaff: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<UserPharmacyAssignment[]>(`/pharmacy/staff${qs}`);
+  },
+  assignPharmacyStaff: (data: AssignPharmacyStaffRequest) =>
+    request<UserPharmacyAssignment>("/pharmacy/staff", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  removePharmacyStaff: (id: string) =>
+    request<{ status: string }>(`/pharmacy/staff/${id}`, { method: "DELETE" }),
+  myPharmacies: () => request<MyPharmacy[]>("/pharmacy/my-locations"),
   listPharmacyTransfers: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<PharmacyTransferRequest[]>(`/pharmacy/transfers${qs}`);
