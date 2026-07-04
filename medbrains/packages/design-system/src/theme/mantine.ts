@@ -840,6 +840,23 @@ function buildSchemePalette(scheme: typeof lightScheme, name: SchemeName) {
     "--mb-accent-violet": scheme.status.violet.emphasis,
     "--mb-accent-neutral": scheme.status.neutral.emphasis,
 
+    // ── Legacy/alias tokens ──────────────────────────────────────
+    // Older SCSS references these bare names, which the resolver never emitted —
+    // so they fell back to hardcoded LIGHT hex and rendered light-on-dark. Emit
+    // them here (dual-mode) so every existing usage adapts to the scheme.
+    "--mb-brand": scheme.brand.emphasis,
+    "--mb-interactive": scheme.brand.emphasis,
+    "--mb-brand-bg-hover": scheme.brand.tintStrong,
+    "--mb-bg": scheme.bg.default,
+    "--mb-bg-hover": scheme.bg.subtle,
+    "--mb-text": scheme.fg.default,
+    "--mb-danger": scheme.status.danger.emphasis,
+    "--mb-support-error": scheme.status.danger.emphasis,
+    "--mb-success": scheme.status.success.emphasis,
+    "--mb-warning": scheme.status.warning.emphasis,
+    "--mb-selected-row-bg": scheme.table.selected,
+    "--mb-selected-row-bg-hover": scheme.table.hover,
+
     // ── Indicators (raw, mode-agnostic safety colors) ────────────
     "--mb-indicator-primary": sharedReferences.indicators.primary,
     "--mb-indicator-teal": sharedReferences.indicators.teal,
