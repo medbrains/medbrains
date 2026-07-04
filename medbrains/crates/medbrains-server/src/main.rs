@@ -250,6 +250,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Run seed (insert default tenant + super_admin if not exists)
     seed::run_seed(&db_pool).await?;
 
+    // Provision SSO from the local creds file (sso.local.json) if present — turnkey
+    // federation without manual /admin/sso setup.
+    routes::sso::seed_from_config(&state).await?;
+
     // CORS — explicit HTTPS allow-list with credentials support.
     // Do not use wildcard CORS or generic localhost origins for HMS traffic.
     let cors_origins = config

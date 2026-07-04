@@ -34,6 +34,109 @@ fn encrypt_secret(key: &[u8], secret: &str) -> Result<String, AppError> {
         .map_err(|e| AppError::Internal(format!("sso secret encrypt: {e}")))
 }
 
+/// SSO provisioning file (like Google's `client_secret.json`) — drop it in place,
+/// gitignored, and the provider is configured at boot.
+#[derive(Deserialize)]
+struct SsoSeedConfig {
+    #[serde(default = "seed_default_code")]
+    code: String,
+    #[serde(default = "seed_default_name")]
+    name: String,
+    discovery_url: String,
+    client_id: Option<String>,
+    client_secret: Option<String>,
+    #[serde(default = "seed_default_group_claim")]
+    group_claim: String,
+    default_role: Option<String>,
+    /// `{"<entra-group-object-id>": "<role_code>"}`
+    #[serde(default)]
+    group_map: std::collections::HashMap<String, String>,
+}
+
+fn seed_default_code() -> String {
+    "entra".to_owned()
+}
+fn seed_default_name() -> String {
+    "SSO".to_owned()
+}
+fn seed_default_group_claim() -> String {
+    "groups".to_owned()
+}
+
+/// Provision the SSO provider + group mappings from a local JSON file at startup,
+/// so a turnkey deploy federates declaratively — no manual login + `/admin/sso`
+/// clicking. Reads `$SSO_CONFIG_FILE` (default `entra-sso.json`); absent → no-op.
+/// Idempotent (upsert). Encrypts with the same key runtime decrypts with
+/// (`secret_key`), so prod KMS stays consistent.
+pub async fn seed_from_config(state: &AppState) -> Result<(), AppError> {
+    let path = std::env::var("SSO_CONFIG_FILE").unwrap_or_else(|_| "entra-sso.json".to_owned());
+    let Ok(raw) = std::fs::read_to_string(&path) else {
+        return Ok(()); // no creds file → SSO not seeded (fine)
+    };
+    let cfg: SsoSeedConfig = serde_json::from_str(&raw)
+        .map_err(|e| AppError::Internal(format!("{path} parse: {e}")))?;
+
+    let secret_enc = match cfg.client_secret.as_deref().filter(|s| !s.is_empty()) {
+        Some(s) => Some(encrypt_secret(&secret_key(state).await, s)?),
+        None => None,
+    };
+    let (code, name, discovery_url, group_claim, client_id, default_role) = (
+        cfg.code,
+        cfg.name,
+        cfg.discovery_url,
+        cfg.group_claim,
+        cfg.client_id,
+        cfg.default_role,
+    );
+
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants WHERE code = 'DEFAULT'")
+        .fetch_one(&state.db)
+        .await?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    let provider_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO identity_providers
+            (tenant_id, code, name, protocol, is_active, discovery_url, client_id,
+             client_secret_enc, group_claim, default_role, jit_enabled)
+         VALUES ($1,$2,$3,'oidc',true,$4,$5,$6,$7,$8,true)
+         ON CONFLICT (tenant_id, code) DO UPDATE SET
+            name = EXCLUDED.name, discovery_url = EXCLUDED.discovery_url,
+            client_id = EXCLUDED.client_id,
+            client_secret_enc = COALESCE(EXCLUDED.client_secret_enc, identity_providers.client_secret_enc),
+            group_claim = EXCLUDED.group_claim, default_role = EXCLUDED.default_role,
+            is_active = true, updated_at = now()
+         RETURNING id",
+    )
+    .bind(tenant_id)
+    .bind(&code)
+    .bind(&name)
+    .bind(&discovery_url)
+    .bind(&client_id)
+    .bind(&secret_enc)
+    .bind(&group_claim)
+    .bind(&default_role)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    for (idp_group, role_code) in &cfg.group_map {
+        sqlx::query(
+            "INSERT INTO idp_group_mappings (tenant_id, provider_id, idp_group, role_code)
+             SELECT $1,$2,$3,$4 WHERE NOT EXISTS (
+                 SELECT 1 FROM idp_group_mappings
+                 WHERE provider_id = $2 AND idp_group = $3 AND role_code = $4)",
+        )
+        .bind(tenant_id)
+        .bind(provider_id)
+        .bind(idp_group)
+        .bind(role_code)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
+    tracing::info!(provider = %code, "SSO provider seeded from config file");
+    Ok(())
+}
+
 #[derive(Debug, sqlx::FromRow)]
 struct ProviderRow {
     id: Uuid,

@@ -9,6 +9,9 @@ Cargo.lock
 .env.production
 .env*.local
 
+# SSO provisioning creds (client secret) — real file is local-only.
+entra-sso.json
+
 # IDE
 .idea/
 .vscode/*

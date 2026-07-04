@@ -6,7 +6,7 @@ import type { CreateSsoProviderRequest, SsoProvider } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { type ChangeEvent, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { Badge, Button, Drawer, IconButton, Input, Select, Switch, Table } from "@/components/ui";
@@ -58,6 +58,13 @@ export function SsoSettingsPage() {
     mutationFn: (id: string) => api.deleteSsoProvider(id),
     onSuccess: invalidate,
   });
+
+  // Capture the input value in the handler body — reading e.currentTarget inside
+  // the setDraft updater crashes (React nulls currentTarget before the updater runs).
+  const field = (key: keyof CreateSsoProviderRequest) => (e: ChangeEvent<HTMLInputElement>) => {
+    const value = e.currentTarget.value;
+    setDraft((d) => ({ ...d, [key]: value }) as CreateSsoProviderRequest);
+  };
 
   const columns: Column<SsoProvider>[] = [
     { key: "name", label: "Provider", render: (p) => <Text fw={500}>{p.name}</Text> },
@@ -152,17 +159,12 @@ export function SsoSettingsPage() {
               { value: "saml", label: "SAML 2.0" },
             ]}
           />
-          <Input
-            label="Display name"
-            value={draft.name}
-            onChange={(e) => setDraft((d) => ({ ...d, name: e.currentTarget.value }))}
-            required
-          />
+          <Input label="Display name" value={draft.name} onChange={field("name")} required />
           <Input
             label="Code"
             description="Stable slug used in the callback URL"
             value={draft.code}
-            onChange={(e) => setDraft((d) => ({ ...d, code: e.currentTarget.value }))}
+            onChange={field("code")}
             required
           />
           {isOidc ? (
@@ -170,38 +172,34 @@ export function SsoSettingsPage() {
               label="Discovery URL"
               placeholder="https://login.microsoftonline.com/<tenant>/v2.0/.well-known/openid-configuration"
               value={draft.discovery_url ?? ""}
-              onChange={(e) => setDraft((d) => ({ ...d, discovery_url: e.currentTarget.value }))}
+              onChange={field("discovery_url")}
             />
           ) : (
             <Input
               label="Metadata URL"
               placeholder="https://idp.example.com/saml/metadata"
               value={draft.metadata_url ?? ""}
-              onChange={(e) => setDraft((d) => ({ ...d, metadata_url: e.currentTarget.value }))}
+              onChange={field("metadata_url")}
             />
           )}
-          <Input
-            label="Client ID"
-            value={draft.client_id ?? ""}
-            onChange={(e) => setDraft((d) => ({ ...d, client_id: e.currentTarget.value }))}
-          />
+          <Input label="Client ID" value={draft.client_id ?? ""} onChange={field("client_id")} />
           <Input
             label="Client secret"
             type="password"
             description="Stored encrypted; leave blank to keep existing"
             value={draft.client_secret ?? ""}
-            onChange={(e) => setDraft((d) => ({ ...d, client_secret: e.currentTarget.value }))}
+            onChange={field("client_secret")}
           />
           <Input
             label="Group claim"
             value={draft.group_claim ?? "groups"}
-            onChange={(e) => setDraft((d) => ({ ...d, group_claim: e.currentTarget.value }))}
+            onChange={field("group_claim")}
           />
           <Input
             label="Default role"
             description="Assigned when no group mapping matches (blank = no access)"
             value={draft.default_role ?? ""}
-            onChange={(e) => setDraft((d) => ({ ...d, default_role: e.currentTarget.value }))}
+            onChange={field("default_role")}
           />
           <Switch
             label="Just-in-time provisioning"
