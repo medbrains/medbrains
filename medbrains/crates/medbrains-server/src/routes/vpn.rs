@@ -107,10 +107,13 @@ async fn mint_preauth_key(
 pub async fn enroll(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    jar: axum_extra::extract::CookieJar,
     Json(req): Json<EnrollRequest>,
 ) -> Result<Json<EnrollResponse>, AppError> {
     require_permission(&claims, "vpn.enroll")?;
-    // TODO(P3): gate behind require_step_up once the step-up mechanism lands.
+    // Enrolling a device grants it network access to the HIMS — high-risk, so
+    // require a fresh re-auth (the client prompts + retries automatically).
+    crate::routes::step_up::require_step_up(&state, &jar, &claims)?;
     let (url, api_key) = headscale_config(&state).await?;
     let (auth_key, expires_at) = mint_preauth_key(&url, &api_key, claims.tenant_id).await?;
 
