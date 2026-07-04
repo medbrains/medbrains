@@ -69,7 +69,6 @@ import type {
   PharmacyRxDetailItem,
   PharmacyRxDetailResponse,
   PharmacyRxReviewItemInput,
-  PharmacyStoreAssignment,
   PharmacyTransferRequest,
   PrescriptionAuditEntry,
   PrescriptionWithItems,
@@ -142,6 +141,7 @@ import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { CreditNotesTab } from "@/components/Pharmacy/CreditNotesTab";
 import { DispenseModal } from "@/components/Pharmacy/DispenseModal";
+import { PharmacyRegistry } from "@/components/Pharmacy/PharmacyRegistry";
 import {
   MedicineOrderLineCard,
   type MedicineOrderLineValue,
@@ -5017,70 +5017,11 @@ function StoresTransfersTab({
 }
 
 function PharmacyLocationsView({ canViewStores }: { canViewStores: boolean }) {
-  const { data: assignments = [], isLoading } = useQuery({
-    queryKey: ["pharmacy-store-assignments"],
-    queryFn: () => pharmacyService.listPharmacyStoreAssignments(),
-    enabled: canViewStores,
-  });
-
-  const columns = [
-    {
-      key: "store_location_id",
-      label: "Location",
-      searchable: true,
-      accessor: (row: PharmacyStoreAssignment) => row.store_location_id,
-      render: (row: PharmacyStoreAssignment) => (
-        <Text size="sm">{row.store_location_id.slice(0, 8)}...</Text>
-      ),
-    },
-    {
-      key: "is_central",
-      label: "Central",
-      render: (row: PharmacyStoreAssignment) =>
-        row.is_central ? (
-          <Badge tone="primary" size="xs">
-            Central
-          </Badge>
-        ) : (
-          <Text size="sm">Satellite</Text>
-        ),
-    },
-    {
-      key: "serves_departments",
-      label: "Departments",
-      sortable: true,
-      sortValue: (row: PharmacyStoreAssignment) => row.serves_departments?.length ?? 0,
-      accessor: (row: PharmacyStoreAssignment) => row.serves_departments?.length ?? 0,
-      render: (row: PharmacyStoreAssignment) => (
-        <Text size="sm">{row.serves_departments?.length ?? 0} depts</Text>
-      ),
-    },
-    {
-      key: "created_at",
-      label: "Created",
-      sortable: true,
-      sortValue: (row: PharmacyStoreAssignment) => row.created_at,
-      accessor: (row: PharmacyStoreAssignment) => new Date(row.created_at).toLocaleDateString(),
-      render: (row: PharmacyStoreAssignment) => (
-        <Text size="sm">{new Date(row.created_at).toLocaleDateString()}</Text>
-      ),
-    },
-  ];
-
   return canViewStores ? (
-    <DataTable
-      columns={columns}
-      data={assignments}
-      loading={isLoading}
-      rowKey={(row) => row.id}
-      searchable
-      searchPlaceholder="Search stores"
-      exportable
-      exportFileName="pharmacy-stores"
-    />
+    <PharmacyRegistry />
   ) : (
     <Alert tone="warning">
-      Store assignment locations require `pharmacy.stores.list` or `pharmacy.stores.manage`.
+      Pharmacy locations require `pharmacy.stores.list` or `pharmacy.stores.manage`.
     </Alert>
   );
 }

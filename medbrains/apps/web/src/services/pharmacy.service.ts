@@ -70,6 +70,12 @@ export const pharmacyService = {
     api.getPharmacyDeadStock(...args),
   listPharmacyStoreAssignments: (...args: Parameters<typeof api.listPharmacyStoreAssignments>) =>
     api.listPharmacyStoreAssignments(...args),
+  createStoreLocation: (...args: Parameters<typeof api.createStoreLocation>) =>
+    api.createStoreLocation(...args),
+  createPharmacyStoreAssignment: (...args: Parameters<typeof api.createPharmacyStoreAssignment>) =>
+    api.createPharmacyStoreAssignment(...args),
+  listDepartments: (...args: Parameters<typeof api.listDepartments>) =>
+    api.listDepartments(...args),
   listPharmacyTransfers: (...args: Parameters<typeof api.listPharmacyTransfers>) =>
     api.listPharmacyTransfers(...args),
   approvePharmacyTransfer: (...args: Parameters<typeof api.approvePharmacyTransfer>) =>
