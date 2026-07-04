@@ -231,9 +231,12 @@ async fn break_glass_access_rollup(
 pub async fn start_break_glass(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    jar: axum_extra::extract::CookieJar,
     Json(body): Json<CreateBreakGlassRequest>,
 ) -> Result<Json<BreakGlassEvent>, AppError> {
     require_permission(&claims, permissions::audit::START)?;
+    // Emergency override (out-of-scope access) — require fresh re-auth.
+    crate::routes::step_up::require_step_up(&state, &jar, &claims)?;
 
     let start = normalize_break_glass_start(body)?;
     let mut tx = state.db.begin().await?;
