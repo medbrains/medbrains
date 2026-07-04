@@ -204,7 +204,10 @@ export function SsoSettingsPage() {
           <Switch
             label="Just-in-time provisioning"
             checked={draft.jit_enabled ?? true}
-            onChange={(e) => setDraft((d) => ({ ...d, jit_enabled: e.currentTarget.checked }))}
+            onChange={(e) => {
+              const checked = e.currentTarget.checked;
+              setDraft((d) => ({ ...d, jit_enabled: checked }));
+            }}
           />
           <Group justify="flex-end">
             <Button tone="secondary" onClick={form.close}>
