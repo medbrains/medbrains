@@ -3686,9 +3686,13 @@ function StockTab({ canManage }: { canManage: boolean }) {
     canEditPharmacyField(purchaseRateAccess) && canEditPharmacyField(sellingRateAccess);
   const canEditBatchSource = canEditPharmacyField(sourceAccess);
 
+  const [stockLocationId, setStockLocationId] = useState<string | null>(null);
   const { data: stock = [], isLoading } = useQuery({
-    queryKey: ["pharmacy-stock"],
-    queryFn: () => pharmacyService.listStock(),
+    queryKey: ["pharmacy-stock", stockLocationId],
+    queryFn: () =>
+      pharmacyService.listStock(
+        stockLocationId ? { store_location_id: stockLocationId } : undefined,
+      ),
   });
   const { data: batches = [], isLoading: batchesLoading } = useQuery({
     queryKey: ["pharmacy-batches"],
@@ -3876,6 +3880,18 @@ function StockTab({ canManage }: { canManage: boolean }) {
           </Button>
         </Group>
       )}
+      <Group>
+        <Select
+          label="Stock at pharmacy"
+          placeholder="All locations (tenant total)"
+          clearable
+          searchable
+          data={storeLocations.map((l) => ({ value: l.id, label: l.name }))}
+          value={stockLocationId}
+          onChange={setStockLocationId}
+          w={280}
+        />
+      </Group>
       <DataTable
         columns={columns}
         data={stock}

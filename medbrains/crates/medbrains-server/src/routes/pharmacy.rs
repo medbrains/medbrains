@@ -265,6 +265,9 @@ pub struct UpdateCatalogRequest {
 #[derive(Debug, Deserialize)]
 pub struct ListStockQuery {
     pub low_stock: Option<bool>,
+    /// When set, `current_stock` is overridden with the on-hand at THIS pharmacy
+    /// location (summed live from its batches), for a per-location stock view.
+    pub store_location_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -3845,7 +3848,10 @@ pub async fn list_stock(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let sql = if params.low_stock.unwrap_or(false) {
+    // With a location filter, select all active — the aggregate low-stock SQL
+    // predicate would hide items low AT THE LOCATION but not tenant-wide; low_stock
+    // is re-applied against the per-location on-hand below.
+    let sql = if params.low_stock.unwrap_or(false) && params.store_location_id.is_none() {
         "SELECT * FROM pharmacy_catalog \
          WHERE tenant_id = $1 AND is_active = true AND current_stock < reorder_level \
          ORDER BY current_stock ASC LIMIT 5000"
@@ -3855,10 +3861,34 @@ pub async fn list_stock(
          ORDER BY name LIMIT 5000"
     };
 
-    let rows = sqlx::query_as::<_, PharmacyCatalog>(sql)
+    let mut rows = sqlx::query_as::<_, PharmacyCatalog>(sql)
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
         .await?;
+
+    // Per-location view: override current_stock with the on-hand at that pharmacy,
+    // summed live from its batches. Read-only — the dispense/decrement path is
+    // unchanged; the aggregate stays the tenant-wide total.
+    if let Some(location_id) = params.store_location_id {
+        let sums = sqlx::query_as::<_, (Uuid, Option<i64>)>(
+            "SELECT catalog_item_id, SUM(quantity_on_hand) FROM pharmacy_batches \
+             WHERE tenant_id = $1 AND store_location_id = $2 GROUP BY catalog_item_id",
+        )
+        .bind(claims.tenant_id)
+        .bind(location_id)
+        .fetch_all(&mut *tx)
+        .await?;
+        let on_hand: HashMap<Uuid, i32> = sums
+            .into_iter()
+            .map(|(id, qty)| (id, i32::try_from(qty.unwrap_or(0)).unwrap_or(i32::MAX)))
+            .collect();
+        for row in &mut rows {
+            row.current_stock = on_hand.get(&row.id).copied().unwrap_or(0);
+        }
+        if params.low_stock.unwrap_or(false) {
+            rows.retain(|r| r.current_stock < r.reorder_level);
+        }
+    }
 
     tx.commit().await?;
     Ok(Json(
