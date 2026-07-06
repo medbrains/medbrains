@@ -5,6 +5,7 @@
 //! and return `Paginated<T>`. Reuse this everywhere — do not hand-roll per endpoint.
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// Default page size when the client doesn't ask, and the hard ceiling so a caller
 /// can't request an unbounded page.
@@ -62,6 +63,61 @@ impl<T> Paginated<T> {
                 page: p.page(),
                 limit: p.limit(),
             },
+        }
+    }
+}
+
+// ── Cursor / keyset pagination ──────────────────────────────────────────────
+//
+// Use for HIGH-VOLUME, append-heavy feeds (audit, notifications, activity,
+// dispense/result logs) — anything you scroll rather than jump-to-page. Keyset
+// (`WHERE id < $after ORDER BY id DESC LIMIT $lim+1`) is O(log n) at any depth,
+// stable under concurrent inserts, and — crucially — **cacheable**: "N rows after
+// id X" always returns the same rows, so each page is an immutable-ish chunk keyed
+// by a stable id (CDN + TanStack Query cache it indefinitely). Offset pagination
+// (`Pagination` above) is for review TABLES that want "page 5 of N" + a total.
+//
+// For time-ordered feeds, order by `(created_at, id)` and keyset on the pair so
+// same-timestamp rows don't drop; the cursor is still the row id.
+
+/// `?after=<id>&limit=..` — keyset cursor. `after` = last id seen (None = first page).
+#[derive(Debug, Clone, Copy, Default, Deserialize)]
+pub struct Cursor {
+    pub after: Option<Uuid>,
+    pub limit: Option<i64>,
+}
+
+impl Cursor {
+    /// Rows per page, clamped. Fetch `limit() + 1` to detect a next page.
+    #[must_use]
+    pub fn limit(&self) -> i64 {
+        self.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT)
+    }
+}
+
+/// A cursor page: the rows plus the cursor for the next page (null = no more).
+#[derive(Debug, Serialize)]
+pub struct CursorPage<T> {
+    pub data: Vec<T>,
+    pub next_cursor: Option<Uuid>,
+}
+
+impl<T> CursorPage<T> {
+    /// Build from an over-fetch: query `LIMIT cursor.limit() + 1`, pass the rows here
+    /// with a getter for each row's id. If more than `limit` came back there's a next
+    /// page — trim it and expose the last kept row's id as `next_cursor`.
+    #[must_use]
+    pub fn build(mut rows: Vec<T>, limit: i64, id_of: impl Fn(&T) -> Uuid) -> Self {
+        let keep = usize::try_from(limit).unwrap_or(0);
+        let next_cursor = if rows.len() > keep {
+            rows.truncate(keep);
+            rows.last().map(&id_of)
+        } else {
+            None
+        };
+        Self {
+            data: rows,
+            next_cursor,
         }
     }
 }

@@ -2437,6 +2437,16 @@ export interface Paginated<T> {
   meta: { total: number; page: number; limit: number };
 }
 
+/**
+ * Cursor/keyset page for high-volume append feeds (audit, notifications, activity).
+ * Load-more/infinite-scroll: pass `next_cursor` as `?after=` for the next page;
+ * `null` means no more. Each page is stable + cacheable (keyed by a fixed id).
+ */
+export interface CursorPage<T> {
+  data: T[];
+  next_cursor: string | null;
+}
+
 export interface UserPharmacyAssignment {
   id: string;
   user_id: string;
