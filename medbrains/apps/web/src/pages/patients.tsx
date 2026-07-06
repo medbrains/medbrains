@@ -60,7 +60,7 @@ import {
   PatientRegisterForm,
   type PatientRegistrationLinkedServicesOptions,
 } from "@/components/Patient/PatientRegisterForm";
-import { Alert, Badge, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, Button, IconButton } from "@/components/ui";
 import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
@@ -939,53 +939,60 @@ function PatientRegisterPageInner() {
         <Alert tone="warning" icon={<IconAlertTriangle size={16} />} mb="md">
           {t("registrationPage.duplicateAlert")}
         </Alert>
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>{t("uhid")}</Table.Th>
-              <Table.Th>{t("name")}</Table.Th>
-              <Table.Th>{t("phone")}</Table.Th>
-              <Table.Th>{t("score")}</Table.Th>
-              <Table.Th w={60} />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {duplicateMatches.map((m) => (
-              <Table.Tr key={m.id}>
-                <Table.Td>
-                  <Text size="sm" fw={500}>
-                    {m.uhid}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm">
-                    {m.first_name} {m.last_name}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm">{m.phone || "—"}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Badge size="sm" tone={m.score >= 0.8 ? "danger" : "warning"}>
-                    {Math.round(m.score * 100)}%
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  <IconButton
-                    size={44}
-                    aria-label={t("aria.viewDetails")}
-                    onClick={() => {
-                      dupModalHandlers.close();
-                      navigate(`/patients/${m.id}`);
-                    }}
-                  >
-                    <IconEye size={14} />
-                  </IconButton>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
+        <DataTable
+          columns={[
+            {
+              key: "uhid",
+              label: t("uhid"),
+              render: (m: MpiMatchResult) => (
+                <Text size="sm" fw={500}>
+                  {m.uhid}
+                </Text>
+              ),
+            },
+            {
+              key: "name",
+              label: t("name"),
+              render: (m: MpiMatchResult) => (
+                <Text size="sm">
+                  {m.first_name} {m.last_name}
+                </Text>
+              ),
+            },
+            {
+              key: "phone",
+              label: t("phone"),
+              render: (m: MpiMatchResult) => <Text size="sm">{m.phone || "—"}</Text>,
+            },
+            {
+              key: "score",
+              label: t("score"),
+              render: (m: MpiMatchResult) => (
+                <Badge size="sm" tone={m.score >= 0.8 ? "danger" : "warning"}>
+                  {Math.round(m.score * 100)}%
+                </Badge>
+              ),
+            },
+            {
+              key: "actions",
+              label: "",
+              render: (m: MpiMatchResult) => (
+                <IconButton
+                  size={44}
+                  aria-label={t("aria.viewDetails")}
+                  onClick={() => {
+                    dupModalHandlers.close();
+                    navigate(`/patients/${m.id}`);
+                  }}
+                >
+                  <IconEye size={14} />
+                </IconButton>
+              ),
+            },
+          ]}
+          data={duplicateMatches}
+          rowKey={(m) => m.id}
+        />
         <Group justify="flex-end" mt="md">
           <Button
             tone="ghost"

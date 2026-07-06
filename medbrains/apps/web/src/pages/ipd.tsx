@@ -2055,36 +2055,31 @@ function OverviewTab({
           </Button>
         </Stack>
       )}
-      <Table striped>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Done</Table.Th>
-            <Table.Th>Type</Table.Th>
-            <Table.Th>Description</Table.Th>
-            <Table.Th>Due</Table.Th>
-            <Table.Th>Notes</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {tasks.map((t) => (
-            <Table.Tr key={t.id}>
-              <Table.Td>
-                <Checkbox
-                  checked={t.is_completed}
-                  onChange={() =>
-                    toggleMutation.mutate({ taskId: t.id, completed: !t.is_completed })
-                  }
-                  disabled={!canCreate}
-                />
-              </Table.Td>
-              <Table.Td>{t.task_type}</Table.Td>
-              <Table.Td>{t.description}</Table.Td>
-              <Table.Td>{t.due_at ? new Date(t.due_at).toLocaleString() : "—"}</Table.Td>
-              <Table.Td>{t.notes ?? "—"}</Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
+      <DataTable
+        columns={[
+          {
+            key: "done",
+            label: "Done",
+            render: (t: NursingTask) => (
+              <Checkbox
+                checked={t.is_completed}
+                onChange={() => toggleMutation.mutate({ taskId: t.id, completed: !t.is_completed })}
+                disabled={!canCreate}
+              />
+            ),
+          },
+          { key: "task_type", label: "Type", render: (t: NursingTask) => t.task_type },
+          { key: "description", label: "Description", render: (t: NursingTask) => t.description },
+          {
+            key: "due",
+            label: "Due",
+            render: (t: NursingTask) => (t.due_at ? new Date(t.due_at).toLocaleString() : "—"),
+          },
+          { key: "notes", label: "Notes", render: (t: NursingTask) => t.notes ?? "—" },
+        ]}
+        data={tasks}
+        rowKey={(t) => t.id}
+      />
     </Stack>
   );
 }

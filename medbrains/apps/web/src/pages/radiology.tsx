@@ -21,6 +21,7 @@ import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateRadiologyAppointmentRequest,
   CreateRadiologyOrderRequest,
+  RadiationDoseRecord,
   RadiologyDicomStudy,
   RadiologyModality,
   RadiologyOrder,
@@ -921,30 +922,43 @@ function OrderDetailDrawer({
 
             <Tabs.Panel value="dose" pt="sm">
               {doseRecords.length > 0 ? (
-                <Table>
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>Modality</Table.Th>
-                      <Table.Th>Body Part</Table.Th>
-                      <Table.Th>Dose</Table.Th>
-                      <Table.Th>DLP</Table.Th>
-                      <Table.Th>CTDIvol</Table.Th>
-                      <Table.Th>Recorded</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {doseRecords.map((d) => (
-                      <Table.Tr key={d.id}>
-                        <Table.Td>{d.modality_code}</Table.Td>
-                        <Table.Td>{d.body_part ?? "—"}</Table.Td>
-                        <Table.Td>{d.dose_value ? `${d.dose_value} ${d.dose_unit}` : "—"}</Table.Td>
-                        <Table.Td>{d.dlp ?? "—"}</Table.Td>
-                        <Table.Td>{d.ctdi_vol ?? "—"}</Table.Td>
-                        <Table.Td>{new Date(d.recorded_at).toLocaleString()}</Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
+                <DataTable
+                  columns={[
+                    {
+                      key: "modality",
+                      label: "Modality",
+                      render: (d: RadiationDoseRecord) => d.modality_code,
+                    },
+                    {
+                      key: "body_part",
+                      label: "Body Part",
+                      render: (d: RadiationDoseRecord) => d.body_part ?? "—",
+                    },
+                    {
+                      key: "dose",
+                      label: "Dose",
+                      render: (d: RadiationDoseRecord) =>
+                        d.dose_value ? `${d.dose_value} ${d.dose_unit}` : "—",
+                    },
+                    {
+                      key: "dlp",
+                      label: "DLP",
+                      render: (d: RadiationDoseRecord) => d.dlp ?? "—",
+                    },
+                    {
+                      key: "ctdi_vol",
+                      label: "CTDIvol",
+                      render: (d: RadiationDoseRecord) => d.ctdi_vol ?? "—",
+                    },
+                    {
+                      key: "recorded",
+                      label: "Recorded",
+                      render: (d: RadiationDoseRecord) => new Date(d.recorded_at).toLocaleString(),
+                    },
+                  ]}
+                  data={doseRecords}
+                  rowKey={(d) => d.id}
+                />
               ) : (
                 <Text c="dimmed" size="sm">
                   No dose records.

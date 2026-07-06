@@ -313,75 +313,67 @@ function ScheduleTab() {
           w={200}
         />
       </Group>
-      <Table striped>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Time</Table.Th>
-            <Table.Th>Procedure</Table.Th>
-            <Table.Th>Patient</Table.Th>
-            <Table.Th>Priority</Table.Th>
-            <Table.Th>Status</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {isLoading && (
-            <Table.Tr>
-              <Table.Td colSpan={5}>
-                <Text c="dimmed">Loading...</Text>
-              </Table.Td>
-            </Table.Tr>
-          )}
-          {(data ?? []).map((b: OtBooking) => (
-            <Table.Tr key={b.id}>
-              <Table.Td>
-                <Text size="sm">
-                  {new Date(b.scheduled_start).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </Text>
-              </Table.Td>
-              <Table.Td>
-                <Text size="sm" fw={500}>
-                  {b.procedure_name}
-                </Text>
-              </Table.Td>
-              <Table.Td>
-                <OtPatientCell
-                  patientId={b.patient_id}
-                  canViewPatientRecord={canViewPatientRecord}
-                />
-              </Table.Td>
-              <Table.Td>
-                <Badge
-                  size="sm"
-                  tone={
-                    b.priority === "emergency"
-                      ? "danger"
-                      : b.priority === "urgent"
-                        ? "warning"
-                        : "neutral"
-                  }
-                >
-                  {b.priority}
-                </Badge>
-              </Table.Td>
-              <Table.Td>
-                <StatusDot color={bookingStatusColors[b.status] ?? "slate"} label={b.status} />
-              </Table.Td>
-            </Table.Tr>
-          ))}
-          {!isLoading && (data ?? []).length === 0 && (
-            <Table.Tr>
-              <Table.Td colSpan={5}>
-                <Text c="dimmed" size="sm">
-                  No bookings for this date
-                </Text>
-              </Table.Td>
-            </Table.Tr>
-          )}
-        </Table.Tbody>
-      </Table>
+      <DataTable
+        columns={[
+          {
+            key: "time",
+            label: "Time",
+            render: (b: OtBooking) => (
+              <Text size="sm">
+                {new Date(b.scheduled_start).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </Text>
+            ),
+          },
+          {
+            key: "procedure",
+            label: "Procedure",
+            render: (b: OtBooking) => (
+              <Text size="sm" fw={500}>
+                {b.procedure_name}
+              </Text>
+            ),
+          },
+          {
+            key: "patient",
+            label: "Patient",
+            render: (b: OtBooking) => (
+              <OtPatientCell patientId={b.patient_id} canViewPatientRecord={canViewPatientRecord} />
+            ),
+          },
+          {
+            key: "priority",
+            label: "Priority",
+            render: (b: OtBooking) => (
+              <Badge
+                size="sm"
+                tone={
+                  b.priority === "emergency"
+                    ? "danger"
+                    : b.priority === "urgent"
+                      ? "warning"
+                      : "neutral"
+                }
+              >
+                {b.priority}
+              </Badge>
+            ),
+          },
+          {
+            key: "status",
+            label: "Status",
+            render: (b: OtBooking) => (
+              <StatusDot color={bookingStatusColors[b.status] ?? "slate"} label={b.status} />
+            ),
+          },
+        ]}
+        data={data ?? []}
+        loading={isLoading}
+        rowKey={(b) => b.id}
+        emptyTitle="No bookings for this date"
+      />
     </Stack>
   );
 }

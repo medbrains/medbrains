@@ -1545,106 +1545,113 @@ function TodayAppointmentsPanel({
           {t("appointments.empty")}
         </Text>
       ) : (
-        <Table verticalSpacing="xs" withRowBorders={false}>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>{t("appointments.time")}</Table.Th>
-              <Table.Th>{t("appointments.patient")}</Table.Th>
-              <Table.Th>{t("appointments.doctor")}</Table.Th>
-              <Table.Th>{t("appointments.type")}</Table.Th>
-              <Table.Th>{t("appointments.status")}</Table.Th>
-              <Table.Th />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {appointments.map((appointment) => {
-              const isFutureAppointment = appointment.appointment_date > today;
-              const canMoveToOpd =
-                !appointment.encounter_id &&
-                !isFutureAppointment &&
-                ["scheduled", "confirmed", "checked_in"].includes(appointment.status);
-              const statusLabel = appointmentStatusLabel(t, appointment.status);
-              const protectedName = fieldAccessText(
-                patientNameAccess,
-                appointment.patient_name,
-                "name",
-              );
-              const patientName =
-                protectedName === "—" ? t("queueFallback.patient") : protectedName;
-              return (
-                <Table.Tr key={appointment.id}>
-                  <Table.Td>
-                    <Text size="sm">{appointmentSlotLabel(appointment, t("queue.noSlot"))}</Text>
-                  </Table.Td>
-                  <Table.Td>
+        <DataTable
+          columns={[
+            {
+              key: "time",
+              label: t("appointments.time"),
+              render: (row: AppointmentWithPatient) => (
+                <Text size="sm">{appointmentSlotLabel(row, t("queue.noSlot"))}</Text>
+              ),
+            },
+            {
+              key: "patient",
+              label: t("appointments.patient"),
+              render: (row: AppointmentWithPatient) => {
+                const protectedName = fieldAccessText(patientNameAccess, row.patient_name, "name");
+                const patientName =
+                  protectedName === "—" ? t("queueFallback.patient") : protectedName;
+                return (
+                  <>
                     <Text size="sm" fw={500}>
                       {patientName}
                     </Text>
-                    {appointment.reason && (
+                    {row.reason && (
                       <Text size="xs" c="dimmed" lineClamp={1}>
-                        {appointment.reason}
+                        {row.reason}
                       </Text>
                     )}
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm">{appointment.doctor_name}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <OperationalSignal
-                      label={appointmentTypeLabel(t, appointment.appointment_type)}
-                      shape="token"
-                      size="xs"
-                      tone="active"
-                    />
-                  </Table.Td>
-                  <Table.Td>
-                    <OperationalSignal
-                      label={statusLabel}
-                      shape={appointmentStatusShape(appointment.status)}
-                      size="xs"
-                      tone={appointmentStatusTone(appointment.status)}
-                    />
-                  </Table.Td>
-                  <Table.Td>
-                    {appointment.status === "completed" ? (
-                      <OperationalSignal
-                        label={t("appointmentHandoff.carriedOut")}
-                        shape="pill"
-                        size="xs"
-                        tone="ready"
-                      />
-                    ) : appointment.encounter_id ? (
-                      <OperationalSignal
-                        label={t("appointmentHandoff.inOpd")}
-                        shape="diamond"
-                        size="xs"
-                        tone="active"
-                      />
-                    ) : isFutureAppointment ? (
-                      <OperationalSignal
-                        label={t("appointmentHandoff.futureSlot")}
-                        shape="token"
-                        size="xs"
-                        tone="neutral"
-                      />
-                    ) : (
-                      <Button
-                        tone="secondary"
-                        size="xs"
-                        leftSection={<IconPlayerPlay size={14} />}
-                        disabled={!canCheckIn || !canMoveToOpd}
-                        loading={isCheckingIn && checkingInId === appointment.id}
-                        onClick={() => onCheckIn(appointment)}
-                      >
-                        {t("appointmentHandoff.sendToOpd")}
-                      </Button>
-                    )}
-                  </Table.Td>
-                </Table.Tr>
-              );
-            })}
-          </Table.Tbody>
-        </Table>
+                  </>
+                );
+              },
+            },
+            {
+              key: "doctor",
+              label: t("appointments.doctor"),
+              render: (row: AppointmentWithPatient) => <Text size="sm">{row.doctor_name}</Text>,
+            },
+            {
+              key: "type",
+              label: t("appointments.type"),
+              render: (row: AppointmentWithPatient) => (
+                <OperationalSignal
+                  label={appointmentTypeLabel(t, row.appointment_type)}
+                  shape="token"
+                  size="xs"
+                  tone="active"
+                />
+              ),
+            },
+            {
+              key: "status",
+              label: t("appointments.status"),
+              render: (row: AppointmentWithPatient) => (
+                <OperationalSignal
+                  label={appointmentStatusLabel(t, row.status)}
+                  shape={appointmentStatusShape(row.status)}
+                  size="xs"
+                  tone={appointmentStatusTone(row.status)}
+                />
+              ),
+            },
+            {
+              key: "action",
+              label: "",
+              render: (row: AppointmentWithPatient) => {
+                const isFutureAppointment = row.appointment_date > today;
+                const canMoveToOpd =
+                  !row.encounter_id &&
+                  !isFutureAppointment &&
+                  ["scheduled", "confirmed", "checked_in"].includes(row.status);
+                return row.status === "completed" ? (
+                  <OperationalSignal
+                    label={t("appointmentHandoff.carriedOut")}
+                    shape="pill"
+                    size="xs"
+                    tone="ready"
+                  />
+                ) : row.encounter_id ? (
+                  <OperationalSignal
+                    label={t("appointmentHandoff.inOpd")}
+                    shape="diamond"
+                    size="xs"
+                    tone="active"
+                  />
+                ) : isFutureAppointment ? (
+                  <OperationalSignal
+                    label={t("appointmentHandoff.futureSlot")}
+                    shape="token"
+                    size="xs"
+                    tone="neutral"
+                  />
+                ) : (
+                  <Button
+                    tone="secondary"
+                    size="xs"
+                    leftSection={<IconPlayerPlay size={14} />}
+                    disabled={!canCheckIn || !canMoveToOpd}
+                    loading={isCheckingIn && checkingInId === row.id}
+                    onClick={() => onCheckIn(row)}
+                  >
+                    {t("appointmentHandoff.sendToOpd")}
+                  </Button>
+                );
+              },
+            },
+          ]}
+          data={appointments}
+          rowKey={(row) => row.id}
+        />
       )}
     </Card>
   );

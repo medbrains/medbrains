@@ -63,7 +63,7 @@ import { DataTable, IpdContextStrip, ipdContextFromSearchParams, PageHeader } fr
 import { VendorSearchSelect } from "@/components/VendorSearchSelect";
 import type { Column } from "@/components/DataTable";
 import type { BadgeTone } from "@/components/ui";
-import { Alert, Badge, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { bmeService } from "@/services/bme.service";
 
@@ -1459,36 +1459,48 @@ function ContractsTab() {
           <Text fw={600} size="lg" mb="sm">
             Cost vs Contract Value Analysis
           </Text>
-          <Table striped highlightOnHover withTableBorder withColumnBorders>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Equipment</Table.Th>
-                <Table.Th>Contract #</Table.Th>
-                <Table.Th>Type</Table.Th>
-                <Table.Th ta="right">Contract Value</Table.Th>
-                <Table.Th ta="right">Total WO Cost</Table.Th>
-                <Table.Th ta="right">Utilization</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {costAnalysis.map((row) => (
-                <Table.Tr key={row.id}>
-                  <Table.Td>
-                    <Text size="sm" fw={500}>
-                      {row.equipName}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm">{row.contractNumber}</Text>
-                  </Table.Td>
-                  <Table.Td>{contractTypeBadge(row.contractType)}</Table.Td>
-                  <Table.Td ta="right">
-                    <Text size="sm">{`\u20B9${row.contractValue.toLocaleString()}`}</Text>
-                  </Table.Td>
-                  <Table.Td ta="right">
-                    <Text size="sm">{`\u20B9${row.totalWoCost.toLocaleString()}`}</Text>
-                  </Table.Td>
-                  <Table.Td ta="right">
+          <DataTable
+            columns={[
+              {
+                key: "equipment",
+                label: "Equipment",
+                render: (row: (typeof costAnalysis)[number]) => (
+                  <Text size="sm" fw={500}>
+                    {row.equipName}
+                  </Text>
+                ),
+              },
+              {
+                key: "contractNumber",
+                label: "Contract #",
+                render: (row: (typeof costAnalysis)[number]) => (
+                  <Text size="sm">{row.contractNumber}</Text>
+                ),
+              },
+              {
+                key: "type",
+                label: "Type",
+                render: (row: (typeof costAnalysis)[number]) => contractTypeBadge(row.contractType),
+              },
+              {
+                key: "contractValue",
+                label: "Contract Value",
+                render: (row: (typeof costAnalysis)[number]) => (
+                  <Text size="sm" ta="right">{`\u20B9${row.contractValue.toLocaleString()}`}</Text>
+                ),
+              },
+              {
+                key: "totalWoCost",
+                label: "Total WO Cost",
+                render: (row: (typeof costAnalysis)[number]) => (
+                  <Text size="sm" ta="right">{`\u20B9${row.totalWoCost.toLocaleString()}`}</Text>
+                ),
+              },
+              {
+                key: "utilization",
+                label: "Utilization",
+                render: (row: (typeof costAnalysis)[number]) => (
+                  <Group justify="flex-end">
                     <Badge
                       tone={
                         row.utilization > 100
@@ -1502,11 +1514,13 @@ function ContractsTab() {
                     >
                       {row.utilization}%
                     </Badge>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
+                  </Group>
+                ),
+              },
+            ]}
+            data={costAnalysis}
+            rowKey={(row) => row.id}
+          />
         </Card>
       )}
 
