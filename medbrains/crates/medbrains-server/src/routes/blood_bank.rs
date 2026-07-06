@@ -506,22 +506,31 @@ pub async fn update_component_status(
 pub async fn list_crossmatch_requests(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-) -> Result<Json<Vec<CrossmatchRequest>>, AppError> {
+    Query(p): Query<crate::pagination::Pagination>,
+) -> Result<Json<crate::pagination::Paginated<CrossmatchRequest>>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let total: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM crossmatch_requests WHERE tenant_id = $1")
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
+
     let requests = sqlx::query_as::<_, CrossmatchRequest>(
         "SELECT * FROM crossmatch_requests WHERE tenant_id = $1 \
-         ORDER BY created_at DESC LIMIT 5000",
+         ORDER BY created_at DESC LIMIT $2 OFFSET $3",
     )
     .bind(claims.tenant_id)
+    .bind(p.limit())
+    .bind(p.offset())
     .fetch_all(&mut *tx)
     .await?;
 
     tx.commit().await?;
-    Ok(Json(requests))
+    Ok(Json(crate::pagination::Paginated::new(requests, total, &p)))
 }
 
 pub async fn create_crossmatch_request(

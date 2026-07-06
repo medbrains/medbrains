@@ -1196,9 +1196,10 @@ function CrossmatchTab() {
   const canCreate = useHasPermission(P.BLOOD_BANK.CROSSMATCH_CREATE);
   const [createOpen, { open: openCreate, close: closeCreate }] = useDisclosure(false);
 
+  const [page, setPage] = useState(1);
   const { data: requests, isLoading } = useQuery({
-    queryKey: ["blood-bank", "crossmatch"],
-    queryFn: () => bloodBankService.listCrossmatchRequests(),
+    queryKey: ["blood-bank", "crossmatch", page],
+    queryFn: () => bloodBankService.listCrossmatchRequests({ page, limit: 50 }),
   });
 
   const createMut = useMutation({
@@ -1310,7 +1311,17 @@ function CrossmatchTab() {
         )}
       </Group>
 
-      <DataTable columns={columns} data={requests ?? []} loading={isLoading} rowKey={(r) => r.id} />
+      <DataTable
+        columns={columns}
+        data={requests?.data ?? []}
+        loading={isLoading}
+        rowKey={(r) => r.id}
+        page={page}
+        perPage={50}
+        total={requests?.meta.total}
+        totalPages={requests ? Math.ceil(requests.meta.total / requests.meta.limit) : 0}
+        onPageChange={setPage}
+      />
 
       <Drawer
         opened={createOpen}

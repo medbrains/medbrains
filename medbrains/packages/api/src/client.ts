@@ -6013,7 +6013,13 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  listCrossmatchRequests: () => request<CrossmatchRequest[]>("/blood-bank/crossmatch"),
+  listCrossmatchRequests: (params?: { page?: number; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.set("page", String(params.page));
+    if (params?.limit) qs.set("limit", String(params.limit));
+    const q = qs.toString();
+    return request<Paginated<CrossmatchRequest>>(`/blood-bank/crossmatch${q ? `?${q}` : ""}`);
+  },
   createCrossmatchRequest: (data: CreateCrossmatchRequestBody) =>
     request<CrossmatchRequest>("/blood-bank/crossmatch", {
       method: "POST",
