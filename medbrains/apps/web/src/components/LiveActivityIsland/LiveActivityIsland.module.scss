@@ -1,0 +1,142 @@
+// Live Activity Island — floating bottom-centre pill, token-driven, morphs on state.
+.island {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(92vw, 560px);
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--mb-border-strong);
+  background: var(--mb-bg-inverse);
+  color: var(--mb-text-on-inverse);
+  box-shadow: var(--mb-shadow-lg, 0 8px 28px rgba(0, 0, 0, 0.28));
+  transition:
+    background 160ms ease,
+    max-width 160ms ease,
+    padding 160ms ease;
+
+  &[data-state="alert"] {
+    background: var(--mb-accent-danger);
+    color: var(--mb-text-on-accent);
+    border-color: transparent;
+  }
+
+  // Emergency codes — fixed safety colours, loud.
+  &[data-kind="code_blue"] {
+    background: var(--code-blue);
+    color: #fff;
+  }
+  &[data-kind="code_red"] {
+    background: var(--code-red);
+    color: #fff;
+  }
+  &[data-kind="code_pink"] {
+    background: var(--code-pink);
+    color: #fff;
+  }
+  &[data-kind="code_black"] {
+    background: var(--code-black);
+    color: #fff;
+  }
+  &[data-kind="code_yellow"] {
+    background: var(--code-yellow);
+    color: #0f1412;
+  }
+  &[data-kind="code_orange"] {
+    background: var(--code-orange);
+    color: #fff;
+  }
+}
+
+// Idle compact pill (opens the AI assistant).
+.idleBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 2px;
+  font: inherit;
+}
+
+.idleLabel {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pulseDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--mb-status-success-emphasis, #34d399);
+  box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55);
+  animation: island-pulse 2s ease-in-out infinite;
+}
+
+@keyframes island-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(52, 211, 153, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0);
+  }
+}
+
+.alertBody {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.alertIcon {
+  flex-shrink: 0;
+}
+
+.alertText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.alertTitle {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.alertMessage {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.alertActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+// Respect reduced-motion: no morph, no pulse.
+@media (prefers-reduced-motion: reduce) {
+  .island {
+    transition: none;
+  }
+  .pulseDot {
+    animation: none;
+  }
+}

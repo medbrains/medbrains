@@ -35,6 +35,7 @@ import { Outlet, useLocation, useNavigate } from "react-router";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
 import { AiAssistantMount } from "@/components/ai";
 import { AddProductModal } from "@/components/Materials/AddProductModal";
+import { LiveActivityIsland } from "@/components/LiveActivityIsland/LiveActivityIsland";
 import { Brand } from "@/components/Brand";
 import { DlpGuard } from "@/components/DlpGuard";
 import { HeaderWidgets } from "@/components/HeaderWidgets";
@@ -632,6 +633,7 @@ export function AppLayout() {
           launcher anchors to the viewport. */}
       <AiAssistantMount />
       <AddProductModal />
+      <LiveActivityIsland />
       <StepUpGate />
     </AppShell>
   );

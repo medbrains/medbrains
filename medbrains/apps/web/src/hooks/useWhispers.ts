@@ -1,6 +1,7 @@
 import { api } from "@medbrains/api";
 import { useEffectOnce } from "react-use";
 import { useAiAssistantStore } from "@/components/ai";
+import { useLiveActivityStore } from "@/components/LiveActivityIsland/live-activity-store";
 import { toast } from "@/components/ui";
 
 interface WhisperPayload {
@@ -23,8 +24,17 @@ function parseFrame(frame: string): WhisperPayload | null {
 
 function showWhisper(whisper: WhisperPayload) {
   const message = whisper.message ?? "Critical value";
+  const title = whisper.title ?? "Critical alert";
+  // Persistent surface: the Live Activity Island morphs to show this until dismissed.
+  useLiveActivityStore.getState().pushWhisper({
+    id: crypto.randomUUID(),
+    title,
+    message,
+    patientId: whisper.patientId,
+    kind: whisper.kind,
+  });
   toast.error(message, {
-    title: whisper.title ?? "Critical alert",
+    title,
     actions: [
       {
         label: "Ask AI",
