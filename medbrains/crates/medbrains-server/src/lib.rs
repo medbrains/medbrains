@@ -30,6 +30,7 @@ pub mod hospital_time;
 pub mod middleware;
 pub mod oauth;
 pub mod orchestration;
+pub mod pagination;
 pub mod routes;
 pub mod s3_presign;
 pub mod secret_backend;

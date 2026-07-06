@@ -2427,6 +2427,16 @@ export interface RefreshResponse {
   field_access: Record<string, FieldAccessLevel>;
 }
 
+/**
+ * Server-paginated list response. Pass `data` to DataTable, and drive its pager
+ * with `meta`: `page`, `Math.ceil(meta.total / meta.limit)` as totalPages, and an
+ * `onPageChange` that refetches. Backend: `Paginated<T>` from `pagination.rs`.
+ */
+export interface Paginated<T> {
+  data: T[];
+  meta: { total: number; page: number; limit: number };
+}
+
 export interface UserPharmacyAssignment {
   id: string;
   user_id: string;
