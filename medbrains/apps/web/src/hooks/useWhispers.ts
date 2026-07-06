@@ -1,7 +1,10 @@
 import { api } from "@medbrains/api";
 import { useEffectOnce } from "react-use";
 import { useAiAssistantStore } from "@/components/ai";
-import { useLiveActivityStore } from "@/components/LiveActivityIsland/live-activity-store";
+import {
+  CODE_KINDS,
+  useLiveActivityStore,
+} from "@/components/LiveActivityIsland/live-activity-store";
 import { toast } from "@/components/ui";
 
 interface WhisperPayload {
@@ -25,28 +28,24 @@ function parseFrame(frame: string): WhisperPayload | null {
 function showWhisper(whisper: WhisperPayload) {
   const message = whisper.message ?? "Critical value";
   const title = whisper.title ?? "Critical alert";
-  // Persistent surface: the Live Activity Island morphs to show this until dismissed.
-  useLiveActivityStore.getState().pushWhisper({
-    id: crypto.randomUUID(),
+  const isCode = whisper.kind ? CODE_KINDS.has(whisper.kind) : false;
+  const askAi = () =>
+    useAiAssistantStore.getState().open({
+      query: `Explain this critical result and what to do next: ${message}`,
+      context: whisper.patientId ? { patient_id: whisper.patientId } : undefined,
+    });
+  // Contribute to the Live Activity Island (persistent, escalates for codes) — the
+  // island is a plugin surface; whispers are just one contributor.
+  useLiveActivityStore.getState().setActivity("whisper", {
+    priority: isCode ? 100 : 70,
+    tone: isCode ? "code" : "alert",
+    kind: whisper.kind,
     title,
     message,
-    patientId: whisper.patientId,
-    kind: whisper.kind,
+    actions: [{ label: "Ask AI", primary: true, onClick: askAi }],
+    dismissible: true,
   });
-  toast.error(message, {
-    title,
-    actions: [
-      {
-        label: "Ask AI",
-        primary: true,
-        onClick: () =>
-          useAiAssistantStore.getState().open({
-            query: `Explain this critical result and what to do next: ${message}`,
-            context: whisper.patientId ? { patient_id: whisper.patientId } : undefined,
-          }),
-      },
-    ],
-  });
+  toast.error(message, { title, actions: [{ label: "Ask AI", primary: true, onClick: askAi }] });
 }
 
 /**
