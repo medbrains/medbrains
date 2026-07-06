@@ -22,7 +22,7 @@ import { P } from "@medbrains/types";
 import { IconBook, IconCheck, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { PageHeader } from "@/components";
+import { DataTable, PageHeader } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -275,29 +275,27 @@ function LogbookTable({
   }
 
   return (
-    <Table striped highlightOnHover>
-      <Table.Thead>
-        <Table.Tr>
-          <Table.Th>Date</Table.Th>
-          <Table.Th>Type</Table.Th>
-          <Table.Th>Title</Table.Th>
-          <Table.Th>Diagnosis Codes</Table.Th>
-          <Table.Th>Verified</Table.Th>
-          {showVerify && <Table.Th w={60}>Action</Table.Th>}
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>
-        {entries.map((e) => (
-          <Table.Tr key={e.id}>
-            <Table.Td>
-              <Text size="sm">{e.entry_date}</Text>
-            </Table.Td>
-            <Table.Td>
-              <Badge tone="neutral" size="sm">
-                {e.entry_type}
-              </Badge>
-            </Table.Td>
-            <Table.Td>
+    <DataTable
+      columns={[
+        {
+          key: "entry_date",
+          label: "Date",
+          render: (e: PgLogbookEntry) => <Text size="sm">{e.entry_date}</Text>,
+        },
+        {
+          key: "entry_type",
+          label: "Type",
+          render: (e: PgLogbookEntry) => (
+            <Badge tone="neutral" size="sm">
+              {e.entry_type}
+            </Badge>
+          ),
+        },
+        {
+          key: "title",
+          label: "Title",
+          render: (e: PgLogbookEntry) => (
+            <>
               <Text size="sm" fw={500}>
                 {e.title}
               </Text>
@@ -306,51 +304,64 @@ function LogbookTable({
                   {e.description}
                 </Text>
               )}
-            </Table.Td>
-            <Table.Td>
-              {e.diagnosis_codes.length > 0 ? (
-                <Group gap={2}>
-                  {e.diagnosis_codes.map((c) => (
-                    <Badge key={c} tone="neutral" size="xs">
-                      {c}
-                    </Badge>
-                  ))}
-                </Group>
-              ) : (
-                "—"
-              )}
-            </Table.Td>
-            <Table.Td>
-              {e.supervisor_verified ? (
-                <Badge tone="success" size="sm">
-                  Verified
-                </Badge>
-              ) : (
-                <Badge tone="warning" size="sm">
-                  Pending
-                </Badge>
-              )}
-            </Table.Td>
-            {showVerify && (
-              <Table.Td>
-                {!e.supervisor_verified && onVerify && (
-                  <Tooltip label="Verify entry">
-                    <IconButton
-                      tone="success"
-                      size="sm"
-                      onClick={() => onVerify(e.id)}
-                      aria-label="Confirm"
-                    >
-                      <IconCheck size={14} />
-                    </IconButton>
-                  </Tooltip>
-                )}
-              </Table.Td>
-            )}
-          </Table.Tr>
-        ))}
-      </Table.Tbody>
-    </Table>
+            </>
+          ),
+        },
+        {
+          key: "diagnosis_codes",
+          label: "Diagnosis Codes",
+          render: (e: PgLogbookEntry) =>
+            e.diagnosis_codes.length > 0 ? (
+              <Group gap={2}>
+                {e.diagnosis_codes.map((c) => (
+                  <Badge key={c} tone="neutral" size="xs">
+                    {c}
+                  </Badge>
+                ))}
+              </Group>
+            ) : (
+              "—"
+            ),
+        },
+        {
+          key: "verified",
+          label: "Verified",
+          render: (e: PgLogbookEntry) =>
+            e.supervisor_verified ? (
+              <Badge tone="success" size="sm">
+                Verified
+              </Badge>
+            ) : (
+              <Badge tone="warning" size="sm">
+                Pending
+              </Badge>
+            ),
+        },
+        ...(showVerify
+          ? [
+              {
+                key: "action",
+                label: "Action",
+                render: (e: PgLogbookEntry) =>
+                  !e.supervisor_verified && onVerify ? (
+                    <Tooltip label="Verify entry">
+                      <IconButton
+                        tone="success"
+                        size="sm"
+                        onClick={() => onVerify(e.id)}
+                        aria-label="Confirm"
+                      >
+                        <IconCheck size={14} />
+                      </IconButton>
+                    </Tooltip>
+                  ) : null,
+              },
+            ]
+          : []),
+      ]}
+      data={entries}
+      rowKey={(e) => e.id}
+    />
   );
 }
 

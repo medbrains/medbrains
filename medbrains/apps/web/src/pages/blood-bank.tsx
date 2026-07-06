@@ -451,44 +451,44 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
         Donation History
       </Text>
       {donations?.length ? (
-        <Table>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Bag #</Table.Th>
-              <Table.Th>Type</Table.Th>
-              <Table.Th>Volume</Table.Th>
-              <Table.Th>Date</Table.Th>
-              <Table.Th>Reaction</Table.Th>
-              {canCreate && <Table.Th>Actions</Table.Th>}
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {donations.map((d) => {
-              const reaction = parseAdverseReaction(d.adverse_reaction);
-              return (
-                <Table.Tr key={d.id}>
-                  <Table.Td>{d.bag_number}</Table.Td>
-                  <Table.Td>{d.donation_type}</Table.Td>
-                  <Table.Td>{d.volume_ml} ml</Table.Td>
-                  <Table.Td>{new Date(d.donated_at).toLocaleDateString()}</Table.Td>
-                  <Table.Td>
-                    {reaction ? (
-                      <Tooltip
-                        label={`${reactionTypeLabels[reaction.reaction_type] ?? reaction.reaction_type} — ${reaction.severity} — ${reaction.outcome}`}
-                      >
-                        <Badge tone="danger" leftSection={<IconAlertTriangle size={12} />}>
-                          Adverse Reaction
-                        </Badge>
-                      </Tooltip>
-                    ) : (
-                      <Text c="dimmed" size="sm">
-                        None
-                      </Text>
-                    )}
-                  </Table.Td>
-                  {canCreate && (
-                    <Table.Td>
-                      {!reaction && (
+        <DataTable
+          columns={[
+            { key: "bag_number", label: "Bag #", render: (d: BloodDonation) => d.bag_number },
+            { key: "donation_type", label: "Type", render: (d: BloodDonation) => d.donation_type },
+            { key: "volume", label: "Volume", render: (d: BloodDonation) => `${d.volume_ml} ml` },
+            {
+              key: "date",
+              label: "Date",
+              render: (d: BloodDonation) => new Date(d.donated_at).toLocaleDateString(),
+            },
+            {
+              key: "reaction",
+              label: "Reaction",
+              render: (d: BloodDonation) => {
+                const reaction = parseAdverseReaction(d.adverse_reaction);
+                return reaction ? (
+                  <Tooltip
+                    label={`${reactionTypeLabels[reaction.reaction_type] ?? reaction.reaction_type} — ${reaction.severity} — ${reaction.outcome}`}
+                  >
+                    <Badge tone="danger" leftSection={<IconAlertTriangle size={12} />}>
+                      Adverse Reaction
+                    </Badge>
+                  </Tooltip>
+                ) : (
+                  <Text c="dimmed" size="sm">
+                    None
+                  </Text>
+                );
+              },
+            },
+            ...(canCreate
+              ? [
+                  {
+                    key: "actions",
+                    label: "Actions",
+                    render: (d: BloodDonation) => {
+                      const reaction = parseAdverseReaction(d.adverse_reaction);
+                      return !reaction ? (
                         <Button
                           tone="subtle-danger"
                           size="compact-xs"
@@ -497,14 +497,15 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
                         >
                           Adverse Reaction
                         </Button>
-                      )}
-                    </Table.Td>
-                  )}
-                </Table.Tr>
-              );
-            })}
-          </Table.Tbody>
-        </Table>
+                      ) : null;
+                    },
+                  },
+                ]
+              : []),
+          ]}
+          data={donations}
+          rowKey={(d) => d.id}
+        />
       ) : (
         <Text c="dimmed" size="sm">
           No donations recorded yet

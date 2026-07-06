@@ -47,7 +47,8 @@ import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PageHeader } from "@/components/PageHeader";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { DataTable } from "@/components";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { bedsideService } from "@/services/bedside.service";
 
@@ -843,58 +844,73 @@ function BedsideOperationsPanel({
           {sessionsQ.isLoading ? (
             <Loader size="sm" />
           ) : (
-            <Table striped highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Admission</Table.Th>
-                  <Table.Th>Bed / Device</Table.Th>
-                  <Table.Th>Started</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  {canManageSessions && <Table.Th>Actions</Table.Th>}
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {(sessionsQ.data ?? []).slice(0, 20).map((session: BedsideSessionRow) => (
-                  <Table.Tr key={session.id}>
-                    <Table.Td>
+            <DataTable
+              columns={[
+                {
+                  key: "admission",
+                  label: "Admission",
+                  render: (session: BedsideSessionRow) => (
+                    <>
                       <Text size="sm" fw={600}>
                         {compactContextId(session.admission_id)}
                       </Text>
                       <Text size="xs" c="dimmed">
                         Patient {compactContextId(session.patient_id)}
                       </Text>
-                    </Table.Td>
-                    <Table.Td>
+                    </>
+                  ),
+                },
+                {
+                  key: "bed_device",
+                  label: "Bed / Device",
+                  render: (session: BedsideSessionRow) => (
+                    <>
                       <Text size="sm">{session.bed_location ?? "—"}</Text>
                       <Text size="xs" c="dimmed">
                         {session.device_id ?? "No device id"}
                       </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{new Date(session.started_at).toLocaleString()}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge tone={session.is_active ? "success" : "neutral"} variant="light">
-                        {session.is_active ? "Active" : "Ended"}
-                      </Badge>
-                    </Table.Td>
-                    {canManageSessions && (
-                      <Table.Td>
-                        <Button
-                          tone="secondary"
-                          size="xs"
-                          disabled={!session.is_active}
-                          loading={endSessionMut.isPending}
-                          onClick={() => endSessionMut.mutate(session.id)}
-                        >
-                          End
-                        </Button>
-                      </Table.Td>
-                    )}
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
+                    </>
+                  ),
+                },
+                {
+                  key: "started",
+                  label: "Started",
+                  render: (session: BedsideSessionRow) => (
+                    <Text size="sm">{new Date(session.started_at).toLocaleString()}</Text>
+                  ),
+                },
+                {
+                  key: "status",
+                  label: "Status",
+                  render: (session: BedsideSessionRow) => (
+                    <Badge tone={session.is_active ? "success" : "neutral"} variant="light">
+                      {session.is_active ? "Active" : "Ended"}
+                    </Badge>
+                  ),
+                },
+                ...(canManageSessions
+                  ? [
+                      {
+                        key: "actions",
+                        label: "Actions",
+                        render: (session: BedsideSessionRow) => (
+                          <Button
+                            tone="secondary"
+                            size="xs"
+                            disabled={!session.is_active}
+                            loading={endSessionMut.isPending}
+                            onClick={() => endSessionMut.mutate(session.id)}
+                          >
+                            End
+                          </Button>
+                        ),
+                      },
+                    ]
+                  : []),
+              ]}
+              data={(sessionsQ.data ?? []).slice(0, 20)}
+              rowKey={(session) => session.id}
+            />
           )}
         </Card>
       )}
@@ -910,77 +926,84 @@ function BedsideOperationsPanel({
           {requestsQ.isLoading ? (
             <Loader size="sm" />
           ) : (
-            <Table striped highlightOnHover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Request</Table.Th>
-                  <Table.Th>Created</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  {canManageSessions && <Table.Th>Actions</Table.Th>}
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {(requestsQ.data ?? []).map((request: BedsideNurseRequestRow) => (
-                  <Table.Tr key={request.id}>
-                    <Table.Td>
+            <DataTable
+              columns={[
+                {
+                  key: "request",
+                  label: "Request",
+                  render: (request: BedsideNurseRequestRow) => (
+                    <>
                       <Text size="sm" fw={600}>
                         {REQUEST_TYPE_CONFIG[request.request_type]?.label ?? request.request_type}
                       </Text>
                       <Text size="xs" c="dimmed">
                         {request.notes ?? "—"}
                       </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{new Date(request.created_at).toLocaleString()}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge
-                        tone={requestStatusColors[request.status] ?? "neutral"}
-                        variant="light"
-                      >
-                        {request.status.replace(/_/g, " ")}
-                      </Badge>
-                    </Table.Td>
-                    {canManageSessions && (
-                      <Table.Td>
-                        <Group gap="xs" wrap="nowrap">
-                          <Button
-                            tone="secondary"
-                            size="xs"
-                            disabled={request.status !== "pending"}
-                            loading={updateRequestMut.isPending}
-                            onClick={() =>
-                              updateRequestMut.mutate({
-                                requestId: request.id,
-                                status: "acknowledged",
-                              })
-                            }
-                          >
-                            Ack
-                          </Button>
-                          <Button
-                            tone="secondary"
-                            size="xs"
-                            disabled={
-                              request.status === "completed" || request.status === "cancelled"
-                            }
-                            loading={updateRequestMut.isPending}
-                            onClick={() =>
-                              updateRequestMut.mutate({
-                                requestId: request.id,
-                                status: "completed",
-                              })
-                            }
-                          >
-                            Done
-                          </Button>
-                        </Group>
-                      </Table.Td>
-                    )}
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
+                    </>
+                  ),
+                },
+                {
+                  key: "created",
+                  label: "Created",
+                  render: (request: BedsideNurseRequestRow) => (
+                    <Text size="sm">{new Date(request.created_at).toLocaleString()}</Text>
+                  ),
+                },
+                {
+                  key: "status",
+                  label: "Status",
+                  render: (request: BedsideNurseRequestRow) => (
+                    <Badge tone={requestStatusColors[request.status] ?? "neutral"} variant="light">
+                      {request.status.replace(/_/g, " ")}
+                    </Badge>
+                  ),
+                },
+                ...(canManageSessions
+                  ? [
+                      {
+                        key: "actions",
+                        label: "Actions",
+                        render: (request: BedsideNurseRequestRow) => (
+                          <Group gap="xs" wrap="nowrap">
+                            <Button
+                              tone="secondary"
+                              size="xs"
+                              disabled={request.status !== "pending"}
+                              loading={updateRequestMut.isPending}
+                              onClick={() =>
+                                updateRequestMut.mutate({
+                                  requestId: request.id,
+                                  status: "acknowledged",
+                                })
+                              }
+                            >
+                              Ack
+                            </Button>
+                            <Button
+                              tone="secondary"
+                              size="xs"
+                              disabled={
+                                request.status === "completed" || request.status === "cancelled"
+                              }
+                              loading={updateRequestMut.isPending}
+                              onClick={() =>
+                                updateRequestMut.mutate({
+                                  requestId: request.id,
+                                  status: "completed",
+                                })
+                              }
+                            >
+                              Done
+                            </Button>
+                          </Group>
+                        ),
+                      },
+                    ]
+                  : []),
+              ]}
+              data={requestsQ.data ?? []}
+              rowKey={(request) => request.id}
+            />
           )}
         </Card>
       )}

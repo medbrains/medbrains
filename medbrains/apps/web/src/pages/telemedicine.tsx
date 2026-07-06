@@ -15,8 +15,9 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { DataTable } from "@/components";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { telemedicineService } from "@/services/telemedicine.service";
 import { type CalendarEvent, downloadIcs, googleCalendarUrl } from "@/utils/calendar";
@@ -207,106 +208,115 @@ export function TelemedicinePage() {
       </Group>
 
       {consults.length > 0 ? (
-        <Table striped highlightOnHover withTableBorder>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Patient</Table.Th>
-              <Table.Th>Provider</Table.Th>
-              <Table.Th>Scheduled</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th w={180}>Actions</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {consults.map((c) => {
-              const closed = ["completed", "cancelled", "no_show"].includes(c.status);
-              return (
-                <Table.Tr key={c.id}>
-                  <Table.Td>
-                    <Text size="xs" ff="monospace">
-                      {c.patient_id.slice(0, 8)}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge tone="info" size="sm">
-                      {c.provider}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs">
-                      {c.scheduled_at ? new Date(c.scheduled_at).toLocaleString("en-IN") : "—"}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge tone={STATUS_TONE[c.status] ?? "neutral"} size="sm">
-                      {c.status}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap="xs" wrap="nowrap">
-                      {!closed && (
-                        <Button
-                          tone="primary"
-                          size="compact-xs"
-                          leftSection={<IconVideo size={14} />}
-                          onClick={() => void join(c)}
-                        >
-                          Join
-                        </Button>
-                      )}
-                      {!closed && (
-                        <Menu position="bottom-end" withinPortal>
-                          <Menu.Target>
-                            <IconButton tone="default" size="sm" aria-label="Add to calendar">
-                              <IconCalendarPlus size={14} />
-                            </IconButton>
-                          </Menu.Target>
-                          <Menu.Dropdown>
-                            <Menu.Item
-                              leftSection={<IconDownload size={14} />}
-                              onClick={() => void addToIcs(c)}
-                            >
-                              Download .ics
-                            </Menu.Item>
-                            <Menu.Item
-                              leftSection={<IconBrandGoogle size={14} />}
-                              onClick={() => void addToGoogle(c)}
-                            >
-                              Add to Google Calendar
-                            </Menu.Item>
-                          </Menu.Dropdown>
-                        </Menu>
-                      )}
-                      {canUpdate && c.status === "in_progress" && (
-                        <IconButton
-                          tone="success"
-                          size="sm"
-                          aria-label="Complete"
-                          onClick={() => statusMutation.mutate({ id: c.id, status: "completed" })}
-                        >
-                          <IconPlayerPlay size={14} />
-                        </IconButton>
-                      )}
-                      {canUpdate && !closed && (
-                        <IconButton
-                          tone="danger"
-                          size="sm"
-                          aria-label="Cancel"
-                          onClick={() => statusMutation.mutate({ id: c.id, status: "cancelled" })}
-                        >
-                          <IconX size={14} />
-                        </IconButton>
-                      )}
-                      {c.status === "completed" && (
-                        <IconPhoneOff size={14} color="var(--mb-text-secondary)" />
-                      )}
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              );
-            })}
-          </Table.Tbody>
-        </Table>
+        <DataTable
+          columns={[
+            {
+              key: "patient",
+              label: "Patient",
+              render: (c: TeleConsultation) => (
+                <Text size="xs" ff="monospace">
+                  {c.patient_id.slice(0, 8)}
+                </Text>
+              ),
+            },
+            {
+              key: "provider",
+              label: "Provider",
+              render: (c: TeleConsultation) => (
+                <Badge tone="info" size="sm">
+                  {c.provider}
+                </Badge>
+              ),
+            },
+            {
+              key: "scheduled",
+              label: "Scheduled",
+              render: (c: TeleConsultation) => (
+                <Text size="xs">
+                  {c.scheduled_at ? new Date(c.scheduled_at).toLocaleString("en-IN") : "—"}
+                </Text>
+              ),
+            },
+            {
+              key: "status",
+              label: "Status",
+              render: (c: TeleConsultation) => (
+                <Badge tone={STATUS_TONE[c.status] ?? "neutral"} size="sm">
+                  {c.status}
+                </Badge>
+              ),
+            },
+            {
+              key: "actions",
+              label: "Actions",
+              render: (c: TeleConsultation) => {
+                const closed = ["completed", "cancelled", "no_show"].includes(c.status);
+                return (
+                  <Group gap="xs" wrap="nowrap">
+                    {!closed && (
+                      <Button
+                        tone="primary"
+                        size="compact-xs"
+                        leftSection={<IconVideo size={14} />}
+                        onClick={() => void join(c)}
+                      >
+                        Join
+                      </Button>
+                    )}
+                    {!closed && (
+                      <Menu position="bottom-end" withinPortal>
+                        <Menu.Target>
+                          <IconButton tone="default" size="sm" aria-label="Add to calendar">
+                            <IconCalendarPlus size={14} />
+                          </IconButton>
+                        </Menu.Target>
+                        <Menu.Dropdown>
+                          <Menu.Item
+                            leftSection={<IconDownload size={14} />}
+                            onClick={() => void addToIcs(c)}
+                          >
+                            Download .ics
+                          </Menu.Item>
+                          <Menu.Item
+                            leftSection={<IconBrandGoogle size={14} />}
+                            onClick={() => void addToGoogle(c)}
+                          >
+                            Add to Google Calendar
+                          </Menu.Item>
+                        </Menu.Dropdown>
+                      </Menu>
+                    )}
+                    {canUpdate && c.status === "in_progress" && (
+                      <IconButton
+                        tone="success"
+                        size="sm"
+                        aria-label="Complete"
+                        onClick={() => statusMutation.mutate({ id: c.id, status: "completed" })}
+                      >
+                        <IconPlayerPlay size={14} />
+                      </IconButton>
+                    )}
+                    {canUpdate && !closed && (
+                      <IconButton
+                        tone="danger"
+                        size="sm"
+                        aria-label="Cancel"
+                        onClick={() => statusMutation.mutate({ id: c.id, status: "cancelled" })}
+                      >
+                        <IconX size={14} />
+                      </IconButton>
+                    )}
+                    {c.status === "completed" && (
+                      <IconPhoneOff size={14} color="var(--mb-text-secondary)" />
+                    )}
+                  </Group>
+                );
+              },
+            },
+          ]}
+          data={consults}
+          rowKey={(c) => c.id}
+        />
       ) : (
         <Stack align="center" py="xl" gap="xs">
           <IconVideo size={32} color="var(--mb-text-secondary)" />

@@ -489,65 +489,73 @@ function AllergiesTab({ patient }: { patient: Patient }) {
           No allergies recorded.
         </Text>
       ) : (
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Allergen</Table.Th>
-              <Table.Th>Type</Table.Th>
-              <Table.Th>Severity</Table.Th>
-              <Table.Th>Reaction</Table.Th>
-              {canUpdate && <Table.Th w={40} />}
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {allergies.map((a: PatientAllergy) => (
-              <Table.Tr key={a.id}>
-                <Table.Td>
-                  <Text size="sm" fw={500}>
-                    {a.allergen_name}
+        <DataTable
+          columns={[
+            {
+              key: "allergen",
+              label: "Allergen",
+              render: (a: PatientAllergy) => (
+                <Text size="sm" fw={500}>
+                  {a.allergen_name}
+                </Text>
+              ),
+            },
+            {
+              key: "type",
+              label: "Type",
+              render: (a: PatientAllergy) => (
+                <Badge size="sm">{a.allergy_type.replace(/_/g, " ")}</Badge>
+              ),
+            },
+            {
+              key: "severity",
+              label: "Severity",
+              render: (a: PatientAllergy) =>
+                a.severity ? (
+                  <Badge tone={statusBadgeTone(statusColor(a.severity))} size="sm">
+                    {a.severity.replace(/_/g, " ")}
+                  </Badge>
+                ) : (
+                  <Text size="sm" c="dimmed">
+                    -
                   </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Badge size="sm">{a.allergy_type.replace(/_/g, " ")}</Badge>
-                </Table.Td>
-                <Table.Td>
-                  {a.severity ? (
-                    <Badge tone={statusBadgeTone(statusColor(a.severity))} size="sm">
-                      {a.severity.replace(/_/g, " ")}
-                    </Badge>
-                  ) : (
-                    <Text size="sm" c="dimmed">
-                      -
-                    </Text>
-                  )}
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm">{a.reaction ?? "-"}</Text>
-                </Table.Td>
-                {canUpdate && (
-                  <Table.Td>
-                    <IconButton
-                      tone="danger"
-                      size="sm"
-                      onClick={() =>
-                        confirmDestructive({
-                          title: "Delete allergy",
-                          message:
-                            "Remove this allergy from the patient's record? Allergy history is safety-critical — this cannot be undone.",
-                          onConfirm: () => deleteMutation.mutate(a.id),
-                        })
-                      }
-                      loading={deleteMutation.isPending}
-                      aria-label="Delete allergy"
-                    >
-                      <IconTrash size={14} />
-                    </IconButton>
-                  </Table.Td>
-                )}
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
+                ),
+            },
+            {
+              key: "reaction",
+              label: "Reaction",
+              render: (a: PatientAllergy) => <Text size="sm">{a.reaction ?? "-"}</Text>,
+            },
+            ...(canUpdate
+              ? [
+                  {
+                    key: "actions",
+                    label: "",
+                    render: (a: PatientAllergy) => (
+                      <IconButton
+                        tone="danger"
+                        size="sm"
+                        onClick={() =>
+                          confirmDestructive({
+                            title: "Delete allergy",
+                            message:
+                              "Remove this allergy from the patient's record? Allergy history is safety-critical — this cannot be undone.",
+                            onConfirm: () => deleteMutation.mutate(a.id),
+                          })
+                        }
+                        loading={deleteMutation.isPending}
+                        aria-label="Delete allergy"
+                      >
+                        <IconTrash size={14} />
+                      </IconButton>
+                    ),
+                  },
+                ]
+              : []),
+          ]}
+          data={allergies}
+          rowKey={(a) => a.id}
+        />
       )}
 
       <Modal opened={opened} onClose={handleClose} title="Add Allergy" size="md">

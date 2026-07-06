@@ -435,66 +435,80 @@ function IndicatorsTab() {
               No indicators with target values configured
             </Text>
           ) : (
-            <Table withTableBorder>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Indicator</Table.Th>
-                  <Table.Th>Current Value</Table.Th>
-                  <Table.Th>Target Value</Table.Th>
-                  <Table.Th>Variance</Table.Th>
-                  <Table.Th>Progress</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {indicators
-                  .filter((i) => i.target_value != null)
-                  .map((i) => {
-                    const latestValue = indicatorLatestValues.get(i.id);
-                    const current = latestValue?.calculated_value ?? 0;
+            <DataTable
+              columns={[
+                {
+                  key: "indicator",
+                  label: "Indicator",
+                  render: (i: QualityIndicator) => (
+                    <div>
+                      <Text fw={500} size="sm">
+                        {i.name}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {i.code}
+                      </Text>
+                    </div>
+                  ),
+                },
+                {
+                  key: "current",
+                  label: "Current Value",
+                  render: (i: QualityIndicator) => {
+                    const current = indicatorLatestValues.get(i.id)?.calculated_value ?? 0;
+                    const meetsTarget = current >= (i.target_value ?? 0);
+                    return (
+                      <Badge tone={meetsTarget ? "success" : "danger"}>
+                        {current.toFixed(2)}
+                        {i.unit ? ` ${i.unit}` : ""}
+                      </Badge>
+                    );
+                  },
+                },
+                {
+                  key: "target",
+                  label: "Target Value",
+                  render: (i: QualityIndicator) => {
+                    const target = i.target_value ?? 0;
+                    return `${target.toFixed(2)}${i.unit ? ` ${i.unit}` : ""}`;
+                  },
+                },
+                {
+                  key: "variance",
+                  label: "Variance",
+                  render: (i: QualityIndicator) => {
+                    const current = indicatorLatestValues.get(i.id)?.calculated_value ?? 0;
                     const target = i.target_value ?? 0;
                     const variance = target !== 0 ? ((current - target) / target) * 100 : 0;
+                    return (
+                      <Text c={variance >= 0 ? "success" : "danger"} fw={500}>
+                        {variance > 0 ? "+" : ""}
+                        {variance.toFixed(1)}%
+                      </Text>
+                    );
+                  },
+                },
+                {
+                  key: "progress",
+                  label: "Progress",
+                  render: (i: QualityIndicator) => {
+                    const current = indicatorLatestValues.get(i.id)?.calculated_value ?? 0;
+                    const target = i.target_value ?? 0;
                     const progress = target !== 0 ? Math.min(100, (current / target) * 100) : 0;
                     const meetsTarget = current >= target;
                     return (
-                      <Table.Tr key={i.id}>
-                        <Table.Td>
-                          <div>
-                            <Text fw={500} size="sm">
-                              {i.name}
-                            </Text>
-                            <Text size="xs" c="dimmed">
-                              {i.code}
-                            </Text>
-                          </div>
-                        </Table.Td>
-                        <Table.Td>
-                          <Badge tone={meetsTarget ? "success" : "danger"}>
-                            {current.toFixed(2)}
-                            {i.unit ? ` ${i.unit}` : ""}
-                          </Badge>
-                        </Table.Td>
-                        <Table.Td>
-                          {target.toFixed(2)}
-                          {i.unit ? ` ${i.unit}` : ""}
-                        </Table.Td>
-                        <Table.Td>
-                          <Text c={variance >= 0 ? "success" : "danger"} fw={500}>
-                            {variance > 0 ? "+" : ""}
-                            {variance.toFixed(1)}%
-                          </Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <Progress
-                            value={progress}
-                            color={meetsTarget ? "success" : "danger"}
-                            size="lg"
-                          />
-                        </Table.Td>
-                      </Table.Tr>
+                      <Progress
+                        value={progress}
+                        color={meetsTarget ? "success" : "danger"}
+                        size="lg"
+                      />
                     );
-                  })}
-              </Table.Tbody>
-            </Table>
+                  },
+                },
+              ]}
+              data={indicators.filter((i) => i.target_value != null)}
+              rowKey={(i) => i.id}
+            />
           )}
         </Card>
       )}
