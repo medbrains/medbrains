@@ -6,7 +6,8 @@ import { IconActivityHeartbeat, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
-import { Alert, Button, Card, NumberField, Table, TextArea, toast } from "@/components/ui";
+import { DataTable } from "@/components";
+import { Alert, Button, Card, NumberField, TextArea, toast } from "@/components/ui";
 import { emergencyService } from "@/services/emergency.service";
 
 // ER observation chart — serial vitals + notes while a patient is held
@@ -161,32 +162,31 @@ export function ErObservationPanel({ visitId }: { visitId: string }) {
               observation.
             </Alert>
           ) : (
-            <Table>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Time</Table.Th>
-                  <Table.Th>Vitals</Table.Th>
-                  <Table.Th>Note</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {notes.map((n) => (
-                  <Table.Tr key={n.id}>
-                    <Table.Td>
-                      <Text size="xs" ff="monospace">
-                        {timeOf(n.observed_at)}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{vital(n)}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{n.note ?? "—"}</Text>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
+            <DataTable
+              columns={[
+                {
+                  key: "time",
+                  label: "Time",
+                  render: (n: ErObservationNote) => (
+                    <Text size="xs" ff="monospace">
+                      {timeOf(n.observed_at)}
+                    </Text>
+                  ),
+                },
+                {
+                  key: "vitals",
+                  label: "Vitals",
+                  render: (n: ErObservationNote) => <Text size="sm">{vital(n)}</Text>,
+                },
+                {
+                  key: "note",
+                  label: "Note",
+                  render: (n: ErObservationNote) => <Text size="sm">{n.note ?? "—"}</Text>,
+                },
+              ]}
+              data={notes}
+              rowKey={(n) => n.id}
+            />
           )}
         </Stack>
       </Card>

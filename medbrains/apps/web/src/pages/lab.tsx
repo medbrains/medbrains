@@ -141,7 +141,7 @@ import { LabTestSearchSelect } from "@/components/LabTestSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import {
   labB2bClientTypeOptions,
   labBethesdaCategoryOptions,
@@ -1177,80 +1177,87 @@ function LabOrderDetail({
       <Text fw={600} mt="md">
         {t("results")}
       </Text>
-      <Table striped>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Parameter</Table.Th>
-            <Table.Th>Value</Table.Th>
-            <Table.Th>Unit</Table.Th>
-            <Table.Th>Range</Table.Th>
-            <Table.Th>Flag</Table.Th>
-            <Table.Th>Delta</Table.Th>
-            {canVerify && !order.is_report_locked && <Table.Th>Auto-Validate</Table.Th>}
-            {canAmend && !order.is_report_locked && <Table.Th>Amend</Table.Th>}
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {data.results.map((r: LabResult) => (
-            <Table.Tr key={r.id}>
-              <Table.Td>{r.parameter_name}</Table.Td>
-              <Table.Td fw={500}>{r.value}</Table.Td>
-              <Table.Td>{r.unit ?? "—"}</Table.Td>
-              <Table.Td>{r.normal_range ?? "—"}</Table.Td>
-              <Table.Td>
-                {r.flag ? (
-                  <Badge tone={flagColors[r.flag] ?? "neutral"} size="sm">
-                    {r.flag.replace(/_/g, " ")}
-                  </Badge>
-                ) : (
-                  "—"
-                )}
-              </Table.Td>
-              <Table.Td>
-                {r.is_delta_flagged ? (
-                  <Badge tone="danger" size="sm">
-                    Δ {r.delta_percent ? `${Number(r.delta_percent).toFixed(1)}%` : "flagged"}
-                  </Badge>
-                ) : r.delta_percent ? (
-                  <Text size="xs" c="dimmed">
-                    {Number(r.delta_percent).toFixed(1)}%
-                  </Text>
-                ) : (
-                  "—"
-                )}
-              </Table.Td>
-              {canVerify && !order.is_report_locked && (
-                <Table.Td>
-                  {(order.status === "completed" || order.status === "processing") && (
-                    <Tooltip label={t("label.autoValidateResult")}>
-                      <IconButton
-                        size="xs"
-                        tone="success"
-                        loading={autoValidateMutation.isPending}
-                        onClick={() => autoValidateMutation.mutate(r.id)}
-                        aria-label={t("aria.robot")}
-                      >
-                        <IconRobot size={12} />
-                      </IconButton>
-                    </Tooltip>
-                  )}
-                </Table.Td>
-              )}
-              {canAmend && !order.is_report_locked && (
-                <Table.Td>
-                  <IconButton
-                    size="xs"
-                    onClick={() => setAmendData({ resultId: r.id, value: r.value, reason: "" })}
-                    aria-label={t("aria.refresh")}
-                  >
-                    <IconRefresh size={12} />
-                  </IconButton>
-                </Table.Td>
-              )}
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
+      <DataTable
+        columns={[
+          { key: "parameter", label: "Parameter", render: (r: LabResult) => r.parameter_name },
+          {
+            key: "value",
+            label: "Value",
+            render: (r: LabResult) => <Text fw={500}>{r.value}</Text>,
+          },
+          { key: "unit", label: "Unit", render: (r: LabResult) => r.unit ?? "—" },
+          { key: "range", label: "Range", render: (r: LabResult) => r.normal_range ?? "—" },
+          {
+            key: "flag",
+            label: "Flag",
+            render: (r: LabResult) =>
+              r.flag ? (
+                <Badge tone={flagColors[r.flag] ?? "neutral"} size="sm">
+                  {r.flag.replace(/_/g, " ")}
+                </Badge>
+              ) : (
+                "—"
+              ),
+          },
+          {
+            key: "delta",
+            label: "Delta",
+            render: (r: LabResult) =>
+              r.is_delta_flagged ? (
+                <Badge tone="danger" size="sm">
+                  Δ {r.delta_percent ? `${Number(r.delta_percent).toFixed(1)}%` : "flagged"}
+                </Badge>
+              ) : r.delta_percent ? (
+                <Text size="xs" c="dimmed">
+                  {Number(r.delta_percent).toFixed(1)}%
+                </Text>
+              ) : (
+                "—"
+              ),
+          },
+          ...(canVerify && !order.is_report_locked
+            ? [
+                {
+                  key: "auto-validate",
+                  label: "Auto-Validate",
+                  render: (r: LabResult) =>
+                    (order.status === "completed" || order.status === "processing") && (
+                      <Tooltip label={t("label.autoValidateResult")}>
+                        <IconButton
+                          size="xs"
+                          tone="success"
+                          loading={autoValidateMutation.isPending}
+                          onClick={() => autoValidateMutation.mutate(r.id)}
+                          aria-label={t("aria.robot")}
+                        >
+                          <IconRobot size={12} />
+                        </IconButton>
+                      </Tooltip>
+                    ),
+                },
+              ]
+            : []),
+          ...(canAmend && !order.is_report_locked
+            ? [
+                {
+                  key: "amend",
+                  label: "Amend",
+                  render: (r: LabResult) => (
+                    <IconButton
+                      size="xs"
+                      onClick={() => setAmendData({ resultId: r.id, value: r.value, reason: "" })}
+                      aria-label={t("aria.refresh")}
+                    >
+                      <IconRefresh size={12} />
+                    </IconButton>
+                  ),
+                },
+              ]
+            : []),
+        ]}
+        data={data?.results ?? []}
+        rowKey={(r) => r.id}
+      />
 
       {/* Amendment form */}
       {amendData && (

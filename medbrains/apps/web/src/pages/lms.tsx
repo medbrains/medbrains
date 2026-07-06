@@ -31,7 +31,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { lmsService } from "@/services/lms.service";
 
@@ -283,54 +283,62 @@ function ComplianceTab() {
   if (rows.length === 0) return <EmptyState message="No compliance data available." />;
 
   return (
-    <Table striped highlightOnHover withTableBorder withColumnBorders>
-      <Table.Thead>
-        <Table.Tr>
-          <Table.Th>Course</Table.Th>
-          <Table.Th>Mandatory</Table.Th>
-          <Table.Th ta="center">Enrolled</Table.Th>
-          <Table.Th ta="center">Completed</Table.Th>
-          <Table.Th ta="center">Overdue</Table.Th>
-          <Table.Th ta="center">Completion %</Table.Th>
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>
-        {rows.map((row: LmsComplianceRow) => {
-          const pct =
-            row.total_enrolled > 0 ? Math.round((row.completed / row.total_enrolled) * 100) : 0;
-          return (
-            <Table.Tr key={row.course_id}>
-              <Table.Td>{row.course_title}</Table.Td>
-              <Table.Td>
-                {row.is_mandatory ? (
-                  <Badge size="xs" tone="danger">
-                    Yes
-                  </Badge>
-                ) : (
-                  <Text size="xs" c="dimmed">
-                    No
-                  </Text>
-                )}
-              </Table.Td>
-              <Table.Td ta="center">{row.total_enrolled}</Table.Td>
-              <Table.Td ta="center">{row.completed}</Table.Td>
-              <Table.Td ta="center">
-                {row.overdue > 0 ? (
-                  <Badge size="xs" tone="danger">
-                    {row.overdue}
-                  </Badge>
-                ) : (
-                  0
-                )}
-              </Table.Td>
-              <Table.Td ta="center">
-                <Progress value={pct} size="sm" color={pct >= 80 ? "green" : "yellow"} />
-              </Table.Td>
-            </Table.Tr>
-          );
-        })}
-      </Table.Tbody>
-    </Table>
+    <DataTable
+      columns={[
+        {
+          key: "course_title",
+          label: "Course",
+          render: (row: LmsComplianceRow) => row.course_title,
+        },
+        {
+          key: "is_mandatory",
+          label: "Mandatory",
+          render: (row: LmsComplianceRow) =>
+            row.is_mandatory ? (
+              <Badge size="xs" tone="danger">
+                Yes
+              </Badge>
+            ) : (
+              <Text size="xs" c="dimmed">
+                No
+              </Text>
+            ),
+        },
+        {
+          key: "total_enrolled",
+          label: "Enrolled",
+          render: (row: LmsComplianceRow) => row.total_enrolled,
+        },
+        {
+          key: "completed",
+          label: "Completed",
+          render: (row: LmsComplianceRow) => row.completed,
+        },
+        {
+          key: "overdue",
+          label: "Overdue",
+          render: (row: LmsComplianceRow) =>
+            row.overdue > 0 ? (
+              <Badge size="xs" tone="danger">
+                {row.overdue}
+              </Badge>
+            ) : (
+              0
+            ),
+        },
+        {
+          key: "completion_pct",
+          label: "Completion %",
+          render: (row: LmsComplianceRow) => {
+            const pct =
+              row.total_enrolled > 0 ? Math.round((row.completed / row.total_enrolled) * 100) : 0;
+            return <Progress value={pct} size="sm" color={pct >= 80 ? "green" : "yellow"} />;
+          },
+        },
+      ]}
+      data={rows}
+      rowKey={(row) => row.course_id}
+    />
   );
 }
 

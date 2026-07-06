@@ -1,8 +1,9 @@
-import { Alert, Badge, Group, Loader, Stack, Table, Text, TextInput } from "@mantine/core";
+import { Alert, Badge, Group, Loader, Stack, Text, TextInput } from "@mantine/core";
 import type { PincodeResult } from "@medbrains/types";
 import { IconMapPin, IconSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { DataTable } from "@/components";
 import { lookupsService } from "@/services/lookups.service";
 
 interface PinCodeInputProps {
@@ -59,47 +60,47 @@ export function PinCodeInput({ onSelect }: PinCodeInputProps) {
       )}
 
       {results && results.length > 0 && (
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Town</Table.Th>
-              <Table.Th>Subdistrict</Table.Th>
-              <Table.Th>District</Table.Th>
-              <Table.Th>State</Table.Th>
-              <Table.Th>Country</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {results.map((r) => (
-              <Table.Tr
-                key={r.town_id}
-                style={onSelect ? { cursor: "pointer" } : undefined}
-                onClick={onSelect ? () => onSelect(r) : undefined}
-              >
-                <Table.Td>
-                  <Group gap={6}>
-                    <IconMapPin size={14} color="var(--mantine-color-blue-6)" />
-                    <Text size="sm">{r.town_name}</Text>
-                  </Group>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm">{r.subdistrict_name}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm">{r.district_name}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm">{r.state_name}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Badge variant="light" size="sm">
-                    {r.country_name}
-                  </Badge>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
+        <DataTable
+          columns={[
+            {
+              key: "town",
+              label: "Town",
+              render: (r: PincodeResult) => (
+                <Group gap={6}>
+                  <IconMapPin size={14} color="var(--mantine-color-blue-6)" />
+                  <Text size="sm">{r.town_name}</Text>
+                </Group>
+              ),
+            },
+            {
+              key: "subdistrict",
+              label: "Subdistrict",
+              render: (r: PincodeResult) => <Text size="sm">{r.subdistrict_name}</Text>,
+            },
+            {
+              key: "district",
+              label: "District",
+              render: (r: PincodeResult) => <Text size="sm">{r.district_name}</Text>,
+            },
+            {
+              key: "state",
+              label: "State",
+              render: (r: PincodeResult) => <Text size="sm">{r.state_name}</Text>,
+            },
+            {
+              key: "country",
+              label: "Country",
+              render: (r: PincodeResult) => (
+                <Badge variant="light" size="sm">
+                  {r.country_name}
+                </Badge>
+              ),
+            },
+          ]}
+          data={results}
+          rowKey={(r) => r.town_id}
+          onRowClick={onSelect ? (r) => onSelect(r) : undefined}
+        />
       )}
     </Stack>
   );

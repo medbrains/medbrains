@@ -39,7 +39,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "@/components/PageHeader";
-import { Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
+import { DataTable } from "@/components";
+import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { parseDate, toDateString, todayDateString } from "@/lib/date-utils";
 import { appointmentsService } from "@/services/appointments.service";
@@ -617,83 +618,93 @@ export function AppointmentsPage() {
           <Text c="dimmed">Loading appointments...</Text>
         </Stack>
       ) : (
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Token</Table.Th>
-              <Table.Th>Time</Table.Th>
-              <Table.Th>Patient</Table.Th>
-              <Table.Th>Doctor</Table.Th>
-              <Table.Th>Type</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>Reason</Table.Th>
-              {(canUpdate || canCancel) && <Table.Th>Actions</Table.Th>}
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {appointments && appointments.length > 0 ? (
-              appointments.map((appt) => {
-                const canMoveToOpd =
-                  canUpdate &&
-                  canCreateOpdVisit &&
-                  !appt.encounter_id &&
-                  OPD_CHECK_IN_STATUSES.has(appt.status);
-                const isFutureAppointment = appt.appointment_date > currentDate;
-                const canCheckInToOpd = canMoveToOpd && !isFutureAppointment;
-                const canManageOpenAppointment =
-                  canUpdate && (appt.status === "scheduled" || appt.status === "confirmed");
-                const canCompleteAppointment =
-                  canUpdate &&
-                  !!appt.encounter_id &&
-                  (appt.status === "checked_in" || appt.status === "in_consultation");
-                const checkInTooltip = canCheckInToOpd
-                  ? "Create OPD encounter and queue token"
-                  : "Available on the appointment date";
-
-                return (
-                  <Table.Tr key={appt.id}>
-                    <Table.Td>
-                      <Text size="sm" fw={600} ff="monospace">
-                        {appt.token_number ?? "-"}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Group gap={4}>
-                        <IconClock size={14} />
-                        <Text size="sm">
-                          {formatTime(appt.slot_start)} - {formatTime(appt.slot_end)}
-                        </Text>
-                      </Group>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm" c={canViewPatientRecord ? undefined : "dimmed"}>
-                        {canViewPatientRecord ? (appt.patient_name ?? "Patient") : "Restricted"}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{appt.doctor_name}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge tone="neutral" variant="light" size="sm">
-                        {APPT_TYPE_LABELS[appt.appointment_type] ?? appt.appointment_type}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge
-                        tone={STATUS_COLORS[appt.status] ?? "neutral"}
-                        variant="light"
-                        size="sm"
-                      >
-                        {appt.status.replace(/_/g, " ")}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm" c={appt.reason ? undefined : "dimmed"} lineClamp={1}>
-                        {appt.reason ?? "-"}
-                      </Text>
-                    </Table.Td>
-                    {(canUpdate || canCancel) && (
-                      <Table.Td>
+        <DataTable
+          columns={[
+            {
+              key: "token",
+              label: "Token",
+              render: (appt: AppointmentWithPatient) => (
+                <Text size="sm" fw={600} ff="monospace">
+                  {appt.token_number ?? "-"}
+                </Text>
+              ),
+            },
+            {
+              key: "time",
+              label: "Time",
+              render: (appt: AppointmentWithPatient) => (
+                <Group gap={4}>
+                  <IconClock size={14} />
+                  <Text size="sm">
+                    {formatTime(appt.slot_start)} - {formatTime(appt.slot_end)}
+                  </Text>
+                </Group>
+              ),
+            },
+            {
+              key: "patient",
+              label: "Patient",
+              render: (appt: AppointmentWithPatient) => (
+                <Text size="sm" c={canViewPatientRecord ? undefined : "dimmed"}>
+                  {canViewPatientRecord ? (appt.patient_name ?? "Patient") : "Restricted"}
+                </Text>
+              ),
+            },
+            {
+              key: "doctor",
+              label: "Doctor",
+              render: (appt: AppointmentWithPatient) => <Text size="sm">{appt.doctor_name}</Text>,
+            },
+            {
+              key: "type",
+              label: "Type",
+              render: (appt: AppointmentWithPatient) => (
+                <Badge tone="neutral" variant="light" size="sm">
+                  {APPT_TYPE_LABELS[appt.appointment_type] ?? appt.appointment_type}
+                </Badge>
+              ),
+            },
+            {
+              key: "status",
+              label: "Status",
+              render: (appt: AppointmentWithPatient) => (
+                <Badge tone={STATUS_COLORS[appt.status] ?? "neutral"} variant="light" size="sm">
+                  {appt.status.replace(/_/g, " ")}
+                </Badge>
+              ),
+            },
+            {
+              key: "reason",
+              label: "Reason",
+              render: (appt: AppointmentWithPatient) => (
+                <Text size="sm" c={appt.reason ? undefined : "dimmed"} lineClamp={1}>
+                  {appt.reason ?? "-"}
+                </Text>
+              ),
+            },
+            ...(canUpdate || canCancel
+              ? [
+                  {
+                    key: "actions",
+                    label: "Actions",
+                    render: (appt: AppointmentWithPatient) => {
+                      const canMoveToOpd =
+                        canUpdate &&
+                        canCreateOpdVisit &&
+                        !appt.encounter_id &&
+                        OPD_CHECK_IN_STATUSES.has(appt.status);
+                      const isFutureAppointment = appt.appointment_date > currentDate;
+                      const canCheckInToOpd = canMoveToOpd && !isFutureAppointment;
+                      const canManageOpenAppointment =
+                        canUpdate && (appt.status === "scheduled" || appt.status === "confirmed");
+                      const canCompleteAppointment =
+                        canUpdate &&
+                        !!appt.encounter_id &&
+                        (appt.status === "checked_in" || appt.status === "in_consultation");
+                      const checkInTooltip = canCheckInToOpd
+                        ? "Create OPD encounter and queue token"
+                        : "Available on the appointment date";
+                      return (
                         <Group gap="xs" wrap="nowrap">
                           {canMoveToOpd && (
                             <Tooltip label={checkInTooltip}>
@@ -767,22 +778,16 @@ export function AppointmentsPage() {
                               </Tooltip>
                             )}
                         </Group>
-                      </Table.Td>
-                    )}
-                  </Table.Tr>
-                );
-              })
-            ) : (
-              <Table.Tr>
-                <Table.Td colSpan={8}>
-                  <Text c="dimmed" ta="center" py="lg">
-                    No appointments for the selected date.
-                  </Text>
-                </Table.Td>
-              </Table.Tr>
-            )}
-          </Table.Tbody>
-        </Table>
+                      );
+                    },
+                  },
+                ]
+              : []),
+          ]}
+          data={appointments ?? []}
+          rowKey={(appt) => appt.id}
+          emptyTitle="No appointments for the selected date."
+        />
       )}
 
       <BookAppointmentModal opened={modalOpen} onClose={() => setModalOpen(false)} />

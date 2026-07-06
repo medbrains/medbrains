@@ -8,7 +8,8 @@ import { IconPlus, IconTool } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
-import { Alert, Badge, Button, Card, Input, Select, Table, TextArea, toast } from "@/components/ui";
+import { DataTable } from "@/components";
+import { Alert, Badge, Button, Card, Input, Select, TextArea, toast } from "@/components/ui";
 
 // OT implant register — NABH-27 traceability. Implants used in a case are
 // recorded into the shared implant_registry (serial, manufacturer, model,
@@ -213,46 +214,56 @@ export function OtImplantRegisterPanel({ booking }: { booking: OtBooking }) {
               recall (serial, manufacturer, warranty).
             </Alert>
           ) : (
-            <Table>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Implant</Table.Th>
-                  <Table.Th>Serial / lot</Table.Th>
-                  <Table.Th>Make / model</Table.Th>
-                  <Table.Th>Site</Table.Th>
-                  <Table.Th>Implanted</Table.Th>
-                  <Table.Th>Warranty</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {entries.map((e) => (
-                  <Table.Tr key={e.id}>
-                    <Table.Td>
-                      <Text size="sm">{itemName(e)}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm" ff="monospace">
-                        {e.serial_number ?? "—"}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">
-                        {[e.manufacturer, e.model_number].filter(Boolean).join(" · ") || "—"}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{e.implant_site ?? "—"}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{dateOf(e.implant_date)}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{dateOf(e.warranty_expiry)}</Text>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
+            <DataTable
+              columns={[
+                {
+                  key: "implant",
+                  label: "Implant",
+                  render: (e: ImplantRegistryEntry) => <Text size="sm">{itemName(e)}</Text>,
+                },
+                {
+                  key: "serial",
+                  label: "Serial / lot",
+                  render: (e: ImplantRegistryEntry) => (
+                    <Text size="sm" ff="monospace">
+                      {e.serial_number ?? "—"}
+                    </Text>
+                  ),
+                },
+                {
+                  key: "make_model",
+                  label: "Make / model",
+                  render: (e: ImplantRegistryEntry) => (
+                    <Text size="sm">
+                      {[e.manufacturer, e.model_number].filter(Boolean).join(" · ") || "—"}
+                    </Text>
+                  ),
+                },
+                {
+                  key: "site",
+                  label: "Site",
+                  render: (e: ImplantRegistryEntry) => (
+                    <Text size="sm">{e.implant_site ?? "—"}</Text>
+                  ),
+                },
+                {
+                  key: "implanted",
+                  label: "Implanted",
+                  render: (e: ImplantRegistryEntry) => (
+                    <Text size="sm">{dateOf(e.implant_date)}</Text>
+                  ),
+                },
+                {
+                  key: "warranty",
+                  label: "Warranty",
+                  render: (e: ImplantRegistryEntry) => (
+                    <Text size="sm">{dateOf(e.warranty_expiry)}</Text>
+                  ),
+                },
+              ]}
+              data={entries}
+              rowKey={(e) => e.id}
+            />
           )}
         </Stack>
       </Card>

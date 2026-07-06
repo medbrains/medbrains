@@ -32,7 +32,6 @@ import {
   Loader,
   Select,
   Stack,
-  Table,
   Text,
   TextInput,
   Title,
@@ -54,6 +53,7 @@ import { IconShare, IconShieldLock, IconUserCheck, IconUsersGroup } from "@table
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { DataTable } from "@/components";
 import { type SharingSubjects, sharingService } from "@/services/sharing.service";
 
 interface Props {
@@ -322,47 +322,54 @@ export function ShareDrawer({
           {grantsQuery.isLoading ? (
             <Loader size="sm" />
           ) : grantsQuery.data && grantsQuery.data.length > 0 ? (
-            <Table withTableBorder>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Subject</Table.Th>
-                  <Table.Th>Relation</Table.Th>
-                  <Table.Th>Expires</Table.Th>
-                  <Table.Th />
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {grantsQuery.data.map((g) => (
-                  <Table.Tr
-                    key={`${g.object_type}-${g.object_id}-${g.subject_type}-${g.subject_id}-${g.relation}`}
-                  >
-                    <Table.Td>
+            <DataTable
+              columns={[
+                {
+                  key: "subject",
+                  label: "Subject",
+                  render: (g: NonNullable<typeof grantsQuery.data>[number]) => (
+                    <>
                       <Text size="sm" fw={500}>
                         {g.subject_type}
                       </Text>
                       <Text size="xs" c="dimmed" ff="monospace">
                         {g.subject_id.slice(0, 8)}…
                       </Text>
-                    </Table.Td>
-                    <Table.Td>{g.relation}</Table.Td>
-                    <Table.Td>
-                      {g.expires_at ? new Date(g.expires_at).toLocaleString() : "permanent"}
-                    </Table.Td>
-                    <Table.Td>
-                      <Button
-                        variant="subtle"
-                        color="red"
-                        size="xs"
-                        onClick={() => revokeMutation.mutate(g)}
-                        loading={revokeMutation.isPending}
-                      >
-                        Revoke
-                      </Button>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
+                    </>
+                  ),
+                },
+                {
+                  key: "relation",
+                  label: "Relation",
+                  render: (g: NonNullable<typeof grantsQuery.data>[number]) => g.relation,
+                },
+                {
+                  key: "expires",
+                  label: "Expires",
+                  render: (g: NonNullable<typeof grantsQuery.data>[number]) =>
+                    g.expires_at ? new Date(g.expires_at).toLocaleString() : "permanent",
+                },
+                {
+                  key: "actions",
+                  label: "",
+                  render: (g: NonNullable<typeof grantsQuery.data>[number]) => (
+                    <Button
+                      variant="subtle"
+                      color="red"
+                      size="xs"
+                      onClick={() => revokeMutation.mutate(g)}
+                      loading={revokeMutation.isPending}
+                    >
+                      Revoke
+                    </Button>
+                  ),
+                },
+              ]}
+              data={grantsQuery.data}
+              rowKey={(g) =>
+                `${g.object_type}-${g.object_id}-${g.subject_type}-${g.subject_id}-${g.relation}`
+              }
+            />
           ) : (
             <Text c="dimmed" size="sm">
               No grants yet. The resource is visible only to its owner / attending / department

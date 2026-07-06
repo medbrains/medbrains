@@ -1,10 +1,10 @@
-import { ActionIcon, Badge, Button, Group, Table, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Badge, Button, Group, Text, Tooltip } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import { P, type PharmacyCatalog, type PrescriptionItemInput } from "@medbrains/types";
 import { IconDeviceFloppy, IconPill, IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
+import { DataTable } from "@/components";
 import { instructionsDisplayText } from "@/lib/medication-timing-utils";
-import styles from "./prescription-writer.module.scss";
 
 interface PrescriptionItemsTableProps {
   items: PrescriptionItemInput[];
@@ -34,36 +34,18 @@ export function PrescriptionItemsTable({
 
   return (
     <>
-      <Table striped className={styles.pendingTable}>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>{t("prescription.drug")}</Table.Th>
-            <Table.Th>{t("prescription.dosage")}</Table.Th>
-            <Table.Th>{t("prescription.frequency")}</Table.Th>
-            <Table.Th>{t("prescription.duration")}</Table.Th>
-            <Table.Th>{t("prescription.route")}</Table.Th>
-            <Table.Th>When to Take</Table.Th>
-            <Table.Th w={40} />
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {items.map((item, idx) => {
-            const timing = instructionsDisplayText(item.instructions ?? null);
-            const catalogItem = item.catalog_item_id
-              ? drugCatalog.find((drug) => drug.id === item.catalog_item_id)
-              : undefined;
-            const stockWarning = prescriptionStockWarning(catalogItem, canViewStockDetail);
-            const rowKey = [
-              item.catalog_item_id ?? item.drug_name,
-              item.dosage,
-              item.frequency,
-              item.duration,
-              item.route ?? "",
-              item.instructions ?? "",
-            ].join(":");
-            return (
-              <Table.Tr key={rowKey}>
-                <Table.Td>
+      <DataTable
+        columns={[
+          {
+            key: "drug",
+            label: t("prescription.drug"),
+            render: (item: PrescriptionItemInput) => {
+              const catalogItem = item.catalog_item_id
+                ? drugCatalog.find((drug) => drug.id === item.catalog_item_id)
+                : undefined;
+              const stockWarning = prescriptionStockWarning(catalogItem, canViewStockDetail);
+              return (
+                <>
                   <Text size="sm" fw={500}>
                     {item.drug_name}
                   </Text>
@@ -74,47 +56,83 @@ export function PrescriptionItemsTable({
                       </Badge>
                     </Tooltip>
                   )}
-                </Table.Td>
-                <Table.Td>{item.dosage}</Table.Td>
-                <Table.Td>
-                  <Badge size="xs" variant="light">
-                    {item.frequency}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>{item.duration}</Table.Td>
-                <Table.Td>{item.route ?? "—"}</Table.Td>
-                <Table.Td>
-                  {timing ? (
-                    <Tooltip label={timing} multiline maw={300}>
-                      <Text size="xs" c="dimmed" lineClamp={1} style={{ maxWidth: 160 }}>
-                        {timing}
-                      </Text>
-                    </Tooltip>
-                  ) : (
-                    <Text size="xs" c="dimmed">
-                      —
-                    </Text>
-                  )}
-                </Table.Td>
-                <Table.Td>
-                  <ActionIcon
-                    variant="subtle"
-                    color="danger"
-                    size="xs"
-                    onClick={() => {
-                      if (canWritePrescription) onRemoveItem(idx);
-                    }}
-                    disabled={!canWritePrescription}
-                    aria-label="Close"
-                  >
-                    <IconX size={12} />
-                  </ActionIcon>
-                </Table.Td>
-              </Table.Tr>
-            );
-          })}
-        </Table.Tbody>
-      </Table>
+                </>
+              );
+            },
+          },
+          {
+            key: "dosage",
+            label: t("prescription.dosage"),
+            render: (item: PrescriptionItemInput) => item.dosage,
+          },
+          {
+            key: "frequency",
+            label: t("prescription.frequency"),
+            render: (item: PrescriptionItemInput) => (
+              <Badge size="xs" variant="light">
+                {item.frequency}
+              </Badge>
+            ),
+          },
+          {
+            key: "duration",
+            label: t("prescription.duration"),
+            render: (item: PrescriptionItemInput) => item.duration,
+          },
+          {
+            key: "route",
+            label: t("prescription.route"),
+            render: (item: PrescriptionItemInput) => item.route ?? "—",
+          },
+          {
+            key: "timing",
+            label: "When to Take",
+            render: (item: PrescriptionItemInput) => {
+              const timing = instructionsDisplayText(item.instructions ?? null);
+              return timing ? (
+                <Tooltip label={timing} multiline maw={300}>
+                  <Text size="xs" c="dimmed" lineClamp={1} style={{ maxWidth: 160 }}>
+                    {timing}
+                  </Text>
+                </Tooltip>
+              ) : (
+                <Text size="xs" c="dimmed">
+                  —
+                </Text>
+              );
+            },
+          },
+          {
+            key: "actions",
+            label: "",
+            render: (item: PrescriptionItemInput) => (
+              <ActionIcon
+                variant="subtle"
+                color="danger"
+                size="xs"
+                onClick={() => {
+                  if (canWritePrescription) onRemoveItem(items.indexOf(item));
+                }}
+                disabled={!canWritePrescription}
+                aria-label="Close"
+              >
+                <IconX size={12} />
+              </ActionIcon>
+            ),
+          },
+        ]}
+        data={items}
+        rowKey={(item) =>
+          [
+            item.catalog_item_id ?? item.drug_name,
+            item.dosage,
+            item.frequency,
+            item.duration,
+            item.route ?? "",
+            item.instructions ?? "",
+          ].join(":")
+        }
+      />
       <Group justify="flex-end">
         <Button
           size="sm"

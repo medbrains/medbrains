@@ -1,7 +1,8 @@
-import { Badge, Box, Collapse, Group, Table, Text, UnstyledButton } from "@mantine/core";
+import { Badge, Box, Collapse, Group, Text, UnstyledButton } from "@mantine/core";
 import type { FieldMapping, MappingSource } from "@medbrains/types";
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
+import { DataTable } from "@/components";
 import { evaluateMapping, type MappingEvalResult } from "./transformEvaluator";
 
 // ── Types ─────────────────────────────────────────────────
@@ -97,79 +98,74 @@ export function PreviewPanel({ mappings, sampleData }: PreviewPanelProps) {
               No mappings to preview.
             </Text>
           ) : (
-            <Table
-              striped
-              highlightOnHover
-              withTableBorder
-              fz="xs"
-              styles={{
-                th: { padding: "4px 8px", fontSize: "var(--mantine-font-size-xs)" },
-                td: { padding: "4px 8px" },
-              }}
-            >
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Source</Table.Th>
-                  <Table.Th>Input</Table.Th>
-                  <Table.Th>Transforms</Table.Th>
-                  <Table.Th>Output</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {results.map((result) => {
-                  const mapping = mappings.find((m) => m.id === result.mappingId);
-                  return (
-                    <Table.Tr key={result.mappingId}>
-                      <Table.Td>
-                        <Text size="xs" fw={500}>
-                          {mapping ? getSourceLabel(mapping) : "(none)"}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="xs" c="dimmed">
-                          {truncate(result.sourceValue)}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        {result.steps.length > 0 ? (
-                          <Group gap={4} wrap="wrap">
-                            {result.steps.map((step) => (
-                              <Badge
-                                key={step.stepId}
-                                size="xs"
-                                variant="light"
-                                color={step.error ? "danger" : "primary"}
-                              >
-                                {step.operation}
-                              </Badge>
-                            ))}
-                          </Group>
-                        ) : (
-                          <Text size="xs" c="dimmed">
-                            passthrough
-                          </Text>
-                        )}
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="xs" fw={500}>
-                          {truncate(result.finalOutput)}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Badge
-                          size="xs"
-                          variant="light"
-                          color={result.error ? "danger" : "success"}
-                        >
-                          {result.error ? "error" : "ok"}
-                        </Badge>
-                      </Table.Td>
-                    </Table.Tr>
-                  );
-                })}
-              </Table.Tbody>
-            </Table>
+            <DataTable
+              columns={[
+                {
+                  key: "source",
+                  label: "Source",
+                  render: (result: MappingEvalResult) => {
+                    const mapping = mappings.find((m) => m.id === result.mappingId);
+                    return (
+                      <Text size="xs" fw={500}>
+                        {mapping ? getSourceLabel(mapping) : "(none)"}
+                      </Text>
+                    );
+                  },
+                },
+                {
+                  key: "input",
+                  label: "Input",
+                  render: (result: MappingEvalResult) => (
+                    <Text size="xs" c="dimmed">
+                      {truncate(result.sourceValue)}
+                    </Text>
+                  ),
+                },
+                {
+                  key: "transforms",
+                  label: "Transforms",
+                  render: (result: MappingEvalResult) =>
+                    result.steps.length > 0 ? (
+                      <Group gap={4} wrap="wrap">
+                        {result.steps.map((step) => (
+                          <Badge
+                            key={step.stepId}
+                            size="xs"
+                            variant="light"
+                            color={step.error ? "danger" : "primary"}
+                          >
+                            {step.operation}
+                          </Badge>
+                        ))}
+                      </Group>
+                    ) : (
+                      <Text size="xs" c="dimmed">
+                        passthrough
+                      </Text>
+                    ),
+                },
+                {
+                  key: "output",
+                  label: "Output",
+                  render: (result: MappingEvalResult) => (
+                    <Text size="xs" fw={500}>
+                      {truncate(result.finalOutput)}
+                    </Text>
+                  ),
+                },
+                {
+                  key: "status",
+                  label: "Status",
+                  render: (result: MappingEvalResult) => (
+                    <Badge size="xs" variant="light" color={result.error ? "danger" : "success"}>
+                      {result.error ? "error" : "ok"}
+                    </Badge>
+                  ),
+                },
+              ]}
+              data={results}
+              rowKey={(result) => result.mappingId}
+            />
           )}
         </Box>
       </Collapse>
