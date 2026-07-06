@@ -30,7 +30,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { PageHeader } from "@/components";
+import { DataTable, PageHeader } from "@/components";
 import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { lmsService } from "@/services/lms.service";
@@ -346,40 +346,45 @@ function CertificatesTab() {
   if (certs.length === 0) return <EmptyState message="No certificates issued yet." />;
 
   return (
-    <Table striped highlightOnHover withTableBorder withColumnBorders>
-      <Table.Thead>
-        <Table.Tr>
-          <Table.Th>Certificate No.</Table.Th>
-          <Table.Th>Course / Path</Table.Th>
-          <Table.Th>Issued Date</Table.Th>
-          <Table.Th>Expiry</Table.Th>
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>
-        {certs.map((c: LmsCertificate) => (
-          <Table.Tr key={c.id}>
-            <Table.Td>
-              <Text size="sm" ff="monospace">
-                {c.certificate_no}
+    <DataTable
+      columns={[
+        {
+          key: "certificate_no",
+          label: "Certificate No.",
+          render: (c: LmsCertificate) => (
+            <Text size="sm" ff="monospace">
+              {c.certificate_no}
+            </Text>
+          ),
+        },
+        {
+          key: "course",
+          label: "Course / Path",
+          render: (c: LmsCertificate) => c.course_id ?? c.path_id ?? "\u2014",
+        },
+        {
+          key: "issued",
+          label: "Issued Date",
+          render: (c: LmsCertificate) => new Date(c.issued_at).toLocaleDateString(),
+        },
+        {
+          key: "expiry",
+          label: "Expiry",
+          render: (c: LmsCertificate) =>
+            c.expires_at ? (
+              <Text size="sm" c={new Date(c.expires_at) < new Date() ? "red" : undefined}>
+                {new Date(c.expires_at).toLocaleDateString()}
               </Text>
-            </Table.Td>
-            <Table.Td>{c.course_id ?? c.path_id ?? "\u2014"}</Table.Td>
-            <Table.Td>{new Date(c.issued_at).toLocaleDateString()}</Table.Td>
-            <Table.Td>
-              {c.expires_at ? (
-                <Text size="sm" c={new Date(c.expires_at) < new Date() ? "red" : undefined}>
-                  {new Date(c.expires_at).toLocaleDateString()}
-                </Text>
-              ) : (
-                <Text size="sm" c="dimmed">
-                  No expiry
-                </Text>
-              )}
-            </Table.Td>
-          </Table.Tr>
-        ))}
-      </Table.Tbody>
-    </Table>
+            ) : (
+              <Text size="sm" c="dimmed">
+                No expiry
+              </Text>
+            ),
+        },
+      ]}
+      data={certs}
+      rowKey={(c) => c.id}
+    />
   );
 }
 

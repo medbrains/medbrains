@@ -307,30 +307,40 @@ function InfusionTracker({
       </Group>
 
       {activeInfusions.length > 0 ? (
-        <Table withTableBorder withColumnBorders>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Drug</Table.Th>
-              <Table.Th>Rate (mL/hr)</Table.Th>
-              <Table.Th>Concentration</Table.Th>
-              <Table.Th>Start Time</Table.Th>
-              <Table.Th>Duration (hrs)</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {activeInfusions.map((inf) => (
-              <Table.Tr key={getInfusionKey(inf)}>
-                <Table.Td>{inf.drug_name ?? "—"}</Table.Td>
-                <Table.Td>{inf.rate_ml_hr != null ? String(inf.rate_ml_hr) : "—"}</Table.Td>
-                <Table.Td>{inf.concentration ?? "—"}</Table.Td>
-                <Table.Td>
-                  {inf.start_time ? new Date(inf.start_time).toLocaleTimeString() : "—"}
-                </Table.Td>
-                <Table.Td>{inf.duration_hours != null ? String(inf.duration_hours) : "—"}</Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
+        <DataTable
+          columns={[
+            {
+              key: "drug",
+              label: "Drug",
+              render: (inf: InfusionEntry) => inf.drug_name ?? "—",
+            },
+            {
+              key: "rate",
+              label: "Rate (mL/hr)",
+              render: (inf: InfusionEntry) =>
+                inf.rate_ml_hr != null ? String(inf.rate_ml_hr) : "—",
+            },
+            {
+              key: "concentration",
+              label: "Concentration",
+              render: (inf: InfusionEntry) => inf.concentration ?? "—",
+            },
+            {
+              key: "start_time",
+              label: "Start Time",
+              render: (inf: InfusionEntry) =>
+                inf.start_time ? new Date(inf.start_time).toLocaleTimeString() : "—",
+            },
+            {
+              key: "duration",
+              label: "Duration (hrs)",
+              render: (inf: InfusionEntry) =>
+                inf.duration_hours != null ? String(inf.duration_hours) : "—",
+            },
+          ]}
+          data={activeInfusions}
+          rowKey={getInfusionKey}
+        />
       ) : (
         <Text c="dimmed" size="sm">
           No active infusions recorded

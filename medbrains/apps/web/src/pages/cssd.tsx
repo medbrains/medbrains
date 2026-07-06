@@ -247,6 +247,22 @@ function InstrumentsTab() {
     },
   ];
 
+  const setColumns = [
+    { key: "set_code" as const, label: "Code", render: (s: CssdInstrumentSet) => s.set_code },
+    { key: "set_name" as const, label: "Name", render: (s: CssdInstrumentSet) => s.set_name },
+    {
+      key: "department" as const,
+      label: "Department",
+      render: (s: CssdInstrumentSet) => s.department ?? "—",
+    },
+    {
+      key: "is_active" as const,
+      label: "Active",
+      render: (s: CssdInstrumentSet) =>
+        s.is_active ? <Badge tone="success">Active</Badge> : <Badge tone="neutral">Inactive</Badge>,
+    },
+  ];
+
   return (
     <Stack>
       <Group justify="space-between">
@@ -280,32 +296,7 @@ function InstrumentsTab() {
           <Text fw={600} mt="md">
             Instrument Sets
           </Text>
-          <Table withTableBorder>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Code</Table.Th>
-                <Table.Th>Name</Table.Th>
-                <Table.Th>Department</Table.Th>
-                <Table.Th>Active</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {sets.map((s: CssdInstrumentSet) => (
-                <Table.Tr key={s.id}>
-                  <Table.Td>{s.set_code}</Table.Td>
-                  <Table.Td>{s.set_name}</Table.Td>
-                  <Table.Td>{s.department ?? "—"}</Table.Td>
-                  <Table.Td>
-                    {s.is_active ? (
-                      <Badge tone="success">Active</Badge>
-                    ) : (
-                      <Badge tone="neutral">Inactive</Badge>
-                    )}
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
+          <DataTable columns={setColumns} data={sets} rowKey={(s) => s.id} />
         </>
       )}
 
