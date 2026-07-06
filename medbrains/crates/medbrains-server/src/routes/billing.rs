@@ -2902,16 +2902,24 @@ async fn generate_refund_number(
 pub async fn list_refunds(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-) -> Result<Json<Vec<Refund>>, AppError> {
+    Query(p): Query<crate::pagination::Pagination>,
+) -> Result<Json<crate::pagination::Paginated<Refund>>, AppError> {
     require_any_permission(&claims, BILLING_REFUND_LIST_PERMISSIONS)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM refunds WHERE tenant_id = $1")
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
     let rows = sqlx::query_as::<_, Refund>(
-        "SELECT * FROM refunds WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
+        "SELECT * FROM refunds WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
     )
     .bind(claims.tenant_id)
+    .bind(p.limit())
+    .bind(p.offset())
     .fetch_all(&mut *tx)
     .await?;
 
@@ -2921,7 +2929,7 @@ pub async fn list_refunds(
         .into_iter()
         .map(|row| filter_refund_amounts(row, &restricted_fields))
         .collect();
-    Ok(Json(rows))
+    Ok(Json(crate::pagination::Paginated::new(rows, total, &p)))
 }
 
 pub async fn create_refund(
@@ -3076,7 +3084,8 @@ async fn generate_credit_note_number(
 pub async fn list_credit_notes(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-) -> Result<Json<Vec<CreditNote>>, AppError> {
+    Query(p): Query<crate::pagination::Pagination>,
+) -> Result<Json<crate::pagination::Paginated<CreditNote>>, AppError> {
     require_any_permission(
         &claims,
         &[
@@ -3089,10 +3098,18 @@ pub async fn list_credit_notes(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM credit_notes WHERE tenant_id = $1")
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
     let rows = sqlx::query_as::<_, CreditNote>(
-        "SELECT * FROM credit_notes WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
+        "SELECT * FROM credit_notes WHERE tenant_id = $1 \
+         ORDER BY created_at DESC LIMIT $2 OFFSET $3",
     )
     .bind(claims.tenant_id)
+    .bind(p.limit())
+    .bind(p.offset())
     .fetch_all(&mut *tx)
     .await?;
 
@@ -3102,7 +3119,7 @@ pub async fn list_credit_notes(
         .into_iter()
         .map(|row| filter_credit_note_amounts(row, &restricted_fields))
         .collect();
-    Ok(Json(rows))
+    Ok(Json(crate::pagination::Paginated::new(rows, total, &p)))
 }
 
 pub async fn create_credit_note(
@@ -5634,7 +5651,8 @@ async fn generate_write_off_number(
 pub async fn list_write_offs(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-) -> Result<Json<Vec<BadDebtWriteOff>>, AppError> {
+    Query(p): Query<crate::pagination::Pagination>,
+) -> Result<Json<crate::pagination::Paginated<BadDebtWriteOff>>, AppError> {
     require_any_permission(
         &claims,
         &[
@@ -5646,15 +5664,24 @@ pub async fn list_write_offs(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let total: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM bad_debt_write_offs WHERE tenant_id = $1")
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
+
     let rows = sqlx::query_as::<_, BadDebtWriteOff>(
-        "SELECT * FROM bad_debt_write_offs WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
+        "SELECT * FROM bad_debt_write_offs WHERE tenant_id = $1 \
+         ORDER BY created_at DESC LIMIT $2 OFFSET $3",
     )
     .bind(claims.tenant_id)
+    .bind(p.limit())
+    .bind(p.offset())
     .fetch_all(&mut *tx)
     .await?;
 
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(crate::pagination::Paginated::new(rows, total, &p)))
 }
 
 pub async fn create_write_off(

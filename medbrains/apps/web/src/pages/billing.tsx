@@ -3525,14 +3525,17 @@ function RefundsCreditsTab({
     defaultValues: writeOffDefaults,
   });
 
-  const { data: refunds = [] } = useQuery({
-    queryKey: ["refunds"],
-    queryFn: () => billingService.listRefunds(),
+  const [refundsPage, setRefundsPage] = useState(1);
+  const { data: refunds } = useQuery({
+    queryKey: ["refunds", refundsPage],
+    queryFn: () => billingService.listRefunds({ page: String(refundsPage), limit: "50" }),
   });
 
-  const { data: creditNotes = [] } = useQuery({
-    queryKey: ["credit-notes"],
-    queryFn: () => billingService.listCreditNotes(),
+  const [creditNotesPage, setCreditNotesPage] = useState(1);
+  const { data: creditNotes } = useQuery({
+    queryKey: ["credit-notes", creditNotesPage],
+    queryFn: () =>
+      billingService.listCreditNotes({ page: String(creditNotesPage), limit: "50" }),
   });
 
   const refundMutation = useMutation({
@@ -3559,9 +3562,10 @@ function RefundsCreditsTab({
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["credit-notes"] }),
   });
 
-  const { data: writeOffs = [] } = useQuery({
-    queryKey: ["write-offs"],
-    queryFn: () => billingService.listWriteOffs(),
+  const [writeOffsPage, setWriteOffsPage] = useState(1);
+  const { data: writeOffs } = useQuery({
+    queryKey: ["write-offs", writeOffsPage],
+    queryFn: () => billingService.listWriteOffs({ page: String(writeOffsPage), limit: "50" }),
   });
 
   const writeOffMutation = useMutation({
@@ -3848,12 +3852,17 @@ function RefundsCreditsTab({
       )}
       <DataTable
         columns={refundColumns}
-        data={refunds}
+        data={refunds?.data ?? []}
         rowKey={(row) => row.id}
         searchable
         searchPlaceholder="Search refund # or reason"
         exportable
         exportFileName="refunds"
+        page={refundsPage}
+        perPage={50}
+        total={refunds?.meta.total}
+        totalPages={refunds ? Math.ceil(refunds.meta.total / refunds.meta.limit) : 0}
+        onPageChange={setRefundsPage}
       />
 
       <Text fw={600} mt="lg">
@@ -3907,12 +3916,17 @@ function RefundsCreditsTab({
       )}
       <DataTable
         columns={creditColumns}
-        data={creditNotes}
+        data={creditNotes?.data ?? []}
         rowKey={(row) => row.id}
         searchable
         searchPlaceholder="Search CN # or reason"
         exportable
         exportFileName="credit-notes"
+        page={creditNotesPage}
+        perPage={50}
+        total={creditNotes?.meta.total}
+        totalPages={creditNotes ? Math.ceil(creditNotes.meta.total / creditNotes.meta.limit) : 0}
+        onPageChange={setCreditNotesPage}
       />
 
       <Text fw={600} mt="lg">
@@ -3971,12 +3985,17 @@ function RefundsCreditsTab({
       )}
       <DataTable
         columns={writeOffColumns}
-        data={writeOffs}
+        data={writeOffs?.data ?? []}
         rowKey={(row) => row.id}
         searchable
         searchPlaceholder="Search WO # or reason"
         exportable
         exportFileName="write-offs"
+        page={writeOffsPage}
+        perPage={50}
+        total={writeOffs?.meta.total}
+        totalPages={writeOffs ? Math.ceil(writeOffs.meta.total / writeOffs.meta.limit) : 0}
+        onPageChange={setWriteOffsPage}
       />
     </Stack>
   );

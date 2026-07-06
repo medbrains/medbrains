@@ -4314,7 +4314,7 @@ export const api = {
   // -- Refunds --
   listRefunds: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
-    return request<Refund[]>(`/billing/refunds${qs}`);
+    return request<Paginated<Refund>>(`/billing/refunds${qs}`);
   },
   createRefund: (data: CreateRefundRequest) =>
     request<Refund>("/billing/refunds", {
@@ -4325,7 +4325,7 @@ export const api = {
   // -- Credit Notes --
   listCreditNotes: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
-    return request<CreditNote[]>(`/billing/credit-notes${qs}`);
+    return request<Paginated<CreditNote>>(`/billing/credit-notes${qs}`);
   },
   createCreditNote: (data: CreateCreditNoteRequest) =>
     request<CreditNote>("/billing/credit-notes", {
@@ -4503,7 +4503,7 @@ export const api = {
   // -- Write-Offs --
   listWriteOffs: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
-    return request<BadDebtWriteOff[]>(`/billing/write-offs${qs}`);
+    return request<Paginated<BadDebtWriteOff>>(`/billing/write-offs${qs}`);
   },
   createWriteOff: (data: CreateWriteOffRequest) =>
     request<BadDebtWriteOff>("/billing/write-offs", {
