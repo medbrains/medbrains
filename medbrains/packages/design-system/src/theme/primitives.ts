@@ -277,14 +277,14 @@ export const radius = {
 // WCAG-friendly default), everything else proportional. Bigger, calmer,
 // easier to read across the app than the previous 14px clinical-dense scale.
 export const fontSize = {
-  xs: "12px", // caption / eyebrow caps
-  sm: "13px", // footnote, dense table
-  md: "16px", // body default
-  lg: "18px", // callout
-  xl: "20px", // headline
-  "2xl": "22px", // title 3
-  "3xl": "26px", // title 2
-  "4xl": "32px", // title 1
+  xs: "13px", // caption / eyebrow caps
+  sm: "14px", // footnote, dense table
+  md: "17px", // body default
+  lg: "19px", // callout
+  xl: "21px", // headline
+  "2xl": "23px", // title 3
+  "3xl": "27px", // title 2
+  "4xl": "33px", // title 1
   "5xl": "40px", // large title
   "6xl": "52px", // display
   "7xl": "62px", // hero
