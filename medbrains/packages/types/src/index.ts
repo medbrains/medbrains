@@ -4399,6 +4399,8 @@ export interface CreatePrescriptionRequest {
   interaction_override_reason?: string;
   /** Reason for prescribing two drugs with the same active ingredient (therapeutic duplication) — required on conflict. */
   duplicate_override_reason?: string;
+  /** Reason for prescribing when the prescriber's medical registration has expired — required in that case. */
+  credential_override_reason?: string;
 }
 
 export interface UpdatePrescriptionRequest {
