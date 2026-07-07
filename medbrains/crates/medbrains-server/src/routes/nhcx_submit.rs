@@ -12,12 +12,6 @@ use axum::Json;
 use axum::extract::{Path, State};
 use axum::extract::Extension;
 use chrono::Utc;
-use medbrains_fhir::mapper::{
-    ClaimItemView, ClaimView, CoverageView, PatientView, claim_to_fhir, coverage_to_fhir,
-    patient_to_fhir,
-};
-use medbrains_fhir::r4::Resource;
-use medbrains_fhir::r4::bundle::{Bundle, BundleEntry, BundleType};
 use rust_decimal::prelude::ToPrimitive;
 use serde::Deserialize;
 use sqlx::FromRow;
@@ -43,29 +37,21 @@ struct ClaimRow {
     patient_id: Uuid,
     invoice_id: Uuid,
     insurance_provider: String,
-    policy_number: Option<String>,
     member_id: Option<String>,
 }
 
 #[derive(Debug, FromRow)]
 struct PatientRow {
-    id: Uuid,
     uhid: String,
     abha_id: Option<String>,
-    prefix: Option<String>,
     first_name: String,
-    middle_name: Option<String>,
     last_name: String,
     gender: String,
-    date_of_birth: Option<chrono::NaiveDate>,
-    phone: Option<String>,
-    email: Option<String>,
 }
 
 #[derive(Debug, FromRow)]
 struct InvoiceLineRow {
     description: String,
-    charge_code: Option<String>,
     unit_price: Option<rust_decimal::Decimal>,
     line_total: Option<rust_decimal::Decimal>,
 }
@@ -89,7 +75,7 @@ pub async fn submit_claim_to_nhcx(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let claim = sqlx::query_as::<_, ClaimRow>(
-        "SELECT id, patient_id, invoice_id, insurance_provider, policy_number, member_id \
+        "SELECT id, patient_id, invoice_id, insurance_provider, member_id \
          FROM insurance_claims WHERE id = $1 AND tenant_id = $2",
     )
     .bind(id)
@@ -99,8 +85,8 @@ pub async fn submit_claim_to_nhcx(
     .ok_or(AppError::NotFound)?;
 
     let patient = sqlx::query_as::<_, PatientRow>(
-        "SELECT id, uhid, abha_id, prefix, first_name, middle_name, last_name, gender, \
-         date_of_birth, phone, email FROM patients WHERE id = $1 AND tenant_id = $2",
+        "SELECT uhid, abha_id, first_name, last_name, gender \
+         FROM patients WHERE id = $1 AND tenant_id = $2",
     )
     .bind(claim.patient_id)
     .bind(claims.tenant_id)
@@ -109,7 +95,7 @@ pub async fn submit_claim_to_nhcx(
     .ok_or(AppError::NotFound)?;
 
     let lines = sqlx::query_as::<_, InvoiceLineRow>(
-        "SELECT description, charge_code, unit_price, line_total \
+        "SELECT description, unit_price, line_total \
          FROM invoice_items WHERE invoice_id = $1 AND tenant_id = $2",
     )
     .bind(claim.invoice_id)
@@ -119,86 +105,111 @@ pub async fn submit_claim_to_nhcx(
 
     tx.commit().await?;
 
-    // Build the FHIR resources from the internal views.
-    let patient_view = PatientView {
-        id: patient.id,
-        uhid: patient.uhid,
-        abha_id: patient.abha_id,
-        prefix: patient.prefix,
-        first_name: patient.first_name,
-        middle_name: patient.middle_name,
-        last_name: patient.last_name,
-        gender: patient.gender,
-        date_of_birth: patient.date_of_birth,
-        phone: patient.phone,
-        email: patient.email,
-        is_active: true,
-    };
-    let fhir_patient = patient_to_fhir(&patient_view);
+    // Assemble the NHCX ClaimBundle exactly per the profile (validated against the
+    // official sample bundle): a `collection` bundle with meta.profile + a very-restricted
+    // security tag, intra-bundle `urn:uuid` references, and the Organization (insurer),
+    // Practitioner (provider) and Coverage resources the Claim references. Diagnoses/items
+    // are inline on the Claim (valid FHIR); diagnosis enrichment is a follow-up.
+    let patient_urn = format!("urn:uuid:{}", claim.patient_id);
+    let claim_urn = format!("urn:uuid:{}", claim.id);
+    let coverage_uuid = Uuid::new_v4();
+    let insurer_uuid = Uuid::new_v4();
+    let provider_uuid = Uuid::new_v4();
+    let coverage_urn = format!("urn:uuid:{coverage_uuid}");
+    let insurer_urn = format!("urn:uuid:{insurer_uuid}");
+    let provider_urn = format!("urn:uuid:{provider_uuid}");
+    let now = Utc::now().to_rfc3339();
 
-    let coverage_view = CoverageView {
-        id: claim.id,
-        patient_id: claim.patient_id,
-        status: "active".to_owned(),
-        policy_number: claim.policy_number.clone(),
-        subscriber_id: claim.member_id.clone(),
-        insurer_name: claim.insurance_provider.clone(),
-        insurer_id: None,
-    };
-    let fhir_coverage = coverage_to_fhir(&coverage_view);
-
-    let items: Vec<ClaimItemView> = lines
-        .into_iter()
-        .map(|l| ClaimItemView {
-            name: l.description,
-            code: l.charge_code,
-            unit_price: l.unit_price.and_then(|d| d.to_f64()),
-            net: l.line_total.and_then(|d| d.to_f64()),
+    let item_json: Vec<serde_json::Value> = lines
+        .iter()
+        .enumerate()
+        .map(|(i, l)| {
+            serde_json::json!({
+                "sequence": i + 1,
+                "productOrService": { "text": l.description },
+                "unitPrice": l.unit_price.and_then(|d| d.to_f64())
+                    .map(|v| serde_json::json!({ "value": v, "currency": "INR" })),
+                "net": l.line_total.and_then(|d| d.to_f64())
+                    .map(|v| serde_json::json!({ "value": v, "currency": "INR" })),
+            })
         })
         .collect();
-    let total = items.iter().filter_map(|i| i.net).sum::<f64>();
+    let total: f64 = lines
+        .iter()
+        .filter_map(|l| l.line_total.and_then(|d| d.to_f64()))
+        .sum();
 
-    let claim_view = ClaimView {
-        id: claim.id,
-        patient_id: claim.patient_id,
-        use_,
-        status: "active".to_owned(),
-        created: Utc::now(),
-        insurer_name: claim.insurance_provider,
-        insurer_id: None,
-        provider_id: claims.tenant_id,
-        provider_name: "Provider".to_owned(),
-        priority: "normal".to_owned(),
-        coverage_id: claim.id,
-        // ponytail: diagnoses enrichment (join encounter diagnoses) is a follow-up;
-        // items carry the claimed amounts which is what adjudication needs first.
-        diagnoses: Vec::new(),
-        items,
-        total: Some(total),
-    };
-    let fhir_claim = claim_to_fhir(&claim_view);
+    let mut patient_identifier = vec![serde_json::json!({
+        "system": "https://medbrains.health/uhid", "value": patient.uhid
+    })];
+    if let Some(abha) = patient.abha_id.as_deref().filter(|s| !s.is_empty()) {
+        patient_identifier.push(serde_json::json!({
+            "system": "https://healthid.ndhm.gov.in", "value": abha
+        }));
+    }
+    let patient_full_name = format!("{} {}", patient.first_name, patient.last_name);
 
-    // FHIR transaction Bundle: Patient + Coverage + Claim.
-    let bundle = Bundle {
-        id: claim.id.to_string(),
-        r#type: BundleType::Transaction,
-        timestamp: Utc::now().to_rfc3339(),
-        total: None,
-        entry: vec![
-            BundleEntry {
-                full_url: Some(format!("Patient/{}", claim.patient_id)),
-                resource: Resource::Patient(fhir_patient),
-            },
-            BundleEntry {
-                full_url: Some(format!("Coverage/{}", claim.id)),
-                resource: Resource::Coverage(fhir_coverage),
-            },
-            BundleEntry {
-                full_url: Some(format!("Claim/{}", claim.id)),
-                resource: Resource::Claim(fhir_claim),
-            },
-        ],
-    };
+    let bundle = serde_json::json!({
+        "resourceType": "Bundle",
+        "id": claim.id,
+        "meta": {
+            "profile": ["https://nrces.in/ndhm/fhir/r4/StructureDefinition/ClaimBundle"],
+            "security": [{
+                "system": "http://terminology.hl7.org/CodeSystem/v3-Confidentiality",
+                "code": "V", "display": "very restricted"
+            }]
+        },
+        "type": "collection",
+        "timestamp": now,
+        "entry": [
+            { "fullUrl": claim_urn, "resource": {
+                "resourceType": "Claim",
+                "id": claim.id,
+                "status": "active",
+                "type": { "coding": [{ "system": "http://snomed.info/sct", "code": "737481003", "display": "Inpatient care management (procedure)" }] },
+                "use": use_,
+                "patient": { "reference": patient_urn },
+                "created": now,
+                "insurer": { "reference": insurer_urn },
+                "provider": { "reference": provider_urn },
+                "priority": { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/processpriority", "code": "normal" }] },
+                "careTeam": [{
+                    "sequence": 1,
+                    "provider": { "reference": provider_urn },
+                    "role": { "coding": [{ "system": "http://snomed.info/sct", "code": "223366009", "display": "Healthcare professional (occupation)" }] }
+                }],
+                "insurance": [{ "sequence": 1, "focal": true, "coverage": { "reference": coverage_urn } }],
+                "item": item_json,
+                "total": { "value": total, "currency": "INR" }
+            }},
+            { "fullUrl": patient_urn, "resource": {
+                "resourceType": "Patient",
+                "id": claim.patient_id,
+                "identifier": patient_identifier,
+                "name": [{ "text": patient_full_name, "given": [patient.first_name], "family": patient.last_name }],
+                "gender": patient.gender
+            }},
+            { "fullUrl": insurer_urn, "resource": {
+                "resourceType": "Organization",
+                "id": insurer_uuid,
+                "identifier": [{ "value": body.recipient_code.clone() }],
+                "name": claim.insurance_provider
+            }},
+            { "fullUrl": provider_urn, "resource": {
+                "resourceType": "Practitioner",
+                "id": provider_uuid,
+                "name": [{ "text": "Provider" }]
+            }},
+            { "fullUrl": coverage_urn, "resource": {
+                "resourceType": "Coverage",
+                "id": coverage_uuid,
+                "status": "active",
+                "subscriberId": claim.member_id,
+                "beneficiary": { "reference": patient_urn },
+                "payor": [{ "reference": insurer_urn }]
+            }}
+        ]
+    });
 
     // Queue the outbox event the NHCX handler consumes (it JWE/JWS-wraps + posts).
     let payload = serde_json::json!({

@@ -1,12 +1,17 @@
 use serde::{Deserialize, Serialize};
 
 use super::Resource;
+use super::coding::Coding;
 
 /// FHIR R4 `Bundle` — used for batch reads, searchsets, and transaction
 /// writes (NHCX claim payloads, ABDM HIE care contexts).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Bundle {
     pub id: String,
+
+    /// `meta.profile` (e.g. the NHCX `ClaimBundle`) + `meta.security` confidentiality.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta: Option<BundleMeta>,
 
     pub r#type: BundleType,
 
@@ -17,6 +22,16 @@ pub struct Bundle {
 
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub entry: Vec<BundleEntry>,
+}
+
+/// FHIR `Meta` (the subset NHCX bundles use): conformance profile(s) + security tags.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BundleMeta {
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub profile: Vec<String>,
+
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub security: Vec<Coding>,
 }
 
 /// FHIR Bundle types we use:

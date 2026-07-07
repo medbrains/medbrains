@@ -232,6 +232,7 @@ pub async fn patient_everything(
     let total = u32::try_from(entries.len()).unwrap_or(u32::MAX);
     Ok(Json(Resource::Bundle(Bundle {
         id: Uuid::new_v4().to_string(),
+        meta: None,
         r#type: BundleType::Searchset,
         timestamp: Utc::now().to_rfc3339(),
         total: Some(total),
