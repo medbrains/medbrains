@@ -2295,45 +2295,16 @@ pub async fn create_prescription(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // Credential gate — a prescriber whose medical registration has expired must not
-    // prescribe (legal + patient-safety). Soft gate: block unless a non-blank override
-    // reason is supplied (data-entry lag / emergency), which is logged. Closes the hole
-    // where an expired-registration clinician could prescribe indefinitely. No profile /
-    // no expiry date on file → not gated (nothing to check against).
-    let registration_expired: bool = sqlx::query_scalar(
-        "SELECT registration_valid_until IS NOT NULL AND registration_valid_until < CURRENT_DATE \
-         FROM doctor_profiles WHERE user_id = $1 AND tenant_id = $2",
+    // Credential gate — a prescriber whose medical registration is REVOKED can't prescribe
+    // (hard block); an EXPIRED one is a soft gate (override reason, logged). Shared with OT.
+    crate::clinical_credential::enforce_prescriber_credential(
+        &mut tx,
+        claims.tenant_id,
+        doctor_id,
+        body.credential_override_reason.as_deref(),
+        "prescribe",
     )
-    .bind(doctor_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .unwrap_or(false);
-    if registration_expired {
-        let reason = body
-            .credential_override_reason
-            .as_deref()
-            .map(str::trim)
-            .filter(|r| !r.is_empty());
-        match reason {
-            None => {
-                return Err(AppError::BadRequest(
-                    "Prescriber's medical registration has expired. Renew it, or provide an \
-                     override reason to prescribe."
-                        .to_owned(),
-                ));
-            }
-            Some(reason) => {
-                tracing::warn!(
-                    tenant_id = %claims.tenant_id,
-                    prescriber = %doctor_id,
-                    recorded_by = %claims.sub,
-                    reason,
-                    "Prescription written on an EXPIRED medical registration — override reason logged"
-                );
-            }
-        }
-    }
+    .await?;
 
     // Dose-safety backstop: flag any line whose daily total exceeds the
     // catalogue max. Advisory — overridable with a reason (logged), never a

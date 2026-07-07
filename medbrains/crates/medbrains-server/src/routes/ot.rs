@@ -85,6 +85,9 @@ pub struct CreateBookingRequest {
     pub scrub_nurses: Option<serde_json::Value>,
     pub circulating_nurses: Option<serde_json::Value>,
     pub notes: Option<String>,
+    /// Override reason if the primary surgeon's registration has EXPIRED (logged).
+    /// A REVOKED registration cannot be overridden.
+    pub credential_override_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -570,6 +573,17 @@ pub async fn create_booking(
             "That theatre is already booked for an overlapping time.".to_owned(),
         ));
     }
+
+    // Credential gate — a REVOKED registration can't operate (hard block); EXPIRED is a
+    // soft gate (override reason, logged). Same rule as prescribing.
+    crate::clinical_credential::enforce_prescriber_credential(
+        &mut tx,
+        claims.tenant_id,
+        body.primary_surgeon_id,
+        body.credential_override_reason.as_deref(),
+        "book surgery",
+    )
+    .await?;
 
     let row = sqlx::query_as::<_, OtBooking>(
         "INSERT INTO ot_bookings \

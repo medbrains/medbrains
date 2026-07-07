@@ -8975,6 +8975,8 @@ export interface CreateOtBookingRequest {
   scrub_nurses?: unknown;
   circulating_nurses?: unknown;
   notes?: string;
+  /** Override reason if the primary surgeon's registration has expired (logged). */
+  credential_override_reason?: string;
 }
 export interface UpdateOtBookingRequest {
   ot_room_id?: string;
