@@ -1155,6 +1155,28 @@ pub async fn create_attendance(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // Integrity: an employee on APPROVED leave for this date can't be marked present —
+    // that double-counts against payroll. Other statuses (absent, on_leave, half_day)
+    // are consistent and allowed.
+    if body.status.as_deref().unwrap_or("present") == "present" {
+        let on_leave: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM leave_requests \
+             WHERE tenant_id = $1 AND employee_id = $2 AND status = 'approved' \
+               AND $3::date BETWEEN start_date AND end_date)",
+        )
+        .bind(claims.tenant_id)
+        .bind(body.employee_id)
+        .bind(&body.attendance_date)
+        .fetch_one(&mut *tx)
+        .await?;
+        if on_leave {
+            return Err(AppError::BadRequest(format!(
+                "Employee is on approved leave on {} — cannot mark present. Record as on_leave/absent or cancel the leave first.",
+                body.attendance_date
+            )));
+        }
+    }
+
     let row = sqlx::query_as::<_, AttendanceRecord>(
         "INSERT INTO attendance_records \
          (tenant_id, employee_id, attendance_date, shift_id, \
