@@ -5851,6 +5851,40 @@ pub async fn approve_write_off(
     .await?
     .ok_or(AppError::NotFound)?;
 
+    // Apply an APPROVED write-off to the invoice — a non-cash settlement of the balance.
+    // (Previously approval never touched the invoice, so it still showed fully owing.)
+    if body.approved {
+        let outstanding: Decimal = sqlx::query_scalar(
+            "SELECT (total_amount - paid_amount) FROM invoices WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(existing.invoice_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .unwrap_or(Decimal::ZERO)
+        .round_dp(2);
+        if existing.amount > outstanding {
+            return Err(AppError::BadRequest(format!(
+                "Write-off {} exceeds the invoice's outstanding balance {outstanding}",
+                existing.amount
+            )));
+        }
+        sqlx::query(
+            "UPDATE invoices SET \
+               paid_amount = paid_amount + $1, \
+               written_off_amount = written_off_amount + $1, \
+               status = CASE WHEN (total_amount - (paid_amount + $1)) <= 0.01 \
+                             THEN 'paid'::invoice_status ELSE status END, \
+               updated_at = now() \
+             WHERE id = $2 AND tenant_id = $3",
+        )
+        .bind(existing.amount)
+        .bind(existing.invoice_id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+
     log_billing_audit(
         &mut tx,
         claims.tenant_id,
