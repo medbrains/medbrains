@@ -2,6 +2,7 @@ import { api } from "@medbrains/api";
 
 export const careViewService = {
   listWards: api.listWards,
+  wardOnDuty: api.wardOnDuty,
   wardPatientGrid: api.wardPatientGrid,
   vitalsChecklist: api.vitalsChecklist,
   myTasks: api.careViewMyTasks,

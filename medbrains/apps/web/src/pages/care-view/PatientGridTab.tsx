@@ -1,6 +1,11 @@
 import { Card, Group, SimpleGrid, Stack, Text, ThemeIcon } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import type { PatientCardRow, VitalsChecklistRow, WardGridResponse } from "@medbrains/types";
+import type {
+  PatientCardRow,
+  VitalsChecklistRow,
+  WardGridResponse,
+  WardOnDutyRow,
+} from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconBed,
@@ -10,12 +15,13 @@ import {
   IconPill,
   IconShieldCheck,
   IconTemperature,
+  IconUserHeart,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { DataTable, OperationalSignal, type OperationalSignalTone } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Button } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 import { careViewService } from "@/services/careView.service";
 import { urgencyColor } from "./shared";
 
@@ -38,6 +44,43 @@ function workloadTone(overdue: number, pending: number): OperationalSignalTone {
   if (overdue > 0) return "risk";
   if (pending > 0) return "blocked";
   return "ready";
+}
+
+function OnDutySection({ wardId }: { wardId: string | null }) {
+  const { data = [] } = useQuery<WardOnDutyRow[]>({
+    queryKey: ["care-view", "on-duty", wardId],
+    queryFn: () => careViewService.wardOnDuty(wardId ?? ""),
+    enabled: !!wardId,
+    refetchInterval: 60_000,
+  });
+  if (!wardId || data.length === 0) return null;
+  return (
+    <Card withBorder padding="sm">
+      <Group gap="xs" mb={6}>
+        <ThemeIcon variant="light" size="sm">
+          <IconUserHeart size={14} />
+        </ThemeIcon>
+        <Text size="sm" fw={600}>
+          On duty ({data.length})
+        </Text>
+      </Group>
+      <Group gap="md">
+        {data.map((n) => (
+          <Group key={n.nurse_user_id} gap={4}>
+            <Text size="sm">{n.nurse_name}</Text>
+            <Badge size="xs" tone={n.is_charge ? "info" : "neutral"}>
+              {n.is_charge ? "Charge" : n.shift_type}
+            </Badge>
+            {n.patient_count > 0 && (
+              <Text size="xs" c="dimmed">
+                · {n.patient_count} pts
+              </Text>
+            )}
+          </Group>
+        ))}
+      </Group>
+    </Card>
+  );
 }
 
 export function PatientGridTab({ wardId }: { wardId: string | null }) {
@@ -92,6 +135,8 @@ export function PatientGridTab({ wardId }: { wardId: string | null }) {
           />
         </Group>
       )}
+
+      <OnDutySection wardId={wardId} />
 
       <VitalsChecklistSection wardId={wardId} />
 

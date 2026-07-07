@@ -1924,6 +1924,7 @@ import type {
   // Care View
   WardGridResponse,
   WardListRow,
+  WardOnDutyRow,
   WardStockRow,
   WaterQualityTestPrintData,
   WidgetAccessLevel,
@@ -5886,6 +5887,7 @@ export const api = {
   // ── IPD Phase 2 — Wards ──────────────────────────────────
 
   listWards: () => request<WardListRow[]>("/ipd/wards"),
+  wardOnDuty: (wardId: string) => request<WardOnDutyRow[]>(`/ipd/wards/${wardId}/on-duty`),
   getWard: (id: string) => request<Ward>(`/ipd/wards/${id}`),
   createWard: (data: CreateWardRequest) =>
     request<Ward>("/ipd/wards", { method: "POST", body: JSON.stringify(data) }),

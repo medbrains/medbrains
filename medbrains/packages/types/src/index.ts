@@ -7801,6 +7801,16 @@ export interface WardStockRow {
   gap: number;
 }
 
+/** A nurse on duty in a ward today (care-view "who's caring for this ward now"). */
+export interface WardOnDutyRow {
+  nurse_user_id: string;
+  nurse_name: string;
+  shift_type: string;
+  primary_assigned: boolean;
+  is_charge: boolean;
+  patient_count: number;
+}
+
 /** A staff member assigned to a location (ward / nursing station / floor). */
 export interface StaffLocationAssignment {
   id: string;

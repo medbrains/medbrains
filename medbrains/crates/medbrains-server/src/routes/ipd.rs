@@ -4098,6 +4098,50 @@ pub async fn remove_bed_from_ward(
 }
 
 // ══════════════════════════════════════════════════════════
+//  Ward care-view — who's on duty
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct WardOnDutyRow {
+    pub nurse_user_id: Uuid,
+    pub nurse_name: String,
+    pub shift_type: String,
+    pub primary_assigned: bool,
+    pub is_charge: bool,
+    pub patient_count: i32,
+}
+
+/// `GET /api/ipd/wards/{id}/on-duty` — nurses assigned to a ward for today's shifts (the
+/// care-view "who's caring for this ward now"). Pairs with the bed dashboard for the beds.
+pub async fn ward_on_duty(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(ward_id): Path<Uuid>,
+) -> Result<Json<Vec<WardOnDutyRow>>, AppError> {
+    require_permission(&claims, permissions::ipd::bed_dashboard::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+    let rows = sqlx::query_as::<_, WardOnDutyRow>(
+        "SELECT nsa.nurse_user_id, u.full_name AS nurse_name, nsa.shift_type, \
+                nsa.primary_assigned, \
+                (nsa.charge_nurse_user_id = nsa.nurse_user_id) AS is_charge, \
+                COALESCE(array_length(nsa.patient_ids, 1), 0) AS patient_count \
+         FROM nurse_shift_assignments nsa \
+         JOIN users u ON u.id = nsa.nurse_user_id \
+         WHERE nsa.tenant_id = $1 AND nsa.ward_id = $2 \
+           AND nsa.shift_date = CURRENT_DATE AND nsa.deleted_at IS NULL \
+         ORDER BY nsa.primary_assigned DESC, u.full_name LIMIT 500",
+    )
+    .bind(claims.tenant_id)
+    .bind(ward_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+// ══════════════════════════════════════════════════════════
 //  Bed Dashboard
 // ══════════════════════════════════════════════════════════
 

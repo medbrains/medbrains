@@ -3231,6 +3231,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/ipd/wards/{id}/beds",
             get(ipd::list_ward_beds).post(ipd::assign_bed_to_ward),
         )
+        .route("/api/ipd/wards/{id}/on-duty", get(ipd::ward_on_duty))
         .route(
             "/api/ipd/wards/{wid}/beds/{mid}",
             delete(ipd::remove_bed_from_ward),
