@@ -96,24 +96,34 @@ impl Handler for ClaimSubmitHandler {
         };
         let sender_code = resolve_secret(ctx, "abdm-facility-hcx-id").await?;
 
-        // Route by Claim.use: preauthorization → /preauth/submit, else /claim/submit
-        // (per the NHCX USECASE collection — lowercase operation path).
-        let claim_use = bundle
-            .get("entry")
-            .and_then(Value::as_array)
-            .and_then(|entries| {
-                entries.iter().find_map(|entry| {
-                    let resource = entry.get("resource")?;
-                    if resource.get("resourceType")?.as_str()? == "Claim" {
-                        resource.get("use")?.as_str()
-                    } else {
-                        None
-                    }
-                })
+        // Route by the bundle's primary resource (per the NHCX USECASE collection —
+        // lowercase operation paths). A CoverageEligibilityRequest → the eligibility
+        // check; otherwise a Claim → preauth/claim submit by Claim.use.
+        let entries = bundle.get("entry").and_then(Value::as_array);
+        let has_coverage_eligibility = entries.is_some_and(|es| {
+            es.iter().any(|e| {
+                e.get("resource").and_then(|r| r.get("resourceType")).and_then(Value::as_str)
+                    == Some("CoverageEligibilityRequest")
             })
-            .unwrap_or("claim");
-        let op = if claim_use == "preauthorization" { "preauth" } else { "claim" };
-        let url = format!("{}/hcx/v1/{op}/submit", self.api_base());
+        });
+        let url = if has_coverage_eligibility {
+            format!("{}/hcx/v1/coverageeligibility/check", self.api_base())
+        } else {
+            let claim_use = entries
+                .and_then(|es| {
+                    es.iter().find_map(|entry| {
+                        let resource = entry.get("resource")?;
+                        if resource.get("resourceType")?.as_str()? == "Claim" {
+                            resource.get("use")?.as_str()
+                        } else {
+                            None
+                        }
+                    })
+                })
+                .unwrap_or("claim");
+            let op = if claim_use == "preauthorization" { "preauth" } else { "claim" };
+            format!("{}/hcx/v1/{op}/submit", self.api_base())
+        };
         let timestamp = chrono::Utc::now().to_rfc3339();
 
         let resp = ctx

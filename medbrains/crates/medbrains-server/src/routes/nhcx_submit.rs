@@ -21,7 +21,12 @@ use crate::error::AppError;
 use crate::middleware::auth::Claims;
 use crate::middleware::authorization::require_permission;
 use crate::state::AppState;
+use medbrains_core::nhcx::{
+    CLAIM_BUNDLE_PROFILE, CONFIDENTIALITY_SYSTEM, COVERAGE_ELIGIBILITY_BUNDLE_PROFILE,
+    SNOMED_HEALTHCARE_PROFESSIONAL_CODE, SNOMED_INSTITUTIONAL_CLAIM_CODE,
+};
 use medbrains_core::permissions;
+use medbrains_fhir::mapper::{ABHA_SYSTEM, PROCESS_PRIORITY_SYSTEM, SNOMED_SYSTEM, UHID_SYSTEM};
 
 #[derive(Debug, Deserialize)]
 pub struct SubmitToNhcxRequest {
@@ -140,11 +145,11 @@ pub async fn submit_claim_to_nhcx(
         .sum();
 
     let mut patient_identifier = vec![serde_json::json!({
-        "system": "https://medbrains.health/uhid", "value": patient.uhid
+        "system": UHID_SYSTEM, "value": patient.uhid
     })];
     if let Some(abha) = patient.abha_id.as_deref().filter(|s| !s.is_empty()) {
         patient_identifier.push(serde_json::json!({
-            "system": "https://healthid.ndhm.gov.in", "value": abha
+            "system": ABHA_SYSTEM, "value": abha
         }));
     }
     let patient_full_name = format!("{} {}", patient.first_name, patient.last_name);
@@ -153,9 +158,9 @@ pub async fn submit_claim_to_nhcx(
         "resourceType": "Bundle",
         "id": claim.id,
         "meta": {
-            "profile": ["https://nrces.in/ndhm/fhir/r4/StructureDefinition/ClaimBundle"],
+            "profile": [CLAIM_BUNDLE_PROFILE],
             "security": [{
-                "system": "http://terminology.hl7.org/CodeSystem/v3-Confidentiality",
+                "system": CONFIDENTIALITY_SYSTEM,
                 "code": "V", "display": "very restricted"
             }]
         },
@@ -166,17 +171,17 @@ pub async fn submit_claim_to_nhcx(
                 "resourceType": "Claim",
                 "id": claim.id,
                 "status": "active",
-                "type": { "coding": [{ "system": "http://snomed.info/sct", "code": "737481003", "display": "Inpatient care management (procedure)" }] },
+                "type": { "coding": [{ "system": SNOMED_SYSTEM, "code": SNOMED_INSTITUTIONAL_CLAIM_CODE, "display": "Inpatient care management (procedure)" }] },
                 "use": use_,
                 "patient": { "reference": patient_urn },
                 "created": now,
                 "insurer": { "reference": insurer_urn },
                 "provider": { "reference": provider_urn },
-                "priority": { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/processpriority", "code": "normal" }] },
+                "priority": { "coding": [{ "system": PROCESS_PRIORITY_SYSTEM, "code": "normal" }] },
                 "careTeam": [{
                     "sequence": 1,
                     "provider": { "reference": provider_urn },
-                    "role": { "coding": [{ "system": "http://snomed.info/sct", "code": "223366009", "display": "Healthcare professional (occupation)" }] }
+                    "role": { "coding": [{ "system": SNOMED_SYSTEM, "code": SNOMED_HEALTHCARE_PROFESSIONAL_CODE, "display": "Healthcare professional (occupation)" }] }
                 }],
                 "insurance": [{ "sequence": 1, "focal": true, "coverage": { "reference": coverage_urn } }],
                 "item": item_json,
@@ -232,6 +237,141 @@ pub async fn submit_claim_to_nhcx(
     )
     .await
     .map_err(|e| AppError::Internal(format!("nhcx submit queue failed: {e}")))?;
+    tx.commit().await?;
+
+    Ok(Json(serde_json::json!({
+        "claim_id": claim.id,
+        "queued": true,
+        "outbox_event_id": event_id,
+    })))
+}
+
+/// `POST /api/billing/insurance-claims/{id}/check-eligibility` — queue an NHCX coverage
+/// eligibility check for the claim's patient + policy. Same transport as claim submit
+/// (the outbox handler routes a CoverageEligibilityRequest bundle to
+/// `/hcx/v1/coverageeligibility/check`); the payer's on_check reply lands at the callback.
+pub async fn check_coverage_eligibility(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<SubmitToNhcxRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::billing::corporate::UPDATE)?;
+    if body.recipient_code.trim().is_empty() {
+        return Err(AppError::BadRequest(
+            "recipient_code (payer HCX id) is required".to_owned(),
+        ));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let claim = sqlx::query_as::<_, ClaimRow>(
+        "SELECT id, patient_id, invoice_id, insurance_provider, member_id \
+         FROM insurance_claims WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    let patient = sqlx::query_as::<_, PatientRow>(
+        "SELECT uhid, abha_id, first_name, last_name, gender \
+         FROM patients WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(claim.patient_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+
+    let patient_urn = format!("urn:uuid:{}", claim.patient_id);
+    let elig_uuid = Uuid::new_v4();
+    let coverage_uuid = Uuid::new_v4();
+    let insurer_uuid = Uuid::new_v4();
+    let provider_uuid = Uuid::new_v4();
+    let elig_urn = format!("urn:uuid:{elig_uuid}");
+    let coverage_urn = format!("urn:uuid:{coverage_uuid}");
+    let insurer_urn = format!("urn:uuid:{insurer_uuid}");
+    let provider_urn = format!("urn:uuid:{provider_uuid}");
+    let now = Utc::now().to_rfc3339();
+
+    let mut patient_identifier = vec![serde_json::json!({
+        "system": UHID_SYSTEM, "value": patient.uhid
+    })];
+    if let Some(abha) = patient.abha_id.as_deref().filter(|s| !s.is_empty()) {
+        patient_identifier.push(serde_json::json!({ "system": ABHA_SYSTEM, "value": abha }));
+    }
+    let patient_full_name = format!("{} {}", patient.first_name, patient.last_name);
+
+    let bundle = serde_json::json!({
+        "resourceType": "Bundle",
+        "id": claim.id,
+        "meta": {
+            "profile": [COVERAGE_ELIGIBILITY_BUNDLE_PROFILE],
+            "security": [{ "system": CONFIDENTIALITY_SYSTEM, "code": "V", "display": "very restricted" }]
+        },
+        "type": "collection",
+        "timestamp": now,
+        "entry": [
+            { "fullUrl": elig_urn, "resource": {
+                "resourceType": "CoverageEligibilityRequest",
+                "id": elig_uuid,
+                "status": "active",
+                "purpose": ["benefits"],
+                "patient": { "reference": patient_urn },
+                "created": now,
+                "provider": { "reference": provider_urn },
+                "insurer": { "reference": insurer_urn },
+                "insurance": [{ "focal": true, "coverage": { "reference": coverage_urn } }]
+            }},
+            { "fullUrl": patient_urn, "resource": {
+                "resourceType": "Patient",
+                "id": claim.patient_id,
+                "identifier": patient_identifier,
+                "name": [{ "text": patient_full_name, "given": [patient.first_name], "family": patient.last_name }],
+                "gender": patient.gender
+            }},
+            { "fullUrl": insurer_urn, "resource": {
+                "resourceType": "Organization",
+                "id": insurer_uuid,
+                "identifier": [{ "value": body.recipient_code.clone() }],
+                "name": claim.insurance_provider
+            }},
+            { "fullUrl": provider_urn, "resource": {
+                "resourceType": "Practitioner", "id": provider_uuid, "name": [{ "text": "Provider" }]
+            }},
+            { "fullUrl": coverage_urn, "resource": {
+                "resourceType": "Coverage",
+                "id": coverage_uuid,
+                "status": "active",
+                "subscriberId": claim.member_id,
+                "beneficiary": { "reference": patient_urn },
+                "payor": [{ "reference": insurer_urn }]
+            }}
+        ]
+    });
+
+    let payload = serde_json::json!({
+        "claim_id": claim.id,
+        "recipient_code": body.recipient_code,
+        "bundle": bundle,
+    });
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let event_id = medbrains_outbox::queue_in_tx(
+        &mut tx,
+        medbrains_outbox::queue::OutboxRow {
+            tenant_id: claims.tenant_id,
+            aggregate_type: "insurance_claim",
+            aggregate_id: Some(claim.id),
+            event_type: "abdm.nhcx.claim_submit",
+            payload,
+            idempotency_key: Some(format!("nhcx-eligibility:{}", claim.id)),
+        },
+    )
+    .await
+    .map_err(|e| AppError::Internal(format!("nhcx eligibility queue failed: {e}")))?;
     tx.commit().await?;
 
     Ok(Json(serde_json::json!({

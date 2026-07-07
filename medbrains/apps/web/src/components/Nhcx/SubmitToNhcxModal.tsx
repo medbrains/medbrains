@@ -8,16 +8,19 @@ import { Button, Modal, Select, toast } from "@/components/ui";
  * and the message type, then queue the FHIR exchange. */
 export function SubmitToNhcxModal({
   claimId,
+  mode = "submit",
   opened,
   onClose,
 }: {
   claimId: string;
+  mode?: "submit" | "eligibility";
   opened: boolean;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
   const [recipientCode, setRecipientCode] = useState<string | null>(null);
   const [use, setUse] = useState("preauthorization");
+  const isEligibility = mode === "eligibility";
 
   const { data: payers = [] } = useQuery({
     queryKey: ["nhcx-participants"],
@@ -27,19 +30,28 @@ export function SubmitToNhcxModal({
 
   const submit = useMutation({
     mutationFn: () =>
-      api.submitClaimToNhcx(claimId, { recipient_code: recipientCode ?? "", use }),
+      isEligibility
+        ? api.checkCoverageEligibility(claimId, { recipient_code: recipientCode ?? "" })
+        : api.submitClaimToNhcx(claimId, { recipient_code: recipientCode ?? "", use }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["insurance-claims"] });
       toast.success("Queued to NHCX — the payer response will arrive on the claim.", {
-        title: "Submitted",
+        title: isEligibility ? "Eligibility check queued" : "Submitted",
       });
       onClose();
     },
-    onError: (e: Error) => toast.error(e.message, { title: "NHCX submission failed" }),
+    onError: (e: Error) =>
+      toast.error(e.message, {
+        title: isEligibility ? "Eligibility check failed" : "NHCX submission failed",
+      }),
   });
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Submit to NHCX">
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={isEligibility ? "Check coverage eligibility" : "Submit to NHCX"}
+    >
       <Stack gap="sm">
         <Select
           label="Payer"
@@ -53,19 +65,21 @@ export function SubmitToNhcxModal({
           searchable
           nothingFoundMessage="No payers — add one in the NHCX directory first"
         />
-        <Stack gap={4}>
-          <Text size="sm" fw={500}>
-            Type
-          </Text>
-          <SegmentedControl
-            value={use}
-            onChange={setUse}
-            data={[
-              { value: "preauthorization", label: "Pre-authorization" },
-              { value: "claim", label: "Claim" },
-            ]}
-          />
-        </Stack>
+        {!isEligibility && (
+          <Stack gap={4}>
+            <Text size="sm" fw={500}>
+              Type
+            </Text>
+            <SegmentedControl
+              value={use}
+              onChange={setUse}
+              data={[
+                { value: "preauthorization", label: "Pre-authorization" },
+                { value: "claim", label: "Claim" },
+              ]}
+            />
+          </Stack>
+        )}
         <Group justify="flex-end">
           <Button tone="secondary" onClick={onClose}>
             Cancel
@@ -75,7 +89,7 @@ export function SubmitToNhcxModal({
             loading={submit.isPending}
             disabled={!recipientCode}
           >
-            Submit to NHCX
+            {isEligibility ? "Check eligibility" : "Submit to NHCX"}
           </Button>
         </Group>
       </Stack>

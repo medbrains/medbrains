@@ -1363,6 +1363,10 @@ pub fn build_router(state: AppState) -> Router {
             post(nhcx_submit::submit_claim_to_nhcx),
         )
         .route(
+            "/api/billing/insurance-claims/{id}/check-eligibility",
+            post(nhcx_submit::check_coverage_eligibility),
+        )
+        .route(
             "/api/nhcx/participants",
             get(nhcx_participants::list_nhcx_participants)
                 .post(nhcx_participants::upsert_nhcx_participant),

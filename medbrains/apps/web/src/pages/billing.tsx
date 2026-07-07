@@ -4060,7 +4060,10 @@ function InsuranceClaimsTab({
     defaultValues: tpaRateCardDefaults,
   });
   const [detailClaim, setDetailClaim] = useState<InsuranceClaim | null>(null);
-  const [nhcxSubmitClaim, setNhcxSubmitClaim] = useState<InsuranceClaim | null>(null);
+  const [nhcxAction, setNhcxAction] = useState<{
+    id: string;
+    mode: "submit" | "eligibility";
+  } | null>(null);
 
   const { data: claims = [], isLoading } = useQuery({
     queryKey: ["insurance-claims"],
@@ -4458,16 +4461,17 @@ function InsuranceClaimsTab({
         claim={detailClaim}
         callbacks={nhcxCallbacks}
         onClose={() => setDetailClaim(null)}
-        onSubmitToNhcx={(c) => {
+        onNhcxAction={(c, mode) => {
           setDetailClaim(null);
-          setNhcxSubmitClaim(c);
+          setNhcxAction({ id: c.id, mode });
         }}
       />
 
       <SubmitToNhcxModal
-        claimId={nhcxSubmitClaim?.id ?? ""}
-        opened={!!nhcxSubmitClaim}
-        onClose={() => setNhcxSubmitClaim(null)}
+        claimId={nhcxAction?.id ?? ""}
+        mode={nhcxAction?.mode ?? "submit"}
+        opened={!!nhcxAction}
+        onClose={() => setNhcxAction(null)}
       />
 
       <Text fw={600} mt="lg">
@@ -4618,12 +4622,12 @@ function ClaimDetailDrawer({
   claim,
   callbacks,
   onClose,
-  onSubmitToNhcx,
+  onNhcxAction,
 }: {
   claim: InsuranceClaim | null;
   callbacks: NhcxCallbackRow[];
   onClose: () => void;
-  onSubmitToNhcx: (claim: InsuranceClaim) => void;
+  onNhcxAction: (claim: InsuranceClaim, mode: "submit" | "eligibility") => void;
 }) {
   return (
     <Drawer
@@ -4649,8 +4653,15 @@ function ClaimDetailDrawer({
           <Group justify="flex-end">
             <Button
               size="xs"
+              tone="secondary"
+              onClick={() => onNhcxAction(claim, "eligibility")}
+            >
+              Check eligibility
+            </Button>
+            <Button
+              size="xs"
               leftSection={<IconShieldCheck size={14} />}
-              onClick={() => onSubmitToNhcx(claim)}
+              onClick={() => onNhcxAction(claim, "submit")}
             >
               Submit to NHCX
             </Button>

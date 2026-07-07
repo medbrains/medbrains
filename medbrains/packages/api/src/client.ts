@@ -4371,6 +4371,13 @@ export const api = {
       { method: "POST", body: JSON.stringify(data) },
     ),
 
+  /** Queue an NHCX coverage-eligibility check for the claim's patient + policy. */
+  checkCoverageEligibility: (id: string, data: { recipient_code: string }) =>
+    request<{ claim_id: string; queued: boolean; outbox_event_id: string }>(
+      `/billing/insurance-claims/${id}/check-eligibility`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+
   /** NHCX payer directory (the recipient_code source for claim submission). */
   listNhcxParticipants: (role?: string) =>
     request<
