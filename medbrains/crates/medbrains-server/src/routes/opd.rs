@@ -1270,6 +1270,26 @@ pub async fn complete_queue_entry(
         }
     }
 
+    // Finalize billing: turn this visit's draft invoice(s) into 'issued' (or 'paid'
+    // when zero-amount — free/scheme patients) so the OPD visit ends with a collectable
+    // bill the cashier sees, not a draft nobody revisits (the OPD revenue leak).
+    // Parity with IPD discharge. Opt-out: billing.auto_charge_opd_close_finalize = false.
+    if super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "opd_close_finalize")
+        .await?
+    {
+        sqlx::query(
+            "UPDATE invoices SET \
+             status = CASE WHEN total_amount = 0 THEN 'paid'::invoice_status \
+                           ELSE 'issued'::invoice_status END, \
+             issued_at = COALESCE(issued_at, now()), updated_at = now() \
+             WHERE tenant_id = $1 AND encounter_id = $2 AND status = 'draft'::invoice_status",
+        )
+        .bind(claims.tenant_id)
+        .bind(q.encounter_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+
     tx.commit().await?;
 
     // Enrich payload with names for orchestration
