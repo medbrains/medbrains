@@ -7801,6 +7801,19 @@ export interface WardStockRow {
   gap: number;
 }
 
+/** A staff member assigned to a location (ward / nursing station / floor). */
+export interface StaffLocationAssignment {
+  id: string;
+  user_id: string;
+  full_name: string;
+  username: string;
+  role: string;
+  role_label: string | null;
+  is_primary: boolean;
+  effective_from: string;
+  effective_to: string | null;
+}
+
 /** Per-location pharmacy stock health (multi-pharmacy dashboard). */
 export interface LocationStockSummary {
   location_id: string;

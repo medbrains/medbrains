@@ -401,6 +401,14 @@ pub fn build_router(state: AppState) -> Router {
             "/api/setup/locations/{id}",
             put(setup::update_location).delete(setup::delete_location),
         )
+        .route(
+            "/api/setup/locations/{id}/staff",
+            get(setup::list_location_staff).post(setup::assign_location_staff),
+        )
+        .route(
+            "/api/setup/locations/{id}/staff/{user_id}",
+            delete(setup::remove_location_staff),
+        )
         // Setup — departments
         .route(
             "/api/setup/departments",

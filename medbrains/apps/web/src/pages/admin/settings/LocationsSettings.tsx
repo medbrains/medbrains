@@ -1,7 +1,17 @@
-import { Group, Loader, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
+import {
+  Drawer,
+  Group,
+  Loader,
+  Modal,
+  Select,
+  Stack,
+  Switch,
+  Text,
+  TextInput,
+} from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { LocationRow } from "@medbrains/types";
-import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconCheck, IconPencil, IconPlus, IconTrash, IconUsers } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { CreateLocationModal, SelectLabel } from "@/components";
@@ -19,6 +29,7 @@ const LEVEL_OPTIONS = [
   { value: "zone", label: "Zone" },
   { value: "room", label: "Room" },
   { value: "bed", label: "Bed" },
+  { value: "station", label: "Nursing station" },
 ];
 
 const QUERY_KEY = ["setup-locations"];
@@ -250,11 +261,130 @@ function DeleteConfirmModal({
 
 // ── Main Component ────────────────────────────────────────
 
+function LocationStaffDrawer({
+  location,
+  onClose,
+}: {
+  location: LocationRow | null;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [userId, setUserId] = useState<string | null>(null);
+  const [roleLabel, setRoleLabel] = useState("");
+  const [isPrimary, setIsPrimary] = useState(false);
+  const locId = location?.id ?? "";
+
+  const { data: staff = [] } = useQuery({
+    queryKey: ["location-staff", locId],
+    queryFn: () => settingsSetupService.listLocationStaff(locId),
+    enabled: !!locId,
+  });
+  const { data: users = [] } = useQuery({
+    queryKey: ["setup-users"],
+    queryFn: () => settingsSetupService.listSetupUsers(),
+    enabled: !!locId,
+  });
+
+  const assign = useMutation({
+    mutationFn: () =>
+      settingsSetupService.assignLocationStaff(locId, {
+        user_id: userId ?? "",
+        role_label: roleLabel || undefined,
+        is_primary: isPrimary,
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["location-staff", locId] });
+      notifications.show({ message: "Staff assigned" });
+      setUserId(null);
+      setRoleLabel("");
+      setIsPrimary(false);
+    },
+    onError: (e: Error) => notifications.show({ message: e.message, color: "red" }),
+  });
+  const remove = useMutation({
+    mutationFn: (uid: string) => settingsSetupService.removeLocationStaff(locId, uid),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["location-staff", locId] });
+    },
+  });
+
+  const userOptions = users.map((u) => ({ value: u.id, label: `${u.full_name} (${u.username})` }));
+
+  return (
+    <Drawer
+      opened={!!location}
+      onClose={onClose}
+      title={`Staff — ${location?.name ?? ""}`}
+      position="right"
+    >
+      <Stack gap="md">
+        <Stack gap={4}>
+          {staff.length === 0 && (
+            <Text size="sm" c="dimmed">
+              No staff assigned yet.
+            </Text>
+          )}
+          {staff.map((s) => (
+            <Group key={s.id} justify="space-between">
+              <div>
+                <Group gap={6}>
+                  <Text size="sm">{s.full_name}</Text>
+                  {s.is_primary && (
+                    <Badge size="xs" tone="info">
+                      Primary
+                    </Badge>
+                  )}
+                </Group>
+                <Text size="xs" c="dimmed">
+                  {s.role_label || s.role}
+                </Text>
+              </div>
+              <IconButton
+                tone="danger"
+                aria-label="Remove staff"
+                onClick={() => remove.mutate(s.user_id)}
+              >
+                <IconTrash size={14} />
+              </IconButton>
+            </Group>
+          ))}
+        </Stack>
+
+        <Stack gap="sm">
+          <Select
+            label="User"
+            searchable
+            data={userOptions}
+            value={userId}
+            onChange={setUserId}
+            placeholder="Select a user"
+          />
+          <TextInput
+            label="Role (optional)"
+            value={roleLabel}
+            onChange={(e) => setRoleLabel(e.currentTarget.value)}
+            placeholder="e.g. charge nurse"
+          />
+          <Switch
+            label="Primary contact"
+            checked={isPrimary}
+            onChange={(e) => setIsPrimary(e.currentTarget.checked)}
+          />
+          <Button onClick={() => assign.mutate()} loading={assign.isPending} disabled={!userId}>
+            Assign
+          </Button>
+        </Stack>
+      </Stack>
+    </Drawer>
+  );
+}
+
 export function LocationsSettings() {
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<LocationRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LocationRow | null>(null);
+  const [staffLoc, setStaffLoc] = useState<LocationRow | null>(null);
 
   const { data: locations, isLoading } = useQuery({
     queryKey: QUERY_KEY,
@@ -336,6 +466,9 @@ export function LocationsSettings() {
       </Table.Td>
       <Table.Td>
         <Group gap={4}>
+          <IconButton tone="default" onClick={() => setStaffLoc(loc)} aria-label="Manage staff">
+            <IconUsers size={16} />
+          </IconButton>
           <IconButton tone="primary" onClick={() => openEdit(loc)} aria-label="Edit">
             <IconPencil size={16} />
           </IconButton>
@@ -396,6 +529,8 @@ export function LocationsSettings() {
         }}
         isDeleting={deleteMutation.isPending}
       />
+
+      <LocationStaffDrawer location={staffLoc} onClose={() => setStaffLoc(null)} />
     </>
   );
 }

@@ -1610,6 +1610,7 @@ import type {
   StaffAttendanceReportPrintData,
   StaffCredentialFormPrintData,
   StaffCredentialSummary,
+  StaffLocationAssignment,
   StateFormularyRow,
   StateScheme,
   StationHandoff,
@@ -2880,6 +2881,20 @@ export const api = {
 
   // Setup — locations
   listLocations: () => request<LocationRow[]>("/setup/locations"),
+  listLocationStaff: (locationId: string) =>
+    request<StaffLocationAssignment[]>(`/setup/locations/${locationId}/staff`),
+  assignLocationStaff: (
+    locationId: string,
+    data: { user_id: string; role_label?: string; is_primary?: boolean },
+  ) =>
+    request<{ status: string }>(`/setup/locations/${locationId}/staff`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  removeLocationStaff: (locationId: string, userId: string) =>
+    request<{ status: string }>(`/setup/locations/${locationId}/staff/${userId}`, {
+      method: "DELETE",
+    }),
   createLocation: (data: { parent_id?: string; level: string; code: string; name: string }) =>
     request<LocationRow>("/setup/locations", {
       method: "POST",

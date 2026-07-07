@@ -624,7 +624,7 @@ pub async fn create_location(
     validation::validate_code(&mut errors, "code", &body.code);
     validation::validate_name(&mut errors, "name", &body.name);
 
-    let valid_levels = ["campus", "building", "floor", "wing", "zone", "room", "bed"];
+    let valid_levels = ["campus", "building", "floor", "wing", "zone", "room", "bed", "station"];
     if !valid_levels.contains(&body.level.as_str()) {
         errors.add("level", "Invalid location level");
     }
@@ -732,6 +732,108 @@ pub async fn delete_location(
 
     tx.commit().await?;
 
+    Ok(Json(serde_json::json!({ "status": "ok" })))
+}
+
+// ── Staff ↔ location / station assignment ───────────────────
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct StaffLocationAssignment {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub full_name: String,
+    pub username: String,
+    pub role: String,
+    pub role_label: Option<String>,
+    pub is_primary: bool,
+    pub effective_from: chrono::NaiveDate,
+    pub effective_to: Option<chrono::NaiveDate>,
+}
+
+/// `GET /api/locations/{id}/staff` — active staff assigned to a location (ward/station/floor).
+pub async fn list_location_staff(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(location_id): Path<Uuid>,
+) -> Result<Json<Vec<StaffLocationAssignment>>, AppError> {
+    require_permission(&claims, permissions::admin::settings::locations::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+    let rows = sqlx::query_as::<_, StaffLocationAssignment>(
+        "SELECT sla.id, sla.user_id, u.full_name, u.username, u.role::text AS role, \
+                sla.role_label, sla.is_primary, sla.effective_from, sla.effective_to \
+         FROM staff_location_assignments sla \
+         JOIN users u ON u.id = sla.user_id \
+         WHERE sla.tenant_id = $1 AND sla.location_id = $2 \
+           AND (sla.effective_to IS NULL OR sla.effective_to >= CURRENT_DATE) \
+         ORDER BY sla.is_primary DESC, u.full_name LIMIT 1000",
+    )
+    .bind(claims.tenant_id)
+    .bind(location_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AssignStaffRequest {
+    pub user_id: Uuid,
+    pub role_label: Option<String>,
+    pub is_primary: Option<bool>,
+}
+
+/// `POST /api/locations/{id}/staff` — assign (or re-activate) a user at a location.
+pub async fn assign_location_staff(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(location_id): Path<Uuid>,
+    Json(body): Json<AssignStaffRequest>,
+) -> Result<Json<Value>, AppError> {
+    require_permission(&claims, permissions::admin::settings::locations::UPDATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+    sqlx::query(
+        "INSERT INTO staff_location_assignments \
+         (tenant_id, user_id, location_id, role_label, is_primary) \
+         VALUES ($1, $2, $3, $4, COALESCE($5, false)) \
+         ON CONFLICT (tenant_id, user_id, location_id) DO UPDATE SET \
+           role_label = EXCLUDED.role_label, is_primary = EXCLUDED.is_primary, \
+           effective_to = NULL, updated_at = now()",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.user_id)
+    .bind(location_id)
+    .bind(&body.role_label)
+    .bind(body.is_primary)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({ "status": "ok" })))
+}
+
+/// `DELETE /api/locations/{id}/staff/{user_id}` — unassign a user from a location.
+pub async fn remove_location_staff(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((location_id, user_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<Value>, AppError> {
+    require_permission(&claims, permissions::admin::settings::locations::UPDATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+    sqlx::query(
+        "DELETE FROM staff_location_assignments \
+         WHERE location_id = $1 AND user_id = $2 AND tenant_id = $3",
+    )
+    .bind(location_id)
+    .bind(user_id)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
     Ok(Json(serde_json::json!({ "status": "ok" })))
 }
 
@@ -4058,7 +4160,7 @@ pub async fn import_locations(
             continue;
         }
 
-        let valid_levels = ["campus", "building", "floor", "wing", "zone", "room", "bed"];
+        let valid_levels = ["campus", "building", "floor", "wing", "zone", "room", "bed", "station"];
         if !valid_levels.contains(&level.as_str()) {
             errors.push(format!("Row {row_num}: invalid level '{level}'"));
             skipped += 1;

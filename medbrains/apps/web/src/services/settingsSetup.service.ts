@@ -65,6 +65,14 @@ export const settingsSetupService = {
   createLocation: (data: CreateLocationInput) => api.createLocation(data),
   updateLocation: (id: string, data: UpdateLocationInput) => api.updateLocation(id, data),
   deleteLocation: (id: string) => api.deleteLocation(id),
+  listSetupUsers: () => api.listSetupUsers(),
+  listLocationStaff: (locationId: string) => api.listLocationStaff(locationId),
+  assignLocationStaff: (
+    locationId: string,
+    data: { user_id: string; role_label?: string; is_primary?: boolean },
+  ) => api.assignLocationStaff(locationId, data),
+  removeLocationStaff: (locationId: string, userId: string) =>
+    api.removeLocationStaff(locationId, userId),
   getSecureDeviceSettings: () => api.getSecureDeviceSettings(),
   updateSecureDeviceSetting: (data: UpdateSecureDeviceSettingInput) =>
     api.updateSecureDeviceSetting(data),
