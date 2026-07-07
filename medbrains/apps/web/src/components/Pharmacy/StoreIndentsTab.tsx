@@ -321,6 +321,10 @@ function CreateStoreIndentModal({ opened, onClose }: { opened: boolean; onClose:
       from_store_id: fromStoreId ?? undefined,
       to_store_id: toStoreId ?? undefined,
       items: items.map((item) => ({
+        // Persist the catalog linkage the picker already captured — the indent
+        // records WHICH catalog item was requested (enables stock movement + reporting),
+        // not just a free-text name.
+        item_id: item.item_id || undefined,
         name: item.name,
         quantity: item.quantity,
         unit: item.unit,
