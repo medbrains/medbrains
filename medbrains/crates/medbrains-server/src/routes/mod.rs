@@ -2166,6 +2166,14 @@ pub fn build_router(state: AppState) -> Router {
             "/api/pharmacy/transfers/{id}/approve",
             put(pharmacy::approve_transfer),
         )
+        .route(
+            "/api/pharmacy/transfers/{id}/dispatch",
+            post(pharmacy::dispatch_transfer),
+        )
+        .route(
+            "/api/pharmacy/transfers/{id}/receive",
+            post(pharmacy::receive_transfer),
+        )
         // Phase 2 — returns
         .route(
             "/api/pharmacy/returns",

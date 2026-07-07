@@ -88,6 +88,10 @@ export const pharmacyService = {
     api.listPharmacyTransfers(...args),
   approvePharmacyTransfer: (...args: Parameters<typeof api.approvePharmacyTransfer>) =>
     api.approvePharmacyTransfer(...args),
+  dispatchPharmacyTransfer: (...args: Parameters<typeof api.dispatchPharmacyTransfer>) =>
+    api.dispatchPharmacyTransfer(...args),
+  receivePharmacyTransfer: (...args: Parameters<typeof api.receivePharmacyTransfer>) =>
+    api.receivePharmacyTransfer(...args),
   getPharmacyConsumption: (...args: Parameters<typeof api.getPharmacyConsumption>) =>
     api.getPharmacyConsumption(...args),
   getPharmacyAbcVed: (...args: Parameters<typeof api.getPharmacyAbcVed>) =>

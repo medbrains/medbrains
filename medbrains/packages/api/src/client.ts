@@ -5370,6 +5370,14 @@ export const api = {
     request<PharmacyTransferRequest>(`/pharmacy/transfers/${id}/approve`, {
       method: "PUT",
     }),
+  dispatchPharmacyTransfer: (id: string) =>
+    request<PharmacyTransferRequest>(`/pharmacy/transfers/${id}/dispatch`, {
+      method: "POST",
+    }),
+  receivePharmacyTransfer: (id: string) =>
+    request<PharmacyTransferRequest>(`/pharmacy/transfers/${id}/receive`, {
+      method: "POST",
+    }),
   listPharmacyReturns: () => request<PharmacyReturn[]>("/pharmacy/returns"),
   createPharmacyReturn: (data: CreatePharmacyReturnRequest) =>
     request<PharmacyReturn>("/pharmacy/returns", {

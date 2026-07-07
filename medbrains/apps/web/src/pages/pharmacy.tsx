@@ -100,6 +100,7 @@ import {
   IconEye,
   IconLock,
   IconPackage,
+  IconPackageImport,
   IconPencil,
   IconPill,
   IconPlus,
@@ -109,6 +110,7 @@ import {
   IconShieldCheck,
   IconShoppingCart,
   IconTrash,
+  IconTruck,
   IconUpload,
   IconX,
 } from "@tabler/icons-react";
@@ -141,13 +143,13 @@ import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { CreditNotesTab } from "@/components/Pharmacy/CreditNotesTab";
 import { DispenseModal } from "@/components/Pharmacy/DispenseModal";
-import { PharmacyRegistry } from "@/components/Pharmacy/PharmacyRegistry";
 import {
   MedicineOrderLineCard,
   type MedicineOrderLineValue,
 } from "@/components/Pharmacy/MedicineOrderLineCard";
 import { PharmacyDispensingView } from "@/components/Pharmacy/PharmacyDispensingView";
 import { PharmacyLabel } from "@/components/Pharmacy/PharmacyLabel";
+import { PharmacyRegistry } from "@/components/Pharmacy/PharmacyRegistry";
 import { RepeatPanel } from "@/components/Pharmacy/RepeatPanel";
 import { StoreIndentsTab } from "@/components/Pharmacy/StoreIndentsTab";
 import { SubstituteModal } from "@/components/Pharmacy/SubstituteModal";
@@ -5077,9 +5079,29 @@ function TransfersView({
     },
   });
 
+  const dispatchMutation = useMutation({
+    mutationFn: (id: string) => pharmacyService.dispatchPharmacyTransfer(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-transfers"] });
+      toast.success("Stock dispatched (FEFO) from the source pharmacy", { title: "Dispatched" });
+    },
+    onError: (e: Error) => toast.error(e.message, { title: "Dispatch failed" }),
+  });
+
+  const receiveMutation = useMutation({
+    mutationFn: (id: string) => pharmacyService.receivePharmacyTransfer(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-transfers"] });
+      toast.success("Stock received at the destination pharmacy", { title: "Received" });
+    },
+    onError: (e: Error) => toast.error(e.message, { title: "Receive failed" }),
+  });
+
   const transferStatusColors: Record<string, string> = {
     draft: "gray",
     approved: "primary",
+    dispatched: "warning",
+    received: "success",
     transferred: "success",
     cancelled: "danger",
   };
@@ -5141,6 +5163,28 @@ function TransfersView({
                 onClick={() => approveMutation.mutate(row.id)}
               >
                 <IconCheck size={16} />
+              </IconButton>
+            </Tooltip>
+          )}
+          {canManage && row.status === "approved" && (
+            <Tooltip label="Dispatch (FEFO from source)">
+              <IconButton
+                tone="primary"
+                aria-label="Dispatch store transfer"
+                onClick={() => dispatchMutation.mutate(row.id)}
+              >
+                <IconTruck size={16} />
+              </IconButton>
+            </Tooltip>
+          )}
+          {canManage && row.status === "dispatched" && (
+            <Tooltip label="Receive at destination">
+              <IconButton
+                tone="success"
+                aria-label="Receive store transfer"
+                onClick={() => receiveMutation.mutate(row.id)}
+              >
+                <IconPackageImport size={16} />
               </IconButton>
             </Tooltip>
           )}

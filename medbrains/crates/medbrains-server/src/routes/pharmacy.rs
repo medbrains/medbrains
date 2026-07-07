@@ -4767,6 +4767,182 @@ pub async fn list_transfers(
     ))
 }
 
+#[derive(Debug, serde::Deserialize)]
+struct TransferItem {
+    catalog_item_id: Uuid,
+    quantity: i32,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct DispatchedLine {
+    catalog_item_id: Uuid,
+    batch_number: String,
+    expiry_date: Option<NaiveDate>,
+    unit_cost: Decimal,
+    quantity: i32,
+}
+
+/// `POST /api/pharmacy/transfers/{id}/dispatch` — FEFO-decrement the source location's
+/// batch stock for each requested item and record the exact batches taken.
+pub async fn dispatch_transfer(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<PharmacyTransferRequest>, AppError> {
+    require_permission(&claims, permissions::pharmacy::stores::MANAGE)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let (from_location, items): (Uuid, serde_json::Value) = sqlx::query_as(
+        "SELECT from_location_id, items FROM pharmacy_transfer_requests \
+         WHERE id = $1 AND tenant_id = $2 AND status = 'approved' FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("Transfer not found or not in approved state".to_owned()))?;
+
+    let requested: Vec<TransferItem> = serde_json::from_value(items)
+        .map_err(|_| AppError::BadRequest("Transfer items are malformed".to_owned()))?;
+
+    let mut dispatched: Vec<DispatchedLine> = Vec::new();
+    for item in &requested {
+        if item.quantity <= 0 {
+            continue;
+        }
+        let batches: Vec<(Uuid, String, Option<NaiveDate>, Decimal, i32)> = sqlx::query_as(
+            "SELECT id, batch_number, expiry_date, unit_cost, quantity FROM batch_stock \
+             WHERE tenant_id = $1 AND store_location_id = $2 AND catalog_item_id = $3 \
+               AND quantity > 0 ORDER BY expiry_date ASC NULLS LAST FOR UPDATE",
+        )
+        .bind(claims.tenant_id)
+        .bind(from_location)
+        .bind(item.catalog_item_id)
+        .fetch_all(&mut *tx)
+        .await?;
+
+        let mut remaining = item.quantity;
+        for (batch_id, batch_number, expiry_date, unit_cost, avail) in batches {
+            if remaining <= 0 {
+                break;
+            }
+            let take = remaining.min(avail);
+            sqlx::query(
+                "UPDATE batch_stock SET quantity = quantity - $1, updated_at = now() WHERE id = $2",
+            )
+            .bind(take)
+            .bind(batch_id)
+            .execute(&mut *tx)
+            .await?;
+            dispatched.push(DispatchedLine {
+                catalog_item_id: item.catalog_item_id,
+                batch_number,
+                expiry_date,
+                unit_cost,
+                quantity: take,
+            });
+            remaining -= take;
+        }
+        if remaining > 0 {
+            return Err(AppError::BadRequest(format!(
+                "Insufficient stock at the source pharmacy for item {} — short by {remaining}",
+                item.catalog_item_id
+            )));
+        }
+    }
+
+    let dispatched_json = serde_json::to_value(&dispatched)
+        .map_err(|e| AppError::Internal(format!("serialize dispatched lines: {e}")))?;
+    let row = sqlx::query_as::<_, PharmacyTransferRequest>(
+        "UPDATE pharmacy_transfer_requests SET status = 'dispatched', dispatched_lines = $3, \
+         dispatched_by = $4, dispatched_at = now(), updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 RETURNING *",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(dispatched_json)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(filter_pharmacy_transfer_response(row, &restricted_fields)))
+}
+
+/// `POST /api/pharmacy/transfers/{id}/receive` — recreate the dispatched batches at the
+/// destination location (preserving batch_number + expiry for recall traceability).
+pub async fn receive_transfer(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<PharmacyTransferRequest>, AppError> {
+    require_permission(&claims, permissions::pharmacy::stores::MANAGE)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let (to_location, dispatched): (Uuid, serde_json::Value) = sqlx::query_as(
+        "SELECT to_location_id, dispatched_lines FROM pharmacy_transfer_requests \
+         WHERE id = $1 AND tenant_id = $2 AND status = 'dispatched' FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("Transfer not found or not dispatched".to_owned()))?;
+
+    let lines: Vec<DispatchedLine> = serde_json::from_value(dispatched)
+        .map_err(|_| AppError::BadRequest("Dispatched lines are malformed".to_owned()))?;
+
+    for line in &lines {
+        let updated = sqlx::query(
+            "UPDATE batch_stock SET quantity = quantity + $1, updated_at = now() \
+             WHERE tenant_id = $2 AND store_location_id = $3 AND catalog_item_id = $4 \
+               AND batch_number = $5",
+        )
+        .bind(line.quantity)
+        .bind(claims.tenant_id)
+        .bind(to_location)
+        .bind(line.catalog_item_id)
+        .bind(&line.batch_number)
+        .execute(&mut *tx)
+        .await?;
+        if updated.rows_affected() == 0 {
+            sqlx::query(
+                "INSERT INTO batch_stock \
+                 (tenant_id, catalog_item_id, store_location_id, batch_number, expiry_date, \
+                  quantity, unit_cost) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            )
+            .bind(claims.tenant_id)
+            .bind(line.catalog_item_id)
+            .bind(to_location)
+            .bind(&line.batch_number)
+            .bind(line.expiry_date)
+            .bind(line.quantity)
+            .bind(line.unit_cost)
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
+
+    let row = sqlx::query_as::<_, PharmacyTransferRequest>(
+        "UPDATE pharmacy_transfer_requests SET status = 'received', received_by = $3, \
+         received_at = now(), updated_at = now() WHERE id = $1 AND tenant_id = $2 RETURNING *",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(filter_pharmacy_transfer_response(row, &restricted_fields)))
+}
+
 // ══════════════════════════════════════════════════════════
 //  Returns
 // ══════════════════════════════════════════════════════════
