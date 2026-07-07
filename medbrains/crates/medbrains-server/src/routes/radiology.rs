@@ -894,6 +894,38 @@ pub async fn verify_report(
     }
     crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
+    // Close the loop back to the ordering clinician: signal the verified imaging report
+    // is ready to review. Routine reports otherwise gave no signal — only critical
+    // findings notified (at report creation). Same recipient rule as the critical alert
+    // (encounter doctor, else orderer); skip self-notification when the verifier is that
+    // clinician. Parity with lab verify_results.
+    let recipient: Uuid = sqlx::query_scalar(
+        "SELECT COALESCE( \
+           (SELECT doctor_id FROM encounters WHERE id = $1 AND tenant_id = $2), $3)",
+    )
+    .bind(order.encounter_id)
+    .bind(claims.tenant_id)
+    .bind(order.ordered_by)
+    .fetch_one(&mut *tx)
+    .await?;
+    if recipient != claims.sub {
+        crate::routes::notifications::create_notification(
+            &mut tx,
+            claims.tenant_id,
+            crate::routes::notifications::NewNotification {
+                user_id: recipient,
+                kind: "info",
+                title: "Imaging report ready",
+                body: None,
+                category: Some("Radiology"),
+                entity_type: Some("radiology_order"),
+                entity_id: Some(order.id),
+                action_url: Some("/radiology"),
+            },
+        )
+        .await?;
+    }
+
     tx.commit().await?;
     Ok(Json(report))
 }
