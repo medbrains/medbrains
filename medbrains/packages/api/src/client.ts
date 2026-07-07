@@ -5339,6 +5339,11 @@ export const api = {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<NearExpiryRow[]>(`/pharmacy/batches/near-expiry${qs}`);
   },
+  writeOffExpired: (data: { method?: string; witness_name: string; notes?: string }) =>
+    request<{ certificate_number: string; batches_written_off: number; total_quantity: number }>(
+      "/pharmacy/batches/write-off-expired",
+      { method: "POST", body: JSON.stringify(data) },
+    ),
   getPharmacyDeadStock: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<PharmacyDeadStockRow[]>(`/pharmacy/batches/dead-stock${qs}`);

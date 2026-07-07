@@ -2141,6 +2141,10 @@ pub fn build_router(state: AppState) -> Router {
             get(pharmacy::near_expiry_report),
         )
         .route(
+            "/api/pharmacy/batches/write-off-expired",
+            post(pharmacy::write_off_expired),
+        )
+        .route(
             "/api/pharmacy/batches/dead-stock",
             get(pharmacy::dead_stock_report),
         )

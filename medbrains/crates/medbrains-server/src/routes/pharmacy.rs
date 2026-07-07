@@ -4384,6 +4384,94 @@ pub async fn create_batch(
     )))
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct WriteOffExpiredRequest {
+    /// Destruction method: incineration | chemical | landfill | return_to_manufacturer | other.
+    pub method: Option<String>,
+    pub witness_name: String,
+    pub notes: Option<String>,
+}
+
+/// `POST /api/pharmacy/stock/write-off-expired` — zero all expired pharmacy batches, decrement
+/// the catalogue aggregate, and file ONE destruction-log certificate (reason=expired).
+pub async fn write_off_expired(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<WriteOffExpiredRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
+    if body.witness_name.trim().is_empty() {
+        return Err(AppError::BadRequest("A witness name is required".to_owned()));
+    }
+    let method = body.method.as_deref().unwrap_or("incineration");
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let batches: Vec<(Uuid, Uuid, String, NaiveDate, i32)> = sqlx::query_as(
+        "SELECT id, catalog_item_id, batch_number, expiry_date, quantity_on_hand \
+         FROM pharmacy_batches \
+         WHERE tenant_id = $1 AND quantity_on_hand > 0 AND expiry_date < CURRENT_DATE FOR UPDATE",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    if batches.is_empty() {
+        return Err(AppError::BadRequest("No expired stock to write off".to_owned()));
+    }
+
+    let mut items = Vec::new();
+    let mut total_qty: i32 = 0;
+    for (id, catalog_item_id, batch_number, expiry_date, qty) in &batches {
+        items.push(serde_json::json!({
+            "batch_id": id, "catalog_item_id": catalog_item_id,
+            "batch_number": batch_number, "expiry_date": expiry_date, "quantity": qty,
+        }));
+        total_qty += *qty;
+        sqlx::query(
+            "UPDATE pharmacy_batches SET quantity_on_hand = 0, updated_at = now() WHERE id = $1",
+        )
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(
+            "UPDATE pharmacy_catalog SET current_stock = GREATEST(current_stock - $1, 0), \
+             updated_at = now() WHERE id = $2 AND tenant_id = $3",
+        )
+        .bind(qty)
+        .bind(catalog_item_id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    let certificate_number = format!("DEST-{}", &Uuid::new_v4().to_string()[..8]);
+    sqlx::query(
+        "INSERT INTO pharmacy_destruction_log \
+         (tenant_id, certificate_number, destruction_date, method, items, total_quantity, \
+          total_value, reason, witness_name, created_by, notes) \
+         VALUES ($1, $2, CURRENT_DATE, $3, $4, $5, 0, 'expired', $6, $7, $8)",
+    )
+    .bind(claims.tenant_id)
+    .bind(&certificate_number)
+    .bind(method)
+    .bind(serde_json::Value::Array(items))
+    .bind(total_qty)
+    .bind(&body.witness_name)
+    .bind(claims.sub)
+    .bind(&body.notes)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({
+        "certificate_number": certificate_number,
+        "batches_written_off": batches.len(),
+        "total_quantity": total_qty,
+    })))
+}
+
 pub async fn near_expiry_report(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
