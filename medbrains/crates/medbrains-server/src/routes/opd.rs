@@ -3701,6 +3701,35 @@ pub async fn create_procedure_order(
     .fetch_one(&mut *tx)
     .await?;
 
+    // Auto-charge the procedure (was a silent revenue leak). Priced from procedure_catalog
+    // (base_price) or master-priced by the procedure code; source=procedure, idempotent by
+    // the order id, and reversed if the order is cancelled.
+    let proc: Option<(String, String, Option<Decimal>)> = sqlx::query_as(
+        "SELECT code, name, base_price FROM procedure_catalog WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(body.procedure_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if let Some((code, name, base_price)) = proc {
+        super::billing::auto_charge(
+            &mut tx,
+            &claims.tenant_id,
+            super::billing::AutoChargeInput {
+                patient_id: body.patient_id,
+                encounter_id: Some(body.encounter_id),
+                charge_code: code,
+                source: "procedure".to_owned(),
+                source_id: row.id,
+                quantity: 1,
+                description_override: Some(name),
+                unit_price_override: base_price,
+                tax_percent_override: None,
+            },
+        )
+        .await?;
+    }
+
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -3726,13 +3755,24 @@ pub async fn cancel_procedure_order(
     .execute(&mut *tx)
     .await?;
 
-    tx.commit().await?;
-
     if result.rows_affected() == 0 {
         return Err(AppError::BadRequest(
             "procedure order not found or not cancellable".to_owned(),
         ));
     }
+
+    // Reverse the charge posted at order time so a cancelled procedure isn't billed.
+    super::billing::reverse_auto_charge_for_source(
+        &mut tx,
+        &claims.tenant_id,
+        "procedure",
+        order_id,
+        claims.sub,
+        "Procedure order cancelled",
+    )
+    .await?;
+
+    tx.commit().await?;
 
     Ok(Json(serde_json::json!({ "status": "cancelled" })))
 }
