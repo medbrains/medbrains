@@ -2320,15 +2320,34 @@ pub async fn create_implant_entry(
     .fetch_one(&mut *tx)
     .await?;
 
-    // Decrement stock for implant
-    sqlx::query(
+    // Decrement stock + get the item's billing details.
+    let (item_code, item_name, base_price) = sqlx::query_as::<_, (String, String, Decimal)>(
         "UPDATE store_catalog SET current_stock = current_stock - 1, \
          last_issue_date = now(), updated_at = now() \
-         WHERE id = $1 AND tenant_id = $2",
+         WHERE id = $1 AND tenant_id = $2 RETURNING code, name, base_price",
     )
     .bind(body.catalog_item_id)
     .bind(claims.tenant_id)
-    .execute(&mut *tx)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    // Auto-charge the implant (was a silent revenue leak — implants are big-ticket).
+    // Patient-only draft (the registry carries no encounter link); idempotent by entry id.
+    auto_charge(
+        &mut tx,
+        &claims.tenant_id,
+        AutoChargeInput {
+            patient_id: body.patient_id,
+            encounter_id: None,
+            charge_code: item_code,
+            source: "ot".into(),
+            source_id: entry.id,
+            quantity: 1,
+            description_override: Some(format!("Implant: {item_name}")),
+            unit_price_override: Some(base_price),
+            tax_percent_override: None,
+        },
+    )
     .await?;
 
     tx.commit().await?;
