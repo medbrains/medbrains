@@ -5727,6 +5727,8 @@ export const P = {
       RECORDS_CREATE: "specialty.other.records.create" as const,
       DIALYSIS_LIST: "specialty.other.dialysis.list" as const,
       DIALYSIS_MANAGE: "specialty.other.dialysis.manage" as const,
+      ONCOLOGY_LIST: "specialty.other.oncology.list" as const,
+      ONCOLOGY_CREATE: "specialty.other.oncology.create" as const,
       CHEMO_LIST: "specialty.other.chemo.list" as const,
       CHEMO_MANAGE: "specialty.other.chemo.manage" as const,
     },

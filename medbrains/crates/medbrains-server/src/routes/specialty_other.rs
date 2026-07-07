@@ -6,7 +6,8 @@ use axum::{
 };
 use medbrains_core::permissions;
 use medbrains_core::specialty::other::{
-    ChemoProtocol, DialysisSession, SpecialtyRecord, SpecialtyTemplate,
+    CancerStaging, ChemoProtocol, DialysisSession, RadiationSession, SpecialtyRecord,
+    SpecialtyTemplate,
 };
 use medbrains_core::specialty::palliative::{
     DnrOrder, MortuaryRecord, NuclearMedAdministration, NuclearMedSource, PainAssessment,
@@ -1153,6 +1154,145 @@ pub async fn update_chemo_protocol(
     .fetch_one(&mut *tx)
     .await?;
 
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+// ── Oncology depth (B3): cancer TNM staging + radiation sessions ──
+
+#[derive(Debug, Deserialize)]
+pub struct StagingQuery {
+    pub patient_id: Option<Uuid>,
+}
+
+/// `GET /api/specialty/oncology/staging`
+pub async fn list_cancer_stagings(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<StagingQuery>,
+) -> Result<Json<Vec<CancerStaging>>, AppError> {
+    require_permission(&claims, permissions::specialty::other::oncology::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+    let rows = sqlx::query_as::<_, CancerStaging>(
+        "SELECT * FROM cancer_stagings \
+         WHERE tenant_id = $1 AND ($2::uuid IS NULL OR patient_id = $2) \
+         ORDER BY created_at DESC LIMIT 200",
+    )
+    .bind(claims.tenant_id)
+    .bind(q.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateStagingRequest {
+    pub patient_id: Uuid,
+    pub primary_site: String,
+    pub histology: Option<String>,
+    pub t_stage: Option<String>,
+    pub n_stage: Option<String>,
+    pub m_stage: Option<String>,
+    pub overall_stage: Option<String>,
+    pub notes: Option<String>,
+}
+
+/// `POST /api/specialty/oncology/staging`
+pub async fn create_cancer_staging(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateStagingRequest>,
+) -> Result<Json<CancerStaging>, AppError> {
+    require_permission(&claims, permissions::specialty::other::oncology::CREATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+    let row = sqlx::query_as::<_, CancerStaging>(
+        "INSERT INTO cancer_stagings \
+         (tenant_id, patient_id, primary_site, histology, t_stage, n_stage, m_stage, \
+          overall_stage, staged_by, staged_at, notes) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), $10) RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(body.primary_site)
+    .bind(body.histology)
+    .bind(body.t_stage)
+    .bind(body.n_stage)
+    .bind(body.m_stage)
+    .bind(body.overall_stage)
+    .bind(claims.sub)
+    .bind(body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// `GET /api/specialty/oncology/radiation`
+pub async fn list_radiation_sessions(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<StagingQuery>,
+) -> Result<Json<Vec<RadiationSession>>, AppError> {
+    require_permission(&claims, permissions::specialty::other::oncology::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+    let rows = sqlx::query_as::<_, RadiationSession>(
+        "SELECT * FROM radiation_sessions \
+         WHERE tenant_id = $1 AND ($2::uuid IS NULL OR patient_id = $2) \
+         ORDER BY created_at DESC LIMIT 200",
+    )
+    .bind(claims.tenant_id)
+    .bind(q.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateRadiationRequest {
+    pub patient_id: Uuid,
+    pub site: String,
+    pub technique: Option<String>,
+    pub total_dose_gy: Option<rust_decimal::Decimal>,
+    pub fractions: Option<i32>,
+    pub session_number: Option<i32>,
+    pub notes: Option<String>,
+}
+
+/// `POST /api/specialty/oncology/radiation`
+pub async fn create_radiation_session(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateRadiationRequest>,
+) -> Result<Json<RadiationSession>, AppError> {
+    require_permission(&claims, permissions::specialty::other::oncology::CREATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+    let row = sqlx::query_as::<_, RadiationSession>(
+        "INSERT INTO radiation_sessions \
+         (tenant_id, patient_id, site, technique, total_dose_gy, fractions, session_number, \
+          delivered_by, delivered_at, notes) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now(), $9) RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(body.site)
+    .bind(body.technique)
+    .bind(body.total_dose_gy)
+    .bind(body.fractions)
+    .bind(body.session_number)
+    .bind(claims.sub)
+    .bind(body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(row))
 }

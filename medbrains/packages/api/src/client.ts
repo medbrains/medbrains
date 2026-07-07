@@ -222,6 +222,7 @@ import type {
   CancelAppointmentRequest,
   CancelCampRequest,
   CancelRadiologyOrderRequest,
+  CancerStaging,
   CapaFormPrintData,
   // Case Management
   CaseAssignment,
@@ -387,6 +388,7 @@ import type {
   CreateCampRequest,
   CreateCampScreeningRequest,
   CreateCampSupplyItemRequest,
+  CreateCancerStagingRequest,
   CreateCapaRequest,
   CreateCarePlanRequest,
   CreateCaseAssignmentRequest,
@@ -647,6 +649,7 @@ import type {
   CreateQualityIndicatorRequest,
   CreateQueueTokenRequest,
   CreateQueueTokenResponse,
+  CreateRadiationRequest,
   CreateRadiologyAppointmentRequest,
   CreateRadiologyOrderRequest,
   CreateRadiologyReportRequest,
@@ -1463,6 +1466,7 @@ import type {
   QuizAttemptResult,
   QuizAttemptStart,
   RadiationDoseRecord,
+  RadiationSession,
   RadiologyDicomStudy,
   RadiologyModality,
   RadiologyOrder,
@@ -9169,6 +9173,26 @@ export const api = {
     request<DentalChartEntry[]>(`/specialty/dental/exams/${examId}/chart`),
   createDentalChartEntry: (examId: string, data: CreateDentalChartEntryRequest) =>
     request<DentalChartEntry>(`/specialty/dental/exams/${examId}/chart`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  // Specialty — Oncology depth
+  listCancerStagings: (patientId?: string) =>
+    request<CancerStaging[]>(
+      `/specialty/oncology/staging${patientId ? `?patient_id=${patientId}` : ""}`,
+    ),
+  createCancerStaging: (data: CreateCancerStagingRequest) =>
+    request<CancerStaging>("/specialty/oncology/staging", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listRadiationSessions: (patientId?: string) =>
+    request<RadiationSession[]>(
+      `/specialty/oncology/radiation${patientId ? `?patient_id=${patientId}` : ""}`,
+    ),
+  createRadiationSession: (data: CreateRadiationRequest) =>
+    request<RadiationSession>("/specialty/oncology/radiation", {
       method: "POST",
       body: JSON.stringify(data),
     }),

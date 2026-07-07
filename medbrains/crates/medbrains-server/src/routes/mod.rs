@@ -5083,6 +5083,17 @@ pub fn build_router(state: AppState) -> Router {
             "/api/specialty/dental/exams/{exam_id}/chart",
             get(specialty_dental::list_chart_entries).post(specialty_dental::create_chart_entry),
         )
+        // ── Specialty Clinical: Oncology depth (staging + radiation) ──
+        .route(
+            "/api/specialty/oncology/staging",
+            get(specialty_other::list_cancer_stagings)
+                .post(specialty_other::create_cancer_staging),
+        )
+        .route(
+            "/api/specialty/oncology/radiation",
+            get(specialty_other::list_radiation_sessions)
+                .post(specialty_other::create_radiation_session),
+        )
         // ── Specialty Clinical: Cath Lab ──
         .route(
             "/api/specialty/cath-lab/procedures",

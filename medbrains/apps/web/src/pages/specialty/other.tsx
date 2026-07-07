@@ -14,12 +14,16 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
 import type {
+  CancerStaging,
   ChemoProtocol,
+  CreateCancerStagingRequest,
   CreateChemoProtocolRequest,
   CreateDialysisSessionRequest,
+  CreateRadiationRequest,
   CreateSpecialtyRecordRequest,
   CreateSpecialtyTemplateRequest,
   DialysisSession,
+  RadiationSession,
   SpecialtyRecord,
   SpecialtyTemplate,
 } from "@medbrains/types";
@@ -48,6 +52,9 @@ export function OtherSpecialtiesPage() {
   const [recOpen, recHandlers] = useDisclosure(false);
   const [dialOpen, dialHandlers] = useDisclosure(false);
   const [chemoOpen, chemoHandlers] = useDisclosure(false);
+  const [stagingOpen, stagingHandlers] = useDisclosure(false);
+  const [radOpen, radHandlers] = useDisclosure(false);
+  const canOncology = useHasPermission(P.SPECIALTY.OTHER.ONCOLOGY_CREATE);
 
   const { data: templates = [], isLoading: tmplLoading } = useQuery({
     queryKey: ["specialty-templates"],
@@ -65,6 +72,14 @@ export function OtherSpecialtiesPage() {
     queryKey: ["chemo-protocols"],
     queryFn: () => specialtyService.listChemoProtocols(),
   });
+  const { data: stagings = [] } = useQuery({
+    queryKey: ["cancer-stagings"],
+    queryFn: () => specialtyService.listCancerStagings(),
+  });
+  const { data: radiation = [] } = useQuery({
+    queryKey: ["radiation-sessions"],
+    queryFn: () => specialtyService.listRadiationSessions(),
+  });
 
   const [tmplForm, setTmplForm] = useState<CreateSpecialtyTemplateRequest>({
     specialty: "",
@@ -81,6 +96,14 @@ export function OtherSpecialtiesPage() {
   const [chemoForm, setChemoForm] = useState<CreateChemoProtocolRequest>({
     patient_id: "",
     protocol_name: "",
+  });
+  const [stagingForm, setStagingForm] = useState<CreateCancerStagingRequest>({
+    patient_id: "",
+    primary_site: "",
+  });
+  const [radForm, setRadForm] = useState<CreateRadiationRequest>({
+    patient_id: "",
+    site: "",
   });
 
   const createTmpl = useMutation({
@@ -119,6 +142,28 @@ export function OtherSpecialtiesPage() {
       void qc.invalidateQueries({ queryKey: ["chemo-protocols"] });
       chemoHandlers.close();
       notifications.show({ title: "Created", message: "Protocol created", color: "success" });
+    },
+  });
+
+  const createStaging = useMutation({
+    mutationFn: (data: CreateCancerStagingRequest) => specialtyService.createCancerStaging(data),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["cancer-stagings"] });
+      stagingHandlers.close();
+      notifications.show({ title: "Created", message: "Staging recorded", color: "success" });
+    },
+  });
+
+  const createRad = useMutation({
+    mutationFn: (data: CreateRadiationRequest) => specialtyService.createRadiationSession(data),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["radiation-sessions"] });
+      radHandlers.close();
+      notifications.show({
+        title: "Created",
+        message: "Radiation session recorded",
+        color: "success",
+      });
     },
   });
 
@@ -253,6 +298,63 @@ export function OtherSpecialtiesPage() {
     },
   ];
 
+  const stagingCols: Column<CancerStaging>[] = [
+    {
+      key: "patient_id",
+      label: "Patient",
+      render: (r) => <PatientNameCell patientId={r.patient_id} showUhid={false} />,
+    },
+    { key: "primary_site", label: "Site", render: (r) => <Text size="sm">{r.primary_site}</Text> },
+    {
+      key: "tnm",
+      label: "TNM",
+      render: (r) => (
+        <Text size="sm">
+          {r.t_stage ?? "—"} {r.n_stage ?? ""} {r.m_stage ?? ""}
+        </Text>
+      ),
+    },
+    {
+      key: "overall_stage",
+      label: "Stage",
+      render: (r) => <Badge tone="neutral">{r.overall_stage ?? "—"}</Badge>,
+    },
+    {
+      key: "date",
+      label: "Date",
+      render: (r) => <Text size="sm">{new Date(r.created_at).toLocaleDateString()}</Text>,
+    },
+  ];
+
+  const radCols: Column<RadiationSession>[] = [
+    {
+      key: "patient_id",
+      label: "Patient",
+      render: (r) => <PatientNameCell patientId={r.patient_id} showUhid={false} />,
+    },
+    { key: "site", label: "Site", render: (r) => <Text size="sm">{r.site}</Text> },
+    {
+      key: "dose",
+      label: "Dose / fractions",
+      render: (r) => (
+        <Text size="sm">
+          {r.total_dose_gy ? `${r.total_dose_gy} Gy` : "—"}
+          {r.fractions ? ` / ${r.fractions}` : ""}
+        </Text>
+      ),
+    },
+    {
+      key: "session_number",
+      label: "Session #",
+      render: (r) => <Text size="sm">{r.session_number ?? "—"}</Text>,
+    },
+    {
+      key: "date",
+      label: "Date",
+      render: (r) => <Text size="sm">{new Date(r.created_at).toLocaleDateString()}</Text>,
+    },
+  ];
+
   return (
     <div>
       <PageHeader
@@ -287,6 +389,8 @@ export function OtherSpecialtiesPage() {
           <Tabs.Tab value="records">Records</Tabs.Tab>
           <Tabs.Tab value="dialysis">Dialysis</Tabs.Tab>
           <Tabs.Tab value="chemo">Chemotherapy</Tabs.Tab>
+          <Tabs.Tab value="staging">Staging</Tabs.Tab>
+          <Tabs.Tab value="radiation">Radiation</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="templates" pt="md">
           <DataTable
@@ -326,6 +430,34 @@ export function OtherSpecialtiesPage() {
             )}
           </Group>
           <DataTable columns={chemoCols} data={chemo} loading={false} rowKey={(r) => r.id} />
+        </Tabs.Panel>
+        <Tabs.Panel value="staging" pt="md">
+          <Group justify="flex-end" mb="md">
+            {canOncology && (
+              <Button
+                tone="primary"
+                leftSection={<IconPlus size={16} />}
+                onClick={stagingHandlers.open}
+              >
+                New staging
+              </Button>
+            )}
+          </Group>
+          <DataTable columns={stagingCols} data={stagings} loading={false} rowKey={(r) => r.id} />
+        </Tabs.Panel>
+        <Tabs.Panel value="radiation" pt="md">
+          <Group justify="flex-end" mb="md">
+            {canOncology && (
+              <Button
+                tone="primary"
+                leftSection={<IconPlus size={16} />}
+                onClick={radHandlers.open}
+              >
+                New session
+              </Button>
+            )}
+          </Group>
+          <DataTable columns={radCols} data={radiation} loading={false} rowKey={(r) => r.id} />
         </Tabs.Panel>
       </Tabs>
       <Drawer
@@ -520,6 +652,125 @@ export function OtherSpecialtiesPage() {
             loading={createChemo.isPending}
           >
             Create Protocol
+          </Button>
+        </Stack>
+      </Drawer>
+      <Drawer
+        opened={stagingOpen}
+        onClose={stagingHandlers.close}
+        title="New cancer staging"
+        size="lg"
+        position="right"
+      >
+        <Stack>
+          <PatientSearchSelect
+            value={stagingForm.patient_id}
+            onChange={(v) => setStagingForm((p) => ({ ...p, patient_id: v }))}
+            required
+          />
+          <TextInput
+            label="Primary site"
+            required
+            value={stagingForm.primary_site}
+            onChange={(e) => setStagingForm((p) => ({ ...p, primary_site: e.currentTarget.value }))}
+          />
+          <TextInput
+            label="Histology"
+            value={stagingForm.histology ?? ""}
+            onChange={(e) => setStagingForm((p) => ({ ...p, histology: e.currentTarget.value }))}
+          />
+          <Group grow>
+            <TextInput
+              label="T"
+              value={stagingForm.t_stage ?? ""}
+              onChange={(e) => setStagingForm((p) => ({ ...p, t_stage: e.currentTarget.value }))}
+            />
+            <TextInput
+              label="N"
+              value={stagingForm.n_stage ?? ""}
+              onChange={(e) => setStagingForm((p) => ({ ...p, n_stage: e.currentTarget.value }))}
+            />
+            <TextInput
+              label="M"
+              value={stagingForm.m_stage ?? ""}
+              onChange={(e) => setStagingForm((p) => ({ ...p, m_stage: e.currentTarget.value }))}
+            />
+          </Group>
+          <TextInput
+            label="Overall stage"
+            placeholder="IIIA"
+            value={stagingForm.overall_stage ?? ""}
+            onChange={(e) =>
+              setStagingForm((p) => ({ ...p, overall_stage: e.currentTarget.value }))
+            }
+          />
+          <Button
+            tone="primary"
+            onClick={() => createStaging.mutate(stagingForm)}
+            loading={createStaging.isPending}
+            disabled={!stagingForm.patient_id || !stagingForm.primary_site}
+          >
+            Save staging
+          </Button>
+        </Stack>
+      </Drawer>
+      <Drawer
+        opened={radOpen}
+        onClose={radHandlers.close}
+        title="New radiation session"
+        size="lg"
+        position="right"
+      >
+        <Stack>
+          <PatientSearchSelect
+            value={radForm.patient_id}
+            onChange={(v) => setRadForm((p) => ({ ...p, patient_id: v }))}
+            required
+          />
+          <TextInput
+            label="Site"
+            required
+            value={radForm.site}
+            onChange={(e) => setRadForm((p) => ({ ...p, site: e.currentTarget.value }))}
+          />
+          <TextInput
+            label="Technique"
+            value={radForm.technique ?? ""}
+            onChange={(e) => setRadForm((p) => ({ ...p, technique: e.currentTarget.value }))}
+          />
+          <Group grow>
+            <NumberInput
+              label="Total dose (Gy)"
+              value={radForm.total_dose_gy ? Number(radForm.total_dose_gy) : ""}
+              onChange={(v) =>
+                setRadForm((p) => ({
+                  ...p,
+                  total_dose_gy: typeof v === "number" ? String(v) : undefined,
+                }))
+              }
+            />
+            <NumberInput
+              label="Fractions"
+              value={radForm.fractions ?? ""}
+              onChange={(v) =>
+                setRadForm((p) => ({ ...p, fractions: typeof v === "number" ? v : undefined }))
+              }
+            />
+            <NumberInput
+              label="Session #"
+              value={radForm.session_number ?? ""}
+              onChange={(v) =>
+                setRadForm((p) => ({ ...p, session_number: typeof v === "number" ? v : undefined }))
+              }
+            />
+          </Group>
+          <Button
+            tone="primary"
+            onClick={() => createRad.mutate(radForm)}
+            loading={createRad.isPending}
+            disabled={!radForm.patient_id || !radForm.site}
+          >
+            Save session
           </Button>
         </Stack>
       </Drawer>

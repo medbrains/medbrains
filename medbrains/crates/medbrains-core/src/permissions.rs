@@ -1404,6 +1404,10 @@ pub mod specialty {
             pub const LIST: &str = "specialty.other.records.list";
             pub const CREATE: &str = "specialty.other.records.create";
         }
+        pub mod oncology {
+            pub const LIST: &str = "specialty.other.oncology.list";
+            pub const CREATE: &str = "specialty.other.oncology.create";
+        }
         pub mod dialysis {
             pub const LIST: &str = "specialty.other.dialysis.list";
             pub const MANAGE: &str = "specialty.other.dialysis.manage";

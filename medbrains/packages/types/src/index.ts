@@ -17213,6 +17213,61 @@ export interface CreateDentalChartEntryRequest {
   notes?: string | null;
 }
 
+/** Oncology depth — cancer TNM staging + radiation-therapy sessions. */
+export interface CancerStaging {
+  id: string;
+  tenant_id: string;
+  patient_id: string;
+  primary_site: string;
+  histology: string | null;
+  t_stage: string | null;
+  n_stage: string | null;
+  m_stage: string | null;
+  overall_stage: string | null;
+  staged_by: string | null;
+  staged_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RadiationSession {
+  id: string;
+  tenant_id: string;
+  patient_id: string;
+  site: string;
+  technique: string | null;
+  total_dose_gy: string | null;
+  fractions: number | null;
+  session_number: number | null;
+  delivered_by: string | null;
+  delivered_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateCancerStagingRequest {
+  patient_id: string;
+  primary_site: string;
+  histology?: string | null;
+  t_stage?: string | null;
+  n_stage?: string | null;
+  m_stage?: string | null;
+  overall_stage?: string | null;
+  notes?: string | null;
+}
+
+export interface CreateRadiationRequest {
+  patient_id: string;
+  site: string;
+  technique?: string | null;
+  total_dose_gy?: string | null;
+  fractions?: number | null;
+  session_number?: number | null;
+  notes?: string | null;
+}
+
 export interface CathProcedure {
   id: string;
   tenant_id: string;

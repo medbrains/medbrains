@@ -81,3 +81,40 @@ pub struct ChemoProtocol {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+/// Cancer TNM staging (oncology depth).
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct CancerStaging {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub patient_id: Uuid,
+    pub primary_site: String,
+    pub histology: Option<String>,
+    pub t_stage: Option<String>,
+    pub n_stage: Option<String>,
+    pub m_stage: Option<String>,
+    pub overall_stage: Option<String>,
+    pub staged_by: Option<Uuid>,
+    pub staged_at: Option<DateTime<Utc>>,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// A radiation-therapy session (oncology depth).
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct RadiationSession {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub patient_id: Uuid,
+    pub site: String,
+    pub technique: Option<String>,
+    pub total_dose_gy: Option<rust_decimal::Decimal>,
+    pub fractions: Option<i32>,
+    pub session_number: Option<i32>,
+    pub delivered_by: Option<Uuid>,
+    pub delivered_at: Option<DateTime<Utc>>,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
