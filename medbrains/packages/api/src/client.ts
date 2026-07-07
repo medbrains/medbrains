@@ -2416,6 +2416,8 @@ export interface MeResponse {
   mfa_enrollment_required: boolean;
   permissions: string[];
   field_access: Record<string, FieldAccessLevel>;
+  /** Module codes the tenant's edition switched off; absent = enabled. */
+  disabled_modules: string[];
 }
 
 export interface RefreshResponse {

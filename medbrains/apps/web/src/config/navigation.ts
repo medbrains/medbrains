@@ -83,6 +83,12 @@ export interface NavItemConfig {
   requiredPermission?: string;
   requiredPermissions?: readonly string[];
   children?: NavItemConfig[];
+  /**
+   * `module_config` code this item belongs to. When the tenant's edition switches
+   * the module off (`disabled_modules` from /auth/me), the item is hidden. Absent
+   * = always shown (permission-gated only).
+   */
+  moduleCode?: string;
 }
 
 export interface NavGroupConfig {
@@ -499,12 +505,19 @@ export const NAV_GROUPS: NavGroupConfig[] = [
   {
     key: "diagnostics",
     items: [
-      { i18nKey: "lab", path: "/lab", icon: "IconFlask", requiredPermission: "lab.orders.list" },
+      {
+        i18nKey: "lab",
+        path: "/lab",
+        icon: "IconFlask",
+        requiredPermission: "lab.orders.list",
+        moduleCode: "lab",
+      },
       {
         i18nKey: "radiology",
         path: "/radiology",
         icon: "IconRadioactive",
         requiredPermission: "radiology.orders.list",
+        moduleCode: "radiology",
       },
       {
         i18nKey: "pharmacy",
@@ -1039,24 +1052,28 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         path: "/specialty/cath-lab",
         icon: "IconHeartbeat",
         requiredPermission: "specialty.cath_lab.procedures.list",
+        moduleCode: "cath_lab",
       },
       {
         i18nKey: "endoscopy",
         path: "/specialty/endoscopy",
         icon: "IconMicroscope",
         requiredPermission: "specialty.endoscopy.procedures.list",
+        moduleCode: "endoscopy",
       },
       {
         i18nKey: "psychiatry",
         path: "/specialty/psychiatry",
         icon: "IconBrain",
         requiredPermission: "specialty.psychiatry.patients.list",
+        moduleCode: "psychiatry",
       },
       {
         i18nKey: "pmr",
         path: "/specialty/pmr",
         icon: "IconStretching2",
         requiredPermission: "specialty.pmr.plans.list",
+        moduleCode: "pmr",
       },
       {
         i18nKey: "palliative",
@@ -1073,18 +1090,21 @@ export const NAV_GROUPS: NavGroupConfig[] = [
           "specialty.palliative.nucmed.create",
           "specialty.palliative.nucmed.manage",
         ],
+        moduleCode: "palliative",
       },
       {
         i18nKey: "maternity",
         path: "/specialty/maternity",
         icon: "IconBabyCarriage",
         requiredPermission: "specialty.maternity.registrations.list",
+        moduleCode: "maternity",
       },
       {
         i18nKey: "otherSpecialties",
         path: "/specialty/other",
         icon: "IconStethoscope",
         requiredPermission: "specialty.other.records.list",
+        moduleCode: "specialty_other",
       },
     ],
   },

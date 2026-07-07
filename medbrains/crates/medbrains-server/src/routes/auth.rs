@@ -869,6 +869,9 @@ pub struct MeResponse {
     /// Tenant policy mandates MFA for this role and it isn't set up yet
     /// — the frontend blocks the app until enrollment completes.
     pub mfa_enrollment_required: bool,
+    /// Module codes the tenant's edition has switched OFF (status disabled/coming_soon).
+    /// The frontend hides these modules' nav + routes. Absent code = enabled (default on).
+    pub disabled_modules: Vec<String>,
 }
 
 pub async fn me(
@@ -885,6 +888,15 @@ pub async fn me(
         claims.sub
     )
     .fetch_optional(&mut *tx)
+    .await?;
+
+    // Edition entitlement: the modules this tenant has switched off (drives nav/route hiding).
+    let disabled_modules: Vec<String> = sqlx::query_scalar(
+        "SELECT code FROM module_config \
+         WHERE tenant_id = $1 AND status::text IN ('disabled', 'coming_soon')",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
     .await?;
 
     tx.commit().await?;
@@ -929,6 +941,7 @@ pub async fn me(
         field_access,
         mfa_enabled,
         mfa_enrollment_required,
+        disabled_modules,
     }))
 }
 

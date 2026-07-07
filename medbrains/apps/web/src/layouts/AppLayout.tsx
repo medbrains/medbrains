@@ -16,7 +16,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { spotlight } from "@mantine/spotlight";
-import { useAuthStore, usePermissionStore } from "@medbrains/stores";
+import { useAuthStore, useModuleStore, usePermissionStore } from "@medbrains/stores";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Languages,
@@ -34,12 +34,12 @@ import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
 import { AiAssistantMount } from "@/components/ai";
-import { AddProductModal } from "@/components/Materials/AddProductModal";
-import { EmergencyCodeActivity } from "@/components/LiveActivityIsland/EmergencyCodeActivity";
-import { LiveActivityIsland } from "@/components/LiveActivityIsland/LiveActivityIsland";
 import { Brand } from "@/components/Brand";
 import { DlpGuard } from "@/components/DlpGuard";
 import { HeaderWidgets } from "@/components/HeaderWidgets";
+import { EmergencyCodeActivity } from "@/components/LiveActivityIsland/EmergencyCodeActivity";
+import { LiveActivityIsland } from "@/components/LiveActivityIsland/LiveActivityIsland";
+import { AddProductModal } from "@/components/Materials/AddProductModal";
 import { NewsMarquee } from "@/components/NewsMarquee";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { PageSkeleton } from "@/components/PageSkeleton";
@@ -70,6 +70,7 @@ interface ResolvedNavItem {
   requiredPermission?: string;
   requiredPermissions?: readonly string[];
   children?: ResolvedNavItem[];
+  moduleCode?: string;
 }
 
 // Carbon UI Shell side-nav widths: 48px icon rail, 256px expanded.
@@ -134,6 +135,7 @@ export function AppLayout() {
   const user = useAuthStore((s) => s.user);
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const hasPermission = usePermissionStore((s) => s.hasPermission);
+  const isModuleEnabled = useModuleStore((s) => s.isModuleEnabled);
   const { t } = useTranslation("nav");
 
   const isExpanded = sidebarOpen;
@@ -207,6 +209,7 @@ export function AppLayout() {
         ),
         requiredPermission: cfg.requiredPermission,
         requiredPermissions: cfg.requiredPermissions,
+        moduleCode: cfg.moduleCode,
         children: cfg.children?.map((c) => resolveItem(c, true)),
       };
     },
@@ -290,7 +293,8 @@ export function AppLayout() {
 
   // ── Filter nav items by permission only — the sidebar is a flat,
   //    categorized console service-nav (no workspace gating). ──
-  const filterItem = (item: ResolvedNavItem): boolean => itemHasPermission(item);
+  const filterItem = (item: ResolvedNavItem): boolean =>
+    itemHasPermission(item) && isModuleEnabled(item.moduleCode);
 
   // ── Render a single rail icon ──
   const renderRailItem = (item: ResolvedNavItem, active: boolean) => (

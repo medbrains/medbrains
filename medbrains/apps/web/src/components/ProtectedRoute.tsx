@@ -1,5 +1,10 @@
 import { userSchema } from "@medbrains/schemas";
-import { useAuthStore, useLocaleStore, usePermissionStore } from "@medbrains/stores";
+import {
+  useAuthStore,
+  useLocaleStore,
+  useModuleStore,
+  usePermissionStore,
+} from "@medbrains/stores";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Navigate } from "react-router";
 import { sessionService } from "@/services/session.service";
@@ -23,6 +28,8 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const clearAuth = useAuthStore((s) => s.clearAuth);
   const setPermissions = usePermissionStore((s) => s.setPermissions);
   const clearPermissions = usePermissionStore((s) => s.clearPermissions);
+  const setDisabledModules = useModuleStore((s) => s.setDisabledModules);
+  const clearModules = useModuleStore((s) => s.clearModules);
   const [verified, setVerified] = useState<boolean | null>(null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [mfaEnrollmentRequired, setMfaEnrollmentRequired] = useState(false);
@@ -60,6 +67,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         setMustChangePassword(resp.must_change_password);
         setMfaEnrollmentRequired(resp.mfa_enrollment_required);
         setPermissions(resp.role, resp.permissions, resp.field_access);
+        setDisabledModules(resp.disabled_modules ?? []);
 
         // Load locale/units settings for the tenant
         try {
@@ -85,6 +93,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         if (msg === "session_expired") {
           clearAuth();
           clearPermissions();
+          clearModules();
           setVerified(false);
           return;
         }
@@ -95,6 +104,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         if (status === 401) {
           clearAuth();
           clearPermissions();
+          clearModules();
           setVerified(false);
         } else {
           // Backend unreachable (network error) — trust stored auth if present,
@@ -106,7 +116,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [hasHydrated, clearAuth, clearPermissions, setPermissions]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hasHydrated, clearAuth, clearPermissions, setPermissions, clearModules, setDisabledModules]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Proactive token refresh — keeps session alive during continuous work ──
   useEffect(() => {
@@ -119,6 +129,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         // Refresh failed — session expired, force re-login
         clearAuth();
         clearPermissions();
+        clearModules();
         setVerified(false);
       });
     }, REFRESH_INTERVAL_MS);
@@ -134,6 +145,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     user, // Refresh failed — session expired, force re-login
     clearAuth,
     clearPermissions,
+    clearModules,
   ]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Wait for store hydration + the /auth/me verification (which also hydrates the
