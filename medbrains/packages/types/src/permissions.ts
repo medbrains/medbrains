@@ -5662,6 +5662,13 @@ export const P = {
       EXAMS_CREATE: "specialty.ophthalmology.exams.create" as const,
       EXAMS_UPDATE: "specialty.ophthalmology.exams.update" as const,
     },
+    DENTAL: {
+      EXAMS_LIST: "specialty.dental.exams.list" as const,
+      EXAMS_CREATE: "specialty.dental.exams.create" as const,
+      EXAMS_UPDATE: "specialty.dental.exams.update" as const,
+      CHART_LIST: "specialty.dental.chart.list" as const,
+      CHART_CREATE: "specialty.dental.chart.create" as const,
+    },
     ENDOSCOPY: {
       PROCEDURES_LIST: "specialty.endoscopy.procedures.list" as const,
       PROCEDURES_CREATE: "specialty.endoscopy.procedures.create" as const,

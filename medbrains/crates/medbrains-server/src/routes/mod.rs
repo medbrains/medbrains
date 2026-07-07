@@ -136,6 +136,7 @@ pub mod vpn;
 pub mod sharing;
 pub mod signatures;
 pub mod signed_documents;
+pub mod specialty_dental;
 pub mod specialty_interventional;
 pub mod station_handoff;
 pub mod specialty_maternity;
@@ -5068,6 +5069,19 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/specialty/ophthalmology/exams/{id}",
             get(specialty_ophtho::get_ophtho_exam).put(specialty_ophtho::update_ophtho_exam),
+        )
+        // ── Specialty Clinical: Dental ──
+        .route(
+            "/api/specialty/dental/exams",
+            get(specialty_dental::list_dental_exams).post(specialty_dental::create_dental_exam),
+        )
+        .route(
+            "/api/specialty/dental/exams/{id}",
+            get(specialty_dental::get_dental_exam).put(specialty_dental::update_dental_exam),
+        )
+        .route(
+            "/api/specialty/dental/exams/{exam_id}/chart",
+            get(specialty_dental::list_chart_entries).post(specialty_dental::create_chart_entry),
         )
         // ── Specialty Clinical: Cath Lab ──
         .route(

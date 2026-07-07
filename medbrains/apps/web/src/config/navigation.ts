@@ -242,6 +242,7 @@ const MODULE_BADGE_DEFS: Record<string, ModuleBadge> = {
   "/reports": { abbr: "Rep", color: "#4d5358" },
   "/audit": { abbr: "Aud", color: "#0043ce" },
   "/specialty/ophthalmology": { abbr: "Eye", color: "#0043ce" },
+  "/specialty/dental": { abbr: "Dnt", color: "#6929c4" },
   "/specialty/cath-lab": { abbr: "CL", color: "#005d5d" },
   "/specialty/endoscopy": { abbr: "End", color: "#8a3ffc" },
   "/specialty/psychiatry": { abbr: "Psy", color: "#0e6027" },
@@ -1056,6 +1057,13 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         icon: "IconEye",
         requiredPermission: "specialty.ophthalmology.exams.list",
         moduleCode: "ophthalmology",
+      },
+      {
+        i18nKey: "dental",
+        path: "/specialty/dental",
+        icon: "IconDental",
+        requiredPermission: "specialty.dental.exams.list",
+        moduleCode: "dental",
       },
       {
         i18nKey: "cathLab",

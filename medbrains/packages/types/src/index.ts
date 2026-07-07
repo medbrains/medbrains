@@ -17167,6 +17167,52 @@ export interface UpdateOphthoExamRequest {
   status?: string | null;
 }
 
+/** Dental — a dental exam (visit) + its tooth-wise chart entries. */
+export interface DentalExam {
+  id: string;
+  tenant_id: string;
+  patient_id: string;
+  encounter_id: string | null;
+  chief_complaint: string | null;
+  diagnosis: string | null;
+  treatment_plan: string | null;
+  examined_by: string | null;
+  examined_at: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DentalChartEntry {
+  id: string;
+  tenant_id: string;
+  exam_id: string;
+  tooth_number: string;
+  condition: string;
+  surface: string | null;
+  treatment_planned: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateDentalExamRequest {
+  patient_id: string;
+  encounter_id?: string | null;
+  chief_complaint?: string | null;
+  diagnosis?: string | null;
+  treatment_plan?: string | null;
+  status?: string | null;
+}
+
+export interface CreateDentalChartEntryRequest {
+  tooth_number: string;
+  condition: string;
+  surface?: string | null;
+  treatment_planned?: string | null;
+  notes?: string | null;
+}
+
 export interface CathProcedure {
   id: string;
   tenant_id: string;

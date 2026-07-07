@@ -1,4 +1,5 @@
 pub mod cath_lab;
+pub mod dental;
 pub mod endoscopy;
 pub mod maternity;
 pub mod ophthalmology;

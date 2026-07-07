@@ -1383,6 +1383,18 @@ pub mod specialty {
         }
     }
 
+    pub mod dental {
+        pub mod exams {
+            pub const LIST: &str = "specialty.dental.exams.list";
+            pub const CREATE: &str = "specialty.dental.exams.create";
+            pub const UPDATE: &str = "specialty.dental.exams.update";
+        }
+        pub mod chart {
+            pub const LIST: &str = "specialty.dental.chart.list";
+            pub const CREATE: &str = "specialty.dental.chart.create";
+        }
+    }
+
     pub mod other {
         pub mod templates {
             pub const LIST: &str = "specialty.other.templates.list";

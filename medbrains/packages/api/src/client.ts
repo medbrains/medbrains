@@ -451,6 +451,8 @@ import type {
   CreateDataQualityRuleRequest,
   CreateDayCloseRequest,
   CreateDeathSummaryRequest,
+  CreateDentalChartEntryRequest,
+  CreateDentalExamRequest,
   CreateDesignationRequest,
   CreateDeviceInstanceRequest,
   CreateDiagnosisRequest,
@@ -775,6 +777,8 @@ import type {
   DeathDeclarationPrintData,
   DeathRegisterPrintData,
   DeliveryType,
+  DentalChartEntry,
+  DentalExam,
   DepartmentAlertRow,
   DepartmentIssueRequest,
   DepartmentLoadRow,
@@ -9136,6 +9140,36 @@ export const api = {
   updateOphthoExam: (id: string, data: UpdateOphthoExamRequest) =>
     request<OphthoExam>(`/specialty/ophthalmology/exams/${id}`, {
       method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  // Specialty — Dental
+  listDentalExams: (params?: { patient_id?: string; status?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    if (params?.status) sp.set("status", params.status);
+    const qs = sp.toString();
+    return request<DentalExam[]>(`/specialty/dental/exams${qs ? `?${qs}` : ""}`);
+  },
+  getDentalExam: (id: string) => request<DentalExam>(`/specialty/dental/exams/${id}`),
+  createDentalExam: (data: CreateDentalExamRequest) =>
+    request<DentalExam>("/specialty/dental/exams", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateDentalExam: (
+    id: string,
+    data: { diagnosis?: string; treatment_plan?: string; status?: string },
+  ) =>
+    request<DentalExam>(`/specialty/dental/exams/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listDentalChart: (examId: string) =>
+    request<DentalChartEntry[]>(`/specialty/dental/exams/${examId}/chart`),
+  createDentalChartEntry: (examId: string, data: CreateDentalChartEntryRequest) =>
+    request<DentalChartEntry>(`/specialty/dental/exams/${examId}/chart`, {
+      method: "POST",
       body: JSON.stringify(data),
     }),
 
