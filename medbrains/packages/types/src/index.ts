@@ -7801,6 +7801,16 @@ export interface WardStockRow {
   gap: number;
 }
 
+/** Per-location pharmacy stock health (multi-pharmacy dashboard). */
+export interface LocationStockSummary {
+  location_id: string;
+  location_name: string;
+  stock_value: string;
+  item_count: number;
+  near_expiry_batches: number;
+  expired_batches: number;
+}
+
 export interface PharmacyDeadStockRow {
   drug_name: string;
   current_stock: number;

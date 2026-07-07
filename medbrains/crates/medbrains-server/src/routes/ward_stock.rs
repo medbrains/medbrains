@@ -3,7 +3,7 @@
 //! ward stock. Powers the inpatient ward-stock workflow (hospital editions).
 
 use axum::Json;
-use axum::extract::{Extension, Path, Query, State};
+use axum::extract::{Extension, Query, State};
 use medbrains_core::permissions;
 use serde::Deserialize;
 use uuid::Uuid;

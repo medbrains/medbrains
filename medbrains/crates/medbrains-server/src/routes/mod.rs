@@ -2145,6 +2145,10 @@ pub fn build_router(state: AppState) -> Router {
             "/api/pharmacy/batches/write-off-expired",
             post(pharmacy::write_off_expired),
         )
+        .route(
+            "/api/pharmacy/stock/by-location",
+            get(pharmacy::location_stock_dashboard),
+        )
         // ── Ward / floor PAR stock ──
         .route(
             "/api/pharmacy/ward-stock",

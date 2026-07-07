@@ -1159,6 +1159,7 @@ import type {
   LmsQuiz,
   LmsQuizQuestion,
   LocationRow,
+  LocationStockSummary,
   LogAccessRequest,
   LookupTerminologyParams,
   LosComparisonRow,
@@ -5336,6 +5337,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  getLocationStockDashboard: () => request<LocationStockSummary[]>("/pharmacy/stock/by-location"),
   getNearExpiryReport: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<NearExpiryRow[]>(`/pharmacy/batches/near-expiry${qs}`);

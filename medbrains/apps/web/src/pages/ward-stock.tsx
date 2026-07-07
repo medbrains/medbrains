@@ -1,7 +1,7 @@
 import { Group, NumberInput, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
-import type { WardStockRow } from "@medbrains/types";
+import type { LocationStockSummary, WardStockRow } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconPlus, IconRefresh } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -31,6 +31,33 @@ export function WardStockPage() {
     queryFn: () => pharmacyService.listWardStock(dept),
     enabled: !!dept,
   });
+
+  const { data: locations = [] } = useQuery({
+    queryKey: ["pharmacy-location-stock"],
+    queryFn: () => pharmacyService.getLocationStockDashboard(),
+  });
+
+  const locationCols: Column<LocationStockSummary>[] = [
+    { key: "location_name", label: "Pharmacy", render: (r) => r.location_name },
+    {
+      key: "stock_value",
+      label: "Stock value",
+      render: (r) => `₹${Number(r.stock_value).toLocaleString("en-IN")}`,
+    },
+    { key: "item_count", label: "Items", render: (r) => r.item_count },
+    {
+      key: "near_expiry_batches",
+      label: "Near expiry",
+      render: (r) =>
+        r.near_expiry_batches > 0 ? <Badge tone="warning">{r.near_expiry_batches}</Badge> : "—",
+    },
+    {
+      key: "expired_batches",
+      label: "Expired",
+      render: (r) =>
+        r.expired_batches > 0 ? <Badge tone="danger">{r.expired_batches}</Badge> : "—",
+    },
+  ];
 
   const replenish = useMutation({
     mutationFn: () => pharmacyService.replenishWard(dept),
@@ -110,9 +137,21 @@ export function WardStockPage() {
   return (
     <Stack gap="md">
       <PageHeader
-        title="Ward stock"
-        subtitle="Par / imprest stock per ward — replenish to par + consume"
+        title="Pharmacy stock"
+        subtitle="Per-location stock health + ward par / imprest stock"
       />
+
+      <Text fw={600}>Stock by location</Text>
+      <DataTable
+        columns={locationCols}
+        data={locations}
+        rowKey={(r) => r.location_id}
+        emptyTitle="No pharmacy locations with stock yet."
+      />
+
+      <Text fw={600} mt="md">
+        Ward par stock
+      </Text>
       <Group align="flex-end" gap="sm">
         <DepartmentSelect value={dept} onChange={setDept} label="Ward" />
         {dept && canManage && (

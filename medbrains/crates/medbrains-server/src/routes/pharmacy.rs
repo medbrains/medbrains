@@ -4384,6 +4384,50 @@ pub async fn create_batch(
     )))
 }
 
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct LocationStockSummary {
+    pub location_id: Uuid,
+    pub location_name: String,
+    pub stock_value: Decimal,
+    pub item_count: i64,
+    pub near_expiry_batches: i64,
+    pub expired_batches: i64,
+}
+
+/// `GET /api/pharmacy/stock/by-location` — per-location stock health: value, distinct items,
+/// near-expiry (≤90d) and already-expired batch counts. The multi-pharmacy dashboard.
+pub async fn location_stock_dashboard(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<LocationStockSummary>>, AppError> {
+    require_permission(&claims, permissions::pharmacy::analytics::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, LocationStockSummary>(
+        "SELECT sl.id AS location_id, sl.name AS location_name, \
+                COALESCE(SUM(bs.quantity * bs.unit_cost), 0) AS stock_value, \
+                COUNT(DISTINCT bs.catalog_item_id) AS item_count, \
+                COUNT(*) FILTER ( \
+                    WHERE bs.expiry_date IS NOT NULL AND bs.quantity > 0 \
+                      AND bs.expiry_date >= CURRENT_DATE \
+                      AND bs.expiry_date < CURRENT_DATE + 90 \
+                ) AS near_expiry_batches, \
+                COUNT(*) FILTER ( \
+                    WHERE bs.expiry_date IS NOT NULL AND bs.quantity > 0 \
+                      AND bs.expiry_date < CURRENT_DATE \
+                ) AS expired_batches \
+         FROM store_locations sl \
+         LEFT JOIN batch_stock bs ON bs.store_location_id = sl.id AND bs.tenant_id = sl.tenant_id \
+         WHERE sl.tenant_id = $1 \
+         GROUP BY sl.id, sl.name ORDER BY stock_value DESC LIMIT 500",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
 #[derive(Debug, serde::Deserialize)]
 pub struct WriteOffExpiredRequest {
     /// Destruction method: incineration | chemical | landfill | return_to_manufacturer | other.
