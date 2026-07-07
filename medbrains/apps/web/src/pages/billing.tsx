@@ -191,6 +191,8 @@ import {
   useProtectedFieldAccess,
 } from "@/components";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { NhcxPayerDirectory } from "@/components/Nhcx/NhcxPayerDirectory";
+import { SubmitToNhcxModal } from "@/components/Nhcx/SubmitToNhcxModal";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
@@ -4058,6 +4060,7 @@ function InsuranceClaimsTab({
     defaultValues: tpaRateCardDefaults,
   });
   const [detailClaim, setDetailClaim] = useState<InsuranceClaim | null>(null);
+  const [nhcxSubmitClaim, setNhcxSubmitClaim] = useState<InsuranceClaim | null>(null);
 
   const { data: claims = [], isLoading } = useQuery({
     queryKey: ["insurance-claims"],
@@ -4455,7 +4458,22 @@ function InsuranceClaimsTab({
         claim={detailClaim}
         callbacks={nhcxCallbacks}
         onClose={() => setDetailClaim(null)}
+        onSubmitToNhcx={(c) => {
+          setDetailClaim(null);
+          setNhcxSubmitClaim(c);
+        }}
       />
+
+      <SubmitToNhcxModal
+        claimId={nhcxSubmitClaim?.id ?? ""}
+        opened={!!nhcxSubmitClaim}
+        onClose={() => setNhcxSubmitClaim(null)}
+      />
+
+      <Text fw={600} mt="lg">
+        NHCX
+      </Text>
+      <NhcxPayerDirectory />
 
       <Text fw={600} mt="lg">
         TPA Rate Cards
@@ -4600,10 +4618,12 @@ function ClaimDetailDrawer({
   claim,
   callbacks,
   onClose,
+  onSubmitToNhcx,
 }: {
   claim: InsuranceClaim | null;
   callbacks: NhcxCallbackRow[];
   onClose: () => void;
+  onSubmitToNhcx: (claim: InsuranceClaim) => void;
 }) {
   return (
     <Drawer
@@ -4626,6 +4646,15 @@ function ClaimDetailDrawer({
     >
       {claim && (
         <Stack gap="md">
+          <Group justify="flex-end">
+            <Button
+              size="xs"
+              leftSection={<IconShieldCheck size={14} />}
+              onClick={() => onSubmitToNhcx(claim)}
+            >
+              Submit to NHCX
+            </Button>
+          </Group>
           <SimpleGrid cols={2} spacing="xs">
             <Text size="xs" c="dimmed">
               Status
