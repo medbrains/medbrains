@@ -6,7 +6,9 @@
 
 use chrono::{DateTime, NaiveDate, Utc};
 
+use crate::r4::claim::{Claim, ClaimDiagnosis, ClaimInsurance, ClaimItem, Money};
 use crate::r4::coding::{CodeableConcept, Coding};
+use crate::r4::coverage::Coverage;
 use crate::r4::encounter::{Encounter, EncounterParticipant, Period};
 use crate::r4::identifier::Identifier;
 use crate::r4::observation::{Observation, Quantity};
@@ -272,5 +274,151 @@ pub fn observation_to_fhir(o: &ObservationView) -> Observation {
         }),
         value_string: o.value_string.clone(),
         interpretation,
+    }
+}
+
+// ── NHCX cashless claim mappers ─────────────────────────────────────────────
+// FHIR system URIs used by the Claim/Coverage resources (per the NHCX FHIR profile
+// + HL7 base terminologies).
+pub const CLAIM_TYPE_SYSTEM: &str = "http://terminology.hl7.org/CodeSystem/claim-type";
+pub const PROCESS_PRIORITY_SYSTEM: &str =
+    "http://terminology.hl7.org/CodeSystem/processpriority";
+pub const POLICY_SYSTEM: &str = "https://medbrains.health/insurance-policy";
+pub const CLAIM_ID_SYSTEM: &str = "https://medbrains.health/insurance-claim";
+pub const CHARGE_SYSTEM: &str = "https://medbrains.health/charge-code";
+
+/// Minimal projection for a `Coverage` (the patient's policy).
+#[derive(Debug)]
+pub struct CoverageView {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    /// `active` | `cancelled` | `draft`.
+    pub status: String,
+    pub policy_number: Option<String>,
+    /// Member/subscriber id on the policy.
+    pub subscriber_id: Option<String>,
+    pub insurer_name: String,
+    /// Payer organisation id, if we have one in the provider directory.
+    pub insurer_id: Option<Uuid>,
+}
+
+/// Build a FHIR R4 `Coverage` from the internal policy view.
+#[must_use]
+pub fn coverage_to_fhir(c: &CoverageView) -> Coverage {
+    let mut identifier = Vec::new();
+    if let Some(pol) = c.policy_number.as_deref().filter(|s| !s.is_empty()) {
+        identifier.push(Identifier::new(POLICY_SYSTEM, pol));
+    }
+    let payor = c.insurer_id.map_or_else(Vec::new, |id| {
+        vec![Reference::to("Organization", id).with_display(c.insurer_name.clone())]
+    });
+    Coverage {
+        id: c.id.to_string(),
+        status: c.status.clone(),
+        identifier,
+        beneficiary: Reference::to("Patient", c.patient_id),
+        subscriber_id: c.subscriber_id.clone().filter(|s| !s.is_empty()),
+        payor,
+    }
+}
+
+/// A billed line for a claim.
+#[derive(Debug)]
+pub struct ClaimItemView {
+    pub name: String,
+    /// Charge/service code, if catalogued.
+    pub code: Option<String>,
+    pub unit_price: Option<f64>,
+    pub net: Option<f64>,
+}
+
+/// An ICD-coded diagnosis backing a claim.
+#[derive(Debug)]
+pub struct ClaimDiagnosisView {
+    pub icd_code: String,
+    pub display: String,
+}
+
+/// Minimal projection for a `Claim` (a cashless pre-auth or final claim).
+#[derive(Debug)]
+pub struct ClaimView {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    /// `preauthorization` | `claim`.
+    pub use_: String,
+    /// `active` | `cancelled` | `draft`.
+    pub status: String,
+    pub created: DateTime<Utc>,
+    pub insurer_name: String,
+    pub insurer_id: Option<Uuid>,
+    /// The billing facility (provider organisation).
+    pub provider_id: Uuid,
+    pub provider_name: String,
+    /// `stat` | `normal` | `deferred`.
+    pub priority: String,
+    /// The `Coverage` this claim adjudicates against.
+    pub coverage_id: Uuid,
+    pub diagnoses: Vec<ClaimDiagnosisView>,
+    pub items: Vec<ClaimItemView>,
+    pub total: Option<f64>,
+}
+
+/// Build a FHIR R4 `Claim` from the internal claim view.
+#[must_use]
+pub fn claim_to_fhir(c: &ClaimView) -> Claim {
+    let diagnosis = c
+        .diagnoses
+        .iter()
+        .enumerate()
+        .map(|(i, d)| ClaimDiagnosis {
+            sequence: u32::try_from(i + 1).unwrap_or(1),
+            diagnosis_codeable_concept: CodeableConcept::from_coding(
+                ICD10_SYSTEM,
+                &d.icd_code,
+                &d.display,
+            ),
+        })
+        .collect();
+    let item = c
+        .items
+        .iter()
+        .enumerate()
+        .map(|(i, it)| ClaimItem {
+            sequence: u32::try_from(i + 1).unwrap_or(1),
+            product_or_service: it.code.as_deref().filter(|s| !s.is_empty()).map_or_else(
+                || CodeableConcept::from_text(it.name.clone()),
+                |code| CodeableConcept::from_coding(CHARGE_SYSTEM, code, it.name.clone()),
+            ),
+            unit_price: it.unit_price.map(Money::inr),
+            net: it.net.map(Money::inr),
+        })
+        .collect();
+    let insurer = c.insurer_id.map_or_else(
+        || Reference {
+            reference: "Organization/insurer".to_owned(),
+            display: Some(c.insurer_name.clone()),
+        },
+        |id| Reference::to("Organization", id).with_display(c.insurer_name.clone()),
+    );
+    Claim {
+        id: c.id.to_string(),
+        identifier: vec![Identifier::new(CLAIM_ID_SYSTEM, c.id.to_string())],
+        status: c.status.clone(),
+        type_: CodeableConcept::from_coding(CLAIM_TYPE_SYSTEM, "institutional", "Institutional"),
+        use_: c.use_.clone(),
+        patient: Reference::to("Patient", c.patient_id),
+        created: c.created.to_rfc3339(),
+        insurer,
+        provider: Reference::to("Organization", c.provider_id)
+            .with_display(c.provider_name.clone()),
+        priority: CodeableConcept::from_coding(PROCESS_PRIORITY_SYSTEM, &c.priority, &c.priority),
+        diagnosis,
+        insurance: vec![ClaimInsurance {
+            sequence: 1,
+            focal: true,
+            coverage: Reference::to("Coverage", c.coverage_id),
+        }],
+        item,
+        total: c.total.map(Money::inr),
     }
 }
