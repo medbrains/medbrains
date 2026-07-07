@@ -13,10 +13,9 @@
 use serde::{Deserialize, Serialize};
 
 /// Sandbox participant-service base (ABDM SBX gateway).
-pub const SANDBOX_BASE: &str =
-    "https://apisbx.abdm.gov.in/pmjay/sbxhcx/participanthcxservice";
+pub const SANDBOX_BASE: &str = medbrains_core::nhcx::PARTICIPANT_SERVICE_SANDBOX;
 /// Production participant-service base (NHA gateway, v2).
-pub const PROD_BASE: &str = "https://apisprod.nha.gov.in/pmjay/hcx/participanthcxservice/v2";
+pub const PROD_BASE: &str = medbrains_core::nhcx::PARTICIPANT_SERVICE_PROD;
 
 /// Participant role codes (from the onboarding collection). A hospital is `Provider`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

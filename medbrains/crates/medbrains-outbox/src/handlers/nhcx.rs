@@ -39,7 +39,7 @@ use uuid::Uuid;
 
 use crate::handler::{Handler, HandlerCtx, HandlerError};
 
-const NHCX_API_BASE: &str = "https://nhcx-staging.abdm.gov.in";
+const NHCX_API_BASE: &str = medbrains_core::nhcx::GATEWAY_HOST_SANDBOX;
 
 #[derive(Debug)]
 pub struct ClaimSubmitHandler {
@@ -194,7 +194,7 @@ fn classify_status(status: reqwest::StatusCode, body: &str) -> HandlerError {
 // clientId/clientSecret → time-limited bearer via the ABDM sessions API. The same
 // ABDM/ABHA client credentials work for the NHCX gateway (no separate creds).
 
-const ABDM_SESSIONS_URL: &str = "https://dev.abdm.gov.in/gateway/v0.5/sessions";
+const ABDM_SESSIONS_URL: &str = medbrains_core::nhcx::ABDM_SESSIONS_URL;
 
 #[derive(Deserialize)]
 struct SessionResponse {
