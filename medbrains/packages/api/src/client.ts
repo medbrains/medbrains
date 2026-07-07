@@ -3097,6 +3097,14 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  // Setup — edition (deployment mode)
+  getEdition: () => request<{ hospital_type: string | null }>("/setup/edition"),
+  applyEdition: (hospitalType: string) =>
+    request<{ hospital_type: string; enabled: number; disabled: number }>("/setup/edition/apply", {
+      method: "POST",
+      body: JSON.stringify({ hospital_type: hospitalType }),
+    }),
+
   // Setup — sequences
   listSequences: () => request<SequenceRow[]>("/setup/sequences"),
   createSequence: (data: { seq_type: string; prefix: string; pad_width: number }) =>

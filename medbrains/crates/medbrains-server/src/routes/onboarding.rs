@@ -1361,3 +1361,101 @@ pub async fn complete(
 
     Ok(Json(serde_json::json!({ "status": "ok" })))
 }
+
+// ── Edition switch (A3) ─────────────────────────────────────
+// Change the tenant's edition (`hospital_type`) and re-apply its module preset to the
+// EXISTING module_config rows. Backward-safe: only re-statuses rows that exist, so it
+// works for tenants onboarded before the specialty apps were registered (those get the
+// specialty rows when their migrations backfill them in B1–B3). Never deletes data.
+
+const EDITIONS: &[&str] = &[
+    "medical_college",
+    "multi_specialty",
+    "district_hospital",
+    "community_health",
+    "primary_health",
+    "standalone_clinic",
+    "eye_hospital",
+    "dental_college",
+];
+
+#[derive(Debug, Deserialize)]
+pub struct ApplyEditionRequest {
+    pub hospital_type: String,
+}
+
+/// `GET /api/setup/edition` — the tenant's current edition.
+pub async fn get_edition(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    crate::middleware::authorization::require_permission(
+        &claims,
+        medbrains_core::permissions::admin::settings::modules::MANAGE,
+    )?;
+    let hospital_type: Option<String> =
+        sqlx::query_scalar("SELECT hospital_type::text FROM tenants WHERE id = $1")
+            .bind(claims.tenant_id)
+            .fetch_one(&state.db)
+            .await?;
+    Ok(Json(serde_json::json!({ "hospital_type": hospital_type })))
+}
+
+/// `POST /api/setup/edition/apply` — switch edition + re-apply its module preset.
+pub async fn apply_edition(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<ApplyEditionRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    crate::middleware::authorization::require_permission(
+        &claims,
+        medbrains_core::permissions::admin::settings::modules::MANAGE,
+    )?;
+    if !EDITIONS.contains(&body.hospital_type.as_str()) {
+        return Err(AppError::BadRequest(format!(
+            "unknown edition: {}",
+            body.hospital_type
+        )));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    sqlx::query("UPDATE tenants SET hospital_type = $1::hospital_type WHERE id = $2")
+        .bind(&body.hospital_type)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+
+    let codes: Vec<String> =
+        sqlx::query_scalar("SELECT code FROM module_config WHERE tenant_id = $1")
+            .bind(claims.tenant_id)
+            .fetch_all(&mut *tx)
+            .await?;
+    let (enabled, disabled): (Vec<String>, Vec<String>) = codes
+        .into_iter()
+        .partition(|code| is_module_enabled_for_edition(&body.hospital_type, code));
+
+    sqlx::query(
+        "UPDATE module_config SET status = 'enabled' WHERE tenant_id = $1 AND code = ANY($2)",
+    )
+    .bind(claims.tenant_id)
+    .bind(&enabled)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "UPDATE module_config SET status = 'disabled' WHERE tenant_id = $1 AND code = ANY($2)",
+    )
+    .bind(claims.tenant_id)
+    .bind(&disabled)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({
+        "hospital_type": body.hospital_type,
+        "enabled": enabled.len(),
+        "disabled": disabled.len(),
+    })))
+}

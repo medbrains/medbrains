@@ -484,6 +484,8 @@ pub fn build_router(state: AppState) -> Router {
         // Setup — modules
         .route("/api/setup/modules", get(setup::list_modules))
         .route("/api/setup/modules/{code}", put(setup::update_module))
+        .route("/api/setup/edition", get(onboarding::get_edition))
+        .route("/api/setup/edition/apply", post(onboarding::apply_edition))
         // Setup — sequences
         .route(
             "/api/setup/sequences",
