@@ -35,6 +35,7 @@ import {
   IconLayoutGrid,
   IconListDetails,
   IconLockSquareRounded,
+  IconMapPin,
   IconMessage,
   IconMicroscope,
   IconNews,
@@ -150,6 +151,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: num
   IconUsersGroup,
   IconEye,
   IconHeartbeat,
+  IconMapPin,
   IconMicroscope,
   IconBrain,
   IconStretching2,
@@ -697,6 +699,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         path: "/care-view",
         icon: "IconHeartbeat",
         requiredPermission: "care_view.view",
+      },
+      {
+        i18nKey: "directory",
+        path: "/directory",
+        icon: "IconMapPin",
+        requiredPermission: "admin.settings.locations.list",
       },
       {
         i18nKey: "icu",

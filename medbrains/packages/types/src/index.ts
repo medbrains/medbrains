@@ -7811,6 +7811,16 @@ export interface WardOnDutyRow {
   patient_count: number;
 }
 
+/** A location with its full breadcrumb path (wayfinding directory / direction board). */
+export interface LocationDirectoryRow {
+  id: string;
+  name: string;
+  level: string;
+  code: string;
+  full_path: string;
+  depth: number;
+}
+
 /** A staff member assigned to a location (ward / nursing station / floor). */
 export interface StaffLocationAssignment {
   id: string;

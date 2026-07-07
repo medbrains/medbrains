@@ -154,6 +154,9 @@ const NurseActivitiesPage = lazy(() =>
 const CareViewPage = lazy(() =>
   import("./pages/care-view").then((m) => ({ default: m.CareViewPage })),
 );
+const DirectoryPage = lazy(() =>
+  import("./pages/directory").then((m) => ({ default: m.DirectoryPage })),
+);
 const OtPage = lazy(() => import("./pages/ot").then((m) => ({ default: m.OtPage })));
 const QualityPage = lazy(() => import("./pages/quality").then((m) => ({ default: m.QualityPage })));
 const FrontOfficePage = lazy(() =>
@@ -510,6 +513,7 @@ export function App() {
               <Route path="nurse" element={<NurseActivitiesPage />} />
               <Route path="bedside-portal" element={<BedsidePortalPage />} />
               <Route path="care-view" element={<CareViewPage />} />
+              <Route path="directory" element={<DirectoryPage />} />
               <Route path="ot" element={<OtPage />} />
               <Route path="admin">
                 <Route index element={<Navigate to="users" replace />} />

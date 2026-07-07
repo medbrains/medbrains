@@ -1158,6 +1158,7 @@ import type {
   LmsLearningPathCourse,
   LmsQuiz,
   LmsQuizQuestion,
+  LocationDirectoryRow,
   LocationRow,
   LocationStockSummary,
   LogAccessRequest,
@@ -2882,6 +2883,7 @@ export const api = {
 
   // Setup — locations
   listLocations: () => request<LocationRow[]>("/setup/locations"),
+  listLocationDirectory: () => request<LocationDirectoryRow[]>("/setup/locations/directory"),
   listLocationStaff: (locationId: string) =>
     request<StaffLocationAssignment[]>(`/setup/locations/${locationId}/staff`),
   assignLocationStaff: (

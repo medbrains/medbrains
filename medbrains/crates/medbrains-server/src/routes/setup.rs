@@ -837,6 +837,49 @@ pub async fn remove_location_staff(
     Ok(Json(serde_json::json!({ "status": "ok" })))
 }
 
+// ── Location directory (wayfinding) ─────────────────────────
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct LocationDirectoryRow {
+    pub id: Uuid,
+    pub name: String,
+    pub level: String,
+    pub code: String,
+    pub full_path: String,
+    pub depth: i32,
+}
+
+/// `GET /api/setup/locations/directory` — every location with its full breadcrumb path
+/// (campus › building › floor › …), for a wayfinding directory / direction board.
+pub async fn list_location_directory(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<LocationDirectoryRow>>, AppError> {
+    require_permission(&claims, permissions::admin::settings::locations::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+    let rows = sqlx::query_as::<_, LocationDirectoryRow>(
+        "WITH RECURSIVE path AS ( \
+            SELECT id, parent_id, name, level::text AS level, code, \
+                   name::text AS full_path, 0 AS depth \
+            FROM locations WHERE tenant_id = $1 AND parent_id IS NULL \
+            UNION ALL \
+            SELECT l.id, l.parent_id, l.name, l.level::text, l.code, \
+                   p.full_path || ' › ' || l.name, p.depth + 1 \
+            FROM locations l JOIN path p ON l.parent_id = p.id \
+            WHERE l.tenant_id = $1 \
+         ) \
+         SELECT id, name, level, code, full_path, depth FROM path \
+         ORDER BY full_path LIMIT 5000",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
 // ── Departments CRUD ────────────────────────────────────────
 
 #[derive(Debug, Serialize, sqlx::FromRow)]

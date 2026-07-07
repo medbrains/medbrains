@@ -62,6 +62,7 @@ export const settingsSetupService = {
   updateSequence: (seqType: string, data: UpdateSequenceInput) => api.updateSequence(seqType, data),
   deleteSequence: (seqType: string) => api.deleteSequence(seqType),
   listLocations: () => api.listLocations(),
+  listLocationDirectory: () => api.listLocationDirectory(),
   createLocation: (data: CreateLocationInput) => api.createLocation(data),
   updateLocation: (id: string, data: UpdateLocationInput) => api.updateLocation(id, data),
   deleteLocation: (id: string) => api.deleteLocation(id),
