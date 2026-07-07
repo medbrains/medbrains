@@ -554,6 +554,32 @@ impl HasLocalId for SetupDepartment {
     }
 }
 
+/// Edition presets — which module codes a `hospital_type` (the deployment "edition")
+/// starts with **enabled**. Everything else is seeded `disabled`; the onboarding wizard's
+/// explicit `module_statuses` still override. `registration` + `billing` are always on
+/// (core). Unknown edition → everything on (safe default). Mirrors the licensing SKU
+/// catalog in the modes plan; keep in sync with the specialty apps in `default_modules`.
+fn is_module_enabled_for_edition(hospital_type: &str, code: &str) -> bool {
+    if matches!(code, "registration" | "billing") {
+        return true;
+    }
+    match hospital_type {
+        // Full editions — every app on.
+        "multi_specialty" | "medical_college" => true,
+        "eye_hospital" => {
+            matches!(code, "opd" | "pharmacy" | "lab" | "ot" | "ophthalmology")
+        }
+        "dental_college" => matches!(code, "opd" | "pharmacy" | "lab" | "ot" | "dental"),
+        // Government / public — broad clinical, no elective specialties.
+        "district_hospital" | "community_health" | "primary_health" => matches!(
+            code,
+            "opd" | "ipd" | "pharmacy" | "lab" | "maternity" | "emergency" | "radiology" | "nursing"
+        ),
+        "standalone_clinic" => matches!(code, "opd" | "pharmacy" | "lab"),
+        _ => true,
+    }
+}
+
 #[allow(clippy::too_many_lines)]
 pub async fn setup(
     State(state): State<AppState>,
@@ -964,13 +990,73 @@ pub async fn setup(
             "Reports & Analytics",
             "Dashboards, MIS reports, data analytics",
         ),
+        // ── Specialty apps (licensable per edition) ──
+        (
+            "cath_lab",
+            "Cardiology / Cath Lab",
+            "Interventional cardiology, STEMI pathway, hemodynamics",
+        ),
+        (
+            "endoscopy",
+            "Endoscopy / GI",
+            "Endoscopic procedures, scope tracking, reprocessing",
+        ),
+        (
+            "psychiatry",
+            "Psychiatry",
+            "Mental-health assessments, ECT, restraint, MHRB",
+        ),
+        (
+            "pmr",
+            "Physical Medicine & Rehab",
+            "Rehabilitation plans, therapy sessions, audiology",
+        ),
+        (
+            "palliative",
+            "Palliative Care",
+            "DNR, pain management, mortuary, nuclear medicine",
+        ),
+        (
+            "maternity",
+            "Obstetrics / Maternity",
+            "Antenatal care, labor & delivery records",
+        ),
+        (
+            "specialty_other",
+            "Other Specialties",
+            "Dialysis, oncology, occupational health, specialty templates",
+        ),
+        (
+            "ophthalmology",
+            "Ophthalmology",
+            "Eye — refraction, IOP, slit-lamp, cataract/IOL, spectacle Rx",
+        ),
+        (
+            "dental",
+            "Dental",
+            "Tooth-wise charting, procedures, orthodontics, periodontal",
+        ),
     ];
 
+    // The edition (set at tenant creation) decides which apps start enabled.
+    let hospital_type: Option<String> =
+        sqlx::query_scalar("SELECT hospital_type::text FROM tenants WHERE id = $1")
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?;
+    let hospital_type = hospital_type.unwrap_or_else(|| "multi_specialty".to_owned());
+
     for (code, name, desc) in default_modules {
-        let status = body
-            .module_statuses
-            .get(code)
-            .map_or("available", |s| s.as_str());
+        let status = body.module_statuses.get(code).map_or_else(
+            || {
+                if is_module_enabled_for_edition(&hospital_type, code) {
+                    "enabled"
+                } else {
+                    "disabled"
+                }
+            },
+            String::as_str,
+        );
 
         sqlx::query(
             "INSERT INTO module_config (tenant_id, code, name, description, status) \
