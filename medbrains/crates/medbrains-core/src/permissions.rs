@@ -1375,6 +1375,14 @@ pub mod specialty {
         }
     }
 
+    pub mod ophthalmology {
+        pub mod exams {
+            pub const LIST: &str = "specialty.ophthalmology.exams.list";
+            pub const CREATE: &str = "specialty.ophthalmology.exams.create";
+            pub const UPDATE: &str = "specialty.ophthalmology.exams.update";
+        }
+    }
+
     pub mod other {
         pub mod templates {
             pub const LIST: &str = "specialty.other.templates.list";

@@ -5657,6 +5657,11 @@ export const P = {
       STEMI_LIST: "specialty.cath_lab.stemi.list" as const,
       STEMI_MANAGE: "specialty.cath_lab.stemi.manage" as const,
     },
+    OPHTHALMOLOGY: {
+      EXAMS_LIST: "specialty.ophthalmology.exams.list" as const,
+      EXAMS_CREATE: "specialty.ophthalmology.exams.create" as const,
+      EXAMS_UPDATE: "specialty.ophthalmology.exams.update" as const,
+    },
     ENDOSCOPY: {
       PROCEDURES_LIST: "specialty.endoscopy.procedures.list" as const,
       PROCEDURES_CREATE: "specialty.endoscopy.procedures.create" as const,

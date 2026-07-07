@@ -1,6 +1,7 @@
 pub mod cath_lab;
 pub mod endoscopy;
 pub mod maternity;
+pub mod ophthalmology;
 pub mod other;
 pub mod palliative;
 pub mod pmr;

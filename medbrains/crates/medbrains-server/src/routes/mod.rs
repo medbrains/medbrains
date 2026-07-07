@@ -139,6 +139,7 @@ pub mod signed_documents;
 pub mod specialty_interventional;
 pub mod station_handoff;
 pub mod specialty_maternity;
+pub mod specialty_ophtho;
 pub mod specialty_other;
 pub mod specialty_psychiatry;
 pub mod storage;
@@ -5058,6 +5059,15 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/security/debriefs/{id}",
             get(security::get_debrief),
+        )
+        // ── Specialty Clinical: Ophthalmology ──
+        .route(
+            "/api/specialty/ophthalmology/exams",
+            get(specialty_ophtho::list_ophtho_exams).post(specialty_ophtho::create_ophtho_exam),
+        )
+        .route(
+            "/api/specialty/ophthalmology/exams/{id}",
+            get(specialty_ophtho::get_ophtho_exam).put(specialty_ophtho::update_ophtho_exam),
         )
         // ── Specialty Clinical: Cath Lab ──
         .route(

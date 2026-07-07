@@ -17112,6 +17112,61 @@ export type CathDeviceType =
   | "lead"
   | "other";
 
+/** Ophthalmology — a comprehensive eye exam. Per-eye: OD = right, OS = left. */
+export interface OphthoExam {
+  id: string;
+  tenant_id: string;
+  patient_id: string;
+  encounter_id: string | null;
+  visual_acuity_od: string | null;
+  visual_acuity_os: string | null;
+  sphere_od: string | null;
+  sphere_os: string | null;
+  cylinder_od: string | null;
+  cylinder_os: string | null;
+  axis_od: number | null;
+  axis_os: number | null;
+  iop_od: string | null;
+  iop_os: string | null;
+  slit_lamp: string | null;
+  fundus: string | null;
+  diagnosis: string | null;
+  plan: string | null;
+  examined_by: string | null;
+  examined_at: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateOphthoExamRequest {
+  patient_id: string;
+  encounter_id?: string | null;
+  visual_acuity_od?: string | null;
+  visual_acuity_os?: string | null;
+  sphere_od?: string | null;
+  sphere_os?: string | null;
+  cylinder_od?: string | null;
+  cylinder_os?: string | null;
+  axis_od?: number | null;
+  axis_os?: number | null;
+  iop_od?: string | null;
+  iop_os?: string | null;
+  slit_lamp?: string | null;
+  fundus?: string | null;
+  diagnosis?: string | null;
+  plan?: string | null;
+  status?: string | null;
+}
+
+export interface UpdateOphthoExamRequest {
+  slit_lamp?: string | null;
+  fundus?: string | null;
+  diagnosis?: string | null;
+  plan?: string | null;
+  status?: string | null;
+}
+
 export interface CathProcedure {
   id: string;
   tenant_id: string;

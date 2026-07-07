@@ -266,6 +266,9 @@ const SpecialtyIndexPage = lazy(() =>
 const CathLabPage = lazy(() =>
   import("./pages/specialty/cath-lab").then((m) => ({ default: m.CathLabPage })),
 );
+const OphthoPage = lazy(() =>
+  import("./pages/specialty/ophtho").then((m) => ({ default: m.OphthoPage })),
+);
 const EndoscopyPage = lazy(() =>
   import("./pages/specialty/endoscopy").then((m) => ({ default: m.EndoscopyPage })),
 );
@@ -473,6 +476,7 @@ export function App() {
               <Route path="retrospective" element={<RetrospectivePage />} />
               <Route path="specialty">
                 <Route index element={<SpecialtyIndexPage />} />
+                <Route path="ophthalmology" element={<OphthoPage />} />
                 <Route path="cath-lab" element={<CathLabPage />} />
                 <Route path="endoscopy" element={<EndoscopyPage />} />
                 <Route path="psychiatry" element={<PsychiatryPage />} />

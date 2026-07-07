@@ -16,6 +16,7 @@ import {
   IconDeviceTablet,
   IconDoorEnter,
   IconDroplet,
+  IconEye,
   IconFileAnalytics,
   IconFileCertificate,
   IconFileText,
@@ -147,6 +148,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: num
   IconUserShield,
   IconUsers,
   IconUsersGroup,
+  IconEye,
   IconHeartbeat,
   IconMicroscope,
   IconBrain,
@@ -239,6 +241,7 @@ const MODULE_BADGE_DEFS: Record<string, ModuleBadge> = {
   "/analytics": { abbr: "Ana", color: "#00539a" },
   "/reports": { abbr: "Rep", color: "#4d5358" },
   "/audit": { abbr: "Aud", color: "#0043ce" },
+  "/specialty/ophthalmology": { abbr: "Eye", color: "#0043ce" },
   "/specialty/cath-lab": { abbr: "CL", color: "#005d5d" },
   "/specialty/endoscopy": { abbr: "End", color: "#8a3ffc" },
   "/specialty/psychiatry": { abbr: "Psy", color: "#0e6027" },
@@ -1047,6 +1050,13 @@ export const NAV_GROUPS: NavGroupConfig[] = [
   {
     key: "specialty",
     items: [
+      {
+        i18nKey: "ophthalmology",
+        path: "/specialty/ophthalmology",
+        icon: "IconEye",
+        requiredPermission: "specialty.ophthalmology.exams.list",
+        moduleCode: "ophthalmology",
+      },
       {
         i18nKey: "cathLab",
         path: "/specialty/cath-lab",

@@ -578,6 +578,7 @@ import type {
   CreateOccHealthHazardRequest,
   CreateOccScreeningRequest,
   CreateOnCallRequest,
+  CreateOphthoExamRequest,
   CreateOrderSetTemplateRequest,
   CreateOtBookingRequest,
   CreateOtcSaleRequest,
@@ -1262,6 +1263,7 @@ import type {
   OpdProcedureConsentPrintData,
   OpenCampRegistrationEncounterRequest,
   OperationNotesPrintData,
+  OphthoExam,
   OrderBasketDraft,
   OrderSetActivation,
   OrderSetAnalyticsSummary,
@@ -1793,6 +1795,7 @@ import type {
   UpdateNotifiableReportRequest,
   UpdateNursingTaskRequest,
   UpdateOccScreeningRequest,
+  UpdateOphthoExamRequest,
   UpdateOrderSetItemRequest,
   UpdateOrderSetTemplateRequest,
   UpdateOtBookingRequest,
@@ -9115,6 +9118,26 @@ export const api = {
     }),
 
   // ── Specialty Clinical: Cath Lab ────────────────────────────
+
+  // Specialty — Ophthalmology
+  listOphthoExams: (params?: { patient_id?: string; status?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    if (params?.status) sp.set("status", params.status);
+    const qs = sp.toString();
+    return request<OphthoExam[]>(`/specialty/ophthalmology/exams${qs ? `?${qs}` : ""}`);
+  },
+  getOphthoExam: (id: string) => request<OphthoExam>(`/specialty/ophthalmology/exams/${id}`),
+  createOphthoExam: (data: CreateOphthoExamRequest) =>
+    request<OphthoExam>("/specialty/ophthalmology/exams", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateOphthoExam: (id: string, data: UpdateOphthoExamRequest) =>
+    request<OphthoExam>(`/specialty/ophthalmology/exams/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   listCathProcedures: (params?: { patient_id?: string }) => {
     const sp = new URLSearchParams();
