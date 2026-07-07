@@ -4371,6 +4371,31 @@ export const api = {
       { method: "POST", body: JSON.stringify(data) },
     ),
 
+  /** NHCX payer directory (the recipient_code source for claim submission). */
+  listNhcxParticipants: (role?: string) =>
+    request<
+      Array<{
+        id: string;
+        participant_code: string;
+        participant_name: string;
+        role: string;
+        is_active: boolean;
+      }>
+    >(`/nhcx/participants${role ? `?role=${role}` : ""}`),
+
+  upsertNhcxParticipant: (data: {
+    participant_code: string;
+    participant_name: string;
+    role?: string;
+  }) =>
+    request<{
+      id: string;
+      participant_code: string;
+      participant_name: string;
+      role: string;
+      is_active: boolean;
+    }>("/nhcx/participants", { method: "POST", body: JSON.stringify(data) }),
+
   /**
    * NHCX webhook receipt log. Optional filters: correlation_id (specific
    * gateway exchange) or matched_id (specific local claim/preauth row).
