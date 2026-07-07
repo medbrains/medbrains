@@ -689,6 +689,25 @@ pub async fn create_transfusion(
     .execute(&mut *tx)
     .await?;
 
+    // Auto-charge the transfusion (was a silent revenue leak). Master-priced by the
+    // "BLOOD_TRANSFUSION" code; unconfigured → a visible ₹0 line, never a missed charge.
+    super::billing::auto_charge(
+        &mut tx,
+        &claims.tenant_id,
+        super::billing::AutoChargeInput {
+            patient_id: body.patient_id,
+            encounter_id: None,
+            charge_code: "BLOOD_TRANSFUSION".to_owned(),
+            source: "procedure".to_owned(),
+            source_id: record.id,
+            quantity: 1,
+            description_override: Some("Blood component transfusion".to_owned()),
+            unit_price_override: None,
+            tax_percent_override: None,
+        },
+    )
+    .await?;
+
     tx.commit().await?;
     Ok(Json(record))
 }

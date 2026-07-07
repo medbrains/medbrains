@@ -1015,6 +1015,25 @@ pub async fn create_dialysis_session(
     .fetch_one(&mut *tx)
     .await?;
 
+    // Auto-charge the session (was a silent revenue leak). Master-priced by the "DIALYSIS"
+    // charge code; unconfigured → a visible ₹0 line for the biller, never a missed charge.
+    super::billing::auto_charge(
+        &mut tx,
+        &claims.tenant_id,
+        super::billing::AutoChargeInput {
+            patient_id: body.patient_id,
+            encounter_id: None,
+            charge_code: "DIALYSIS".to_owned(),
+            source: "procedure".to_owned(),
+            source_id: row.id,
+            quantity: 1,
+            description_override: Some("Haemodialysis session".to_owned()),
+            unit_price_override: None,
+            tax_percent_override: None,
+        },
+    )
+    .await?;
+
     tx.commit().await?;
     Ok(Json(row))
 }
