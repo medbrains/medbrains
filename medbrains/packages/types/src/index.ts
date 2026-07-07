@@ -7791,6 +7791,16 @@ export interface NearExpiryRow {
   days_until_expiry: number;
 }
 
+/** Ward PAR/imprest stock — par vs on-hand per ward × drug. */
+export interface WardStockRow {
+  catalog_item_id: string;
+  drug_name: string;
+  par_qty: number;
+  min_qty: number;
+  on_hand: number;
+  gap: number;
+}
+
 export interface PharmacyDeadStockRow {
   drug_name: string;
   current_stock: number;

@@ -68,6 +68,11 @@ export const pharmacyService = {
     api.getNearExpiryReport(...args),
   writeOffExpired: (...args: Parameters<typeof api.writeOffExpired>) =>
     api.writeOffExpired(...args),
+  listWardStock: (...args: Parameters<typeof api.listWardStock>) => api.listWardStock(...args),
+  setWardPar: (...args: Parameters<typeof api.setWardPar>) => api.setWardPar(...args),
+  replenishWard: (...args: Parameters<typeof api.replenishWard>) => api.replenishWard(...args),
+  consumeWardStock: (...args: Parameters<typeof api.consumeWardStock>) =>
+    api.consumeWardStock(...args),
   getPharmacyDeadStock: (...args: Parameters<typeof api.getPharmacyDeadStock>) =>
     api.getPharmacyDeadStock(...args),
   listPharmacyStoreAssignments: (...args: Parameters<typeof api.listPharmacyStoreAssignments>) =>

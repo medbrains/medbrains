@@ -96,6 +96,9 @@ const LabPage = lazy(() => import("./pages/lab").then((m) => ({ default: m.LabPa
 const PharmacyPage = lazy(() =>
   import("./pages/pharmacy").then((m) => ({ default: m.PharmacyPage })),
 );
+const WardStockPage = lazy(() =>
+  import("./pages/ward-stock").then((m) => ({ default: m.WardStockPage })),
+);
 const PharmacyOrderCreatePage = lazy(() =>
   import("./pages/pharmacy").then((m) => ({ default: m.PharmacyOrderCreatePage })),
 );
@@ -415,6 +418,7 @@ export function App() {
               <Route path="lab" element={<LabPage />} />
               <Route path="radiology" element={<RadiologyPage />} />
               <Route path="pharmacy" element={<PharmacyPage />} />
+              <Route path="ward-stock" element={<WardStockPage />} />
               <Route path="pharmacy/orders/new" element={<PharmacyOrderCreatePage />} />
               <Route path="pharmacy/orders/:orderId" element={<PharmacyOrderDetailPage />} />
               <Route path="pharmacy/finance" element={<PharmacyFinancePage />} />

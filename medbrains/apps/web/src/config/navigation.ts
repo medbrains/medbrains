@@ -524,6 +524,13 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         moduleCode: "radiology",
       },
       {
+        i18nKey: "wardStock",
+        path: "/ward-stock",
+        icon: "IconBed",
+        requiredPermission: "pharmacy.stores.manage",
+        moduleCode: "pharmacy",
+      },
+      {
         i18nKey: "pharmacy",
         path: "/pharmacy",
         icon: "IconPill",

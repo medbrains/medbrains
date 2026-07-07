@@ -134,6 +134,7 @@ pub mod sso;
 pub mod sso_login;
 pub mod step_up;
 pub mod vpn;
+pub mod ward_stock;
 pub mod sharing;
 pub mod signatures;
 pub mod signed_documents;
@@ -2143,6 +2144,20 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/pharmacy/batches/write-off-expired",
             post(pharmacy::write_off_expired),
+        )
+        // ── Ward / floor PAR stock ──
+        .route(
+            "/api/pharmacy/ward-stock",
+            get(ward_stock::list_ward_stock),
+        )
+        .route("/api/pharmacy/ward-stock/par", post(ward_stock::set_ward_par))
+        .route(
+            "/api/pharmacy/ward-stock/replenish",
+            post(ward_stock::replenish_ward),
+        )
+        .route(
+            "/api/pharmacy/ward-stock/consume",
+            post(ward_stock::consume_ward_stock),
         )
         .route(
             "/api/pharmacy/batches/dead-stock",

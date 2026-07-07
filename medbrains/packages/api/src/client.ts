@@ -1922,6 +1922,7 @@ import type {
   // Care View
   WardGridResponse,
   WardListRow,
+  WardStockRow,
   WaterQualityTestPrintData,
   WidgetAccessLevel,
   WidgetDataResponse,
@@ -5344,6 +5345,30 @@ export const api = {
       "/pharmacy/batches/write-off-expired",
       { method: "POST", body: JSON.stringify(data) },
     ),
+
+  // Ward PAR / imprest stock
+  listWardStock: (departmentId: string) =>
+    request<WardStockRow[]>(`/pharmacy/ward-stock?department_id=${departmentId}`),
+  setWardPar: (data: {
+    department_id: string;
+    catalog_item_id: string;
+    par_qty: number;
+    min_qty?: number;
+  }) =>
+    request<{ ok: boolean }>("/pharmacy/ward-stock/par", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  replenishWard: (departmentId: string) =>
+    request<{ items_replenished: number; total_issued: number }>("/pharmacy/ward-stock/replenish", {
+      method: "POST",
+      body: JSON.stringify({ department_id: departmentId }),
+    }),
+  consumeWardStock: (data: { department_id: string; catalog_item_id: string; quantity: number }) =>
+    request<{ remaining: number }>("/pharmacy/ward-stock/consume", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   getPharmacyDeadStock: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<PharmacyDeadStockRow[]>(`/pharmacy/batches/dead-stock${qs}`);
