@@ -78,6 +78,7 @@ pub mod nabh_indicators;
 pub mod news;
 pub mod news_feed;
 pub mod nhcx_callback;
+pub mod nhcx_onboarding;
 pub mod nurse_clinical;
 pub mod nurse_handoff;
 pub mod nurse_vitals;
