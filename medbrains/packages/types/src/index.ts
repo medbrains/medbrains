@@ -15004,6 +15004,11 @@ export interface CreateEmployeeRequest {
   aadhaar_number?: string;
   user_id?: string;
   notes?: string;
+  /** Auto-provision a linked login for this new employee. */
+  provision_login?: boolean;
+  login_username?: string;
+  login_password?: string;
+  login_role?: string;
 }
 export interface UpdateEmployeeRequest {
   first_name?: string;

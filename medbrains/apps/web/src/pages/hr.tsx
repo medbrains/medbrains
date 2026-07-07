@@ -3,6 +3,7 @@ import {
   Drawer,
   Group,
   NumberInput,
+  PasswordInput,
   Progress,
   SegmentedControl,
   Select,
@@ -99,6 +100,19 @@ const STATUS_TONE: Record<string, BadgeTone> = {
 function statusBadgeTone(status: string | null | undefined): BadgeTone {
   return STATUS_TONE[statusColor(status)] ?? "neutral";
 }
+
+// Roles an HR admin may provision via the employee form (admin roles excluded on purpose).
+const PROVISION_ROLE_OPTIONS = [
+  "doctor",
+  "nurse",
+  "receptionist",
+  "lab_technician",
+  "pharmacist",
+  "billing_clerk",
+  "housekeeping_staff",
+  "facilities_manager",
+  "audit_officer",
+].map((r) => ({ value: r, label: r.replace(/_/g, " ") }));
 
 // ══════════════════════════════════════════════════════════
 //  Main Page
@@ -224,6 +238,10 @@ function EmployeesTab({
     department_id: "",
     designation_id: "",
     date_of_joining: "",
+    provision_login: false,
+    login_username: "",
+    login_password: "",
+    login_role: "",
   });
 
   const createMut = useMutation({
@@ -238,6 +256,10 @@ function EmployeesTab({
         department_id: form.department_id || undefined,
         designation_id: form.designation_id || undefined,
         date_of_joining: form.date_of_joining || undefined,
+        provision_login: form.provision_login || undefined,
+        login_username: form.provision_login ? form.login_username : undefined,
+        login_password: form.provision_login ? form.login_password : undefined,
+        login_role: form.provision_login ? form.login_role : undefined,
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["hr-employees"] });
@@ -252,6 +274,10 @@ function EmployeesTab({
         department_id: "",
         designation_id: "",
         date_of_joining: "",
+        provision_login: false,
+        login_username: "",
+        login_password: "",
+        login_role: "",
       });
       toast.success("Employee record added", { title: "Employee Created" });
     },
@@ -453,11 +479,42 @@ function EmployeesTab({
             value={form.date_of_joining}
             onChange={(e) => setForm({ ...form, date_of_joining: e.currentTarget.value })}
           />
+          <Switch
+            label="Create a login for this employee"
+            checked={form.provision_login}
+            onChange={(e) => setForm({ ...form, provision_login: e.currentTarget.checked })}
+          />
+          {form.provision_login && (
+            <>
+              <TextInput
+                label="Login username"
+                value={form.login_username}
+                onChange={(e) => setForm({ ...form, login_username: e.currentTarget.value })}
+              />
+              <PasswordInput
+                label="Temporary password"
+                description="They'll be asked to change it on first sign-in"
+                value={form.login_password}
+                onChange={(e) => setForm({ ...form, login_password: e.currentTarget.value })}
+              />
+              <Select
+                label="Role"
+                data={PROVISION_ROLE_OPTIONS}
+                value={form.login_role || null}
+                onChange={(v) => setForm({ ...form, login_role: v ?? "" })}
+              />
+            </>
+          )}
           <Button
             tone="primary"
             onClick={() => createMut.mutate()}
             loading={createMut.isPending}
-            disabled={!form.employee_code || !form.first_name}
+            disabled={
+              !form.employee_code ||
+              !form.first_name ||
+              (form.provision_login &&
+                (!form.login_username || !form.login_password || !form.login_role))
+            }
           >
             Create Employee
           </Button>
@@ -2763,8 +2820,8 @@ function ComplianceTab({
             />
           ) : (
             <Text size="sm" c="dimmed">
-              Track POSH training, fire safety, and other statutory compliance. Select an employee to
-              view their records and expiry status.
+              Track POSH training, fire safety, and other statutory compliance. Select an employee
+              to view their records and expiry status.
             </Text>
           )}
         </Stack>

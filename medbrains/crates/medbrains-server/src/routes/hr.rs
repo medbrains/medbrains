@@ -15,6 +15,12 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use argon2::{
+    Argon2,
+    password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
+};
+
+use crate::validation::{self, ValidationErrors};
 use crate::{
     error::AppError,
     middleware::auth::Claims,
@@ -83,6 +89,11 @@ pub struct CreateEmployeeRequest {
     pub aadhaar_number: Option<String>,
     pub user_id: Option<Uuid>,
     pub notes: Option<String>,
+    /// Auto-provision a login for this new employee (creates + links a user).
+    pub provision_login: Option<bool>,
+    pub login_username: Option<String>,
+    pub login_password: Option<String>,
+    pub login_role: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -630,6 +641,54 @@ pub async fn create_employee(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // Auto-provision a linked login if requested and not already linked. Admin supplies
+    // the initial password; must_change_password forces a rotation on first sign-in.
+    // Mirrors admin user-create — no secret generation/return.
+    let mut effective_user_id = body.user_id;
+    if body.provision_login.unwrap_or(false) && effective_user_id.is_none() {
+        let mut errors = ValidationErrors::new();
+        let username = body.login_username.as_deref().unwrap_or("");
+        let password = body.login_password.as_deref().unwrap_or("");
+        let role = body.login_role.as_deref().unwrap_or("");
+        validation::validate_username(&mut errors, "login_username", username);
+        validation::validate_password(&mut errors, "login_password", password);
+        if role.is_empty() {
+            errors.add("login_role", "Role is required to provision a login");
+        }
+        let taken: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM users WHERE tenant_id = $1 AND username = $2)",
+        )
+        .bind(claims.tenant_id)
+        .bind(username)
+        .fetch_one(&mut *tx)
+        .await?;
+        if taken {
+            errors.add("login_username", "This username is already taken");
+        }
+        if errors.has_errors() {
+            return Err(AppError::ValidationFailed(errors));
+        }
+        let salt = SaltString::generate(&mut OsRng);
+        let password_hash = Argon2::default()
+            .hash_password(password.as_bytes(), &salt)
+            .map_err(|e| AppError::Internal(format!("password hash error: {e}")))?
+            .to_string();
+        let new_id: Uuid = sqlx::query_scalar(
+            "INSERT INTO users \
+             (tenant_id, username, email, password_hash, full_name, role, must_change_password) \
+             VALUES ($1, $2, $3, $4, $5, $6::user_role, true) RETURNING id",
+        )
+        .bind(claims.tenant_id)
+        .bind(username)
+        .bind(&body.email)
+        .bind(&password_hash)
+        .bind(format!("{} {}", body.first_name, body.last_name.as_deref().unwrap_or("")).trim())
+        .bind(role)
+        .fetch_one(&mut *tx)
+        .await?;
+        effective_user_id = Some(new_id);
+    }
+
     let row = sqlx::query_as::<_, Employee>(
         "INSERT INTO employees (tenant_id, employee_code, first_name, last_name, \
          date_of_birth, gender, phone, email, employment_type, department_id, \
@@ -669,7 +728,7 @@ pub async fn create_employee(
     .bind(&body.uan_number)
     .bind(&body.pan_number)
     .bind(&body.aadhaar_number)
-    .bind(body.user_id)
+    .bind(effective_user_id)
     .bind(&body.notes)
     .fetch_one(&mut *tx)
     .await?;
