@@ -1937,6 +1937,28 @@ pub async fn leave_action(
         _ => return Err(AppError::BadRequest("Invalid action".into())),
     };
 
+    // Reverse of the create_attendance guard: don't approve a leave that overlaps days
+    // the employee was already marked present — that would leave payroll double-counting.
+    if new_status == "approved" {
+        let has_present: bool = sqlx::query_scalar(
+            "SELECT EXISTS( \
+               SELECT 1 FROM attendance_records a \
+               JOIN leave_requests l ON l.id = $2 AND l.tenant_id = $1 \
+               WHERE a.tenant_id = $1 AND a.employee_id = l.employee_id \
+                 AND a.status = 'present' \
+                 AND a.attendance_date BETWEEN l.start_date AND l.end_date)",
+        )
+        .bind(claims.tenant_id)
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if has_present {
+            return Err(AppError::BadRequest(
+                "Employee has 'present' attendance within the leave dates — correct the attendance before approving this leave.".into(),
+            ));
+        }
+    }
+
     let row = sqlx::query_as::<_, LeaveRequest>(
         "UPDATE leave_requests SET \
          status = $3::leave_status, \
