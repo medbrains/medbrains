@@ -2672,6 +2672,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/indent/condemnations/{id}/status", put(indent::update_condemnation_status))
         // ── Indent Reorder Alerts ────────────────────────
         .route("/api/indent/reorder-alerts/check", post(indent::check_reorder_alerts))
+        .route("/api/indent/reorder-indent", post(indent::create_reorder_indent))
         .route("/api/indent/reorder-alerts", get(indent::list_reorder_alerts))
         .route("/api/indent/reorder-alerts/{id}/acknowledge", put(indent::acknowledge_alert))
         // ── Procurement ──────────────────────────────────

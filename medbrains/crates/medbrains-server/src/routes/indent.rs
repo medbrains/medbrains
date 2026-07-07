@@ -2562,6 +2562,95 @@ pub async fn check_reorder_alerts(
     Ok(Json(alerts))
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct ReorderIndentRequest {
+    pub department_id: Option<Uuid>,
+}
+
+/// `POST /api/indent/reorder-indent` — turn every below-reorder store item into ONE submitted
+/// pharmacy indent at the suggested quantity (`max_stock` or `3 × reorder_level`, minus current
+/// stock). Closes the reorder → procurement loop that previously stopped at an alert.
+pub async fn create_reorder_indent(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<ReorderIndentRequest>,
+) -> Result<Json<IndentRequisition>, AppError> {
+    require_permission(&claims, permissions::indent::CREATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let items: Vec<(Uuid, String, i32, Decimal)> = sqlx::query_as(
+        "SELECT id, name, \
+                (COALESCE(max_stock, reorder_level * 3) - current_stock)::int AS qty, \
+                COALESCE(base_price, 0) \
+         FROM store_catalog \
+         WHERE tenant_id = $1 AND is_active = true AND reorder_level > 0 \
+           AND current_stock <= reorder_level \
+           AND (COALESCE(max_stock, reorder_level * 3) - current_stock) > 0",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    if items.is_empty() {
+        return Err(AppError::BadRequest(
+            "No items are below reorder level".to_owned(),
+        ));
+    }
+
+    // Central-store reorder isn't department-specific; use the caller's choice, else any
+    // tenant department (the indent header needs one).
+    let department_id = match body.department_id {
+        Some(d) => d,
+        None => sqlx::query_scalar::<_, Uuid>(
+            "SELECT id FROM departments WHERE tenant_id = $1 ORDER BY name LIMIT 1",
+        )
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or_else(|| AppError::BadRequest("No department to file the indent against".to_owned()))?,
+    };
+
+    let indent_number = generate_indent_number(&mut tx, &claims.tenant_id).await?;
+    let requisition = sqlx::query_as::<_, IndentRequisition>(
+        "INSERT INTO indent_requisitions \
+         (tenant_id, indent_number, department_id, requested_by, indent_type, priority, \
+          status, context, notes) \
+         VALUES ($1, $2, $3, $4, 'pharmacy', 'normal', 'submitted', \
+                 '{\"auto_reorder\": true}'::jsonb, 'Auto-generated from reorder levels') \
+         RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(&indent_number)
+    .bind(department_id)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    for (catalog_item_id, name, qty, unit_price) in &items {
+        let total_price = *unit_price * Decimal::from(*qty);
+        sqlx::query(
+            "INSERT INTO indent_items \
+             (tenant_id, requisition_id, catalog_item_id, item_name, quantity_requested, \
+              unit_price, total_price) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        )
+        .bind(claims.tenant_id)
+        .bind(requisition.id)
+        .bind(catalog_item_id)
+        .bind(name)
+        .bind(qty)
+        .bind(unit_price)
+        .bind(total_price)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    recalculate_total(&mut tx, requisition.id, claims.tenant_id).await?;
+    tx.commit().await?;
+    Ok(Json(requisition))
+}
+
 pub async fn list_reorder_alerts(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

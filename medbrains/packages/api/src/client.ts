@@ -3819,6 +3819,11 @@ export const api = {
   // ── Indent Reorder Alerts ─────────────────────────────
   checkReorderAlerts: () =>
     request<ReorderAlert[]>("/indent/reorder-alerts/check", { method: "POST" }),
+  createReorderIndent: (departmentId?: string) =>
+    request<IndentRequisition>("/indent/reorder-indent", {
+      method: "POST",
+      body: JSON.stringify(departmentId ? { department_id: departmentId } : {}),
+    }),
   listReorderAlerts: () => request<ReorderAlert[]>("/indent/reorder-alerts"),
   acknowledgeReorderAlert: (id: string) =>
     request<ReorderAlert>(`/indent/reorder-alerts/${id}/acknowledge`, { method: "PUT" }),

@@ -9,6 +9,8 @@ export const indentService = {
     api.createIndentRequisition(...args),
   submitIndentRequisition: (...args: Parameters<typeof api.submitIndentRequisition>) =>
     api.submitIndentRequisition(...args),
+  createReorderIndent: (...args: Parameters<typeof api.createReorderIndent>) =>
+    api.createReorderIndent(...args),
   approveIndentRequisition: (...args: Parameters<typeof api.approveIndentRequisition>) =>
     api.approveIndentRequisition(...args),
   rejectIndentRequisition: (...args: Parameters<typeof api.rejectIndentRequisition>) =>

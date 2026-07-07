@@ -56,6 +56,7 @@ import {
   IconPackage,
   IconPill,
   IconPlus,
+  IconRefresh,
   IconSend,
   IconTruckDelivery,
   IconX,
@@ -244,6 +245,16 @@ function IndentPageInner() {
 
   const user = useAuthStore((s) => s.user);
   const [activeTab, setActiveTab] = useState<string | null>("my-indents");
+  const headerQueryClient = useQueryClient();
+  const reorderMutation = useMutation({
+    mutationFn: () => indentService.createReorderIndent(),
+    onSuccess: () => {
+      void headerQueryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
+      toast.success("Reorder indent generated from below-reorder stock", { title: "Reorder" });
+      setActiveTab("my-indents");
+    },
+    onError: (e: Error) => toast.error(e.message, { title: "Nothing to reorder" }),
+  });
 
   return (
     <div>
@@ -254,13 +265,25 @@ function IndentPageInner() {
         color="info"
         actions={
           canCreate ? (
-            <Button
-              tone="primary"
-              leftSection={<IconPlus size={16} />}
-              onClick={() => setActiveTab("create")}
-            >
-              New Indent
-            </Button>
+            <Group gap="xs">
+              {canStock && (
+                <Button
+                  tone="secondary"
+                  leftSection={<IconRefresh size={16} />}
+                  onClick={() => reorderMutation.mutate()}
+                  loading={reorderMutation.isPending}
+                >
+                  Generate reorder indent
+                </Button>
+              )}
+              <Button
+                tone="primary"
+                leftSection={<IconPlus size={16} />}
+                onClick={() => setActiveTab("create")}
+              >
+                New Indent
+              </Button>
+            </Group>
           ) : undefined
         }
       />
