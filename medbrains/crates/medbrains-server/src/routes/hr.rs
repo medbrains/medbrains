@@ -8,8 +8,8 @@ use chrono::{DateTime, Duration, NaiveTime, TimeZone, Utc};
 use medbrains_core::fatigue::{self, FatigueThresholds};
 use medbrains_core::hr::{
     Appraisal, AttendanceRecord, Designation, DutyRoster, Employee, EmployeeCredential,
-    LeaveBalance, LeaveRequest, OnCallSchedule, ShiftDefinition, StatutoryRecord, TrainingProgram,
-    TrainingRecord,
+    EmployeeStatus, LeaveBalance, LeaveRequest, OnCallSchedule, ShiftDefinition, StatutoryRecord,
+    TrainingProgram, TrainingRecord,
 };
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
@@ -750,7 +750,53 @@ pub async fn update_employee(
     .fetch_one(&mut *tx)
     .await?;
 
+    // Offboarding security: moving an employee to a terminal/blocked status must revoke
+    // ALL their access — previously nothing happened, so a terminated employee kept their
+    // login, refresh tokens, group permissions and VPN. active/on_leave keep access.
+    let revokes_access = matches!(
+        row.status,
+        EmployeeStatus::Suspended
+            | EmployeeStatus::Resigned
+            | EmployeeStatus::Terminated
+            | EmployeeStatus::Retired
+            | EmployeeStatus::Absconding
+    );
+    if revokes_access {
+        if let Some(user_id) = row.user_id {
+            // Deactivate the login + bump perm_version so any cached JWT stops resolving.
+            sqlx::query(
+                "UPDATE users SET is_active = false, perm_version = perm_version + 1, \
+                 updated_at = now() WHERE id = $1 AND tenant_id = $2",
+            )
+            .bind(user_id)
+            .bind(claims.tenant_id)
+            .execute(&mut *tx)
+            .await?;
+            // Revoke refresh tokens so the session can't be renewed after the access JWT expires.
+            sqlx::query(
+                "UPDATE refresh_tokens SET revoked = true WHERE user_id = $1 AND revoked = false",
+            )
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await?;
+            // Drop group memberships so group-derived permissions stop applying.
+            sqlx::query("DELETE FROM access_group_members WHERE user_id = $1 AND tenant_id = $2")
+                .bind(user_id)
+                .bind(claims.tenant_id)
+                .execute(&mut *tx)
+                .await?;
+        }
+    }
+
     tx.commit().await?;
+
+    // VPN device revocation runs its own transaction (best-effort, same as delete_user).
+    if revokes_access {
+        if let Some(user_id) = row.user_id {
+            crate::routes::vpn::revoke_user_devices(&state, claims.tenant_id, user_id).await?;
+        }
+    }
+
     Ok(Json(row))
 }
 
