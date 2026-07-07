@@ -887,6 +887,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
       },
       { i18nKey: "hr", path: "/hr", icon: "IconIdBadge2", requiredPermission: "hr.employees.list" },
       {
+        i18nKey: "payroll",
+        path: "/hr/payroll",
+        icon: "IconReceipt",
+        requiredPermission: "hr.payroll.structures.list",
+      },
+      {
         i18nKey: "lms",
         path: "/lms",
         icon: "IconSchool",

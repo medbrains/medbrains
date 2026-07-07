@@ -96,6 +96,7 @@ pub mod ot;
 pub mod patient_packages;
 pub mod patients;
 pub mod payment_gateway;
+pub mod payroll;
 pub mod pharmacy;
 pub mod pharmacy_cash_drawer;
 pub mod pharmacy_dispense_ops;
@@ -4113,6 +4114,20 @@ pub fn build_router(state: AppState) -> Router {
             "/api/hr/attendance",
             get(hr::list_attendance).post(hr::create_attendance),
         )
+        // ── Payroll ──
+        .route(
+            "/api/hr/payroll/structures",
+            get(payroll::list_salary_structures).post(payroll::upsert_salary_structure),
+        )
+        .route(
+            "/api/hr/payroll/runs",
+            get(payroll::list_payroll_runs).post(payroll::create_payroll_run),
+        )
+        .route(
+            "/api/hr/payroll/runs/{id}/finalize",
+            post(payroll::finalize_payroll_run),
+        )
+        .route("/api/hr/payroll/payslips", get(payroll::list_payslips))
         .route(
             "/api/station-handoffs",
             get(station_handoff::list_station_handoffs).post(station_handoff::create_station_handoff),

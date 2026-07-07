@@ -14977,6 +14977,77 @@ export interface UpdateDesignationRequest {
   category?: string;
   is_active?: boolean;
 }
+/** Payroll — salary structure, payroll run, and generated payslip. Money = string. */
+export interface SalaryStructure {
+  id: string;
+  tenant_id: string;
+  employee_id: string;
+  basic: string;
+  hra: string;
+  other_allowances: string;
+  monthly_tds: string;
+  pf_applicable: boolean;
+  esi_applicable: boolean;
+  pt_applicable: boolean;
+  effective_from: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PayrollRun {
+  id: string;
+  tenant_id: string;
+  period_month: number;
+  period_year: number;
+  status: string;
+  working_days: number;
+  employee_count: number;
+  total_net_pay: string;
+  run_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Payslip {
+  id: string;
+  tenant_id: string;
+  run_id: string;
+  employee_id: string;
+  working_days: number;
+  lop_days: string;
+  paid_days: string;
+  gross: string;
+  earned_gross: string;
+  earned_basic: string;
+  pf: string;
+  esi: string;
+  pt: string;
+  tds: string;
+  other_deductions: string;
+  total_deductions: string;
+  net_pay: string;
+  earnings: unknown;
+  deductions: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpsertSalaryStructureRequest {
+  employee_id: string;
+  basic: number;
+  hra: number;
+  other_allowances: number;
+  monthly_tds?: number;
+  pf_applicable?: boolean;
+  esi_applicable?: boolean;
+  pt_applicable?: boolean;
+}
+
+export interface CreatePayrollRunRequest {
+  period_month: number;
+  period_year: number;
+}
+
 export interface CreateEmployeeRequest {
   employee_code: string;
   first_name: string;

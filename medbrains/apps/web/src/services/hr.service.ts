@@ -13,6 +13,14 @@ export const hrService = {
   listEmployees: (...args: Parameters<typeof api.listEmployees>) => api.listEmployees(...args),
   getEmployee: (...args: Parameters<typeof api.getEmployee>) => api.getEmployee(...args),
   createEmployee: (...args: Parameters<typeof api.createEmployee>) => api.createEmployee(...args),
+  listSalaryStructures: () => api.listSalaryStructures(),
+  upsertSalaryStructure: (...args: Parameters<typeof api.upsertSalaryStructure>) =>
+    api.upsertSalaryStructure(...args),
+  listPayrollRuns: () => api.listPayrollRuns(),
+  createPayrollRun: (...args: Parameters<typeof api.createPayrollRun>) =>
+    api.createPayrollRun(...args),
+  finalizePayrollRun: (id: string) => api.finalizePayrollRun(id),
+  listPayslips: (runId: string) => api.listPayslips(runId),
   listDesignations: (...args: Parameters<typeof api.listDesignations>) =>
     api.listDesignations(...args),
   createDesignation: (...args: Parameters<typeof api.createDesignation>) =>
@@ -49,8 +57,7 @@ export const hrService = {
     api.trainingCompliance(...args),
   createAppraisal: (...args: Parameters<typeof api.createAppraisal>) =>
     api.createAppraisal(...args),
-  listAppraisals: (...args: Parameters<typeof api.listAppraisals>) =>
-    api.listAppraisals(...args),
+  listAppraisals: (...args: Parameters<typeof api.listAppraisals>) => api.listAppraisals(...args),
   createStatutoryRecord: (...args: Parameters<typeof api.createStatutoryRecord>) =>
     api.createStatutoryRecord(...args),
   listStatutoryRecords: (...args: Parameters<typeof api.listStatutoryRecords>) =>

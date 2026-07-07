@@ -905,6 +905,16 @@ pub mod housekeeping {
 }
 
 pub mod hr {
+    pub mod payroll {
+        pub mod structures {
+            pub const LIST: &str = "hr.payroll.structures.list";
+            pub const MANAGE: &str = "hr.payroll.structures.manage";
+        }
+        pub mod runs {
+            pub const LIST: &str = "hr.payroll.runs.list";
+            pub const CREATE: &str = "hr.payroll.runs.create";
+        }
+    }
     pub mod employees {
         pub const LIST: &str = "hr.employees.list";
         pub const CREATE: &str = "hr.employees.create";

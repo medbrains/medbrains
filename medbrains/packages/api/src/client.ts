@@ -607,6 +607,7 @@ import type {
   CreatePaymentOrderRequest,
   CreatePaymentOrderResponse,
   CreatePaymentTerminalRequest,
+  CreatePayrollRunRequest,
   CreatePcpndtRequest,
   CreatePestControlLogRequest,
   CreatePestControlScheduleRequest,
@@ -1348,6 +1349,8 @@ import type {
   PaymentStatusResponse,
   PaymentTerminal,
   PaymentWebhookException,
+  PayrollRun,
+  Payslip,
   PcpndtForm,
   PcpndtQuarterlySummary,
   PcpndtReportPrintData,
@@ -1551,6 +1554,7 @@ import type {
   RunVerificationRequest,
   // Pharmacy Phase 3
   RxQueueRow,
+  SalaryStructure,
   SaveBasketDraftRequest,
   ScheduleAnalytics,
   ScheduleAuditsRequest,
@@ -1871,6 +1875,7 @@ import type {
   UpsertParLevelRequest,
   UpsertPreopHandoffInput,
   UpsertQueuePriorityRequest,
+  UpsertSalaryStructureRequest,
   UpsertVisitingHoursRequest,
   UrAnalyticsSummary,
   UrPayerCommunication,
@@ -7977,6 +7982,20 @@ export const api = {
   },
 
   getEmployee: (id: string) => request<Employee>(`/hr/employees/${id}`),
+
+  // HR — Payroll
+  listSalaryStructures: () => request<SalaryStructure[]>("/hr/payroll/structures"),
+  upsertSalaryStructure: (data: UpsertSalaryStructureRequest) =>
+    request<SalaryStructure>("/hr/payroll/structures", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listPayrollRuns: () => request<PayrollRun[]>("/hr/payroll/runs"),
+  createPayrollRun: (data: CreatePayrollRunRequest) =>
+    request<PayrollRun>("/hr/payroll/runs", { method: "POST", body: JSON.stringify(data) }),
+  finalizePayrollRun: (id: string) =>
+    request<PayrollRun>(`/hr/payroll/runs/${id}/finalize`, { method: "POST" }),
+  listPayslips: (runId: string) => request<Payslip[]>(`/hr/payroll/payslips?run_id=${runId}`),
 
   // Self-service: the signed-in staff member's own employee profile.
   getMyProfile: () => request<MyProfileResponse>("/hr/me/profile"),

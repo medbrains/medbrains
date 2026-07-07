@@ -172,6 +172,9 @@ const HousekeepingPage = lazy(() =>
   import("./pages/housekeeping").then((m) => ({ default: m.HousekeepingPage })),
 );
 const HrPage = lazy(() => import("./pages/hr").then((m) => ({ default: m.HrPage })));
+const PayrollPage = lazy(() =>
+  import("./pages/hr/payroll").then((m) => ({ default: m.PayrollPage })),
+);
 const ProfilePage = lazy(() => import("./pages/profile").then((m) => ({ default: m.ProfilePage })));
 const BmePage = lazy(() => import("./pages/bme").then((m) => ({ default: m.BmePage })));
 const MaterialsPage = lazy(() =>
@@ -432,6 +435,7 @@ export function App() {
               <Route path="housekeeping" element={<HousekeepingPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="hr" element={<HrPage />} />
+              <Route path="hr/payroll" element={<PayrollPage />} />
               <Route path="bme" element={<BmePage />} />
               <Route path="assets" element={<Navigate to="/materials" replace />} />
               <Route path="ambulance" element={<AmbulancePage />} />

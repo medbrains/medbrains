@@ -368,3 +368,62 @@ pub struct StatutoryRecord {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+// ── Payroll ────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct SalaryStructure {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub employee_id: Uuid,
+    pub basic: rust_decimal::Decimal,
+    pub hra: rust_decimal::Decimal,
+    pub other_allowances: rust_decimal::Decimal,
+    pub monthly_tds: rust_decimal::Decimal,
+    pub pf_applicable: bool,
+    pub esi_applicable: bool,
+    pub pt_applicable: bool,
+    pub effective_from: NaiveDate,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct PayrollRun {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub period_month: i16,
+    pub period_year: i16,
+    pub status: String,
+    pub working_days: i16,
+    pub employee_count: i32,
+    pub total_net_pay: rust_decimal::Decimal,
+    pub run_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Payslip {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub run_id: Uuid,
+    pub employee_id: Uuid,
+    pub working_days: i16,
+    pub lop_days: rust_decimal::Decimal,
+    pub paid_days: rust_decimal::Decimal,
+    pub gross: rust_decimal::Decimal,
+    pub earned_gross: rust_decimal::Decimal,
+    pub earned_basic: rust_decimal::Decimal,
+    pub pf: rust_decimal::Decimal,
+    pub esi: rust_decimal::Decimal,
+    pub pt: rust_decimal::Decimal,
+    pub tds: rust_decimal::Decimal,
+    pub other_deductions: rust_decimal::Decimal,
+    pub total_deductions: rust_decimal::Decimal,
+    pub net_pay: rust_decimal::Decimal,
+    pub earnings: serde_json::Value,
+    pub deductions: serde_json::Value,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
