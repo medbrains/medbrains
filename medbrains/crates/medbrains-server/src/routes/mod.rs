@@ -79,6 +79,7 @@ pub mod news;
 pub mod news_feed;
 pub mod nhcx_callback;
 pub mod nhcx_onboarding;
+pub mod nhcx_submit;
 pub mod nurse_clinical;
 pub mod nurse_handoff;
 pub mod nurse_vitals;
@@ -1355,6 +1356,10 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/billing/insurance-claims/{id}",
             get(billing::get_insurance_claim).put(billing::update_insurance_claim),
+        )
+        .route(
+            "/api/billing/insurance-claims/{id}/submit-to-nhcx",
+            post(nhcx_submit::submit_claim_to_nhcx),
         )
         .route(
             "/api/billing/auto-charge",

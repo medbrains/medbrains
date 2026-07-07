@@ -4364,6 +4364,13 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  /** Submit a claim/pre-auth to NHCX — assembles the FHIR Bundle + queues the exchange. */
+  submitClaimToNhcx: (id: string, data: { recipient_code: string; use?: string }) =>
+    request<{ claim_id: string; queued: boolean; outbox_event_id: string }>(
+      `/billing/insurance-claims/${id}/submit-to-nhcx`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+
   /**
    * NHCX webhook receipt log. Optional filters: correlation_id (specific
    * gateway exchange) or matched_id (specific local claim/preauth row).
