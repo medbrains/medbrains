@@ -280,7 +280,6 @@ pub fn observation_to_fhir(o: &ObservationView) -> Observation {
 // ── NHCX cashless claim mappers ─────────────────────────────────────────────
 // FHIR system URIs used by the Claim/Coverage resources (per the NHCX FHIR profile
 // + HL7 base terminologies).
-pub const CLAIM_TYPE_SYSTEM: &str = "http://terminology.hl7.org/CodeSystem/claim-type";
 pub const PROCESS_PRIORITY_SYSTEM: &str =
     "http://terminology.hl7.org/CodeSystem/processpriority";
 pub const POLICY_SYSTEM: &str = "https://medbrains.health/insurance-policy";
@@ -404,7 +403,13 @@ pub fn claim_to_fhir(c: &ClaimView) -> Claim {
         id: c.id.to_string(),
         identifier: vec![Identifier::new(CLAIM_ID_SYSTEM, c.id.to_string())],
         status: c.status.clone(),
-        type_: CodeableConcept::from_coding(CLAIM_TYPE_SYSTEM, "institutional", "Institutional"),
+        // NHCX ClaimBundle profile uses the SNOMED institutional-claim code, not the
+        // HL7 claim-type code (verified against the official sample bundle).
+        type_: CodeableConcept::from_coding(
+            SNOMED_SYSTEM,
+            "737481003",
+            "Inpatient care management (procedure)",
+        ),
         use_: c.use_.clone(),
         patient: Reference::to("Patient", c.patient_id),
         created: c.created.to_rfc3339(),
