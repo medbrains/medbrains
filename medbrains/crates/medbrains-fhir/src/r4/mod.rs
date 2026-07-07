@@ -4,7 +4,9 @@
 //! `MedicationRequest`, Coverage, Claim, `ClaimResponse`, Bundle).
 
 pub mod bundle;
+pub mod claim;
 pub mod coding;
+pub mod coverage;
 pub mod encounter;
 pub mod identifier;
 pub mod observation;
@@ -21,5 +23,7 @@ pub enum Resource {
     Patient(patient::Patient),
     Encounter(encounter::Encounter),
     Observation(observation::Observation),
+    Coverage(coverage::Coverage),
+    Claim(claim::Claim),
     Bundle(bundle::Bundle),
 }
