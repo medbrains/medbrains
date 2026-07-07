@@ -5191,7 +5191,12 @@ export const api = {
     }),
   dispenseOrder: (
     id: string,
-    data?: { items?: unknown[]; witnessed_by?: string; allergy_override_reason?: string },
+    data?: {
+      items?: unknown[];
+      witnessed_by?: string;
+      allergy_override_reason?: string;
+      ndps_override_reason?: string;
+    },
   ) =>
     request<PharmacyOrder>(`/pharmacy/orders/${id}/dispense`, {
       method: "PUT",

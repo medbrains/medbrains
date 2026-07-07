@@ -1496,6 +1496,10 @@ pub struct DispenseOrderRequest {
     /// Required (non-blank) when a line conflicts with the patient's allergies;
     /// logged to `pharmacy_allergy_check_log` (context `dispensing`).
     pub allergy_override_reason: Option<String>,
+    /// Pharmacist's reason for dispensing a controlled (NDPS) drug WITHOUT a witness
+    /// (dual-lock). Required (non-blank) when no `witnessed_by` is supplied and any line
+    /// is a controlled substance; logged for audit.
+    pub ndps_override_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2708,6 +2712,48 @@ pub async fn dispense_order(
         }
     }
 
+    // NDPS soft-gate — a controlled substance requires a witness (dual-lock) to
+    // dispense. If none is supplied, a non-blank override reason is required and logged.
+    // Closes the gap where controlled dispensing recorded the register entry but never
+    // enforced the dual-lock. (Schedule X keeps its stricter witness≠prescriber rule.)
+    let has_controlled: bool = sqlx::query_scalar(
+        "SELECT EXISTS( \
+           SELECT 1 FROM pharmacy_order_items i \
+           JOIN pharmacy_catalog c ON c.id = i.catalog_item_id AND c.tenant_id = i.tenant_id \
+           WHERE i.order_id = $1 AND i.tenant_id = $2 AND i.removed_at IS NULL \
+             AND c.is_controlled = true)",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if has_controlled && body.witnessed_by.is_none() {
+        let reason = body
+            .ndps_override_reason
+            .as_deref()
+            .map(str::trim)
+            .filter(|r| !r.is_empty());
+        match reason {
+            None => {
+                return Err(AppError::BadRequest(
+                    "Controlled substance (NDPS): a witness (dual-lock) is required to dispense, \
+                     or provide an override reason."
+                        .to_owned(),
+                ));
+            }
+            Some(reason) => {
+                tracing::warn!(
+                    tenant_id = %claims.tenant_id,
+                    order_id = %order.id,
+                    patient_id = %order.patient_id,
+                    dispensed_by = %claims.sub,
+                    reason,
+                    "NDPS controlled dispense without a witness — override reason logged"
+                );
+            }
+        }
+    }
+
     // Build a lookup for batch info from the request
     let batch_map: HashMap<Uuid, &DispenseItemInput> = body
         .items
@@ -2729,7 +2775,7 @@ pub async fn dispense_order(
         // Remaining = ordered − already dispensed; per-item requested qty is
         // clamped to the remaining (supports partial + dispensing the rest later).
         let remaining = item.quantity - item.quantity_dispensed;
-        let dispense_qty = batch_map
+        let mut dispense_qty = batch_map
             .get(&item.id)
             .and_then(|d| d.quantity)
             .map_or(remaining, |q| q.clamp(0, remaining));
@@ -2749,10 +2795,15 @@ pub async fn dispense_order(
             )
             .await?;
             if stock.current_stock < dispense_qty {
-                return Err(AppError::Conflict(format!(
-                    "Insufficient stock for {}: requested {}, available {}. Dispense was not posted.",
-                    item.drug_name, dispense_qty, stock.current_stock
-                )));
+                // Per-line partial dispense: fill what's on hand and leave the rest
+                // backordered (the order stays partially_dispensed and dispensable
+                // later — that remainder IS the backorder) instead of failing the whole
+                // order for one short line. Visible via the reduced dispensed quantity.
+                dispense_qty = stock.current_stock.max(0);
+                all_fully_dispensed = false;
+                if dispense_qty <= 0 {
+                    continue;
+                }
             }
 
             let selected_batch_id = batch_map
