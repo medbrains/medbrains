@@ -24,6 +24,7 @@ use axum::{
     extract::{Query, State},
     http::StatusCode,
 };
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
@@ -164,6 +165,26 @@ pub async fn receive_callback(
     .await?
     .rows_affected();
 
+    // Lift the payer's adjudicated amount out of the response bundle into the structured
+    // approved_amount column (it was only landing in the JSONB). The claim LIFECYCLE
+    // status stays human-reviewed per the TPA-pipeline design — we surface the number so
+    // the operator doesn't re-key it, but they still confirm the transition.
+    if updated_claims > 0 {
+        if let Some(approved) =
+            claim_response_benefit(&signed_payload).and_then(Decimal::from_f64_retain)
+        {
+            let _ = sqlx::query(
+                "UPDATE insurance_claims SET approved_amount = $1, updated_at = now() \
+                 WHERE nhcx_correlation_id = $2 AND tenant_id = $3",
+            )
+            .bind(approved)
+            .bind(envelope.correlation_id)
+            .bind(tenant_id)
+            .execute(&state.db)
+            .await;
+        }
+    }
+
     let updated_preauths: u64 = if updated_claims == 0 {
         sqlx::query(
             "UPDATE prior_auth_requests \
@@ -301,4 +322,30 @@ pub async fn list_callbacks(
     .await?;
 
     Ok(Json(rows))
+}
+
+/// Extract the payer's adjudicated benefit amount from a verified NHCX response bundle —
+/// FHIR `ClaimResponse.total[category = benefit | eligible].amount.value`. Returns `None`
+/// if the bundle has no ClaimResponse or no benefit/eligible total (e.g. an error/queued
+/// outcome), leaving `approved_amount` untouched.
+fn claim_response_benefit(bundle: &Value) -> Option<f64> {
+    let entries = bundle.get("entry")?.as_array()?;
+    let claim_response = entries.iter().find_map(|entry| {
+        let resource = entry.get("resource")?;
+        (resource.get("resourceType")?.as_str()? == "ClaimResponse").then_some(resource)
+    })?;
+    let totals = claim_response.get("total")?.as_array()?;
+    totals.iter().find_map(|total| {
+        let code = total
+            .get("category")?
+            .get("coding")?
+            .as_array()?
+            .iter()
+            .find_map(|coding| coding.get("code")?.as_str())?;
+        if code == "benefit" || code == "eligible" {
+            total.get("amount")?.get("value")?.as_f64()
+        } else {
+            None
+        }
+    })
 }
