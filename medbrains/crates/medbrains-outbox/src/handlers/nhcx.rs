@@ -27,8 +27,15 @@
 //! The shape is stable enough to lock down at compile time; the
 //! gateway-specific token-issuance flow is handled by `SecretResolver`.
 
+use std::collections::HashMap;
+use std::sync::OnceLock;
+use std::time::{Duration, Instant};
+
 use async_trait::async_trait;
+use serde::Deserialize;
 use serde_json::Value;
+use tokio::sync::Mutex;
+use uuid::Uuid;
 
 use crate::handler::{Handler, HandlerCtx, HandlerError};
 
@@ -78,10 +85,35 @@ impl Handler for ClaimSubmitHandler {
             HandlerError::Permanent("missing recipient_code (NHCX payer hcx-id)".into())
         })?;
 
-        let token = resolve_secret(ctx, "abdm-hfr-token").await?;
+        // Prefer a fresh session token (clientId/secret → /gateway/v0.5/sessions, cached);
+        // fall back to the legacy static token if the client creds aren't configured.
+        let token = match session_token(ctx).await {
+            Ok(t) => t,
+            Err(e) => {
+                tracing::warn!(error = %e, "nhcx session token unavailable — using static abdm-hfr-token");
+                resolve_secret(ctx, "abdm-hfr-token").await?
+            }
+        };
         let sender_code = resolve_secret(ctx, "abdm-facility-hcx-id").await?;
 
-        let url = format!("{}/hcx/v1/Claim/submit", self.api_base());
+        // Route by Claim.use: preauthorization → /preauth/submit, else /claim/submit
+        // (per the NHCX USECASE collection — lowercase operation path).
+        let claim_use = bundle
+            .get("entry")
+            .and_then(Value::as_array)
+            .and_then(|entries| {
+                entries.iter().find_map(|entry| {
+                    let resource = entry.get("resource")?;
+                    if resource.get("resourceType")?.as_str()? == "Claim" {
+                        resource.get("use")?.as_str()
+                    } else {
+                        None
+                    }
+                })
+            })
+            .unwrap_or("claim");
+        let op = if claim_use == "preauthorization" { "preauth" } else { "claim" };
+        let url = format!("{}/hcx/v1/{op}/submit", self.api_base());
         let timestamp = chrono::Utc::now().to_rfc3339();
 
         let resp = ctx
@@ -156,4 +188,65 @@ fn classify_status(status: reqwest::StatusCode, body: &str) -> HandlerError {
         429 | 500..=599 => HandlerError::Transient(format!("nhcx {status}: {trimmed}")),
         _ => HandlerError::Transient(format!("nhcx unexpected {status}: {trimmed}")),
     }
+}
+
+// ── ABDM/NHCX session auth (per "Authenticating with NHCX") ─────────────
+// clientId/clientSecret → time-limited bearer via the ABDM sessions API. The same
+// ABDM/ABHA client credentials work for the NHCX gateway (no separate creds).
+
+const ABDM_SESSIONS_URL: &str = "https://dev.abdm.gov.in/gateway/v0.5/sessions";
+
+#[derive(Deserialize)]
+struct SessionResponse {
+    #[serde(rename = "accessToken")]
+    access_token: String,
+    #[serde(rename = "expiresIn", default)]
+    expires_in: u64,
+}
+
+struct CachedToken {
+    token: String,
+    expires_at: Instant,
+}
+
+fn token_cache() -> &'static Mutex<HashMap<Uuid, CachedToken>> {
+    static CACHE: OnceLock<Mutex<HashMap<Uuid, CachedToken>>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// A valid ABDM/NHCX bearer token for the tenant — exchanged from its
+/// clientId/clientSecret at the sessions API and cached until ~30s before expiry
+/// so we don't re-auth on every submit.
+async fn session_token(ctx: &HandlerCtx) -> Result<String, HandlerError> {
+    if let Some(cached) = token_cache().lock().await.get(&ctx.tenant_id) {
+        if cached.expires_at > Instant::now() {
+            return Ok(cached.token.clone());
+        }
+    }
+    let client_id = resolve_secret(ctx, "abdm-client-id").await?;
+    let client_secret = resolve_secret(ctx, "abdm-client-secret").await?;
+    let resp = ctx
+        .http_client
+        .post(ABDM_SESSIONS_URL)
+        .json(&serde_json::json!({ "clientId": client_id, "clientSecret": client_secret }))
+        .send()
+        .await
+        .map_err(|e| classify_reqwest_err(&e))?;
+    if !resp.status().is_success() {
+        let body = resp.text().await.unwrap_or_default();
+        return Err(HandlerError::Transient(format!("abdm sessions: {body}")));
+    }
+    let session: SessionResponse = resp
+        .json()
+        .await
+        .map_err(|e| HandlerError::Transient(format!("abdm sessions parse: {e}")))?;
+    let ttl = session.expires_in.saturating_sub(30).max(30);
+    token_cache().lock().await.insert(
+        ctx.tenant_id,
+        CachedToken {
+            token: session.access_token.clone(),
+            expires_at: Instant::now() + Duration::from_secs(ttl),
+        },
+    );
+    Ok(session.access_token)
 }
