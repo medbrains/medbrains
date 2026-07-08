@@ -315,6 +315,24 @@ pub async fn delete_region(
 
 // ── Hospital Assignments ──────────────────────────────────────────────────────
 
+/// `GET /api/multi-hospital/hospitals` — every hospital (tenant) on the platform, for the
+/// group-assignment picker. Super-admins only (platform-wide view).
+pub async fn list_all_hospitals(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<HospitalInGroup>>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    require_super_admin(&claims)?;
+    let rows = sqlx::query_as::<_, HospitalInGroup>(
+        "SELECT id, code, name, group_id, region_id, branch_code, \
+                COALESCE(is_headquarters, false) AS is_headquarters, city, NULL::text AS state \
+         FROM tenants ORDER BY name LIMIT 5000",
+    )
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows))
+}
+
 /// List the hospitals (tenants) that belong to a group.
 pub async fn list_hospitals_in_group(
     State(state): State<AppState>,

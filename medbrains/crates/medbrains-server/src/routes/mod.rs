@@ -6778,6 +6778,10 @@ pub fn build_router(state: AppState) -> Router {
         )
         // Hospitals in Group
         .route(
+            "/api/multi-hospital/hospitals",
+            get(multi_hospital::list_all_hospitals),
+        )
+        .route(
             "/api/multi-hospital/groups/{group_id}/hospitals",
             get(multi_hospital::list_hospitals_in_group),
         )

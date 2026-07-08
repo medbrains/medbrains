@@ -9,5 +9,8 @@ export const multiHospitalService = {
   createHospitalGroup: api.createHospitalGroup,
   updateHospitalGroup: api.updateHospitalGroup,
   listHospitalsInGroup: api.listHospitalsInGroup,
+  listAllHospitals: api.listAllHospitals,
+  assignHospitalToGroup: api.assignHospitalToGroup,
+  removeHospitalFromGroup: api.removeHospitalFromGroup,
   getGroupDashboard: api.getGroupDashboard,
 };

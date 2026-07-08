@@ -12534,6 +12534,7 @@ export const api = {
     request<void>(`/multi-hospital/regions/${id}`, { method: "DELETE" }),
 
   // Hospitals in Group
+  listAllHospitals: () => request<HospitalInGroup[]>("/multi-hospital/hospitals"),
   listHospitalsInGroup: (groupId: string) =>
     request<HospitalInGroup[]>(`/multi-hospital/groups/${groupId}/hospitals`),
 

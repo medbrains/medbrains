@@ -1,4 +1,4 @@
-import { Card, Group, Modal, SimpleGrid, Stack, Text, TextInput } from "@mantine/core";
+import { Card, Group, Modal, Select, SimpleGrid, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { GroupDashboard, HospitalGroup, HospitalKpiSummary } from "@medbrains/types";
 import { IconBuildingHospital, IconPlus } from "@tabler/icons-react";
@@ -127,10 +127,92 @@ function GroupDashboardPanel({ groupId }: { groupId: string }) {
   );
 }
 
+function HospitalsPanel({ groupId }: { groupId: string }) {
+  const qc = useQueryClient();
+  const [toAdd, setToAdd] = useState<string | null>(null);
+
+  const { data: members = [] } = useQuery({
+    queryKey: ["group-hospitals", groupId],
+    queryFn: () => multiHospitalService.listHospitalsInGroup(groupId),
+  });
+  const { data: allHospitals = [] } = useQuery({
+    queryKey: ["all-hospitals"],
+    queryFn: () => multiHospitalService.listAllHospitals(),
+  });
+
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ["group-hospitals", groupId] });
+    void qc.invalidateQueries({ queryKey: ["all-hospitals"] });
+    void qc.invalidateQueries({ queryKey: ["hospital-groups"] });
+  };
+  const add = useMutation({
+    mutationFn: () =>
+      multiHospitalService.assignHospitalToGroup({ tenant_id: toAdd ?? "", group_id: groupId }),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Hospital added to group", { title: "Hospital groups" });
+      setToAdd(null);
+    },
+    onError: (e: Error) => toast.error(e.message, { title: "Add failed" }),
+  });
+  const remove = useMutation({
+    mutationFn: (tenantId: string) => multiHospitalService.removeHospitalFromGroup(tenantId),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Hospital removed", { title: "Hospital groups" });
+    },
+    onError: (e: Error) => toast.error(e.message, { title: "Remove failed" }),
+  });
+
+  const unassigned = allHospitals.filter((h) => !h.group_id);
+
+  return (
+    <Stack gap="sm">
+      <Group align="flex-end" gap="sm">
+        <Select
+          label="Add hospital"
+          placeholder="Unassigned hospitals"
+          data={unassigned.map((h) => ({ value: h.id, label: `${h.name} (${h.code})` }))}
+          value={toAdd}
+          onChange={setToAdd}
+          searchable
+          style={{ flex: 1 }}
+        />
+        <Button onClick={() => add.mutate()} loading={add.isPending} disabled={!toAdd}>
+          Add
+        </Button>
+      </Group>
+      {members.length === 0 ? (
+        <Text size="sm" c="dimmed">
+          No hospitals in this group yet.
+        </Text>
+      ) : (
+        members.map((h) => (
+          <Group key={h.id} justify="space-between">
+            <Text size="sm">
+              {h.name}
+              {h.is_headquarters ? " · HQ" : ""}
+            </Text>
+            <Button
+              size="xs"
+              tone="danger"
+              onClick={() => remove.mutate(h.id)}
+              loading={remove.isPending}
+            >
+              Remove
+            </Button>
+          </Group>
+        ))
+      )}
+    </Stack>
+  );
+}
+
 export function HospitalGroupsPage() {
   useRequirePermission("admin.system_state.view");
   const [modalOpen, modal] = useDisclosure(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const [manageHospitals, setManageHospitals] = useState<string | null>(null);
 
   const { data: groups = [], isLoading } = useQuery({
     queryKey: ["hospital-groups"],
@@ -145,9 +227,14 @@ export function HospitalGroupsPage() {
       key: "open",
       label: "",
       render: (r) => (
-        <Button size="xs" tone="secondary" onClick={() => setSelected(r.id)}>
-          Dashboard
-        </Button>
+        <Group gap="xs">
+          <Button size="xs" tone="secondary" onClick={() => setManageHospitals(r.id)}>
+            Hospitals
+          </Button>
+          <Button size="xs" tone="secondary" onClick={() => setSelected(r.id)}>
+            Dashboard
+          </Button>
+        </Group>
       ),
     },
   ];
@@ -171,6 +258,17 @@ export function HospitalGroupsPage() {
         rowKey={(r) => r.id}
         emptyTitle="No hospital groups configured."
       />
+      {manageHospitals && (
+        <Card withBorder padding="md">
+          <Group justify="space-between" mb="sm">
+            <Text fw={600}>Manage hospitals</Text>
+            <Button size="xs" tone="ghost" onClick={() => setManageHospitals(null)}>
+              Close
+            </Button>
+          </Group>
+          <HospitalsPanel groupId={manageHospitals} />
+        </Card>
+      )}
       {selected && (
         <Card withBorder padding="md">
           <Group justify="space-between" mb="sm">
