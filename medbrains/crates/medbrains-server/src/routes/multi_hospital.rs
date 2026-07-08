@@ -239,36 +239,63 @@ pub async fn delete_region(
 
 // ── Hospital Assignments ──────────────────────────────────────────────────────
 
-/// List hospitals in a group
+/// List the hospitals (tenants) that belong to a group.
 pub async fn list_hospitals_in_group(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(group_id): Path<Uuid>,
-) -> Result<Json<Vec<HospitalInGroup>>, (StatusCode, String)> {
-    // TODO: Query tenants belonging to this group
-    let _ = group_id;
-    Ok(Json(vec![]))
+) -> Result<Json<Vec<HospitalInGroup>>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    let rows = sqlx::query_as::<_, HospitalInGroup>(
+        "SELECT id, code, name, group_id, region_id, branch_code, \
+                COALESCE(is_headquarters, false) AS is_headquarters, city, NULL::text AS state \
+         FROM tenants WHERE group_id = $1 ORDER BY name",
+    )
+    .bind(group_id)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows))
 }
 
-/// Assign a hospital to a group
+/// Assign a hospital (tenant) to a group / region / branch.
 pub async fn assign_hospital_to_group(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Json(payload): Json<AssignHospitalToGroup>,
-) -> Result<Json<HospitalInGroup>, (StatusCode, String)> {
-    // TODO: Update tenant with group_id, region_id, branch_code
-    let _ = payload;
-    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
+) -> Result<Json<HospitalInGroup>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    let row = sqlx::query_as::<_, HospitalInGroup>(
+        "UPDATE tenants SET group_id = $2, region_id = $3, branch_code = $4, \
+            is_headquarters = COALESCE($5, is_headquarters), updated_at = now() \
+         WHERE id = $1 \
+         RETURNING id, code, name, group_id, region_id, branch_code, \
+                   COALESCE(is_headquarters, false) AS is_headquarters, city, NULL::text AS state",
+    )
+    .bind(payload.tenant_id)
+    .bind(payload.group_id)
+    .bind(payload.region_id)
+    .bind(&payload.branch_code)
+    .bind(payload.is_headquarters)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    Ok(Json(row))
 }
 
-/// Remove a hospital from a group
+/// Remove a hospital from its group (clears group / region / branch).
 pub async fn remove_hospital_from_group(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(tenant_id): Path<Uuid>,
-) -> Result<StatusCode, (StatusCode, String)> {
-    // TODO: Clear group_id from tenant
-    let _ = tenant_id;
+) -> Result<StatusCode, AppError> {
+    require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    sqlx::query(
+        "UPDATE tenants SET group_id = NULL, region_id = NULL, branch_code = NULL, \
+            updated_at = now() WHERE id = $1",
+    )
+    .bind(tenant_id)
+    .execute(&state.db)
+    .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
