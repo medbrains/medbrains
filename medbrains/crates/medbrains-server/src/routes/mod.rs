@@ -136,6 +136,7 @@ pub mod step_up;
 pub mod case_sheet_scan;
 pub mod clinical_trials;
 pub mod home_health;
+pub mod long_term_care;
 pub mod vpn;
 pub mod ward_stock;
 pub mod sharing;
@@ -3239,6 +3240,15 @@ pub fn build_router(state: AppState) -> Router {
             get(ipd::list_ward_beds).post(ipd::assign_bed_to_ward),
         )
         .route("/api/ipd/wards/{id}/on-duty", get(ipd::ward_on_duty))
+        // ── Long-Term Care — MDS assessments (#2961) ──
+        .route(
+            "/api/ltc/mds",
+            get(long_term_care::list_mds_assessments).post(long_term_care::create_mds_assessment),
+        )
+        .route(
+            "/api/ltc/mds/{id}/complete",
+            post(long_term_care::complete_mds_assessment),
+        )
         // ── Clinical Trials registry (#2983) ──
         .route(
             "/api/clinical-trials",

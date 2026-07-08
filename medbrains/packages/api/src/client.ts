@@ -1191,6 +1191,7 @@ import type {
   // Specialty Clinical: Maternity
   MaternityRegistration,
   MdroRow,
+  MdsAssessment,
   MealCount,
   MealPreparation,
   MedicalCertificate,
@@ -5911,6 +5912,20 @@ export const api = {
   wardOnDuty: (wardId: string) => request<WardOnDutyRow[]>(`/ipd/wards/${wardId}/on-duty`),
   listClinicalTrials: (status?: string) =>
     request<ClinicalTrial[]>(`/clinical-trials${status ? `?status=${status}` : ""}`),
+  listMdsAssessments: (patientId: string) =>
+    request<MdsAssessment[]>(`/ltc/mds?patient_id=${patientId}`),
+  createMdsAssessment: (data: {
+    patient_id: string;
+    assessment_type?: string;
+    cognitive_status?: string;
+    mood_score?: number;
+    adl_dependency_score?: number;
+    continence_status?: string;
+    nutrition_notes?: string;
+    notes?: string;
+  }) => request<MdsAssessment>("/ltc/mds", { method: "POST", body: JSON.stringify(data) }),
+  completeMdsAssessment: (id: string) =>
+    request<MdsAssessment>(`/ltc/mds/${id}/complete`, { method: "POST" }),
   getClinicalTrial: (id: string) => request<ClinicalTrial>(`/clinical-trials/${id}`),
   createClinicalTrial: (data: {
     protocol_number: string;

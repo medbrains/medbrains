@@ -749,6 +749,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         requiredPermission: "specialty.clinical_trials.list",
       },
       {
+        i18nKey: "longTermCare",
+        path: "/long-term-care",
+        icon: "IconReportMedical",
+        requiredPermission: "ipd.nursing_assessment.list",
+      },
+      {
         i18nKey: "icu",
         path: "/icu",
         icon: "IconHeartRateMonitor",

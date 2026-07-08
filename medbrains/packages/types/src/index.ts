@@ -7826,6 +7826,24 @@ export interface CaseSheetScan {
   updated_at: string;
 }
 
+/** A Long-Term Care MDS (Minimum Data Set) assessment (#2961). */
+export interface MdsAssessment {
+  id: string;
+  patient_id: string;
+  assessment_type: string;
+  assessment_date: string;
+  cognitive_status: string | null;
+  mood_score: number | null;
+  adl_dependency_score: number | null;
+  continence_status: string | null;
+  nutrition_notes: string | null;
+  sections: Record<string, unknown>;
+  status: string;
+  completed_at: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
 /** A bereavement support follow-up contact for a family (#2974). */
 export interface BereavementFollowup {
   id: string;
