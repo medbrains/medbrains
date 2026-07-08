@@ -821,6 +821,22 @@ export function ClinicalTrialsPage() {
     onError: (e: Error) => toast.error(e.message, { title: "Update failed" }),
   });
 
+  const exportM = useMutation({
+    mutationFn: (trial: ClinicalTrial) =>
+      clinicalTrialsService.exportTrial(trial.id).then((data) => ({ data, trial })),
+    onSuccess: ({ data, trial }) => {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `trial-${trial.protocol_number}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Export downloaded", { title: "Clinical trials" });
+    },
+    onError: (e: Error) => toast.error(e.message, { title: "Export failed" }),
+  });
+
   const columns: Column<ClinicalTrial>[] = [
     { key: "protocol_number", label: "Protocol", render: (r) => r.protocol_number },
     { key: "title", label: "Title", render: (r) => r.title },
@@ -870,6 +886,14 @@ export function ClinicalTrialsPage() {
           </Button>
           <Button size="xs" tone="secondary" onClick={() => setIrbTrial(r)}>
             Ethics
+          </Button>
+          <Button
+            size="xs"
+            tone="ghost"
+            loading={exportM.isPending}
+            onClick={() => exportM.mutate(r)}
+          >
+            Export
           </Button>
         </Group>
       ),

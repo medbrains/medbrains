@@ -876,3 +876,94 @@ pub async fn update_irb_submission(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── CTMS data export for sponsors (#2990) ──────────────────────────────────
+// One aggregate bundle of the trial + all sub-records; reuses the module's column lists + structs.
+// Randomization arms stay blinded (RAND_COLS conceals them) so the export can't unblind by leaking.
+
+#[derive(Debug, Serialize)]
+pub struct TrialExport {
+    pub trial: ClinicalTrial,
+    pub consents: Vec<TrialConsent>,
+    pub visits: Vec<TrialVisit>,
+    pub adverse_events: Vec<TrialAdverseEvent>,
+    pub randomizations: Vec<TrialRandomization>,
+    pub irb_submissions: Vec<TrialIrbSubmission>,
+}
+
+/// `GET /api/clinical-trials/{id}/export` — full CTMS export bundle for a sponsor.
+pub async fn export_trial(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<TrialExport>, AppError> {
+    require_permission(&claims, "specialty.clinical_trials.list")?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let trial = sqlx::query_as::<_, ClinicalTrial>(&format!(
+        "SELECT {COLS} FROM clinical_trials WHERE id = $1 AND tenant_id = $2"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let consents = sqlx::query_as::<_, TrialConsent>(&format!(
+        "SELECT {CONSENT_COLS} FROM consent_records cr \
+         LEFT JOIN patients p ON p.id = cr.patient_id \
+         LEFT JOIN consent_templates ct ON ct.id = cr.template_id \
+         WHERE cr.tenant_id = $1 AND cr.trial_id = $2 ORDER BY cr.created_at DESC"
+    ))
+    .bind(claims.tenant_id)
+    .bind(id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let visits = sqlx::query_as::<_, TrialVisit>(&format!(
+        "SELECT {VISIT_COLS} FROM trial_visits tv LEFT JOIN patients p ON p.id = tv.patient_id \
+         WHERE tv.tenant_id = $1 AND tv.trial_id = $2 ORDER BY tv.scheduled_date"
+    ))
+    .bind(claims.tenant_id)
+    .bind(id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let adverse_events = sqlx::query_as::<_, TrialAdverseEvent>(&format!(
+        "SELECT {AE_COLS} FROM trial_adverse_events ae LEFT JOIN patients p ON p.id = ae.patient_id \
+         WHERE ae.tenant_id = $1 AND ae.trial_id = $2 ORDER BY ae.reported_date DESC"
+    ))
+    .bind(claims.tenant_id)
+    .bind(id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let randomizations = sqlx::query_as::<_, TrialRandomization>(&format!(
+        "SELECT {RAND_COLS} FROM trial_randomizations r LEFT JOIN patients p ON p.id = r.patient_id \
+         WHERE r.tenant_id = $1 AND r.trial_id = $2 ORDER BY r.randomized_at DESC"
+    ))
+    .bind(claims.tenant_id)
+    .bind(id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let irb_submissions = sqlx::query_as::<_, TrialIrbSubmission>(&format!(
+        "SELECT {IRB_COLS} FROM trial_irb_submissions \
+         WHERE tenant_id = $1 AND trial_id = $2 ORDER BY submitted_date DESC"
+    ))
+    .bind(claims.tenant_id)
+    .bind(id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(TrialExport {
+        trial,
+        consents,
+        visits,
+        adverse_events,
+        randomizations,
+        irb_submissions,
+    }))
+}

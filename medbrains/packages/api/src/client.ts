@@ -5941,6 +5941,8 @@ export const api = {
     request<TrialRandomization[]>(`/clinical-trials/${trialId}/randomizations`),
   listIrbSubmissions: (trialId: string) =>
     request<TrialIrbSubmission[]>(`/clinical-trials/${trialId}/irb`),
+  exportTrial: (trialId: string) =>
+    request<Record<string, unknown>>(`/clinical-trials/${trialId}/export`),
   createIrbSubmission: (
     trialId: string,
     data: {

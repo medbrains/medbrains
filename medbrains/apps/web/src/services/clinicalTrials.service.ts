@@ -21,4 +21,5 @@ export const clinicalTrialsService = {
   listIrbSubmissions: api.listIrbSubmissions,
   createIrbSubmission: api.createIrbSubmission,
   updateIrbSubmission: api.updateIrbSubmission,
+  exportTrial: api.exportTrial,
 };
