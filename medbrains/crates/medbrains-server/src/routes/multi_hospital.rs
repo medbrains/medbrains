@@ -842,40 +842,125 @@ pub async fn update_stock_transfer(
 
 // ── Group KPIs & Dashboard ────────────────────────────────────────────────────
 
-/// Get consolidated group dashboard
+// Per-hospital KPI rollup over the date range. group_kpi_snapshots is RLS-on, so a caller only
+// sees their own tenant's snapshots — other hospitals in the group roll up to zero until the
+// cross-tenant read path lands (same deferral as the other cross-tenant reads).
+const HOSPITAL_KPI_SELECT: &str = "SELECT t.id AS tenant_id, t.name AS hospital_name, \
+        t.branch_code, r.name AS region_name, \
+        COALESCE(MAX(s.total_beds), 0)::int AS total_beds, \
+        COALESCE(MAX(s.occupied_beds), 0)::int AS occupied_beds, \
+        COALESCE(AVG(s.occupancy_pct), 0)::float8 AS occupancy_pct, \
+        COALESCE(SUM(s.opd_visits), 0)::int AS opd_visits, \
+        COALESCE(SUM(s.admissions), 0)::int AS admissions, \
+        COALESCE(SUM(s.gross_revenue), 0)::float8 AS revenue, \
+        COALESCE(AVG(s.avg_los), 0)::float8 AS avg_los \
+     FROM tenants t \
+     LEFT JOIN hospital_regions r ON r.id = t.region_id \
+     LEFT JOIN group_kpi_snapshots s ON s.tenant_id = t.id AND s.deleted_at IS NULL \
+          AND ($2::date IS NULL OR s.snapshot_date >= $2) \
+          AND ($3::date IS NULL OR s.snapshot_date <= $3)";
+
+/// Consolidated group dashboard — per-hospital KPI rollups + group totals.
 pub async fn get_group_dashboard(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(group_id): Path<Uuid>,
     Query(query): Query<DateRangeQuery>,
-) -> Result<Json<GroupDashboard>, (StatusCode, String)> {
-    // TODO: Aggregate KPIs across all hospitals in group
-    let _ = (group_id, query);
-    Err((StatusCode::NOT_FOUND, "Group not found".to_string()))
+) -> Result<Json<GroupDashboard>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let group_name = sqlx::query_scalar::<_, String>("SELECT name FROM hospital_groups WHERE id = $1")
+        .bind(group_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    let hospitals = sqlx::query_as::<_, HospitalKpiSummary>(&format!(
+        "{HOSPITAL_KPI_SELECT} WHERE t.group_id = $1 \
+         GROUP BY t.id, t.name, t.branch_code, r.name ORDER BY t.name"
+    ))
+    .bind(group_id)
+    .bind(query.from_date)
+    .bind(query.to_date)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    let total_beds: i32 = hospitals.iter().map(|h| h.total_beds).sum();
+    let total_occupied: i32 = hospitals.iter().map(|h| h.occupied_beds).sum();
+    let total_revenue: f64 = hospitals.iter().map(|h| h.revenue).sum();
+    let overall_occupancy_pct = if total_beds > 0 {
+        f64::from(total_occupied) / f64::from(total_beds) * 100.0
+    } else {
+        0.0
+    };
+    Ok(Json(GroupDashboard {
+        group_id,
+        group_name,
+        total_opd_visits: hospitals.iter().map(|h| h.opd_visits).sum(),
+        total_admissions: hospitals.iter().map(|h| h.admissions).sum(),
+        hospitals,
+        total_beds,
+        total_occupied,
+        overall_occupancy_pct,
+        total_revenue,
+        snapshot_date: chrono::Utc::now().date_naive(),
+    }))
 }
 
-/// Get KPI snapshots for a group
+/// Get the raw KPI snapshots for a group over a date range.
 pub async fn list_group_kpis(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(group_id): Path<Uuid>,
     Query(query): Query<DateRangeQuery>,
-) -> Result<Json<Vec<GroupKpiSnapshot>>, (StatusCode, String)> {
-    // TODO: Query group_kpi_snapshots for date range
-    let _ = (group_id, query);
-    Ok(Json(vec![]))
+) -> Result<Json<Vec<GroupKpiSnapshot>>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, GroupKpiSnapshot>(
+        "SELECT id, group_id, tenant_id, snapshot_date, snapshot_type, total_beds, occupied_beds, \
+                occupancy_pct::float8 AS occupancy_pct, opd_visits, new_patients, admissions, \
+                discharges, gross_revenue::float8 AS gross_revenue, \
+                net_revenue::float8 AS net_revenue, collections::float8 AS collections, \
+                avg_los::float8 AS avg_los, mortality_rate::float8 AS mortality_rate, \
+                readmission_rate::float8 AS readmission_rate, \
+                infection_rate::float8 AS infection_rate, metrics, created_at \
+         FROM group_kpi_snapshots WHERE group_id = $1 AND deleted_at IS NULL \
+           AND ($2::date IS NULL OR snapshot_date >= $2) \
+           AND ($3::date IS NULL OR snapshot_date <= $3) \
+         ORDER BY snapshot_date DESC LIMIT 5000",
+    )
+    .bind(group_id)
+    .bind(query.from_date)
+    .bind(query.to_date)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
 }
 
-/// Get hospital KPI summary
+/// Get one hospital's KPI summary over a date range.
 pub async fn get_hospital_kpi(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(tenant_id): Path<Uuid>,
     Query(query): Query<DateRangeQuery>,
-) -> Result<Json<HospitalKpiSummary>, (StatusCode, String)> {
-    // TODO: Query KPI for specific hospital
-    let _ = (tenant_id, query);
-    Err((StatusCode::NOT_FOUND, "Hospital not found".to_string()))
+) -> Result<Json<HospitalKpiSummary>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let summary = sqlx::query_as::<_, HospitalKpiSummary>(&format!(
+        "{HOSPITAL_KPI_SELECT} WHERE t.id = $1 GROUP BY t.id, t.name, t.branch_code, r.name"
+    ))
+    .bind(tenant_id)
+    .bind(query.from_date)
+    .bind(query.to_date)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(summary))
 }
 
 // ── Doctor Rotation ───────────────────────────────────────────────────────────

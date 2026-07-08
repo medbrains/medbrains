@@ -373,7 +373,7 @@ pub struct GroupDashboard {
 }
 
 /// KPI summary for a single hospital
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct HospitalKpiSummary {
     pub tenant_id: Uuid,
     pub hospital_name: String,
