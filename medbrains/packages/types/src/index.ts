@@ -7826,6 +7826,36 @@ export interface CaseSheetScan {
   updated_at: string;
 }
 
+/** Per-page SEO metadata for the micro-site (#2955). */
+export interface SeoSetting {
+  id: string;
+  page_slug: string;
+  meta_title: string | null;
+  meta_description: string | null;
+  keywords: string | null;
+  og_image_url: string | null;
+  schema_markup: unknown;
+  created_at: string;
+}
+
+/** A mapped custom domain for the micro-site (#2956). */
+export interface SiteDomain {
+  id: string;
+  domain: string;
+  is_primary: boolean;
+  is_verified: boolean;
+  verification_token: string | null;
+  created_at: string;
+}
+
+/** Micro-site chat / WhatsApp widget config (#2959). */
+export interface MicrositeConfig {
+  whatsapp_number: string | null;
+  whatsapp_enabled: boolean;
+  chat_widget_enabled: boolean;
+  chat_greeting: string | null;
+}
+
 /** A patient testimonial / review for the micro-site (#2954). */
 export interface Testimonial {
   id: string;

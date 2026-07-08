@@ -3262,6 +3262,22 @@ pub fn build_router(state: AppState) -> Router {
             "/api/microsite/testimonials/{id}",
             put(microsite::moderate_testimonial),
         )
+        .route(
+            "/api/microsite/seo",
+            get(microsite::list_seo_settings).post(microsite::upsert_seo_setting),
+        )
+        .route(
+            "/api/microsite/domains",
+            get(microsite::list_site_domains).post(microsite::add_site_domain),
+        )
+        .route(
+            "/api/microsite/domains/{id}/verify",
+            post(microsite::verify_site_domain),
+        )
+        .route(
+            "/api/microsite/config",
+            get(microsite::get_microsite_config).put(microsite::update_microsite_config),
+        )
         // ── Long-Term Care — MDS assessments (#2961) ──
         .route(
             "/api/ltc/mds",

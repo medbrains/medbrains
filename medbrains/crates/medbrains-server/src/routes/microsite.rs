@@ -339,3 +339,243 @@ pub async fn moderate_testimonial(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── SEO settings (#2955) ───────────────────────────────────────────────────
+
+const SEO_COLS: &str = "id, page_slug, meta_title, meta_description, keywords, og_image_url, \
+     schema_markup, created_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct SeoSetting {
+    pub id: Uuid,
+    pub page_slug: String,
+    pub meta_title: Option<String>,
+    pub meta_description: Option<String>,
+    pub keywords: Option<String>,
+    pub og_image_url: Option<String>,
+    pub schema_markup: serde_json::Value,
+    pub created_at: DateTime<Utc>,
+}
+
+/// `GET /api/microsite/seo` — per-page SEO metadata.
+pub async fn list_seo_settings(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<SeoSetting>>, AppError> {
+    require_permission(&claims, "specialty.health_packages.list")?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, SeoSetting>(&format!(
+        "SELECT {SEO_COLS} FROM seo_settings WHERE tenant_id = $1 ORDER BY page_slug LIMIT 500"
+    ))
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpsertSeoRequest {
+    pub page_slug: String,
+    pub meta_title: Option<String>,
+    pub meta_description: Option<String>,
+    pub keywords: Option<String>,
+    pub og_image_url: Option<String>,
+    pub schema_markup: Option<serde_json::Value>,
+}
+
+/// `POST /api/microsite/seo` — create or update a page's SEO metadata.
+pub async fn upsert_seo_setting(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<UpsertSeoRequest>,
+) -> Result<Json<SeoSetting>, AppError> {
+    require_permission(&claims, "specialty.health_packages.manage")?;
+    if body.page_slug.trim().is_empty() {
+        return Err(AppError::BadRequest("Page slug is required".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, SeoSetting>(&format!(
+        "INSERT INTO seo_settings \
+         (tenant_id, page_slug, meta_title, meta_description, keywords, og_image_url, schema_markup) \
+         VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, '{{}}'::jsonb)) \
+         ON CONFLICT (tenant_id, page_slug) DO UPDATE SET meta_title = EXCLUDED.meta_title, \
+            meta_description = EXCLUDED.meta_description, keywords = EXCLUDED.keywords, \
+            og_image_url = EXCLUDED.og_image_url, schema_markup = EXCLUDED.schema_markup, \
+            updated_at = now() \
+         RETURNING {SEO_COLS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(body.page_slug.trim())
+    .bind(&body.meta_title)
+    .bind(&body.meta_description)
+    .bind(&body.keywords)
+    .bind(&body.og_image_url)
+    .bind(&body.schema_markup)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+// ── Custom domains (#2956) ─────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct SiteDomain {
+    pub id: Uuid,
+    pub domain: String,
+    pub is_primary: bool,
+    pub is_verified: bool,
+    pub verification_token: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+const DOMAIN_COLS: &str =
+    "id, domain, is_primary, is_verified, verification_token, created_at";
+
+/// `GET /api/microsite/domains` — mapped custom domains.
+pub async fn list_site_domains(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<SiteDomain>>, AppError> {
+    require_permission(&claims, "specialty.health_packages.list")?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, SiteDomain>(&format!(
+        "SELECT {DOMAIN_COLS} FROM site_domains WHERE tenant_id = $1 ORDER BY is_primary DESC, domain"
+    ))
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddDomainRequest {
+    pub domain: String,
+    pub is_primary: Option<bool>,
+}
+
+/// `POST /api/microsite/domains` — map a custom domain (a verification token is issued).
+pub async fn add_site_domain(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<AddDomainRequest>,
+) -> Result<Json<SiteDomain>, AppError> {
+    require_permission(&claims, "specialty.health_packages.manage")?;
+    if body.domain.trim().is_empty() {
+        return Err(AppError::BadRequest("Domain is required".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, SiteDomain>(&format!(
+        "INSERT INTO site_domains (tenant_id, domain, is_primary, verification_token) \
+         VALUES ($1, $2, COALESCE($3, false), 'mb-verify-' || gen_random_uuid()::text) \
+         RETURNING {DOMAIN_COLS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(body.domain.trim())
+    .bind(body.is_primary)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// `POST /api/microsite/domains/{id}/verify` — mark a domain verified (DNS check is ops).
+pub async fn verify_site_domain(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<SiteDomain>, AppError> {
+    require_permission(&claims, "specialty.health_packages.manage")?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, SiteDomain>(&format!(
+        "UPDATE site_domains SET is_verified = true, updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 RETURNING {DOMAIN_COLS}"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+// ── Chat / WhatsApp widget config (#2959) ──────────────────────────────────
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct MicrositeConfig {
+    pub whatsapp_number: Option<String>,
+    pub whatsapp_enabled: bool,
+    pub chat_widget_enabled: bool,
+    pub chat_greeting: Option<String>,
+}
+
+/// `GET /api/microsite/config` — the chat/WhatsApp widget config (defaults if unset).
+pub async fn get_microsite_config(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<MicrositeConfig>, AppError> {
+    require_permission(&claims, "specialty.health_packages.list")?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, MicrositeConfig>(
+        "SELECT whatsapp_number, whatsapp_enabled, chat_widget_enabled, chat_greeting \
+         FROM microsite_config WHERE tenant_id = $1",
+    )
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .unwrap_or(MicrositeConfig {
+        whatsapp_number: None,
+        whatsapp_enabled: false,
+        chat_widget_enabled: false,
+        chat_greeting: None,
+    });
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateConfigRequest {
+    pub whatsapp_number: Option<String>,
+    pub whatsapp_enabled: bool,
+    pub chat_widget_enabled: bool,
+    pub chat_greeting: Option<String>,
+}
+
+/// `PUT /api/microsite/config` — set the chat/WhatsApp widget config.
+pub async fn update_microsite_config(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<UpdateConfigRequest>,
+) -> Result<Json<MicrositeConfig>, AppError> {
+    require_permission(&claims, "specialty.health_packages.manage")?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, MicrositeConfig>(
+        "INSERT INTO microsite_config \
+         (tenant_id, whatsapp_number, whatsapp_enabled, chat_widget_enabled, chat_greeting) \
+         VALUES ($1, $2, $3, $4, $5) \
+         ON CONFLICT (tenant_id) DO UPDATE SET whatsapp_number = EXCLUDED.whatsapp_number, \
+            whatsapp_enabled = EXCLUDED.whatsapp_enabled, \
+            chat_widget_enabled = EXCLUDED.chat_widget_enabled, \
+            chat_greeting = EXCLUDED.chat_greeting, updated_at = now() \
+         RETURNING whatsapp_number, whatsapp_enabled, chat_widget_enabled, chat_greeting",
+    )
+    .bind(claims.tenant_id)
+    .bind(&body.whatsapp_number)
+    .bind(body.whatsapp_enabled)
+    .bind(body.chat_widget_enabled)
+    .bind(&body.chat_greeting)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

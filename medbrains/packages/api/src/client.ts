@@ -1202,6 +1202,7 @@ import type {
   MedicationTimelineEvent,
   MergePatientRequest,
   MgpsDailyLogPrintData,
+  MicrositeConfig,
   MigrationQuery,
   MlcCase,
   MlcDocument,
@@ -1605,6 +1606,7 @@ import type {
   SeedModuleMastersResponse,
   SensitivePatient,
   SensitivePatientSummary,
+  SeoSetting,
   SequenceRow,
   ServiceBondAgreementPrintData,
   ServiceRow,
@@ -1620,6 +1622,7 @@ import type {
   SignRequest,
   SignResponse,
   SimulationDebriefingPrintData,
+  SiteDomain,
   SnomedCode,
   SpcbBmwReturnsPrintData,
   SpecialtyRecord,
@@ -5970,6 +5973,27 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  listSeoSettings: () => request<SeoSetting[]>("/microsite/seo"),
+  upsertSeoSetting: (data: {
+    page_slug: string;
+    meta_title?: string;
+    meta_description?: string;
+    keywords?: string;
+    og_image_url?: string;
+  }) => request<SeoSetting>("/microsite/seo", { method: "POST", body: JSON.stringify(data) }),
+  listSiteDomains: () => request<SiteDomain[]>("/microsite/domains"),
+  addSiteDomain: (data: { domain: string; is_primary?: boolean }) =>
+    request<SiteDomain>("/microsite/domains", { method: "POST", body: JSON.stringify(data) }),
+  verifySiteDomain: (id: string) =>
+    request<SiteDomain>(`/microsite/domains/${id}/verify`, { method: "POST" }),
+  getMicrositeConfig: () => request<MicrositeConfig>("/microsite/config"),
+  updateMicrositeConfig: (data: {
+    whatsapp_number?: string;
+    whatsapp_enabled: boolean;
+    chat_widget_enabled: boolean;
+    chat_greeting?: string;
+  }) =>
+    request<MicrositeConfig>("/microsite/config", { method: "PUT", body: JSON.stringify(data) }),
   listMdsAssessments: (patientId: string) =>
     request<MdsAssessment[]>(`/ltc/mds?patient_id=${patientId}`),
   listLtcMedications: (patientId: string) =>

@@ -189,6 +189,9 @@ const HealthPackagesPage = lazy(() =>
 const TestimonialsPage = lazy(() =>
   import("./pages/testimonials").then((m) => ({ default: m.TestimonialsPage })),
 );
+const MicrositeSettingsPage = lazy(() =>
+  import("./pages/microsite-settings").then((m) => ({ default: m.MicrositeSettingsPage })),
+);
 const OtPage = lazy(() => import("./pages/ot").then((m) => ({ default: m.OtPage })));
 const QualityPage = lazy(() => import("./pages/quality").then((m) => ({ default: m.QualityPage })));
 const FrontOfficePage = lazy(() =>
@@ -556,6 +559,7 @@ export function App() {
               <Route path="long-term-care" element={<LongTermCarePage />} />
               <Route path="health-packages" element={<HealthPackagesPage />} />
               <Route path="testimonials" element={<TestimonialsPage />} />
+              <Route path="microsite-settings" element={<MicrositeSettingsPage />} />
               <Route path="ot" element={<OtPage />} />
               <Route path="admin">
                 <Route index element={<Navigate to="users" replace />} />

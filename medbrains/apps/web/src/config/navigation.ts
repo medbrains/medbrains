@@ -771,6 +771,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         requiredPermission: "specialty.health_packages.list",
       },
       {
+        i18nKey: "micrositeSettings",
+        path: "/microsite-settings",
+        icon: "IconSettings",
+        requiredPermission: "specialty.health_packages.list",
+      },
+      {
         i18nKey: "icu",
         path: "/icu",
         icon: "IconHeartRateMonitor",
