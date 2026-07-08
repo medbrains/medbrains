@@ -288,7 +288,7 @@ pub async fn update_tele_status(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Stamp started_at/ended_at on the transitions that matter.
-    let consult = sqlx::query_as::<_, TeleConsultation>(
+    let mut consult = sqlx::query_as::<_, TeleConsultation>(
         "UPDATE tele_consultations SET \
          status = $1, \
          doctor_notes = COALESCE($2, doctor_notes), \
@@ -309,6 +309,28 @@ pub async fn update_tele_status(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    // #2949: on completion, auto-create the EMR visit record if the consult isn't already linked.
+    if consult.status == "completed" && consult.encounter_id.is_none() {
+        let enc_id: Uuid = sqlx::query_scalar(
+            "INSERT INTO encounters (tenant_id, patient_id, encounter_type, doctor_id, notes) \
+             VALUES ($1, $2, 'opd'::encounter_type, $3, 'Telemedicine consultation') RETURNING id",
+        )
+        .bind(claims.tenant_id)
+        .bind(consult.patient_id)
+        .bind(consult.doctor_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        consult = sqlx::query_as::<_, TeleConsultation>(
+            "UPDATE tele_consultations SET encounter_id = $2, updated_at = now() \
+             WHERE id = $1 AND tenant_id = $3 RETURNING *",
+        )
+        .bind(consult.id)
+        .bind(enc_id)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+    }
 
     tx.commit().await?;
     Ok(Json(consult))
