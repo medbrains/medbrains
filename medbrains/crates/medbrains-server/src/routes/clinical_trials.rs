@@ -488,3 +488,142 @@ pub async fn update_visit(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── Adverse event + SAE reporting (#2987) ──────────────────────────────────
+
+const AE_COLS: &str = "ae.id, ae.patient_id, p.first_name, p.last_name, ae.event_term, \
+     ae.onset_date, ae.severity, ae.is_serious, ae.relatedness, ae.outcome, ae.reported_date, \
+     ae.description, ae.created_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct TrialAdverseEvent {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub event_term: String,
+    pub onset_date: Option<NaiveDate>,
+    pub severity: String,
+    pub is_serious: bool,
+    pub relatedness: String,
+    pub outcome: String,
+    pub reported_date: NaiveDate,
+    pub description: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// `GET /api/clinical-trials/{id}/adverse-events` — the AE / SAE log for a trial.
+pub async fn list_adverse_events(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<TrialAdverseEvent>>, AppError> {
+    require_permission(&claims, "specialty.clinical_trials.list")?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, TrialAdverseEvent>(&format!(
+        "SELECT {AE_COLS} FROM trial_adverse_events ae \
+         LEFT JOIN patients p ON p.id = ae.patient_id \
+         WHERE ae.tenant_id = $1 AND ae.trial_id = $2 \
+         ORDER BY ae.is_serious DESC, ae.reported_date DESC LIMIT 1000"
+    ))
+    .bind(claims.tenant_id)
+    .bind(id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReportAeRequest {
+    pub patient_id: Uuid,
+    pub event_term: String,
+    pub onset_date: Option<NaiveDate>,
+    pub severity: Option<String>,
+    pub is_serious: Option<bool>,
+    pub relatedness: Option<String>,
+    pub outcome: Option<String>,
+    pub description: Option<String>,
+}
+
+/// `POST /api/clinical-trials/{id}/adverse-events` — report an adverse event.
+pub async fn report_adverse_event(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ReportAeRequest>,
+) -> Result<Json<TrialAdverseEvent>, AppError> {
+    require_permission(&claims, "specialty.clinical_trials.create")?;
+    if body.event_term.trim().is_empty() {
+        return Err(AppError::BadRequest("Event term is required".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let new_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO trial_adverse_events \
+         (tenant_id, trial_id, patient_id, event_term, onset_date, severity, is_serious, \
+          relatedness, outcome, reported_by, description) \
+         VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'mild'), COALESCE($7, false), \
+                 COALESCE($8, 'unassessed'), COALESCE($9, 'ongoing'), $10, $11) RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(id)
+    .bind(body.patient_id)
+    .bind(body.event_term.trim())
+    .bind(body.onset_date)
+    .bind(&body.severity)
+    .bind(body.is_serious)
+    .bind(&body.relatedness)
+    .bind(&body.outcome)
+    .bind(claims.sub)
+    .bind(&body.description)
+    .fetch_one(&mut *tx)
+    .await?;
+    let row = sqlx::query_as::<_, TrialAdverseEvent>(&format!(
+        "SELECT {AE_COLS} FROM trial_adverse_events ae \
+         LEFT JOIN patients p ON p.id = ae.patient_id WHERE ae.id = $1"
+    ))
+    .bind(new_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateAeRequest {
+    pub outcome: Option<String>,
+    pub relatedness: Option<String>,
+    pub description: Option<String>,
+}
+
+/// `PUT /api/trial-adverse-events/{id}` — update an AE's outcome / relatedness assessment.
+pub async fn update_adverse_event(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateAeRequest>,
+) -> Result<Json<TrialAdverseEvent>, AppError> {
+    require_permission(&claims, "specialty.clinical_trials.create")?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, TrialAdverseEvent>(&format!(
+        "WITH upd AS ( \
+           UPDATE trial_adverse_events SET outcome = COALESCE($3, outcome), \
+             relatedness = COALESCE($4, relatedness), description = COALESCE($5, description), \
+             updated_at = now() WHERE id = $1 AND tenant_id = $2 RETURNING id) \
+         SELECT {AE_COLS} FROM trial_adverse_events ae \
+         LEFT JOIN patients p ON p.id = ae.patient_id WHERE ae.id = (SELECT id FROM upd)"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(&body.outcome)
+    .bind(&body.relatedness)
+    .bind(&body.description)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

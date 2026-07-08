@@ -1681,6 +1681,7 @@ import type {
   // Phase 2 Print Data - Clinical & Identity
   TreatmentChartPrintData,
   TreatmentSummaryResponse,
+  TrialAdverseEvent,
   TrialCandidate,
   TrialConsent,
   TrialVisit,
@@ -5932,6 +5933,33 @@ export const api = {
   listTrialConsents: (trialId: string) =>
     request<TrialConsent[]>(`/clinical-trials/${trialId}/consents`),
   listTrialVisits: (trialId: string) => request<TrialVisit[]>(`/clinical-trials/${trialId}/visits`),
+  listAdverseEvents: (trialId: string) =>
+    request<TrialAdverseEvent[]>(`/clinical-trials/${trialId}/adverse-events`),
+  reportAdverseEvent: (
+    trialId: string,
+    data: {
+      patient_id: string;
+      event_term: string;
+      onset_date?: string;
+      severity?: string;
+      is_serious?: boolean;
+      relatedness?: string;
+      outcome?: string;
+      description?: string;
+    },
+  ) =>
+    request<TrialAdverseEvent>(`/clinical-trials/${trialId}/adverse-events`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateAdverseEvent: (
+    aeId: string,
+    data: { outcome?: string; relatedness?: string; description?: string },
+  ) =>
+    request<TrialAdverseEvent>(`/trial-adverse-events/${aeId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   scheduleTrialVisit: (
     trialId: string,
     data: { patient_id: string; visit_name: string; scheduled_date: string; procedures?: string },

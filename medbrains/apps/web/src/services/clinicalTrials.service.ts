@@ -12,4 +12,7 @@ export const clinicalTrialsService = {
   listTrialVisits: api.listTrialVisits,
   scheduleTrialVisit: api.scheduleTrialVisit,
   updateTrialVisit: api.updateTrialVisit,
+  listAdverseEvents: api.listAdverseEvents,
+  reportAdverseEvent: api.reportAdverseEvent,
+  updateAdverseEvent: api.updateAdverseEvent,
 };

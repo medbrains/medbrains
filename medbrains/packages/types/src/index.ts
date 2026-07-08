@@ -7870,6 +7870,23 @@ export interface ClinicalTrial {
   updated_at: string;
 }
 
+/** An adverse event / SAE reported during a trial (#2987). */
+export interface TrialAdverseEvent {
+  id: string;
+  patient_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  event_term: string;
+  onset_date: string | null;
+  severity: string;
+  is_serious: boolean;
+  relatedness: string;
+  outcome: string;
+  reported_date: string;
+  description: string | null;
+  created_at: string;
+}
+
 /** A protocol visit in a trial's schedule (#2986). */
 export interface TrialVisit {
   id: string;
