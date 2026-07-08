@@ -1522,6 +1522,7 @@ import type {
   RehabSession,
   RejectAssetMovementRequest,
   RejectSampleRequest,
+  RemoteVitalReading,
   ReorderAlert,
   ReportCatalogResponse,
   ReportDataResponse,
@@ -6023,6 +6024,19 @@ export const api = {
     }),
   listHomeMeds: (patientId: string) =>
     request<HomeMedAdministration[]>(`/home-health/medications?patient_id=${patientId}`),
+  listRemoteVitals: (patientId: string) =>
+    request<RemoteVitalReading[]>(`/home-health/remote-vitals?patient_id=${patientId}`),
+  ingestRemoteVital: (data: {
+    patient_id: string;
+    device_type: string;
+    reading: Record<string, number>;
+    measured_at?: string;
+    source?: string;
+  }) =>
+    request<RemoteVitalReading>("/home-health/remote-vitals", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   listHomeVisits: (params?: { date?: string; nurse_id?: string }) => {
     const qs = new URLSearchParams();
     if (params?.date) qs.set("date", params.date);

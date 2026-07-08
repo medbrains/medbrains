@@ -656,3 +656,99 @@ pub async fn document_home_visit(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── Remote vital monitoring (#2969) ────────────────────────────────────────
+
+const RV_COLS: &str = "id, patient_id, device_type, reading, is_flagged, measured_at, source, \
+     created_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct RemoteVitalReading {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub device_type: String,
+    pub reading: serde_json::Value,
+    pub is_flagged: bool,
+    pub measured_at: DateTime<Utc>,
+    pub source: String,
+    pub created_at: DateTime<Utc>,
+}
+
+/// A remote reading is flagged when it breaches a safe range for its device type.
+fn reading_is_abnormal(device_type: &str, reading: &serde_json::Value) -> bool {
+    let num = |k: &str| reading.get(k).and_then(serde_json::Value::as_f64);
+    match device_type {
+        "pulse_ox" => num("spo2").is_some_and(|v| v < 92.0),
+        "glucometer" => num("glucose").is_some_and(|v| !(70.0..=250.0).contains(&v)),
+        "bp" => {
+            num("systolic").is_some_and(|v| !(90.0..=180.0).contains(&v))
+                || num("diastolic").is_some_and(|v| v > 120.0)
+        }
+        "thermometer" => num("temp").is_some_and(|v| !(35.0..38.0).contains(&v)),
+        _ => false,
+    }
+}
+
+/// `GET /api/home-health/remote-vitals?patient_id=` — a patient's remote device readings.
+pub async fn list_remote_vitals(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<HomeMedQuery>,
+) -> Result<Json<Vec<RemoteVitalReading>>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, RemoteVitalReading>(&format!(
+        "SELECT {RV_COLS} FROM remote_vital_readings \
+         WHERE tenant_id = $1 AND patient_id = $2 ORDER BY measured_at DESC LIMIT 500"
+    ))
+    .bind(claims.tenant_id)
+    .bind(q.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct IngestVitalRequest {
+    pub patient_id: Uuid,
+    pub device_type: String,
+    pub reading: serde_json::Value,
+    pub measured_at: Option<DateTime<Utc>>,
+    pub source: Option<String>,
+}
+
+/// `POST /api/home-health/remote-vitals` — ingest a device reading; auto-flags abnormal values.
+pub async fn ingest_remote_vital(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<IngestVitalRequest>,
+) -> Result<Json<RemoteVitalReading>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    if !["bp", "glucometer", "pulse_ox", "thermometer", "weight"].contains(&body.device_type.as_str())
+    {
+        return Err(AppError::BadRequest("Invalid device type".to_owned()));
+    }
+    let flagged = reading_is_abnormal(&body.device_type, &body.reading);
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, RemoteVitalReading>(&format!(
+        "INSERT INTO remote_vital_readings \
+         (tenant_id, patient_id, device_type, reading, is_flagged, measured_at, source, recorded_by) \
+         VALUES ($1, $2, $3, $4, $5, COALESCE($6, now()), COALESCE($7, 'device'), $8) \
+         RETURNING {RV_COLS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(&body.device_type)
+    .bind(&body.reading)
+    .bind(flagged)
+    .bind(body.measured_at)
+    .bind(&body.source)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

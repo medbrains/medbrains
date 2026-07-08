@@ -7826,6 +7826,18 @@ export interface CaseSheetScan {
   updated_at: string;
 }
 
+/** A remote vital reading from a home patient's connected device (#2969). */
+export interface RemoteVitalReading {
+  id: string;
+  patient_id: string;
+  device_type: string;
+  reading: Record<string, unknown>;
+  is_flagged: boolean;
+  measured_at: string;
+  source: string;
+  created_at: string;
+}
+
 /** A scheduled home visit assigned to a nurse (#2967). */
 export interface HomeVisit {
   id: string;

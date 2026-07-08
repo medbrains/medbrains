@@ -16,4 +16,6 @@ export const homeHealthService = {
   scheduleHomeVisit: api.scheduleHomeVisit,
   updateHomeVisit: api.updateHomeVisit,
   documentHomeVisit: api.documentHomeVisit,
+  listRemoteVitals: api.listRemoteVitals,
+  ingestRemoteVital: api.ingestRemoteVital,
 };
