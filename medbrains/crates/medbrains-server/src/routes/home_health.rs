@@ -467,7 +467,8 @@ pub async fn toggle_discharge_item(
 const VISIT_COLS: &str = "hv.id, hv.patient_id, p.first_name, p.last_name, hv.nurse_id, \
      NULLIF(TRIM(CONCAT(e.first_name, ' ', COALESCE(e.last_name, ''))), '') AS nurse_name, \
      hv.scheduled_date, hv.scheduled_time, hv.address, hv.purpose, \
-     hv.status, hv.visit_order, hv.notes, hv.completed_at, hv.created_at";
+     hv.status, hv.visit_order, hv.notes, hv.vitals, hv.wound_photo_url, \
+     hv.medication_compliance, hv.documented_at, hv.completed_at, hv.created_at";
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct HomeVisit {
@@ -484,6 +485,10 @@ pub struct HomeVisit {
     pub status: String,
     pub visit_order: Option<i32>,
     pub notes: Option<String>,
+    pub vitals: serde_json::Value,
+    pub wound_photo_url: Option<String>,
+    pub medication_compliance: Option<String>,
+    pub documented_at: Option<DateTime<Utc>>,
     pub completed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
 }
@@ -604,6 +609,47 @@ pub async fn update_home_visit(
     .bind(&body.status)
     .bind(body.nurse_id)
     .bind(body.visit_order)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DocumentVisitRequest {
+    pub vitals: Option<serde_json::Value>,
+    pub wound_photo_url: Option<String>,
+    pub medication_compliance: Option<String>,
+}
+
+/// `PUT /api/home-visits/{id}/document` — the nurse records the visit findings (#2968).
+pub async fn document_home_visit(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<DocumentVisitRequest>,
+) -> Result<Json<HomeVisit>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, HomeVisit>(&format!(
+        "WITH upd AS ( \
+           UPDATE home_visits SET vitals = COALESCE($3, vitals), \
+             wound_photo_url = COALESCE($4, wound_photo_url), \
+             medication_compliance = COALESCE($5, medication_compliance), \
+             documented_at = now(), documented_by = $6, updated_at = now() \
+           WHERE id = $1 AND tenant_id = $2 RETURNING id) \
+         SELECT {VISIT_COLS} FROM home_visits hv \
+         LEFT JOIN patients p ON p.id = hv.patient_id \
+         LEFT JOIN employees e ON e.id = hv.nurse_id WHERE hv.id = (SELECT id FROM upd)"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(&body.vitals)
+    .bind(&body.wound_photo_url)
+    .bind(&body.medication_compliance)
+    .bind(claims.sub)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;

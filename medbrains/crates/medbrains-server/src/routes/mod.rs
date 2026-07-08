@@ -3329,6 +3329,10 @@ pub fn build_router(state: AppState) -> Router {
             "/api/home-visits/{id}",
             put(home_health::update_home_visit),
         )
+        .route(
+            "/api/home-visits/{id}/document",
+            put(home_health::document_home_visit),
+        )
         // ── Case-sheet digitization (B2 ingestion) ──
         .route(
             "/api/case-sheets/scans",

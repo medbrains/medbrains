@@ -1,4 +1,4 @@
-import { Group, Modal, NumberInput, Stack, TextInput } from "@mantine/core";
+import { Group, Modal, NumberInput, Select, Stack, TextInput } from "@mantine/core";
 import { DateInput, TimeInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
@@ -90,12 +90,82 @@ function ScheduleVisitModal({
   );
 }
 
+function DocumentModal({ visit, onClose }: { visit: HomeVisit; onClose: () => void }) {
+  const qc = useQueryClient();
+  const v = (visit.vitals ?? {}) as Record<string, unknown>;
+  const [bp, setBp] = useState(v.bp ? String(v.bp) : "");
+  const [pulse, setPulse] = useState(v.pulse ? String(v.pulse) : "");
+  const [spo2, setSpo2] = useState(v.spo2 ? String(v.spo2) : "");
+  const [temp, setTemp] = useState(v.temp ? String(v.temp) : "");
+  const [compliance, setCompliance] = useState<string | null>(visit.medication_compliance ?? null);
+  const [photo, setPhoto] = useState(visit.wound_photo_url ?? "");
+
+  const save = useMutation({
+    mutationFn: () =>
+      homeHealthService.documentHomeVisit(visit.id, {
+        vitals: {
+          ...(bp && { bp }),
+          ...(pulse && { pulse }),
+          ...(spo2 && { spo2 }),
+          ...(temp && { temp }),
+        },
+        medication_compliance: compliance ?? undefined,
+        wound_photo_url: photo || undefined,
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["home-visits"] });
+      toast.success("Visit documented", { title: "Home visits" });
+      onClose();
+    },
+    onError: (e: Error) => toast.error(e.message, { title: "Save failed" }),
+  });
+
+  return (
+    <Modal opened onClose={onClose} title="Document visit" size="lg">
+      <Stack gap="sm">
+        <Group grow>
+          <TextInput
+            label="BP"
+            value={bp}
+            onChange={(e) => setBp(e.currentTarget.value)}
+            placeholder="120/80"
+          />
+          <TextInput
+            label="Pulse"
+            value={pulse}
+            onChange={(e) => setPulse(e.currentTarget.value)}
+          />
+          <TextInput label="SpO₂" value={spo2} onChange={(e) => setSpo2(e.currentTarget.value)} />
+          <TextInput label="Temp" value={temp} onChange={(e) => setTemp(e.currentTarget.value)} />
+        </Group>
+        <Select
+          label="Medication compliance"
+          data={["good", "partial", "poor"].map((c) => ({ value: c, label: c }))}
+          value={compliance}
+          onChange={setCompliance}
+          clearable
+        />
+        <TextInput
+          label="Wound photo URL"
+          value={photo}
+          onChange={(e) => setPhoto(e.currentTarget.value)}
+          placeholder="Uploaded image reference"
+        />
+        <Button onClick={() => save.mutate()} loading={save.isPending}>
+          Save documentation
+        </Button>
+      </Stack>
+    </Modal>
+  );
+}
+
 export function HomeVisitsPage() {
   useRequirePermission(P.IPD.MAR_LIST);
   const canManage = useHasPermission(P.IPD.MAR_CREATE);
   const qc = useQueryClient();
   const [date, setDate] = useState<string | null>(today());
   const [modalOpen, modal] = useDisclosure(false);
+  const [docVisit, setDocVisit] = useState<HomeVisit | null>(null);
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["home-visits", date],
@@ -150,6 +220,11 @@ export function HomeVisitsPage() {
           actions.push(act(r.id, "completed", "Complete", "primary"));
           actions.push(act(r.id, "missed", "Missed", "danger"));
         }
+        actions.push(
+          <Button key="document" size="xs" tone="secondary" onClick={() => setDocVisit(r)}>
+            Document
+          </Button>,
+        );
         return actions.length > 0 ? <Group gap="xs">{actions}</Group> : null;
       },
     },
@@ -178,6 +253,7 @@ export function HomeVisitsPage() {
         emptyTitle="No home visits scheduled for this date."
       />
       {date && <ScheduleVisitModal date={date} opened={modalOpen} onClose={modal.close} />}
+      {docVisit && <DocumentModal visit={docVisit} onClose={() => setDocVisit(null)} />}
     </Stack>
   );
 }

@@ -15,4 +15,5 @@ export const homeHealthService = {
   listHomeVisits: api.listHomeVisits,
   scheduleHomeVisit: api.scheduleHomeVisit,
   updateHomeVisit: api.updateHomeVisit,
+  documentHomeVisit: api.documentHomeVisit,
 };

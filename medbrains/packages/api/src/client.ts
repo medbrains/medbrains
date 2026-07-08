@@ -6043,6 +6043,14 @@ export const api = {
     id: string,
     data: { status?: string; nurse_id?: string; visit_order?: number },
   ) => request<HomeVisit>(`/home-visits/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  documentHomeVisit: (
+    id: string,
+    data: { vitals?: unknown; wound_photo_url?: string; medication_compliance?: string },
+  ) =>
+    request<HomeVisit>(`/home-visits/${id}/document`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   scheduleHomeMed: (data: {
     patient_id: string;
     drug_name: string;

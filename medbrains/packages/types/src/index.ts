@@ -7841,6 +7841,10 @@ export interface HomeVisit {
   status: string;
   visit_order: number | null;
   notes: string | null;
+  vitals: unknown;
+  wound_photo_url: string | null;
+  medication_compliance: string | null;
+  documented_at: string | null;
   completed_at: string | null;
   created_at: string;
 }
