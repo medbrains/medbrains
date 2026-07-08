@@ -174,6 +174,9 @@ const InterHospitalStockPage = lazy(() =>
 const HomeHealthcarePage = lazy(() =>
   import("./pages/home-healthcare").then((m) => ({ default: m.HomeHealthcarePage })),
 );
+const ClinicalTrialsPage = lazy(() =>
+  import("./pages/clinical-trials").then((m) => ({ default: m.ClinicalTrialsPage })),
+);
 const OtPage = lazy(() => import("./pages/ot").then((m) => ({ default: m.OtPage })));
 const QualityPage = lazy(() => import("./pages/quality").then((m) => ({ default: m.QualityPage })));
 const FrontOfficePage = lazy(() =>
@@ -536,6 +539,7 @@ export function App() {
               <Route path="hospital-groups" element={<HospitalGroupsPage />} />
               <Route path="inter-hospital-stock" element={<InterHospitalStockPage />} />
               <Route path="home-healthcare" element={<HomeHealthcarePage />} />
+              <Route path="clinical-trials" element={<ClinicalTrialsPage />} />
               <Route path="ot" element={<OtPage />} />
               <Route path="admin">
                 <Route index element={<Navigate to="users" replace />} />

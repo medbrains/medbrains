@@ -261,6 +261,7 @@ import type {
   ClinicalCorpusEntry,
   ClinicalIndicatorRow,
   ClinicalProtocol,
+  ClinicalTrial,
   CmeCertificatePrintData,
   CmsAuthor,
   // CMS & Blog
@@ -5895,6 +5896,24 @@ export const api = {
 
   listWards: () => request<WardListRow[]>("/ipd/wards"),
   wardOnDuty: (wardId: string) => request<WardOnDutyRow[]>(`/ipd/wards/${wardId}/on-duty`),
+  listClinicalTrials: (status?: string) =>
+    request<ClinicalTrial[]>(`/clinical-trials${status ? `?status=${status}` : ""}`),
+  getClinicalTrial: (id: string) => request<ClinicalTrial>(`/clinical-trials/${id}`),
+  createClinicalTrial: (data: {
+    protocol_number: string;
+    title: string;
+    sponsor?: string;
+    phase?: string;
+    status?: string;
+    indication?: string;
+    principal_investigator?: string;
+    target_enrollment?: number;
+  }) => request<ClinicalTrial>("/clinical-trials", { method: "POST", body: JSON.stringify(data) }),
+  updateClinicalTrial: (id: string, data: { status?: string; notes?: string }) =>
+    request<ClinicalTrial>(`/clinical-trials/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   listHomeMeds: (patientId: string) =>
     request<HomeMedAdministration[]>(`/home-health/medications?patient_id=${patientId}`),
   scheduleHomeMed: (data: {

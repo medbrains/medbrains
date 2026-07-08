@@ -7846,6 +7846,26 @@ export interface HomeMedAdministration {
   updated_at: string;
 }
 
+/** A clinical trial in the hospital research registry (#2983). */
+export interface ClinicalTrial {
+  id: string;
+  tenant_id: string;
+  protocol_number: string;
+  title: string;
+  sponsor: string | null;
+  phase: string | null;
+  status: string;
+  indication: string | null;
+  principal_investigator: string | null;
+  target_enrollment: number | null;
+  start_date: string | null;
+  end_date: string | null;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 /** A Home Healthcare discharge-program item (training material or discharge criterion). */
 export interface HomeDischargeItem {
   id: string;

@@ -134,6 +134,7 @@ pub mod sso;
 pub mod sso_login;
 pub mod step_up;
 pub mod case_sheet_scan;
+pub mod clinical_trials;
 pub mod home_health;
 pub mod vpn;
 pub mod ward_stock;
@@ -3238,6 +3239,15 @@ pub fn build_router(state: AppState) -> Router {
             get(ipd::list_ward_beds).post(ipd::assign_bed_to_ward),
         )
         .route("/api/ipd/wards/{id}/on-duty", get(ipd::ward_on_duty))
+        // ── Clinical Trials registry (#2983) ──
+        .route(
+            "/api/clinical-trials",
+            get(clinical_trials::list_trials).post(clinical_trials::create_trial),
+        )
+        .route(
+            "/api/clinical-trials/{id}",
+            get(clinical_trials::get_trial).put(clinical_trials::update_trial),
+        )
         // ── Home Healthcare — home medication administration (#2979) ──
         .route(
             "/api/home-health/medications",

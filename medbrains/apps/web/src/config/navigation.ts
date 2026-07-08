@@ -737,6 +737,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         requiredPermission: "ipd.mar.list",
       },
       {
+        i18nKey: "clinicalTrials",
+        path: "/clinical-trials",
+        icon: "IconFlask",
+        requiredPermission: "specialty.clinical_trials.list",
+      },
+      {
         i18nKey: "icu",
         path: "/icu",
         icon: "IconHeartRateMonitor",
