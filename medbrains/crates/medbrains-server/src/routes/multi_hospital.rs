@@ -427,60 +427,186 @@ pub async fn delete_user_assignment(
 
 // ── Patient Transfers ─────────────────────────────────────────────────────────
 
-/// List patient transfers (outgoing from current hospital)
+// The display join. patient_transfers + tenants are RLS-off (all rows); patients + users are
+// RLS-on, so the patient/requester show only for OUTGOING (patient is in the caller's tenant) —
+// incoming rows still carry source hospital + reason + clinical summary for the accept decision.
+const TRANSFER_DISPLAY_SELECT: &str = "SELECT pt.id, s.name AS source_hospital_name, \
+        d.name AS dest_hospital_name, \
+        COALESCE(CONCAT(p.first_name, ' ', COALESCE(p.last_name, '')), '') AS patient_name, \
+        COALESCE(p.uhid, '') AS uhid, pt.transfer_type, pt.reason, pt.priority, pt.status, \
+        pt.requested_at, COALESCE(u.full_name, '') AS requested_by_name \
+     FROM patient_transfers pt \
+     JOIN tenants s ON s.id = pt.source_tenant_id \
+     JOIN tenants d ON d.id = pt.dest_tenant_id \
+     LEFT JOIN patients p ON p.id = pt.patient_id \
+     LEFT JOIN users u ON u.id = pt.requested_by";
+
+async fn list_transfers_by_side(
+    state: &AppState,
+    claims: &Claims,
+    query: &DateRangeQuery,
+    side_column: &str,
+) -> Result<Vec<PatientTransferDisplay>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, PatientTransferDisplay>(&format!(
+        "{TRANSFER_DISPLAY_SELECT} WHERE pt.{side_column} = $1 AND pt.deleted_at IS NULL \
+         AND ($2::date IS NULL OR pt.requested_at::date >= $2) \
+         AND ($3::date IS NULL OR pt.requested_at::date <= $3) \
+         ORDER BY pt.requested_at DESC LIMIT 500"
+    ))
+    .bind(claims.tenant_id)
+    .bind(query.from_date)
+    .bind(query.to_date)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(rows)
+}
+
+/// List transfers this hospital has sent out.
 pub async fn list_outgoing_transfers(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Query(query): Query<DateRangeQuery>,
-) -> Result<Json<Vec<PatientTransferDisplay>>, (StatusCode, String)> {
-    // TODO: Query patient_transfers where source_tenant_id = current tenant
-    let _ = query;
-    Ok(Json(vec![]))
+) -> Result<Json<Vec<PatientTransferDisplay>>, AppError> {
+    require_permission(&claims, permissions::ipd::transfers::CREATE)?;
+    Ok(Json(
+        list_transfers_by_side(&state, &claims, &query, "source_tenant_id").await?,
+    ))
 }
 
-/// List incoming patient transfers
+/// List transfers inbound to this hospital.
 pub async fn list_incoming_transfers(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Query(query): Query<DateRangeQuery>,
-) -> Result<Json<Vec<PatientTransferDisplay>>, (StatusCode, String)> {
-    // TODO: Query patient_transfers where dest_tenant_id = current tenant
-    let _ = query;
-    Ok(Json(vec![]))
+) -> Result<Json<Vec<PatientTransferDisplay>>, AppError> {
+    require_permission(&claims, permissions::ipd::transfers::CREATE)?;
+    Ok(Json(
+        list_transfers_by_side(&state, &claims, &query, "dest_tenant_id").await?,
+    ))
 }
 
-/// Get transfer details
+/// Get one transfer (caller must be the source or destination hospital).
 pub async fn get_patient_transfer(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<PatientTransfer>, (StatusCode, String)> {
-    // TODO: Query patient_transfer by ID
-    let _ = id;
-    Err((StatusCode::NOT_FOUND, "Transfer not found".to_string()))
+) -> Result<Json<PatientTransfer>, AppError> {
+    require_permission(&claims, permissions::ipd::transfers::CREATE)?;
+    let t = sqlx::query_as::<_, PatientTransfer>(
+        "SELECT * FROM patient_transfers WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if t.source_tenant_id != claims.tenant_id && t.dest_tenant_id != claims.tenant_id {
+        return Err(AppError::Forbidden);
+    }
+    Ok(Json(t))
 }
 
-/// Request a patient transfer
+/// Request a patient transfer to another hospital in the same group.
 pub async fn create_patient_transfer(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Json(payload): Json<CreatePatientTransfer>,
-) -> Result<Json<PatientTransfer>, (StatusCode, String)> {
-    // TODO: Insert patient_transfer with status=requested
-    let _ = payload;
-    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
+) -> Result<Json<PatientTransfer>, AppError> {
+    require_permission(&claims, permissions::ipd::transfers::CREATE)?;
+    let same_group = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS ( \
+            SELECT 1 FROM tenants s JOIN tenants d ON d.group_id = s.group_id \
+            WHERE s.id = $1 AND d.id = $2 AND s.group_id IS NOT NULL)",
+    )
+    .bind(claims.tenant_id)
+    .bind(payload.dest_tenant_id)
+    .fetch_one(&state.db)
+    .await?;
+    if !same_group {
+        return Err(AppError::BadRequest(
+            "Destination hospital is not in the same group".to_owned(),
+        ));
+    }
+    let row = sqlx::query_as::<_, PatientTransfer>(
+        "INSERT INTO patient_transfers \
+         (source_tenant_id, dest_tenant_id, patient_id, admission_id, transfer_type, reason, \
+          clinical_summary, priority, status, requested_by, transport_mode) \
+         VALUES ($1, $2, $3, $4, COALESCE($5, 'clinical'), $6, $7, COALESCE($8, 'routine'), \
+                 'requested', $9, $10) RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(payload.dest_tenant_id)
+    .bind(payload.patient_id)
+    .bind(payload.admission_id)
+    .bind(&payload.transfer_type)
+    .bind(&payload.reason)
+    .bind(&payload.clinical_summary)
+    .bind(&payload.priority)
+    .bind(claims.sub)
+    .bind(&payload.transport_mode)
+    .fetch_one(&state.db)
+    .await?;
+    Ok(Json(row))
 }
 
-/// Update transfer status (approve, reject, mark in-transit, receive)
+/// Advance a transfer through its lifecycle (accept / reject / depart / receive / cancel).
+/// Guarded: the caller must be the correct side and the prior status must be valid.
 pub async fn update_patient_transfer(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
     Json(payload): Json<UpdateTransferStatus>,
-) -> Result<Json<PatientTransfer>, (StatusCode, String)> {
-    // TODO: Update patient_transfer status
-    let _ = (id, payload);
-    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
+) -> Result<Json<PatientTransfer>, AppError> {
+    require_permission(&claims, permissions::ipd::transfers::CREATE)?;
+    let t = sqlx::query_as::<_, PatientTransfer>(
+        "SELECT * FROM patient_transfers WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    use medbrains_core::multi_hospital::TransferStatus::{
+        Approved, Cancelled, InTransit, Received, Rejected, Requested,
+    };
+    let is_source = t.source_tenant_id == claims.tenant_id;
+    let is_dest = t.dest_tenant_id == claims.tenant_id;
+    if !is_source && !is_dest {
+        return Err(AppError::Forbidden);
+    }
+    let allowed = match payload.status {
+        Approved | Rejected => is_dest && t.status == Requested,
+        InTransit => is_source && t.status == Approved,
+        Received => is_dest && t.status == InTransit,
+        Cancelled => is_source && matches!(t.status, Requested | Approved),
+        Requested => false,
+    };
+    if !allowed {
+        return Err(AppError::BadRequest(
+            "That transfer action isn't valid for your hospital at this stage".to_owned(),
+        ));
+    }
+
+    let row = sqlx::query_as::<_, PatientTransfer>(
+        "UPDATE patient_transfers SET status = $2, notes = COALESCE($3, notes), \
+            approved_by = CASE WHEN $2 = 'approved'::transfer_status THEN $4 ELSE approved_by END, \
+            approved_at = CASE WHEN $2 = 'approved'::transfer_status THEN now() ELSE approved_at END, \
+            departed_at = CASE WHEN $2 = 'in_transit'::transfer_status THEN now() \
+                               ELSE departed_at END, \
+            received_by = CASE WHEN $2 = 'received'::transfer_status THEN $4 ELSE received_by END, \
+            arrived_at = CASE WHEN $2 = 'received'::transfer_status THEN now() ELSE arrived_at END, \
+            updated_at = now() \
+         WHERE id = $1 RETURNING *",
+    )
+    .bind(id)
+    .bind(payload.status)
+    .bind(&payload.notes)
+    .bind(claims.sub)
+    .fetch_one(&state.db)
+    .await?;
+    Ok(Json(row))
 }
 
 // ── Stock Transfers ───────────────────────────────────────────────────────────

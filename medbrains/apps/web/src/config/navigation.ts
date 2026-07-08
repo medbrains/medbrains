@@ -713,6 +713,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         requiredPermission: "mrd.case_sheets.view",
       },
       {
+        i18nKey: "interHospitalTransfers",
+        path: "/inter-hospital-transfers",
+        icon: "IconAmbulance",
+        requiredPermission: "ipd.transfers.create",
+      },
+      {
         i18nKey: "icu",
         path: "/icu",
         icon: "IconHeartRateMonitor",

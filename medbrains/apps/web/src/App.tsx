@@ -160,6 +160,11 @@ const DirectoryPage = lazy(() =>
 const CaseSheetReviewPage = lazy(() =>
   import("./pages/case-sheet-review").then((m) => ({ default: m.CaseSheetReviewPage })),
 );
+const InterHospitalTransfersPage = lazy(() =>
+  import("./pages/inter-hospital-transfers").then((m) => ({
+    default: m.InterHospitalTransfersPage,
+  })),
+);
 const OtPage = lazy(() => import("./pages/ot").then((m) => ({ default: m.OtPage })));
 const QualityPage = lazy(() => import("./pages/quality").then((m) => ({ default: m.QualityPage })));
 const FrontOfficePage = lazy(() =>
@@ -518,6 +523,7 @@ export function App() {
               <Route path="care-view" element={<CareViewPage />} />
               <Route path="directory" element={<DirectoryPage />} />
               <Route path="case-sheet-review" element={<CaseSheetReviewPage />} />
+              <Route path="inter-hospital-transfers" element={<InterHospitalTransfersPage />} />
               <Route path="ot" element={<OtPage />} />
               <Route path="admin">
                 <Route index element={<Navigate to="users" replace />} />

@@ -212,7 +212,7 @@ pub struct PatientTransfer {
 }
 
 /// Patient transfer with hospital names
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct PatientTransferDisplay {
     pub id: Uuid,
     pub source_hospital_name: String,
