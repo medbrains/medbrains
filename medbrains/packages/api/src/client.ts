@@ -1948,8 +1948,9 @@ import type {
   VoidMedicalCertificateRequest,
   Vulnerability,
   WaitEstimate,
-  WaitlistStatsResponse,
   // IPD Phase 2
+  WaitingRoomItem,
+  WaitlistStatsResponse,
   Ward,
   WardBedMapping,
   WardBedRow,
@@ -14175,6 +14176,10 @@ export const api = {
   getTeleConsultation: (id: string) =>
     request<TeleConsultation>(`/telemedicine/consultations/${id}`),
   getTeleJoinInfo: (id: string) => request<TeleJoinInfo>(`/telemedicine/consultations/${id}/join`),
+  getTeleWaitingRoom: (doctorId?: string) =>
+    request<WaitingRoomItem[]>(
+      `/telemedicine/waiting-room${doctorId ? `?doctor_id=${doctorId}` : ""}`,
+    ),
   updateTeleStatus: (id: string, data: UpdateTeleStatusRequest) =>
     request<TeleConsultation>(`/telemedicine/consultations/${id}/status`, {
       method: "PUT",

@@ -313,3 +313,50 @@ pub async fn update_tele_status(
     tx.commit().await?;
     Ok(Json(consult))
 }
+
+// ── Waiting room with queue position (#2945) ───────────────────────────────
+
+#[derive(Debug, serde::Deserialize)]
+pub struct WaitingRoomQuery {
+    pub doctor_id: Option<Uuid>,
+}
+
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct WaitingRoomItem {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub patient_name: Option<String>,
+    pub doctor_id: Option<Uuid>,
+    pub scheduled_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub position: i64,
+}
+
+/// `GET /api/telemedicine/waiting-room?doctor_id=` — patients checked in and waiting, each with
+/// their queue position (per doctor, by scheduled time).
+pub async fn waiting_room(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<WaitingRoomQuery>,
+) -> Result<Json<Vec<WaitingRoomItem>>, AppError> {
+    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, WaitingRoomItem>(
+        "SELECT tc.id, tc.patient_id, \
+            NULLIF(TRIM(CONCAT(p.first_name, ' ', COALESCE(p.last_name, ''))), '') AS patient_name, \
+            tc.doctor_id, tc.scheduled_at, \
+            ROW_NUMBER() OVER (PARTITION BY tc.doctor_id \
+                ORDER BY tc.scheduled_at NULLS LAST, tc.created_at) AS position \
+         FROM tele_consultations tc \
+         LEFT JOIN patients p ON p.id = tc.patient_id \
+         WHERE tc.tenant_id = $1 AND tc.status = 'waiting' \
+           AND ($2::uuid IS NULL OR tc.doctor_id = $2) \
+         ORDER BY tc.doctor_id, position LIMIT 200",
+    )
+    .bind(claims.tenant_id)
+    .bind(q.doctor_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}

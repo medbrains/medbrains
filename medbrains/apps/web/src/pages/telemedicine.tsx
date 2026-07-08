@@ -1,4 +1,4 @@
-import { Group, Loader, Menu, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Card, Group, Loader, Menu, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -54,6 +54,35 @@ const EMPTY_FORM: CreateForm = {
   meeting_url: "",
   scheduled_at: "",
 };
+
+function WaitingRoom() {
+  const { data = [] } = useQuery({
+    queryKey: ["tele-waiting-room"],
+    queryFn: () => telemedicineService.getTeleWaitingRoom(),
+    refetchInterval: 15_000,
+  });
+  if (data.length === 0) return null;
+  return (
+    <Card withBorder padding="md">
+      <Text fw={600} size="sm" mb="xs">
+        Waiting room ({data.length})
+      </Text>
+      <Stack gap="xs">
+        {data.map((w) => (
+          <Group key={w.id} gap="sm">
+            <Badge tone="info" size="sm">
+              #{w.position}
+            </Badge>
+            <Text size="sm">{w.patient_name ?? "Patient"}</Text>
+            <Text size="xs" c="dimmed">
+              {w.scheduled_at ? new Date(w.scheduled_at).toLocaleTimeString() : ""}
+            </Text>
+          </Group>
+        ))}
+      </Stack>
+    </Card>
+  );
+}
 
 export function TelemedicinePage() {
   useRequirePermission(P.OPD.QUEUE_VIEW);
@@ -206,6 +235,8 @@ export function TelemedicinePage() {
           </Button>
         )}
       </Group>
+
+      <WaitingRoom />
 
       {consults.length > 0 ? (
         <DataTable

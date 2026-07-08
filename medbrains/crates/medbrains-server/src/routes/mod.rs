@@ -1701,6 +1701,10 @@ pub fn build_router(state: AppState) -> Router {
                 .post(telemedicine::create_tele_consultation),
         )
         .route(
+            "/api/telemedicine/waiting-room",
+            get(telemedicine::waiting_room),
+        )
+        .route(
             "/api/telemedicine/consultations/{id}",
             get(telemedicine::get_tele_consultation),
         )

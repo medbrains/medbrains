@@ -7,6 +7,7 @@ export const telemedicineService = {
     api.createTeleConsultation(data),
   getTeleConsultation: (id: string) => api.getTeleConsultation(id),
   getTeleJoinInfo: (id: string) => api.getTeleJoinInfo(id),
+  getTeleWaitingRoom: (doctorId?: string) => api.getTeleWaitingRoom(doctorId),
   updateTeleStatus: (id: string, data: Parameters<typeof api.updateTeleStatus>[1]) =>
     api.updateTeleStatus(id, data),
 };

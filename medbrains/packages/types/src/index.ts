@@ -7882,6 +7882,16 @@ export interface HealthPackage {
   created_at: string;
 }
 
+/** A patient in the telemedicine waiting room with queue position (#2945). */
+export interface WaitingRoomItem {
+  id: string;
+  patient_id: string;
+  patient_name: string | null;
+  doctor_id: string | null;
+  scheduled_at: string | null;
+  position: number;
+}
+
 /** A skilled-nursing-facility admission (#2960). */
 export interface SnfAdmission {
   id: string;
