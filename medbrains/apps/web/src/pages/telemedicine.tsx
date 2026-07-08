@@ -1,4 +1,5 @@
 import { Card, Group, Loader, Menu, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
+import { DateTimePicker } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -91,6 +92,8 @@ export function TelemedicinePage() {
   const queryClient = useQueryClient();
   const [modalOpen, modal] = useDisclosure(false);
   const [form, setForm] = useState<CreateForm>(EMPTY_FORM);
+  const [followUpId, setFollowUpId] = useState<string | null>(null);
+  const [followUpDate, setFollowUpDate] = useState<string | null>(null);
 
   const {
     data: consults = [],
@@ -131,6 +134,38 @@ export function TelemedicinePage() {
     onSuccess: () => void invalidate(),
     onError: (err: Error) =>
       notifications.show({ title: "Update failed", message: err.message, color: "danger" }),
+  });
+
+  const recordingMutation = useMutation({
+    mutationFn: (v: { id: string; recording_consent?: boolean; is_recording?: boolean }) =>
+      telemedicineService.updateTeleRecording(v.id, {
+        recording_consent: v.recording_consent,
+        is_recording: v.is_recording,
+      }),
+    onSuccess: () => void invalidate(),
+    onError: (err: Error) =>
+      notifications.show({
+        title: "Recording update failed",
+        message: err.message,
+        color: "danger",
+      }),
+  });
+
+  const followUpMutation = useMutation({
+    mutationFn: (v: { id: string; scheduled_at: string }) =>
+      telemedicineService.scheduleTeleFollowUp(v.id, { scheduled_at: v.scheduled_at }),
+    onSuccess: () => {
+      void invalidate();
+      setFollowUpId(null);
+      setFollowUpDate(null);
+      notifications.show({
+        title: "Follow-up scheduled",
+        message: "A new tele-consult was created.",
+        color: "success",
+      });
+    },
+    onError: (err: Error) =>
+      notifications.show({ title: "Follow-up failed", message: err.message, color: "danger" }),
   });
 
   const join = async (c: TeleConsultation) => {
@@ -314,6 +349,31 @@ export function TelemedicinePage() {
                           >
                             Add to Google Calendar
                           </Menu.Item>
+                          <Menu.Item onClick={() => setFollowUpId(c.id)}>
+                            Schedule follow-up
+                          </Menu.Item>
+                          {canUpdate && (
+                            <Menu.Item
+                              onClick={() =>
+                                recordingMutation.mutate({
+                                  id: c.id,
+                                  recording_consent: true,
+                                  is_recording: true,
+                                })
+                              }
+                            >
+                              Consent &amp; record
+                            </Menu.Item>
+                          )}
+                          {canUpdate && (
+                            <Menu.Item
+                              onClick={() =>
+                                recordingMutation.mutate({ id: c.id, is_recording: false })
+                              }
+                            >
+                              Stop recording
+                            </Menu.Item>
+                          )}
                         </Menu.Dropdown>
                       </Menu>
                     )}
@@ -392,6 +452,36 @@ export function TelemedicinePage() {
               Create
             </Button>
           </Group>
+        </Stack>
+      </Modal>
+
+      <Modal
+        opened={!!followUpId}
+        onClose={() => setFollowUpId(null)}
+        title="Schedule follow-up"
+        size="sm"
+      >
+        <Stack gap="sm">
+          <DateTimePicker
+            label="Follow-up date & time"
+            value={followUpDate}
+            onChange={setFollowUpDate}
+          />
+          <Button
+            tone="primary"
+            disabled={!followUpDate}
+            loading={followUpMutation.isPending}
+            onClick={() => {
+              if (followUpId && followUpDate) {
+                followUpMutation.mutate({
+                  id: followUpId,
+                  scheduled_at: new Date(followUpDate).toISOString(),
+                });
+              }
+            }}
+          >
+            Schedule
+          </Button>
         </Stack>
       </Modal>
     </Stack>

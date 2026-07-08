@@ -382,3 +382,91 @@ pub async fn waiting_room(
     tx.commit().await?;
     Ok(Json(rows))
 }
+
+// ── Recording consent + optional recording (#2946) ─────────────────────────
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateRecordingRequest {
+    pub recording_consent: Option<bool>,
+    pub is_recording: Option<bool>,
+    pub recording_url: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct RecordingState {
+    pub recording_consent: bool,
+    pub is_recording: bool,
+    pub recording_url: Option<String>,
+}
+
+/// `PUT /api/telemedicine/consultations/{id}/recording` — set recording consent / toggle recording.
+/// Recording can only turn on when consent is present (existing or in this request).
+pub async fn update_recording(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateRecordingRequest>,
+) -> Result<Json<RecordingState>, AppError> {
+    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, RecordingState>(
+        "UPDATE tele_consultations SET \
+            recording_consent = COALESCE($3, recording_consent), \
+            is_recording = CASE \
+                WHEN $4 IS NULL THEN is_recording \
+                WHEN $4 = true AND COALESCE($3, recording_consent) = true THEN true \
+                WHEN $4 = false THEN false \
+                ELSE is_recording END, \
+            recording_url = COALESCE($5, recording_url), updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 \
+         RETURNING recording_consent, is_recording, recording_url",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(body.recording_consent)
+    .bind(body.is_recording)
+    .bind(&body.recording_url)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+// ── Follow-up scheduling from within a session (#2947) ─────────────────────
+
+#[derive(Debug, serde::Deserialize)]
+pub struct ScheduleFollowUpRequest {
+    pub scheduled_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// `POST /api/telemedicine/consultations/{id}/follow-up` — schedule a follow-up consult, copying
+/// the patient / doctor / provider from this one and linking it via follow_up_of.
+pub async fn schedule_follow_up(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ScheduleFollowUpRequest>,
+) -> Result<Json<TeleConsultation>, AppError> {
+    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, TeleConsultation>(
+        "INSERT INTO tele_consultations \
+         (tenant_id, patient_id, doctor_id, provider, status, scheduled_at, room_id, \
+          follow_up_of, created_by) \
+         SELECT tenant_id, patient_id, doctor_id, provider, 'scheduled', $3, \
+                'mb-' || gen_random_uuid()::text, id, $4 \
+         FROM tele_consultations WHERE id = $1 AND tenant_id = $2 RETURNING *",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(body.scheduled_at)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

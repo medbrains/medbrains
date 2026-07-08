@@ -14180,6 +14180,19 @@ export const api = {
     request<WaitingRoomItem[]>(
       `/telemedicine/waiting-room${doctorId ? `?doctor_id=${doctorId}` : ""}`,
     ),
+  updateTeleRecording: (
+    id: string,
+    data: { recording_consent?: boolean; is_recording?: boolean; recording_url?: string },
+  ) =>
+    request<{ recording_consent: boolean; is_recording: boolean; recording_url: string | null }>(
+      `/telemedicine/consultations/${id}/recording`,
+      { method: "PUT", body: JSON.stringify(data) },
+    ),
+  scheduleTeleFollowUp: (id: string, data: { scheduled_at: string }) =>
+    request<TeleConsultation>(`/telemedicine/consultations/${id}/follow-up`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateTeleStatus: (id: string, data: UpdateTeleStatusRequest) =>
     request<TeleConsultation>(`/telemedicine/consultations/${id}/status`, {
       method: "PUT",
