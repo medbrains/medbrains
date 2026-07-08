@@ -12,6 +12,7 @@ use medbrains_core::ot::{
     OtSurgeonPreference, OtSurgicalSafetyChecklist,
 };
 use medbrains_core::permissions;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -816,6 +817,35 @@ pub async fn update_booking_status(
                 )
                 .await;
             }
+        }
+
+        // Consumables used in theatre — billed at their recorded unit price so the OT bill
+        // reflects the actual materials, not just the procedure fee. Idempotent per usage row.
+        let consumables: Vec<(Uuid, String, i32, Option<Decimal>)> = sqlx::query_as(
+            "SELECT id, item_name, GREATEST(ROUND(quantity)::int, 1) AS qty, unit_price \
+             FROM ot_consumable_usage WHERE tenant_id = $1 AND booking_id = $2",
+        )
+        .bind(claims.tenant_id)
+        .bind(row.id)
+        .fetch_all(&mut *tx)
+        .await?;
+        for (usage_id, item_name, qty, unit_price) in consumables {
+            let _ = super::billing::auto_charge(
+                &mut tx,
+                &claims.tenant_id,
+                super::billing::AutoChargeInput {
+                    patient_id: row.patient_id,
+                    encounter_id: Some(encounter_id),
+                    charge_code: "OT_CONSUMABLE".to_owned(),
+                    source: "ot".to_owned(),
+                    source_id: usage_id,
+                    quantity: qty,
+                    description_override: Some(item_name),
+                    unit_price_override: unit_price,
+                    tax_percent_override: None,
+                },
+            )
+            .await;
         }
     }
 
