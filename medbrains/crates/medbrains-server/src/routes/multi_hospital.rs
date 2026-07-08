@@ -77,6 +77,17 @@ async fn require_group_access(
     }
 }
 
+/// Group-structure operations (create/edit/delete a group or region, move hospitals between
+/// groups) are platform-operator only — a hospital's own admin (who bypasses require_permission)
+/// must not restructure chains.
+fn require_super_admin(claims: &Claims) -> Result<(), AppError> {
+    if claims.role == "super_admin" {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden)
+    }
+}
+
 /// Ensure a target hospital (tenant) shares the caller's group — so a hospital can't grant a
 /// user access to, or otherwise act on, a hospital outside its own chain. Super-admins pass.
 async fn require_tenant_in_group(
@@ -147,6 +158,7 @@ pub async fn create_group(
     Json(payload): Json<CreateHospitalGroup>,
 ) -> Result<Json<HospitalGroup>, AppError> {
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    require_super_admin(&claims)?;
     let row = sqlx::query_as::<_, HospitalGroup>(
         "INSERT INTO hospital_groups \
          (code, name, display_name, headquarters_address, phone, email, website, logo_url, \
@@ -178,7 +190,7 @@ pub async fn update_group(
     Json(payload): Json<UpdateHospitalGroup>,
 ) -> Result<Json<HospitalGroup>, AppError> {
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
-    require_group_access(&state, &claims, id).await?;
+    require_super_admin(&claims)?;
     let row = sqlx::query_as::<_, HospitalGroup>(
         "UPDATE hospital_groups SET \
             name = COALESCE($2, name), display_name = COALESCE($3, display_name), \
@@ -216,7 +228,7 @@ pub async fn delete_group(
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
-    require_group_access(&state, &claims, id).await?;
+    require_super_admin(&claims)?;
     sqlx::query("UPDATE hospital_groups SET is_active = false, updated_at = now() WHERE id = $1")
         .bind(id)
         .execute(&state.db)
@@ -265,7 +277,7 @@ pub async fn create_region(
     Json(payload): Json<CreateHospitalRegion>,
 ) -> Result<Json<HospitalRegion>, AppError> {
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
-    require_group_access(&state, &claims, payload.group_id).await?;
+    require_super_admin(&claims)?;
     let row = sqlx::query_as::<_, HospitalRegion>(
         "INSERT INTO hospital_regions \
          (group_id, code, name, country, states, regional_head_name, \
@@ -292,6 +304,7 @@ pub async fn delete_region(
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    require_super_admin(&claims)?;
     sqlx::query("UPDATE hospital_regions SET is_active = false, updated_at = now() WHERE id = $1")
         .bind(id)
         .execute(&state.db)
@@ -327,6 +340,7 @@ pub async fn assign_hospital_to_group(
     Json(payload): Json<AssignHospitalToGroup>,
 ) -> Result<Json<HospitalInGroup>, AppError> {
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    require_super_admin(&claims)?;
     let row = sqlx::query_as::<_, HospitalInGroup>(
         "UPDATE tenants SET group_id = $2, region_id = $3, branch_code = $4, \
             is_headquarters = COALESCE($5, is_headquarters), updated_at = now() \
@@ -352,6 +366,7 @@ pub async fn remove_hospital_from_group(
     Path(tenant_id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    require_super_admin(&claims)?;
     sqlx::query(
         "UPDATE tenants SET group_id = NULL, region_id = NULL, branch_code = NULL, \
             updated_at = now() WHERE id = $1",
