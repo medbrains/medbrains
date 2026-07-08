@@ -7882,6 +7882,16 @@ export interface HealthPackage {
   created_at: string;
 }
 
+/** A telemedicine chat message (video fallback) (#2948). */
+export interface TeleChatMessage {
+  id: string;
+  consultation_id: string;
+  sender_role: string;
+  sender_id: string | null;
+  body: string;
+  sent_at: string;
+}
+
 /** A patient in the telemedicine waiting room with queue position (#2945). */
 export interface WaitingRoomItem {
   id: string;

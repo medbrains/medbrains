@@ -1674,6 +1674,7 @@ import type {
   TdsCertificatePrintData,
   TdsDeduction,
   TeachingConsentPrintData,
+  TeleChatMessage,
   TeleConsultation,
   TeleConsultationListItem,
   TeleJoinInfo,
@@ -14190,6 +14191,13 @@ export const api = {
     ),
   scheduleTeleFollowUp: (id: string, data: { scheduled_at: string }) =>
     request<TeleConsultation>(`/telemedicine/consultations/${id}/follow-up`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listTeleChat: (id: string) =>
+    request<TeleChatMessage[]>(`/telemedicine/consultations/${id}/chat`),
+  postTeleChat: (id: string, data: { body: string; sender_role?: string }) =>
+    request<TeleChatMessage>(`/telemedicine/consultations/${id}/chat`, {
       method: "POST",
       body: JSON.stringify(data),
     }),

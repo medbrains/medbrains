@@ -470,3 +470,76 @@ pub async fn schedule_follow_up(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── Chat messaging fallback (#2948) ────────────────────────────────────────
+
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct TeleChatMessage {
+    pub id: Uuid,
+    pub consultation_id: Uuid,
+    pub sender_role: String,
+    pub sender_id: Option<Uuid>,
+    pub body: String,
+    pub sent_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// `GET /api/telemedicine/consultations/{id}/chat` — the chat thread for a consultation.
+pub async fn list_chat(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<TeleChatMessage>>, AppError> {
+    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, TeleChatMessage>(
+        "SELECT id, consultation_id, sender_role, sender_id, body, sent_at \
+         FROM tele_chat_messages WHERE tenant_id = $1 AND consultation_id = $2 \
+         ORDER BY sent_at LIMIT 1000",
+    )
+    .bind(claims.tenant_id)
+    .bind(id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct PostChatRequest {
+    pub body: String,
+    pub sender_role: Option<String>,
+}
+
+/// `POST /api/telemedicine/consultations/{id}/chat` — post a chat message.
+pub async fn post_chat(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<PostChatRequest>,
+) -> Result<Json<TeleChatMessage>, AppError> {
+    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    if body.body.trim().is_empty() {
+        return Err(AppError::BadRequest("Message body is required".to_owned()));
+    }
+    let role = body.sender_role.as_deref().unwrap_or("doctor");
+    if !["doctor", "patient", "system"].contains(&role) {
+        return Err(AppError::BadRequest("Invalid sender role".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, TeleChatMessage>(
+        "INSERT INTO tele_chat_messages (tenant_id, consultation_id, sender_role, sender_id, body) \
+         VALUES ($1, $2, $3, $4, $5) \
+         RETURNING id, consultation_id, sender_role, sender_id, body, sent_at",
+    )
+    .bind(claims.tenant_id)
+    .bind(id)
+    .bind(role)
+    .bind(claims.sub)
+    .bind(body.body.trim())
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

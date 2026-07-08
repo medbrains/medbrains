@@ -85,6 +85,58 @@ function WaitingRoom() {
   );
 }
 
+function ChatModal({ consultationId, onClose }: { consultationId: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [text, setText] = useState("");
+  const { data = [] } = useQuery({
+    queryKey: ["tele-chat", consultationId],
+    queryFn: () => telemedicineService.listTeleChat(consultationId),
+    refetchInterval: 5_000,
+  });
+  const send = useMutation({
+    mutationFn: () => telemedicineService.postTeleChat(consultationId, { body: text }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["tele-chat", consultationId] });
+      setText("");
+    },
+    onError: (e: Error) =>
+      notifications.show({ title: "Send failed", message: e.message, color: "danger" }),
+  });
+  return (
+    <Modal opened onClose={onClose} title="Consultation chat" size="md">
+      <Stack gap="sm">
+        <Stack gap="xs" style={{ maxHeight: 300, overflowY: "auto" }}>
+          {data.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              No messages yet.
+            </Text>
+          ) : (
+            data.map((m) => (
+              <Group key={m.id} gap={6}>
+                <Badge tone={m.sender_role === "doctor" ? "info" : "neutral"} size="xs">
+                  {m.sender_role}
+                </Badge>
+                <Text size="sm">{m.body}</Text>
+              </Group>
+            ))
+          )}
+        </Stack>
+        <Group align="flex-end" gap="xs">
+          <TextInput
+            value={text}
+            onChange={(e) => setText(e.currentTarget.value)}
+            placeholder="Message…"
+            style={{ flex: 1 }}
+          />
+          <Button onClick={() => send.mutate()} loading={send.isPending} disabled={!text.trim()}>
+            Send
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
+  );
+}
+
 export function TelemedicinePage() {
   useRequirePermission(P.OPD.QUEUE_VIEW);
   const canCreate = useHasPermission(P.OPD.VISIT_CREATE);
@@ -94,6 +146,7 @@ export function TelemedicinePage() {
   const [form, setForm] = useState<CreateForm>(EMPTY_FORM);
   const [followUpId, setFollowUpId] = useState<string | null>(null);
   const [followUpDate, setFollowUpDate] = useState<string | null>(null);
+  const [chatId, setChatId] = useState<string | null>(null);
 
   const {
     data: consults = [],
@@ -349,6 +402,7 @@ export function TelemedicinePage() {
                           >
                             Add to Google Calendar
                           </Menu.Item>
+                          <Menu.Item onClick={() => setChatId(c.id)}>Chat</Menu.Item>
                           <Menu.Item onClick={() => setFollowUpId(c.id)}>
                             Schedule follow-up
                           </Menu.Item>
@@ -484,6 +538,8 @@ export function TelemedicinePage() {
           </Button>
         </Stack>
       </Modal>
+
+      {chatId && <ChatModal consultationId={chatId} onClose={() => setChatId(null)} />}
     </Stack>
   );
 }
