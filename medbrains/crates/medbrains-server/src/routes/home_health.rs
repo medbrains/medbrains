@@ -1002,3 +1002,131 @@ pub async fn record_caregiver_education(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── Hospice enrollment (#2972) ─────────────────────────────────────────────
+
+const HOSPICE_COLS: &str = "id, patient_id, enrolled_date, terminal_diagnosis, prognosis, \
+     comfort_care_plan, dnr_confirmed, primary_caregiver, status, discharge_date, notes, created_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct HospiceEnrollment {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub enrolled_date: chrono::NaiveDate,
+    pub terminal_diagnosis: Option<String>,
+    pub prognosis: Option<String>,
+    pub comfort_care_plan: Option<String>,
+    pub dnr_confirmed: bool,
+    pub primary_caregiver: Option<String>,
+    pub status: String,
+    pub discharge_date: Option<chrono::NaiveDate>,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// `GET /api/home-health/hospice?patient_id=` — a patient's hospice enrollments.
+pub async fn list_hospice_enrollments(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<HomeMedQuery>,
+) -> Result<Json<Vec<HospiceEnrollment>>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, HospiceEnrollment>(&format!(
+        "SELECT {HOSPICE_COLS} FROM hospice_enrollments \
+         WHERE tenant_id = $1 AND patient_id = $2 ORDER BY enrolled_date DESC LIMIT 100"
+    ))
+    .bind(claims.tenant_id)
+    .bind(q.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EnrollHospiceRequest {
+    pub patient_id: Uuid,
+    pub terminal_diagnosis: Option<String>,
+    pub prognosis: Option<String>,
+    pub comfort_care_plan: Option<String>,
+    pub dnr_confirmed: Option<bool>,
+    pub primary_caregiver: Option<String>,
+    pub notes: Option<String>,
+}
+
+/// `POST /api/home-health/hospice` — enroll a patient in the hospice program.
+pub async fn enroll_hospice(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<EnrollHospiceRequest>,
+) -> Result<Json<HospiceEnrollment>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, HospiceEnrollment>(&format!(
+        "INSERT INTO hospice_enrollments \
+         (tenant_id, patient_id, terminal_diagnosis, prognosis, comfort_care_plan, dnr_confirmed, \
+          primary_caregiver, enrolled_by, notes) \
+         VALUES ($1, $2, $3, $4, $5, COALESCE($6, false), $7, $8, $9) RETURNING {HOSPICE_COLS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(&body.terminal_diagnosis)
+    .bind(&body.prognosis)
+    .bind(&body.comfort_care_plan)
+    .bind(body.dnr_confirmed)
+    .bind(&body.primary_caregiver)
+    .bind(claims.sub)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateHospiceRequest {
+    pub status: Option<String>,
+    pub comfort_care_plan: Option<String>,
+    pub prognosis: Option<String>,
+    pub notes: Option<String>,
+}
+
+/// `PUT /api/hospice/{id}` — update the care plan / prognosis or close the enrollment.
+pub async fn update_hospice(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateHospiceRequest>,
+) -> Result<Json<HospiceEnrollment>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    if let Some(s) = &body.status {
+        if !["active", "discharged", "deceased"].contains(&s.as_str()) {
+            return Err(AppError::BadRequest("Invalid hospice status".to_owned()));
+        }
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, HospiceEnrollment>(&format!(
+        "UPDATE hospice_enrollments SET status = COALESCE($3, status), \
+            comfort_care_plan = COALESCE($4, comfort_care_plan), \
+            prognosis = COALESCE($5, prognosis), notes = COALESCE($6, notes), \
+            discharge_date = CASE WHEN $3 IN ('discharged', 'deceased') THEN CURRENT_DATE \
+                                  ELSE discharge_date END, \
+            updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 RETURNING {HOSPICE_COLS}"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(&body.status)
+    .bind(&body.comfort_care_plan)
+    .bind(&body.prognosis)
+    .bind(&body.notes)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

@@ -3354,6 +3354,11 @@ pub fn build_router(state: AppState) -> Router {
             get(home_health::list_caregiver_education)
                 .post(home_health::record_caregiver_education),
         )
+        .route(
+            "/api/home-health/hospice",
+            get(home_health::list_hospice_enrollments).post(home_health::enroll_hospice),
+        )
+        .route("/api/hospice/{id}", put(home_health::update_hospice))
         // ── Case-sheet digitization (B2 ingestion) ──
         .route(
             "/api/case-sheets/scans",

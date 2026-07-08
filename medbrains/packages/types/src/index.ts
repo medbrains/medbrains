@@ -7826,6 +7826,22 @@ export interface CaseSheetScan {
   updated_at: string;
 }
 
+/** A hospice / palliative program enrollment (#2972). */
+export interface HospiceEnrollment {
+  id: string;
+  patient_id: string;
+  enrolled_date: string;
+  terminal_diagnosis: string | null;
+  prognosis: string | null;
+  comfort_care_plan: string | null;
+  dnr_confirmed: boolean;
+  primary_caregiver: string | null;
+  status: string;
+  discharge_date: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
 /** A caregiver education session record (#2971). */
 export interface CaregiverEducation {
   id: string;

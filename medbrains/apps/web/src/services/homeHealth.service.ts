@@ -24,4 +24,7 @@ export const homeHealthService = {
   billHomeVisit: api.billHomeVisit,
   listCaregiverEducation: api.listCaregiverEducation,
   recordCaregiverEducation: api.recordCaregiverEducation,
+  listHospiceEnrollments: api.listHospiceEnrollments,
+  enrollHospice: api.enrollHospice,
+  updateHospice: api.updateHospice,
 };

@@ -979,6 +979,7 @@ import type {
   HomeMedAdministration,
   HomeProgressNote,
   HomeVisit,
+  HospiceEnrollment,
   HospitalBrandingPrintData,
   // Multi-Hospital Management
   HospitalGroup,
@@ -6032,6 +6033,25 @@ export const api = {
     request<HomeCarePackage[]>(`/home-health/packages?patient_id=${patientId}`),
   listCaregiverEducation: (patientId: string) =>
     request<CaregiverEducation[]>(`/home-health/caregiver-education?patient_id=${patientId}`),
+  listHospiceEnrollments: (patientId: string) =>
+    request<HospiceEnrollment[]>(`/home-health/hospice?patient_id=${patientId}`),
+  enrollHospice: (data: {
+    patient_id: string;
+    terminal_diagnosis?: string;
+    prognosis?: string;
+    comfort_care_plan?: string;
+    dnr_confirmed?: boolean;
+    primary_caregiver?: string;
+    notes?: string;
+  }) =>
+    request<HospiceEnrollment>("/home-health/hospice", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateHospice: (
+    id: string,
+    data: { status?: string; comfort_care_plan?: string; prognosis?: string; notes?: string },
+  ) => request<HospiceEnrollment>(`/hospice/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   recordCaregiverEducation: (data: {
     patient_id: string;
     caregiver_name: string;
