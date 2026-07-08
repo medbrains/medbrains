@@ -13,4 +13,8 @@ export const multiHospitalService = {
   assignHospitalToGroup: api.assignHospitalToGroup,
   removeHospitalFromGroup: api.removeHospitalFromGroup,
   getGroupDashboard: api.getGroupDashboard,
+  listOutgoingStockTransfers: api.listOutgoingStockTransfers,
+  listIncomingStockTransfers: api.listIncomingStockTransfers,
+  createStockTransfer: api.createStockTransfer,
+  updateStockTransferStatus: api.updateStockTransferStatus,
 };

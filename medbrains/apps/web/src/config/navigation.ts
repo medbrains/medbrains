@@ -725,6 +725,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         requiredPermission: "admin.system_state.view",
       },
       {
+        i18nKey: "interHospitalStock",
+        path: "/inter-hospital-stock",
+        icon: "IconPackage",
+        requiredPermission: "ipd.transfers.create",
+      },
+      {
         i18nKey: "icu",
         path: "/icu",
         icon: "IconHeartRateMonitor",
