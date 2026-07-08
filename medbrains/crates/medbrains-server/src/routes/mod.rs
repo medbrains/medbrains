@@ -3247,6 +3247,14 @@ pub fn build_router(state: AppState) -> Router {
             "/api/home-health/medications/{id}",
             put(home_health::record_home_med),
         )
+        .route(
+            "/api/home-health/escalations",
+            get(home_health::list_escalations).post(home_health::raise_escalation),
+        )
+        .route(
+            "/api/home-health/escalations/{id}",
+            put(home_health::update_escalation),
+        )
         // ── Case-sheet digitization (B2 ingestion) ──
         .route(
             "/api/case-sheets/scans",

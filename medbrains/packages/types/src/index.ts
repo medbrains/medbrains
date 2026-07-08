@@ -7846,6 +7846,23 @@ export interface HomeMedAdministration {
   updated_at: string;
 }
 
+/** A Home Healthcare emergency escalation (vitals breach → ambulance). */
+export interface HomeEscalation {
+  id: string;
+  tenant_id: string;
+  patient_id: string;
+  reason: string;
+  vital_details: unknown;
+  severity: string;
+  status: string;
+  raised_by: string | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /** A nurse on duty in a ward today (care-view "who's caring for this ward now"). */
 export interface WardOnDutyRow {
   nurse_user_id: string;

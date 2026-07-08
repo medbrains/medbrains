@@ -148,3 +148,123 @@ pub async fn record_home_med(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── Emergency escalation protocol (#2980) ──────────────────────────────────
+
+const ESC_COLS: &str = "id, tenant_id, patient_id, reason, vital_details, severity, status, \
+     raised_by, resolved_by, resolved_at, notes, created_at, updated_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct HomeEscalation {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub patient_id: Uuid,
+    pub reason: String,
+    pub vital_details: serde_json::Value,
+    pub severity: String,
+    pub status: String,
+    pub raised_by: Option<Uuid>,
+    pub resolved_by: Option<Uuid>,
+    pub resolved_at: Option<DateTime<Utc>>,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// `GET /api/home-health/escalations?patient_id=` — a patient's escalation history.
+pub async fn list_escalations(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<HomeMedQuery>,
+) -> Result<Json<Vec<HomeEscalation>>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, HomeEscalation>(&format!(
+        "SELECT {ESC_COLS} FROM home_escalations \
+         WHERE tenant_id = $1 AND patient_id = $2 ORDER BY created_at DESC LIMIT 500"
+    ))
+    .bind(claims.tenant_id)
+    .bind(q.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RaiseEscalationRequest {
+    pub patient_id: Uuid,
+    pub reason: String,
+    pub severity: Option<String>,
+    pub vital_details: Option<serde_json::Value>,
+}
+
+/// `POST /api/home-health/escalations` — raise an escalation (vitals breach / nurse judgement).
+pub async fn raise_escalation(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<RaiseEscalationRequest>,
+) -> Result<Json<HomeEscalation>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    if body.reason.trim().is_empty() {
+        return Err(AppError::BadRequest("A reason is required".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, HomeEscalation>(&format!(
+        "INSERT INTO home_escalations \
+         (tenant_id, patient_id, reason, vital_details, severity, raised_by) \
+         VALUES ($1, $2, $3, COALESCE($4, '{{}}'::jsonb), COALESCE($5, 'high'), $6) \
+         RETURNING {ESC_COLS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(body.reason.trim())
+    .bind(&body.vital_details)
+    .bind(&body.severity)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateEscalationRequest {
+    /// ambulance_requested | resolved | cancelled.
+    pub status: String,
+    pub notes: Option<String>,
+}
+
+/// `PUT /api/home-health/escalations/{id}` — advance an escalation (request ambulance / resolve).
+pub async fn update_escalation(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateEscalationRequest>,
+) -> Result<Json<HomeEscalation>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    if !["ambulance_requested", "resolved", "cancelled"].contains(&body.status.as_str()) {
+        return Err(AppError::BadRequest("Invalid escalation status".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, HomeEscalation>(&format!(
+        "UPDATE home_escalations SET status = $3, notes = COALESCE($4, notes), \
+            resolved_by = CASE WHEN $3 IN ('resolved', 'cancelled') THEN $5 ELSE resolved_by END, \
+            resolved_at = CASE WHEN $3 IN ('resolved', 'cancelled') THEN now() ELSE resolved_at END, \
+            updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 RETURNING {ESC_COLS}"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(&body.status)
+    .bind(&body.notes)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

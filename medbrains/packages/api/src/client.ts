@@ -971,6 +971,7 @@ import type {
   HistopathReportPrintData,
   HomeCollectionStatsRow,
   HomeCollectionStatusRequest,
+  HomeEscalation,
   HomeMedAdministration,
   HospitalBrandingPrintData,
   // Multi-Hospital Management
@@ -5912,6 +5913,23 @@ export const api = {
     data: { status?: string; administration_site?: string; notes?: string },
   ) =>
     request<HomeMedAdministration>(`/home-health/medications/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listEscalations: (patientId: string) =>
+    request<HomeEscalation[]>(`/home-health/escalations?patient_id=${patientId}`),
+  raiseEscalation: (data: {
+    patient_id: string;
+    reason: string;
+    severity?: string;
+    vital_details?: unknown;
+  }) =>
+    request<HomeEscalation>("/home-health/escalations", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateEscalation: (id: string, data: { status: string; notes?: string }) =>
+    request<HomeEscalation>(`/home-health/escalations/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
