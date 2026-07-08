@@ -976,6 +976,7 @@ import type {
   HomeEscalation,
   HomeMedAdministration,
   HomeProgressNote,
+  HomeVisit,
   HospitalBrandingPrintData,
   // Multi-Hospital Management
   HospitalGroup,
@@ -6022,6 +6023,26 @@ export const api = {
     }),
   listHomeMeds: (patientId: string) =>
     request<HomeMedAdministration[]>(`/home-health/medications?patient_id=${patientId}`),
+  listHomeVisits: (params?: { date?: string; nurse_id?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.date) qs.set("date", params.date);
+    if (params?.nurse_id) qs.set("nurse_id", params.nurse_id);
+    const q = qs.toString();
+    return request<HomeVisit[]>(`/home-health/visits${q ? `?${q}` : ""}`);
+  },
+  scheduleHomeVisit: (data: {
+    patient_id: string;
+    nurse_id?: string;
+    scheduled_date: string;
+    scheduled_time?: string;
+    address?: string;
+    purpose?: string;
+    visit_order?: number;
+  }) => request<HomeVisit>("/home-health/visits", { method: "POST", body: JSON.stringify(data) }),
+  updateHomeVisit: (
+    id: string,
+    data: { status?: string; nurse_id?: string; visit_order?: number },
+  ) => request<HomeVisit>(`/home-visits/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   scheduleHomeMed: (data: {
     patient_id: string;
     drug_name: string;

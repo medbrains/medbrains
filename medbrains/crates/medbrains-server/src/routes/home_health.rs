@@ -461,3 +461,152 @@ pub async fn toggle_discharge_item(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── Home visit scheduling + nurse assignment (#2967) ───────────────────────
+
+const VISIT_COLS: &str = "hv.id, hv.patient_id, p.first_name, p.last_name, hv.nurse_id, \
+     NULLIF(TRIM(CONCAT(e.first_name, ' ', COALESCE(e.last_name, ''))), '') AS nurse_name, \
+     hv.scheduled_date, hv.scheduled_time, hv.address, hv.purpose, \
+     hv.status, hv.visit_order, hv.notes, hv.completed_at, hv.created_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct HomeVisit {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub nurse_id: Option<Uuid>,
+    pub nurse_name: Option<String>,
+    pub scheduled_date: chrono::NaiveDate,
+    pub scheduled_time: Option<chrono::NaiveTime>,
+    pub address: Option<String>,
+    pub purpose: Option<String>,
+    pub status: String,
+    pub visit_order: Option<i32>,
+    pub notes: Option<String>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HomeVisitQuery {
+    pub date: Option<chrono::NaiveDate>,
+    pub nurse_id: Option<Uuid>,
+}
+
+/// `GET /api/home-health/visits?date=&nurse_id=` — the home-visit round for a day (optionally by nurse).
+pub async fn list_home_visits(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<HomeVisitQuery>,
+) -> Result<Json<Vec<HomeVisit>>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, HomeVisit>(&format!(
+        "SELECT {VISIT_COLS} FROM home_visits hv \
+         LEFT JOIN patients p ON p.id = hv.patient_id \
+         LEFT JOIN employees e ON e.id = hv.nurse_id \
+         WHERE hv.tenant_id = $1 AND ($2::date IS NULL OR hv.scheduled_date = $2) \
+           AND ($3::uuid IS NULL OR hv.nurse_id = $3) \
+         ORDER BY hv.scheduled_date, hv.visit_order NULLS LAST, hv.scheduled_time LIMIT 1000"
+    ))
+    .bind(claims.tenant_id)
+    .bind(q.date)
+    .bind(q.nurse_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ScheduleHomeVisitRequest {
+    pub patient_id: Uuid,
+    pub nurse_id: Option<Uuid>,
+    pub scheduled_date: chrono::NaiveDate,
+    pub scheduled_time: Option<chrono::NaiveTime>,
+    pub address: Option<String>,
+    pub purpose: Option<String>,
+    pub visit_order: Option<i32>,
+}
+
+/// `POST /api/home-health/visits` — schedule a home visit + assign a nurse.
+pub async fn schedule_home_visit(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<ScheduleHomeVisitRequest>,
+) -> Result<Json<HomeVisit>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let new_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO home_visits \
+         (tenant_id, patient_id, nurse_id, scheduled_date, scheduled_time, address, purpose, visit_order) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(body.nurse_id)
+    .bind(body.scheduled_date)
+    .bind(body.scheduled_time)
+    .bind(&body.address)
+    .bind(&body.purpose)
+    .bind(body.visit_order)
+    .fetch_one(&mut *tx)
+    .await?;
+    let row = sqlx::query_as::<_, HomeVisit>(&format!(
+        "SELECT {VISIT_COLS} FROM home_visits hv \
+         LEFT JOIN patients p ON p.id = hv.patient_id \
+         LEFT JOIN employees e ON e.id = hv.nurse_id WHERE hv.id = $1"
+    ))
+    .bind(new_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateHomeVisitRequest {
+    pub status: Option<String>,
+    pub nurse_id: Option<Uuid>,
+    pub visit_order: Option<i32>,
+}
+
+/// `PUT /api/home-visits/{id}` — reassign nurse / reorder the round / advance status.
+pub async fn update_home_visit(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateHomeVisitRequest>,
+) -> Result<Json<HomeVisit>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    if let Some(s) = &body.status {
+        if !["scheduled", "en_route", "completed", "cancelled", "missed"].contains(&s.as_str()) {
+            return Err(AppError::BadRequest("Invalid visit status".to_owned()));
+        }
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, HomeVisit>(&format!(
+        "WITH upd AS ( \
+           UPDATE home_visits SET status = COALESCE($3, status), \
+             nurse_id = COALESCE($4, nurse_id), visit_order = COALESCE($5, visit_order), \
+             completed_at = CASE WHEN $3 = 'completed' THEN now() ELSE completed_at END, \
+             updated_at = now() WHERE id = $1 AND tenant_id = $2 RETURNING id) \
+         SELECT {VISIT_COLS} FROM home_visits hv \
+         LEFT JOIN patients p ON p.id = hv.patient_id \
+         LEFT JOIN employees e ON e.id = hv.nurse_id WHERE hv.id = (SELECT id FROM upd)"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(&body.status)
+    .bind(body.nurse_id)
+    .bind(body.visit_order)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

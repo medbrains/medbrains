@@ -7826,6 +7826,25 @@ export interface CaseSheetScan {
   updated_at: string;
 }
 
+/** A scheduled home visit assigned to a nurse (#2967). */
+export interface HomeVisit {
+  id: string;
+  patient_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  nurse_id: string | null;
+  nurse_name: string | null;
+  scheduled_date: string;
+  scheduled_time: string | null;
+  address: string | null;
+  purpose: string | null;
+  status: string;
+  visit_order: number | null;
+  notes: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
 /** A home medication administration (Hospital-at-Home eMAR — IV antibiotics / infusions). */
 export interface HomeMedAdministration {
   id: string;

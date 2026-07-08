@@ -12,4 +12,7 @@ export const homeHealthService = {
   listDischargeProgram: api.listDischargeProgram,
   addDischargeItem: api.addDischargeItem,
   toggleDischargeItem: api.toggleDischargeItem,
+  listHomeVisits: api.listHomeVisits,
+  scheduleHomeVisit: api.scheduleHomeVisit,
+  updateHomeVisit: api.updateHomeVisit,
 };
