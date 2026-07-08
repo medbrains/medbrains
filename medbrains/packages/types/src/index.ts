@@ -7846,6 +7846,20 @@ export interface HomeMedAdministration {
   updated_at: string;
 }
 
+/** A Home Healthcare daily clinical progress note (visiting nurse / remote physician). */
+export interface HomeProgressNote {
+  id: string;
+  tenant_id: string;
+  patient_id: string;
+  note_date: string;
+  author_id: string | null;
+  author_role: string;
+  note_text: string;
+  vitals: unknown;
+  created_at: string;
+  updated_at: string;
+}
+
 /** A Home Healthcare emergency escalation (vitals breach → ambulance). */
 export interface HomeEscalation {
   id: string;

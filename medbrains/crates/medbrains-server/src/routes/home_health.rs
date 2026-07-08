@@ -268,3 +268,84 @@ pub async fn update_escalation(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── Daily clinical progress notes (#2981) ──────────────────────────────────
+
+const NOTE_COLS: &str = "id, tenant_id, patient_id, note_date, author_id, author_role, \
+     note_text, vitals, created_at, updated_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct HomeProgressNote {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub patient_id: Uuid,
+    pub note_date: chrono::NaiveDate,
+    pub author_id: Option<Uuid>,
+    pub author_role: String,
+    pub note_text: String,
+    pub vitals: serde_json::Value,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// `GET /api/home-health/progress-notes?patient_id=` — a patient's home progress notes.
+pub async fn list_progress_notes(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<HomeMedQuery>,
+) -> Result<Json<Vec<HomeProgressNote>>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, HomeProgressNote>(&format!(
+        "SELECT {NOTE_COLS} FROM home_progress_notes \
+         WHERE tenant_id = $1 AND patient_id = $2 ORDER BY note_date DESC, created_at DESC LIMIT 500"
+    ))
+    .bind(claims.tenant_id)
+    .bind(q.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddProgressNoteRequest {
+    pub patient_id: Uuid,
+    pub author_role: Option<String>,
+    pub note_text: String,
+    pub vitals: Option<serde_json::Value>,
+}
+
+/// `POST /api/home-health/progress-notes` — the visiting nurse / remote physician writes a note.
+pub async fn add_progress_note(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<AddProgressNoteRequest>,
+) -> Result<Json<HomeProgressNote>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    if body.note_text.trim().is_empty() {
+        return Err(AppError::BadRequest("Note text is required".to_owned()));
+    }
+    let role = body.author_role.as_deref().unwrap_or("nurse");
+    if !["nurse", "physician"].contains(&role) {
+        return Err(AppError::BadRequest("Invalid author role".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, HomeProgressNote>(&format!(
+        "INSERT INTO home_progress_notes \
+         (tenant_id, patient_id, author_id, author_role, note_text, vitals) \
+         VALUES ($1, $2, $3, $4, $5, COALESCE($6, '{{}}'::jsonb)) RETURNING {NOTE_COLS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(claims.sub)
+    .bind(role)
+    .bind(body.note_text.trim())
+    .bind(&body.vitals)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

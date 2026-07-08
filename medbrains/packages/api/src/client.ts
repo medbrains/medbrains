@@ -973,6 +973,7 @@ import type {
   HomeCollectionStatusRequest,
   HomeEscalation,
   HomeMedAdministration,
+  HomeProgressNote,
   HospitalBrandingPrintData,
   // Multi-Hospital Management
   HospitalGroup,
@@ -5914,6 +5915,18 @@ export const api = {
   ) =>
     request<HomeMedAdministration>(`/home-health/medications/${id}`, {
       method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listHomeProgressNotes: (patientId: string) =>
+    request<HomeProgressNote[]>(`/home-health/progress-notes?patient_id=${patientId}`),
+  addHomeProgressNote: (data: {
+    patient_id: string;
+    author_role?: string;
+    note_text: string;
+    vitals?: unknown;
+  }) =>
+    request<HomeProgressNote>("/home-health/progress-notes", {
+      method: "POST",
       body: JSON.stringify(data),
     }),
   listEscalations: (patientId: string) =>

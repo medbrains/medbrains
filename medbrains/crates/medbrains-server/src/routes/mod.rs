@@ -3255,6 +3255,10 @@ pub fn build_router(state: AppState) -> Router {
             "/api/home-health/escalations/{id}",
             put(home_health::update_escalation),
         )
+        .route(
+            "/api/home-health/progress-notes",
+            get(home_health::list_progress_notes).post(home_health::add_progress_note),
+        )
         // ── Case-sheet digitization (B2 ingestion) ──
         .route(
             "/api/case-sheets/scans",
