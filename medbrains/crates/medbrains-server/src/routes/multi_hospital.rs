@@ -51,6 +51,32 @@ pub struct PeriodQuery {
     pub period: Option<String>,
 }
 
+/// Ensure the caller may act on this group. Platform super-admins may touch any group; everyone
+/// else (incl. a hospital's own admin) must belong to it — this stops a hospital from reading or
+/// mutating another chain's data by guessing its `group_id`. The `hospital_groups`/`tenants`
+/// tables are RLS-off (global), so this authz check has to be explicit.
+async fn require_group_access(
+    state: &AppState,
+    claims: &Claims,
+    group_id: Uuid,
+) -> Result<(), AppError> {
+    if claims.role == "super_admin" {
+        return Ok(());
+    }
+    let member = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (SELECT 1 FROM tenants WHERE id = $1 AND group_id = $2)",
+    )
+    .bind(claims.tenant_id)
+    .bind(group_id)
+    .fetch_one(&state.db)
+    .await?;
+    if member {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden)
+    }
+}
+
 // ── Hospital Groups ───────────────────────────────────────────────────────────
 
 /// List all active hospital groups. Global (cross-tenant) — platform admins only.
@@ -59,9 +85,14 @@ pub async fn list_groups(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<HospitalGroup>>, AppError> {
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    // Platform super-admins see every chain; everyone else sees only their own group.
     let rows = sqlx::query_as::<_, HospitalGroup>(
-        "SELECT * FROM hospital_groups WHERE is_active = true ORDER BY name LIMIT 1000",
+        "SELECT * FROM hospital_groups WHERE is_active = true \
+           AND ($1 OR id = (SELECT group_id FROM tenants WHERE id = $2)) \
+         ORDER BY name LIMIT 1000",
     )
+    .bind(claims.role == "super_admin")
+    .bind(claims.tenant_id)
     .fetch_all(&state.db)
     .await?;
     Ok(Json(rows))
@@ -74,6 +105,7 @@ pub async fn get_group(
     Path(id): Path<Uuid>,
 ) -> Result<Json<HospitalGroup>, AppError> {
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    require_group_access(&state, &claims, id).await?;
     let row = sqlx::query_as::<_, HospitalGroup>("SELECT * FROM hospital_groups WHERE id = $1")
         .bind(id)
         .fetch_optional(&state.db)
@@ -120,6 +152,7 @@ pub async fn update_group(
     Json(payload): Json<UpdateHospitalGroup>,
 ) -> Result<Json<HospitalGroup>, AppError> {
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    require_group_access(&state, &claims, id).await?;
     let row = sqlx::query_as::<_, HospitalGroup>(
         "UPDATE hospital_groups SET \
             name = COALESCE($2, name), display_name = COALESCE($3, display_name), \
@@ -157,6 +190,7 @@ pub async fn delete_group(
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, AppError> {
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    require_group_access(&state, &claims, id).await?;
     sqlx::query("UPDATE hospital_groups SET is_active = false, updated_at = now() WHERE id = $1")
         .bind(id)
         .execute(&state.db)
@@ -173,6 +207,7 @@ pub async fn list_regions(
     Query(query): Query<GroupIdQuery>,
 ) -> Result<Json<Vec<HospitalRegion>>, AppError> {
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    require_group_access(&state, &claims, query.group_id).await?;
     let rows = sqlx::query_as::<_, HospitalRegion>(
         "SELECT * FROM hospital_regions WHERE group_id = $1 AND is_active = true ORDER BY name",
     )
@@ -204,6 +239,7 @@ pub async fn create_region(
     Json(payload): Json<CreateHospitalRegion>,
 ) -> Result<Json<HospitalRegion>, AppError> {
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    require_group_access(&state, &claims, payload.group_id).await?;
     let row = sqlx::query_as::<_, HospitalRegion>(
         "INSERT INTO hospital_regions \
          (group_id, code, name, country, states, regional_head_name, \
@@ -246,6 +282,7 @@ pub async fn list_hospitals_in_group(
     Path(group_id): Path<Uuid>,
 ) -> Result<Json<Vec<HospitalInGroup>>, AppError> {
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    require_group_access(&state, &claims, group_id).await?;
     let rows = sqlx::query_as::<_, HospitalInGroup>(
         "SELECT id, code, name, group_id, region_id, branch_code, \
                 COALESCE(is_headquarters, false) AS is_headquarters, city, NULL::text AS state \
@@ -341,6 +378,7 @@ pub async fn list_multi_hospital_users(
     Query(query): Query<GroupIdQuery>,
 ) -> Result<Json<Vec<UserWithAssignments>>, AppError> {
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    require_group_access(&state, &claims, query.group_id).await?;
     let assignments = sqlx::query_as::<_, UserHospitalAssignment>(
         "SELECT uha.id, uha.user_id, uha.tenant_id, uha.role, uha.permissions, uha.is_primary, \
                 uha.is_active, uha.valid_from, uha.valid_to, uha.created_at, uha.updated_at \
@@ -870,6 +908,7 @@ pub async fn get_group_dashboard(
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    require_group_access(&state, &claims, group_id).await?;
     let group_name = sqlx::query_scalar::<_, String>("SELECT name FROM hospital_groups WHERE id = $1")
         .bind(group_id)
         .fetch_optional(&mut *tx)
@@ -918,6 +957,7 @@ pub async fn list_group_kpis(
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    require_group_access(&state, &claims, group_id).await?;
     let rows = sqlx::query_as::<_, GroupKpiSnapshot>(
         "SELECT id, group_id, tenant_id, snapshot_date, snapshot_type, total_beds, occupied_beds, \
                 occupancy_pct::float8 AS occupancy_pct, opd_visits, new_patients, admissions, \
@@ -975,6 +1015,7 @@ pub async fn list_doctor_rotations(
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    require_group_access(&state, &claims, group_id).await?;
     let rows = sqlx::query_as::<_, DoctorRotationDisplay>(
         "SELECT r.id, COALESCE(u.full_name, '') AS doctor_name, NULL::text AS doctor_specialty, \
                 t.name AS hospital_name, d.name AS department_name, r.schedule_date, r.shift, \
@@ -1033,6 +1074,7 @@ pub async fn create_doctor_rotation(
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    require_group_access(&state, &claims, group_id).await?;
     let row = sqlx::query_as::<_, DoctorRotationSchedule>(
         "INSERT INTO doctor_rotation_schedules \
          (group_id, doctor_id, schedule_date, tenant_id, department_id, shift, start_time, \
@@ -1085,6 +1127,7 @@ pub async fn list_group_drugs(
     Path(group_id): Path<Uuid>,
 ) -> Result<Json<Vec<GroupDrugMaster>>, AppError> {
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    require_group_access(&state, &claims, group_id).await?;
     let rows = sqlx::query_as::<_, GroupDrugMaster>(
         "SELECT id, group_id, code, name, generic_name, manufacturer, drug_schedule, atc_code, \
                 formulation, strength, unit, hsn_code, gst_rate::float8 AS gst_rate, \
@@ -1105,6 +1148,7 @@ pub async fn list_group_tests(
     Path(group_id): Path<Uuid>,
 ) -> Result<Json<Vec<GroupTestMaster>>, AppError> {
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    require_group_access(&state, &claims, group_id).await?;
     let rows = sqlx::query_as::<_, GroupTestMaster>(
         "SELECT * FROM group_test_master \
          WHERE group_id = $1 AND is_active = true AND deleted_at IS NULL ORDER BY name LIMIT 5000",
@@ -1122,6 +1166,7 @@ pub async fn list_group_tariffs(
     Path(group_id): Path<Uuid>,
 ) -> Result<Json<Vec<GroupTariffMaster>>, AppError> {
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    require_group_access(&state, &claims, group_id).await?;
     let rows = sqlx::query_as::<_, GroupTariffMaster>(
         "SELECT id, group_id, service_code, service_name, category, \
                 base_price::float8 AS base_price, gst_applicable, gst_rate::float8 AS gst_rate, \
@@ -1167,6 +1212,7 @@ pub async fn list_group_templates(
     Query(query): Query<PeriodQuery>,
 ) -> Result<Json<Vec<GroupTemplate>>, AppError> {
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    require_group_access(&state, &claims, group_id).await?;
     let rows = sqlx::query_as::<_, GroupTemplate>(
         "SELECT * FROM group_templates \
          WHERE group_id = $1 AND is_active = true AND deleted_at IS NULL \
@@ -1204,6 +1250,7 @@ pub async fn create_group_template(
     Json(payload): Json<CreateGroupTemplate>,
 ) -> Result<Json<GroupTemplate>, AppError> {
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    require_group_access(&state, &claims, group_id).await?;
     let row = sqlx::query_as::<_, GroupTemplate>(
         "INSERT INTO group_templates \
          (group_id, template_type, code, name, content, version, is_active) \
