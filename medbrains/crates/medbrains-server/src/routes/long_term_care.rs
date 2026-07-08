@@ -594,3 +594,117 @@ mod tests {
         assert_eq!(risk_band(10), "high");
     }
 }
+
+// ── Home care referral from discharge (#2966) ──────────────────────────────
+
+const REFERRAL_COLS: &str = "id, patient_id, referral_type, reason, status, provider, \
+     referred_date, notes, created_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct HomeCareReferral {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub referral_type: String,
+    pub reason: Option<String>,
+    pub status: String,
+    pub provider: Option<String>,
+    pub referred_date: NaiveDate,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// `GET /api/ltc/referrals?patient_id=` — a patient's home-care referrals.
+pub async fn list_home_care_referrals(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<PatientQuery>,
+) -> Result<Json<Vec<HomeCareReferral>>, AppError> {
+    require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, HomeCareReferral>(&format!(
+        "SELECT {REFERRAL_COLS} FROM home_care_referrals \
+         WHERE tenant_id = $1 AND patient_id = $2 ORDER BY referred_date DESC LIMIT 200"
+    ))
+    .bind(claims.tenant_id)
+    .bind(q.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateReferralRequest {
+    pub patient_id: Uuid,
+    pub referral_type: String,
+    pub reason: Option<String>,
+    pub provider: Option<String>,
+    pub notes: Option<String>,
+}
+
+/// `POST /api/ltc/referrals` — refer a patient to home care at discharge.
+pub async fn create_home_care_referral(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateReferralRequest>,
+) -> Result<Json<HomeCareReferral>, AppError> {
+    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    if !["nursing", "wound_care", "physiotherapy", "occupational", "speech", "general"]
+        .contains(&body.referral_type.as_str())
+    {
+        return Err(AppError::BadRequest("Invalid referral type".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, HomeCareReferral>(&format!(
+        "INSERT INTO home_care_referrals \
+         (tenant_id, patient_id, referral_type, reason, provider, referred_by, notes) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING {REFERRAL_COLS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(&body.referral_type)
+    .bind(&body.reason)
+    .bind(&body.provider)
+    .bind(claims.sub)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateReferralRequest {
+    pub status: String,
+}
+
+/// `PUT /api/ltc/referrals/{id}` — advance a referral (accept / schedule / decline / complete).
+pub async fn update_home_care_referral(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateReferralRequest>,
+) -> Result<Json<HomeCareReferral>, AppError> {
+    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    if !["pending", "accepted", "scheduled", "declined", "completed"]
+        .contains(&body.status.as_str())
+    {
+        return Err(AppError::BadRequest("Invalid status".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, HomeCareReferral>(&format!(
+        "UPDATE home_care_referrals SET status = $3, updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 RETURNING {REFERRAL_COLS}"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(&body.status)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

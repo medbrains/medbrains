@@ -7826,6 +7826,19 @@ export interface CaseSheetScan {
   updated_at: string;
 }
 
+/** A home-care referral from discharge (#2966). */
+export interface HomeCareReferral {
+  id: string;
+  patient_id: string;
+  referral_type: string;
+  reason: string | null;
+  status: string;
+  provider: string | null;
+  referred_date: string;
+  notes: string | null;
+  created_at: string;
+}
+
 /** A readmission-risk (LACE-style) assessment (#2965). */
 export interface ReadmissionRisk {
   id: string;

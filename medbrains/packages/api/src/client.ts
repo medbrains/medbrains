@@ -975,6 +975,7 @@ import type {
   HemovigilanceReport,
   HistopathReportPrintData,
   HomeCarePackage,
+  HomeCareReferral,
   HomeCollectionStatsRow,
   HomeCollectionStatusRequest,
   HomeDischargeItem,
@@ -5926,6 +5927,20 @@ export const api = {
     request<FamilyMessage[]>(`/ltc/family-messages?patient_id=${patientId}`),
   listReadmissionRisk: (patientId: string) =>
     request<ReadmissionRisk[]>(`/ltc/readmission-risk?patient_id=${patientId}`),
+  listHomeCareReferrals: (patientId: string) =>
+    request<HomeCareReferral[]>(`/ltc/referrals?patient_id=${patientId}`),
+  createHomeCareReferral: (data: {
+    patient_id: string;
+    referral_type: string;
+    reason?: string;
+    provider?: string;
+    notes?: string;
+  }) => request<HomeCareReferral>("/ltc/referrals", { method: "POST", body: JSON.stringify(data) }),
+  updateHomeCareReferral: (id: string, data: { status: string }) =>
+    request<HomeCareReferral>(`/ltc/referrals/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   assessReadmissionRisk: (data: {
     patient_id: string;
     length_of_stay: number;

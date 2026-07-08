@@ -15,4 +15,7 @@ export const longTermCareService = {
   updateFamilyMessage: api.updateFamilyMessage,
   listReadmissionRisk: api.listReadmissionRisk,
   assessReadmissionRisk: api.assessReadmissionRisk,
+  listHomeCareReferrals: api.listHomeCareReferrals,
+  createHomeCareReferral: api.createHomeCareReferral,
+  updateHomeCareReferral: api.updateHomeCareReferral,
 };

@@ -3278,6 +3278,15 @@ pub fn build_router(state: AppState) -> Router {
             get(long_term_care::list_readmission_risk)
                 .post(long_term_care::assess_readmission_risk),
         )
+        .route(
+            "/api/ltc/referrals",
+            get(long_term_care::list_home_care_referrals)
+                .post(long_term_care::create_home_care_referral),
+        )
+        .route(
+            "/api/ltc/referrals/{id}",
+            put(long_term_care::update_home_care_referral),
+        )
         // ── Clinical Trials registry (#2983) ──
         .route(
             "/api/clinical-trials",
