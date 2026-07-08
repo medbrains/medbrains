@@ -1683,6 +1683,7 @@ import type {
   TreatmentSummaryResponse,
   TrialCandidate,
   TrialConsent,
+  TrialVisit,
   TriggerPipelineRequest,
   TtiReport,
   TurnaroundStatsRow,
@@ -5930,6 +5931,20 @@ export const api = {
     request<TrialCandidate[]>(`/clinical-trials/${id}/candidates`),
   listTrialConsents: (trialId: string) =>
     request<TrialConsent[]>(`/clinical-trials/${trialId}/consents`),
+  listTrialVisits: (trialId: string) => request<TrialVisit[]>(`/clinical-trials/${trialId}/visits`),
+  scheduleTrialVisit: (
+    trialId: string,
+    data: { patient_id: string; visit_name: string; scheduled_date: string; procedures?: string },
+  ) =>
+    request<TrialVisit>(`/clinical-trials/${trialId}/visits`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateTrialVisit: (visitId: string, data: { status: string; notes?: string }) =>
+    request<TrialVisit>(`/trial-visits/${visitId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   recordTrialConsent: (trialId: string, data: { patient_id: string; template_id?: string }) =>
     request<TrialConsent>(`/clinical-trials/${trialId}/consents`, {
       method: "POST",

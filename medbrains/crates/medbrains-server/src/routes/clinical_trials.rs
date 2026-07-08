@@ -359,3 +359,132 @@ pub async fn record_trial_consent(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── Protocol visit schedule + procedure tracking (#2986) ───────────────────
+
+const VISIT_COLS: &str = "tv.id, tv.patient_id, p.first_name, p.last_name, tv.visit_name, \
+     tv.scheduled_date, tv.status, tv.procedures, tv.completed_at, tv.notes, tv.created_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct TrialVisit {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub visit_name: String,
+    pub scheduled_date: NaiveDate,
+    pub status: String,
+    pub procedures: Option<String>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// `GET /api/clinical-trials/{id}/visits` — the protocol visit schedule for a trial.
+pub async fn list_trial_visits(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<TrialVisit>>, AppError> {
+    require_permission(&claims, "specialty.clinical_trials.list")?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, TrialVisit>(&format!(
+        "SELECT {VISIT_COLS} FROM trial_visits tv \
+         LEFT JOIN patients p ON p.id = tv.patient_id \
+         WHERE tv.tenant_id = $1 AND tv.trial_id = $2 \
+         ORDER BY tv.scheduled_date, tv.created_at LIMIT 1000"
+    ))
+    .bind(claims.tenant_id)
+    .bind(id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ScheduleVisitRequest {
+    pub patient_id: Uuid,
+    pub visit_name: String,
+    pub scheduled_date: NaiveDate,
+    pub procedures: Option<String>,
+}
+
+/// `POST /api/clinical-trials/{id}/visits` — schedule a protocol visit for an enrolled patient.
+pub async fn schedule_visit(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ScheduleVisitRequest>,
+) -> Result<Json<TrialVisit>, AppError> {
+    require_permission(&claims, "specialty.clinical_trials.create")?;
+    if body.visit_name.trim().is_empty() {
+        return Err(AppError::BadRequest("Visit name is required".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let new_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO trial_visits \
+         (tenant_id, trial_id, patient_id, visit_name, scheduled_date, procedures) \
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(id)
+    .bind(body.patient_id)
+    .bind(body.visit_name.trim())
+    .bind(body.scheduled_date)
+    .bind(&body.procedures)
+    .fetch_one(&mut *tx)
+    .await?;
+    let row = sqlx::query_as::<_, TrialVisit>(&format!(
+        "SELECT {VISIT_COLS} FROM trial_visits tv \
+         LEFT JOIN patients p ON p.id = tv.patient_id WHERE tv.id = $1"
+    ))
+    .bind(new_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateVisitRequest {
+    pub status: String,
+    pub notes: Option<String>,
+}
+
+/// `PUT /api/trial-visits/{id}` — mark a visit completed / missed / rescheduled.
+pub async fn update_visit(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateVisitRequest>,
+) -> Result<Json<TrialVisit>, AppError> {
+    require_permission(&claims, "specialty.clinical_trials.create")?;
+    if !["scheduled", "completed", "missed", "rescheduled"].contains(&body.status.as_str()) {
+        return Err(AppError::BadRequest("Invalid visit status".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, TrialVisit>(&format!(
+        "WITH upd AS ( \
+           UPDATE trial_visits SET status = $3, notes = COALESCE($4, notes), \
+             completed_at = CASE WHEN $3 = 'completed' THEN now() ELSE completed_at END, \
+             completed_by = CASE WHEN $3 = 'completed' THEN $5 ELSE completed_by END, \
+             updated_at = now() \
+           WHERE id = $1 AND tenant_id = $2 RETURNING id) \
+         SELECT {VISIT_COLS} FROM trial_visits tv \
+         LEFT JOIN patients p ON p.id = tv.patient_id WHERE tv.id = (SELECT id FROM upd)"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(&body.status)
+    .bind(&body.notes)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

@@ -7870,6 +7870,21 @@ export interface ClinicalTrial {
   updated_at: string;
 }
 
+/** A protocol visit in a trial's schedule (#2986). */
+export interface TrialVisit {
+  id: string;
+  patient_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  visit_name: string;
+  scheduled_date: string;
+  status: string;
+  procedures: string | null;
+  completed_at: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
 /** An informed-consent record for trial participation (#2985), reusing the e-consent module. */
 export interface TrialConsent {
   id: string;
