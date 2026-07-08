@@ -1684,6 +1684,7 @@ import type {
   TrialAdverseEvent,
   TrialCandidate,
   TrialConsent,
+  TrialRandomization,
   TrialVisit,
   TriggerPipelineRequest,
   TtiReport,
@@ -5935,6 +5936,21 @@ export const api = {
   listTrialVisits: (trialId: string) => request<TrialVisit[]>(`/clinical-trials/${trialId}/visits`),
   listAdverseEvents: (trialId: string) =>
     request<TrialAdverseEvent[]>(`/clinical-trials/${trialId}/adverse-events`),
+  listRandomizations: (trialId: string) =>
+    request<TrialRandomization[]>(`/clinical-trials/${trialId}/randomizations`),
+  randomizePatient: (
+    trialId: string,
+    data: { patient_id: string; arm: string; randomization_code?: string },
+  ) =>
+    request<TrialRandomization>(`/clinical-trials/${trialId}/randomizations`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  unblindRandomization: (id: string, data: { reason: string }) =>
+    request<TrialRandomization>(`/trial-randomizations/${id}/unblind`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   reportAdverseEvent: (
     trialId: string,
     data: {

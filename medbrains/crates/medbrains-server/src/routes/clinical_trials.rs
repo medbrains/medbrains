@@ -627,3 +627,128 @@ pub async fn update_adverse_event(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── Blinded/unblinded randomization (#2988) ────────────────────────────────
+// The arm is concealed: list projects it as NULL unless the record has been unblinded.
+
+const RAND_COLS: &str = "r.id, r.patient_id, p.first_name, p.last_name, \
+     CASE WHEN r.is_unblinded THEN r.arm ELSE NULL END AS arm, r.randomization_code, \
+     r.is_unblinded, r.unblind_reason, r.unblinded_at, r.randomized_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct TrialRandomization {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    /// Concealed while blinded — NULL unless `is_unblinded`.
+    pub arm: Option<String>,
+    pub randomization_code: Option<String>,
+    pub is_unblinded: bool,
+    pub unblind_reason: Option<String>,
+    pub unblinded_at: Option<DateTime<Utc>>,
+    pub randomized_at: DateTime<Utc>,
+}
+
+/// `GET /api/clinical-trials/{id}/randomizations` — assignments with the arm concealed while blinded.
+pub async fn list_randomizations(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<TrialRandomization>>, AppError> {
+    require_permission(&claims, "specialty.clinical_trials.list")?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, TrialRandomization>(&format!(
+        "SELECT {RAND_COLS} FROM trial_randomizations r \
+         LEFT JOIN patients p ON p.id = r.patient_id \
+         WHERE r.tenant_id = $1 AND r.trial_id = $2 ORDER BY r.randomized_at DESC LIMIT 1000"
+    ))
+    .bind(claims.tenant_id)
+    .bind(id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RandomizeRequest {
+    pub patient_id: Uuid,
+    pub arm: String,
+    pub randomization_code: Option<String>,
+}
+
+/// `POST /api/clinical-trials/{id}/randomizations` — record a patient's (concealed) arm assignment.
+pub async fn randomize_patient(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RandomizeRequest>,
+) -> Result<Json<TrialRandomization>, AppError> {
+    require_permission(&claims, "specialty.clinical_trials.create")?;
+    if body.arm.trim().is_empty() {
+        return Err(AppError::BadRequest("Arm is required".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let new_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO trial_randomizations \
+         (tenant_id, trial_id, patient_id, arm, randomization_code, randomized_by) \
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(id)
+    .bind(body.patient_id)
+    .bind(body.arm.trim())
+    .bind(&body.randomization_code)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+    let row = sqlx::query_as::<_, TrialRandomization>(&format!(
+        "SELECT {RAND_COLS} FROM trial_randomizations r \
+         LEFT JOIN patients p ON p.id = r.patient_id WHERE r.id = $1"
+    ))
+    .bind(new_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UnblindRequest {
+    pub reason: String,
+}
+
+/// `POST /api/trial-randomizations/{id}/unblind` — reveal the arm, with a documented reason.
+pub async fn unblind_randomization(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UnblindRequest>,
+) -> Result<Json<TrialRandomization>, AppError> {
+    require_permission(&claims, "specialty.clinical_trials.create")?;
+    if body.reason.trim().is_empty() {
+        return Err(AppError::BadRequest("An unblinding reason is required".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, TrialRandomization>(&format!(
+        "WITH upd AS ( \
+           UPDATE trial_randomizations SET is_unblinded = true, unblind_reason = $3, \
+             unblinded_by = $4, unblinded_at = now(), updated_at = now() \
+           WHERE id = $1 AND tenant_id = $2 RETURNING id) \
+         SELECT {RAND_COLS} FROM trial_randomizations r \
+         LEFT JOIN patients p ON p.id = r.patient_id WHERE r.id = (SELECT id FROM upd)"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(body.reason.trim())
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

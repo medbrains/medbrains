@@ -15,4 +15,7 @@ export const clinicalTrialsService = {
   listAdverseEvents: api.listAdverseEvents,
   reportAdverseEvent: api.reportAdverseEvent,
   updateAdverseEvent: api.updateAdverseEvent,
+  listRandomizations: api.listRandomizations,
+  randomizePatient: api.randomizePatient,
+  unblindRandomization: api.unblindRandomization,
 };

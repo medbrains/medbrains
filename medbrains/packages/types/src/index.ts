@@ -7870,6 +7870,20 @@ export interface ClinicalTrial {
   updated_at: string;
 }
 
+/** A blinded/unblinded randomization assignment (#2988) — arm is null while blinded. */
+export interface TrialRandomization {
+  id: string;
+  patient_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  arm: string | null;
+  randomization_code: string | null;
+  is_unblinded: boolean;
+  unblind_reason: string | null;
+  unblinded_at: string | null;
+  randomized_at: string;
+}
+
 /** An adverse event / SAE reported during a trial (#2987). */
 export interface TrialAdverseEvent {
   id: string;
