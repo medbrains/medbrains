@@ -77,6 +77,32 @@ async fn require_group_access(
     }
 }
 
+/// Ensure a target hospital (tenant) shares the caller's group — so a hospital can't grant a
+/// user access to, or otherwise act on, a hospital outside its own chain. Super-admins pass.
+async fn require_tenant_in_group(
+    state: &AppState,
+    claims: &Claims,
+    tenant_id: Uuid,
+) -> Result<(), AppError> {
+    if claims.role == "super_admin" {
+        return Ok(());
+    }
+    let ok = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS ( \
+            SELECT 1 FROM tenants me JOIN tenants target ON target.group_id = me.group_id \
+            WHERE me.id = $1 AND target.id = $2 AND me.group_id IS NOT NULL)",
+    )
+    .bind(claims.tenant_id)
+    .bind(tenant_id)
+    .fetch_one(&state.db)
+    .await?;
+    if ok {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden)
+    }
+}
+
 // ── Hospital Groups ───────────────────────────────────────────────────────────
 
 /// List all active hospital groups. Global (cross-tenant) — platform admins only.
@@ -355,11 +381,17 @@ pub async fn list_user_assignments(
     .fetch_optional(&state.db)
     .await?
     .ok_or(AppError::NotFound)?;
+    let is_super = claims.role == "super_admin";
     let assignments = sqlx::query_as::<_, UserHospitalAssignment>(&format!(
         "SELECT {ASSIGNMENT_COLS} FROM user_hospital_assignments \
-         WHERE user_id = $1 AND deleted_at IS NULL ORDER BY is_primary DESC"
+         WHERE user_id = $1 AND deleted_at IS NULL \
+           AND ($2 OR tenant_id IN (SELECT id FROM tenants \
+                 WHERE group_id = (SELECT group_id FROM tenants WHERE id = $3))) \
+         ORDER BY is_primary DESC"
     ))
     .bind(user_id)
+    .bind(is_super)
+    .bind(claims.tenant_id)
     .fetch_all(&state.db)
     .await?;
     Ok(Json(UserWithAssignments {
@@ -425,6 +457,7 @@ pub async fn create_user_assignment(
     Json(payload): Json<CreateUserHospitalAssignment>,
 ) -> Result<Json<UserHospitalAssignment>, AppError> {
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    require_tenant_in_group(&state, &claims, payload.tenant_id).await?;
     let perms = serde_json::to_value(payload.permissions.unwrap_or_default())
         .unwrap_or_else(|_| serde_json::json!([]));
     let row = sqlx::query_as::<_, UserHospitalAssignment>(&format!(
@@ -454,10 +487,14 @@ pub async fn delete_user_assignment(
     require_permission(&claims, permissions::admin::system_state::MANAGE)?;
     sqlx::query(
         "UPDATE user_hospital_assignments \
-         SET is_active = false, deleted_at = now(), deleted_by = $2 WHERE id = $1",
+         SET is_active = false, deleted_at = now(), deleted_by = $2 WHERE id = $1 \
+           AND ($3 OR tenant_id IN (SELECT id FROM tenants \
+                 WHERE group_id = (SELECT group_id FROM tenants WHERE id = $4)))",
     )
     .bind(assignment_id)
     .bind(claims.sub)
+    .bind(claims.role == "super_admin")
+    .bind(claims.tenant_id)
     .execute(&state.db)
     .await?;
     Ok(StatusCode::NO_CONTENT)
