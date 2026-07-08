@@ -7862,8 +7862,21 @@ export interface ClinicalTrial {
   end_date: string | null;
   notes: string | null;
   is_active: boolean;
+  min_age: number | null;
+  max_age: number | null;
+  eligibility_sex: string | null;
+  diagnosis_codes: string[] | null;
   created_at: string;
   updated_at: string;
+}
+
+/** A patient who matches a clinical trial's structured eligibility (#2984). */
+export interface TrialCandidate {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  age: number | null;
+  biological_sex: string | null;
 }
 
 /** A Home Healthcare discharge-program item (training material or discharge criterion). */

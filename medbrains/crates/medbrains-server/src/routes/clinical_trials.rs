@@ -14,7 +14,7 @@ use crate::state::AppState;
 
 const COLS: &str = "id, tenant_id, protocol_number, title, sponsor, phase, status, indication, \
      principal_investigator, target_enrollment, start_date, end_date, notes, is_active, \
-     created_at, updated_at";
+     min_age, max_age, eligibility_sex, diagnosis_codes, created_at, updated_at";
 
 const VALID_STATUS: [&str; 6] = [
     "planned",
@@ -41,8 +41,22 @@ pub struct ClinicalTrial {
     pub end_date: Option<NaiveDate>,
     pub notes: Option<String>,
     pub is_active: bool,
+    pub min_age: Option<i32>,
+    pub max_age: Option<i32>,
+    pub eligibility_sex: Option<String>,
+    pub diagnosis_codes: Option<Vec<String>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+/// A patient who matches a trial's structured eligibility (age / sex / diagnosis).
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct TrialCandidate {
+    pub id: Uuid,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub age: Option<i32>,
+    pub biological_sex: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -162,9 +176,13 @@ pub struct UpdateTrialRequest {
     pub target_enrollment: Option<i32>,
     pub end_date: Option<NaiveDate>,
     pub notes: Option<String>,
+    pub min_age: Option<i32>,
+    pub max_age: Option<i32>,
+    pub eligibility_sex: Option<String>,
+    pub diagnosis_codes: Option<Vec<String>>,
 }
 
-/// `PUT /api/clinical-trials/{id}` — update a trial (status change / detail edit).
+/// `PUT /api/clinical-trials/{id}` — update a trial (status change / detail / eligibility edit).
 pub async fn update_trial(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -184,7 +202,10 @@ pub async fn update_trial(
             phase = COALESCE($5, phase), indication = COALESCE($6, indication), \
             principal_investigator = COALESCE($7, principal_investigator), \
             target_enrollment = COALESCE($8, target_enrollment), \
-            end_date = COALESCE($9, end_date), notes = COALESCE($10, notes), updated_at = now() \
+            end_date = COALESCE($9, end_date), notes = COALESCE($10, notes), \
+            min_age = COALESCE($11, min_age), max_age = COALESCE($12, max_age), \
+            eligibility_sex = COALESCE($13, eligibility_sex), \
+            diagnosis_codes = COALESCE($14, diagnosis_codes), updated_at = now() \
          WHERE id = $1 AND tenant_id = $2 RETURNING {COLS}"
     ))
     .bind(id)
@@ -197,9 +218,57 @@ pub async fn update_trial(
     .bind(body.target_enrollment)
     .bind(body.end_date)
     .bind(&body.notes)
+    .bind(body.min_age)
+    .bind(body.max_age)
+    .bind(&body.eligibility_sex)
+    .bind(&body.diagnosis_codes)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// `GET /api/clinical-trials/{id}/candidates` — auto-screen patients against the trial's
+/// eligibility (age band / biological sex / required diagnosis ICD codes).
+pub async fn screen_candidates(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<TrialCandidate>>, AppError> {
+    require_permission(&claims, "specialty.clinical_trials.list")?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let trial = sqlx::query_as::<_, ClinicalTrial>(&format!(
+        "SELECT {COLS} FROM clinical_trials WHERE id = $1 AND tenant_id = $2"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let codes = trial.diagnosis_codes.filter(|c| !c.is_empty());
+    let candidates = sqlx::query_as::<_, TrialCandidate>(
+        "SELECT p.id, p.first_name, p.last_name, \
+            date_part('year', age(p.date_of_birth))::int AS age, p.biological_sex \
+         FROM patients p \
+         WHERE p.tenant_id = $1 AND p.date_of_birth IS NOT NULL \
+           AND ($2::int IS NULL OR date_part('year', age(p.date_of_birth)) >= $2) \
+           AND ($3::int IS NULL OR date_part('year', age(p.date_of_birth)) <= $3) \
+           AND ($4::text IS NULL OR p.biological_sex = $4) \
+           AND ($5::text[] IS NULL OR EXISTS ( \
+                 SELECT 1 FROM encounter_diagnoses ed JOIN encounters e ON e.id = ed.encounter_id \
+                 WHERE e.patient_id = p.id AND ed.icd_code = ANY($5))) \
+         ORDER BY p.created_at DESC LIMIT 200",
+    )
+    .bind(claims.tenant_id)
+    .bind(trial.min_age)
+    .bind(trial.max_age)
+    .bind(trial.eligibility_sex.as_deref())
+    .bind(codes.as_deref())
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(candidates))
 }

@@ -1681,6 +1681,7 @@ import type {
   // Phase 2 Print Data - Clinical & Identity
   TreatmentChartPrintData,
   TreatmentSummaryResponse,
+  TrialCandidate,
   TriggerPipelineRequest,
   TtiReport,
   TurnaroundStatsRow,
@@ -5909,11 +5910,23 @@ export const api = {
     principal_investigator?: string;
     target_enrollment?: number;
   }) => request<ClinicalTrial>("/clinical-trials", { method: "POST", body: JSON.stringify(data) }),
-  updateClinicalTrial: (id: string, data: { status?: string; notes?: string }) =>
+  updateClinicalTrial: (
+    id: string,
+    data: {
+      status?: string;
+      notes?: string;
+      min_age?: number;
+      max_age?: number;
+      eligibility_sex?: string;
+      diagnosis_codes?: string[];
+    },
+  ) =>
     request<ClinicalTrial>(`/clinical-trials/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  screenTrialCandidates: (id: string) =>
+    request<TrialCandidate[]>(`/clinical-trials/${id}/candidates`),
   listHomeMeds: (patientId: string) =>
     request<HomeMedAdministration[]>(`/home-health/medications?patient_id=${patientId}`),
   scheduleHomeMed: (data: {

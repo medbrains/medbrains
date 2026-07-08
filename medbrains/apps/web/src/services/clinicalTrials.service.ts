@@ -5,4 +5,5 @@ export const clinicalTrialsService = {
   getClinicalTrial: api.getClinicalTrial,
   createClinicalTrial: api.createClinicalTrial,
   updateClinicalTrial: api.updateClinicalTrial,
+  screenTrialCandidates: api.screenTrialCandidates,
 };
