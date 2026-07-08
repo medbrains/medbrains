@@ -267,6 +267,7 @@ pub async fn get_region(
         .fetch_optional(&state.db)
         .await?
         .ok_or(AppError::NotFound)?;
+    require_group_access(&state, &claims, row.group_id).await?;
     Ok(Json(row))
 }
 
@@ -1291,6 +1292,7 @@ pub async fn get_group_template(
     .fetch_optional(&state.db)
     .await?
     .ok_or(AppError::NotFound)?;
+    require_group_access(&state, &claims, row.group_id).await?;
     Ok(Json(row))
 }
 
