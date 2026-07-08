@@ -929,92 +929,161 @@ pub async fn delete_doctor_rotation(
 
 // ── Group Masters ─────────────────────────────────────────────────────────────
 
-/// List group drug master
+/// List a group's standardized drug formulary.
 pub async fn list_group_drugs(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(group_id): Path<Uuid>,
-) -> Result<Json<Vec<GroupDrugMaster>>, (StatusCode, String)> {
-    // TODO: Query group_drug_master
-    let _ = group_id;
-    Ok(Json(vec![]))
+) -> Result<Json<Vec<GroupDrugMaster>>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    let rows = sqlx::query_as::<_, GroupDrugMaster>(
+        "SELECT id, group_id, code, name, generic_name, manufacturer, drug_schedule, atc_code, \
+                formulation, strength, unit, hsn_code, gst_rate::float8 AS gst_rate, \
+                is_controlled, is_active, created_at, updated_at \
+         FROM group_drug_master \
+         WHERE group_id = $1 AND is_active = true AND deleted_at IS NULL ORDER BY name LIMIT 5000",
+    )
+    .bind(group_id)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows))
 }
 
-/// List group test master
+/// List a group's standardized test catalogue.
 pub async fn list_group_tests(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(group_id): Path<Uuid>,
-) -> Result<Json<Vec<GroupTestMaster>>, (StatusCode, String)> {
-    // TODO: Query group_test_master
-    let _ = group_id;
-    Ok(Json(vec![]))
+) -> Result<Json<Vec<GroupTestMaster>>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    let rows = sqlx::query_as::<_, GroupTestMaster>(
+        "SELECT * FROM group_test_master \
+         WHERE group_id = $1 AND is_active = true AND deleted_at IS NULL ORDER BY name LIMIT 5000",
+    )
+    .bind(group_id)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows))
 }
 
-/// List group tariff master
+/// List a group's standardized tariff (service price) master.
 pub async fn list_group_tariffs(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(group_id): Path<Uuid>,
-) -> Result<Json<Vec<GroupTariffMaster>>, (StatusCode, String)> {
-    // TODO: Query group_tariff_master
-    let _ = group_id;
-    Ok(Json(vec![]))
+) -> Result<Json<Vec<GroupTariffMaster>>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    let rows = sqlx::query_as::<_, GroupTariffMaster>(
+        "SELECT id, group_id, service_code, service_name, category, \
+                base_price::float8 AS base_price, gst_applicable, gst_rate::float8 AS gst_rate, \
+                is_active, created_at, updated_at \
+         FROM group_tariff_master \
+         WHERE group_id = $1 AND is_active = true AND deleted_at IS NULL \
+         ORDER BY service_name LIMIT 5000",
+    )
+    .bind(group_id)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows))
 }
 
-/// List hospital price overrides
+/// List this hospital's price overrides on the group tariff.
 pub async fn list_price_overrides(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
-) -> Result<Json<Vec<HospitalPriceOverride>>, (StatusCode, String)> {
-    // TODO: Query hospital_price_overrides for current tenant
-    Ok(Json(vec![]))
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<HospitalPriceOverride>>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, HospitalPriceOverride>(
+        "SELECT id, tenant_id, group_tariff_id, override_price::float8 AS override_price, \
+                effective_from, effective_to, reason, approved_by, created_at \
+         FROM hospital_price_overrides \
+         WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 5000",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
 }
 
 // ── Group Templates ───────────────────────────────────────────────────────────
 
-/// List group templates
+/// List a group's templates (optionally filter by template_type via the `period` query param).
 pub async fn list_group_templates(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(group_id): Path<Uuid>,
     Query(query): Query<PeriodQuery>,
-) -> Result<Json<Vec<GroupTemplate>>, (StatusCode, String)> {
-    // TODO: Query group_templates, optionally filter by template_type
-    let _ = (group_id, query);
-    Ok(Json(vec![]))
+) -> Result<Json<Vec<GroupTemplate>>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    let rows = sqlx::query_as::<_, GroupTemplate>(
+        "SELECT * FROM group_templates \
+         WHERE group_id = $1 AND is_active = true AND deleted_at IS NULL \
+           AND ($2::text IS NULL OR template_type = $2) ORDER BY name LIMIT 5000",
+    )
+    .bind(group_id)
+    .bind(query.period.as_deref())
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows))
 }
 
-/// Get a group template
+/// Get a group template.
 pub async fn get_group_template(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<GroupTemplate>, (StatusCode, String)> {
-    // TODO: Query group_templates by ID
-    let _ = id;
-    Err((StatusCode::NOT_FOUND, "Template not found".to_string()))
+) -> Result<Json<GroupTemplate>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    let row = sqlx::query_as::<_, GroupTemplate>(
+        "SELECT * FROM group_templates WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    Ok(Json(row))
 }
 
-/// Create a group template
+/// Create a group template.
 pub async fn create_group_template(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(group_id): Path<Uuid>,
     Json(payload): Json<CreateGroupTemplate>,
-) -> Result<Json<GroupTemplate>, (StatusCode, String)> {
-    // TODO: Insert group_template
-    let _ = (group_id, payload);
-    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
+) -> Result<Json<GroupTemplate>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    let row = sqlx::query_as::<_, GroupTemplate>(
+        "INSERT INTO group_templates \
+         (group_id, template_type, code, name, content, version, is_active) \
+         VALUES ($1, $2, $3, $4, $5, 1, true) RETURNING *",
+    )
+    .bind(group_id)
+    .bind(&payload.template_type)
+    .bind(&payload.code)
+    .bind(&payload.name)
+    .bind(&payload.content)
+    .fetch_one(&state.db)
+    .await?;
+    Ok(Json(row))
 }
 
-/// Delete a group template
+/// Soft-delete a group template.
 pub async fn delete_group_template(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<StatusCode, (StatusCode, String)> {
-    // TODO: Delete group_template
-    let _ = id;
+) -> Result<StatusCode, AppError> {
+    require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    sqlx::query(
+        "UPDATE group_templates SET is_active = false, deleted_at = now(), deleted_by = $2 \
+         WHERE id = $1",
+    )
+    .bind(id)
+    .bind(claims.sub)
+    .execute(&state.db)
+    .await?;
     Ok(StatusCode::NO_CONTENT)
 }
