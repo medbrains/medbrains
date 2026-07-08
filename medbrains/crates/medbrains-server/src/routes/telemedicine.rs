@@ -36,7 +36,7 @@ pub struct CreateTeleConsultationRequest {
 const TELE_PROVIDERS: &[&str] = &["jitsi", "external", "google_meet", "zoom", "teams"];
 /// API-created providers that have a worker adapter today (others are
 /// rejected until built, mirroring the payment `has_adapter` gate).
-const TELE_API_PROVIDERS_WITH_ADAPTER: &[&str] = &["zoom"];
+const TELE_API_PROVIDERS_WITH_ADAPTER: &[&str] = &["zoom", "google_meet", "teams"];
 
 #[derive(Debug, Deserialize)]
 pub struct ListTeleConsultationsQuery {
@@ -144,14 +144,20 @@ pub async fn create_tele_consultation(
 
     // API providers: the worker creates the meeting off-thread and writes the
     // join link back to meeting_url (client polls GET /consultations/{id}).
-    if provider == "zoom" {
+    let meeting_event = match provider {
+        "zoom" => Some("meeting.zoom.create"),
+        "google_meet" => Some("meeting.google_meet.create"),
+        "teams" => Some("meeting.teams.create"),
+        _ => None,
+    };
+    if let Some(event_type) = meeting_event {
         medbrains_outbox::queue_in_tx(
             &mut tx,
             medbrains_outbox::OutboxRow {
                 tenant_id: claims.tenant_id,
                 aggregate_type: "tele_consultation",
                 aggregate_id: Some(consult.id),
-                event_type: "meeting.zoom.create",
+                event_type,
                 payload: serde_json::json!({
                     "consultation_id": consult.id,
                     "topic": "Tele-consultation",

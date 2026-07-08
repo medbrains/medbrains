@@ -535,8 +535,8 @@ async fn shutdown_signal() {
 fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     use medbrains_outbox::Registry;
     use medbrains_outbox::handlers::{
-        abdm_stub, cashfree, email_stub, hl7_stub, pinelabs, pipeline_fallback, razorpay, razorpayx,
-        tpa_stub, twilio, whatsapp, zoom,
+        abdm_stub, cashfree, email_stub, google_meet, hl7_stub, pinelabs, pipeline_fallback,
+        razorpay, razorpayx, teams, tpa_stub, twilio, whatsapp, zoom,
     };
 
     let mut registry = Registry::new();
@@ -551,8 +551,10 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     registry.register(pinelabs::PineLabsPosSaleHandler::new());
     // RazorpayX Smart Collect — bank virtual account (runs only for payment.razorpayx.*)
     registry.register(razorpayx::VirtualAccountCreateHandler::new());
-    // Zoom — telemedicine meeting create (runs only for meeting.zoom.create)
+    // Telemedicine meeting create — one handler per API provider.
     registry.register(zoom::ZoomCreateMeetingHandler::new());
+    registry.register(google_meet::GoogleMeetCreateHandler::new());
+    registry.register(teams::TeamsCreateMeetingHandler::new());
 
     // Twilio per-event-type — distinct registrations for each sms.* code
     // so the registry's panic-on-duplicate catches accidental re-binds.
