@@ -1623,6 +1623,7 @@ import type {
   SignResponse,
   SimulationDebriefingPrintData,
   SiteDomain,
+  SnfAdmission,
   SnomedCode,
   SpcbBmwReturnsPrintData,
   SpecialtyRecord,
@@ -6006,6 +6007,26 @@ export const api = {
     request<ReadmissionRisk[]>(`/ltc/readmission-risk?patient_id=${patientId}`),
   listHomeCareReferrals: (patientId: string) =>
     request<HomeCareReferral[]>(`/ltc/referrals?patient_id=${patientId}`),
+  listSnfAdmissions: (patientId: string) =>
+    request<SnfAdmission[]>(`/ltc/snf-admissions?patient_id=${patientId}`),
+  createSnfAdmission: (data: {
+    patient_id: string;
+    source?: string;
+    level_of_care?: string;
+    primary_diagnosis?: string;
+    care_plan?: string;
+    expected_los_days?: number;
+    notes?: string;
+  }) =>
+    request<SnfAdmission>("/ltc/snf-admissions", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateSnfAdmission: (id: string, data: { status: string; care_plan?: string }) =>
+    request<SnfAdmission>(`/ltc/snf-admissions/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   createHomeCareReferral: (data: {
     patient_id: string;
     referral_type: string;

@@ -3325,6 +3325,14 @@ pub fn build_router(state: AppState) -> Router {
             "/api/ltc/referrals/{id}",
             put(long_term_care::update_home_care_referral),
         )
+        .route(
+            "/api/ltc/snf-admissions",
+            get(long_term_care::list_snf_admissions).post(long_term_care::create_snf_admission),
+        )
+        .route(
+            "/api/ltc/snf-admissions/{id}",
+            put(long_term_care::update_snf_admission),
+        )
         // ── Clinical Trials registry (#2983) ──
         .route(
             "/api/clinical-trials",

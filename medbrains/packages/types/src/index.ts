@@ -7882,6 +7882,22 @@ export interface HealthPackage {
   created_at: string;
 }
 
+/** A skilled-nursing-facility admission (#2960). */
+export interface SnfAdmission {
+  id: string;
+  patient_id: string;
+  admission_date: string;
+  source: string;
+  level_of_care: string;
+  primary_diagnosis: string | null;
+  care_plan: string | null;
+  expected_los_days: number | null;
+  status: string;
+  discharge_date: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
 /** A home-care referral from discharge (#2966). */
 export interface HomeCareReferral {
   id: string;

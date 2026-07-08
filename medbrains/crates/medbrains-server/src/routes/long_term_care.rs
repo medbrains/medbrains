@@ -708,3 +708,133 @@ pub async fn update_home_care_referral(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── SNF admission from discharge (#2960) ───────────────────────────────────
+
+const SNF_COLS: &str = "id, patient_id, admission_date, source, level_of_care, primary_diagnosis, \
+     care_plan, expected_los_days, status, discharge_date, notes, created_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct SnfAdmission {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub admission_date: NaiveDate,
+    pub source: String,
+    pub level_of_care: String,
+    pub primary_diagnosis: Option<String>,
+    pub care_plan: Option<String>,
+    pub expected_los_days: Option<i32>,
+    pub status: String,
+    pub discharge_date: Option<NaiveDate>,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// `GET /api/ltc/snf-admissions?patient_id=` — a patient's SNF admissions.
+pub async fn list_snf_admissions(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<PatientQuery>,
+) -> Result<Json<Vec<SnfAdmission>>, AppError> {
+    require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, SnfAdmission>(&format!(
+        "SELECT {SNF_COLS} FROM snf_admissions \
+         WHERE tenant_id = $1 AND patient_id = $2 ORDER BY admission_date DESC LIMIT 100"
+    ))
+    .bind(claims.tenant_id)
+    .bind(q.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateSnfRequest {
+    pub patient_id: Uuid,
+    pub source: Option<String>,
+    pub level_of_care: Option<String>,
+    pub primary_diagnosis: Option<String>,
+    pub care_plan: Option<String>,
+    pub expected_los_days: Option<i32>,
+    pub notes: Option<String>,
+}
+
+/// `POST /api/ltc/snf-admissions` — admit a patient to the SNF (care plan carried over).
+pub async fn create_snf_admission(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateSnfRequest>,
+) -> Result<Json<SnfAdmission>, AppError> {
+    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    if let Some(s) = &body.source {
+        if !["hospital_discharge", "direct", "transfer"].contains(&s.as_str()) {
+            return Err(AppError::BadRequest("Invalid source".to_owned()));
+        }
+    }
+    if let Some(l) = &body.level_of_care {
+        if !["skilled_nursing", "rehab", "long_term"].contains(&l.as_str()) {
+            return Err(AppError::BadRequest("Invalid level of care".to_owned()));
+        }
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, SnfAdmission>(&format!(
+        "INSERT INTO snf_admissions \
+         (tenant_id, patient_id, source, level_of_care, primary_diagnosis, care_plan, \
+          expected_los_days, admitted_by, notes) \
+         VALUES ($1, $2, COALESCE($3, 'hospital_discharge'), COALESCE($4, 'skilled_nursing'), \
+                 $5, $6, $7, $8, $9) RETURNING {SNF_COLS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(&body.source)
+    .bind(&body.level_of_care)
+    .bind(&body.primary_diagnosis)
+    .bind(&body.care_plan)
+    .bind(body.expected_los_days)
+    .bind(claims.sub)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateSnfRequest {
+    pub status: String,
+    pub care_plan: Option<String>,
+}
+
+/// `PUT /api/ltc/snf-admissions/{id}` — update the care plan or discharge / transfer the admission.
+pub async fn update_snf_admission(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateSnfRequest>,
+) -> Result<Json<SnfAdmission>, AppError> {
+    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    if !["admitted", "discharged", "transferred"].contains(&body.status.as_str()) {
+        return Err(AppError::BadRequest("Invalid status".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, SnfAdmission>(&format!(
+        "UPDATE snf_admissions SET status = $3, care_plan = COALESCE($4, care_plan), \
+            discharge_date = CASE WHEN $3 IN ('discharged', 'transferred') THEN CURRENT_DATE \
+                                  ELSE discharge_date END, updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 RETURNING {SNF_COLS}"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(&body.status)
+    .bind(&body.care_plan)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

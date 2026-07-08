@@ -18,4 +18,7 @@ export const longTermCareService = {
   listHomeCareReferrals: api.listHomeCareReferrals,
   createHomeCareReferral: api.createHomeCareReferral,
   updateHomeCareReferral: api.updateHomeCareReferral,
+  listSnfAdmissions: api.listSnfAdmissions,
+  createSnfAdmission: api.createSnfAdmission,
+  updateSnfAdmission: api.updateSnfAdmission,
 };
