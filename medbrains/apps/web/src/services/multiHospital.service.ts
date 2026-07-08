@@ -6,5 +6,8 @@ export const multiHospitalService = {
   createPatientTransfer: api.createPatientTransfer,
   updatePatientTransferStatus: api.updatePatientTransferStatus,
   listHospitalGroups: api.listHospitalGroups,
+  createHospitalGroup: api.createHospitalGroup,
+  updateHospitalGroup: api.updateHospitalGroup,
   listHospitalsInGroup: api.listHospitalsInGroup,
+  getGroupDashboard: api.getGroupDashboard,
 };
