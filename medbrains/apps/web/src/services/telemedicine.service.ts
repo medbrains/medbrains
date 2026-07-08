@@ -15,6 +15,9 @@ export const telemedicineService = {
   listTeleChat: (id: string) => api.listTeleChat(id),
   postTeleChat: (id: string, data: Parameters<typeof api.postTeleChat>[1]) =>
     api.postTeleChat(id, data),
+  getTeleConfig: () => api.getTeleConfig(),
+  updateTeleConfig: (data: Parameters<typeof api.updateTeleConfig>[0]) =>
+    api.updateTeleConfig(data),
   updateTeleStatus: (id: string, data: Parameters<typeof api.updateTeleStatus>[1]) =>
     api.updateTeleStatus(id, data),
 };

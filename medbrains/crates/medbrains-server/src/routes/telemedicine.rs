@@ -543,3 +543,134 @@ pub async fn post_chat(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── In-app video provider configuration (video_base + default provider) ────
+
+#[derive(Debug, serde::Serialize)]
+pub struct TeleProviderInfo {
+    pub name: String,
+    pub available: bool,
+    pub requires_credentials: bool,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct TeleConfig {
+    /// Effective Jitsi base (configured tenant setting, else the public default).
+    pub video_base: String,
+    /// True when a tenant setting overrides the public default.
+    pub video_base_configured: bool,
+    pub default_provider: String,
+    pub providers: Vec<TeleProviderInfo>,
+}
+
+fn provider_infos() -> Vec<TeleProviderInfo> {
+    TELE_PROVIDERS
+        .iter()
+        .map(|&p| {
+            let is_api = matches!(p, "zoom" | "google_meet" | "teams");
+            TeleProviderInfo {
+                name: p.to_owned(),
+                available: !is_api || TELE_API_PROVIDERS_WITH_ADAPTER.contains(&p),
+                requires_credentials: is_api,
+            }
+        })
+        .collect()
+}
+
+async fn setting_str(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    key: &str,
+) -> Result<Option<String>, AppError> {
+    let v = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'telemedicine' AND key = $2",
+    )
+    .bind(tenant_id)
+    .bind(key)
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(v.and_then(|v| v.as_str().map(ToOwned::to_owned)).filter(|s| !s.is_empty()))
+}
+
+async fn load_tele_config(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+) -> Result<TeleConfig, AppError> {
+    let vb = setting_str(tx, tenant_id, "video_base").await?;
+    let dp = setting_str(tx, tenant_id, "default_provider").await?;
+    Ok(TeleConfig {
+        video_base_configured: vb.is_some(),
+        video_base: vb.unwrap_or_else(|| DEFAULT_VIDEO_BASE.to_owned()),
+        default_provider: dp.unwrap_or_else(|| "jitsi".to_owned()),
+        providers: provider_infos(),
+    })
+}
+
+/// `GET /api/telemedicine/config` — the video provider configuration.
+pub async fn get_tele_config(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<TeleConfig>, AppError> {
+    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let cfg = load_tele_config(&mut tx, &claims.tenant_id).await?;
+    tx.commit().await?;
+    Ok(Json(cfg))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateTeleConfigRequest {
+    pub video_base: Option<String>,
+    pub default_provider: Option<String>,
+}
+
+/// `PUT /api/telemedicine/config` — set the Jitsi base and/or default provider (non-secret config).
+pub async fn update_tele_config(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<UpdateTeleConfigRequest>,
+) -> Result<Json<TeleConfig>, AppError> {
+    require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+    if let Some(dp) = &body.default_provider {
+        if !TELE_PROVIDERS.contains(&dp.as_str()) {
+            return Err(AppError::BadRequest(format!("Unknown provider '{dp}'")));
+        }
+        let is_api = matches!(dp.as_str(), "zoom" | "google_meet" | "teams");
+        if is_api && !TELE_API_PROVIDERS_WITH_ADAPTER.contains(&dp.as_str()) {
+            return Err(AppError::BadRequest(format!(
+                "Provider '{dp}' has no adapter — can't be the default"
+            )));
+        }
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    if let Some(vb) = body.video_base.as_deref().map(str::trim) {
+        sqlx::query(
+            "INSERT INTO tenant_settings (tenant_id, category, key, value) \
+             VALUES ($1, 'telemedicine', 'video_base', $2) \
+             ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value, \
+                 updated_at = now()",
+        )
+        .bind(claims.tenant_id)
+        .bind(serde_json::Value::String(vb.to_owned()))
+        .execute(&mut *tx)
+        .await?;
+    }
+    if let Some(dp) = &body.default_provider {
+        sqlx::query(
+            "INSERT INTO tenant_settings (tenant_id, category, key, value) \
+             VALUES ($1, 'telemedicine', 'default_provider', $2) \
+             ON CONFLICT (tenant_id, category, key) DO UPDATE SET value = EXCLUDED.value, \
+                 updated_at = now()",
+        )
+        .bind(claims.tenant_id)
+        .bind(serde_json::Value::String(dp.clone()))
+        .execute(&mut *tx)
+        .await?;
+    }
+    let cfg = load_tele_config(&mut tx, &claims.tenant_id).await?;
+    tx.commit().await?;
+    Ok(Json(cfg))
+}

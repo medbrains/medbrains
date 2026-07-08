@@ -1675,6 +1675,7 @@ import type {
   TdsDeduction,
   TeachingConsentPrintData,
   TeleChatMessage,
+  TeleConfig,
   TeleConsultation,
   TeleConsultationListItem,
   TeleJoinInfo,
@@ -14194,6 +14195,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  getTeleConfig: () => request<TeleConfig>("/telemedicine/config"),
+  updateTeleConfig: (data: { video_base?: string; default_provider?: string }) =>
+    request<TeleConfig>("/telemedicine/config", { method: "PUT", body: JSON.stringify(data) }),
   listTeleChat: (id: string) =>
     request<TeleChatMessage[]>(`/telemedicine/consultations/${id}/chat`),
   postTeleChat: (id: string, data: { body: string; sender_role?: string }) =>

@@ -7882,6 +7882,21 @@ export interface HealthPackage {
   created_at: string;
 }
 
+/** Availability of one telemedicine video provider. */
+export interface TeleProviderInfo {
+  name: string;
+  available: boolean;
+  requires_credentials: boolean;
+}
+
+/** In-app telemedicine video provider configuration. */
+export interface TeleConfig {
+  video_base: string;
+  video_base_configured: boolean;
+  default_provider: string;
+  providers: TeleProviderInfo[];
+}
+
 /** A telemedicine chat message (video fallback) (#2948). */
 export interface TeleChatMessage {
   id: string;
