@@ -2000,11 +2000,58 @@ async fn resolve_module_query(
             Ok(serde_json::json!({"value": count, "label": "Ward Patients"}))
         }
         ("ipd", "medication_schedule") => {
-            // Return placeholder — real MAR integration depends on nursing module
+            // Medications due (scheduled, not yet given) within the next 2h for admitted
+            // patients, scoped to the nurse's ward(s) when a department filter is present.
+            let dept_filter: Option<&[Uuid]> = if has_dept_filter {
+                Some(&filters.department_ids)
+            } else {
+                None
+            };
+            let count = sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM ipd_medication_administration ima \
+                 JOIN admissions a ON a.id = ima.admission_id AND a.status = 'admitted' \
+                 JOIN encounters e ON e.id = a.encounter_id \
+                 WHERE ima.status = 'scheduled' \
+                   AND ima.scheduled_at <= now() + interval '2 hours' \
+                   AND ($1::uuid[] IS NULL OR e.department_id = ANY($1))",
+            )
+            .bind(dept_filter)
+            .fetch_one(&mut **tx)
+            .await?;
+            let rows = sqlx::query_as::<
+                _,
+                (String, Option<String>, chrono::DateTime<Utc>, bool, String),
+            >(
+                "SELECT ima.drug_name, ima.dose, ima.scheduled_at, ima.is_high_alert, \
+                        CONCAT(p.first_name, ' ', COALESCE(p.last_name, '')) \
+                 FROM ipd_medication_administration ima \
+                 JOIN admissions a ON a.id = ima.admission_id AND a.status = 'admitted' \
+                 JOIN encounters e ON e.id = a.encounter_id \
+                 JOIN patients p ON p.id = a.patient_id \
+                 WHERE ima.status = 'scheduled' \
+                   AND ima.scheduled_at <= now() + interval '2 hours' \
+                   AND ($1::uuid[] IS NULL OR e.department_id = ANY($1)) \
+                 ORDER BY ima.scheduled_at ASC LIMIT 20",
+            )
+            .bind(dept_filter)
+            .fetch_all(&mut **tx)
+            .await?;
+            let items: Vec<serde_json::Value> = rows
+                .into_iter()
+                .map(|(drug_name, dose, scheduled_at, is_high_alert, patient_name)| {
+                    serde_json::json!({
+                        "drug_name": drug_name,
+                        "dose": dose,
+                        "scheduled_at": scheduled_at,
+                        "is_high_alert": is_high_alert,
+                        "patient_name": patient_name,
+                    })
+                })
+                .collect();
             Ok(serde_json::json!({
-                "items": [],
-                "value": 0,
-                "label": "Medication Schedule"
+                "items": items,
+                "value": count,
+                "label": "Medications due"
             }))
         }
 
