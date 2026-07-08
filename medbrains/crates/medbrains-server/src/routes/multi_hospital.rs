@@ -611,71 +611,233 @@ pub async fn update_patient_transfer(
 
 // ── Stock Transfers ───────────────────────────────────────────────────────────
 
-/// List outgoing stock transfers
+async fn list_stock_transfers_by_side(
+    state: &AppState,
+    claims: &Claims,
+    query: &DateRangeQuery,
+    side_column: &str,
+) -> Result<Vec<StockTransfer>, AppError> {
+    let rows = sqlx::query_as::<_, StockTransfer>(&format!(
+        "SELECT * FROM inter_hospital_stock_transfers \
+         WHERE {side_column} = $1 AND deleted_at IS NULL \
+           AND ($2::date IS NULL OR requested_at::date >= $2) \
+           AND ($3::date IS NULL OR requested_at::date <= $3) \
+         ORDER BY requested_at DESC LIMIT 500"
+    ))
+    .bind(claims.tenant_id)
+    .bind(query.from_date)
+    .bind(query.to_date)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(rows)
+}
+
+/// List stock transfers this hospital has sent out.
 pub async fn list_outgoing_stock_transfers(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Query(query): Query<DateRangeQuery>,
-) -> Result<Json<Vec<StockTransfer>>, (StatusCode, String)> {
-    // TODO: Query inter_hospital_stock_transfers where source_tenant_id = current
-    let _ = query;
-    Ok(Json(vec![]))
+) -> Result<Json<Vec<StockTransfer>>, AppError> {
+    require_permission(&claims, permissions::ipd::transfers::CREATE)?;
+    Ok(Json(
+        list_stock_transfers_by_side(&state, &claims, &query, "source_tenant_id").await?,
+    ))
 }
 
-/// List incoming stock transfers
+/// List stock transfers inbound to this hospital.
 pub async fn list_incoming_stock_transfers(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Query(query): Query<DateRangeQuery>,
-) -> Result<Json<Vec<StockTransfer>>, (StatusCode, String)> {
-    // TODO: Query inter_hospital_stock_transfers where dest_tenant_id = current
-    let _ = query;
-    Ok(Json(vec![]))
+) -> Result<Json<Vec<StockTransfer>>, AppError> {
+    require_permission(&claims, permissions::ipd::transfers::CREATE)?;
+    Ok(Json(
+        list_stock_transfers_by_side(&state, &claims, &query, "dest_tenant_id").await?,
+    ))
 }
 
-/// Get stock transfer details with items
+/// Get one stock transfer (caller must be source or destination).
 pub async fn get_stock_transfer(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<StockTransfer>, (StatusCode, String)> {
-    // TODO: Query stock transfer by ID
-    let _ = id;
-    Err((StatusCode::NOT_FOUND, "Transfer not found".to_string()))
+) -> Result<Json<StockTransfer>, AppError> {
+    require_permission(&claims, permissions::ipd::transfers::CREATE)?;
+    let t = sqlx::query_as::<_, StockTransfer>(
+        "SELECT * FROM inter_hospital_stock_transfers WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if t.source_tenant_id != claims.tenant_id && t.dest_tenant_id != claims.tenant_id {
+        return Err(AppError::Forbidden);
+    }
+    Ok(Json(t))
 }
 
-/// Get stock transfer items
+/// Get the line items of a stock transfer (numeric qty cast to float8 for the f64 model).
 pub async fn get_stock_transfer_items(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(transfer_id): Path<Uuid>,
-) -> Result<Json<Vec<StockTransferItem>>, (StatusCode, String)> {
-    // TODO: Query stock transfer items
-    let _ = transfer_id;
-    Ok(Json(vec![]))
+) -> Result<Json<Vec<StockTransferItem>>, AppError> {
+    require_permission(&claims, permissions::ipd::transfers::CREATE)?;
+    let items = sqlx::query_as::<_, StockTransferItem>(
+        "SELECT i.id, i.transfer_id, i.item_id, i.item_type, i.item_code, i.item_name, \
+                i.batch_number, i.expiry_date, i.requested_qty::float8 AS requested_qty, \
+                i.approved_qty::float8 AS approved_qty, i.dispatched_qty::float8 AS dispatched_qty, \
+                i.received_qty::float8 AS received_qty, i.unit, \
+                i.unit_price::float8 AS unit_price, i.created_at \
+         FROM inter_hospital_stock_transfer_items i \
+         JOIN inter_hospital_stock_transfers t ON t.id = i.transfer_id \
+         WHERE i.transfer_id = $1 AND i.deleted_at IS NULL \
+           AND (t.source_tenant_id = $2 OR t.dest_tenant_id = $2)",
+    )
+    .bind(transfer_id)
+    .bind(claims.tenant_id)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(items))
 }
 
-/// Request a stock transfer
+/// Request a stock transfer (with line items) to another hospital in the same group.
 pub async fn create_stock_transfer(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Json(payload): Json<CreateStockTransfer>,
-) -> Result<Json<StockTransfer>, (StatusCode, String)> {
-    // TODO: Insert stock transfer and items
-    let _ = payload;
-    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
+) -> Result<Json<StockTransfer>, AppError> {
+    require_permission(&claims, permissions::ipd::transfers::CREATE)?;
+    if payload.items.is_empty() {
+        return Err(AppError::BadRequest(
+            "At least one item is required".to_owned(),
+        ));
+    }
+    let same_group = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS ( \
+            SELECT 1 FROM tenants s JOIN tenants d ON d.group_id = s.group_id \
+            WHERE s.id = $1 AND d.id = $2 AND s.group_id IS NOT NULL)",
+    )
+    .bind(claims.tenant_id)
+    .bind(payload.dest_tenant_id)
+    .fetch_one(&state.db)
+    .await?;
+    if !same_group {
+        return Err(AppError::BadRequest(
+            "Destination hospital is not in the same group".to_owned(),
+        ));
+    }
+
+    let mut tx = state.db.begin().await?;
+    let number = format!(
+        "IHST-{}",
+        Uuid::new_v4().simple().to_string()[..10].to_uppercase()
+    );
+    let header = sqlx::query_as::<_, StockTransfer>(
+        "INSERT INTO inter_hospital_stock_transfers \
+         (source_tenant_id, dest_tenant_id, transfer_number, status, priority, \
+          request_reason, requested_by) \
+         VALUES ($1, $2, $3, 'requested'::stock_transfer_status, COALESCE($4, 'routine'), $5, $6) \
+         RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(payload.dest_tenant_id)
+    .bind(&number)
+    .bind(&payload.priority)
+    .bind(&payload.request_reason)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+    for item in &payload.items {
+        sqlx::query(
+            "INSERT INTO inter_hospital_stock_transfer_items \
+             (transfer_id, item_id, item_type, item_code, item_name, batch_number, expiry_date, \
+              requested_qty, unit, unit_price) \
+             VALUES ($1, $2, COALESCE($3, 'drug'), $4, $5, $6, $7, $8, $9, $10)",
+        )
+        .bind(header.id)
+        .bind(item.item_id)
+        .bind(&item.item_type)
+        .bind(&item.item_code)
+        .bind(&item.item_name)
+        .bind(&item.batch_number)
+        .bind(item.expiry_date)
+        .bind(item.requested_qty)
+        .bind(&item.unit)
+        .bind(item.unit_price)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(Json(header))
 }
 
-/// Update stock transfer status
+/// Advance a stock transfer (accept / dispatch / receive / cancel), side + status guarded.
+/// The handler signature reuses the patient `TransferStatus`, mapped onto the stock lifecycle.
 pub async fn update_stock_transfer(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
     Json(payload): Json<UpdateTransferStatus>,
-) -> Result<Json<StockTransfer>, (StatusCode, String)> {
-    // TODO: Update stock transfer status
-    let _ = (id, payload);
-    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
+) -> Result<Json<StockTransfer>, AppError> {
+    require_permission(&claims, permissions::ipd::transfers::CREATE)?;
+    let t = sqlx::query_as::<_, StockTransfer>(
+        "SELECT * FROM inter_hospital_stock_transfers WHERE id = $1 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    use medbrains_core::multi_hospital::StockTransferStatus as S;
+    use medbrains_core::multi_hospital::TransferStatus as P;
+    let is_source = t.source_tenant_id == claims.tenant_id;
+    let is_dest = t.dest_tenant_id == claims.tenant_id;
+    if !is_source && !is_dest {
+        return Err(AppError::Forbidden);
+    }
+    let (target, allowed) = match payload.status {
+        P::Approved => (S::Approved, is_dest && t.status == S::Requested),
+        P::InTransit => (S::Dispatched, is_source && t.status == S::Approved),
+        P::Received => (
+            S::Received,
+            is_dest && matches!(t.status, S::Dispatched | S::InTransit),
+        ),
+        P::Cancelled => (
+            S::Cancelled,
+            is_source && matches!(t.status, S::Requested | S::Approved),
+        ),
+        P::Requested | P::Rejected => (S::Requested, false),
+    };
+    if !allowed {
+        return Err(AppError::BadRequest(
+            "That transfer action isn't valid for your hospital at this stage".to_owned(),
+        ));
+    }
+
+    let row = sqlx::query_as::<_, StockTransfer>(
+        "UPDATE inter_hospital_stock_transfers SET status = $2, notes = COALESCE($3, notes), \
+            approved_by = CASE WHEN $2 = 'approved'::stock_transfer_status THEN $4 \
+                               ELSE approved_by END, \
+            approved_at = CASE WHEN $2 = 'approved'::stock_transfer_status THEN now() \
+                               ELSE approved_at END, \
+            dispatched_by = CASE WHEN $2 = 'dispatched'::stock_transfer_status THEN $4 \
+                                 ELSE dispatched_by END, \
+            dispatched_at = CASE WHEN $2 = 'dispatched'::stock_transfer_status THEN now() \
+                                 ELSE dispatched_at END, \
+            received_by = CASE WHEN $2 = 'received'::stock_transfer_status THEN $4 \
+                               ELSE received_by END, \
+            received_at = CASE WHEN $2 = 'received'::stock_transfer_status THEN now() \
+                               ELSE received_at END, \
+            updated_at = now() WHERE id = $1 RETURNING *",
+    )
+    .bind(id)
+    .bind(target)
+    .bind(&payload.notes)
+    .bind(claims.sub)
+    .fetch_one(&state.db)
+    .await?;
+    Ok(Json(row))
 }
 
 // ── Group KPIs & Dashboard ────────────────────────────────────────────────────
