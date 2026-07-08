@@ -301,47 +301,127 @@ pub async fn remove_hospital_from_group(
 
 // ── Cross-Hospital User Assignments ───────────────────────────────────────────
 
-/// List user assignments across hospitals
+const ASSIGNMENT_COLS: &str = "id, user_id, tenant_id, role, permissions, is_primary, \
+     is_active, valid_from, valid_to, created_at, updated_at";
+
+/// List a user's hospital assignments across the chain.
 pub async fn list_user_assignments(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(user_id): Path<Uuid>,
-) -> Result<Json<UserWithAssignments>, (StatusCode, String)> {
-    // TODO: Query user_hospital_assignments for this user
-    let _ = user_id;
-    Err((StatusCode::NOT_FOUND, "User not found".to_string()))
+) -> Result<Json<UserWithAssignments>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    let (username, full_name, email) = sqlx::query_as::<_, (String, String, String)>(
+        "SELECT username, COALESCE(full_name, ''), COALESCE(email, '') FROM users WHERE id = $1",
+    )
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    let assignments = sqlx::query_as::<_, UserHospitalAssignment>(&format!(
+        "SELECT {ASSIGNMENT_COLS} FROM user_hospital_assignments \
+         WHERE user_id = $1 AND deleted_at IS NULL ORDER BY is_primary DESC"
+    ))
+    .bind(user_id)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(UserWithAssignments {
+        user_id,
+        username,
+        full_name,
+        email,
+        assignments,
+    }))
 }
 
-/// List all users with multi-hospital access
+/// List all users who hold an assignment in any hospital of a group.
 pub async fn list_multi_hospital_users(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Query(query): Query<GroupIdQuery>,
-) -> Result<Json<Vec<UserWithAssignments>>, (StatusCode, String)> {
-    // TODO: Query users with assignments in this group
-    let _ = query;
-    Ok(Json(vec![]))
+) -> Result<Json<Vec<UserWithAssignments>>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    let assignments = sqlx::query_as::<_, UserHospitalAssignment>(
+        "SELECT uha.id, uha.user_id, uha.tenant_id, uha.role, uha.permissions, uha.is_primary, \
+                uha.is_active, uha.valid_from, uha.valid_to, uha.created_at, uha.updated_at \
+         FROM user_hospital_assignments uha JOIN tenants t ON t.id = uha.tenant_id \
+         WHERE t.group_id = $1 AND uha.deleted_at IS NULL ORDER BY uha.user_id",
+    )
+    .bind(query.group_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let mut by_user: std::collections::HashMap<Uuid, Vec<UserHospitalAssignment>> =
+        std::collections::HashMap::new();
+    for a in assignments {
+        by_user.entry(a.user_id).or_default().push(a);
+    }
+    if by_user.is_empty() {
+        return Ok(Json(vec![]));
+    }
+    let user_ids: Vec<Uuid> = by_user.keys().copied().collect();
+    let users = sqlx::query_as::<_, (Uuid, String, String, String)>(
+        "SELECT id, username, COALESCE(full_name, ''), COALESCE(email, '') \
+         FROM users WHERE id = ANY($1)",
+    )
+    .bind(&user_ids)
+    .fetch_all(&state.db)
+    .await?;
+    let result = users
+        .into_iter()
+        .map(|(id, username, full_name, email)| UserWithAssignments {
+            user_id: id,
+            username,
+            full_name,
+            email,
+            assignments: by_user.get(&id).cloned().unwrap_or_default(),
+        })
+        .collect();
+    Ok(Json(result))
 }
 
-/// Assign user to a hospital
+/// Assign a user to a hospital (grant chain access).
 pub async fn create_user_assignment(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Json(payload): Json<CreateUserHospitalAssignment>,
-) -> Result<Json<UserHospitalAssignment>, (StatusCode, String)> {
-    // TODO: Insert user_hospital_assignment
-    let _ = payload;
-    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
+) -> Result<Json<UserHospitalAssignment>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    let perms = serde_json::to_value(payload.permissions.unwrap_or_default())
+        .unwrap_or_else(|_| serde_json::json!([]));
+    let row = sqlx::query_as::<_, UserHospitalAssignment>(&format!(
+        "INSERT INTO user_hospital_assignments \
+         (user_id, tenant_id, role, permissions, is_primary, valid_from, valid_to) \
+         VALUES ($1, $2, $3, $4, COALESCE($5, false), COALESCE($6, CURRENT_DATE), $7) \
+         RETURNING {ASSIGNMENT_COLS}"
+    ))
+    .bind(payload.user_id)
+    .bind(payload.tenant_id)
+    .bind(&payload.role)
+    .bind(perms)
+    .bind(payload.is_primary)
+    .bind(payload.valid_from)
+    .bind(payload.valid_to)
+    .fetch_one(&state.db)
+    .await?;
+    Ok(Json(row))
 }
 
-/// Remove user assignment
+/// Revoke a user's hospital assignment (soft-delete).
 pub async fn delete_user_assignment(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(assignment_id): Path<Uuid>,
-) -> Result<StatusCode, (StatusCode, String)> {
-    // TODO: Delete user_hospital_assignment
-    let _ = assignment_id;
+) -> Result<StatusCode, AppError> {
+    require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    sqlx::query(
+        "UPDATE user_hospital_assignments \
+         SET is_active = false, deleted_at = now(), deleted_by = $2 WHERE id = $1",
+    )
+    .bind(assignment_id)
+    .bind(claims.sub)
+    .execute(&state.db)
+    .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
