@@ -7870,6 +7870,19 @@ export interface ClinicalTrial {
   updated_at: string;
 }
 
+/** An IRB / ethics-committee submission for a trial (#2989). */
+export interface TrialIrbSubmission {
+  id: string;
+  submission_type: string;
+  committee_name: string | null;
+  reference_number: string | null;
+  submitted_date: string;
+  status: string;
+  decision_date: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
 /** A blinded/unblinded randomization assignment (#2988) — arm is null while blinded. */
 export interface TrialRandomization {
   id: string;

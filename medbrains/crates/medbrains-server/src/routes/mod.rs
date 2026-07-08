@@ -3280,6 +3280,14 @@ pub fn build_router(state: AppState) -> Router {
             "/api/trial-randomizations/{id}/unblind",
             post(clinical_trials::unblind_randomization),
         )
+        .route(
+            "/api/clinical-trials/{id}/irb",
+            get(clinical_trials::list_irb_submissions).post(clinical_trials::create_irb_submission),
+        )
+        .route(
+            "/api/trial-irb/{id}",
+            put(clinical_trials::update_irb_submission),
+        )
         // ── Home Healthcare — home medication administration (#2979) ──
         .route(
             "/api/home-health/medications",

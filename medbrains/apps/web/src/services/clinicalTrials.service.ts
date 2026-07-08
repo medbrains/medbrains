@@ -18,4 +18,7 @@ export const clinicalTrialsService = {
   listRandomizations: api.listRandomizations,
   randomizePatient: api.randomizePatient,
   unblindRandomization: api.unblindRandomization,
+  listIrbSubmissions: api.listIrbSubmissions,
+  createIrbSubmission: api.createIrbSubmission,
+  updateIrbSubmission: api.updateIrbSubmission,
 };

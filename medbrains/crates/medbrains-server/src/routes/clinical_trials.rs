@@ -752,3 +752,127 @@ pub async fn unblind_randomization(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── IRB / Ethics committee submission tracking (#2989) ─────────────────────
+
+const IRB_COLS: &str = "id, submission_type, committee_name, reference_number, submitted_date, \
+     status, decision_date, notes, created_at";
+
+const IRB_TYPES: [&str; 5] = ["initial", "amendment", "renewal", "sae_report", "closure"];
+const IRB_STATUS: [&str; 5] = ["submitted", "under_review", "approved", "rejected", "deferred"];
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct TrialIrbSubmission {
+    pub id: Uuid,
+    pub submission_type: String,
+    pub committee_name: Option<String>,
+    pub reference_number: Option<String>,
+    pub submitted_date: NaiveDate,
+    pub status: String,
+    pub decision_date: Option<NaiveDate>,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// `GET /api/clinical-trials/{id}/irb` — the trial's ethics-committee submissions.
+pub async fn list_irb_submissions(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<TrialIrbSubmission>>, AppError> {
+    require_permission(&claims, "specialty.clinical_trials.list")?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, TrialIrbSubmission>(&format!(
+        "SELECT {IRB_COLS} FROM trial_irb_submissions \
+         WHERE tenant_id = $1 AND trial_id = $2 ORDER BY submitted_date DESC LIMIT 500"
+    ))
+    .bind(claims.tenant_id)
+    .bind(id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateIrbRequest {
+    pub submission_type: Option<String>,
+    pub committee_name: Option<String>,
+    pub reference_number: Option<String>,
+    pub submitted_date: Option<NaiveDate>,
+    pub notes: Option<String>,
+}
+
+/// `POST /api/clinical-trials/{id}/irb` — record an ethics-committee submission.
+pub async fn create_irb_submission(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<CreateIrbRequest>,
+) -> Result<Json<TrialIrbSubmission>, AppError> {
+    require_permission(&claims, "specialty.clinical_trials.create")?;
+    if let Some(t) = &body.submission_type {
+        if !IRB_TYPES.contains(&t.as_str()) {
+            return Err(AppError::BadRequest("Invalid submission type".to_owned()));
+        }
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, TrialIrbSubmission>(&format!(
+        "INSERT INTO trial_irb_submissions \
+         (tenant_id, trial_id, submission_type, committee_name, reference_number, submitted_date, \
+          submitted_by, notes) \
+         VALUES ($1, $2, COALESCE($3, 'initial'), $4, $5, COALESCE($6, CURRENT_DATE), $7, $8) \
+         RETURNING {IRB_COLS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(id)
+    .bind(&body.submission_type)
+    .bind(&body.committee_name)
+    .bind(&body.reference_number)
+    .bind(body.submitted_date)
+    .bind(claims.sub)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateIrbRequest {
+    pub status: String,
+    pub decision_date: Option<NaiveDate>,
+    pub notes: Option<String>,
+}
+
+/// `PUT /api/trial-irb/{id}` — record the committee's decision on a submission.
+pub async fn update_irb_submission(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateIrbRequest>,
+) -> Result<Json<TrialIrbSubmission>, AppError> {
+    require_permission(&claims, "specialty.clinical_trials.create")?;
+    if !IRB_STATUS.contains(&body.status.as_str()) {
+        return Err(AppError::BadRequest("Invalid status".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, TrialIrbSubmission>(&format!(
+        "UPDATE trial_irb_submissions SET status = $3, decision_date = COALESCE($4, decision_date), \
+            notes = COALESCE($5, notes), updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 RETURNING {IRB_COLS}"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(&body.status)
+    .bind(body.decision_date)
+    .bind(&body.notes)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

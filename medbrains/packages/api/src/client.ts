@@ -1684,6 +1684,7 @@ import type {
   TrialAdverseEvent,
   TrialCandidate,
   TrialConsent,
+  TrialIrbSubmission,
   TrialRandomization,
   TrialVisit,
   TriggerPipelineRequest,
@@ -5938,6 +5939,29 @@ export const api = {
     request<TrialAdverseEvent[]>(`/clinical-trials/${trialId}/adverse-events`),
   listRandomizations: (trialId: string) =>
     request<TrialRandomization[]>(`/clinical-trials/${trialId}/randomizations`),
+  listIrbSubmissions: (trialId: string) =>
+    request<TrialIrbSubmission[]>(`/clinical-trials/${trialId}/irb`),
+  createIrbSubmission: (
+    trialId: string,
+    data: {
+      submission_type?: string;
+      committee_name?: string;
+      reference_number?: string;
+      notes?: string;
+    },
+  ) =>
+    request<TrialIrbSubmission>(`/clinical-trials/${trialId}/irb`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateIrbSubmission: (
+    id: string,
+    data: { status: string; decision_date?: string; notes?: string },
+  ) =>
+    request<TrialIrbSubmission>(`/trial-irb/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   randomizePatient: (
     trialId: string,
     data: { patient_id: string; arm: string; randomization_code?: string },
