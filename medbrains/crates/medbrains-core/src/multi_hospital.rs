@@ -409,7 +409,7 @@ pub struct DoctorRotationSchedule {
 }
 
 /// Doctor rotation with hospital name
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct DoctorRotationDisplay {
     pub id: Uuid,
     pub doctor_name: String,

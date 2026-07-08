@@ -880,50 +880,114 @@ pub async fn get_hospital_kpi(
 
 // ── Doctor Rotation ───────────────────────────────────────────────────────────
 
-/// List doctor rotation schedules for a group
+/// List a group's doctor rotation roster (RLS-scoped to this hospital's entries).
 pub async fn list_doctor_rotations(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(group_id): Path<Uuid>,
     Query(query): Query<DateRangeQuery>,
-) -> Result<Json<Vec<DoctorRotationDisplay>>, (StatusCode, String)> {
-    // TODO: Query doctor_rotation_schedules for group
-    let _ = (group_id, query);
-    Ok(Json(vec![]))
+) -> Result<Json<Vec<DoctorRotationDisplay>>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, DoctorRotationDisplay>(
+        "SELECT r.id, COALESCE(u.full_name, '') AS doctor_name, NULL::text AS doctor_specialty, \
+                t.name AS hospital_name, d.name AS department_name, r.schedule_date, r.shift, \
+                r.start_time, r.end_time, r.is_locum \
+         FROM doctor_rotation_schedules r \
+         JOIN tenants t ON t.id = r.tenant_id \
+         LEFT JOIN users u ON u.id = r.doctor_id \
+         LEFT JOIN departments d ON d.id = r.department_id \
+         WHERE r.group_id = $1 AND r.deleted_at IS NULL \
+           AND ($2::date IS NULL OR r.schedule_date >= $2) \
+           AND ($3::date IS NULL OR r.schedule_date <= $3) \
+         ORDER BY r.schedule_date, r.shift LIMIT 1000",
+    )
+    .bind(group_id)
+    .bind(query.from_date)
+    .bind(query.to_date)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
 }
 
-/// Get rotation schedule for a specific doctor
+/// Get a doctor's rotation entries (this hospital).
 pub async fn get_doctor_rotation(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(doctor_id): Path<Uuid>,
     Query(query): Query<DateRangeQuery>,
-) -> Result<Json<Vec<DoctorRotationSchedule>>, (StatusCode, String)> {
-    // TODO: Query rotation schedule for doctor
-    let _ = (doctor_id, query);
-    Ok(Json(vec![]))
+) -> Result<Json<Vec<DoctorRotationSchedule>>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, DoctorRotationSchedule>(
+        "SELECT * FROM doctor_rotation_schedules \
+         WHERE doctor_id = $1 AND deleted_at IS NULL \
+           AND ($2::date IS NULL OR schedule_date >= $2) \
+           AND ($3::date IS NULL OR schedule_date <= $3) \
+         ORDER BY schedule_date LIMIT 1000",
+    )
+    .bind(doctor_id)
+    .bind(query.from_date)
+    .bind(query.to_date)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
 }
 
-/// Create doctor rotation entry
+/// Create a doctor rotation entry for this hospital.
 pub async fn create_doctor_rotation(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(group_id): Path<Uuid>,
     Json(payload): Json<CreateDoctorRotation>,
-) -> Result<Json<DoctorRotationSchedule>, (StatusCode, String)> {
-    // TODO: Insert doctor_rotation_schedule
-    let _ = (group_id, payload);
-    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
+) -> Result<Json<DoctorRotationSchedule>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, DoctorRotationSchedule>(
+        "INSERT INTO doctor_rotation_schedules \
+         (group_id, doctor_id, schedule_date, tenant_id, department_id, shift, start_time, \
+          end_time, is_locum, notes) \
+         VALUES ($1, $2, $3, $4, $5, COALESCE($6, 'day'), $7, $8, COALESCE($9, false), $10) \
+         RETURNING *",
+    )
+    .bind(group_id)
+    .bind(payload.doctor_id)
+    .bind(payload.schedule_date)
+    .bind(claims.tenant_id)
+    .bind(payload.department_id)
+    .bind(&payload.shift)
+    .bind(payload.start_time)
+    .bind(payload.end_time)
+    .bind(payload.is_locum)
+    .bind(&payload.notes)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
 }
 
-/// Delete rotation entry
+/// Soft-delete a doctor rotation entry.
 pub async fn delete_doctor_rotation(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<StatusCode, (StatusCode, String)> {
-    // TODO: Delete rotation entry
-    let _ = id;
+) -> Result<StatusCode, AppError> {
+    require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    sqlx::query(
+        "UPDATE doctor_rotation_schedules SET deleted_at = now(), deleted_by = $2 WHERE id = $1",
+    )
+    .bind(id)
+    .bind(claims.sub)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
