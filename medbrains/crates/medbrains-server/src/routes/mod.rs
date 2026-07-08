@@ -3337,6 +3337,18 @@ pub fn build_router(state: AppState) -> Router {
             "/api/home-health/remote-vitals",
             get(home_health::list_remote_vitals).post(home_health::ingest_remote_vital),
         )
+        .route(
+            "/api/home-health/packages",
+            get(home_health::list_home_care_packages).post(home_health::create_home_care_package),
+        )
+        .route(
+            "/api/home-health/packages/{id}/consume",
+            post(home_health::consume_package_visit),
+        )
+        .route(
+            "/api/home-visits/{id}/bill",
+            post(home_health::bill_home_visit),
+        )
         // ── Case-sheet digitization (B2 ingestion) ──
         .route(
             "/api/case-sheets/scans",

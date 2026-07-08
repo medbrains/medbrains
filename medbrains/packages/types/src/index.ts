@@ -7826,6 +7826,20 @@ export interface CaseSheetScan {
   updated_at: string;
 }
 
+/** A prepaid home-care visit package (#2970). */
+export interface HomeCarePackage {
+  id: string;
+  patient_id: string;
+  name: string;
+  total_visits: number;
+  used_visits: number;
+  price: string;
+  status: string;
+  invoice_id: string | null;
+  purchased_at: string;
+  created_at: string;
+}
+
 /** A remote vital reading from a home patient's connected device (#2969). */
 export interface RemoteVitalReading {
   id: string;

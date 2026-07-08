@@ -6,6 +6,7 @@ use axum::extract::{Path, Query, State};
 use axum::{Extension, Json};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -751,4 +752,169 @@ pub async fn ingest_remote_vital(
     .await?;
     tx.commit().await?;
     Ok(Json(row))
+}
+
+// ── Home care billing — packages + per-visit (#2970) ───────────────────────
+
+const PKG_COLS: &str = "id, patient_id, name, total_visits, used_visits, price, status, \
+     invoice_id, purchased_at, created_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct HomeCarePackage {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub name: String,
+    pub total_visits: i32,
+    pub used_visits: i32,
+    pub price: Decimal,
+    pub status: String,
+    pub invoice_id: Option<Uuid>,
+    pub purchased_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// `GET /api/home-health/packages?patient_id=` — a patient's home-care packages.
+pub async fn list_home_care_packages(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<HomeMedQuery>,
+) -> Result<Json<Vec<HomeCarePackage>>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, HomeCarePackage>(&format!(
+        "SELECT {PKG_COLS} FROM home_care_packages \
+         WHERE tenant_id = $1 AND patient_id = $2 ORDER BY purchased_at DESC LIMIT 200"
+    ))
+    .bind(claims.tenant_id)
+    .bind(q.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreatePackageRequest {
+    pub patient_id: Uuid,
+    pub name: String,
+    pub total_visits: i32,
+    pub price: Decimal,
+}
+
+/// `POST /api/home-health/packages` — sell a package; auto-charges the price to the patient.
+pub async fn create_home_care_package(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreatePackageRequest>,
+) -> Result<Json<HomeCarePackage>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    if body.name.trim().is_empty() || body.total_visits <= 0 {
+        return Err(AppError::BadRequest(
+            "Package name and a positive visit count are required".to_owned(),
+        ));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let pkg_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO home_care_packages (tenant_id, patient_id, name, total_visits, price) \
+         VALUES ($1, $2, $3, $4, $5) RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(body.name.trim())
+    .bind(body.total_visits)
+    .bind(body.price)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let charge = super::billing::auto_charge(
+        &mut tx,
+        &claims.tenant_id,
+        super::billing::AutoChargeInput {
+            patient_id: body.patient_id,
+            encounter_id: None,
+            charge_code: "HOME_CARE_PKG".to_owned(),
+            source: "procedure".to_owned(),
+            source_id: pkg_id,
+            quantity: 1,
+            description_override: Some(body.name.trim().to_owned()),
+            unit_price_override: Some(body.price),
+            tax_percent_override: None,
+        },
+    )
+    .await?;
+
+    let row = sqlx::query_as::<_, HomeCarePackage>(&format!(
+        "UPDATE home_care_packages SET invoice_id = $2 WHERE id = $1 RETURNING {PKG_COLS}"
+    ))
+    .bind(pkg_id)
+    .bind(charge.invoice_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// `POST /api/home-health/packages/{id}/consume` — deduct one visit from a package.
+pub async fn consume_package_visit(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<HomeCarePackage>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, HomeCarePackage>(&format!(
+        "UPDATE home_care_packages \
+         SET used_visits = used_visits + 1, \
+             status = CASE WHEN used_visits + 1 >= total_visits THEN 'completed' ELSE status END, \
+             updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 AND status = 'active' AND used_visits < total_visits \
+         RETURNING {PKG_COLS}"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("Package is exhausted or not active".to_owned()))?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// `POST /api/home-visits/{id}/bill` — visit-based billing: auto-charge a home-care visit.
+pub async fn bill_home_visit(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let patient_id: Uuid =
+        sqlx::query_scalar("SELECT patient_id FROM home_visits WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
+
+    let charge = super::billing::auto_charge(
+        &mut tx,
+        &claims.tenant_id,
+        super::billing::AutoChargeInput {
+            patient_id,
+            encounter_id: None,
+            charge_code: "HOME_VISIT".to_owned(),
+            source: "procedure".to_owned(),
+            source_id: id,
+            quantity: 1,
+            description_override: Some("Home care visit".to_owned()),
+            unit_price_override: None,
+            tax_percent_override: None,
+        },
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({ "invoice_id": charge.invoice_id })))
 }

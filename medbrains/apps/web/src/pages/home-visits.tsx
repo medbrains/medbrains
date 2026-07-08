@@ -182,6 +182,12 @@ export function HomeVisitsPage() {
     onError: (e: Error) => toast.error(e.message, { title: "Update failed" }),
   });
 
+  const bill = useMutation({
+    mutationFn: (id: string) => homeHealthService.billHomeVisit(id),
+    onSuccess: () => toast.success("Visit billed", { title: "Home visits" }),
+    onError: (e: Error) => toast.error(e.message, { title: "Bill failed" }),
+  });
+
   const act = (id: string, status: string, label: string, tone: "primary" | "danger") => (
     <Button
       key={status}
@@ -223,6 +229,17 @@ export function HomeVisitsPage() {
         actions.push(
           <Button key="document" size="xs" tone="secondary" onClick={() => setDocVisit(r)}>
             Document
+          </Button>,
+        );
+        actions.push(
+          <Button
+            key="bill"
+            size="xs"
+            tone="ghost"
+            loading={bill.isPending}
+            onClick={() => bill.mutate(r.id)}
+          >
+            Bill
           </Button>,
         );
         return actions.length > 0 ? <Group gap="xs">{actions}</Group> : null;

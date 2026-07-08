@@ -18,4 +18,8 @@ export const homeHealthService = {
   documentHomeVisit: api.documentHomeVisit,
   listRemoteVitals: api.listRemoteVitals,
   ingestRemoteVital: api.ingestRemoteVital,
+  listHomeCarePackages: api.listHomeCarePackages,
+  createHomeCarePackage: api.createHomeCarePackage,
+  consumePackageVisit: api.consumePackageVisit,
+  billHomeVisit: api.billHomeVisit,
 };

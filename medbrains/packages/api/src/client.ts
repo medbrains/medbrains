@@ -970,6 +970,7 @@ import type {
   HealthResponse,
   HemovigilanceReport,
   HistopathReportPrintData,
+  HomeCarePackage,
   HomeCollectionStatsRow,
   HomeCollectionStatusRequest,
   HomeDischargeItem,
@@ -6026,6 +6027,22 @@ export const api = {
     request<HomeMedAdministration[]>(`/home-health/medications?patient_id=${patientId}`),
   listRemoteVitals: (patientId: string) =>
     request<RemoteVitalReading[]>(`/home-health/remote-vitals?patient_id=${patientId}`),
+  listHomeCarePackages: (patientId: string) =>
+    request<HomeCarePackage[]>(`/home-health/packages?patient_id=${patientId}`),
+  createHomeCarePackage: (data: {
+    patient_id: string;
+    name: string;
+    total_visits: number;
+    price: number;
+  }) =>
+    request<HomeCarePackage>("/home-health/packages", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  consumePackageVisit: (id: string) =>
+    request<HomeCarePackage>(`/home-health/packages/${id}/consume`, { method: "POST" }),
+  billHomeVisit: (id: string) =>
+    request<{ invoice_id: string }>(`/home-visits/${id}/bill`, { method: "POST" }),
   ingestRemoteVital: (data: {
     patient_id: string;
     device_type: string;
