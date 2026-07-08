@@ -295,3 +295,80 @@ pub async fn update_ltc_medication(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── Rehabilitation progress tracking (#2963) ───────────────────────────────
+
+const REHAB_COLS: &str = "id, patient_id, therapy_type, session_date, goal, progress_note, \
+     functional_score, created_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct RehabProgress {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub therapy_type: String,
+    pub session_date: NaiveDate,
+    pub goal: Option<String>,
+    pub progress_note: Option<String>,
+    pub functional_score: Option<i32>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// `GET /api/ltc/rehab?patient_id=` — a resident's rehab progress log.
+pub async fn list_rehab_progress(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<PatientQuery>,
+) -> Result<Json<Vec<RehabProgress>>, AppError> {
+    require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, RehabProgress>(&format!(
+        "SELECT {REHAB_COLS} FROM rehab_progress \
+         WHERE tenant_id = $1 AND patient_id = $2 ORDER BY session_date DESC LIMIT 500"
+    ))
+    .bind(claims.tenant_id)
+    .bind(q.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddRehabRequest {
+    pub patient_id: Uuid,
+    pub therapy_type: String,
+    pub goal: Option<String>,
+    pub progress_note: Option<String>,
+    pub functional_score: Option<i32>,
+}
+
+/// `POST /api/ltc/rehab` — record a rehab session's progress.
+pub async fn add_rehab_progress(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<AddRehabRequest>,
+) -> Result<Json<RehabProgress>, AppError> {
+    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    if !["physiotherapy", "occupational", "speech"].contains(&body.therapy_type.as_str()) {
+        return Err(AppError::BadRequest("Invalid therapy type".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, RehabProgress>(&format!(
+        "INSERT INTO rehab_progress \
+         (tenant_id, patient_id, therapy_type, goal, progress_note, functional_score, therapist) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING {REHAB_COLS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(&body.therapy_type)
+    .bind(&body.goal)
+    .bind(&body.progress_note)
+    .bind(body.functional_score)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

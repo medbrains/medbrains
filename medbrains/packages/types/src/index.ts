@@ -7826,6 +7826,18 @@ export interface CaseSheetScan {
   updated_at: string;
 }
 
+/** A rehabilitation therapy session progress record (#2963). */
+export interface RehabProgress {
+  id: string;
+  patient_id: string;
+  therapy_type: string;
+  session_date: string;
+  goal: string | null;
+  progress_note: string | null;
+  functional_score: number | null;
+  created_at: string;
+}
+
 /** A long-term (chronic) medication on an extended supply cycle (#2962). */
 export interface LtcMedication {
   id: string;

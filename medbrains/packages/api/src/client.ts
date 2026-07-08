@@ -1526,6 +1526,7 @@ import type {
   RegulatorySubmission,
   // Specialty Clinical: PMR / Audiology
   RehabPlan,
+  RehabProgress,
   RehabSession,
   RejectAssetMovementRequest,
   RejectSampleRequest,
@@ -5917,6 +5918,15 @@ export const api = {
     request<MdsAssessment[]>(`/ltc/mds?patient_id=${patientId}`),
   listLtcMedications: (patientId: string) =>
     request<LtcMedication[]>(`/ltc/medications?patient_id=${patientId}`),
+  listRehabProgress: (patientId: string) =>
+    request<RehabProgress[]>(`/ltc/rehab?patient_id=${patientId}`),
+  addRehabProgress: (data: {
+    patient_id: string;
+    therapy_type: string;
+    goal?: string;
+    progress_note?: string;
+    functional_score?: number;
+  }) => request<RehabProgress>("/ltc/rehab", { method: "POST", body: JSON.stringify(data) }),
   addLtcMedication: (data: {
     patient_id: string;
     drug_name: string;

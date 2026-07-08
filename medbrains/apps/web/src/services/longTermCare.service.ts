@@ -8,4 +8,6 @@ export const longTermCareService = {
   addLtcMedication: api.addLtcMedication,
   refillLtcMedication: api.refillLtcMedication,
   updateLtcMedication: api.updateLtcMedication,
+  listRehabProgress: api.listRehabProgress,
+  addRehabProgress: api.addRehabProgress,
 };
