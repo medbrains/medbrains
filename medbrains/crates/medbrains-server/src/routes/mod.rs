@@ -3273,6 +3273,11 @@ pub fn build_router(state: AppState) -> Router {
             "/api/ltc/family-messages/{id}",
             put(long_term_care::update_family_message),
         )
+        .route(
+            "/api/ltc/readmission-risk",
+            get(long_term_care::list_readmission_risk)
+                .post(long_term_care::assess_readmission_risk),
+        )
         // ── Clinical Trials registry (#2983) ──
         .route(
             "/api/clinical-trials",

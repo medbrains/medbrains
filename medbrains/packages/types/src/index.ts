@@ -7826,6 +7826,21 @@ export interface CaseSheetScan {
   updated_at: string;
 }
 
+/** A readmission-risk (LACE-style) assessment (#2965). */
+export interface ReadmissionRisk {
+  id: string;
+  patient_id: string;
+  length_of_stay: number;
+  acuity_score: number;
+  comorbidity_score: number;
+  ed_visits: number;
+  total_score: number;
+  risk_level: string;
+  notes: string | null;
+  assessed_at: string;
+  created_at: string;
+}
+
 /** A family communication message — care update or family message (#2964). */
 export interface FamilyMessage {
   id: string;

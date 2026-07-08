@@ -485,3 +485,112 @@ pub async fn update_family_message(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── Readmission risk scoring (#2965) ───────────────────────────────────────
+
+const RISK_COLS: &str = "id, patient_id, length_of_stay, acuity_score, comorbidity_score, \
+     ed_visits, total_score, risk_level, notes, assessed_at, created_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct ReadmissionRisk {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub length_of_stay: i32,
+    pub acuity_score: i32,
+    pub comorbidity_score: i32,
+    pub ed_visits: i32,
+    pub total_score: i32,
+    pub risk_level: String,
+    pub notes: Option<String>,
+    pub assessed_at: NaiveDate,
+    pub created_at: DateTime<Utc>,
+}
+
+/// LACE-style banding: >=10 high, 5-9 moderate, else low.
+fn risk_band(total: i32) -> &'static str {
+    if total >= 10 {
+        "high"
+    } else if total >= 5 {
+        "moderate"
+    } else {
+        "low"
+    }
+}
+
+/// `GET /api/ltc/readmission-risk?patient_id=` — a patient's readmission-risk assessments.
+pub async fn list_readmission_risk(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<PatientQuery>,
+) -> Result<Json<Vec<ReadmissionRisk>>, AppError> {
+    require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, ReadmissionRisk>(&format!(
+        "SELECT {RISK_COLS} FROM readmission_risk_assessments \
+         WHERE tenant_id = $1 AND patient_id = $2 ORDER BY assessed_at DESC LIMIT 200"
+    ))
+    .bind(claims.tenant_id)
+    .bind(q.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AssessRiskRequest {
+    pub patient_id: Uuid,
+    pub length_of_stay: i32,
+    pub acuity_score: i32,
+    pub comorbidity_score: i32,
+    pub ed_visits: i32,
+    pub notes: Option<String>,
+}
+
+/// `POST /api/ltc/readmission-risk` — score readmission risk from the LACE components.
+pub async fn assess_readmission_risk(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<AssessRiskRequest>,
+) -> Result<Json<ReadmissionRisk>, AppError> {
+    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    let total =
+        body.length_of_stay + body.acuity_score + body.comorbidity_score + body.ed_visits;
+    let level = risk_band(total);
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, ReadmissionRisk>(&format!(
+        "INSERT INTO readmission_risk_assessments \
+         (tenant_id, patient_id, length_of_stay, acuity_score, comorbidity_score, ed_visits, \
+          total_score, risk_level, assessed_by, notes) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING {RISK_COLS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(body.length_of_stay)
+    .bind(body.acuity_score)
+    .bind(body.comorbidity_score)
+    .bind(body.ed_visits)
+    .bind(total)
+    .bind(level)
+    .bind(claims.sub)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::risk_band;
+
+    #[test]
+    fn bands() {
+        assert_eq!(risk_band(3), "low");
+        assert_eq!(risk_band(5), "moderate");
+        assert_eq!(risk_band(9), "moderate");
+        assert_eq!(risk_band(10), "high");
+    }
+}

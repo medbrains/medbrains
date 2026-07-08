@@ -1504,6 +1504,7 @@ import type {
   RazorpayStatusResponse,
   RcaTemplatePrintData,
   RcDetailResponse,
+  ReadmissionRisk,
   ReagentConsumptionRow,
   Receipt,
   ReceiptPrintData,
@@ -5923,6 +5924,20 @@ export const api = {
     request<RehabProgress[]>(`/ltc/rehab?patient_id=${patientId}`),
   listFamilyMessages: (patientId: string) =>
     request<FamilyMessage[]>(`/ltc/family-messages?patient_id=${patientId}`),
+  listReadmissionRisk: (patientId: string) =>
+    request<ReadmissionRisk[]>(`/ltc/readmission-risk?patient_id=${patientId}`),
+  assessReadmissionRisk: (data: {
+    patient_id: string;
+    length_of_stay: number;
+    acuity_score: number;
+    comorbidity_score: number;
+    ed_visits: number;
+    notes?: string;
+  }) =>
+    request<ReadmissionRisk>("/ltc/readmission-risk", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   postFamilyMessage: (data: {
     patient_id: string;
     direction?: string;
