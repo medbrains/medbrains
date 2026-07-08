@@ -971,6 +971,7 @@ import type {
   HaiRateRow,
   HandHygieneAudit,
   HandoverSummaryResponse,
+  HealthPackage,
   HealthResponse,
   HemovigilanceReport,
   HistopathReportPrintData,
@@ -5917,6 +5918,40 @@ export const api = {
   wardOnDuty: (wardId: string) => request<WardOnDutyRow[]>(`/ipd/wards/${wardId}/on-duty`),
   listClinicalTrials: (status?: string) =>
     request<ClinicalTrial[]>(`/clinical-trials${status ? `?status=${status}` : ""}`),
+  listHealthPackages: (activeOnly?: boolean) =>
+    request<HealthPackage[]>(`/microsite/packages${activeOnly ? "?active_only=true" : ""}`),
+  createHealthPackage: (data: {
+    name: string;
+    description?: string;
+    price: number;
+    includes?: string;
+    category?: string;
+    is_promoted?: boolean;
+  }) =>
+    request<HealthPackage>("/microsite/packages", { method: "POST", body: JSON.stringify(data) }),
+  updateHealthPackage: (
+    id: string,
+    data: {
+      name: string;
+      description?: string;
+      price: number;
+      includes?: string;
+      category?: string;
+      is_active?: boolean;
+      is_promoted?: boolean;
+    },
+  ) =>
+    request<HealthPackage>(`/microsite/packages/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  deleteHealthPackage: (id: string) =>
+    request<{ deactivated: string }>(`/microsite/packages/${id}`, { method: "DELETE" }),
+  bookHealthPackage: (id: string, patientId: string) =>
+    request<{ booking_id: string; invoice_id: string }>(`/microsite/packages/${id}/book`, {
+      method: "POST",
+      body: JSON.stringify({ patient_id: patientId }),
+    }),
   listMdsAssessments: (patientId: string) =>
     request<MdsAssessment[]>(`/ltc/mds?patient_id=${patientId}`),
   listLtcMedications: (patientId: string) =>

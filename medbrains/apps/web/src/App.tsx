@@ -183,6 +183,9 @@ const ClinicalTrialsPage = lazy(() =>
 const LongTermCarePage = lazy(() =>
   import("./pages/long-term-care").then((m) => ({ default: m.LongTermCarePage })),
 );
+const HealthPackagesPage = lazy(() =>
+  import("./pages/health-packages").then((m) => ({ default: m.HealthPackagesPage })),
+);
 const OtPage = lazy(() => import("./pages/ot").then((m) => ({ default: m.OtPage })));
 const QualityPage = lazy(() => import("./pages/quality").then((m) => ({ default: m.QualityPage })));
 const FrontOfficePage = lazy(() =>
@@ -548,6 +551,7 @@ export function App() {
               <Route path="home-visits" element={<HomeVisitsPage />} />
               <Route path="clinical-trials" element={<ClinicalTrialsPage />} />
               <Route path="long-term-care" element={<LongTermCarePage />} />
+              <Route path="health-packages" element={<HealthPackagesPage />} />
               <Route path="ot" element={<OtPage />} />
               <Route path="admin">
                 <Route index element={<Navigate to="users" replace />} />

@@ -24,6 +24,7 @@ import {
   IconFirstAidKit,
   IconFlask,
   IconForms,
+  IconGift,
   IconHeadset,
   IconHeartbeat,
   IconHeartHandshake,
@@ -156,6 +157,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: num
   IconBrain,
   IconStretching2,
   IconHeartHandshake,
+  IconGift,
   IconBabyCarriage,
   IconScale,
   IconListDetails,
@@ -753,6 +755,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         path: "/long-term-care",
         icon: "IconReportMedical",
         requiredPermission: "ipd.nursing_assessment.list",
+      },
+      {
+        i18nKey: "healthPackages",
+        path: "/health-packages",
+        icon: "IconGift",
+        requiredPermission: "specialty.health_packages.list",
       },
       {
         i18nKey: "icu",

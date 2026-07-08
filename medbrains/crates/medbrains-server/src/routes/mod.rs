@@ -137,6 +137,7 @@ pub mod case_sheet_scan;
 pub mod clinical_trials;
 pub mod home_health;
 pub mod long_term_care;
+pub mod microsite;
 pub mod vpn;
 pub mod ward_stock;
 pub mod sharing;
@@ -3240,6 +3241,19 @@ pub fn build_router(state: AppState) -> Router {
             get(ipd::list_ward_beds).post(ipd::assign_bed_to_ward),
         )
         .route("/api/ipd/wards/{id}/on-duty", get(ipd::ward_on_duty))
+        // ── Hospital micro-site — health packages (#2953) ──
+        .route(
+            "/api/microsite/packages",
+            get(microsite::list_health_packages).post(microsite::create_health_package),
+        )
+        .route(
+            "/api/microsite/packages/{id}",
+            put(microsite::update_health_package).delete(microsite::delete_health_package),
+        )
+        .route(
+            "/api/microsite/packages/{id}/book",
+            post(microsite::book_health_package),
+        )
         // ── Long-Term Care — MDS assessments (#2961) ──
         .route(
             "/api/ltc/mds",

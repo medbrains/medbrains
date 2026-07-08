@@ -7826,6 +7826,20 @@ export interface CaseSheetScan {
   updated_at: string;
 }
 
+/** A marketed health package / promotion (#2953). */
+export interface HealthPackage {
+  id: string;
+  name: string;
+  description: string | null;
+  price: string;
+  includes: string | null;
+  category: string | null;
+  is_active: boolean;
+  is_promoted: boolean;
+  valid_until: string | null;
+  created_at: string;
+}
+
 /** A home-care referral from discharge (#2966). */
 export interface HomeCareReferral {
   id: string;
