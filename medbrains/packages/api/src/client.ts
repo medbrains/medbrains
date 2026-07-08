@@ -8235,6 +8235,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  saveCaseSheetReview: (id: string, extractedJson: unknown) =>
+    request<CaseSheetScan>(`/case-sheets/scans/${id}/review`, {
+      method: "PUT",
+      body: JSON.stringify({ extracted_json: extractedJson }),
+    }),
+  commitCaseSheetScan: (id: string) =>
+    request<CaseSheetScan>(`/case-sheets/scans/${id}/commit`, { method: "POST" }),
   listIngestionItems: (batchId: string) =>
     request<IngestionItem[]>(`/document-ingestion/batches/${batchId}/items`),
   addIngestionItem: (batchId: string, data: AddIngestionItemInput) =>

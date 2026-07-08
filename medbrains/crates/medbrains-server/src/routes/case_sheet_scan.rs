@@ -182,3 +182,101 @@ pub async fn parse_result(
     tx.commit().await?;
     Ok(Json(scan))
 }
+
+#[derive(Debug, Deserialize)]
+pub struct SaveReviewRequest {
+    pub extracted_json: serde_json::Value,
+}
+
+/// `PUT /api/case-sheets/scans/{id}/review` — the doctor saves corrected fields. → `reviewing`.
+pub async fn save_review(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<SaveReviewRequest>,
+) -> Result<Json<CaseSheetScan>, AppError> {
+    require_permission(&claims, permissions::mrd::case_sheets::FILE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let scan = sqlx::query_as::<_, CaseSheetScan>(
+        "UPDATE case_sheet_scans SET extracted_json = $3, status = 'reviewing', updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 AND status IN ('parsed', 'reviewing', 'image_only') \
+         RETURNING *",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(&body.extracted_json)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("Scan is not in a reviewable state".to_owned()))?;
+    tx.commit().await?;
+    Ok(Json(scan))
+}
+
+/// Render the structured draft as a clinical-note text block.
+fn format_case_sheet_note(extracted: Option<&serde_json::Value>) -> String {
+    let mut out = String::from("Digitized case sheet:");
+    if let Some(serde_json::Value::Array(items)) = extracted {
+        for item in items {
+            let field = item.get("field").and_then(serde_json::Value::as_str).unwrap_or("");
+            let value = item.get("value").and_then(serde_json::Value::as_str).unwrap_or("");
+            if !field.is_empty() {
+                out.push_str(&format!("\n- {field}: {value}"));
+            }
+        }
+    }
+    out
+}
+
+/// `POST /api/case-sheets/scans/{id}/commit` — file the verified case sheet into the patient's
+/// clinical record (appends to the running note) and mark it `committed`.
+pub async fn commit_scan(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<CaseSheetScan>, AppError> {
+    require_permission(&claims, permissions::mrd::case_sheets::FILE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let scan = sqlx::query_as::<_, CaseSheetScan>(
+        "SELECT * FROM case_sheet_scans \
+         WHERE id = $1 AND tenant_id = $2 AND status IN ('parsed', 'reviewing')",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("Scan is not ready to commit".to_owned()))?;
+
+    let note = format_case_sheet_note(scan.extracted_json.as_ref());
+    sqlx::query(
+        "INSERT INTO patient_clinical_notes \
+            (tenant_id, patient_id, text, last_author_id, \
+             last_author_name, last_edited_at, version) \
+         VALUES ($1, $2, $3, $4, (SELECT full_name FROM users WHERE id = $4), now(), 1) \
+         ON CONFLICT (tenant_id, patient_id) DO UPDATE SET \
+            text = patient_clinical_notes.text || E'\\n\\n' || EXCLUDED.text, \
+            last_author_id = EXCLUDED.last_author_id, \
+            last_author_name = EXCLUDED.last_author_name, \
+            last_edited_at = now(), \
+            version = patient_clinical_notes.version + 1",
+    )
+    .bind(claims.tenant_id)
+    .bind(scan.patient_id)
+    .bind(&note)
+    .bind(claims.sub)
+    .execute(&mut *tx)
+    .await?;
+
+    let committed = sqlx::query_as::<_, CaseSheetScan>(
+        "UPDATE case_sheet_scans SET status = 'committed', updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 RETURNING *",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(committed))
+}

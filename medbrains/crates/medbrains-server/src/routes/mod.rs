@@ -3255,6 +3255,14 @@ pub fn build_router(state: AppState) -> Router {
             post(case_sheet_scan::parse_result),
         )
         .route(
+            "/api/case-sheets/scans/{id}/review",
+            put(case_sheet_scan::save_review),
+        )
+        .route(
+            "/api/case-sheets/scans/{id}/commit",
+            post(case_sheet_scan::commit_scan),
+        )
+        .route(
             "/api/ipd/wards/{wid}/beds/{mid}",
             delete(ipd::remove_bed_from_ward),
         )

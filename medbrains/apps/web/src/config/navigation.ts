@@ -707,6 +707,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         requiredPermission: "admin.settings.locations.list",
       },
       {
+        i18nKey: "caseSheetReview",
+        path: "/case-sheet-review",
+        icon: "IconFileText",
+        requiredPermission: "mrd.case_sheets.view",
+      },
+      {
         i18nKey: "icu",
         path: "/icu",
         icon: "IconHeartRateMonitor",
