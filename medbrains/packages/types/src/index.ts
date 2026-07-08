@@ -7870,6 +7870,21 @@ export interface ClinicalTrial {
   updated_at: string;
 }
 
+/** An informed-consent record for trial participation (#2985), reusing the e-consent module. */
+export interface TrialConsent {
+  id: string;
+  patient_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  template_id: string | null;
+  template_name: string | null;
+  template_version: number | null;
+  signed_by_patient: boolean | null;
+  patient_signed_at: string | null;
+  is_revoked: boolean | null;
+  created_at: string;
+}
+
 /** A patient who matches a clinical trial's structured eligibility (#2984). */
 export interface TrialCandidate {
   id: string;

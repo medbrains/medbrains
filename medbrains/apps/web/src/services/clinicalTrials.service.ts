@@ -6,4 +6,7 @@ export const clinicalTrialsService = {
   createClinicalTrial: api.createClinicalTrial,
   updateClinicalTrial: api.updateClinicalTrial,
   screenTrialCandidates: api.screenTrialCandidates,
+  listTrialConsents: api.listTrialConsents,
+  recordTrialConsent: api.recordTrialConsent,
+  listConsentTemplates: api.listConsentTemplates,
 };

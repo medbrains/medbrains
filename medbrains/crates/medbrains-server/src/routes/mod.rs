@@ -3252,6 +3252,10 @@ pub fn build_router(state: AppState) -> Router {
             "/api/clinical-trials/{id}/candidates",
             get(clinical_trials::screen_candidates),
         )
+        .route(
+            "/api/clinical-trials/{id}/consents",
+            get(clinical_trials::list_trial_consents).post(clinical_trials::record_trial_consent),
+        )
         // ── Home Healthcare — home medication administration (#2979) ──
         .route(
             "/api/home-health/medications",

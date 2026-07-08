@@ -272,3 +272,90 @@ pub async fn screen_candidates(
     tx.commit().await?;
     Ok(Json(candidates))
 }
+
+// ── Informed consent for trial participation (#2985) ───────────────────────
+// Reuses the versioned e-consent module (consent_templates carry the version, consent_records the
+// signatures); a trial consent is a consent_record of type 'research' linked to the trial.
+
+const CONSENT_COLS: &str = "cr.id, cr.patient_id, p.first_name, p.last_name, cr.template_id, \
+     ct.name AS template_name, ct.version AS template_version, cr.signed_by_patient, \
+     cr.patient_signed_at, cr.is_revoked, cr.created_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct TrialConsent {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub template_id: Option<Uuid>,
+    pub template_name: Option<String>,
+    pub template_version: Option<i32>,
+    pub signed_by_patient: Option<bool>,
+    pub patient_signed_at: Option<DateTime<Utc>>,
+    pub is_revoked: Option<bool>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// `GET /api/clinical-trials/{id}/consents` — the informed-consent records for a trial.
+pub async fn list_trial_consents(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<TrialConsent>>, AppError> {
+    require_permission(&claims, "specialty.clinical_trials.list")?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, TrialConsent>(&format!(
+        "SELECT {CONSENT_COLS} FROM consent_records cr \
+         LEFT JOIN patients p ON p.id = cr.patient_id \
+         LEFT JOIN consent_templates ct ON ct.id = cr.template_id \
+         WHERE cr.tenant_id = $1 AND cr.trial_id = $2 ORDER BY cr.created_at DESC LIMIT 500"
+    ))
+    .bind(claims.tenant_id)
+    .bind(id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RecordTrialConsentRequest {
+    pub patient_id: Uuid,
+    pub template_id: Option<Uuid>,
+}
+
+/// `POST /api/clinical-trials/{id}/consents` — record a patient's signed trial consent.
+pub async fn record_trial_consent(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RecordTrialConsentRequest>,
+) -> Result<Json<TrialConsent>, AppError> {
+    require_permission(&claims, "specialty.clinical_trials.create")?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let new_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO consent_records \
+         (tenant_id, patient_id, consent_type, language, created_by, trial_id, template_id, \
+          signed_by_patient, patient_signed_at, obtained_by) \
+         VALUES ($1, $2, 'research', 'en', $3, $4, $5, true, now(), $3) RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(claims.sub)
+    .bind(id)
+    .bind(body.template_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    let row = sqlx::query_as::<_, TrialConsent>(&format!(
+        "SELECT {CONSENT_COLS} FROM consent_records cr \
+         LEFT JOIN patients p ON p.id = cr.patient_id \
+         LEFT JOIN consent_templates ct ON ct.id = cr.template_id WHERE cr.id = $1"
+    ))
+    .bind(new_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

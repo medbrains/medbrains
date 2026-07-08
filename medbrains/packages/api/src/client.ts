@@ -1682,6 +1682,7 @@ import type {
   TreatmentChartPrintData,
   TreatmentSummaryResponse,
   TrialCandidate,
+  TrialConsent,
   TriggerPipelineRequest,
   TtiReport,
   TurnaroundStatsRow,
@@ -5927,6 +5928,13 @@ export const api = {
     }),
   screenTrialCandidates: (id: string) =>
     request<TrialCandidate[]>(`/clinical-trials/${id}/candidates`),
+  listTrialConsents: (trialId: string) =>
+    request<TrialConsent[]>(`/clinical-trials/${trialId}/consents`),
+  recordTrialConsent: (trialId: string, data: { patient_id: string; template_id?: string }) =>
+    request<TrialConsent>(`/clinical-trials/${trialId}/consents`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   listHomeMeds: (patientId: string) =>
     request<HomeMedAdministration[]>(`/home-health/medications?patient_id=${patientId}`),
   scheduleHomeMed: (data: {
