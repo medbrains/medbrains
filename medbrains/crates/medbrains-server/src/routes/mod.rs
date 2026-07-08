@@ -134,6 +134,7 @@ pub mod sso;
 pub mod sso_login;
 pub mod step_up;
 pub mod case_sheet_scan;
+pub mod home_health;
 pub mod vpn;
 pub mod ward_stock;
 pub mod sharing;
@@ -3237,6 +3238,15 @@ pub fn build_router(state: AppState) -> Router {
             get(ipd::list_ward_beds).post(ipd::assign_bed_to_ward),
         )
         .route("/api/ipd/wards/{id}/on-duty", get(ipd::ward_on_duty))
+        // ── Home Healthcare — home medication administration (#2979) ──
+        .route(
+            "/api/home-health/medications",
+            get(home_health::list_home_meds).post(home_health::schedule_home_med),
+        )
+        .route(
+            "/api/home-health/medications/{id}",
+            put(home_health::record_home_med),
+        )
         // ── Case-sheet digitization (B2 ingestion) ──
         .route(
             "/api/case-sheets/scans",

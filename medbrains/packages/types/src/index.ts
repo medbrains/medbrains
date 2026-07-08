@@ -7826,6 +7826,26 @@ export interface CaseSheetScan {
   updated_at: string;
 }
 
+/** A home medication administration (Hospital-at-Home eMAR — IV antibiotics / infusions). */
+export interface HomeMedAdministration {
+  id: string;
+  tenant_id: string;
+  patient_id: string;
+  drug_name: string;
+  dose: string;
+  route: string | null;
+  is_infusion: boolean;
+  infusion_rate: string | null;
+  scheduled_at: string;
+  administered_at: string | null;
+  administered_by: string | null;
+  administration_site: string | null;
+  status: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /** A nurse on duty in a ward today (care-view "who's caring for this ward now"). */
 export interface WardOnDutyRow {
   nurse_user_id: string;

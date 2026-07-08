@@ -971,6 +971,7 @@ import type {
   HistopathReportPrintData,
   HomeCollectionStatsRow,
   HomeCollectionStatusRequest,
+  HomeMedAdministration,
   HospitalBrandingPrintData,
   // Multi-Hospital Management
   HospitalGroup,
@@ -5891,6 +5892,29 @@ export const api = {
 
   listWards: () => request<WardListRow[]>("/ipd/wards"),
   wardOnDuty: (wardId: string) => request<WardOnDutyRow[]>(`/ipd/wards/${wardId}/on-duty`),
+  listHomeMeds: (patientId: string) =>
+    request<HomeMedAdministration[]>(`/home-health/medications?patient_id=${patientId}`),
+  scheduleHomeMed: (data: {
+    patient_id: string;
+    drug_name: string;
+    dose: string;
+    route?: string;
+    is_infusion?: boolean;
+    infusion_rate?: string;
+    scheduled_at: string;
+  }) =>
+    request<HomeMedAdministration>("/home-health/medications", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  recordHomeMed: (
+    id: string,
+    data: { status?: string; administration_site?: string; notes?: string },
+  ) =>
+    request<HomeMedAdministration>(`/home-health/medications/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   getWard: (id: string) => request<Ward>(`/ipd/wards/${id}`),
   createWard: (data: CreateWardRequest) =>
     request<Ward>("/ipd/wards", { method: "POST", body: JSON.stringify(data) }),
