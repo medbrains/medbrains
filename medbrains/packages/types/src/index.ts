@@ -7826,6 +7826,20 @@ export interface CaseSheetScan {
   updated_at: string;
 }
 
+/** A caregiver education session record (#2971). */
+export interface CaregiverEducation {
+  id: string;
+  patient_id: string;
+  caregiver_name: string;
+  relationship: string | null;
+  topic: string;
+  materials_provided: string | null;
+  understanding_confirmed: boolean;
+  session_date: string;
+  notes: string | null;
+  created_at: string;
+}
+
 /** A prepaid home-care visit package (#2970). */
 export interface HomeCarePackage {
   id: string;

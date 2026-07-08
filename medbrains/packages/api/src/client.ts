@@ -224,6 +224,7 @@ import type {
   CancelRadiologyOrderRequest,
   CancerStaging,
   CapaFormPrintData,
+  CaregiverEducation,
   // Case Management
   CaseAssignment,
   CaseloadRow,
@@ -6029,6 +6030,21 @@ export const api = {
     request<RemoteVitalReading[]>(`/home-health/remote-vitals?patient_id=${patientId}`),
   listHomeCarePackages: (patientId: string) =>
     request<HomeCarePackage[]>(`/home-health/packages?patient_id=${patientId}`),
+  listCaregiverEducation: (patientId: string) =>
+    request<CaregiverEducation[]>(`/home-health/caregiver-education?patient_id=${patientId}`),
+  recordCaregiverEducation: (data: {
+    patient_id: string;
+    caregiver_name: string;
+    relationship?: string;
+    topic: string;
+    materials_provided?: string;
+    understanding_confirmed?: boolean;
+    notes?: string;
+  }) =>
+    request<CaregiverEducation>("/home-health/caregiver-education", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   createHomeCarePackage: (data: {
     patient_id: string;
     name: string;

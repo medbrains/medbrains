@@ -22,4 +22,6 @@ export const homeHealthService = {
   createHomeCarePackage: api.createHomeCarePackage,
   consumePackageVisit: api.consumePackageVisit,
   billHomeVisit: api.billHomeVisit,
+  listCaregiverEducation: api.listCaregiverEducation,
+  recordCaregiverEducation: api.recordCaregiverEducation,
 };

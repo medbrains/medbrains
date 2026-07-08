@@ -918,3 +918,87 @@ pub async fn bill_home_visit(
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "invoice_id": charge.invoice_id })))
 }
+
+// ── Caregiver education documentation (#2971) ──────────────────────────────
+
+const CE_COLS: &str = "id, patient_id, caregiver_name, relationship, topic, materials_provided, \
+     understanding_confirmed, session_date, notes, created_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct CaregiverEducation {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub caregiver_name: String,
+    pub relationship: Option<String>,
+    pub topic: String,
+    pub materials_provided: Option<String>,
+    pub understanding_confirmed: bool,
+    pub session_date: chrono::NaiveDate,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// `GET /api/home-health/caregiver-education?patient_id=` — a patient's caregiver teaching log.
+pub async fn list_caregiver_education(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<HomeMedQuery>,
+) -> Result<Json<Vec<CaregiverEducation>>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, CaregiverEducation>(&format!(
+        "SELECT {CE_COLS} FROM caregiver_education \
+         WHERE tenant_id = $1 AND patient_id = $2 ORDER BY session_date DESC, created_at DESC LIMIT 500"
+    ))
+    .bind(claims.tenant_id)
+    .bind(q.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RecordEducationRequest {
+    pub patient_id: Uuid,
+    pub caregiver_name: String,
+    pub relationship: Option<String>,
+    pub topic: String,
+    pub materials_provided: Option<String>,
+    pub understanding_confirmed: Option<bool>,
+    pub notes: Option<String>,
+}
+
+/// `POST /api/home-health/caregiver-education` — record a caregiver teaching session.
+pub async fn record_caregiver_education(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<RecordEducationRequest>,
+) -> Result<Json<CaregiverEducation>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    if body.caregiver_name.trim().is_empty() || body.topic.trim().is_empty() {
+        return Err(AppError::BadRequest("Caregiver name and topic are required".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, CaregiverEducation>(&format!(
+        "INSERT INTO caregiver_education \
+         (tenant_id, patient_id, caregiver_name, relationship, topic, materials_provided, \
+          understanding_confirmed, educated_by, notes) \
+         VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, false), $8, $9) RETURNING {CE_COLS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(body.caregiver_name.trim())
+    .bind(&body.relationship)
+    .bind(body.topic.trim())
+    .bind(&body.materials_provided)
+    .bind(body.understanding_confirmed)
+    .bind(claims.sub)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

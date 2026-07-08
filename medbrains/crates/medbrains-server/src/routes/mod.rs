@@ -3349,6 +3349,11 @@ pub fn build_router(state: AppState) -> Router {
             "/api/home-visits/{id}/bill",
             post(home_health::bill_home_visit),
         )
+        .route(
+            "/api/home-health/caregiver-education",
+            get(home_health::list_caregiver_education)
+                .post(home_health::record_caregiver_education),
+        )
         // ── Case-sheet digitization (B2 ingestion) ──
         .route(
             "/api/case-sheets/scans",
