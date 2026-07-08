@@ -7907,7 +7907,7 @@ export interface TeleChatMessage {
   sent_at: string;
 }
 
-/** A patient in the telemedicine waiting room with queue position (#2945). */
+/** A patient in the telemedicine waiting room with queue position (#2945) + triage acuity. */
 export interface WaitingRoomItem {
   id: string;
   patient_id: string;
@@ -7915,6 +7915,25 @@ export interface WaitingRoomItem {
   doctor_id: string | null;
   scheduled_at: string | null;
   position: number;
+  acuity: string | null;
+  red_flags: string[] | null;
+}
+
+/** A pre-consult triage result from the deterministic red-flag / acuity engine. */
+export interface TeleTriage {
+  id: string;
+  consultation_id: string;
+  patient_id: string;
+  chief_complaint: string | null;
+  symptoms: string[];
+  duration_hours: number | null;
+  severity: number | null;
+  vitals: Record<string, unknown>;
+  acuity: string;
+  red_flags: string[];
+  recommended_timeframe: string | null;
+  reasoning: Array<{ flag: string; rule: string }>;
+  created_at: string;
 }
 
 /** A skilled-nursing-facility admission (#2960). */

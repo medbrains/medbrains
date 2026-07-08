@@ -18,6 +18,9 @@ export const telemedicineService = {
   getTeleConfig: () => api.getTeleConfig(),
   updateTeleConfig: (data: Parameters<typeof api.updateTeleConfig>[0]) =>
     api.updateTeleConfig(data),
+  getTriage: (id: string) => api.getTriage(id),
+  submitTriage: (id: string, data: Parameters<typeof api.submitTriage>[1]) =>
+    api.submitTriage(id, data),
   updateTeleStatus: (id: string, data: Parameters<typeof api.updateTeleStatus>[1]) =>
     api.updateTeleStatus(id, data),
 };

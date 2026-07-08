@@ -1721,6 +1721,10 @@ pub fn build_router(state: AppState) -> Router {
             get(telemedicine::list_chat).post(telemedicine::post_chat),
         )
         .route(
+            "/api/telemedicine/consultations/{id}/triage",
+            get(telemedicine::get_triage).post(telemedicine::submit_triage),
+        )
+        .route(
             "/api/telemedicine/consultations/{id}",
             get(telemedicine::get_tele_consultation),
         )

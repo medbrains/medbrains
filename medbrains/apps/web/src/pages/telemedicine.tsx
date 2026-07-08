@@ -1,4 +1,16 @@
-import { Card, Group, Loader, Menu, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
+import {
+  Card,
+  Group,
+  Loader,
+  Menu,
+  Modal,
+  MultiSelect,
+  NumberInput,
+  Select,
+  Stack,
+  Text,
+  TextInput,
+} from "@mantine/core";
 import { DateTimePicker } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -75,6 +87,17 @@ function WaitingRoom() {
             <Badge tone="info" size="sm">
               #{w.position}
             </Badge>
+            {w.acuity && (
+              <Badge
+                tone={
+                  w.acuity === "emergent" ? "danger" : w.acuity === "urgent" ? "warning" : "neutral"
+                }
+                size="sm"
+              >
+                {w.acuity}
+                {w.red_flags && w.red_flags.length > 0 ? ` · ${w.red_flags.length}🚩` : ""}
+              </Badge>
+            )}
             <Text size="sm">{w.patient_name ?? "Patient"}</Text>
             <Text size="xs" c="dimmed">
               {w.scheduled_at ? new Date(w.scheduled_at).toLocaleTimeString() : ""}
@@ -83,6 +106,131 @@ function WaitingRoom() {
         ))}
       </Stack>
     </Card>
+  );
+}
+
+const SYMPTOM_OPTIONS = [
+  "chest_pain",
+  "breathlessness",
+  "sweating",
+  "radiation_arm",
+  "fever",
+  "neck_stiffness",
+  "photophobia",
+  "facial_droop",
+  "arm_weakness",
+  "speech_difficulty",
+  "anaphylaxis",
+  "rash",
+  "severe_bleeding",
+  "suicidal_ideation",
+  "cough",
+  "sore_throat",
+  "abdominal_pain",
+  "headache",
+  "vomiting",
+  "dizziness",
+];
+
+function acuityTone(a: string): BadgeTone {
+  if (a === "emergent") return "danger";
+  if (a === "urgent") return "warning";
+  return "success";
+}
+
+function TriageModal({ consultationId, onClose }: { consultationId: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { data: existing } = useQuery({
+    queryKey: ["triage", consultationId],
+    queryFn: () => telemedicineService.getTriage(consultationId),
+  });
+  const [complaint, setComplaint] = useState("");
+  const [symptoms, setSymptoms] = useState<string[]>([]);
+  const [severity, setSeverity] = useState<number | "">("");
+  const [spo2, setSpo2] = useState<number | "">("");
+  const [systolic, setSystolic] = useState<number | "">("");
+
+  const submit = useMutation({
+    mutationFn: () =>
+      telemedicineService.submitTriage(consultationId, {
+        chief_complaint: complaint || undefined,
+        symptoms,
+        severity: typeof severity === "number" ? severity : undefined,
+        vitals: {
+          ...(typeof spo2 === "number" ? { spo2 } : {}),
+          ...(typeof systolic === "number" ? { systolic } : {}),
+        },
+      }),
+    onSuccess: (r) => {
+      void qc.invalidateQueries({ queryKey: ["triage", consultationId] });
+      void qc.invalidateQueries({ queryKey: ["tele-waiting-room"] });
+      notifications.show({
+        title: `Triage: ${r.acuity}`,
+        message: r.recommended_timeframe ?? "",
+        color: r.acuity === "emergent" ? "danger" : r.acuity === "urgent" ? "warning" : "success",
+      });
+    },
+    onError: (e: Error) =>
+      notifications.show({ title: "Triage failed", message: e.message, color: "danger" }),
+  });
+  const result = submit.data ?? existing ?? null;
+
+  return (
+    <Modal opened onClose={onClose} title="Pre-consult triage" size="md">
+      <Stack gap="sm">
+        <TextInput
+          label="Chief complaint"
+          value={complaint}
+          onChange={(e) => setComplaint(e.currentTarget.value)}
+        />
+        <MultiSelect
+          label="Symptoms"
+          data={SYMPTOM_OPTIONS.map((s) => ({ value: s, label: s.replace(/_/g, " ") }))}
+          value={symptoms}
+          onChange={setSymptoms}
+          searchable
+        />
+        <Group grow>
+          <NumberInput
+            label="Severity 0-10"
+            value={severity}
+            onChange={(v) => setSeverity(typeof v === "number" ? v : "")}
+            min={0}
+            max={10}
+          />
+          <NumberInput
+            label="SpO₂ %"
+            value={spo2}
+            onChange={(v) => setSpo2(typeof v === "number" ? v : "")}
+          />
+          <NumberInput
+            label="Systolic BP"
+            value={systolic}
+            onChange={(v) => setSystolic(typeof v === "number" ? v : "")}
+          />
+        </Group>
+        <Button onClick={() => submit.mutate()} loading={submit.isPending}>
+          Run triage
+        </Button>
+        {result && (
+          <Card withBorder padding="sm">
+            <Group gap="xs">
+              <Badge tone={acuityTone(result.acuity)}>{result.acuity}</Badge>
+              <Text size="sm">{result.recommended_timeframe}</Text>
+            </Group>
+            {result.reasoning.length > 0 && (
+              <Stack gap={2} mt="xs">
+                {result.reasoning.map((r) => (
+                  <Text key={r.flag} size="xs">
+                    🚩 {r.flag.replace(/_/g, " ")} — {r.rule}
+                  </Text>
+                ))}
+              </Stack>
+            )}
+          </Card>
+        )}
+      </Stack>
+    </Modal>
   );
 }
 
@@ -237,6 +385,7 @@ export function TelemedicinePage() {
   const [followUpId, setFollowUpId] = useState<string | null>(null);
   const [followUpDate, setFollowUpDate] = useState<string | null>(null);
   const [chatId, setChatId] = useState<string | null>(null);
+  const [triageId, setTriageId] = useState<string | null>(null);
   const [settingsOpen, settings] = useDisclosure(false);
   const canManageSettings = useHasPermission("admin.settings.general.manage");
 
@@ -508,6 +657,7 @@ export function TelemedicinePage() {
                           >
                             Add to Google Calendar
                           </Menu.Item>
+                          <Menu.Item onClick={() => setTriageId(c.id)}>Triage</Menu.Item>
                           <Menu.Item onClick={() => setChatId(c.id)}>Chat</Menu.Item>
                           <Menu.Item onClick={() => setFollowUpId(c.id)}>
                             Schedule follow-up
@@ -645,6 +795,7 @@ export function TelemedicinePage() {
         </Stack>
       </Modal>
 
+      {triageId && <TriageModal consultationId={triageId} onClose={() => setTriageId(null)} />}
       {chatId && <ChatModal consultationId={chatId} onClose={() => setChatId(null)} />}
 
       <TeleSettingsModal

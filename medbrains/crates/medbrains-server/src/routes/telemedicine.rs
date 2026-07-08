@@ -357,10 +357,14 @@ pub struct WaitingRoomItem {
     pub doctor_id: Option<Uuid>,
     pub scheduled_at: Option<chrono::DateTime<chrono::Utc>>,
     pub position: i64,
+    /// Triage acuity if the patient completed pre-consult intake (emergent bubbles to the top).
+    pub acuity: Option<String>,
+    pub red_flags: Option<Vec<String>>,
 }
 
 /// `GET /api/telemedicine/waiting-room?doctor_id=` — patients checked in and waiting, each with
-/// their queue position (per doctor, by scheduled time).
+/// their scheduled-queue position AND their triage acuity; the list is ordered emergent-first so a
+/// red-flagged patient is seen before their scheduled slot.
 pub async fn waiting_room(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -374,12 +378,16 @@ pub async fn waiting_room(
             NULLIF(TRIM(CONCAT(p.first_name, ' ', COALESCE(p.last_name, ''))), '') AS patient_name, \
             tc.doctor_id, tc.scheduled_at, \
             ROW_NUMBER() OVER (PARTITION BY tc.doctor_id \
-                ORDER BY tc.scheduled_at NULLS LAST, tc.created_at) AS position \
+                ORDER BY tc.scheduled_at NULLS LAST, tc.created_at) AS position, \
+            tt.acuity, tt.red_flags \
          FROM tele_consultations tc \
          LEFT JOIN patients p ON p.id = tc.patient_id \
+         LEFT JOIN tele_triage tt ON tt.tenant_id = tc.tenant_id AND tt.consultation_id = tc.id \
          WHERE tc.tenant_id = $1 AND tc.status = 'waiting' \
            AND ($2::uuid IS NULL OR tc.doctor_id = $2) \
-         ORDER BY tc.doctor_id, position LIMIT 200",
+         ORDER BY tc.doctor_id, \
+            CASE tt.acuity WHEN 'emergent' THEN 0 WHEN 'urgent' THEN 1 ELSE 2 END, position \
+         LIMIT 200",
     )
     .bind(claims.tenant_id)
     .bind(q.doctor_id)
@@ -679,4 +687,224 @@ pub async fn update_tele_config(
     let cfg = load_tele_config(&mut tx, &claims.tenant_id).await?;
     tx.commit().await?;
     Ok(Json(cfg))
+}
+
+// ── Tele-triage: explainable pre-consult red-flag / acuity engine ──────────
+
+/// Result of the deterministic triage engine.
+struct TriageOutcome {
+    acuity: &'static str,
+    recommended_timeframe: &'static str,
+    red_flags: Vec<String>,
+    reasoning: Vec<serde_json::Value>,
+}
+
+/// Grade a pre-consult intake into an acuity band with explainable red-flags. Deterministic and
+/// transparent — every flag records the rule that fired (research-grounded triage red-flag sets,
+/// not a black-box model). `symptoms` are lowercase snake_case codes; `vitals` is patient-reported.
+fn run_triage(symptoms: &[String], severity: Option<i32>, vitals: &serde_json::Value) -> TriageOutcome {
+    let has = |s: &str| symptoms.iter().any(|x| x == s);
+    let num = |k: &str| vitals.get(k).and_then(serde_json::Value::as_f64);
+    let mut red_flags: Vec<String> = Vec::new();
+    let mut reasoning: Vec<serde_json::Value> = Vec::new();
+    let mut flag = |code: &str, rule: &str| {
+        red_flags.push(code.to_owned());
+        reasoning.push(serde_json::json!({ "flag": code, "rule": rule }));
+    };
+
+    if has("chest_pain") && (has("sweating") || has("radiation_arm") || has("breathlessness")) {
+        flag("possible_acs", "chest pain with an associated feature (sweating/radiation/dyspnoea)");
+    }
+    if has("facial_droop") || has("arm_weakness") || has("speech_difficulty") {
+        flag("stroke_fast", "FAST-positive: facial droop / arm weakness / speech difficulty");
+    }
+    if has("breathlessness") && severity.is_some_and(|s| s >= 7) {
+        flag("respiratory_distress", "breathlessness with severity >= 7/10");
+    }
+    if num("spo2").is_some_and(|v| v < 92.0) {
+        flag("hypoxia", "SpO2 < 92%");
+    }
+    if has("fever") && (has("neck_stiffness") || has("photophobia")) {
+        flag("meningism", "fever with neck stiffness / photophobia");
+    }
+    if has("anaphylaxis") || (has("rash") && has("breathlessness")) {
+        flag("anaphylaxis", "anaphylaxis features (rash + dyspnoea)");
+    }
+    if has("severe_bleeding") {
+        flag("severe_haemorrhage", "severe/uncontrolled bleeding reported");
+    }
+    if has("suicidal_ideation") {
+        flag("self_harm_risk", "suicidal ideation reported");
+    }
+    if num("systolic").is_some_and(|v| v > 180.0) {
+        flag("hypertensive_urgency", "systolic BP > 180 mmHg");
+    }
+
+    // Acuity: any red flag → emergent, except hypertensive urgency in isolation → urgent.
+    let acuity = if red_flags.is_empty() {
+        if severity.is_some_and(|s| s >= 7) { "urgent" } else { "routine" }
+    } else if red_flags.len() == 1 && red_flags[0] == "hypertensive_urgency" {
+        "urgent"
+    } else {
+        "emergent"
+    };
+    let recommended_timeframe = match acuity {
+        "emergent" => "immediate — direct to emergency / do not wait for video",
+        "urgent" => "within 2 hours",
+        _ => "routine slot",
+    };
+    TriageOutcome { acuity, recommended_timeframe, red_flags, reasoning }
+}
+
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct TeleTriage {
+    pub id: Uuid,
+    pub consultation_id: Uuid,
+    pub patient_id: Uuid,
+    pub chief_complaint: Option<String>,
+    pub symptoms: Vec<String>,
+    pub duration_hours: Option<i32>,
+    pub severity: Option<i32>,
+    pub vitals: serde_json::Value,
+    pub acuity: String,
+    pub red_flags: Vec<String>,
+    pub recommended_timeframe: Option<String>,
+    pub reasoning: serde_json::Value,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+const TRIAGE_COLS: &str = "id, consultation_id, patient_id, chief_complaint, symptoms, \
+     duration_hours, severity, vitals, acuity, red_flags, recommended_timeframe, reasoning, \
+     created_at";
+
+#[derive(Debug, serde::Deserialize)]
+pub struct SubmitTriageRequest {
+    pub chief_complaint: Option<String>,
+    #[serde(default)]
+    pub symptoms: Vec<String>,
+    pub duration_hours: Option<i32>,
+    pub severity: Option<i32>,
+    pub vitals: Option<serde_json::Value>,
+}
+
+/// `POST /api/telemedicine/consultations/{id}/triage` — submit intake; the engine grades it.
+pub async fn submit_triage(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<SubmitTriageRequest>,
+) -> Result<Json<TeleTriage>, AppError> {
+    require_permission(&claims, permissions::opd::visit::CREATE)?;
+    if let Some(s) = body.severity {
+        if !(0..=10).contains(&s) {
+            return Err(AppError::BadRequest("Severity must be 0-10".to_owned()));
+        }
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let patient_id: Uuid = sqlx::query_scalar(
+        "SELECT patient_id FROM tele_consultations WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let vitals = body.vitals.unwrap_or_else(|| serde_json::json!({}));
+    let outcome = run_triage(&body.symptoms, body.severity, &vitals);
+    let reasoning = serde_json::Value::Array(outcome.reasoning);
+
+    let row = sqlx::query_as::<_, TeleTriage>(&format!(
+        "INSERT INTO tele_triage \
+         (tenant_id, consultation_id, patient_id, chief_complaint, symptoms, duration_hours, \
+          severity, vitals, acuity, red_flags, recommended_timeframe, reasoning, created_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) \
+         ON CONFLICT (tenant_id, consultation_id) DO UPDATE SET \
+            chief_complaint = EXCLUDED.chief_complaint, symptoms = EXCLUDED.symptoms, \
+            duration_hours = EXCLUDED.duration_hours, severity = EXCLUDED.severity, \
+            vitals = EXCLUDED.vitals, acuity = EXCLUDED.acuity, red_flags = EXCLUDED.red_flags, \
+            recommended_timeframe = EXCLUDED.recommended_timeframe, reasoning = EXCLUDED.reasoning, \
+            updated_at = now() \
+         RETURNING {TRIAGE_COLS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(id)
+    .bind(patient_id)
+    .bind(&body.chief_complaint)
+    .bind(&body.symptoms)
+    .bind(body.duration_hours)
+    .bind(body.severity)
+    .bind(&vitals)
+    .bind(outcome.acuity)
+    .bind(&outcome.red_flags)
+    .bind(outcome.recommended_timeframe)
+    .bind(&reasoning)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// `GET /api/telemedicine/consultations/{id}/triage` — the triage for a consult (if any).
+pub async fn get_triage(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Option<TeleTriage>>, AppError> {
+    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, TeleTriage>(&format!(
+        "SELECT {TRIAGE_COLS} FROM tele_triage WHERE tenant_id = $1 AND consultation_id = $2"
+    ))
+    .bind(claims.tenant_id)
+    .bind(id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[cfg(test)]
+mod triage_tests {
+    use super::run_triage;
+
+    fn syms(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    #[test]
+    fn acs_is_emergent() {
+        let o = run_triage(&syms(&["chest_pain", "sweating"]), Some(6), &serde_json::json!({}));
+        assert_eq!(o.acuity, "emergent");
+        assert!(o.red_flags.contains(&"possible_acs".to_owned()));
+    }
+
+    #[test]
+    fn hypoxia_from_vitals() {
+        let o = run_triage(&syms(&["cough"]), Some(3), &serde_json::json!({ "spo2": 88 }));
+        assert_eq!(o.acuity, "emergent");
+        assert!(o.red_flags.contains(&"hypoxia".to_owned()));
+    }
+
+    #[test]
+    fn hypertensive_urgency_alone_is_urgent() {
+        let o = run_triage(&syms(&["headache"]), Some(4), &serde_json::json!({ "systolic": 190 }));
+        assert_eq!(o.acuity, "urgent");
+    }
+
+    #[test]
+    fn high_severity_no_flag_is_urgent() {
+        let o = run_triage(&syms(&["abdominal_pain"]), Some(8), &serde_json::json!({}));
+        assert_eq!(o.acuity, "urgent");
+        assert!(o.red_flags.is_empty());
+    }
+
+    #[test]
+    fn mild_is_routine() {
+        let o = run_triage(&syms(&["sore_throat"]), Some(2), &serde_json::json!({}));
+        assert_eq!(o.acuity, "routine");
+    }
 }

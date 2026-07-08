@@ -1679,6 +1679,7 @@ import type {
   TeleConsultation,
   TeleConsultationListItem,
   TeleJoinInfo,
+  TeleTriage,
   TemplateWithItems,
   TenantSettingsRow,
   TenantSummary,
@@ -14200,6 +14201,21 @@ export const api = {
     request<TeleConfig>("/telemedicine/config", { method: "PUT", body: JSON.stringify(data) }),
   listTeleChat: (id: string) =>
     request<TeleChatMessage[]>(`/telemedicine/consultations/${id}/chat`),
+  getTriage: (id: string) => request<TeleTriage | null>(`/telemedicine/consultations/${id}/triage`),
+  submitTriage: (
+    id: string,
+    data: {
+      chief_complaint?: string;
+      symptoms?: string[];
+      duration_hours?: number;
+      severity?: number;
+      vitals?: Record<string, number>;
+    },
+  ) =>
+    request<TeleTriage>(`/telemedicine/consultations/${id}/triage`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   postTeleChat: (id: string, data: { body: string; sender_role?: string }) =>
     request<TeleChatMessage>(`/telemedicine/consultations/${id}/chat`, {
       method: "POST",
