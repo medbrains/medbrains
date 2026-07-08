@@ -48,6 +48,7 @@ import type {
   AdrReport,
   AdrReportPrintData,
   AdvanceAdjustment,
+  AdvanceDirective,
   AdvanceReceiptPrintData,
   AebasAttendanceReportPrintData,
   AebasImportResponse,
@@ -6035,6 +6036,28 @@ export const api = {
     request<CaregiverEducation[]>(`/home-health/caregiver-education?patient_id=${patientId}`),
   listHospiceEnrollments: (patientId: string) =>
     request<HospiceEnrollment[]>(`/home-health/hospice?patient_id=${patientId}`),
+  listAdvanceDirectives: (patientId: string) =>
+    request<AdvanceDirective[]>(`/home-health/advance-directives?patient_id=${patientId}`),
+  createAdvanceDirective: (data: {
+    patient_id: string;
+    directive_type: string;
+    content?: string;
+    family_consent_obtained?: boolean;
+    family_member_name?: string;
+    family_relationship?: string;
+    witnessed_by?: string;
+    document_url?: string;
+    notes?: string;
+  }) =>
+    request<AdvanceDirective>("/home-health/advance-directives", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  revokeAdvanceDirective: (id: string, data: { reason: string }) =>
+    request<AdvanceDirective>(`/advance-directives/${id}/revoke`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   enrollHospice: (data: {
     patient_id: string;
     terminal_diagnosis?: string;

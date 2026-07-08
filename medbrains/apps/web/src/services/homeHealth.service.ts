@@ -27,4 +27,7 @@ export const homeHealthService = {
   listHospiceEnrollments: api.listHospiceEnrollments,
   enrollHospice: api.enrollHospice,
   updateHospice: api.updateHospice,
+  listAdvanceDirectives: api.listAdvanceDirectives,
+  createAdvanceDirective: api.createAdvanceDirective,
+  revokeAdvanceDirective: api.revokeAdvanceDirective,
 };

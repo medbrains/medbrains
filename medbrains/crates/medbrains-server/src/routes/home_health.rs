@@ -1130,3 +1130,132 @@ pub async fn update_hospice(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── Advance directive / DNR management (#2973) ─────────────────────────────
+
+const AD_COLS: &str = "id, patient_id, directive_type, content, effective_date, status, \
+     family_consent_obtained, family_member_name, family_relationship, witnessed_by, \
+     document_url, revoked_at, revoke_reason, notes, created_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct AdvanceDirective {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub directive_type: String,
+    pub content: Option<String>,
+    pub effective_date: chrono::NaiveDate,
+    pub status: String,
+    pub family_consent_obtained: bool,
+    pub family_member_name: Option<String>,
+    pub family_relationship: Option<String>,
+    pub witnessed_by: Option<String>,
+    pub document_url: Option<String>,
+    pub revoked_at: Option<DateTime<Utc>>,
+    pub revoke_reason: Option<String>,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// `GET /api/home-health/advance-directives?patient_id=` — a patient's advance directives.
+pub async fn list_advance_directives(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<HomeMedQuery>,
+) -> Result<Json<Vec<AdvanceDirective>>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, AdvanceDirective>(&format!(
+        "SELECT {AD_COLS} FROM advance_directives \
+         WHERE tenant_id = $1 AND patient_id = $2 ORDER BY created_at DESC LIMIT 200"
+    ))
+    .bind(claims.tenant_id)
+    .bind(q.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateDirectiveRequest {
+    pub patient_id: Uuid,
+    pub directive_type: String,
+    pub content: Option<String>,
+    pub family_consent_obtained: Option<bool>,
+    pub family_member_name: Option<String>,
+    pub family_relationship: Option<String>,
+    pub witnessed_by: Option<String>,
+    pub document_url: Option<String>,
+    pub notes: Option<String>,
+}
+
+/// `POST /api/home-health/advance-directives` — record an advance directive.
+pub async fn create_advance_directive(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateDirectiveRequest>,
+) -> Result<Json<AdvanceDirective>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    if !["living_will", "dnr", "dpoa", "molst", "organ_donation"]
+        .contains(&body.directive_type.as_str())
+    {
+        return Err(AppError::BadRequest("Invalid directive type".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, AdvanceDirective>(&format!(
+        "INSERT INTO advance_directives \
+         (tenant_id, patient_id, directive_type, content, family_consent_obtained, \
+          family_member_name, family_relationship, witnessed_by, document_url, recorded_by, notes) \
+         VALUES ($1, $2, $3, $4, COALESCE($5, false), $6, $7, $8, $9, $10, $11) RETURNING {AD_COLS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(&body.directive_type)
+    .bind(&body.content)
+    .bind(body.family_consent_obtained)
+    .bind(&body.family_member_name)
+    .bind(&body.family_relationship)
+    .bind(&body.witnessed_by)
+    .bind(&body.document_url)
+    .bind(claims.sub)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RevokeDirectiveRequest {
+    pub reason: String,
+}
+
+/// `POST /api/advance-directives/{id}/revoke` — revoke a directive with a reason.
+pub async fn revoke_advance_directive(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RevokeDirectiveRequest>,
+) -> Result<Json<AdvanceDirective>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    if body.reason.trim().is_empty() {
+        return Err(AppError::BadRequest("A revoke reason is required".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, AdvanceDirective>(&format!(
+        "UPDATE advance_directives SET status = 'revoked', revoked_at = now(), \
+            revoke_reason = $3, updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 AND status = 'active' RETURNING {AD_COLS}"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(body.reason.trim())
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("Directive not found or not active".to_owned()))?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

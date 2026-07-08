@@ -7826,6 +7826,25 @@ export interface CaseSheetScan {
   updated_at: string;
 }
 
+/** An advance directive / DNR with family-consent tracking (#2973). */
+export interface AdvanceDirective {
+  id: string;
+  patient_id: string;
+  directive_type: string;
+  content: string | null;
+  effective_date: string;
+  status: string;
+  family_consent_obtained: boolean;
+  family_member_name: string | null;
+  family_relationship: string | null;
+  witnessed_by: string | null;
+  document_url: string | null;
+  revoked_at: string | null;
+  revoke_reason: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
 /** A hospice / palliative program enrollment (#2972). */
 export interface HospiceEnrollment {
   id: string;
