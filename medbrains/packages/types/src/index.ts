@@ -7826,6 +7826,19 @@ export interface CaseSheetScan {
   updated_at: string;
 }
 
+/** A family communication message — care update or family message (#2964). */
+export interface FamilyMessage {
+  id: string;
+  patient_id: string;
+  direction: string;
+  message_type: string;
+  subject: string | null;
+  body: string;
+  family_contact: string | null;
+  status: string;
+  created_at: string;
+}
+
 /** A rehabilitation therapy session progress record (#2963). */
 export interface RehabProgress {
   id: string;

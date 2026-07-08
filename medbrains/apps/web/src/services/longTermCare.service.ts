@@ -10,4 +10,7 @@ export const longTermCareService = {
   updateLtcMedication: api.updateLtcMedication,
   listRehabProgress: api.listRehabProgress,
   addRehabProgress: api.addRehabProgress,
+  listFamilyMessages: api.listFamilyMessages,
+  postFamilyMessage: api.postFamilyMessage,
+  updateFamilyMessage: api.updateFamilyMessage,
 };

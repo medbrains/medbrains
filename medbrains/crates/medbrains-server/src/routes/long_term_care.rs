@@ -372,3 +372,116 @@ pub async fn add_rehab_progress(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── Family communication portal (#2964) ────────────────────────────────────
+
+const FAM_COLS: &str = "id, patient_id, direction, message_type, subject, body, family_contact, \
+     status, created_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct FamilyMessage {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub direction: String,
+    pub message_type: String,
+    pub subject: Option<String>,
+    pub body: String,
+    pub family_contact: Option<String>,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+}
+
+/// `GET /api/ltc/family-messages?patient_id=` — the family communication thread.
+pub async fn list_family_messages(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<PatientQuery>,
+) -> Result<Json<Vec<FamilyMessage>>, AppError> {
+    require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, FamilyMessage>(&format!(
+        "SELECT {FAM_COLS} FROM family_messages \
+         WHERE tenant_id = $1 AND patient_id = $2 ORDER BY created_at DESC LIMIT 500"
+    ))
+    .bind(claims.tenant_id)
+    .bind(q.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PostFamilyMessageRequest {
+    pub patient_id: Uuid,
+    pub direction: Option<String>,
+    pub message_type: Option<String>,
+    pub subject: Option<String>,
+    pub body: String,
+    pub family_contact: Option<String>,
+}
+
+/// `POST /api/ltc/family-messages` — post a care update to / log a message from the family.
+pub async fn post_family_message(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<PostFamilyMessageRequest>,
+) -> Result<Json<FamilyMessage>, AppError> {
+    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    if body.body.trim().is_empty() {
+        return Err(AppError::BadRequest("Message body is required".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, FamilyMessage>(&format!(
+        "INSERT INTO family_messages \
+         (tenant_id, patient_id, direction, message_type, subject, body, family_contact, posted_by) \
+         VALUES ($1, $2, COALESCE($3, 'to_family'), COALESCE($4, 'care_update'), $5, $6, $7, $8) \
+         RETURNING {FAM_COLS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(&body.direction)
+    .bind(&body.message_type)
+    .bind(&body.subject)
+    .bind(body.body.trim())
+    .bind(&body.family_contact)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateFamilyMessageRequest {
+    pub status: String,
+}
+
+/// `PUT /api/ltc/family-messages/{id}` — mark a message read / actioned.
+pub async fn update_family_message(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateFamilyMessageRequest>,
+) -> Result<Json<FamilyMessage>, AppError> {
+    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    if !["sent", "read", "actioned"].contains(&body.status.as_str()) {
+        return Err(AppError::BadRequest("Invalid status".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, FamilyMessage>(&format!(
+        "UPDATE family_messages SET status = $3, updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 RETURNING {FAM_COLS}"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(&body.status)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

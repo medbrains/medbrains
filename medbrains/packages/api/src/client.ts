@@ -919,6 +919,7 @@ import type {
   Facility,
   FallRiskAssessmentPrintData,
   FamilyLinkRow,
+  FamilyMessage,
   FeedbackStatsResponse,
   FieldAccessLevel,
   FileMrdCaseSheetPacketRequest,
@@ -5920,6 +5921,25 @@ export const api = {
     request<LtcMedication[]>(`/ltc/medications?patient_id=${patientId}`),
   listRehabProgress: (patientId: string) =>
     request<RehabProgress[]>(`/ltc/rehab?patient_id=${patientId}`),
+  listFamilyMessages: (patientId: string) =>
+    request<FamilyMessage[]>(`/ltc/family-messages?patient_id=${patientId}`),
+  postFamilyMessage: (data: {
+    patient_id: string;
+    direction?: string;
+    message_type?: string;
+    subject?: string;
+    body: string;
+    family_contact?: string;
+  }) =>
+    request<FamilyMessage>("/ltc/family-messages", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateFamilyMessage: (id: string, data: { status: string }) =>
+    request<FamilyMessage>(`/ltc/family-messages/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   addRehabProgress: (data: {
     patient_id: string;
     therapy_type: string;
