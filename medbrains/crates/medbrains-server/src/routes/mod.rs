@@ -3254,6 +3254,14 @@ pub fn build_router(state: AppState) -> Router {
             "/api/microsite/packages/{id}/book",
             post(microsite::book_health_package),
         )
+        .route(
+            "/api/microsite/testimonials",
+            get(microsite::list_testimonials).post(microsite::create_testimonial),
+        )
+        .route(
+            "/api/microsite/testimonials/{id}",
+            put(microsite::moderate_testimonial),
+        )
         // ── Long-Term Care — MDS assessments (#2961) ──
         .route(
             "/api/ltc/mds",

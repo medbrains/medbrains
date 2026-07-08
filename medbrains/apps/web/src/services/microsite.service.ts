@@ -6,4 +6,7 @@ export const micrositeService = {
   updateHealthPackage: api.updateHealthPackage,
   deleteHealthPackage: api.deleteHealthPackage,
   bookHealthPackage: api.bookHealthPackage,
+  listTestimonials: api.listTestimonials,
+  createTestimonial: api.createTestimonial,
+  moderateTestimonial: api.moderateTestimonial,
 };

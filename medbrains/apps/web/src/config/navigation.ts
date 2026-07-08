@@ -57,6 +57,7 @@ import {
   IconShieldLock,
   IconSignature,
   IconSpray,
+  IconStar,
   IconStethoscope,
   IconStretching2,
   IconToolsKitchen2,
@@ -142,6 +143,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: num
   IconShieldLock,
   IconSignature,
   IconSpray,
+  IconStar,
   IconStethoscope,
   IconToolsKitchen2,
   IconTruck,
@@ -760,6 +762,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         i18nKey: "healthPackages",
         path: "/health-packages",
         icon: "IconGift",
+        requiredPermission: "specialty.health_packages.list",
+      },
+      {
+        i18nKey: "testimonials",
+        path: "/testimonials",
+        icon: "IconStar",
         requiredPermission: "specialty.health_packages.list",
       },
       {

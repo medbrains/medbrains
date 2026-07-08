@@ -7826,6 +7826,18 @@ export interface CaseSheetScan {
   updated_at: string;
 }
 
+/** A patient testimonial / review for the micro-site (#2954). */
+export interface Testimonial {
+  id: string;
+  patient_name: string;
+  rating: number;
+  service: string | null;
+  body: string;
+  is_approved: boolean;
+  is_published: boolean;
+  created_at: string;
+}
+
 /** A marketed health package / promotion (#2953). */
 export interface HealthPackage {
   id: string;

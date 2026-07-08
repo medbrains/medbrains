@@ -1678,6 +1678,7 @@ import type {
   TenantSummary,
   TerminologySearchResponse,
   TerminologySearchResult,
+  Testimonial,
   ToggleChecklistItemRequest,
   TokenSlipPrintData,
   TpaRateCard,
@@ -5951,6 +5952,23 @@ export const api = {
     request<{ booking_id: string; invoice_id: string }>(`/microsite/packages/${id}/book`, {
       method: "POST",
       body: JSON.stringify({ patient_id: patientId }),
+    }),
+  listTestimonials: (publishedOnly?: boolean) =>
+    request<Testimonial[]>(`/microsite/testimonials${publishedOnly ? "?published_only=true" : ""}`),
+  createTestimonial: (data: {
+    patient_name: string;
+    rating: number;
+    service?: string;
+    body: string;
+  }) =>
+    request<Testimonial>("/microsite/testimonials", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  moderateTestimonial: (id: string, data: { is_approved?: boolean; is_published?: boolean }) =>
+    request<Testimonial>(`/microsite/testimonials/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
     }),
   listMdsAssessments: (patientId: string) =>
     request<MdsAssessment[]>(`/ltc/mds?patient_id=${patientId}`),

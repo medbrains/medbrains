@@ -225,3 +225,117 @@ pub async fn book_health_package(
         serde_json::json!({ "booking_id": booking_id, "invoice_id": charge.invoice_id }),
     ))
 }
+
+// ── Patient testimonials / reviews (#2954) ─────────────────────────────────
+
+const TESTIMONIAL_COLS: &str = "id, patient_name, rating, service, body, is_approved, \
+     is_published, created_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct Testimonial {
+    pub id: Uuid,
+    pub patient_name: String,
+    pub rating: i32,
+    pub service: Option<String>,
+    pub body: String,
+    pub is_approved: bool,
+    pub is_published: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TestimonialQuery {
+    pub published_only: Option<bool>,
+}
+
+/// `GET /api/microsite/testimonials?published_only=` — testimonials (all, or the published set).
+pub async fn list_testimonials(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<TestimonialQuery>,
+) -> Result<Json<Vec<Testimonial>>, AppError> {
+    require_permission(&claims, "specialty.health_packages.list")?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, Testimonial>(&format!(
+        "SELECT {TESTIMONIAL_COLS} FROM testimonials \
+         WHERE tenant_id = $1 AND ($2::bool IS NOT TRUE OR is_published = true) \
+         ORDER BY created_at DESC LIMIT 500"
+    ))
+    .bind(claims.tenant_id)
+    .bind(q.published_only)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateTestimonialRequest {
+    pub patient_name: String,
+    pub rating: i32,
+    pub service: Option<String>,
+    pub body: String,
+}
+
+/// `POST /api/microsite/testimonials` — submit a testimonial (unapproved).
+pub async fn create_testimonial(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateTestimonialRequest>,
+) -> Result<Json<Testimonial>, AppError> {
+    require_permission(&claims, "specialty.health_packages.manage")?;
+    if body.patient_name.trim().is_empty() || body.body.trim().is_empty() {
+        return Err(AppError::BadRequest("Name and review text are required".to_owned()));
+    }
+    if !(1..=5).contains(&body.rating) {
+        return Err(AppError::BadRequest("Rating must be 1-5".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, Testimonial>(&format!(
+        "INSERT INTO testimonials (tenant_id, patient_name, rating, service, body) \
+         VALUES ($1, $2, $3, $4, $5) RETURNING {TESTIMONIAL_COLS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(body.patient_name.trim())
+    .bind(body.rating)
+    .bind(&body.service)
+    .bind(body.body.trim())
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ModerateTestimonialRequest {
+    pub is_approved: Option<bool>,
+    pub is_published: Option<bool>,
+}
+
+/// `PUT /api/microsite/testimonials/{id}` — moderate: approve / publish a testimonial.
+pub async fn moderate_testimonial(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ModerateTestimonialRequest>,
+) -> Result<Json<Testimonial>, AppError> {
+    require_permission(&claims, "specialty.health_packages.manage")?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, Testimonial>(&format!(
+        "UPDATE testimonials SET is_approved = COALESCE($3, is_approved), \
+            is_published = COALESCE($4, is_published), updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 RETURNING {TESTIMONIAL_COLS}"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(body.is_approved)
+    .bind(body.is_published)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
