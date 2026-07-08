@@ -141,3 +141,157 @@ pub async fn complete_mds_assessment(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── Long-term medication management (#2962) ────────────────────────────────
+
+const LTCMED_COLS: &str = "id, patient_id, drug_name, dosage, frequency, supply_days, auto_refill, \
+     start_date, next_refill_date, last_refilled_at, refill_count, status, notes, created_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct LtcMedication {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub drug_name: String,
+    pub dosage: Option<String>,
+    pub frequency: Option<String>,
+    pub supply_days: i32,
+    pub auto_refill: bool,
+    pub start_date: NaiveDate,
+    pub next_refill_date: Option<NaiveDate>,
+    pub last_refilled_at: Option<DateTime<Utc>>,
+    pub refill_count: i32,
+    pub status: String,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// `GET /api/ltc/medications?patient_id=` — a resident's long-term medications.
+pub async fn list_ltc_medications(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<PatientQuery>,
+) -> Result<Json<Vec<LtcMedication>>, AppError> {
+    require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, LtcMedication>(&format!(
+        "SELECT {LTCMED_COLS} FROM long_term_medications \
+         WHERE tenant_id = $1 AND patient_id = $2 ORDER BY status, drug_name LIMIT 500"
+    ))
+    .bind(claims.tenant_id)
+    .bind(q.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddLtcMedicationRequest {
+    pub patient_id: Uuid,
+    pub drug_name: String,
+    pub dosage: Option<String>,
+    pub frequency: Option<String>,
+    pub supply_days: Option<i32>,
+    pub auto_refill: Option<bool>,
+    pub notes: Option<String>,
+}
+
+/// `POST /api/ltc/medications` — start a long-term medication (next refill = start + supply period).
+pub async fn add_ltc_medication(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<AddLtcMedicationRequest>,
+) -> Result<Json<LtcMedication>, AppError> {
+    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    if body.drug_name.trim().is_empty() {
+        return Err(AppError::BadRequest("Drug name is required".to_owned()));
+    }
+    let supply = body.supply_days.unwrap_or(90);
+    if supply <= 0 {
+        return Err(AppError::BadRequest("Supply days must be positive".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, LtcMedication>(&format!(
+        "INSERT INTO long_term_medications \
+         (tenant_id, patient_id, drug_name, dosage, frequency, supply_days, auto_refill, \
+          next_refill_date, prescriber, notes) \
+         VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, true), CURRENT_DATE + $6, $8, $9) \
+         RETURNING {LTCMED_COLS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(body.drug_name.trim())
+    .bind(&body.dosage)
+    .bind(&body.frequency)
+    .bind(supply)
+    .bind(body.auto_refill)
+    .bind(claims.sub)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// `POST /api/ltc/medications/{id}/refill` — dispense a refill; advances the next refill date.
+pub async fn refill_ltc_medication(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<LtcMedication>, AppError> {
+    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, LtcMedication>(&format!(
+        "UPDATE long_term_medications SET refill_count = refill_count + 1, \
+            last_refilled_at = now(), next_refill_date = CURRENT_DATE + supply_days, \
+            updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 AND status = 'active' RETURNING {LTCMED_COLS}"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("Medication not found or not active".to_owned()))?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateLtcMedicationRequest {
+    pub status: Option<String>,
+    pub auto_refill: Option<bool>,
+}
+
+/// `PUT /api/ltc/medications/{id}` — pause / discontinue or toggle auto-refill.
+pub async fn update_ltc_medication(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateLtcMedicationRequest>,
+) -> Result<Json<LtcMedication>, AppError> {
+    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    if let Some(s) = &body.status {
+        if !["active", "paused", "discontinued"].contains(&s.as_str()) {
+            return Err(AppError::BadRequest("Invalid status".to_owned()));
+        }
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, LtcMedication>(&format!(
+        "UPDATE long_term_medications SET status = COALESCE($3, status), \
+            auto_refill = COALESCE($4, auto_refill), updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 RETURNING {LTCMED_COLS}"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(&body.status)
+    .bind(body.auto_refill)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

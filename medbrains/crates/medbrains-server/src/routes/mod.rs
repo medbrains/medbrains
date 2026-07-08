@@ -3249,6 +3249,18 @@ pub fn build_router(state: AppState) -> Router {
             "/api/ltc/mds/{id}/complete",
             post(long_term_care::complete_mds_assessment),
         )
+        .route(
+            "/api/ltc/medications",
+            get(long_term_care::list_ltc_medications).post(long_term_care::add_ltc_medication),
+        )
+        .route(
+            "/api/ltc/medications/{id}/refill",
+            post(long_term_care::refill_ltc_medication),
+        )
+        .route(
+            "/api/ltc/medications/{id}",
+            put(long_term_care::update_ltc_medication),
+        )
         // ── Clinical Trials registry (#2983) ──
         .route(
             "/api/clinical-trials",

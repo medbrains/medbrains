@@ -7826,6 +7826,24 @@ export interface CaseSheetScan {
   updated_at: string;
 }
 
+/** A long-term (chronic) medication on an extended supply cycle (#2962). */
+export interface LtcMedication {
+  id: string;
+  patient_id: string;
+  drug_name: string;
+  dosage: string | null;
+  frequency: string | null;
+  supply_days: number;
+  auto_refill: boolean;
+  start_date: string;
+  next_refill_date: string | null;
+  last_refilled_at: string | null;
+  refill_count: number;
+  status: string;
+  notes: string | null;
+  created_at: string;
+}
+
 /** A Long-Term Care MDS (Minimum Data Set) assessment (#2961). */
 export interface MdsAssessment {
   id: string;

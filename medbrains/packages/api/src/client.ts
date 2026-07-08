@@ -1176,6 +1176,7 @@ import type {
   LogAccessRequest,
   LookupTerminologyParams,
   LosComparisonRow,
+  LtcMedication,
   ManualAutoChargeRequest,
   ManualAutoChargeResponse,
   ManufacturerSummary,
@@ -5914,6 +5915,24 @@ export const api = {
     request<ClinicalTrial[]>(`/clinical-trials${status ? `?status=${status}` : ""}`),
   listMdsAssessments: (patientId: string) =>
     request<MdsAssessment[]>(`/ltc/mds?patient_id=${patientId}`),
+  listLtcMedications: (patientId: string) =>
+    request<LtcMedication[]>(`/ltc/medications?patient_id=${patientId}`),
+  addLtcMedication: (data: {
+    patient_id: string;
+    drug_name: string;
+    dosage?: string;
+    frequency?: string;
+    supply_days?: number;
+    auto_refill?: boolean;
+    notes?: string;
+  }) => request<LtcMedication>("/ltc/medications", { method: "POST", body: JSON.stringify(data) }),
+  refillLtcMedication: (id: string) =>
+    request<LtcMedication>(`/ltc/medications/${id}/refill`, { method: "POST" }),
+  updateLtcMedication: (id: string, data: { status?: string; auto_refill?: boolean }) =>
+    request<LtcMedication>(`/ltc/medications/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   createMdsAssessment: (data: {
     patient_id: string;
     assessment_type?: string;
