@@ -24,10 +24,14 @@ use medbrains_core::multi_hospital::{
     PatientTransferDisplay, StockTransfer, StockTransferItem, UpdateHospitalGroup,
     UpdateTransferStatus, UserHospitalAssignment, UserWithAssignments,
 };
+use medbrains_core::permissions;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{middleware::auth::Claims, state::AppState};
+use crate::{
+    error::AppError, middleware::auth::Claims,
+    middleware::authorization::require_permission, state::AppState,
+};
 
 // ── Query Parameters ──────────────────────────────────────────────────────────
 
@@ -49,103 +53,187 @@ pub struct PeriodQuery {
 
 // ── Hospital Groups ───────────────────────────────────────────────────────────
 
-/// List all hospital groups
+/// List all active hospital groups. Global (cross-tenant) — platform admins only.
 pub async fn list_groups(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
-) -> Result<Json<Vec<HospitalGroup>>, (StatusCode, String)> {
-    // TODO: Query database for all active hospital groups
-    Ok(Json(vec![]))
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<HospitalGroup>>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    let rows = sqlx::query_as::<_, HospitalGroup>(
+        "SELECT * FROM hospital_groups WHERE is_active = true ORDER BY name LIMIT 1000",
+    )
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows))
 }
 
-/// Get a specific hospital group
+/// Get a specific hospital group.
 pub async fn get_group(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<HospitalGroup>, (StatusCode, String)> {
-    // TODO: Query database for hospital group by ID
-    let _ = id;
-    Err((StatusCode::NOT_FOUND, "Group not found".to_string()))
+) -> Result<Json<HospitalGroup>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    let row = sqlx::query_as::<_, HospitalGroup>("SELECT * FROM hospital_groups WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    Ok(Json(row))
 }
 
-/// Create a new hospital group
+/// Create a new hospital group.
 pub async fn create_group(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Json(payload): Json<CreateHospitalGroup>,
-) -> Result<Json<HospitalGroup>, (StatusCode, String)> {
-    // TODO: Insert new hospital group
-    let _ = payload;
-    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
+) -> Result<Json<HospitalGroup>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    let row = sqlx::query_as::<_, HospitalGroup>(
+        "INSERT INTO hospital_groups \
+         (code, name, display_name, headquarters_address, phone, email, website, logo_url, \
+          primary_color, default_currency, timezone) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, '#228be6'), \
+                 COALESCE($10, 'INR'), COALESCE($11, 'Asia/Kolkata')) RETURNING *",
+    )
+    .bind(&payload.code)
+    .bind(&payload.name)
+    .bind(&payload.display_name)
+    .bind(&payload.headquarters_address)
+    .bind(&payload.phone)
+    .bind(&payload.email)
+    .bind(&payload.website)
+    .bind(&payload.logo_url)
+    .bind(&payload.primary_color)
+    .bind(&payload.default_currency)
+    .bind(&payload.timezone)
+    .fetch_one(&state.db)
+    .await?;
+    Ok(Json(row))
 }
 
-/// Update a hospital group
+/// Update a hospital group.
 pub async fn update_group(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
     Json(payload): Json<UpdateHospitalGroup>,
-) -> Result<Json<HospitalGroup>, (StatusCode, String)> {
-    // TODO: Update hospital group
-    let _ = (id, payload);
-    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
+) -> Result<Json<HospitalGroup>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    let row = sqlx::query_as::<_, HospitalGroup>(
+        "UPDATE hospital_groups SET \
+            name = COALESCE($2, name), display_name = COALESCE($3, display_name), \
+            headquarters_address = COALESCE($4, headquarters_address), \
+            phone = COALESCE($5, phone), email = COALESCE($6, email), \
+            website = COALESCE($7, website), logo_url = COALESCE($8, logo_url), \
+            primary_color = COALESCE($9, primary_color), \
+            default_currency = COALESCE($10, default_currency), \
+            timezone = COALESCE($11, timezone), is_active = COALESCE($12, is_active), \
+            updated_at = now() \
+         WHERE id = $1 RETURNING *",
+    )
+    .bind(id)
+    .bind(&payload.name)
+    .bind(&payload.display_name)
+    .bind(&payload.headquarters_address)
+    .bind(&payload.phone)
+    .bind(&payload.email)
+    .bind(&payload.website)
+    .bind(&payload.logo_url)
+    .bind(&payload.primary_color)
+    .bind(&payload.default_currency)
+    .bind(&payload.timezone)
+    .bind(payload.is_active)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    Ok(Json(row))
 }
 
-/// Delete a hospital group
+/// Soft-delete a hospital group.
 pub async fn delete_group(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<StatusCode, (StatusCode, String)> {
-    // TODO: Soft delete hospital group
-    let _ = id;
+) -> Result<StatusCode, AppError> {
+    require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    sqlx::query("UPDATE hospital_groups SET is_active = false, updated_at = now() WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 // ── Regions ───────────────────────────────────────────────────────────────────
 
-/// List regions for a group
+/// List active regions for a group.
 pub async fn list_regions(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Query(query): Query<GroupIdQuery>,
-) -> Result<Json<Vec<HospitalRegion>>, (StatusCode, String)> {
-    // TODO: Query regions for the specified group
-    let _ = query;
-    Ok(Json(vec![]))
+) -> Result<Json<Vec<HospitalRegion>>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    let rows = sqlx::query_as::<_, HospitalRegion>(
+        "SELECT * FROM hospital_regions WHERE group_id = $1 AND is_active = true ORDER BY name",
+    )
+    .bind(query.group_id)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(rows))
 }
 
-/// Get a specific region
+/// Get a specific region.
 pub async fn get_region(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<HospitalRegion>, (StatusCode, String)> {
-    // TODO: Query region by ID
-    let _ = id;
-    Err((StatusCode::NOT_FOUND, "Region not found".to_string()))
+) -> Result<Json<HospitalRegion>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    let row = sqlx::query_as::<_, HospitalRegion>("SELECT * FROM hospital_regions WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    Ok(Json(row))
 }
 
-/// Create a new region
+/// Create a new region under a group.
 pub async fn create_region(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Json(payload): Json<CreateHospitalRegion>,
-) -> Result<Json<HospitalRegion>, (StatusCode, String)> {
-    // TODO: Insert new region
-    let _ = payload;
-    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
+) -> Result<Json<HospitalRegion>, AppError> {
+    require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    let row = sqlx::query_as::<_, HospitalRegion>(
+        "INSERT INTO hospital_regions \
+         (group_id, code, name, country, states, regional_head_name, \
+          regional_head_email, regional_head_phone) \
+         VALUES ($1, $2, $3, COALESCE($4, 'India'), $5, $6, $7, $8) RETURNING *",
+    )
+    .bind(payload.group_id)
+    .bind(&payload.code)
+    .bind(&payload.name)
+    .bind(&payload.country)
+    .bind(&payload.states)
+    .bind(&payload.regional_head_name)
+    .bind(&payload.regional_head_email)
+    .bind(&payload.regional_head_phone)
+    .fetch_one(&state.db)
+    .await?;
+    Ok(Json(row))
 }
 
-/// Delete a region
+/// Soft-delete a region.
 pub async fn delete_region(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<StatusCode, (StatusCode, String)> {
-    // TODO: Soft delete region
-    let _ = id;
+) -> Result<StatusCode, AppError> {
+    require_permission(&claims, permissions::admin::system_state::MANAGE)?;
+    sqlx::query("UPDATE hospital_regions SET is_active = false, updated_at = now() WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
