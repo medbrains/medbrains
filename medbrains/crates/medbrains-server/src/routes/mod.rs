@@ -3368,6 +3368,11 @@ pub fn build_router(state: AppState) -> Router {
             "/api/advance-directives/{id}/revoke",
             post(home_health::revoke_advance_directive),
         )
+        .route(
+            "/api/home-health/bereavement",
+            get(home_health::list_bereavement).post(home_health::schedule_bereavement),
+        )
+        .route("/api/bereavement/{id}", put(home_health::update_bereavement))
         // ── Case-sheet digitization (B2 ingestion) ──
         .route(
             "/api/case-sheets/scans",

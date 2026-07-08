@@ -7826,6 +7826,20 @@ export interface CaseSheetScan {
   updated_at: string;
 }
 
+/** A bereavement support follow-up contact for a family (#2974). */
+export interface BereavementFollowup {
+  id: string;
+  patient_id: string;
+  family_contact_name: string;
+  relationship: string | null;
+  contact_type: string;
+  scheduled_date: string;
+  status: string;
+  completed_at: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
 /** An advance directive / DNR with family-consent tracking (#2973). */
 export interface AdvanceDirective {
   id: string;

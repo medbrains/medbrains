@@ -153,6 +153,7 @@ import type {
   BedTurnaroundLog,
   BedTurnaroundRow,
   BedTypeRow,
+  BereavementFollowup,
   // Billing Concessions
   BillingConcession,
   BillingPackage,
@@ -6038,6 +6039,25 @@ export const api = {
     request<HospiceEnrollment[]>(`/home-health/hospice?patient_id=${patientId}`),
   listAdvanceDirectives: (patientId: string) =>
     request<AdvanceDirective[]>(`/home-health/advance-directives?patient_id=${patientId}`),
+  listBereavement: (patientId: string) =>
+    request<BereavementFollowup[]>(`/home-health/bereavement?patient_id=${patientId}`),
+  scheduleBereavement: (data: {
+    patient_id: string;
+    family_contact_name: string;
+    relationship?: string;
+    contact_type?: string;
+    scheduled_date: string;
+    notes?: string;
+  }) =>
+    request<BereavementFollowup>("/home-health/bereavement", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateBereavement: (id: string, data: { status: string; notes?: string }) =>
+    request<BereavementFollowup>(`/bereavement/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   createAdvanceDirective: (data: {
     patient_id: string;
     directive_type: string;

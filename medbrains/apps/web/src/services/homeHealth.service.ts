@@ -30,4 +30,7 @@ export const homeHealthService = {
   listAdvanceDirectives: api.listAdvanceDirectives,
   createAdvanceDirective: api.createAdvanceDirective,
   revokeAdvanceDirective: api.revokeAdvanceDirective,
+  listBereavement: api.listBereavement,
+  scheduleBereavement: api.scheduleBereavement,
+  updateBereavement: api.updateBereavement,
 };

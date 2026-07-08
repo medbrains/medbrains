@@ -1259,3 +1259,124 @@ pub async fn revoke_advance_directive(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── Bereavement support coordination (#2974) ───────────────────────────────
+
+const BER_COLS: &str = "id, patient_id, family_contact_name, relationship, contact_type, \
+     scheduled_date, status, completed_at, notes, created_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct BereavementFollowup {
+    pub id: Uuid,
+    pub patient_id: Uuid,
+    pub family_contact_name: String,
+    pub relationship: Option<String>,
+    pub contact_type: String,
+    pub scheduled_date: chrono::NaiveDate,
+    pub status: String,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// `GET /api/home-health/bereavement?patient_id=` — the bereavement follow-up plan for a family.
+pub async fn list_bereavement(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<HomeMedQuery>,
+) -> Result<Json<Vec<BereavementFollowup>>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, BereavementFollowup>(&format!(
+        "SELECT {BER_COLS} FROM bereavement_followups \
+         WHERE tenant_id = $1 AND patient_id = $2 ORDER BY scheduled_date LIMIT 500"
+    ))
+    .bind(claims.tenant_id)
+    .bind(q.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ScheduleBereavementRequest {
+    pub patient_id: Uuid,
+    pub family_contact_name: String,
+    pub relationship: Option<String>,
+    pub contact_type: Option<String>,
+    pub scheduled_date: chrono::NaiveDate,
+    pub notes: Option<String>,
+}
+
+/// `POST /api/home-health/bereavement` — schedule a bereavement follow-up contact.
+pub async fn schedule_bereavement(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<ScheduleBereavementRequest>,
+) -> Result<Json<BereavementFollowup>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    if body.family_contact_name.trim().is_empty() {
+        return Err(AppError::BadRequest("Family contact name is required".to_owned()));
+    }
+    let ctype = body.contact_type.as_deref().unwrap_or("call");
+    if !["call", "visit", "support_group", "letter", "other"].contains(&ctype) {
+        return Err(AppError::BadRequest("Invalid contact type".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, BereavementFollowup>(&format!(
+        "INSERT INTO bereavement_followups \
+         (tenant_id, patient_id, family_contact_name, relationship, contact_type, scheduled_date, \
+          coordinator, notes) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING {BER_COLS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(body.family_contact_name.trim())
+    .bind(&body.relationship)
+    .bind(ctype)
+    .bind(body.scheduled_date)
+    .bind(claims.sub)
+    .bind(&body.notes)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateBereavementRequest {
+    pub status: String,
+    pub notes: Option<String>,
+}
+
+/// `PUT /api/bereavement/{id}` — mark a follow-up completed / declined.
+pub async fn update_bereavement(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateBereavementRequest>,
+) -> Result<Json<BereavementFollowup>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    if !["scheduled", "completed", "declined"].contains(&body.status.as_str()) {
+        return Err(AppError::BadRequest("Invalid status".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, BereavementFollowup>(&format!(
+        "UPDATE bereavement_followups SET status = $3, notes = COALESCE($4, notes), \
+            completed_at = CASE WHEN $3 = 'completed' THEN now() ELSE completed_at END, \
+            updated_at = now() WHERE id = $1 AND tenant_id = $2 RETURNING {BER_COLS}"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(&body.status)
+    .bind(&body.notes)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
