@@ -3,6 +3,7 @@ import {
   Group,
   Loader,
   Modal,
+  SegmentedControl,
   Select,
   Stack,
   Switch,
@@ -11,7 +12,14 @@ import {
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { LocationRow } from "@medbrains/types";
-import { IconCheck, IconPencil, IconPlus, IconTrash, IconUsers } from "@tabler/icons-react";
+import {
+  IconCheck,
+  IconMapPin,
+  IconPencil,
+  IconPlus,
+  IconTrash,
+  IconUsers,
+} from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { CreateLocationModal, SelectLabel } from "@/components";
@@ -379,12 +387,48 @@ function LocationStaffDrawer({
   );
 }
 
+function flattenTree(
+  locations: LocationRow[],
+  parentId: string | null,
+  depth: number,
+): { loc: LocationRow; depth: number }[] {
+  return locations
+    .filter((l) => (l.parent_id ?? null) === parentId)
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .flatMap((loc) => [{ loc, depth }, ...flattenTree(locations, loc.id, depth + 1)]);
+}
+
+function LocationTreeView({ locations }: { locations: LocationRow[] }) {
+  const flat = flattenTree(locations, null, 0);
+  return (
+    <Stack gap={2}>
+      {flat.map(({ loc, depth }) => (
+        <Group key={loc.id} gap={8} style={{ paddingLeft: depth * 22 }}>
+          <IconMapPin size={14} />
+          <Text size="sm" fw={depth === 0 ? 600 : 400}>
+            {loc.name}
+          </Text>
+          <Badge size="xs" tone="neutral">
+            {loc.level}
+          </Badge>
+          {!loc.is_active && (
+            <Badge size="xs" tone="danger">
+              Inactive
+            </Badge>
+          )}
+        </Group>
+      ))}
+    </Stack>
+  );
+}
+
 export function LocationsSettings() {
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<LocationRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LocationRow | null>(null);
   const [staffLoc, setStaffLoc] = useState<LocationRow | null>(null);
+  const [view, setView] = useState<"list" | "tree">("list");
 
   const { data: locations, isLoading } = useQuery({
     queryKey: QUERY_KEY,
@@ -486,15 +530,33 @@ export function LocationsSettings() {
         <Text size="lg" fw={600}>
           Locations
         </Text>
-        <Button tone="primary" size="sm" leftSection={<IconPlus size={14} />} onClick={openCreate}>
-          Add Location
-        </Button>
+        <Group gap="sm">
+          <SegmentedControl
+            size="xs"
+            value={view}
+            onChange={(v) => setView(v as "list" | "tree")}
+            data={[
+              { label: "List", value: "list" },
+              { label: "Tree", value: "tree" },
+            ]}
+          />
+          <Button
+            tone="primary"
+            size="sm"
+            leftSection={<IconPlus size={14} />}
+            onClick={openCreate}
+          >
+            Add Location
+          </Button>
+        </Group>
       </Group>
 
       {(locations ?? []).length === 0 ? (
         <Text size="sm" c="dimmed" ta="center" py="xl">
           No locations configured. Add your first location to get started.
         </Text>
+      ) : view === "tree" ? (
+        <LocationTreeView locations={locations ?? []} />
       ) : (
         <Table striped highlightOnHover withTableBorder withColumnBorders>
           <Table.Thead>
