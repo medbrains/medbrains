@@ -7801,6 +7801,31 @@ export interface WardStockRow {
   gap: number;
 }
 
+export type CaseSheetScanStatus =
+  | "uploaded"
+  | "parsing"
+  | "parsed"
+  | "reviewing"
+  | "committed"
+  | "failed"
+  | "image_only";
+
+/** A scanned handwritten case sheet in the digitization pipeline (RFC-CASE-SHEET-DIGITIZATION). */
+export interface CaseSheetScan {
+  id: string;
+  tenant_id: string;
+  patient_id: string;
+  encounter_id: string | null;
+  scan_image_url: string;
+  status: CaseSheetScanStatus;
+  extracted_json: unknown;
+  overall_confidence: string | null;
+  parse_error: string | null;
+  uploaded_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /** A nurse on duty in a ward today (care-view "who's caring for this ward now"). */
 export interface WardOnDutyRow {
   nurse_user_id: string;

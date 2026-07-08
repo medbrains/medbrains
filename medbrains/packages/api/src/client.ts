@@ -230,6 +230,7 @@ import type {
   CaseReferral,
   // Phase 3 Print Data - Surgical & OT
   CaseSheetCoverPrintData,
+  CaseSheetScan,
   CashlessClaimPrintData,
   CathDevice,
   CathHemodynamic,
@@ -8209,6 +8210,28 @@ export const api = {
   listIngestionBatches: () => request<IngestionBatch[]>("/document-ingestion/batches"),
   createIngestionBatch: (data: { label: string }) =>
     request<IngestionBatch>("/document-ingestion/batches", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  // Case-sheet digitization (B2 ingestion)
+  listCaseSheetScans: (params?: { status?: string; patient_id?: string }) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<CaseSheetScan[]>(`/case-sheets/scans${qs}`);
+  },
+  getCaseSheetScan: (id: string) => request<CaseSheetScan>(`/case-sheets/scans/${id}`),
+  createCaseSheetScan: (data: {
+    patient_id: string;
+    encounter_id?: string;
+    scan_image_url: string;
+  }) =>
+    request<CaseSheetScan>("/case-sheets/scans", { method: "POST", body: JSON.stringify(data) }),
+  submitCaseSheetScan: (id: string) =>
+    request<CaseSheetScan>(`/case-sheets/scans/${id}/submit`, { method: "POST" }),
+  submitCaseSheetParseResult: (
+    id: string,
+    data: { extracted_json?: unknown; overall_confidence?: number; parse_error?: string },
+  ) =>
+    request<CaseSheetScan>(`/case-sheets/scans/${id}/parse-result`, {
       method: "POST",
       body: JSON.stringify(data),
     }),

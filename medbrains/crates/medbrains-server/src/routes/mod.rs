@@ -133,6 +133,7 @@ pub mod setup;
 pub mod sso;
 pub mod sso_login;
 pub mod step_up;
+pub mod case_sheet_scan;
 pub mod vpn;
 pub mod ward_stock;
 pub mod sharing;
@@ -3236,6 +3237,23 @@ pub fn build_router(state: AppState) -> Router {
             get(ipd::list_ward_beds).post(ipd::assign_bed_to_ward),
         )
         .route("/api/ipd/wards/{id}/on-duty", get(ipd::ward_on_duty))
+        // ── Case-sheet digitization (B2 ingestion) ──
+        .route(
+            "/api/case-sheets/scans",
+            get(case_sheet_scan::list_scans).post(case_sheet_scan::create_scan),
+        )
+        .route(
+            "/api/case-sheets/scans/{id}",
+            get(case_sheet_scan::get_scan),
+        )
+        .route(
+            "/api/case-sheets/scans/{id}/submit",
+            post(case_sheet_scan::submit_scan),
+        )
+        .route(
+            "/api/case-sheets/scans/{id}/parse-result",
+            post(case_sheet_scan::parse_result),
+        )
         .route(
             "/api/ipd/wards/{wid}/beds/{mid}",
             delete(ipd::remove_bed_from_ward),
