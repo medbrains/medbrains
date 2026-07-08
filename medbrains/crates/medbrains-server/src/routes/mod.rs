@@ -3259,6 +3259,14 @@ pub fn build_router(state: AppState) -> Router {
             "/api/home-health/progress-notes",
             get(home_health::list_progress_notes).post(home_health::add_progress_note),
         )
+        .route(
+            "/api/home-health/discharge-program",
+            get(home_health::list_discharge_program).post(home_health::add_discharge_item),
+        )
+        .route(
+            "/api/home-health/discharge-program/{id}",
+            put(home_health::toggle_discharge_item),
+        )
         // ── Case-sheet digitization (B2 ingestion) ──
         .route(
             "/api/case-sheets/scans",

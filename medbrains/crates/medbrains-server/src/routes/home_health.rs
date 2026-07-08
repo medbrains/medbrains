@@ -349,3 +349,115 @@ pub async fn add_progress_note(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ── Training materials + discharge criteria (#2982) ────────────────────────
+
+const DP_COLS: &str = "id, tenant_id, patient_id, item_type, title, description, is_complete, \
+     completed_at, completed_by, notes, created_at, updated_at";
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct HomeDischargeItem {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub patient_id: Uuid,
+    pub item_type: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub is_complete: bool,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub completed_by: Option<Uuid>,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// `GET /api/home-health/discharge-program?patient_id=` — training materials + discharge criteria.
+pub async fn list_discharge_program(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<HomeMedQuery>,
+) -> Result<Json<Vec<HomeDischargeItem>>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, HomeDischargeItem>(&format!(
+        "SELECT {DP_COLS} FROM home_discharge_program \
+         WHERE tenant_id = $1 AND patient_id = $2 ORDER BY item_type, created_at LIMIT 500"
+    ))
+    .bind(claims.tenant_id)
+    .bind(q.patient_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddDischargeItemRequest {
+    pub patient_id: Uuid,
+    pub item_type: String,
+    pub title: String,
+    pub description: Option<String>,
+}
+
+/// `POST /api/home-health/discharge-program` — add a training material or discharge criterion.
+pub async fn add_discharge_item(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<AddDischargeItemRequest>,
+) -> Result<Json<HomeDischargeItem>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    if !["training", "criterion"].contains(&body.item_type.as_str()) {
+        return Err(AppError::BadRequest("Invalid item type".to_owned()));
+    }
+    if body.title.trim().is_empty() {
+        return Err(AppError::BadRequest("A title is required".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, HomeDischargeItem>(&format!(
+        "INSERT INTO home_discharge_program (tenant_id, patient_id, item_type, title, description) \
+         VALUES ($1, $2, $3, $4, $5) RETURNING {DP_COLS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(&body.item_type)
+    .bind(body.title.trim())
+    .bind(&body.description)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ToggleDischargeItemRequest {
+    pub is_complete: bool,
+}
+
+/// `PUT /api/home-health/discharge-program/{id}` — mark an item provided / criterion met (or not).
+pub async fn toggle_discharge_item(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ToggleDischargeItemRequest>,
+) -> Result<Json<HomeDischargeItem>, AppError> {
+    require_permission(&claims, permissions::ipd::mar::CREATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, HomeDischargeItem>(&format!(
+        "UPDATE home_discharge_program SET is_complete = $3, \
+            completed_at = CASE WHEN $3 THEN now() ELSE NULL END, \
+            completed_by = CASE WHEN $3 THEN $4 ELSE NULL END, updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 RETURNING {DP_COLS}"
+    ))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(body.is_complete)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

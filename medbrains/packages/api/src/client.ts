@@ -971,6 +971,7 @@ import type {
   HistopathReportPrintData,
   HomeCollectionStatsRow,
   HomeCollectionStatusRequest,
+  HomeDischargeItem,
   HomeEscalation,
   HomeMedAdministration,
   HomeProgressNote,
@@ -5919,6 +5920,23 @@ export const api = {
     }),
   listHomeProgressNotes: (patientId: string) =>
     request<HomeProgressNote[]>(`/home-health/progress-notes?patient_id=${patientId}`),
+  listDischargeProgram: (patientId: string) =>
+    request<HomeDischargeItem[]>(`/home-health/discharge-program?patient_id=${patientId}`),
+  addDischargeItem: (data: {
+    patient_id: string;
+    item_type: string;
+    title: string;
+    description?: string;
+  }) =>
+    request<HomeDischargeItem>("/home-health/discharge-program", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  toggleDischargeItem: (id: string, isComplete: boolean) =>
+    request<HomeDischargeItem>(`/home-health/discharge-program/${id}`, {
+      method: "PUT",
+      body: JSON.stringify({ is_complete: isComplete }),
+    }),
   addHomeProgressNote: (data: {
     patient_id: string;
     author_role?: string;

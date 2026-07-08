@@ -9,4 +9,7 @@ export const homeHealthService = {
   updateEscalation: api.updateEscalation,
   listProgressNotes: api.listHomeProgressNotes,
   addProgressNote: api.addHomeProgressNote,
+  listDischargeProgram: api.listDischargeProgram,
+  addDischargeItem: api.addDischargeItem,
+  toggleDischargeItem: api.toggleDischargeItem,
 };

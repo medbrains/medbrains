@@ -7846,6 +7846,22 @@ export interface HomeMedAdministration {
   updated_at: string;
 }
 
+/** A Home Healthcare discharge-program item (training material or discharge criterion). */
+export interface HomeDischargeItem {
+  id: string;
+  tenant_id: string;
+  patient_id: string;
+  item_type: string;
+  title: string;
+  description: string | null;
+  is_complete: boolean;
+  completed_at: string | null;
+  completed_by: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /** A Home Healthcare daily clinical progress note (visiting nurse / remote physician). */
 export interface HomeProgressNote {
   id: string;
