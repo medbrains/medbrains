@@ -15033,8 +15033,17 @@ export interface AntibioticStewardshipRequest {
   review_notes?: string;
   escalation_reason?: string;
   auto_stop_date?: string;
+  timeout_decision: string | null;
+  timeout_decision_at: string | null;
+  timeout_reviewed_by: string | null;
+  timeout_notes: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface AntibioticTimeoutReviewBody {
+  decision: string;
+  notes?: string;
 }
 
 export interface AntibioticConsumptionRecord {

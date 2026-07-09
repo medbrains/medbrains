@@ -3154,6 +3154,10 @@ pub fn build_router(state: AppState) -> Router {
             patch(infection_control::review_stewardship),
         )
         .route(
+            "/api/infection-control/stewardship/{id}/timeout-review",
+            post(infection_control::timeout_review_stewardship),
+        )
+        .route(
             "/api/infection-control/consumption",
             get(infection_control::list_consumption).post(infection_control::record_consumption),
         )

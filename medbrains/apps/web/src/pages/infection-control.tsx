@@ -455,6 +455,32 @@ function StewardshipTab() {
     },
   });
 
+  const [timeoutId, setTimeoutId] = useState<string | null>(null);
+  const [timeoutDecision, setTimeoutDecision] = useState<string | null>("continue");
+  const [timeoutNotes, setTimeoutNotes] = useState("");
+  const timeoutMut = useMutation({
+    mutationFn: (id: string) =>
+      infectionControlService.timeoutReviewStewardship(id, {
+        decision: timeoutDecision ?? "continue",
+        notes: timeoutNotes.trim() || undefined,
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["ic-stewardship"] });
+      notifications.show({ title: "Time-out review recorded", message: "", color: "success" });
+      setTimeoutId(null);
+      setTimeoutNotes("");
+      setTimeoutDecision("continue");
+    },
+    onError: (e: Error) =>
+      notifications.show({ title: "Failed", message: e.message, color: "danger" }),
+  });
+
+  // 48-72h antibiotic time-out is due once an approved antibiotic has run > 72h with no decision yet.
+  const timeoutDue = (r: AntibioticStewardshipRequest) =>
+    r.request_status === "approved" &&
+    !r.timeout_decision &&
+    Date.now() - new Date(r.requested_at).getTime() > 72 * 3600 * 1000;
+
   const columns = [
     {
       key: "antibiotic_name" as const,
@@ -498,25 +524,56 @@ function StewardshipTab() {
       render: (r: AntibioticStewardshipRequest) => new Date(r.requested_at).toLocaleDateString(),
     },
     {
+      key: "timeout" as const,
+      label: "48-72h review",
+      render: (r: AntibioticStewardshipRequest) =>
+        r.timeout_decision ? (
+          <Badge tone="success" size="sm">
+            {r.timeout_decision.replace(/_/g, " ")}
+          </Badge>
+        ) : timeoutDue(r) ? (
+          <Badge tone="danger" size="sm">
+            Overdue
+          </Badge>
+        ) : (
+          <Text size="sm" c="dimmed">
+            —
+          </Text>
+        ),
+    },
+    {
       key: "actions" as const,
       label: "Actions",
       render: (r: AntibioticStewardshipRequest) =>
-        r.request_status === "pending" && canCreate ? (
+        canCreate ? (
           <Group gap="xs">
-            <Button
-              tone="secondary"
-              size="compact-xs"
-              onClick={() => reviewMut.mutate({ id: r.id, status: "approved" })}
-            >
-              Approve
-            </Button>
-            <Button
-              tone="subtle-danger"
-              size="compact-xs"
-              onClick={() => reviewMut.mutate({ id: r.id, status: "denied" })}
-            >
-              Deny
-            </Button>
+            {r.request_status === "pending" && (
+              <>
+                <Button
+                  tone="secondary"
+                  size="compact-xs"
+                  onClick={() => reviewMut.mutate({ id: r.id, status: "approved" })}
+                >
+                  Approve
+                </Button>
+                <Button
+                  tone="subtle-danger"
+                  size="compact-xs"
+                  onClick={() => reviewMut.mutate({ id: r.id, status: "denied" })}
+                >
+                  Deny
+                </Button>
+              </>
+            )}
+            {r.request_status === "approved" && !r.timeout_decision && (
+              <Button
+                tone={timeoutDue(r) ? "danger" : "tertiary"}
+                size="compact-xs"
+                onClick={() => setTimeoutId(r.id)}
+              >
+                Time-out review
+              </Button>
+            )}
           </Group>
         ) : null,
     },
@@ -670,6 +727,43 @@ function StewardshipTab() {
           />
           <Button tone="primary" loading={createMut.isPending} onClick={() => createMut.mutate()}>
             Submit
+          </Button>
+        </Stack>
+      </Drawer>
+      <Drawer
+        opened={timeoutId !== null}
+        onClose={() => setTimeoutId(null)}
+        title="Antibiotic time-out review (48-72h)"
+        position="right"
+      >
+        <Stack gap="sm">
+          <Text size="sm" c="dimmed">
+            Review the antibiotic now that cultures/sensitivities are back and document the
+            decision.
+          </Text>
+          <Select
+            label="Decision"
+            data={[
+              { value: "continue", label: "Continue (still appropriate)" },
+              { value: "de_escalate", label: "De-escalate (narrower agent)" },
+              { value: "stop", label: "Stop (no longer needed)" },
+              { value: "switch_oral", label: "Switch IV → oral" },
+              { value: "change", label: "Change (per sensitivities)" },
+            ]}
+            value={timeoutDecision}
+            onChange={setTimeoutDecision}
+          />
+          <Textarea
+            label="Notes"
+            value={timeoutNotes}
+            onChange={(e) => setTimeoutNotes(e.currentTarget.value)}
+          />
+          <Button
+            tone="primary"
+            loading={timeoutMut.isPending}
+            onClick={() => timeoutId && timeoutMut.mutate(timeoutId)}
+          >
+            Record decision
           </Button>
         </Stack>
       </Drawer>

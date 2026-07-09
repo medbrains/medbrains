@@ -80,6 +80,7 @@ import type {
   AnesthesiaRecordPrintData,
   AntibioticConsumptionRecord,
   AntibioticStewardshipRequest,
+  AntibioticTimeoutReviewBody,
   AntimicrobialConsumptionRow,
   AntiRaggingUndertakingPrintData,
   AppManifest,
@@ -8489,6 +8490,11 @@ export const api = {
   reviewStewardshipRequest: (id: string, data: ReviewStewardshipRequest) =>
     request<AntibioticStewardshipRequest>(`/infection-control/stewardship/${id}`, {
       method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  timeoutReviewStewardship: (id: string, data: AntibioticTimeoutReviewBody) =>
+    request<AntibioticStewardshipRequest>(`/infection-control/stewardship/${id}/timeout-review`, {
+      method: "POST",
       body: JSON.stringify(data),
     }),
 

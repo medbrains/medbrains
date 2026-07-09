@@ -571,6 +571,52 @@ pub async fn review_stewardship(
     Ok(Json(row))
 }
 
+const TIMEOUT_DECISIONS: [&str; 5] =
+    ["continue", "de_escalate", "stop", "switch_oral", "change"];
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AntibioticTimeoutReviewBody {
+    pub decision: String,
+    pub notes: Option<String>,
+}
+
+/// `POST /api/infection-control/stewardship/{id}/timeout-review` — record the 48-72h antibiotic
+/// time-out decision (continue / de-escalate / stop / switch to oral / change) once cultures are back.
+pub async fn timeout_review_stewardship(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<AntibioticTimeoutReviewBody>,
+) -> Result<Json<AntibioticStewardshipRequest>, AppError> {
+    require_permission(&claims, permissions::infection_control::stewardship::CREATE)?;
+    if !TIMEOUT_DECISIONS.contains(&body.decision.as_str()) {
+        return Err(AppError::BadRequest(format!("invalid decision '{}'", body.decision)));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, AntibioticStewardshipRequest>(
+        "UPDATE antibiotic_stewardship_requests SET \
+         timeout_decision = $3, timeout_notes = $4, timeout_reviewed_by = $5, \
+         timeout_decision_at = now(), updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 AND request_status = 'approved'::antibiotic_request_status \
+         RETURNING *",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(&body.decision)
+    .bind(&body.notes)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| {
+        AppError::BadRequest("only an approved (active) antibiotic can have a time-out review".into())
+    })?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
 // ── Consumption ──────────────────────────────────────────
 
 pub async fn list_consumption(

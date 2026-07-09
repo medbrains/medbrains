@@ -146,6 +146,10 @@ pub struct AntibioticStewardshipRequest {
     pub review_notes: Option<String>,
     pub escalation_reason: Option<String>,
     pub auto_stop_date: Option<NaiveDate>,
+    pub timeout_decision: Option<String>,
+    pub timeout_decision_at: Option<DateTime<Utc>>,
+    pub timeout_reviewed_by: Option<Uuid>,
+    pub timeout_notes: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

@@ -13,6 +13,8 @@ export const infectionControlService = {
     api.createStewardshipRequest(...args),
   reviewStewardshipRequest: (...args: Parameters<typeof api.reviewStewardshipRequest>) =>
     api.reviewStewardshipRequest(...args),
+  timeoutReviewStewardship: (...args: Parameters<typeof api.timeoutReviewStewardship>) =>
+    api.timeoutReviewStewardship(...args),
   listBiowasteRecords: (...args: Parameters<typeof api.listBiowasteRecords>) =>
     api.listBiowasteRecords(...args),
   createBiowasteRecord: (...args: Parameters<typeof api.createBiowasteRecord>) =>
