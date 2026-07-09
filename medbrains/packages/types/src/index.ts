@@ -3999,6 +3999,15 @@ export interface CreateNutritionScreeningRequest {
   notes?: string | null;
 }
 
+export interface CumulativeDoseResult {
+  study_count: number;
+  cumulative_dlp: number;
+  estimated_effective_msv: number;
+  review_threshold_msv: number;
+  over_threshold: boolean;
+  near_threshold: boolean;
+}
+
 export interface ContrastScreeningRequest {
   patient_id: string;
   prior_contrast_reaction?: string | null;

@@ -775,6 +775,7 @@ import type {
   CultureSensitivityPrintData,
   CultureSensitivityRow,
   CultureSurveillance,
+  CumulativeDoseResult,
   CumulativeLabReportPrintData,
   CumulativeReportResponse,
   // Custom Code
@@ -5272,6 +5273,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  cumulativeDose: (patientId: string) =>
+    request<CumulativeDoseResult>(`/radiology/cumulative-dose?patient_id=${patientId}`),
 
   getRadiologyOrder: (id: string) =>
     request<RadiologyOrderDetailResponse>(`/radiology/orders/${id}`),

@@ -556,6 +556,12 @@ function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () =
     enabled: !!patientId && contrastRequired,
   });
 
+  const { data: cumulativeDose } = useQuery({
+    queryKey: ["cumulative-dose", patientId],
+    queryFn: () => radiologyService.cumulativeDose(patientId),
+    enabled: !!patientId,
+  });
+
   const createMutation = useMutation({
     mutationFn: (data: CreateRadiologyOrderRequest) => radiologyService.createRadiologyOrder(data),
     onSuccess: (result) => {
@@ -680,6 +686,16 @@ function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () =
             {contrastScreen.flags.length > 0
               ? contrastScreen.flags.join(" ")
               : "No contrast-safety concerns from renal function on record."}
+          </Alert>
+        )}
+        {cumulativeDose?.near_threshold && (
+          <Alert
+            tone={cumulativeDose.over_threshold ? "danger" : "warning"}
+            title={`Cumulative radiation ≈ ${Math.round(cumulativeDose.estimated_effective_msv)} mSv over ${cumulativeDose.study_count} CT stud${cumulativeDose.study_count === 1 ? "y" : "ies"}`}
+          >
+            {cumulativeDose.over_threshold
+              ? `Estimated cumulative effective dose has reached the ${cumulativeDose.review_threshold_msv} mSv review level — justify further imaging and consider a non-ionising alternative (US/MRI).`
+              : "Approaching the cumulative-dose review level — justify further ionising imaging and consider alternatives."}
           </Alert>
         )}
         <Controller

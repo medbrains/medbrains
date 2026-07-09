@@ -164,6 +164,92 @@ pub async fn contrast_screening(
     Ok(Json(compute_contrast_screening(egfr, prior, body.on_metformin)))
 }
 
+// ══════════════════════════════════════════════════════════
+//  Cumulative radiation dose
+// ══════════════════════════════════════════════════════════
+// Ionising radiation is cumulative and stochastic — repeated CT (especially in younger patients)
+// raises lifetime cancer risk, so each new study should be justified against the patient's exposure so
+// far (AERB/ICRP). Per-study dose is recorded (DLP for CT) but the running lifetime total is never
+// surfaced. This sums the recorded CT DLP and estimates the cumulative effective dose so the orderer
+// sees it before adding more.
+
+/// Effective-dose conversion factor for body CT: mSv per (mGy·cm) of DLP. 0.015 is the widely-used
+/// representative adult chest/abdomen/pelvis k-factor; the result is an ESTIMATE, not a measured dose.
+const DLP_TO_MSV_K: f64 = 0.015;
+/// Cumulative effective dose (mSv) at which further imaging warrants explicit justification / review.
+const CUMULATIVE_DOSE_REVIEW_MSV: f64 = 100.0;
+
+fn estimate_effective_msv(total_dlp: f64) -> f64 {
+    total_dlp * DLP_TO_MSV_K
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CumulativeDoseQuery {
+    pub patient_id: Uuid,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CumulativeDoseResult {
+    pub study_count: i64,
+    pub cumulative_dlp: f64,
+    pub estimated_effective_msv: f64,
+    pub review_threshold_msv: f64,
+    /// True once the estimated cumulative effective dose reaches the review threshold.
+    pub over_threshold: bool,
+    /// True from 75% of the threshold — approaching, justify carefully.
+    pub near_threshold: bool,
+}
+
+/// `GET /api/radiology/cumulative-dose?patient_id=` — the patient's cumulative recorded CT dose (DLP)
+/// and estimated lifetime effective dose, versus the review threshold.
+pub async fn cumulative_dose(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<CumulativeDoseQuery>,
+) -> Result<Json<CumulativeDoseResult>, AppError> {
+    require_permission(&claims, permissions::radiology::orders::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (study_count, total_dlp): (i64, Option<f64>) = sqlx::query_as(
+        "SELECT COUNT(*), COALESCE(SUM(dlp), 0)::float8 FROM radiation_dose_records \
+         WHERE tenant_id = $1 AND patient_id = $2 AND dlp IS NOT NULL",
+    )
+    .bind(claims.tenant_id)
+    .bind(params.patient_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    let cumulative_dlp = total_dlp.unwrap_or(0.0);
+    let estimated_effective_msv = estimate_effective_msv(cumulative_dlp);
+    Ok(Json(CumulativeDoseResult {
+        study_count,
+        cumulative_dlp,
+        estimated_effective_msv,
+        review_threshold_msv: CUMULATIVE_DOSE_REVIEW_MSV,
+        over_threshold: estimated_effective_msv >= CUMULATIVE_DOSE_REVIEW_MSV,
+        near_threshold: estimated_effective_msv >= 0.75 * CUMULATIVE_DOSE_REVIEW_MSV,
+    }))
+}
+
+#[cfg(test)]
+mod dose_tests {
+    use super::estimate_effective_msv;
+
+    #[test]
+    fn dlp_converts_to_msv() {
+        // 1000 mGy·cm * 0.015 = 15 mSv (a couple of abdominal CTs).
+        assert!((estimate_effective_msv(1000.0) - 15.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn threshold_crossing() {
+        // ~6667 mGy·cm cumulative DLP -> ~100 mSv.
+        assert!(estimate_effective_msv(7000.0) >= 100.0);
+        assert!(estimate_effective_msv(5000.0) < 100.0);
+    }
+}
+
 #[cfg(test)]
 mod contrast_tests {
     use super::compute_contrast_screening;

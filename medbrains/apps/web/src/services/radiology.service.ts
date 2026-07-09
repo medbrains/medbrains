@@ -13,6 +13,7 @@ export const radiologyService = {
     api.createRadiologyOrder(...args),
   contrastScreening: (...args: Parameters<typeof api.contrastScreening>) =>
     api.contrastScreening(...args),
+  cumulativeDose: (...args: Parameters<typeof api.cumulativeDose>) => api.cumulativeDose(...args),
   getRadiologyOrder: (...args: Parameters<typeof api.getRadiologyOrder>) =>
     api.getRadiologyOrder(...args),
   createRadiologyReport: (...args: Parameters<typeof api.createRadiologyReport>) =>

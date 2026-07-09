@@ -2146,6 +2146,10 @@ pub fn build_router(state: AppState) -> Router {
             post(radiology::contrast_screening),
         )
         .route(
+            "/api/radiology/cumulative-dose",
+            get(radiology::cumulative_dose),
+        )
+        .route(
             "/api/radiology/orders/{id}",
             get(radiology::get_order),
         )
