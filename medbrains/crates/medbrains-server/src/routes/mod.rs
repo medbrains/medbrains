@@ -1,6 +1,7 @@
 pub mod abdm;
 pub mod access;
 pub mod app_manifest;
+pub mod med_reconciliation;
 pub mod meows;
 pub mod news2;
 pub mod pews;
@@ -324,6 +325,22 @@ pub fn build_router(state: AppState) -> Router {
             patch(sepsis_bundle::update_sepsis_bundle),
         )
         .route("/api/clinical/sepsis-bundles", get(sepsis_bundle::list_sepsis_bundles))
+        .route(
+            "/api/clinical/med-reconciliation",
+            post(med_reconciliation::create_med_reconciliation),
+        )
+        .route(
+            "/api/clinical/med-reconciliation-item/{id}",
+            patch(med_reconciliation::decide_med_item),
+        )
+        .route(
+            "/api/clinical/med-reconciliation/{id}/complete",
+            post(med_reconciliation::complete_med_reconciliation),
+        )
+        .route(
+            "/api/clinical/med-reconciliations",
+            get(med_reconciliation::list_med_reconciliations),
+        )
         .route("/api/vte-assessments", post(vte::create_vte_assessment))
         .route(
             "/api/patients/{patient_id}/vte-assessments",

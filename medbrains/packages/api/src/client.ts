@@ -561,6 +561,7 @@ import type {
   CreateMealCountRequest,
   CreateMealPrepRequest,
   CreateMedicalCertificateRequest,
+  CreateMedReconciliationRequest,
   CreateMeetingRequest,
   CreateMenuItemRequest,
   CreateMigrationRequest,
@@ -788,6 +789,7 @@ import type {
   DeathCertificatePrintData,
   DeathDeclarationPrintData,
   DeathRegisterPrintData,
+  DecideItemRequest,
   DeliveryType,
   DentalChartEntry,
   DentalExam,
@@ -1203,6 +1205,8 @@ import type {
   MealPreparation,
   MedicalCertificate,
   MedicationTimelineEvent,
+  MedReconciliationItem,
+  MedReconciliationView,
   MeowsRequest,
   MeowsResult,
   MergePatientRequest,
@@ -14570,6 +14574,22 @@ export const api = {
     }),
   listSepsisBundles: (patientId: string) =>
     request<SepsisBundleView[]>(`/clinical/sepsis-bundles?patient_id=${patientId}`),
+  createMedReconciliation: (data: CreateMedReconciliationRequest) =>
+    request<MedReconciliationView>("/clinical/med-reconciliation", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  decideMedItem: (id: string, data: DecideItemRequest) =>
+    request<MedReconciliationItem>(`/clinical/med-reconciliation-item/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  completeMedReconciliation: (id: string) =>
+    request<MedReconciliationView>(`/clinical/med-reconciliation/${id}/complete`, {
+      method: "POST",
+    }),
+  listMedReconciliations: (patientId: string) =>
+    request<MedReconciliationView[]>(`/clinical/med-reconciliations?patient_id=${patientId}`),
 
   // Vitals schedules
   listVitalsSchedules: (params?: { encounter_id?: string; due_only?: boolean }) => {

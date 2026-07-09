@@ -11,6 +11,7 @@ import {
   IconDroplet,
   IconHeartbeat,
   IconLogout,
+  IconPill,
   IconUserHeart,
   IconVirus,
 } from "@tabler/icons-react";
@@ -21,6 +22,7 @@ import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { careViewService } from "@/services/careView.service";
 import { DischargeTrackerTab } from "./care-view/DischargeTrackerTab";
 import { HandoverTab } from "./care-view/HandoverTab";
+import { MedReconciliationTab } from "./care-view/MedReconciliationTab";
 import { MeowsTab } from "./care-view/MeowsTab";
 import { MyTasksTab } from "./care-view/MyTasksTab";
 import { News2Tab } from "./care-view/News2Tab";
@@ -100,6 +102,9 @@ export function CareViewPage() {
           <Tabs.Tab value="sepsis-bundle" leftSection={<IconDroplet size={16} />}>
             Sepsis Bundle
           </Tabs.Tab>
+          <Tabs.Tab value="med-recon" leftSection={<IconPill size={16} />}>
+            Med Reconciliation
+          </Tabs.Tab>
           <Tabs.Tab value="meows" leftSection={<IconBabyCarriage size={16} />}>
             MEOWS
           </Tabs.Tab>
@@ -144,6 +149,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="sepsis-bundle" pt="md">
           <SepsisBundleTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="med-recon" pt="md">
+          <MedReconciliationTab />
         </Tabs.Panel>
 
         <Tabs.Panel value="meows" pt="md">

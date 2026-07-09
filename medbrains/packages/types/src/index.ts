@@ -3970,6 +3970,56 @@ export interface UpdateEncounterRequest {
   status?: string;
 }
 
+export interface MedReconciliation {
+  id: string;
+  patient_id: string;
+  admission_id: string | null;
+  transition_type: string;
+  status: string;
+  notes: string | null;
+  reconciled_by: string | null;
+  reconciled_at: string | null;
+  created_at: string;
+}
+
+export interface MedReconciliationItem {
+  id: string;
+  reconciliation_id: string;
+  drug_name: string;
+  dose: string | null;
+  frequency: string | null;
+  route: string | null;
+  source: string;
+  decision: string | null;
+  decision_reason: string | null;
+}
+
+export interface MedReconciliationView {
+  reconciliation: MedReconciliation;
+  items: MedReconciliationItem[];
+}
+
+export interface NewMedItem {
+  drug_name: string;
+  dose?: string | null;
+  frequency?: string | null;
+  route?: string | null;
+  source?: string | null;
+}
+
+export interface CreateMedReconciliationRequest {
+  patient_id: string;
+  admission_id?: string | null;
+  transition_type: string;
+  notes?: string | null;
+  items: NewMedItem[];
+}
+
+export interface DecideItemRequest {
+  decision: string;
+  decision_reason?: string | null;
+}
+
 export interface SepsisBundle {
   id: string;
   patient_id: string;
