@@ -2,6 +2,7 @@ pub mod abdm;
 pub mod access;
 pub mod aldrete;
 pub mod app_manifest;
+pub mod hypoglycemia;
 pub mod med_reconciliation;
 pub mod meows;
 pub mod news2;
@@ -329,6 +330,18 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/clinical/nutrition-screenings",
             get(nutrition_screening::list_nutrition_screenings),
+        )
+        .route(
+            "/api/clinical/hypoglycemia-event",
+            post(hypoglycemia::create_hypoglycemia_event),
+        )
+        .route(
+            "/api/clinical/hypoglycemia-event/{id}/recheck",
+            patch(hypoglycemia::recheck_hypoglycemia_event),
+        )
+        .route(
+            "/api/clinical/hypoglycemia-events",
+            get(hypoglycemia::list_hypoglycemia_events),
         )
         .route("/api/clinical/sepsis-bundle", post(sepsis_bundle::create_sepsis_bundle))
         .route(

@@ -4033,6 +4033,41 @@ export interface AldreteResult {
   response: string;
 }
 
+export interface HypoglycemiaEvent {
+  id: string;
+  patient_id: string;
+  admission_id: string | null;
+  glucose_value: number;
+  conscious: boolean;
+  severity: string;
+  treatment: string | null;
+  treatment_given_at: string | null;
+  recheck_glucose: number | null;
+  recheck_at: string | null;
+  resolved: boolean;
+  notes: string | null;
+  recorded_by: string | null;
+  created_at: string;
+}
+
+export interface HypoglycemiaView {
+  event: HypoglycemiaEvent;
+  treatment_advice: string;
+}
+
+export interface CreateHypoglycemiaRequest {
+  patient_id: string;
+  admission_id?: string | null;
+  glucose_value: number;
+  conscious?: boolean;
+  treatment?: string | null;
+  notes?: string | null;
+}
+
+export interface HypoglycemiaRecheckRequest {
+  recheck_glucose: number;
+}
+
 export interface MedReconciliation {
   id: string;
   patient_id: string;

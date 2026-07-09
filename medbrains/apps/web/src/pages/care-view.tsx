@@ -7,6 +7,7 @@ import {
   IconBabyBottle,
   IconBabyCarriage,
   IconBed,
+  IconCandy,
   IconClipboardList,
   IconDroplet,
   IconHeartbeat,
@@ -25,6 +26,7 @@ import { careViewService } from "@/services/careView.service";
 import { AldreteTab } from "./care-view/AldreteTab";
 import { DischargeTrackerTab } from "./care-view/DischargeTrackerTab";
 import { HandoverTab } from "./care-view/HandoverTab";
+import { HypoglycemiaTab } from "./care-view/HypoglycemiaTab";
 import { MedReconciliationTab } from "./care-view/MedReconciliationTab";
 import { MeowsTab } from "./care-view/MeowsTab";
 import { MyTasksTab } from "./care-view/MyTasksTab";
@@ -121,6 +123,9 @@ export function CareViewPage() {
           <Tabs.Tab value="nutrition" leftSection={<IconSalad size={16} />}>
             Nutrition (MUST)
           </Tabs.Tab>
+          <Tabs.Tab value="hypoglycemia" leftSection={<IconCandy size={16} />}>
+            Hypoglycaemia
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="grid" pt="md">
@@ -179,6 +184,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="nutrition" pt="md">
           <NutritionTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="hypoglycemia" pt="md">
+          <HypoglycemiaTab />
         </Tabs.Panel>
       </Tabs>
     </div>

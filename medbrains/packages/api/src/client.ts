@@ -523,6 +523,7 @@ import type {
   CreateHospitalGroup,
   CreateHospitalRegion,
   CreateHygieneAuditRequest,
+  CreateHypoglycemiaRequest,
   CreateIamAccessRequest,
   CreateIcMeetingRequest,
   CreateIcuBundleCheckRequest,
@@ -1005,6 +1006,8 @@ import type {
   HostelAllotmentOrderPrintData,
   HourlyFlowRow,
   HsnSummaryRow,
+  HypoglycemiaRecheckRequest,
+  HypoglycemiaView,
   IamAccessRequest,
   Icd10Code,
   IcMeeting,
@@ -14582,6 +14585,18 @@ export const api = {
     }),
   listNutritionScreenings: (patientId: string) =>
     request<NutritionScreening[]>(`/clinical/nutrition-screenings?patient_id=${patientId}`),
+  createHypoglycemiaEvent: (data: CreateHypoglycemiaRequest) =>
+    request<HypoglycemiaView>("/clinical/hypoglycemia-event", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  recheckHypoglycemiaEvent: (id: string, data: HypoglycemiaRecheckRequest) =>
+    request<HypoglycemiaView>(`/clinical/hypoglycemia-event/${id}/recheck`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  listHypoglycemiaEvents: (patientId: string) =>
+    request<HypoglycemiaView[]>(`/clinical/hypoglycemia-events?patient_id=${patientId}`),
   createSepsisBundle: (data: CreateSepsisBundleRequest) =>
     request<SepsisBundleView>("/clinical/sepsis-bundle", {
       method: "POST",
