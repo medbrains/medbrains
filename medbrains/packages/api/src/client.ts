@@ -80,6 +80,7 @@ import type {
   AntibioticStewardshipRequest,
   AntimicrobialConsumptionRow,
   AntiRaggingUndertakingPrintData,
+  AppManifest,
   Appointment,
   AppointmentSlipPrintData,
   AppointmentWithPatient,
@@ -14884,9 +14885,13 @@ export const api = {
   // ── Device pairing (mobile / TV / vendor) ────────────────────────
   mintDevicePairingToken: (data: {
     intended_device_label: string;
-    intended_app_variant: "staff" | "tv" | "vendor";
+    /** Surface code: legacy staff/tv/vendor, or a fine surface e.g. "TV-Ward", "Mobile-Doctor". */
+    intended_app_variant: string;
     intended_user_id?: string;
     notes?: string;
+    department_id?: string;
+    location_label?: string;
+    location_scope?: Record<string, unknown>;
   }) =>
     request<{
       id: string;
@@ -14900,6 +14905,14 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  getAppManifest: (params?: { device_id?: string; variant?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.device_id) qs.set("device_id", params.device_id);
+    if (params?.variant) qs.set("variant", params.variant);
+    const q = qs.toString();
+    return request<AppManifest>(`/app/manifest${q ? `?${q}` : ""}`);
+  },
+
   listPairedDevices: () =>
     request<
       Array<{
@@ -14908,6 +14921,8 @@ export const api = {
         app_variant: string;
         cert_fingerprint: string;
         issued_to_user_id: string | null;
+        department_id: string | null;
+        location_label: string | null;
         paired_at: string;
         last_seen_at: string | null;
         revoked_at: string | null;

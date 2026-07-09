@@ -25,15 +25,52 @@ import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components";
+import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { Alert, Badge, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminDevicesService, type PairingToken } from "@/services/adminDevices.service";
 
-type AppVariant = "staff" | "tv" | "vendor";
-
-function isAppVariant(value: string | null): value is AppVariant {
-  return value === "staff" || value === "tv" || value === "vendor";
-}
+// Surface catalog for the mint picker. Location-scoped (TV/kiosk) surfaces are grouped separately
+// from user-scoped (mobile) ones; legacy coarse variants stay for existing apps. The backend
+// validates by shape, so this list can grow without a code change.
+const SURFACE_OPTIONS = [
+  {
+    group: "Legacy",
+    items: [
+      { value: "staff", label: "Staff (clinical, MDM)" },
+      { value: "tv", label: "TV (generic display)" },
+      { value: "vendor", label: "Vendor (contractor)" },
+    ],
+  },
+  {
+    group: "TV / kiosk (location-scoped)",
+    items: [
+      "TV-Queue",
+      "TV-Ward",
+      "TV-Emergency",
+      "TV-Pharmacy",
+      "TV-Lab",
+      "TV-Billing",
+      "TV-ICU",
+      "TV-OT",
+      "TV-DoctorRoom",
+      "TV-Radiology",
+      "TV-Wayfinding",
+      "TV-Notice",
+      "Desktop-Kiosk",
+    ].map((v) => ({ value: v, label: v })),
+  },
+  {
+    group: "Mobile (user-scoped)",
+    items: [
+      "Mobile-Doctor",
+      "Mobile-Nurse",
+      "Mobile-Pharmacist",
+      "Mobile-Phlebo",
+      "Mobile-Patient",
+    ].map((v) => ({ value: v, label: v })),
+  },
+];
 
 export function PairedDevicesPage() {
   useRequirePermission(P.DEVICES.PAIRING.PAIRED_LIST);
@@ -52,8 +89,10 @@ export function PairedDevicesPage() {
   const mintMutation = useMutation({
     mutationFn: (input: {
       intended_device_label: string;
-      intended_app_variant: AppVariant;
+      intended_app_variant: string;
       notes?: string;
+      department_id?: string;
+      location_label?: string;
     }) => adminDevicesService.mintDevicePairingToken(input),
     onSuccess: (result) => {
       setTokenResult(result);
@@ -90,6 +129,7 @@ export function PairedDevicesPage() {
             <Table.Tr>
               <Table.Th>Label</Table.Th>
               <Table.Th>Variant</Table.Th>
+              <Table.Th>Location</Table.Th>
               <Table.Th>Cert fingerprint</Table.Th>
               <Table.Th>Paired at</Table.Th>
               <Table.Th>Last seen</Table.Th>
@@ -105,6 +145,9 @@ export function PairedDevicesPage() {
                   <Table.Td>{row.label}</Table.Td>
                   <Table.Td>
                     <Badge>{row.app_variant}</Badge>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="xs">{row.location_label ?? "—"}</Text>
                   </Table.Td>
                   <Table.Td>
                     <Tooltip label={row.cert_fingerprint}>
@@ -173,8 +216,10 @@ export function PairedDevicesPage() {
 
 interface MintFormState {
   intended_device_label: string;
-  intended_app_variant: AppVariant;
+  intended_app_variant: string;
   notes?: string;
+  department_id?: string;
+  location_label?: string;
 }
 
 function MintTokenForm({
@@ -187,7 +232,9 @@ function MintTokenForm({
   onSubmit: (input: MintFormState) => void;
 }) {
   const [label, setLabel] = useState("");
-  const [variant, setVariant] = useState<AppVariant>("staff");
+  const [variant, setVariant] = useState<string>("staff");
+  const [departmentId, setDepartmentId] = useState("");
+  const [locationLabel, setLocationLabel] = useState("");
   const [notes, setNotes] = useState("");
 
   return (
@@ -200,19 +247,19 @@ function MintTokenForm({
         required
       />
       <Select
-        label="App variant"
+        label="App variant (surface)"
         value={variant}
-        onChange={(value) => {
-          if (isAppVariant(value)) {
-            setVariant(value);
-          }
-        }}
-        data={[
-          { value: "staff", label: "Staff (clinical, MDM)" },
-          { value: "tv", label: "TV (kiosk display)" },
-          { value: "vendor", label: "Vendor (3rd-party contractor)" },
-        ]}
+        onChange={(value) => setVariant(value ?? "staff")}
+        data={SURFACE_OPTIONS}
+        searchable
         required
+      />
+      <DepartmentSelect value={departmentId} onChange={setDepartmentId} />
+      <TextInput
+        label="Location label"
+        placeholder="e.g. Reception, Ward 3B, OPD entrance"
+        value={locationLabel}
+        onChange={(e) => setLocationLabel(e.currentTarget.value)}
       />
       <Textarea
         label="Notes"
@@ -231,6 +278,8 @@ function MintTokenForm({
               intended_device_label: label,
               intended_app_variant: variant,
               notes: notes || undefined,
+              department_id: departmentId || undefined,
+              location_label: locationLabel || undefined,
             })
           }
         >

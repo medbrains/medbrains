@@ -3471,6 +3471,21 @@ export interface CreateIndentRequisitionRequest {
   items: CreateIndentItemInput[];
 }
 
+/** A device/app instance's resolved identity on boot: form-factor × user/role × location. */
+export interface AppManifest {
+  tenant_id: string;
+  app_variant: string | null;
+  role: string;
+  user_id: string;
+  device: { id: string; label: string; paired_at: string } | null;
+  location: {
+    department_id: string | null;
+    label: string | null;
+    scope: Record<string, unknown>;
+  };
+  config: Record<string, unknown>;
+}
+
 export interface ApproveIndentItemInput {
   item_id: string;
   quantity_approved: number;

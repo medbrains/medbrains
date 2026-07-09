@@ -1,5 +1,6 @@
 pub mod abdm;
 pub mod access;
+pub mod app_manifest;
 pub mod admin;
 pub mod admin_db_topology;
 pub mod admin_simulator;
@@ -297,6 +298,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route("/api/client-errors/report", post(client_errors::report_client_error))
         .route("/api/access/manifest", get(access::get_manifest))
+        .route("/api/app/manifest", get(app_manifest::get_app_manifest))
         .route(
             "/api/access-groups",
             get(setup::list_access_groups).post(setup::create_access_group),

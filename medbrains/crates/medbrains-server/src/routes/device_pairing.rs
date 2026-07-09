@@ -62,6 +62,20 @@ pub struct MintTokenRequest {
     pub intended_app_variant: String,
     pub intended_user_id: Option<Uuid>,
     pub notes: Option<String>,
+    /// Location axis — which instance of the surface this device serves.
+    pub department_id: Option<Uuid>,
+    pub location_label: Option<String>,
+    pub location_scope: Option<serde_json::Value>,
+}
+
+/// A valid surface code: a legacy coarse variant, or `<Factor>` / `<Factor>-<Name>` where Factor is
+/// one of the known form-factors. Fine surfaces (TV-Ward, Mobile-Doctor, Desktop-Kiosk) are the
+/// 34-surface catalog; validated by shape here, not a fixed DB enum.
+fn is_valid_app_variant(v: &str) -> bool {
+    matches!(v, "staff" | "tv" | "vendor" | "Web")
+        || v
+            .split_once('-')
+            .is_some_and(|(f, rest)| matches!(f, "TV" | "Mobile" | "Desktop" | "Kiosk") && !rest.is_empty())
 }
 
 #[derive(Debug, Serialize)]
@@ -80,7 +94,7 @@ pub async fn mint_pairing_token(
     Json(body): Json<MintTokenRequest>,
 ) -> Result<Json<MintTokenResponse>, AppError> {
     require_permission(&claims, permissions::devices::pairing::TOKEN_CREATE)?;
-    if !["staff", "tv", "vendor"].contains(&body.intended_app_variant.as_str()) {
+    if !is_valid_app_variant(&body.intended_app_variant) {
         return Err(AppError::BadRequest(format!(
             "invalid intended_app_variant '{}'",
             body.intended_app_variant
@@ -92,12 +106,14 @@ pub async fn mint_pairing_token(
 
     let token = generate_token();
     let expires_at = Utc::now() + Duration::minutes(TOKEN_TTL_MINUTES);
+    let location_scope = body.location_scope.clone().unwrap_or_else(|| serde_json::json!({}));
 
     let row = sqlx::query_as::<_, (Uuid, DateTime<Utc>)>(
         "INSERT INTO device_pairing_tokens (\
             tenant_id, token, expires_at, issued_by_user_id, \
-            intended_device_label, intended_app_variant, intended_user_id, notes) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+            intended_device_label, intended_app_variant, intended_user_id, notes, \
+            department_id, location_label, location_scope) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
          RETURNING id, expires_at",
     )
     .bind(claims.tenant_id)
@@ -108,6 +124,9 @@ pub async fn mint_pairing_token(
     .bind(&body.intended_app_variant)
     .bind(body.intended_user_id)
     .bind(body.notes.as_deref())
+    .bind(body.department_id)
+    .bind(body.location_label.as_deref())
+    .bind(&location_scope)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -173,10 +192,14 @@ pub async fn pair_device(
         Uuid,
         DateTime<Utc>,
         Option<DateTime<Utc>>,
+        Option<Uuid>,
+        Option<String>,
+        serde_json::Value,
     );
     let token_row: Option<PairingTokenRow> = sqlx::query_as(
         "SELECT id, tenant_id, intended_device_label, intended_app_variant, \
-                intended_user_id, issued_by_user_id, expires_at, used_at \
+                intended_user_id, issued_by_user_id, expires_at, used_at, \
+                department_id, location_label, location_scope \
          FROM device_pairing_tokens WHERE token = $1",
     )
     .bind(&body.token)
@@ -192,6 +215,9 @@ pub async fn pair_device(
         issued_by,
         expires_at,
         used_at,
+        department_id,
+        location_label,
+        location_scope,
     )) = token_row
     else {
         return Err(AppError::NotFound);
@@ -242,8 +268,9 @@ pub async fn pair_device(
     let paired_id: Uuid = sqlx::query_scalar(
         "INSERT INTO paired_devices (\
             tenant_id, label, app_variant, cert_fingerprint, cert_pem, \
-            issued_to_user_id, paired_via_token_id) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7) \
+            issued_to_user_id, paired_via_token_id, \
+            department_id, location_label, location_scope) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) \
          RETURNING id",
     )
     .bind(tenant_id)
@@ -253,6 +280,9 @@ pub async fn pair_device(
     .bind(&cert_pem)
     .bind(user_id)
     .bind(token_id)
+    .bind(department_id)
+    .bind(location_label.as_deref())
+    .bind(&location_scope)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -303,6 +333,8 @@ pub struct PairedDeviceRow {
     pub app_variant: String,
     pub cert_fingerprint: String,
     pub issued_to_user_id: Option<Uuid>,
+    pub department_id: Option<Uuid>,
+    pub location_label: Option<String>,
     pub paired_at: DateTime<Utc>,
     pub last_seen_at: Option<DateTime<Utc>>,
     pub revoked_at: Option<DateTime<Utc>>,
@@ -319,7 +351,7 @@ pub async fn list_paired_devices(
 
     let rows = sqlx::query_as::<_, PairedDeviceRow>(
         "SELECT id, label, app_variant, cert_fingerprint, issued_to_user_id, \
-                paired_at, last_seen_at, revoked_at \
+                department_id, location_label, paired_at, last_seen_at, revoked_at \
          FROM paired_devices \
          WHERE tenant_id = $1 \
          ORDER BY paired_at DESC LIMIT 5000",
