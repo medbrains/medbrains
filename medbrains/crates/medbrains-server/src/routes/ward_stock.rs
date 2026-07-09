@@ -164,7 +164,7 @@ pub async fn replenish_ward(
 }
 
 #[derive(Debug, Deserialize)]
-pub struct ConsumeRequest {
+pub struct WardStockConsumeRequest {
     pub department_id: Uuid,
     pub catalog_item_id: Uuid,
     pub quantity: i32,
@@ -174,7 +174,7 @@ pub struct ConsumeRequest {
 pub async fn consume_ward_stock(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<ConsumeRequest>,
+    Json(body): Json<WardStockConsumeRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::pharmacy::stores::MANAGE)?;
     if body.quantity <= 0 {

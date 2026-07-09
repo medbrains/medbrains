@@ -795,7 +795,7 @@ pub async fn list_home_care_packages(
 }
 
 #[derive(Debug, Deserialize)]
-pub struct CreatePackageRequest {
+pub struct CreateHomeCarePackageRequest {
     pub patient_id: Uuid,
     pub name: String,
     pub total_visits: i32,
@@ -806,7 +806,7 @@ pub struct CreatePackageRequest {
 pub async fn create_home_care_package(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Json(body): Json<CreatePackageRequest>,
+    Json(body): Json<CreateHomeCarePackageRequest>,
 ) -> Result<Json<HomeCarePackage>, AppError> {
     require_permission(&claims, permissions::ipd::mar::CREATE)?;
     if body.name.trim().is_empty() || body.total_visits <= 0 {

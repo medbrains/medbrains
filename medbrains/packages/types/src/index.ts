@@ -3472,24 +3472,34 @@ export interface CreateIndentRequisitionRequest {
 }
 
 /** A device/app instance's resolved identity on boot: form-factor × user/role × location. */
+export interface ManifestLocation {
+  department_id: string | null;
+  label: string | null;
+  scope: Record<string, unknown>;
+}
+
+export interface ManifestStation {
+  id: string;
+  code: string;
+  name: string;
+  station_type: string;
+  department_id: string | null;
+}
+
+export interface ManifestDevice {
+  id: string;
+  label: string;
+  paired_at: string;
+}
+
 export interface AppManifest {
   tenant_id: string;
   app_variant: string | null;
   role: string;
   user_id: string;
-  device: { id: string; label: string; paired_at: string } | null;
-  location: {
-    department_id: string | null;
-    label: string | null;
-    scope: Record<string, unknown>;
-  };
-  station: {
-    id: string;
-    code: string;
-    name: string;
-    station_type: string;
-    department_id: string | null;
-  } | null;
+  device: ManifestDevice | null;
+  location: ManifestLocation;
+  station: ManifestStation | null;
   config: Record<string, unknown>;
 }
 
