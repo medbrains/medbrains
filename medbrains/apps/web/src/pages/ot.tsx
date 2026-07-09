@@ -1745,7 +1745,8 @@ function CaseRecordTab({ bookingId }: { bookingId: string }) {
       toast.success("Case record created", { title: "Saved" });
       reset(DEFAULT_OT_CASE_RECORD_FORM_VALUES);
     },
-    onError: () => toast.error("Failed to save case record", { title: "Error" }),
+    onError: (e: Error) =>
+      toast.error(e.message || "Failed to save case record", { title: "Error" }),
   });
 
   if (isLoading) return <Text c="dimmed">Loading...</Text>;
@@ -1937,6 +1938,20 @@ function CaseRecordTab({ bookingId }: { bookingId: string }) {
         <Text size="xs" c="danger" fw={600}>
           WARNING: Unchecked counts require verification before closure.
         </Text>
+      )}
+      {(!instrumentCountAfter || !spongeCountCorrect) && (
+        <Controller
+          control={control}
+          name="count_discrepancy_action"
+          render={({ field }) => (
+            <Textarea
+              label="Count discrepancy — action taken"
+              description="Required to close a case with an unconfirmed final count: recount, intra-operative X-ray, item retrieved / left with surgeon sign-off."
+              placeholder="e.g. Recount performed; intra-operative X-ray clear; surgeon informed."
+              {...field}
+            />
+          )}
+        />
       )}
 
       <Controller

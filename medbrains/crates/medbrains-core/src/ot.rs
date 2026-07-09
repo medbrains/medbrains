@@ -232,6 +232,7 @@ pub struct OtCaseRecord {
     pub instrument_count_correct_before: Option<bool>,
     pub instrument_count_correct_after: Option<bool>,
     pub sponge_count_correct: Option<bool>,
+    pub count_discrepancy_action: Option<String>,
     pub cssd_issuance_ids: serde_json::Value,
     pub surgical_site_infection: bool,
     pub ssi_detected_at: Option<NaiveDate>,

@@ -3984,6 +3984,7 @@ export const otCaseRecordFormSchema = z.object({
   instrument_count_correct_before: z.boolean(),
   instrument_count_correct_after: z.boolean(),
   sponge_count_correct: z.boolean(),
+  count_discrepancy_action: z.string(),
   specimens: z.string(),
   implants: z.string(),
   drains: z.string(),

@@ -9818,6 +9818,7 @@ export interface OtCaseRecord {
   instrument_count_correct_before: boolean | null;
   instrument_count_correct_after: boolean | null;
   sponge_count_correct: boolean | null;
+  count_discrepancy_action: string | null;
   cssd_issuance_ids: unknown;
   surgical_site_infection: boolean;
   ssi_detected_at: string | null;
@@ -10001,6 +10002,7 @@ export interface CreateCaseRecordRequest {
   instrument_count_correct_before?: boolean;
   instrument_count_correct_after?: boolean;
   sponge_count_correct?: boolean;
+  count_discrepancy_action?: string;
   cssd_issuance_ids?: unknown;
   notes?: string;
 }
@@ -10016,6 +10018,7 @@ export interface UpdateCaseRecordRequest {
   drains?: unknown;
   instrument_count_correct_after?: boolean;
   sponge_count_correct?: boolean;
+  count_discrepancy_action?: string;
   notes?: string;
 }
 export interface CreateAnesthesiaRecordRequest {

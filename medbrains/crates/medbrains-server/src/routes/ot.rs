@@ -158,12 +158,40 @@ pub struct UpdateChecklistRequest {
 #[derive(Debug, Deserialize)]
 pub struct CreateCaseRecordRequest {
     pub patient_in_time: Option<chrono::DateTime<Utc>>,
+    pub patient_out_time: Option<chrono::DateTime<Utc>>,
     pub incision_time: Option<chrono::DateTime<Utc>>,
+    pub closure_time: Option<chrono::DateTime<Utc>>,
     pub procedure_performed: String,
     pub findings: Option<String>,
     pub technique: Option<String>,
+    pub complications: Option<String>,
+    pub blood_loss_ml: Option<i32>,
+    pub specimens: Option<serde_json::Value>,
+    pub implants: Option<serde_json::Value>,
+    pub drains: Option<serde_json::Value>,
+    pub instrument_count_correct_before: Option<bool>,
+    pub instrument_count_correct_after: Option<bool>,
+    pub sponge_count_correct: Option<bool>,
+    pub count_discrepancy_action: Option<String>,
     pub notes: Option<String>,
 }
+
+/// Surgical-count safety gate (AORN / NABH): closing a case with an incorrect or unverified final
+/// sponge/instrument count is a never-event risk (retained surgical item). Closure is blocked unless
+/// both final counts are confirmed correct, OR a reconciliation action is documented.
+fn count_closure_blocked(
+    instrument_after: Option<bool>,
+    sponge: Option<bool>,
+    action: Option<&str>,
+) -> bool {
+    let counts_ok = instrument_after == Some(true) && sponge == Some(true);
+    let action_documented = action.is_some_and(|a| !a.trim().is_empty());
+    !(action_documented || counts_ok)
+}
+
+const COUNT_CLOSURE_ERROR: &str =
+    "Cannot close the case: the final sponge/instrument count is not confirmed correct. Recount, \
+     obtain an intra-operative X-ray, and document the reconciliation action before closing.";
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateCaseRecordRequest {
@@ -179,6 +207,9 @@ pub struct UpdateCaseRecordRequest {
     pub instrument_count_correct_before: Option<bool>,
     pub instrument_count_correct_after: Option<bool>,
     pub sponge_count_correct: Option<bool>,
+    /// Documented action taken for a count discrepancy (recount, X-ray, item retrieved / left with
+    /// surgeon sign-off). Required to close a case when the final counts aren't confirmed correct.
+    pub count_discrepancy_action: Option<String>,
     pub notes: Option<String>,
 }
 
@@ -1615,29 +1646,51 @@ pub async fn create_case_record(
 ) -> Result<Json<OtCaseRecord>, AppError> {
     require_permission(&claims, permissions::ot::case_records::CREATE)?;
 
+    // Enforce the surgical-count gate when the record is created already closed.
+    if body.closure_time.is_some()
+        && count_closure_blocked(
+            body.instrument_count_correct_after,
+            body.sponge_count_correct,
+            body.count_discrepancy_action.as_deref(),
+        )
+    {
+        return Err(AppError::BadRequest(COUNT_CLOSURE_ERROR.to_owned()));
+    }
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let empty = serde_json::json!([]);
     let row = sqlx::query_as::<_, OtCaseRecord>(
         "INSERT INTO ot_case_records \
-           (tenant_id, booking_id, surgeon_id, patient_in_time, incision_time, \
-            procedure_performed, findings, technique, \
-            specimens, implants, drains, cssd_issuance_ids, notes) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) \
+           (tenant_id, booking_id, surgeon_id, patient_in_time, patient_out_time, incision_time, \
+            closure_time, procedure_performed, findings, technique, complications, blood_loss_ml, \
+            specimens, implants, drains, instrument_count_correct_before, \
+            instrument_count_correct_after, sponge_count_correct, count_discrepancy_action, \
+            cssd_issuance_ids, notes) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, \
+                 $19, $20, $21) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(booking_id)
     .bind(claims.sub)
     .bind(body.patient_in_time)
+    .bind(body.patient_out_time)
     .bind(body.incision_time)
+    .bind(body.closure_time)
     .bind(&body.procedure_performed)
     .bind(&body.findings)
     .bind(&body.technique)
-    .bind(&empty)
-    .bind(&empty)
-    .bind(&empty)
+    .bind(&body.complications)
+    .bind(body.blood_loss_ml)
+    .bind(body.specimens.as_ref().unwrap_or(&empty))
+    .bind(body.implants.as_ref().unwrap_or(&empty))
+    .bind(body.drains.as_ref().unwrap_or(&empty))
+    .bind(body.instrument_count_correct_before)
+    .bind(body.instrument_count_correct_after)
+    .bind(body.sponge_count_correct)
+    .bind(body.count_discrepancy_action.as_deref())
     .bind(&empty)
     .bind(&body.notes)
     .fetch_one(&mut *tx)
@@ -1658,6 +1711,33 @@ pub async fn update_case_record(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // Surgical-count safety gate (AORN / NABH): a case cannot be closed with an incorrect or
+    // unverified sponge/instrument count unless a reconciliation action is documented. Resolve the
+    // effective values against what is already on the record so a prior confirmation still counts.
+    if body.closure_time.is_some() {
+        let existing = sqlx::query_as::<_, OtCaseRecord>(
+            "SELECT * FROM ot_case_records WHERE booking_id = $1 AND tenant_id = $2 FOR UPDATE",
+        )
+        .bind(booking_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+        let action = body
+            .count_discrepancy_action
+            .as_deref()
+            .or(existing.count_discrepancy_action.as_deref());
+        if count_closure_blocked(
+            body.instrument_count_correct_after
+                .or(existing.instrument_count_correct_after),
+            body.sponge_count_correct.or(existing.sponge_count_correct),
+            action,
+        ) {
+            return Err(AppError::BadRequest(COUNT_CLOSURE_ERROR.to_owned()));
+        }
+    }
+
     let row = sqlx::query_as::<_, OtCaseRecord>(
         "UPDATE ot_case_records SET \
            patient_out_time = COALESCE($3, patient_out_time), \
@@ -1672,7 +1752,8 @@ pub async fn update_case_record(
            instrument_count_correct_before = COALESCE($12, instrument_count_correct_before), \
            instrument_count_correct_after = COALESCE($13, instrument_count_correct_after), \
            sponge_count_correct = COALESCE($14, sponge_count_correct), \
-           notes = COALESCE($15, notes) \
+           count_discrepancy_action = COALESCE($15, count_discrepancy_action), \
+           notes = COALESCE($16, notes) \
          WHERE booking_id = $1 AND tenant_id = $2 \
          RETURNING *",
     )
@@ -1690,6 +1771,7 @@ pub async fn update_case_record(
     .bind(body.instrument_count_correct_before)
     .bind(body.instrument_count_correct_after)
     .bind(body.sponge_count_correct)
+    .bind(body.count_discrepancy_action.as_deref())
     .bind(&body.notes)
     .fetch_optional(&mut *tx)
     .await?
@@ -2284,4 +2366,35 @@ pub async fn list_anesthesia_complications(
 
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+#[cfg(test)]
+mod count_gate_tests {
+    use super::count_closure_blocked;
+
+    #[test]
+    fn both_counts_correct_allows_closure() {
+        assert!(!count_closure_blocked(Some(true), Some(true), None));
+    }
+
+    #[test]
+    fn incorrect_count_without_action_blocks() {
+        assert!(count_closure_blocked(Some(false), Some(true), None));
+        assert!(count_closure_blocked(Some(true), Some(false), None));
+    }
+
+    #[test]
+    fn unverified_count_without_action_blocks() {
+        assert!(count_closure_blocked(None, Some(true), None));
+    }
+
+    #[test]
+    fn documented_action_allows_closure_despite_bad_count() {
+        assert!(!count_closure_blocked(Some(false), Some(true), Some("Intra-op X-ray clear")));
+    }
+
+    #[test]
+    fn blank_action_does_not_count_as_documented() {
+        assert!(count_closure_blocked(Some(false), Some(true), Some("   ")));
+    }
 }
