@@ -21,7 +21,7 @@ import {
   LoginScreen,
   SECRET_KEYS,
   Shell,
-  buildForestCopperTheme,
+  buildDeviceTheme,
   useAuthStore,
 } from "@medbrains/mobile-shell";
 import type { SecretStore } from "@medbrains/mobile-shell";
@@ -35,7 +35,7 @@ setApiBase(config.apiBase);
 configureNativeAuth("medbrains-tv");
 
 const secretStore = new ExpoSecureStoreAdapter();
-const theme = buildForestCopperTheme("light");
+const theme = buildDeviceTheme("light");
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

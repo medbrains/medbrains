@@ -14,18 +14,11 @@ export function useRevocationCache(): {
     [revocations],
   );
   const recordRevocation = useCallback(
-    (userId: string, revokedAt: number) =>
-      revocations.recordRevocation(userId, revokedAt),
+    (userId: string, revokedAt: number) => revocations.recordRevocation(userId, revokedAt),
     [revocations],
   );
-  const pullWindowMax = useCallback(
-    () => revocations.pullWindowMax(),
-    [revocations],
-  );
-  const forget = useCallback(
-    (userId: string) => revocations.forget(userId),
-    [revocations],
-  );
+  const pullWindowMax = useCallback(() => revocations.pullWindowMax(), [revocations]);
+  const forget = useCallback((userId: string) => revocations.forget(userId), [revocations]);
 
   return { isRevoked, recordRevocation, pullWindowMax, forget };
 }

@@ -1,11 +1,11 @@
 import { useCallback } from "react";
-import { useOfflineHandles } from "./offline-provider.js";
 import type {
   CacheKey,
   CacheSourceKind,
   CheckOutcome,
   OfflinePolicyKind,
 } from "./edge-rn-contract.js";
+import { useOfflineHandles } from "./offline-provider.js";
 
 /**
  * Hook returning a stable AuthzCache surface. Components call

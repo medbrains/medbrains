@@ -33,9 +33,7 @@ export function registerMdnsDiscovery(impl: MdnsDiscovery | null): void {
 
 export function getMdnsDiscovery(): MdnsDiscovery {
   if (!registered) {
-    throw new Error(
-      "MdnsDiscovery not registered — call registerMdnsDiscovery in app bootstrap.",
-    );
+    throw new Error("MdnsDiscovery not registered — call registerMdnsDiscovery in app bootstrap.");
   }
   return registered;
 }

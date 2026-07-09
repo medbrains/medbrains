@@ -7,7 +7,7 @@
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import { Button, Card, Text } from "react-native-paper";
-import { FOREST_COPPER_PALETTE } from "../theme/forest-copper.js";
+import { DEVICE_PALETTE } from "../theme/device-theme.js";
 import { useBiometricCapability } from "../biometric/use-biometric-capability.js";
 import { mobileShellBiometricText } from "../biometric/biometric-text.js";
 import { useAuthStore } from "./auth-store.js";
@@ -43,14 +43,14 @@ export function BiometricEnrollmentPrompt({
   return (
     <Card
       mode="outlined"
-      style={{ margin: 16, borderColor: FOREST_COPPER_PALETTE.rule }}
+      style={{ margin: 16, borderColor: DEVICE_PALETTE.rule }}
     >
       <Card.Title
         title={title}
-        titleStyle={{ color: FOREST_COPPER_PALETTE.brand }}
+        titleStyle={{ color: DEVICE_PALETTE.brand }}
       />
       <Card.Content>
-        <Text variant="bodyMedium" style={{ color: FOREST_COPPER_PALETTE.ink }}>
+        <Text variant="bodyMedium" style={{ color: DEVICE_PALETTE.ink }}>
           {policy === "required"
             ? mobileShellBiometricText("mobileShell.biometric.enrollment.message.required")
             : mobileShellBiometricText("mobileShell.biometric.enrollment.message.optional")}
@@ -74,7 +74,7 @@ export function BiometricEnrollmentPrompt({
       </Card.Actions>
       {policy === "required" && (
         <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
-          <Text variant="bodySmall" style={{ color: FOREST_COPPER_PALETTE.brandDeep }}>
+          <Text variant="bodySmall" style={{ color: DEVICE_PALETTE.brandDeep }}>
             {mobileShellBiometricText("mobileShell.biometric.enrollment.requiredNotice")}
           </Text>
         </View>

@@ -3,11 +3,10 @@ export type {
   DeviceThemeFactor,
   PaperColors,
   PaperTheme,
-} from "./forest-copper.js";
+} from "./device-theme.js";
 export {
   buildDeviceTheme,
-  buildForestCopperTheme,
+  DEVICE_PALETTE,
   deviceTheme,
   EMERGENCY_CODES,
-  FOREST_COPPER_PALETTE,
-} from "./forest-copper.js";
+} from "./device-theme.js";

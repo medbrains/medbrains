@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
 import { AppState, View } from "react-native";
 import type { AppStateStatus } from "react-native";
 import { Button, Surface, Text } from "react-native-paper";
-import { FOREST_COPPER_PALETTE } from "../theme/forest-copper.js";
+import { DEVICE_PALETTE } from "../theme/device-theme.js";
 import { requestBiometricUnlock } from "../biometric/expo-local-auth.js";
 import { mobileShellBiometricText } from "../biometric/biometric-text.js";
 import { useAuthStore } from "./auth-store.js";
@@ -65,7 +65,7 @@ export function BiometricUnlockGate({
     <Surface
       style={{
         flex: 1,
-        backgroundColor: FOREST_COPPER_PALETTE.canvas,
+        backgroundColor: DEVICE_PALETTE.canvas,
         justifyContent: "center",
         padding: 24,
       }}
@@ -73,13 +73,13 @@ export function BiometricUnlockGate({
       <View style={{ alignItems: "center" }}>
         <Text
           variant="headlineSmall"
-          style={{ color: FOREST_COPPER_PALETTE.brand, marginBottom: 12 }}
+          style={{ color: DEVICE_PALETTE.brand, marginBottom: 12 }}
         >
           {mobileShellBiometricText("mobileShell.biometric.unlock.lockedTitle")}
         </Text>
         <Text
           variant="bodyMedium"
-          style={{ color: FOREST_COPPER_PALETTE.ink, marginBottom: 24, textAlign: "center" }}
+          style={{ color: DEVICE_PALETTE.ink, marginBottom: 24, textAlign: "center" }}
         >
           {promptMessage}
         </Text>

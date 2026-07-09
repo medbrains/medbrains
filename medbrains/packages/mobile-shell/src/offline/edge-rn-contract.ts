@@ -48,10 +48,7 @@ export interface EdgeRnBindings {
     defaultTtlSecs: number,
   ) => AuthzCacheHandle;
 
-  RevocationCacheHandle: new (
-    path: string,
-    capacity: number,
-  ) => RevocationCacheHandle;
+  RevocationCacheHandle: new (path: string, capacity: number) => RevocationCacheHandle;
 }
 
 // Helper imports re-exported as values for downstream code that

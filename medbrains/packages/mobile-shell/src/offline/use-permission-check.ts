@@ -1,7 +1,7 @@
 import { useCallback } from "react";
+import type { CacheKey, CheckOutcome, OfflinePolicyKind } from "./edge-rn-contract.js";
 import { useOfflineHandles } from "./offline-provider.js";
 import { useAuthzCache } from "./use-authz-cache.js";
-import type { CacheKey, CheckOutcome, OfflinePolicyKind } from "./edge-rn-contract.js";
 
 /**
  * Composite check used by clinical-write screens: combines the

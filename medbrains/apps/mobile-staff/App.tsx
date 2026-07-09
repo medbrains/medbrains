@@ -13,14 +13,14 @@ import { StatusBar } from "expo-status-bar";
 import {
   AuthProvider,
   Shell,
-  buildForestCopperTheme,
+  buildDeviceTheme,
 } from "@medbrains/mobile-shell";
 import { apiConfig } from "./src/api/config";
 import { Navigator } from "./src/navigator";
 import { StaffLoginGate } from "./src/login-gate";
 import { MODULES } from "./src/modules";
 
-const theme = buildForestCopperTheme("light");
+const theme = buildDeviceTheme("light");
 
 export default function App() {
   return (

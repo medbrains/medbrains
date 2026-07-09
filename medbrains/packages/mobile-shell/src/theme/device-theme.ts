@@ -3,14 +3,13 @@ import { COLORS } from "@medbrains/ui-mobile/tokens";
 import type { MD3Theme } from "react-native-paper";
 
 /**
- * MedBrains enterprise palette ported to React Native Paper v5.
- *
- * The exported names are retained for current shell consumers, but the
- * values are sourced from `@medbrains/ui-mobile` so mobile and TV stay
- * aligned with the locked web design-system anchors.
+ * MedBrains device palette for React Native Paper v5. Values are sourced from `@medbrains/ui-mobile`
+ * (which sources the IBM Carbon design-system token core), so every device renders the SAME palette
+ * as the web — one brand, one source of truth. Devices diverge on form-factor (type scale, touch
+ * density) via `deviceTheme(factor)`, never on colour.
  */
 
-export const FOREST_COPPER_PALETTE = {
+export const DEVICE_PALETTE = {
   brand: COLORS.brand,
   brandHover: COLORS.brandHover,
   brandDeep: COLORS.brandDeep,
@@ -175,7 +174,7 @@ const typography: PaperTheme["fonts"] = {
 
 export function buildDeviceTheme(scheme: ColorScheme): PaperTheme {
   const isDark = scheme === "dark";
-  const p = FOREST_COPPER_PALETTE;
+  const p = DEVICE_PALETTE;
   return {
     dark: isDark,
     isV3: true,
@@ -227,9 +226,6 @@ export function buildDeviceTheme(scheme: ColorScheme): PaperTheme {
     fonts: typography,
   };
 }
-
-/** Back-compat alias — the values are now Carbon, sourced from the design-system. */
-export const buildForestCopperTheme = buildDeviceTheme;
 
 /** Rendered form-factors that get a device-specific theme preset. */
 export type DeviceThemeFactor = "tv" | "kiosk" | "mobile" | "desktop";

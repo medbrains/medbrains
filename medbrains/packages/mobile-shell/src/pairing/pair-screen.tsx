@@ -13,7 +13,7 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import { Button, HelperText, Surface, Text } from "react-native-paper";
-import { FOREST_COPPER_PALETTE } from "../theme/forest-copper.js";
+import { DEVICE_PALETTE } from "../theme/device-theme.js";
 import { SECRET_KEYS } from "../secret-store/index.js";
 import { useSecretStore } from "../auth/auth-provider.js";
 import { mobileShellPairingText } from "./pairing-text.js";
@@ -82,18 +82,18 @@ export function PairScreen(props: PairScreenProps): ReactNode {
       style={{
         flex: 1,
         padding: 24,
-        backgroundColor: FOREST_COPPER_PALETTE.canvas,
+        backgroundColor: DEVICE_PALETTE.canvas,
         justifyContent: "center",
       }}
     >
       <View style={{ marginBottom: 24 }}>
         <Text
           variant="headlineMedium"
-          style={{ color: FOREST_COPPER_PALETTE.brand, marginBottom: 8 }}
+          style={{ color: DEVICE_PALETTE.brand, marginBottom: 8 }}
         >
           {mobileShellPairingText("mobileShell.pairing.title")}
         </Text>
-        <Text variant="bodyMedium" style={{ color: FOREST_COPPER_PALETTE.ink }}>
+        <Text variant="bodyMedium" style={{ color: DEVICE_PALETTE.ink }}>
           {mobileShellPairingText("mobileShell.pairing.body")}
         </Text>
       </View>

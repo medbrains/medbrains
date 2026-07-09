@@ -4,8 +4,8 @@
  */
 
 import { create } from "zustand";
-import { SECRET_KEYS } from "../secret-store/index.js";
 import type { SecretStore } from "../secret-store/index.js";
+import { SECRET_KEYS } from "../secret-store/index.js";
 import type { TenantIdentity } from "../types.js";
 
 export interface AuthState {
@@ -13,11 +13,7 @@ export interface AuthState {
   hydrating: boolean;
   biometricRequired: boolean;
   hydrate: (store: SecretStore) => Promise<void>;
-  signIn: (
-    store: SecretStore,
-    identity: TenantIdentity,
-    refreshToken?: string,
-  ) => Promise<void>;
+  signIn: (store: SecretStore, identity: TenantIdentity, refreshToken?: string) => Promise<void>;
   signOut: (store: SecretStore) => Promise<void>;
   setBiometricRequired: (required: boolean) => void;
 }
@@ -73,9 +69,7 @@ function decodeJwtIdentity(jwt: string): TenantIdentity | null {
       userId: String(payload.sub ?? ""),
       jwt,
       role: payload.role == null ? null : String(payload.role),
-      permissions: Array.isArray(payload.permissions)
-        ? (payload.permissions as string[])
-        : [],
+      permissions: Array.isArray(payload.permissions) ? (payload.permissions as string[]) : [],
       departmentIds: Array.isArray(payload.department_ids)
         ? (payload.department_ids as string[])
         : [],
@@ -94,8 +88,7 @@ function base64UrlDecode(input: string): string {
   return decodeBase64(b64);
 }
 
-const BASE64_ALPHABET =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+const BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 function decodeBase64(input: string): string {
   const stripped = input.replace(/=+$/u, "");

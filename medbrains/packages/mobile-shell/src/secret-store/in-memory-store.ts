@@ -3,11 +3,7 @@
  * loses data on app restart and exposes plaintext to memory dumps.
  */
 
-import type {
-  SecretStore,
-  SecretStoreReadOptions,
-  SecretStoreWriteOptions,
-} from "./types.js";
+import type { SecretStore, SecretStoreReadOptions, SecretStoreWriteOptions } from "./types.js";
 
 export class InMemorySecretStore implements SecretStore {
   private store = new Map<string, string>();
@@ -16,11 +12,7 @@ export class InMemorySecretStore implements SecretStore {
     return this.store.get(key) ?? null;
   }
 
-  async setItem(
-    key: string,
-    value: string,
-    _opts?: SecretStoreWriteOptions,
-  ): Promise<void> {
+  async setItem(key: string, value: string, _opts?: SecretStoreWriteOptions): Promise<void> {
     this.store.set(key, value);
   }
 

@@ -16,7 +16,7 @@ import {
 import { MobileTextField } from "@medbrains/ui-mobile";
 import { Controller, useForm } from "react-hook-form";
 import { Button, HelperText, Surface, Text } from "react-native-paper";
-import { FOREST_COPPER_PALETTE } from "../theme/forest-copper.js";
+import { DEVICE_PALETTE } from "../theme/device-theme.js";
 import type { TenantIdentity } from "../types.js";
 import { useAuthStore } from "./auth-store.js";
 import { useSecretStore } from "./auth-provider.js";
@@ -81,7 +81,7 @@ export function LoginScreen(props: LoginScreenProps): ReactNode {
       style={{
         flex: 1,
         padding: 24,
-        backgroundColor: FOREST_COPPER_PALETTE.canvas,
+        backgroundColor: DEVICE_PALETTE.canvas,
         justifyContent: "center",
       }}
     >
@@ -104,12 +104,12 @@ export function LoginScreen(props: LoginScreenProps): ReactNode {
               borderRadius: 16,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: FOREST_COPPER_PALETTE.brand,
+              backgroundColor: DEVICE_PALETTE.brand,
             }}
           >
             <Text
               variant="headlineMedium"
-              style={{ color: FOREST_COPPER_PALETTE.canvas, fontWeight: "700" }}
+              style={{ color: DEVICE_PALETTE.canvas, fontWeight: "700" }}
             >
               {mobileShellLoginText("mobileShell.auth.login.brandInitials")}
             </Text>
@@ -119,11 +119,11 @@ export function LoginScreen(props: LoginScreenProps): ReactNode {
       <View style={{ marginBottom: 32 }}>
         <Text
           variant="displaySmall"
-          style={{ color: FOREST_COPPER_PALETTE.brand, marginBottom: 8 }}
+          style={{ color: DEVICE_PALETTE.brand, marginBottom: 8 }}
         >
           {title}
         </Text>
-        <Text variant="bodyLarge" style={{ color: FOREST_COPPER_PALETTE.ink }}>
+        <Text variant="bodyLarge" style={{ color: DEVICE_PALETTE.ink }}>
           {subtitle}
         </Text>
       </View>

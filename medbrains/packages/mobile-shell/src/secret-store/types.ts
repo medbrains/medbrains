@@ -21,10 +21,7 @@ export interface SecretStoreWriteOptions extends SecretStoreReadOptions {
    * iOS keychain accessibility constant; hosts can override per-key
    * for accessibility paths (e.g. patient app may relax for ABHA).
    */
-  keychainAccessible?:
-    | "whenUnlocked"
-    | "whenUnlockedThisDeviceOnly"
-    | "afterFirstUnlock";
+  keychainAccessible?: "whenUnlocked" | "whenUnlockedThisDeviceOnly" | "afterFirstUnlock";
 }
 
 export interface SecretStore {

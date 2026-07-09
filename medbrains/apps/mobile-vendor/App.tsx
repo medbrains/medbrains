@@ -12,13 +12,13 @@ import { StatusBar } from "expo-status-bar";
 import {
   ExpoSecureStoreAdapter,
   Shell,
-  buildForestCopperTheme,
+  buildDeviceTheme,
 } from "@medbrains/mobile-shell";
 import { Navigator } from "./src/navigator";
 import { MODULES } from "./src/modules";
 
 const secretStore = new ExpoSecureStoreAdapter();
-const theme = buildForestCopperTheme("light");
+const theme = buildDeviceTheme("light");
 
 export default function App() {
   return (

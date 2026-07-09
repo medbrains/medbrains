@@ -7,11 +7,7 @@
  * always have it.
  */
 
-import type {
-  SecretStore,
-  SecretStoreReadOptions,
-  SecretStoreWriteOptions,
-} from "./types.js";
+import type { SecretStore, SecretStoreReadOptions, SecretStoreWriteOptions } from "./types.js";
 
 interface ExpoSecureStoreOptions {
   requireAuthentication?: boolean;
@@ -20,15 +16,8 @@ interface ExpoSecureStoreOptions {
 }
 
 interface ExpoSecureStoreModule {
-  getItemAsync(
-    key: string,
-    options?: ExpoSecureStoreOptions,
-  ): Promise<string | null>;
-  setItemAsync(
-    key: string,
-    value: string,
-    options?: ExpoSecureStoreOptions,
-  ): Promise<void>;
+  getItemAsync(key: string, options?: ExpoSecureStoreOptions): Promise<string | null>;
+  setItemAsync(key: string, value: string, options?: ExpoSecureStoreOptions): Promise<void>;
   deleteItemAsync(key: string, options?: ExpoSecureStoreOptions): Promise<void>;
   isAvailableAsync(): Promise<boolean>;
   WHEN_UNLOCKED?: number;
@@ -65,10 +54,7 @@ function mapAccessible(
 }
 
 export class ExpoSecureStoreAdapter implements SecretStore {
-  async getItem(
-    key: string,
-    opts?: SecretStoreReadOptions,
-  ): Promise<string | null> {
+  async getItem(key: string, opts?: SecretStoreReadOptions): Promise<string | null> {
     const store = await loadExpoSecureStore();
     return store.getItemAsync(key, {
       requireAuthentication: opts?.requireAuthentication,
@@ -76,11 +62,7 @@ export class ExpoSecureStoreAdapter implements SecretStore {
     });
   }
 
-  async setItem(
-    key: string,
-    value: string,
-    opts?: SecretStoreWriteOptions,
-  ): Promise<void> {
+  async setItem(key: string, value: string, opts?: SecretStoreWriteOptions): Promise<void> {
     const store = await loadExpoSecureStore();
     await store.setItemAsync(key, value, {
       requireAuthentication: opts?.requireAuthentication,

@@ -15,7 +15,7 @@ import { View } from "react-native";
 import { Button, Surface, Text } from "react-native-paper";
 import { useSecretStore } from "../auth/auth-provider.js";
 import { useAuthStore } from "../auth/auth-store.js";
-import { FOREST_COPPER_PALETTE } from "../theme/index.js";
+import { DEVICE_PALETTE } from "../theme/index.js";
 import { filterAccessibleModules } from "../types.js";
 import type { ModuleList, ShellVariant } from "../types.js";
 
@@ -54,7 +54,7 @@ function NoAccessibleModules(): ReactNode {
       style={{
         flex: 1,
         justifyContent: "center",
-        backgroundColor: FOREST_COPPER_PALETTE.canvas,
+        backgroundColor: DEVICE_PALETTE.canvas,
         padding: 24,
       }}
     >
@@ -62,15 +62,15 @@ function NoAccessibleModules(): ReactNode {
         style={{
           borderRadius: 8,
           borderWidth: 1,
-          borderColor: FOREST_COPPER_PALETTE.rule,
-          backgroundColor: FOREST_COPPER_PALETTE.panel,
+          borderColor: DEVICE_PALETTE.rule,
+          backgroundColor: DEVICE_PALETTE.panel,
           padding: 20,
         }}
       >
         <Text
           variant="titleLarge"
           style={{
-            color: FOREST_COPPER_PALETTE.ink,
+            color: DEVICE_PALETTE.ink,
             fontWeight: "700",
             marginBottom: 8,
           }}
@@ -80,7 +80,7 @@ function NoAccessibleModules(): ReactNode {
         <Text
           variant="bodyMedium"
           style={{
-            color: FOREST_COPPER_PALETTE.muted,
+            color: DEVICE_PALETTE.muted,
             marginBottom: 20,
           }}
         >
@@ -88,8 +88,8 @@ function NoAccessibleModules(): ReactNode {
         </Text>
         <Button
           mode="contained"
-          buttonColor={FOREST_COPPER_PALETTE.brand}
-          textColor={FOREST_COPPER_PALETTE.canvas}
+          buttonColor={DEVICE_PALETTE.brand}
+          textColor={DEVICE_PALETTE.canvas}
           onPress={() => {
             void signOut(secretStore);
           }}
