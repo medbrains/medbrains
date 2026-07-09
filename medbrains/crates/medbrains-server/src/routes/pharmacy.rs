@@ -4162,6 +4162,27 @@ pub async fn create_ndps_entry(
         ));
     }
 
+    // NDPS dual-control: a controlled-substance dispense/destruction/transfer must be witnessed by a
+    // second, different person (NDPS Act 1985 — witnessed dual-lock).
+    if matches!(body.action.as_str(), "dispensed" | "destroyed" | "transferred") {
+        match body.witnessed_by {
+            None => {
+                return Err(AppError::BadRequest(
+                    "A witness is required to dispense, destroy, or transfer a controlled substance \
+                     (NDPS dual-control)."
+                        .to_owned(),
+                ));
+            }
+            Some(w) if w == claims.sub => {
+                return Err(AppError::BadRequest(
+                    "The witness must be a different person from the one recording the entry."
+                        .to_owned(),
+                ));
+            }
+            Some(_) => {}
+        }
+    }
+
     let entry = sqlx::query_as::<_, NdpsRegisterEntry>(
         "INSERT INTO pharmacy_ndps_register \
          (tenant_id, catalog_item_id, action, quantity, balance_after, \
