@@ -2,7 +2,13 @@ import { Select, Tabs } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type { WardListRow } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconBed, IconClipboardList, IconLogout, IconUserHeart } from "@tabler/icons-react";
+import {
+  IconBed,
+  IconClipboardList,
+  IconHeartbeat,
+  IconLogout,
+  IconUserHeart,
+} from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components";
@@ -12,6 +18,7 @@ import { DischargeTrackerTab } from "./care-view/DischargeTrackerTab";
 import { HandoverTab } from "./care-view/HandoverTab";
 import { MyTasksTab } from "./care-view/MyTasksTab";
 import { PatientGridTab } from "./care-view/PatientGridTab";
+import { VteTab } from "./care-view/VteTab";
 
 export function CareViewPage() {
   useRequirePermission(P.CARE_VIEW.VIEW);
@@ -71,6 +78,9 @@ export function CareViewPage() {
               Discharge Tracker
             </Tabs.Tab>
           )}
+          <Tabs.Tab value="vte" leftSection={<IconHeartbeat size={16} />}>
+            VTE Risk
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="grid" pt="md">
@@ -94,6 +104,10 @@ export function CareViewPage() {
             <DischargeTrackerTab wardId={selectedWard} />
           </Tabs.Panel>
         )}
+
+        <Tabs.Panel value="vte" pt="md">
+          <VteTab />
+        </Tabs.Panel>
       </Tabs>
     </div>
   );

@@ -736,6 +736,7 @@ import type {
   CreateVisitorPassRequest,
   CreateVisitorRequest,
   CreateVitalRequest,
+  CreateVteRequest,
   CreateVulnerabilityRequest,
   CreateWaitlistRequest,
   CreateWardRequest,
@@ -1954,6 +1955,7 @@ import type {
   VitalsChecklistRow,
   VoidDocumentRequest,
   VoidMedicalCertificateRequest,
+  VteRiskAssessment,
   Vulnerability,
   WaitEstimate,
   // IPD Phase 2
@@ -14533,6 +14535,10 @@ export const api = {
       reason: string | null;
     }>(`/nurse/mar/${id}/verify-barcode`, { method: "POST", body: JSON.stringify(data) }),
   listMarForPatient: (patient_id: string) => request<unknown[]>(`/nurse/mar/patient/${patient_id}`),
+  createVteAssessment: (data: CreateVteRequest) =>
+    request<VteRiskAssessment>("/vte-assessments", { method: "POST", body: JSON.stringify(data) }),
+  listVteAssessments: (patientId: string) =>
+    request<VteRiskAssessment[]>(`/patients/${patientId}/vte-assessments`),
 
   // Vitals schedules
   listVitalsSchedules: (params?: { encounter_id?: string; due_only?: boolean }) => {

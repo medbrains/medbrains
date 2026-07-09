@@ -2,6 +2,7 @@ pub mod abdm;
 pub mod access;
 pub mod app_manifest;
 pub mod stations;
+pub mod vte;
 pub mod admin;
 pub mod admin_db_topology;
 pub mod admin_simulator;
@@ -307,6 +308,11 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/stations/{id}",
             put(stations::update_station).delete(stations::delete_station),
+        )
+        .route("/api/vte-assessments", post(vte::create_vte_assessment))
+        .route(
+            "/api/patients/{patient_id}/vte-assessments",
+            get(vte::list_vte_assessments),
         )
         .route(
             "/api/access-groups",

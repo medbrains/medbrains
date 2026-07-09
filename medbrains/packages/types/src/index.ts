@@ -3970,6 +3970,43 @@ export interface UpdateEncounterRequest {
   status?: string;
 }
 
+/** VTE (Padua) risk factors — shared by the create request and the stored assessment. */
+export interface VteRiskFactors {
+  active_cancer: boolean;
+  previous_vte: boolean;
+  reduced_mobility: boolean;
+  thrombophilia: boolean;
+  recent_trauma_surgery: boolean;
+  age_over_70: boolean;
+  cardiac_resp_failure: boolean;
+  acute_mi_stroke: boolean;
+  acute_infection_rheum: boolean;
+  obesity: boolean;
+  hormonal_treatment: boolean;
+}
+
+export interface CreateVteRequest extends Partial<VteRiskFactors> {
+  patient_id: string;
+  admission_id?: string;
+  has_bleeding_risk?: boolean;
+  prophylaxis_type?: string;
+  notes?: string;
+}
+
+export interface VteRiskAssessment extends VteRiskFactors {
+  id: string;
+  patient_id: string;
+  admission_id: string | null;
+  score: number;
+  high_risk: boolean;
+  prophylaxis_recommended: boolean;
+  has_bleeding_risk: boolean;
+  prophylaxis_type: string | null;
+  notes: string | null;
+  assessed_by: string | null;
+  created_at: string;
+}
+
 export interface Vital {
   id: string;
   tenant_id: string;
