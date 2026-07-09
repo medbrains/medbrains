@@ -332,6 +332,8 @@ import type {
   ConsumeRequest,
   // Inventory Phase 2
   ConsumptionAnalysisRow,
+  ContrastScreeningRequest,
+  ContrastScreeningResult,
   CopayCalculation,
   CorporateClient,
   CorporateEnrollment,
@@ -5253,6 +5255,11 @@ export const api = {
 
   createRadiologyOrder: (data: CreateRadiologyOrderRequest) =>
     request<RadiologyOrder>("/radiology/orders", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  contrastScreening: (data: ContrastScreeningRequest) =>
+    request<ContrastScreeningResult>("/radiology/contrast-screening", {
       method: "POST",
       body: JSON.stringify(data),
     }),

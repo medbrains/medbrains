@@ -3970,6 +3970,21 @@ export interface UpdateEncounterRequest {
   status?: string;
 }
 
+export interface ContrastScreeningRequest {
+  patient_id: string;
+  prior_contrast_reaction?: string | null;
+  on_metformin?: boolean;
+}
+
+export interface ContrastScreeningResult {
+  egfr: number | null;
+  cin_risk: string;
+  reaction_risk: string;
+  metformin_action: string;
+  clearance: string;
+  flags: string[];
+}
+
 export interface AldreteRequest {
   activity: number;
   respiration: number;

@@ -52,7 +52,7 @@ import { EncounterSelect } from "@/components/EncounterSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { radiologyOptionalText, radiologyPriorityOptions } from "@/forms/radiology.form";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { confirmDestructive } from "@/lib/confirm";
@@ -548,6 +548,13 @@ function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () =
     defaultValues: orderDefaults,
   });
   const patientId = watch("patient_id");
+  const contrastRequired = watch("contrast_required");
+
+  const { data: contrastScreen } = useQuery({
+    queryKey: ["contrast-screening", patientId],
+    queryFn: () => radiologyService.contrastScreening({ patient_id: patientId }),
+    enabled: !!patientId && contrastRequired,
+  });
 
   const createMutation = useMutation({
     mutationFn: (data: CreateRadiologyOrderRequest) => radiologyService.createRadiologyOrder(data),
@@ -657,6 +664,24 @@ function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () =
             />
           )}
         />
+        {contrastRequired && contrastScreen && (
+          <Alert
+            tone={
+              contrastScreen.clearance === "hold_review"
+                ? "danger"
+                : contrastScreen.clearance === "proceed_with_caution"
+                  ? "warning"
+                  : "success"
+            }
+            title={`Pre-contrast screening — ${contrastScreen.clearance.replace(/_/g, " ")}${
+              contrastScreen.egfr != null ? ` · eGFR ${Math.round(contrastScreen.egfr)}` : ""
+            }`}
+          >
+            {contrastScreen.flags.length > 0
+              ? contrastScreen.flags.join(" ")
+              : "No contrast-safety concerns from renal function on record."}
+          </Alert>
+        )}
         <Controller
           control={control}
           name="pregnancy_checked"

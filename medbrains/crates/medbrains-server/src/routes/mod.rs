@@ -2120,6 +2120,10 @@ pub fn build_router(state: AppState) -> Router {
             get(radiology::list_orders).post(radiology::create_order),
         )
         .route(
+            "/api/radiology/contrast-screening",
+            post(radiology::contrast_screening),
+        )
+        .route(
             "/api/radiology/orders/{id}",
             get(radiology::get_order),
         )
