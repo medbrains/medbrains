@@ -242,6 +242,10 @@ pub struct CreateChemoRequest {
     pub regimen: Option<serde_json::Value>,
     pub cycle_number: Option<i32>,
     pub total_cycles: Option<i32>,
+    /// Anthracycline given this cycle (if any) — for cumulative cardiotoxicity tracking.
+    pub anthracycline_agent: Option<String>,
+    /// This cycle's anthracycline dose in mg/m² (already normalised to body surface area).
+    pub anthracycline_dose_mg_m2: Option<f64>,
     pub notes: Option<String>,
 }
 
@@ -1117,9 +1121,10 @@ pub async fn create_chemo_protocol(
     let row = sqlx::query_as::<_, ChemoProtocol>(
         "INSERT INTO chemo_protocols \
          (tenant_id, patient_id, protocol_name, cancer_type, staging, \
-          regimen, cycle_number, total_cycles, treating_oncologist_id, notes) \
+          regimen, cycle_number, total_cycles, treating_oncologist_id, notes, \
+          anthracycline_agent, anthracycline_dose_mg_m2) \
          VALUES ($1, $2, $3, $4, $5, COALESCE($6, '[]'::jsonb), \
-                 COALESCE($7, 1), $8, $9, $10) \
+                 COALESCE($7, 1), $8, $9, $10, $11, $12) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -1132,11 +1137,113 @@ pub async fn create_chemo_protocol(
     .bind(body.total_cycles)
     .bind(claims.sub)
     .bind(&body.notes)
+    .bind(body.anthracycline_agent.as_deref())
+    .bind(body.anthracycline_dose_mg_m2)
     .fetch_one(&mut *tx)
     .await?;
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// Lifetime cumulative anthracycline dose ceiling (mg/m²) beyond which cardiotoxicity risk rises
+/// sharply. Matched case-insensitively on the agent name.
+fn anthracycline_ceiling_mg_m2(agent: &str) -> Option<f64> {
+    let a = agent.to_lowercase();
+    if a.contains("epirubicin") {
+        Some(900.0)
+    } else if a.contains("daunorubicin") {
+        Some(550.0)
+    } else if a.contains("idarubicin") {
+        Some(150.0)
+    } else if a.contains("mitoxantrone") {
+        Some(140.0)
+    } else if a.contains("doxorubicin") {
+        // Covers doxorubicin and liposomal doxorubicin; 450 mg/m² is the conservative ceiling.
+        Some(450.0)
+    } else {
+        None
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AnthracyclineCumulativeQuery {
+    pub patient_id: Uuid,
+    pub agent: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct AnthracyclineCumulativeResult {
+    pub agent: String,
+    pub cumulative_mg_m2: f64,
+    pub ceiling_mg_m2: Option<f64>,
+    pub remaining_mg_m2: Option<f64>,
+    /// True once cumulative >= 90% of the ceiling — the next cycle needs cardiac review.
+    pub near_ceiling: bool,
+    /// True once cumulative exceeds the ceiling.
+    pub over_ceiling: bool,
+}
+
+/// `GET /api/specialty/chemo/anthracycline-cumulative?patient_id=&agent=` — the patient's running
+/// lifetime anthracycline dose for the agent, versus the cardiotoxicity ceiling.
+pub async fn anthracycline_cumulative(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<AnthracyclineCumulativeQuery>,
+) -> Result<Json<AnthracyclineCumulativeResult>, AppError> {
+    require_permission(&claims, permissions::specialty::other::records::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+    let cumulative: Option<f64> = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(anthracycline_dose_mg_m2), 0) FROM chemo_protocols \
+         WHERE tenant_id = $1 AND patient_id = $2 \
+           AND lower(anthracycline_agent) = lower($3)",
+    )
+    .bind(claims.tenant_id)
+    .bind(params.patient_id)
+    .bind(&params.agent)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    let cumulative_mg_m2 = cumulative.unwrap_or(0.0);
+    let ceiling_mg_m2 = anthracycline_ceiling_mg_m2(&params.agent);
+    let remaining_mg_m2 = ceiling_mg_m2.map(|c| c - cumulative_mg_m2);
+    let near_ceiling = ceiling_mg_m2.is_some_and(|c| cumulative_mg_m2 >= 0.9 * c);
+    let over_ceiling = ceiling_mg_m2.is_some_and(|c| cumulative_mg_m2 > c);
+
+    Ok(Json(AnthracyclineCumulativeResult {
+        agent: params.agent,
+        cumulative_mg_m2,
+        ceiling_mg_m2,
+        remaining_mg_m2,
+        near_ceiling,
+        over_ceiling,
+    }))
+}
+
+#[cfg(test)]
+mod anthracycline_tests {
+    use super::anthracycline_ceiling_mg_m2;
+
+    #[test]
+    fn doxorubicin_ceiling() {
+        assert_eq!(anthracycline_ceiling_mg_m2("Doxorubicin"), Some(450.0));
+        assert_eq!(anthracycline_ceiling_mg_m2("liposomal doxorubicin"), Some(450.0));
+    }
+
+    #[test]
+    fn other_anthracyclines() {
+        assert_eq!(anthracycline_ceiling_mg_m2("Epirubicin"), Some(900.0));
+        assert_eq!(anthracycline_ceiling_mg_m2("daunorubicin"), Some(550.0));
+        assert_eq!(anthracycline_ceiling_mg_m2("Idarubicin"), Some(150.0));
+    }
+
+    #[test]
+    fn unknown_agent_has_no_ceiling() {
+        assert_eq!(anthracycline_ceiling_mg_m2("cisplatin"), None);
+    }
 }
 
 pub async fn update_chemo_protocol(

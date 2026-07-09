@@ -35,7 +35,7 @@ import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, Button } from "@/components/ui";
+import { Alert, Badge, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
 
@@ -96,6 +96,15 @@ export function OtherSpecialtiesPage() {
   const [chemoForm, setChemoForm] = useState<CreateChemoProtocolRequest>({
     patient_id: "",
     protocol_name: "",
+  });
+  const { data: anthraCumulative } = useQuery({
+    queryKey: ["anthra-cumulative", chemoForm.patient_id, chemoForm.anthracycline_agent],
+    queryFn: () =>
+      specialtyService.anthracyclineCumulative(
+        chemoForm.patient_id,
+        chemoForm.anthracycline_agent ?? "",
+      ),
+    enabled: !!chemoForm.patient_id && !!chemoForm.anthracycline_agent?.trim(),
   });
   const [stagingForm, setStagingForm] = useState<CreateCancerStagingRequest>({
     patient_id: "",
@@ -639,6 +648,46 @@ export function OtherSpecialtiesPage() {
               setChemoForm((p) => ({ ...p, cycle_number: typeof v === "number" ? v : undefined }))
             }
           />
+          <TextInput
+            label="Anthracycline agent (if any)"
+            placeholder="e.g. Doxorubicin"
+            value={chemoForm.anthracycline_agent ?? ""}
+            onChange={(e) =>
+              setChemoForm((p) => ({
+                ...p,
+                anthracycline_agent: e.currentTarget.value || undefined,
+              }))
+            }
+          />
+          <NumberInput
+            label="This cycle's anthracycline dose (mg/m²)"
+            value={chemoForm.anthracycline_dose_mg_m2 ?? ""}
+            min={0}
+            onChange={(v) =>
+              setChemoForm((p) => ({
+                ...p,
+                anthracycline_dose_mg_m2: typeof v === "number" ? v : undefined,
+              }))
+            }
+          />
+          {anthraCumulative && anthraCumulative.ceiling_mg_m2 != null && (
+            <Alert
+              tone={
+                anthraCumulative.over_ceiling
+                  ? "danger"
+                  : anthraCumulative.near_ceiling
+                    ? "warning"
+                    : "info"
+              }
+              title={`Cumulative ${anthraCumulative.agent}: ${anthraCumulative.cumulative_mg_m2} / ${anthraCumulative.ceiling_mg_m2} mg/m²`}
+            >
+              {anthraCumulative.over_ceiling
+                ? "Lifetime cardiotoxicity ceiling exceeded — cardiology review and echocardiogram before any further anthracycline."
+                : anthraCumulative.near_ceiling
+                  ? `Approaching the ceiling (${anthraCumulative.remaining_mg_m2} mg/m² remaining) — assess LVEF before the next cycle.`
+                  : `${anthraCumulative.remaining_mg_m2} mg/m² remaining before the cardiotoxicity ceiling.`}
+            </Alert>
+          )}
           <Switch
             label="Tumor Board Reviewed"
             checked={chemoForm.tumor_board_reviewed ?? false}

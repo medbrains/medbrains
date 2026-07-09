@@ -19154,6 +19154,8 @@ export interface ChemoProtocol {
   recist_response: string | null;
   tumor_board_reviewed: boolean;
   tumor_board_date: string | null;
+  anthracycline_agent: string | null;
+  anthracycline_dose_mg_m2: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -19169,6 +19171,17 @@ export interface CreateChemoProtocolRequest {
   recist_response?: string;
   tumor_board_reviewed?: boolean;
   tumor_board_date?: string;
+  anthracycline_agent?: string;
+  anthracycline_dose_mg_m2?: number;
+}
+
+export interface AnthracyclineCumulativeResult {
+  agent: string;
+  cumulative_mg_m2: number;
+  ceiling_mg_m2: number | null;
+  remaining_mg_m2: number | null;
+  near_ceiling: boolean;
+  over_ceiling: boolean;
 }
 
 // ── Documents Module ─────────────────────────────────────

@@ -5754,6 +5754,10 @@ pub fn build_router(state: AppState) -> Router {
             "/api/specialty/chemo/protocols/{id}",
             put(specialty_other::update_chemo_protocol),
         )
+        .route(
+            "/api/specialty/chemo/anthracycline-cumulative",
+            get(specialty_other::anthracycline_cumulative),
+        )
         // ── Documents & Printing ──
         .route(
             "/api/documents/templates",

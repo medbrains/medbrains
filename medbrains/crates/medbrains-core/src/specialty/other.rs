@@ -78,6 +78,8 @@ pub struct ChemoProtocol {
     pub next_cycle_date: Option<NaiveDate>,
     pub status: String,
     pub notes: Option<String>,
+    pub anthracycline_agent: Option<String>,
+    pub anthracycline_dose_mg_m2: Option<f64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

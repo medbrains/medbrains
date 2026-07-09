@@ -61,4 +61,5 @@ export const specialtyService = {
   createSpecialtyRecord: api.createSpecialtyRecord,
   createDialysisSession: api.createDialysisSession,
   createChemoProtocol: api.createChemoProtocol,
+  anthracyclineCumulative: api.anthracyclineCumulative,
 };

@@ -78,6 +78,7 @@ import type {
   AncVisit,
   AnesthesiaComplicationEntry,
   AnesthesiaRecordPrintData,
+  AnthracyclineCumulativeResult,
   AntibioticConsumptionRecord,
   AntibioticStewardshipRequest,
   AntibioticTimeoutReviewBody,
@@ -10310,6 +10311,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  anthracyclineCumulative: (patientId: string, agent: string) =>
+    request<AnthracyclineCumulativeResult>(
+      `/specialty/chemo/anthracycline-cumulative?patient_id=${patientId}&agent=${encodeURIComponent(agent)}`,
+    ),
   updateChemoProtocol: (id: string, data: Partial<CreateChemoProtocolRequest>) =>
     request<ChemoProtocol>(`/specialty/chemo/protocols/${id}`, {
       method: "PUT",
