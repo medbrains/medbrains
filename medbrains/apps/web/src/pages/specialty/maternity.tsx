@@ -296,6 +296,20 @@ export function MaternityPage() {
       render: (r) => <Text size="sm">{r.delivery_type?.replace(/_/g, " ") ?? "In progress"}</Text>,
     },
     {
+      key: "pph",
+      label: "PPH",
+      render: (r) =>
+        r.pph_severity === "severe" ? (
+          <Badge tone="danger">Severe PPH</Badge>
+        ) : r.pph_severity === "pph" ? (
+          <Badge tone="warning">PPH</Badge>
+        ) : (
+          <Text size="sm" c="dimmed">
+            —
+          </Text>
+        ),
+    },
+    {
       key: "apgar1",
       label: "Apgar 1m",
       render: (r) => <Text size="sm">{r.apgar_1min ?? "—"}</Text>,

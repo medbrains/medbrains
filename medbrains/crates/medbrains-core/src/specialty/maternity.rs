@@ -107,6 +107,8 @@ pub struct LaborRecord {
     pub midwife_id: Option<Uuid>,
     pub complications: Option<String>,
     pub notes: Option<String>,
+    /// Server-derived postpartum-haemorrhage severity: none | pph | severe (NULL if blood loss unset).
+    pub pph_severity: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

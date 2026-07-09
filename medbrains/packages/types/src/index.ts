@@ -19015,6 +19015,7 @@ export interface LaborRecord {
   apgar_1min: number | null;
   apgar_5min: number | null;
   baby_weight_gm: number | null;
+  pph_severity: string | null;
   created_at: string;
   updated_at: string;
 }
