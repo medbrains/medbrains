@@ -1890,6 +1890,40 @@ pub async fn discharge_patient(
         }
     }
 
+    // Clinical safety gate: a patient must not be discharged with an unacknowledged critical lab
+    // result (e.g. critical potassium, haemoglobin) still pending review (NABL/NABH). Enabled by
+    // default; a tenant may disable it via clinical.block_discharge_unacked_critical = false. As with
+    // the settlement gate, LAMA/absconded/deceased discharges are never blocked.
+    let block_unacked_critical = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'clinical' \
+           AND key = 'block_discharge_unacked_critical'",
+    )
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .is_none_or(|v| v.as_bool().unwrap_or(v.as_str() != Some("false")));
+
+    if block_unacked_critical && matches!(dt, DischargeType::Normal | DischargeType::Referred) {
+        let unacked: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM lab_critical_alerts \
+             WHERE tenant_id = $1 AND acknowledged_at IS NULL \
+               AND patient_id = \
+                 (SELECT patient_id FROM admissions WHERE id = $2 AND tenant_id = $1)",
+        )
+        .bind(claims.tenant_id)
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        if unacked > 0 {
+            return Err(AppError::Conflict(format!(
+                "{unacked} critical lab result(s) are still unacknowledged — review and acknowledge \
+                 them before discharge (clinical.block_discharge_unacked_critical is enabled)."
+            )));
+        }
+    }
+
     let admission = sqlx::query_as::<_, Admission>(
         "UPDATE admissions SET \
            status = 'discharged'::admission_status, \
