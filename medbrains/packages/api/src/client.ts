@@ -1202,6 +1202,8 @@ import type {
   MealPreparation,
   MedicalCertificate,
   MedicationTimelineEvent,
+  MeowsRequest,
+  MeowsResult,
   MergePatientRequest,
   MgpsDailyLogPrintData,
   MicrositeConfig,
@@ -14547,6 +14549,8 @@ export const api = {
     request<News2Result>("/clinical/news2", { method: "POST", body: JSON.stringify(data) }),
   computeQsofa: (data: QsofaRequest) =>
     request<QsofaResult>("/clinical/qsofa", { method: "POST", body: JSON.stringify(data) }),
+  computeMeows: (data: MeowsRequest) =>
+    request<MeowsResult>("/clinical/meows", { method: "POST", body: JSON.stringify(data) }),
 
   // Vitals schedules
   listVitalsSchedules: (params?: { encounter_id?: string; due_only?: boolean }) => {

@@ -3970,6 +3970,29 @@ export interface UpdateEncounterRequest {
   status?: string;
 }
 
+export interface MeowsRequest {
+  respiratory_rate: number;
+  spo2: number;
+  temperature: number;
+  systolic_bp: number;
+  diastolic_bp: number;
+  pulse: number;
+  not_alert?: boolean;
+}
+
+export interface MeowsParam {
+  name: string;
+  band: string;
+}
+
+export interface MeowsResult {
+  params: MeowsParam[];
+  yellow_count: number;
+  red_count: number;
+  triggered: boolean;
+  response: string;
+}
+
 export interface QsofaRequest {
   respiratory_rate: number;
   systolic_bp: number;
