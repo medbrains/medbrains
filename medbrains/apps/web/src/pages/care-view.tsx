@@ -9,6 +9,7 @@ import {
   IconHeartbeat,
   IconLogout,
   IconUserHeart,
+  IconVirus,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -20,6 +21,7 @@ import { HandoverTab } from "./care-view/HandoverTab";
 import { MyTasksTab } from "./care-view/MyTasksTab";
 import { News2Tab } from "./care-view/News2Tab";
 import { PatientGridTab } from "./care-view/PatientGridTab";
+import { SepsisTab } from "./care-view/SepsisTab";
 import { VteTab } from "./care-view/VteTab";
 
 export function CareViewPage() {
@@ -86,6 +88,9 @@ export function CareViewPage() {
           <Tabs.Tab value="news2" leftSection={<IconActivityHeartbeat size={16} />}>
             NEWS2
           </Tabs.Tab>
+          <Tabs.Tab value="sepsis" leftSection={<IconVirus size={16} />}>
+            Sepsis (qSOFA)
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="grid" pt="md">
@@ -116,6 +121,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="news2" pt="md">
           <News2Tab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="sepsis" pt="md">
+          <SepsisTab />
         </Tabs.Panel>
       </Tabs>
     </div>

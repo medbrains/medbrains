@@ -3970,6 +3970,21 @@ export interface UpdateEncounterRequest {
   status?: string;
 }
 
+export interface QsofaRequest {
+  respiratory_rate: number;
+  systolic_bp: number;
+  altered_mentation?: boolean;
+}
+
+export interface QsofaResult {
+  total: number;
+  respiratory_rate: number;
+  systolic_bp: number;
+  mentation: number;
+  high_risk: boolean;
+  response: string;
+}
+
 export interface News2Request {
   respiratory_rate: number;
   spo2: number;

@@ -1470,6 +1470,8 @@ import type {
   PurchaseConsumptionTrendRow,
   PurchaseOrder,
   PurchaseOrderPrintData,
+  QsofaRequest,
+  QsofaResult,
   QualityAccreditationCompliance,
   QualityAccreditationStandard,
   QualityActionItem,
@@ -14543,6 +14545,8 @@ export const api = {
     request<VteRiskAssessment[]>(`/patients/${patientId}/vte-assessments`),
   computeNews2: (data: News2Request) =>
     request<News2Result>("/clinical/news2", { method: "POST", body: JSON.stringify(data) }),
+  computeQsofa: (data: QsofaRequest) =>
+    request<QsofaResult>("/clinical/qsofa", { method: "POST", body: JSON.stringify(data) }),
 
   // Vitals schedules
   listVitalsSchedules: (params?: { encounter_id?: string; due_only?: boolean }) => {
