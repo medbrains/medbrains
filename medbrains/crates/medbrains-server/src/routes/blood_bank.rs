@@ -4,7 +4,7 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use chrono::{NaiveDate, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::blood_bank::{
     BbBillingItem, BbBloodReturn, BbColdChainDevice, BbColdChainReading, BbLookbackEvent,
     BbMsbosGuideline, BbRecruitmentCampaign, BloodComponent, BloodDonation, BloodDonor,
@@ -635,12 +635,33 @@ pub async fn create_transfusion(
     .fetch_one(&mut *tx)
     .await?;
 
-    let component_blood_group = sqlx::query_scalar::<_, Option<String>>(
-        "SELECT blood_group::text FROM blood_components WHERE id = $1",
+    let (component_blood_group, component_expiry, component_status): (
+        Option<String>,
+        DateTime<Utc>,
+        String,
+    ) = sqlx::query_as(
+        "SELECT blood_group::text, expiry_at, status::text FROM blood_components \
+         WHERE id = $1 AND tenant_id = $2",
     )
     .bind(body.component_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    // Unit-safety gate: never transfuse an expired unit, or one that isn't in a usable state
+    // (already transfused/returned/expired, or not yet released). AABB/NABH.
+    if component_expiry < Utc::now() {
+        return Err(AppError::BadRequest(format!(
+            "Blood unit expired on {} — it must not be transfused.",
+            component_expiry.format("%Y-%m-%d %H:%M")
+        )));
+    }
+    if !["available", "reserved", "crossmatched", "issued"].contains(&component_status.as_str()) {
+        return Err(AppError::BadRequest(format!(
+            "Blood unit status is '{component_status}' and not available for transfusion."
+        )));
+    }
 
     // Fail SAFE, not open: if either blood group is unrecorded we cannot verify
     // ABO/Rh compatibility, so the transfusion must not proceed. Previously the
