@@ -1065,6 +1065,26 @@ pub async fn enroll_hospice(
     require_permission(&claims, permissions::ipd::mar::CREATE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // A DNR may only be confirmed against an active, documented DNR order — not a bare flag.
+    if body.dnr_confirmed == Some(true) {
+        let has_dnr = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS (SELECT 1 FROM dnr_orders \
+             WHERE tenant_id = $1 AND patient_id = $2 AND revoked_at IS NULL)",
+        )
+        .bind(claims.tenant_id)
+        .bind(body.patient_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !has_dnr {
+            return Err(AppError::BadRequest(
+                "Cannot confirm DNR — no active DNR order is on file for this patient. Record the \
+                 DNR order first."
+                    .to_owned(),
+            ));
+        }
+    }
+
     let row = sqlx::query_as::<_, HospiceEnrollment>(&format!(
         "INSERT INTO hospice_enrollments \
          (tenant_id, patient_id, terminal_diagnosis, prognosis, comfort_care_plan, dnr_confirmed, \
