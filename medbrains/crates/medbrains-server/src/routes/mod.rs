@@ -1725,6 +1725,14 @@ pub fn build_router(state: AppState) -> Router {
             get(telemedicine::get_triage).post(telemedicine::submit_triage),
         )
         .route(
+            "/api/telemedicine/triage-research/summary",
+            get(telemedicine::triage_research_summary),
+        )
+        .route(
+            "/api/telemedicine/triage-research/dataset",
+            get(telemedicine::triage_research_dataset),
+        )
+        .route(
             "/api/telemedicine/consultations/{id}",
             get(telemedicine::get_tele_consultation),
         )

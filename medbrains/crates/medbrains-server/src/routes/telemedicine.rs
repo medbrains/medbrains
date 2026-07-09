@@ -908,3 +908,142 @@ mod triage_tests {
         assert_eq!(o.acuity, "routine");
     }
 }
+
+// ── Tele-triage research registry (de-identified, PHI-free) ────────────────
+// Closes the loop on the triage engine: aggregate performance + a de-identified row export for
+// research / rule-tuning. No patient_id, names, DOB, or free-text leave here — only structured
+// triage inputs, the outcome, and a coarse age band + sex.
+
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct AcuityCount {
+    pub acuity: String,
+    pub count: i64,
+}
+
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct FlagCount {
+    pub flag: String,
+    pub count: i64,
+}
+
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct AcuityDisposition {
+    pub acuity: String,
+    pub disposition: String,
+    pub count: i64,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct TriageResearchSummary {
+    pub total: i64,
+    pub by_acuity: Vec<AcuityCount>,
+    pub red_flag_frequency: Vec<FlagCount>,
+    pub acuity_disposition: Vec<AcuityDisposition>,
+    /// Share of emergent triages whose consult produced an EMR encounter (a proxy for genuine
+    /// escalation — informs whether the emergent band is over- or under-calling).
+    pub emergent_escalation_rate: f64,
+}
+
+/// `GET /api/telemedicine/triage-research/summary` — aggregate triage performance (no PHI).
+pub async fn triage_research_summary(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<TriageResearchSummary>, AppError> {
+    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let total: i64 = sqlx::query_scalar("SELECT count(*) FROM tele_triage WHERE tenant_id = $1")
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+    let by_acuity = sqlx::query_as::<_, AcuityCount>(
+        "SELECT acuity, count(*) AS count FROM tele_triage WHERE tenant_id = $1 \
+         GROUP BY acuity ORDER BY count DESC",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let red_flag_frequency = sqlx::query_as::<_, FlagCount>(
+        "SELECT flag, count(*) AS count \
+         FROM tele_triage, unnest(red_flags) AS flag WHERE tenant_id = $1 \
+         GROUP BY flag ORDER BY count DESC LIMIT 20",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let acuity_disposition = sqlx::query_as::<_, AcuityDisposition>(
+        "SELECT tt.acuity, tc.status AS disposition, count(*) AS count \
+         FROM tele_triage tt JOIN tele_consultations tc ON tc.id = tt.consultation_id \
+         WHERE tt.tenant_id = $1 GROUP BY tt.acuity, tc.status ORDER BY tt.acuity, count DESC",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let emergent_escalation_rate: f64 = sqlx::query_scalar(
+        "SELECT COALESCE( \
+            avg(CASE WHEN tc.encounter_id IS NOT NULL THEN 1.0 ELSE 0.0 END)::float8, 0.0) \
+         FROM tele_triage tt JOIN tele_consultations tc ON tc.id = tt.consultation_id \
+         WHERE tt.tenant_id = $1 AND tt.acuity = 'emergent'",
+    )
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    Ok(Json(TriageResearchSummary {
+        total,
+        by_acuity,
+        red_flag_frequency,
+        acuity_disposition,
+        emergent_escalation_rate,
+    }))
+}
+
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct TriageResearchRow {
+    pub acuity: String,
+    pub symptoms: Vec<String>,
+    pub severity: Option<i32>,
+    pub red_flags: Vec<String>,
+    pub has_encounter: bool,
+    pub disposition: String,
+    pub age_band: Option<String>,
+    pub biological_sex: Option<String>,
+    pub triaged_week: chrono::NaiveDate,
+}
+
+/// `GET /api/telemedicine/triage-research/dataset` — a de-identified row-level research dataset.
+/// No direct identifiers: age is a coarse band, timing is truncated to the ISO week.
+pub async fn triage_research_dataset(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<TriageResearchRow>>, AppError> {
+    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, TriageResearchRow>(
+        "SELECT tt.acuity, tt.symptoms, tt.severity, tt.red_flags, \
+            (tc.encounter_id IS NOT NULL) AS has_encounter, tc.status AS disposition, \
+            CASE \
+                WHEN p.date_of_birth IS NULL THEN NULL \
+                WHEN date_part('year', age(p.date_of_birth)) < 18 THEN '0-17' \
+                WHEN date_part('year', age(p.date_of_birth)) < 40 THEN '18-39' \
+                WHEN date_part('year', age(p.date_of_birth)) < 65 THEN '40-64' \
+                ELSE '65+' END AS age_band, \
+            p.biological_sex, \
+            date_trunc('week', tt.created_at)::date AS triaged_week \
+         FROM tele_triage tt JOIN tele_consultations tc ON tc.id = tt.consultation_id \
+         LEFT JOIN patients p ON p.id = tt.patient_id \
+         WHERE tt.tenant_id = $1 ORDER BY tt.created_at DESC LIMIT 5000",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}

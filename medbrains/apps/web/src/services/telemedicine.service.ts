@@ -21,6 +21,8 @@ export const telemedicineService = {
   getTriage: (id: string) => api.getTriage(id),
   submitTriage: (id: string, data: Parameters<typeof api.submitTriage>[1]) =>
     api.submitTriage(id, data),
+  getTriageResearchSummary: () => api.getTriageResearchSummary(),
+  getTriageResearchDataset: () => api.getTriageResearchDataset(),
   updateTeleStatus: (id: string, data: Parameters<typeof api.updateTeleStatus>[1]) =>
     api.updateTeleStatus(id, data),
 };

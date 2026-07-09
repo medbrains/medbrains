@@ -7919,6 +7919,28 @@ export interface WaitingRoomItem {
   red_flags: string[] | null;
 }
 
+/** Aggregate, de-identified tele-triage research performance. */
+export interface TriageResearchSummary {
+  total: number;
+  by_acuity: Array<{ acuity: string; count: number }>;
+  red_flag_frequency: Array<{ flag: string; count: number }>;
+  acuity_disposition: Array<{ acuity: string; disposition: string; count: number }>;
+  emergent_escalation_rate: number;
+}
+
+/** A de-identified tele-triage research dataset row (no PHI). */
+export interface TriageResearchRow {
+  acuity: string;
+  symptoms: string[];
+  severity: number | null;
+  red_flags: string[];
+  has_encounter: boolean;
+  disposition: string;
+  age_band: string | null;
+  biological_sex: string | null;
+  triaged_week: string;
+}
+
 /** A pre-consult triage result from the deterministic red-flag / acuity engine. */
 export interface TeleTriage {
   id: string;

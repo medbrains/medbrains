@@ -1703,6 +1703,8 @@ import type {
   // Phase 2 Print Data - Clinical & Identity
   TreatmentChartPrintData,
   TreatmentSummaryResponse,
+  TriageResearchRow,
+  TriageResearchSummary,
   TrialAdverseEvent,
   TrialCandidate,
   TrialConsent,
@@ -14202,6 +14204,10 @@ export const api = {
   listTeleChat: (id: string) =>
     request<TeleChatMessage[]>(`/telemedicine/consultations/${id}/chat`),
   getTriage: (id: string) => request<TeleTriage | null>(`/telemedicine/consultations/${id}/triage`),
+  getTriageResearchSummary: () =>
+    request<TriageResearchSummary>("/telemedicine/triage-research/summary"),
+  getTriageResearchDataset: () =>
+    request<TriageResearchRow[]>("/telemedicine/triage-research/dataset"),
   submitTriage: (
     id: string,
     data: {
