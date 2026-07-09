@@ -18,6 +18,7 @@ from `CLAUDE.md`; every UI PR must comply.
 | [CARBON-COLOR-RULES.md](./CARBON-COLOR-RULES.md) | Semantic `--mb-*` tokens (never raw hex), layer/elevation, support + emergency colours, contrast, never colour-alone |
 | [CARBON-TYPOGRAPHY-RULES.md](./CARBON-TYPOGRAPHY-RULES.md) | IBM Plex, type scale (14px body / clinical density), weights, hierarchy, readability + a11y |
 | [CARBON-CONTENT-RULES.md](./CARBON-CONTENT-RULES.md) | Voice & tone, sentence case, error messages, clinical accuracy, inclusive/accessible content, i18n |
+| [DEVICE-CONSTRAINED-RULES.md](./DEVICE-CONSTRAINED-RULES.md) | **Low-end device "Power of Ten"** — TV/kiosk/mobile/IoT/edge: bound everything, zero leaks, virtualize lists, memory budgets, fail-safe, share-don't-copy |
 
 Existing companions: [UI_GUIDELINES.md](./UI_GUIDELINES.md),
 [ACCESSIBILITY.md](./ACCESSIBILITY.md), [ui-plan-before-build.md](./ui-plan-before-build.md).
