@@ -1,5 +1,6 @@
 pub mod abdm;
 pub mod access;
+pub mod aldrete;
 pub mod app_manifest;
 pub mod med_reconciliation;
 pub mod meows;
@@ -316,6 +317,7 @@ pub fn build_router(state: AppState) -> Router {
             put(stations::update_station).delete(stations::delete_station),
         )
         .route("/api/clinical/news2", post(news2::news2_score))
+        .route("/api/clinical/aldrete", post(aldrete::aldrete_score))
         .route("/api/clinical/qsofa", post(sepsis::qsofa_score))
         .route("/api/clinical/meows", post(meows::meows_score))
         .route("/api/clinical/pews", post(pews::pews_score))

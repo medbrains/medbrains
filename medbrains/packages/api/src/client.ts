@@ -60,6 +60,8 @@ import type {
   AiGeneratedCode,
   AiGeneratedCourse,
   AiSettings,
+  AldreteRequest,
+  AldreteResult,
   AlertThresholdRow,
   AllergenCatalogEntry,
   AlosRow,
@@ -14556,6 +14558,8 @@ export const api = {
     request<VteRiskAssessment[]>(`/patients/${patientId}/vte-assessments`),
   computeNews2: (data: News2Request) =>
     request<News2Result>("/clinical/news2", { method: "POST", body: JSON.stringify(data) }),
+  computeAldrete: (data: AldreteRequest) =>
+    request<AldreteResult>("/clinical/aldrete", { method: "POST", body: JSON.stringify(data) }),
   computeQsofa: (data: QsofaRequest) =>
     request<QsofaResult>("/clinical/qsofa", { method: "POST", body: JSON.stringify(data) }),
   computeMeows: (data: MeowsRequest) =>

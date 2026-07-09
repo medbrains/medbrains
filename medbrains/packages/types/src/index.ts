@@ -3970,6 +3970,25 @@ export interface UpdateEncounterRequest {
   status?: string;
 }
 
+export interface AldreteRequest {
+  activity: number;
+  respiration: number;
+  circulation: number;
+  consciousness: number;
+  oxygenation: number;
+}
+
+export interface AldreteResult {
+  total: number;
+  activity: number;
+  respiration: number;
+  circulation: number;
+  consciousness: number;
+  oxygenation: number;
+  discharge_ready: boolean;
+  response: string;
+}
+
 export interface MedReconciliation {
   id: string;
   patient_id: string;

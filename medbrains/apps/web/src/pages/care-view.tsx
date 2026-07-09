@@ -11,6 +11,7 @@ import {
   IconDroplet,
   IconHeartbeat,
   IconLogout,
+  IconLungs,
   IconPill,
   IconUserHeart,
   IconVirus,
@@ -20,6 +21,7 @@ import { useState } from "react";
 import { PageHeader } from "@/components";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { careViewService } from "@/services/careView.service";
+import { AldreteTab } from "./care-view/AldreteTab";
 import { DischargeTrackerTab } from "./care-view/DischargeTrackerTab";
 import { HandoverTab } from "./care-view/HandoverTab";
 import { MedReconciliationTab } from "./care-view/MedReconciliationTab";
@@ -105,6 +107,9 @@ export function CareViewPage() {
           <Tabs.Tab value="med-recon" leftSection={<IconPill size={16} />}>
             Med Reconciliation
           </Tabs.Tab>
+          <Tabs.Tab value="aldrete" leftSection={<IconLungs size={16} />}>
+            Aldrete (PACU)
+          </Tabs.Tab>
           <Tabs.Tab value="meows" leftSection={<IconBabyCarriage size={16} />}>
             MEOWS
           </Tabs.Tab>
@@ -153,6 +158,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="med-recon" pt="md">
           <MedReconciliationTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="aldrete" pt="md">
+          <AldreteTab />
         </Tabs.Panel>
 
         <Tabs.Panel value="meows" pt="md">
