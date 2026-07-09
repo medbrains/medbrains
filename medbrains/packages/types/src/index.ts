@@ -3970,6 +3970,25 @@ export interface UpdateEncounterRequest {
   status?: string;
 }
 
+export interface PewsRequest {
+  behaviour: number;
+  cardiovascular: number;
+  respiratory: number;
+  quarter_hourly_nebuliser?: boolean;
+  persistent_vomiting?: boolean;
+}
+
+export interface PewsResult {
+  total: number;
+  behaviour: number;
+  cardiovascular: number;
+  respiratory: number;
+  extra: number;
+  max_domain: number;
+  triggered: boolean;
+  response: string;
+}
+
 export interface MeowsRequest {
   respiratory_rate: number;
   spo2: number;

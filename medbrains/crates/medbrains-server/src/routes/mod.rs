@@ -3,6 +3,7 @@ pub mod access;
 pub mod app_manifest;
 pub mod meows;
 pub mod news2;
+pub mod pews;
 pub mod sepsis;
 pub mod stations;
 pub mod vte;
@@ -315,6 +316,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/clinical/news2", post(news2::news2_score))
         .route("/api/clinical/qsofa", post(sepsis::qsofa_score))
         .route("/api/clinical/meows", post(meows::meows_score))
+        .route("/api/clinical/pews", post(pews::pews_score))
         .route("/api/vte-assessments", post(vte::create_vte_assessment))
         .route(
             "/api/patients/{patient_id}/vte-assessments",

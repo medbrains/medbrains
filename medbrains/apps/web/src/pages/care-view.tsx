@@ -4,6 +4,7 @@ import type { WardListRow } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
   IconActivityHeartbeat,
+  IconBabyBottle,
   IconBabyCarriage,
   IconBed,
   IconClipboardList,
@@ -23,6 +24,7 @@ import { MeowsTab } from "./care-view/MeowsTab";
 import { MyTasksTab } from "./care-view/MyTasksTab";
 import { News2Tab } from "./care-view/News2Tab";
 import { PatientGridTab } from "./care-view/PatientGridTab";
+import { PewsTab } from "./care-view/PewsTab";
 import { SepsisTab } from "./care-view/SepsisTab";
 import { VteTab } from "./care-view/VteTab";
 
@@ -96,6 +98,9 @@ export function CareViewPage() {
           <Tabs.Tab value="meows" leftSection={<IconBabyCarriage size={16} />}>
             MEOWS
           </Tabs.Tab>
+          <Tabs.Tab value="pews" leftSection={<IconBabyBottle size={16} />}>
+            PEWS
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="grid" pt="md">
@@ -134,6 +139,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="meows" pt="md">
           <MeowsTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="pews" pt="md">
+          <PewsTab />
         </Tabs.Panel>
       </Tabs>
     </div>

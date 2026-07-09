@@ -1388,6 +1388,8 @@ import type {
   PesoComplianceReportPrintData,
   PestControlLog,
   PestControlSchedule,
+  PewsRequest,
+  PewsResult,
   PgLogbookEntry,
   PgLogbookEntryPrintData,
   PharmacyAbcVedRow,
@@ -14551,6 +14553,8 @@ export const api = {
     request<QsofaResult>("/clinical/qsofa", { method: "POST", body: JSON.stringify(data) }),
   computeMeows: (data: MeowsRequest) =>
     request<MeowsResult>("/clinical/meows", { method: "POST", body: JSON.stringify(data) }),
+  computePews: (data: PewsRequest) =>
+    request<PewsResult>("/clinical/pews", { method: "POST", body: JSON.stringify(data) }),
 
   // Vitals schedules
   listVitalsSchedules: (params?: { encounter_id?: string; due_only?: boolean }) => {
