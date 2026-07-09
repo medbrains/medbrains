@@ -37,6 +37,15 @@ pub struct ManifestLocation {
 }
 
 #[derive(Debug, Serialize)]
+pub struct ManifestStation {
+    pub id: Uuid,
+    pub code: String,
+    pub name: String,
+    pub station_type: String,
+    pub department_id: Option<Uuid>,
+}
+
+#[derive(Debug, Serialize)]
 pub struct AppManifest {
     pub tenant_id: Uuid,
     pub app_variant: Option<String>,
@@ -44,7 +53,33 @@ pub struct AppManifest {
     pub user_id: Uuid,
     pub device: Option<ManifestDevice>,
     pub location: ManifestLocation,
+    pub station: Option<ManifestStation>,
     pub config: serde_json::Value,
+}
+
+async fn resolve_station(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    station_id: Option<Uuid>,
+) -> Result<Option<ManifestStation>, AppError> {
+    let Some(sid) = station_id else {
+        return Ok(None);
+    };
+    let row = sqlx::query_as::<_, (Uuid, String, String, String, Option<Uuid>)>(
+        "SELECT id, code, name, station_type, department_id FROM stations \
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(sid)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(row.map(|(id, code, name, station_type, department_id)| ManifestStation {
+        id,
+        code,
+        name,
+        station_type,
+        department_id,
+    }))
 }
 
 async fn resolve_dept_label(
@@ -83,21 +118,33 @@ pub async fn get_app_manifest(
             Option<String>,
             serde_json::Value,
             chrono::DateTime<chrono::Utc>,
+            Option<Uuid>,
         );
         let row: Option<DeviceRow> = sqlx::query_as(
-            "SELECT app_variant, label, department_id, location_label, location_scope, paired_at \
+            "SELECT app_variant, label, department_id, location_label, location_scope, paired_at, \
+                    station_id \
              FROM paired_devices WHERE id = $1 AND tenant_id = $2 AND revoked_at IS NULL",
         )
         .bind(device_id)
         .bind(claims.tenant_id)
         .fetch_optional(&mut *tx)
         .await?;
-        let Some((app_variant, label, department_id, location_label, location_scope, paired_at)) =
-            row
+        let Some((
+            app_variant,
+            label,
+            department_id,
+            location_label,
+            location_scope,
+            paired_at,
+            station_id,
+        )) = row
         else {
             return Err(AppError::NotFound);
         };
-        let dept_label = resolve_dept_label(&mut tx, &claims.tenant_id, department_id).await?;
+        let station = resolve_station(&mut tx, &claims.tenant_id, station_id).await?;
+        // A device with no explicit department inherits its station's department.
+        let effective_dept = department_id.or(station.as_ref().and_then(|s| s.department_id));
+        let dept_label = resolve_dept_label(&mut tx, &claims.tenant_id, effective_dept).await?;
         tx.commit().await?;
         return Ok(Json(AppManifest {
             tenant_id: claims.tenant_id,
@@ -106,10 +153,13 @@ pub async fn get_app_manifest(
             user_id: claims.sub,
             device: Some(ManifestDevice { id: device_id, label, paired_at }),
             location: ManifestLocation {
-                department_id,
-                label: location_label.or(dept_label),
+                department_id: effective_dept,
+                label: location_label
+                    .or_else(|| station.as_ref().map(|s| s.name.clone()))
+                    .or(dept_label),
                 scope: location_scope,
             },
+            station,
             config: serde_json::json!({}),
         }));
     }
@@ -129,6 +179,7 @@ pub async fn get_app_manifest(
             label: dept_label,
             scope: serde_json::json!({}),
         },
+        station: None,
         config: serde_json::json!({}),
     }))
 }

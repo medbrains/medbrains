@@ -4496,6 +4496,26 @@ export const mrdStorageCreateSchema = z.object({
 
 export type MrdStorageCreateInput = z.infer<typeof mrdStorageCreateSchema>;
 
+export const stationCreateSchema = z.object({
+  code: requiredTrimmed("Station code is required", 60),
+  name: requiredTrimmed("Station name is required", 200),
+  station_type: z.string().min(1),
+  department_id: z.string().nullable().optional(),
+});
+
+export type StationCreateInput = z.infer<typeof stationCreateSchema>;
+
+export const deviceMintTokenSchema = z.object({
+  intended_device_label: requiredTrimmed("Device label is required", 120),
+  intended_app_variant: requiredTrimmed("App variant is required", 60),
+  station_id: z.string().nullable().optional(),
+  department_id: z.string().nullable().optional(),
+  location_label: z.string().max(200).optional(),
+  notes: z.string().max(500).optional(),
+});
+
+export type DeviceMintTokenInput = z.infer<typeof deviceMintTokenSchema>;
+
 export const mrdRecordTypeValues = [
   "opd",
   "ipd",

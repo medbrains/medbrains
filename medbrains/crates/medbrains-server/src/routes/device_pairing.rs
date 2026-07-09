@@ -66,6 +66,8 @@ pub struct MintTokenRequest {
     pub department_id: Option<Uuid>,
     pub location_label: Option<String>,
     pub location_scope: Option<serde_json::Value>,
+    /// First-class station this device sits at (nurse station, OPD counter, kiosk point).
+    pub station_id: Option<Uuid>,
 }
 
 /// A valid surface code: a legacy coarse variant, or `<Factor>` / `<Factor>-<Name>` where Factor is
@@ -112,8 +114,8 @@ pub async fn mint_pairing_token(
         "INSERT INTO device_pairing_tokens (\
             tenant_id, token, expires_at, issued_by_user_id, \
             intended_device_label, intended_app_variant, intended_user_id, notes, \
-            department_id, location_label, location_scope) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
+            department_id, location_label, location_scope, station_id) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) \
          RETURNING id, expires_at",
     )
     .bind(claims.tenant_id)
@@ -127,6 +129,7 @@ pub async fn mint_pairing_token(
     .bind(body.department_id)
     .bind(body.location_label.as_deref())
     .bind(&location_scope)
+    .bind(body.station_id)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -195,11 +198,12 @@ pub async fn pair_device(
         Option<Uuid>,
         Option<String>,
         serde_json::Value,
+        Option<Uuid>,
     );
     let token_row: Option<PairingTokenRow> = sqlx::query_as(
         "SELECT id, tenant_id, intended_device_label, intended_app_variant, \
                 intended_user_id, issued_by_user_id, expires_at, used_at, \
-                department_id, location_label, location_scope \
+                department_id, location_label, location_scope, station_id \
          FROM device_pairing_tokens WHERE token = $1",
     )
     .bind(&body.token)
@@ -218,6 +222,7 @@ pub async fn pair_device(
         department_id,
         location_label,
         location_scope,
+        station_id,
     )) = token_row
     else {
         return Err(AppError::NotFound);
@@ -269,8 +274,8 @@ pub async fn pair_device(
         "INSERT INTO paired_devices (\
             tenant_id, label, app_variant, cert_fingerprint, cert_pem, \
             issued_to_user_id, paired_via_token_id, \
-            department_id, location_label, location_scope) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) \
+            department_id, location_label, location_scope, station_id) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
          RETURNING id",
     )
     .bind(tenant_id)
@@ -283,6 +288,7 @@ pub async fn pair_device(
     .bind(department_id)
     .bind(location_label.as_deref())
     .bind(&location_scope)
+    .bind(station_id)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -335,6 +341,8 @@ pub struct PairedDeviceRow {
     pub issued_to_user_id: Option<Uuid>,
     pub department_id: Option<Uuid>,
     pub location_label: Option<String>,
+    pub station_id: Option<Uuid>,
+    pub station_name: Option<String>,
     pub paired_at: DateTime<Utc>,
     pub last_seen_at: Option<DateTime<Utc>>,
     pub revoked_at: Option<DateTime<Utc>>,
@@ -350,11 +358,13 @@ pub async fn list_paired_devices(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, PairedDeviceRow>(
-        "SELECT id, label, app_variant, cert_fingerprint, issued_to_user_id, \
-                department_id, location_label, paired_at, last_seen_at, revoked_at \
-         FROM paired_devices \
-         WHERE tenant_id = $1 \
-         ORDER BY paired_at DESC LIMIT 5000",
+        "SELECT pd.id, pd.label, pd.app_variant, pd.cert_fingerprint, pd.issued_to_user_id, \
+                pd.department_id, pd.location_label, pd.station_id, s.name AS station_name, \
+                pd.paired_at, pd.last_seen_at, pd.revoked_at \
+         FROM paired_devices pd \
+         LEFT JOIN stations s ON s.id = pd.station_id \
+         WHERE pd.tenant_id = $1 \
+         ORDER BY pd.paired_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

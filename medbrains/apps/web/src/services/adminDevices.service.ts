@@ -22,4 +22,9 @@ export const adminDevicesService = {
   listPairedDevices: () => api.listPairedDevices(),
   mintDevicePairingToken: (data: MintDevicePairingTokenInput) => api.mintDevicePairingToken(data),
   revokePairedDevice: (id: string, reason?: string) => api.revokePairedDevice(id, reason),
+  listStations: () => api.listStations(),
+  createStation: (data: Parameters<typeof api.createStation>[0]) => api.createStation(data),
+  updateStation: (id: string, data: Parameters<typeof api.updateStation>[1]) =>
+    api.updateStation(id, data),
+  deleteStation: (id: string) => api.deleteStation(id),
 };

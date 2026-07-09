@@ -1640,6 +1640,7 @@ import type {
   StaffLocationAssignment,
   StateFormularyRow,
   StateScheme,
+  Station,
   StationHandoff,
   StatutoryRecord,
   StipendPaymentAdvicePrintData,
@@ -14892,6 +14893,7 @@ export const api = {
     department_id?: string;
     location_label?: string;
     location_scope?: Record<string, unknown>;
+    station_id?: string;
   }) =>
     request<{
       id: string;
@@ -14904,6 +14906,27 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  listStations: () => request<Station[]>("/stations"),
+  createStation: (data: {
+    department_id?: string;
+    code: string;
+    name: string;
+    station_type?: string;
+    location_scope?: Record<string, unknown>;
+  }) => request<Station>("/stations", { method: "POST", body: JSON.stringify(data) }),
+  updateStation: (
+    id: string,
+    data: {
+      department_id?: string;
+      name?: string;
+      station_type?: string;
+      location_scope?: Record<string, unknown>;
+      is_active?: boolean;
+    },
+  ) => request<Station>(`/stations/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteStation: (id: string) =>
+    request<{ deleted: boolean }>(`/stations/${id}`, { method: "DELETE" }),
 
   getAppManifest: (params?: { device_id?: string; variant?: string }) => {
     const qs = new URLSearchParams();
@@ -14923,6 +14946,8 @@ export const api = {
         issued_to_user_id: string | null;
         department_id: string | null;
         location_label: string | null;
+        station_id: string | null;
+        station_name: string | null;
         paired_at: string;
         last_seen_at: string | null;
         revoked_at: string | null;

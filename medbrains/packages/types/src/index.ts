@@ -3483,8 +3483,40 @@ export interface AppManifest {
     label: string | null;
     scope: Record<string, unknown>;
   };
+  station: {
+    id: string;
+    code: string;
+    name: string;
+    station_type: string;
+    department_id: string | null;
+  } | null;
   config: Record<string, unknown>;
 }
+
+/** A station master — the concrete place a device/app instance sits. */
+export interface Station {
+  id: string;
+  department_id: string | null;
+  code: string;
+  name: string;
+  station_type: string;
+  location_scope: Record<string, unknown>;
+  is_active: boolean;
+  created_at: string;
+}
+
+export const STATION_TYPES = [
+  "nurse_station",
+  "opd_counter",
+  "ward_console",
+  "kiosk_point",
+  "billing_counter",
+  "pharmacy_counter",
+  "lab_counter",
+  "reception",
+  "display",
+  "other",
+] as const;
 
 export interface ApproveIndentItemInput {
   item_id: string;

@@ -7,6 +7,7 @@
  * `@medbrains/mobile-shell`) to a real backend.
  */
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Group,
   Loader,
@@ -20,10 +21,18 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { notifications } from "@mantine/notifications";
+import {
+  type DeviceMintTokenInput,
+  deviceMintTokenSchema,
+  type StationCreateInput,
+  stationCreateSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import { P } from "@medbrains/types";
+import { P, STATION_TYPES, type Station } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "@/components";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { Alert, Badge, Button, Table } from "@/components/ui";
@@ -77,13 +86,19 @@ export function PairedDevicesPage() {
   const canMintToken = useHasPermission(P.DEVICES.PAIRING.TOKEN_CREATE);
   const canRevoke = useHasPermission(P.DEVICES.PAIRING.PAIRED_REVOKE);
 
+  const canManageLocations = useHasPermission("admin.settings.locations.create");
   const [mintOpen, { open: openMint, close: closeMint }] = useDisclosure(false);
+  const [stationsOpen, { open: openStations, close: closeStations }] = useDisclosure(false);
   const [tokenResult, setTokenResult] = useState<PairingToken | null>(null);
 
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["paired-devices"],
     queryFn: () => adminDevicesService.listPairedDevices(),
+  });
+  const { data: stations = [] } = useQuery({
+    queryKey: ["stations"],
+    queryFn: () => adminDevicesService.listStations(),
   });
 
   const mintMutation = useMutation({
@@ -113,11 +128,18 @@ export function PairedDevicesPage() {
         title="Paired devices"
         subtitle="Mobile, TV, and vendor devices paired into this tenant via QR + mTLS."
         actions={
-          canMintToken ? (
-            <Button tone="primary" onClick={openMint}>
-              Mint pairing token
-            </Button>
-          ) : undefined
+          <Group gap="sm">
+            {canManageLocations && (
+              <Button tone="secondary" onClick={openStations}>
+                Manage stations
+              </Button>
+            )}
+            {canMintToken && (
+              <Button tone="primary" onClick={openMint}>
+                Mint pairing token
+              </Button>
+            )}
+          </Group>
         }
       />
 
@@ -147,7 +169,7 @@ export function PairedDevicesPage() {
                     <Badge>{row.app_variant}</Badge>
                   </Table.Td>
                   <Table.Td>
-                    <Text size="xs">{row.location_label ?? "—"}</Text>
+                    <Text size="xs">{row.location_label ?? row.station_name ?? "—"}</Text>
                   </Table.Td>
                   <Table.Td>
                     <Tooltip label={row.cert_fingerprint}>
@@ -204,11 +226,16 @@ export function PairedDevicesPage() {
           />
         ) : (
           <MintTokenForm
+            stations={stations}
             busy={mintMutation.isPending}
             error={mintMutation.error instanceof Error ? mintMutation.error.message : null}
             onSubmit={(input) => mintMutation.mutate(input)}
           />
         )}
+      </Modal>
+
+      <Modal opened={stationsOpen} onClose={closeStations} title="Stations" size="lg">
+        <StationsManager />
       </Modal>
     </>
   );
@@ -220,70 +247,270 @@ interface MintFormState {
   notes?: string;
   department_id?: string;
   location_label?: string;
+  station_id?: string;
 }
 
+const MINT_DEFAULTS: DeviceMintTokenInput = {
+  intended_device_label: "",
+  intended_app_variant: "staff",
+  station_id: null,
+  department_id: null,
+  location_label: "",
+  notes: "",
+};
+
 function MintTokenForm({
+  stations,
   busy,
   error,
   onSubmit,
 }: {
+  stations: Station[];
   busy: boolean;
   error: string | null;
   onSubmit: (input: MintFormState) => void;
 }) {
-  const [label, setLabel] = useState("");
-  const [variant, setVariant] = useState<string>("staff");
-  const [departmentId, setDepartmentId] = useState("");
-  const [locationLabel, setLocationLabel] = useState("");
-  const [notes, setNotes] = useState("");
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<DeviceMintTokenInput>({
+    resolver: zodResolver(deviceMintTokenSchema),
+    defaultValues: MINT_DEFAULTS,
+    mode: "onTouched",
+  });
+
+  const submit = handleSubmit((v) =>
+    onSubmit({
+      intended_device_label: v.intended_device_label.trim(),
+      intended_app_variant: v.intended_app_variant,
+      notes: v.notes?.trim() || undefined,
+      department_id: v.department_id || undefined,
+      location_label: v.location_label?.trim() || undefined,
+      station_id: v.station_id || undefined,
+    }),
+  );
 
   return (
     <Stack>
-      <TextInput
-        label="Device label"
-        placeholder="e.g. ICU station 1"
-        value={label}
-        onChange={(e) => setLabel(e.currentTarget.value)}
-        required
+      <Controller
+        control={control}
+        name="intended_device_label"
+        render={({ field }) => (
+          <TextInput
+            label="Device label"
+            placeholder="e.g. ICU station 1"
+            {...field}
+            error={errors.intended_device_label?.message}
+            required
+          />
+        )}
       />
-      <Select
-        label="App variant (surface)"
-        value={variant}
-        onChange={(value) => setVariant(value ?? "staff")}
-        data={SURFACE_OPTIONS}
-        searchable
-        required
+      <Controller
+        control={control}
+        name="intended_app_variant"
+        render={({ field }) => (
+          <Select
+            label="App variant (surface)"
+            data={SURFACE_OPTIONS}
+            searchable
+            required
+            value={field.value}
+            onChange={(value) => field.onChange(value ?? "staff")}
+            error={errors.intended_app_variant?.message}
+          />
+        )}
       />
-      <DepartmentSelect value={departmentId} onChange={setDepartmentId} />
-      <TextInput
-        label="Location label"
-        placeholder="e.g. Reception, Ward 3B, OPD entrance"
-        value={locationLabel}
-        onChange={(e) => setLocationLabel(e.currentTarget.value)}
+      <Controller
+        control={control}
+        name="station_id"
+        render={({ field }) => (
+          <Select
+            label="Station (optional)"
+            placeholder="Bind to a station"
+            data={stations.map((s) => ({ value: s.id, label: `${s.name} (${s.station_type})` }))}
+            clearable
+            searchable
+            value={field.value ?? null}
+            onChange={field.onChange}
+          />
+        )}
       />
-      <Textarea
-        label="Notes"
-        placeholder="Any context for the audit log."
-        value={notes}
-        onChange={(e) => setNotes(e.currentTarget.value)}
+      <Controller
+        control={control}
+        name="department_id"
+        render={({ field }) => (
+          <DepartmentSelect value={field.value ?? ""} onChange={field.onChange} />
+        )}
+      />
+      <Controller
+        control={control}
+        name="location_label"
+        render={({ field }) => (
+          <TextInput
+            label="Location label"
+            placeholder="e.g. Reception, Ward 3B, OPD entrance"
+            {...field}
+            value={field.value ?? ""}
+          />
+        )}
+      />
+      <Controller
+        control={control}
+        name="notes"
+        render={({ field }) => (
+          <Textarea
+            label="Notes"
+            placeholder="Any context for the audit log."
+            {...field}
+            value={field.value ?? ""}
+          />
+        )}
       />
       {error && <Alert tone="danger">{error}</Alert>}
       <Group justify="flex-end">
-        <Button
-          tone="primary"
-          loading={busy}
-          disabled={!label || busy}
-          onClick={() =>
-            onSubmit({
-              intended_device_label: label,
-              intended_app_variant: variant,
-              notes: notes || undefined,
-              department_id: departmentId || undefined,
-              location_label: locationLabel || undefined,
-            })
-          }
-        >
+        <Button tone="primary" loading={busy} onClick={submit}>
           Mint token
+        </Button>
+      </Group>
+    </Stack>
+  );
+}
+
+const STATION_DEFAULTS: StationCreateInput = {
+  code: "",
+  name: "",
+  station_type: "other",
+  department_id: null,
+};
+
+function StationsManager() {
+  const qc = useQueryClient();
+  const { data: stations = [] } = useQuery({
+    queryKey: ["stations"],
+    queryFn: () => adminDevicesService.listStations(),
+  });
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<StationCreateInput>({
+    resolver: zodResolver(stationCreateSchema),
+    defaultValues: STATION_DEFAULTS,
+    mode: "onTouched",
+  });
+
+  const createMut = useMutation({
+    mutationFn: (v: StationCreateInput) =>
+      adminDevicesService.createStation({
+        code: v.code.trim(),
+        name: v.name.trim(),
+        station_type: v.station_type,
+        department_id: v.department_id || undefined,
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["stations"] });
+      reset(STATION_DEFAULTS);
+      notifications.show({ title: "Station created", message: "", color: "success" });
+    },
+    onError: (e: Error) =>
+      notifications.show({ title: "Create failed", message: e.message, color: "danger" }),
+  });
+  const delMut = useMutation({
+    mutationFn: (id: string) => adminDevicesService.deleteStation(id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["stations"] }),
+  });
+
+  const submit = handleSubmit((v) => createMut.mutate(v));
+
+  return (
+    <Stack>
+      <Table withTableBorder striped>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Code</Table.Th>
+            <Table.Th>Name</Table.Th>
+            <Table.Th>Type</Table.Th>
+            <Table.Th />
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {stations.map((s) => (
+            <Table.Tr key={s.id}>
+              <Table.Td>{s.code}</Table.Td>
+              <Table.Td>{s.name}</Table.Td>
+              <Table.Td>
+                <Badge>{s.station_type}</Badge>
+              </Table.Td>
+              <Table.Td>
+                <Button
+                  tone="subtle-danger"
+                  size="xs"
+                  loading={delMut.isPending}
+                  onClick={() => delMut.mutate(s.id)}
+                >
+                  Delete
+                </Button>
+              </Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+
+      <Title order={5}>Add station</Title>
+      <Group align="flex-start" grow>
+        <Controller
+          control={control}
+          name="code"
+          render={({ field }) => (
+            <TextInput
+              label="Code"
+              placeholder="OPD-C3"
+              {...field}
+              error={errors.code?.message}
+              required
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <TextInput
+              label="Name"
+              placeholder="OPD Counter 3"
+              {...field}
+              error={errors.name?.message}
+              required
+            />
+          )}
+        />
+      </Group>
+      <Group align="flex-start" grow>
+        <Controller
+          control={control}
+          name="station_type"
+          render={({ field }) => (
+            <Select
+              label="Type"
+              data={STATION_TYPES.map((t) => ({ value: t, label: t }))}
+              value={field.value}
+              onChange={(v) => field.onChange(v ?? "other")}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="department_id"
+          render={({ field }) => (
+            <DepartmentSelect value={field.value ?? ""} onChange={field.onChange} />
+          )}
+        />
+      </Group>
+      <Group justify="flex-end">
+        <Button tone="primary" loading={createMut.isPending} onClick={submit}>
+          Add station
         </Button>
       </Group>
     </Stack>
