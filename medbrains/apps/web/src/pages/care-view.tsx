@@ -3,6 +3,7 @@ import { useHasPermission } from "@medbrains/stores";
 import type { WardListRow } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
+  IconActivityHeartbeat,
   IconBed,
   IconClipboardList,
   IconHeartbeat,
@@ -17,6 +18,7 @@ import { careViewService } from "@/services/careView.service";
 import { DischargeTrackerTab } from "./care-view/DischargeTrackerTab";
 import { HandoverTab } from "./care-view/HandoverTab";
 import { MyTasksTab } from "./care-view/MyTasksTab";
+import { News2Tab } from "./care-view/News2Tab";
 import { PatientGridTab } from "./care-view/PatientGridTab";
 import { VteTab } from "./care-view/VteTab";
 
@@ -81,6 +83,9 @@ export function CareViewPage() {
           <Tabs.Tab value="vte" leftSection={<IconHeartbeat size={16} />}>
             VTE Risk
           </Tabs.Tab>
+          <Tabs.Tab value="news2" leftSection={<IconActivityHeartbeat size={16} />}>
+            NEWS2
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="grid" pt="md">
@@ -107,6 +112,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="vte" pt="md">
           <VteTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="news2" pt="md">
+          <News2Tab />
         </Tabs.Panel>
       </Tabs>
     </div>

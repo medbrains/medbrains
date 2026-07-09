@@ -3970,6 +3970,30 @@ export interface UpdateEncounterRequest {
   status?: string;
 }
 
+export interface News2Request {
+  respiratory_rate: number;
+  spo2: number;
+  on_oxygen?: boolean;
+  temperature: number;
+  systolic_bp: number;
+  pulse: number;
+  confused_or_worse?: boolean;
+}
+
+export interface News2Result {
+  total: number;
+  respiratory_rate: number;
+  spo2: number;
+  supplemental_o2: number;
+  temperature: number;
+  systolic_bp: number;
+  pulse: number;
+  consciousness: number;
+  any_param_three: boolean;
+  risk: string;
+  response: string;
+}
+
 /** VTE (Padua) risk factors — shared by the create request and the stored assessment. */
 export interface VteRiskFactors {
   active_cancer: boolean;
