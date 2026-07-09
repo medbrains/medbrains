@@ -1961,6 +1961,8 @@ import type {
   VerbalOrderEntry,
   VerifyConsentRequest,
   VerifyConsentResponse,
+  VerifyNewbornIdentityRequest,
+  VerifyNewbornIdentityResult,
   VerifyPaymentRequest,
   VerifyRequest,
   VerifyResponse,
@@ -10110,6 +10112,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  verifyNewbornIdentity: (newbornId: string, data: VerifyNewbornIdentityRequest) =>
+    request<VerifyNewbornIdentityResult>(
+      `/specialty/maternity/newborns/${newbornId}/verify-identity`,
+      { method: "POST", body: JSON.stringify(data) },
+    ),
   listPostnatalRecords: (registrationId: string) =>
     request<PostnatalRecord[]>(`/specialty/maternity/registrations/${registrationId}/postnatal`),
   createPostnatalRecord: (registrationId: string, data: CreatePostnatalRecordRequest) =>

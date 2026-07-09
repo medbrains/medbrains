@@ -5658,6 +5658,10 @@ pub fn build_router(state: AppState) -> Router {
                 .post(specialty_maternity::create_newborn),
         )
         .route(
+            "/api/specialty/maternity/newborns/{newborn_id}/verify-identity",
+            post(specialty_maternity::verify_newborn_identity),
+        )
+        .route(
             "/api/specialty/maternity/registrations/{registration_id}/postnatal",
             get(specialty_maternity::list_postnatal)
                 .post(specialty_maternity::create_postnatal),

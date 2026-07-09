@@ -8,7 +8,7 @@ use medbrains_core::permissions;
 use medbrains_core::specialty::maternity::{
     AncVisit, LaborRecord, MaternityRegistration, NewbornRecord, PostnatalRecord,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
@@ -106,6 +106,8 @@ pub struct CreateNewbornRequest {
     pub nicu_admission_needed: Option<bool>,
     pub nicu_admission_reason: Option<String>,
     pub congenital_anomalies: Option<String>,
+    /// Physical ID band number applied to the newborn (matched to the mother's band).
+    pub id_band_number: Option<String>,
     pub notes: Option<String>,
 }
 
@@ -438,16 +440,32 @@ pub async fn create_newborn(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    // Infant-identity safety: resolve and store the mother from the labor -> maternity registration
+    // chain so every newborn is unambiguously linked to its mother (never a NULL mother_id).
+    let mother_id: Uuid = sqlx::query_scalar(
+        "SELECT mr.patient_id FROM labor_records lr \
+         JOIN maternity_registrations mr ON mr.id = lr.registration_id AND mr.tenant_id = lr.tenant_id \
+         WHERE lr.id = $1 AND lr.tenant_id = $2",
+    )
+    .bind(labor_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| {
+        AppError::BadRequest("labor record has no linked maternity registration / mother".to_owned())
+    })?;
+
     let row = sqlx::query_as::<_, NewbornRecord>(
         "INSERT INTO newborn_records \
          (tenant_id, labor_id, birth_date, gender, weight_gm, length_cm, \
           head_circumference_cm, apgar_1min, apgar_5min, apgar_10min, \
           resuscitation_needed, bcg_given, opv_given, hep_b_given, vitamin_k_given, \
-          nicu_admission_needed, nicu_admission_reason, congenital_anomalies, notes) \
+          nicu_admission_needed, nicu_admission_reason, congenital_anomalies, notes, \
+          mother_id, id_band_number) \
          VALUES ($1, $2, now(), $3, $4, $5, $6, $7, $8, $9, \
                  COALESCE($10, false), COALESCE($11, false), COALESCE($12, false), \
                  COALESCE($13, false), COALESCE($14, false), \
-                 COALESCE($15, false), $16, $17, $18) \
+                 COALESCE($15, false), $16, $17, $18, $19, $20) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -468,11 +486,75 @@ pub async fn create_newborn(
     .bind(&body.nicu_admission_reason)
     .bind(&body.congenital_anomalies)
     .bind(&body.notes)
+    .bind(mother_id)
+    .bind(body.id_band_number.as_deref())
     .fetch_one(&mut *tx)
     .await?;
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VerifyNewbornIdentityRequest {
+    /// UHID scanned from the mother's wristband.
+    pub scanned_mother_uhid: String,
+    /// Optional ID band number scanned from the baby's band.
+    pub scanned_band: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct VerifyNewbornIdentityResult {
+    pub mother_match: bool,
+    /// None when no band was scanned; otherwise whether it matches the recorded band.
+    pub band_match: Option<bool>,
+    pub mother_uhid: Option<String>,
+    pub verified: bool,
+}
+
+/// `POST /api/specialty/maternity/newborns/{newborn_id}/verify-identity` — confirm a baby matches the
+/// mother before feeding, handover or discharge (infant mismatch / abduction prevention).
+pub async fn verify_newborn_identity(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(newborn_id): Path<Uuid>,
+    Json(body): Json<VerifyNewbornIdentityRequest>,
+) -> Result<Json<VerifyNewbornIdentityResult>, AppError> {
+    require_permission(&claims, permissions::specialty::maternity::newborn::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let (mother_id, id_band_number): (Option<Uuid>, Option<String>) = sqlx::query_as(
+        "SELECT mother_id, id_band_number FROM newborn_records WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(newborn_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let mother_uhid: Option<String> = if let Some(mid) = mother_id {
+        sqlx::query_scalar("SELECT uhid FROM patients WHERE id = $1 AND tenant_id = $2")
+            .bind(mid)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+    } else {
+        None
+    };
+    tx.commit().await?;
+
+    let scanned = body.scanned_mother_uhid.trim();
+    let mother_match = mother_uhid.as_deref().is_some_and(|u| u.eq_ignore_ascii_case(scanned));
+    let band_match = body
+        .scanned_band
+        .as_deref()
+        .map(|b| id_band_number.as_deref().is_some_and(|x| x.eq_ignore_ascii_case(b.trim())));
+    // Verified only when the mother matches and, if a band was scanned, the band matches too.
+    let verified = mother_match && band_match != Some(false);
+
+    Ok(Json(VerifyNewbornIdentityResult { mother_match, band_match, mother_uhid, verified }))
 }
 
 // ── Postnatal Records ────────────────────────────────────

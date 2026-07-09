@@ -64,6 +64,71 @@ function toAncRiskCategory(value: string | null): AncRiskCategory | undefined {
   }
 }
 
+function NewbornVerifyDrawer({
+  newbornId,
+  onClose,
+}: {
+  newbornId: string | null;
+  onClose: () => void;
+}) {
+  const [uhid, setUhid] = useState("");
+  const [band, setBand] = useState("");
+  const verify = useMutation({
+    mutationFn: () =>
+      specialtyService.verifyNewbornIdentity(newbornId ?? "", {
+        scanned_mother_uhid: uhid.trim(),
+        scanned_band: band.trim() || undefined,
+      }),
+  });
+  const result = verify.data;
+  return (
+    <Drawer
+      opened={newbornId !== null}
+      onClose={() => {
+        setUhid("");
+        setBand("");
+        verify.reset();
+        onClose();
+      }}
+      title="Verify newborn identity"
+      position="right"
+    >
+      <Stack gap="sm">
+        <Text size="sm" c="dimmed">
+          Scan the mother's wristband UHID (and optionally the baby's ID band) to confirm the baby
+          matches the mother before feeding, handover or discharge.
+        </Text>
+        <TextInput
+          label="Mother UHID"
+          value={uhid}
+          onChange={(e) => setUhid(e.currentTarget.value)}
+        />
+        <TextInput
+          label="Baby ID band (optional)"
+          value={band}
+          onChange={(e) => setBand(e.currentTarget.value)}
+        />
+        <Button
+          tone="primary"
+          loading={verify.isPending}
+          disabled={uhid.trim() === ""}
+          onClick={() => verify.mutate()}
+        >
+          Verify
+        </Button>
+        {result && (
+          <Group>
+            <Badge tone={result.verified ? "success" : "danger"}>
+              {result.verified ? "MATCH — safe to proceed" : "MISMATCH — do not proceed"}
+            </Badge>
+            {result.band_match === false && <Badge tone="danger">Band mismatch</Badge>}
+          </Group>
+        )}
+      </Stack>
+    </Drawer>
+  );
+}
+
 export function MaternityPage() {
   useRequirePermission(P.SPECIALTY.MATERNITY.REGISTRATIONS_LIST);
   const qc = useQueryClient();
@@ -73,6 +138,7 @@ export function MaternityPage() {
   const [regOpen, regHandlers] = useDisclosure(false);
   const [selectedRegId, setSelectedRegId] = useState<string | null>(null);
   const [selectedLaborId, setSelectedLaborId] = useState<string | null>(null);
+  const [verifyNewbornId, setVerifyNewbornId] = useState<string | null>(null);
 
   const { data: registrations = [], isLoading } = useQuery({
     queryKey: ["maternity-regs"],
@@ -293,6 +359,30 @@ export function MaternityPage() {
       label: "Birth Cert #",
       render: (r) => <Text size="sm">{r.birth_certificate_number ?? "—"}</Text>,
     },
+    {
+      key: "mother",
+      label: "Mother",
+      render: (r) =>
+        r.mother_id ? (
+          <PatientNameCell patientId={r.mother_id} showUhid />
+        ) : (
+          <Badge tone="danger">Unlinked</Badge>
+        ),
+    },
+    {
+      key: "band",
+      label: "ID Band",
+      render: (r) => <Text size="sm">{r.id_band_number ?? "—"}</Text>,
+    },
+    {
+      key: "verify",
+      label: "Identity",
+      render: (r) => (
+        <Button tone="secondary" size="xs" onClick={() => setVerifyNewbornId(r.id)}>
+          Verify
+        </Button>
+      ),
+    },
   ];
 
   return (
@@ -470,6 +560,7 @@ export function MaternityPage() {
           </Button>
         </Stack>
       </Drawer>
+      <NewbornVerifyDrawer newbornId={verifyNewbornId} onClose={() => setVerifyNewbornId(null)} />
     </div>
   );
 }

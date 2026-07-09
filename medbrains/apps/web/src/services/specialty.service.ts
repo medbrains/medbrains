@@ -50,6 +50,7 @@ export const specialtyService = {
   listAncVisits: api.listAncVisits,
   listLaborRecords: api.listLaborRecords,
   listNewborns: api.listNewborns,
+  verifyNewbornIdentity: api.verifyNewbornIdentity,
   listPostnatalRecords: api.listPostnatalRecords,
   createMaternityRegistration: api.createMaternityRegistration,
   listSpecialtyTemplates: api.listSpecialtyTemplates,

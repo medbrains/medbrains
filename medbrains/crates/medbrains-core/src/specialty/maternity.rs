@@ -134,6 +134,8 @@ pub struct NewbornRecord {
     pub birth_certificate_number: Option<String>,
     pub congenital_anomalies: Option<String>,
     pub notes: Option<String>,
+    pub mother_id: Option<Uuid>,
+    pub id_band_number: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

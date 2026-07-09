@@ -19020,6 +19020,8 @@ export interface NewbornRecord {
   vaccinations_given: Record<string, unknown> | null;
   nicu_admission_needed: boolean;
   birth_certificate_number: string | null;
+  mother_id: string | null;
+  id_band_number: string | null;
   created_at: string;
 }
 
@@ -19032,6 +19034,19 @@ export interface CreateNewbornRecordRequest {
   vaccinations_given?: Record<string, unknown>;
   nicu_admission_needed?: boolean;
   birth_certificate_number?: string;
+  id_band_number?: string;
+}
+
+export interface VerifyNewbornIdentityRequest {
+  scanned_mother_uhid: string;
+  scanned_band?: string;
+}
+
+export interface VerifyNewbornIdentityResult {
+  mother_match: boolean;
+  band_match: boolean | null;
+  mother_uhid: string | null;
+  verified: boolean;
 }
 
 export interface PostnatalRecord {
