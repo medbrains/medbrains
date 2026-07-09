@@ -3970,6 +3970,35 @@ export interface UpdateEncounterRequest {
   status?: string;
 }
 
+export interface NutritionScreening {
+  id: string;
+  patient_id: string;
+  admission_id: string | null;
+  height_cm: number;
+  weight_kg: number;
+  bmi: number;
+  weight_loss_percent: number;
+  acute_disease_no_intake: boolean;
+  bmi_score: number;
+  weight_loss_score: number;
+  acute_score: number;
+  total_score: number;
+  risk: string;
+  notes: string | null;
+  assessed_by: string | null;
+  created_at: string;
+}
+
+export interface CreateNutritionScreeningRequest {
+  patient_id: string;
+  admission_id?: string | null;
+  height_cm: number;
+  weight_kg: number;
+  weight_loss_percent?: number;
+  acute_disease_no_intake?: boolean;
+  notes?: string | null;
+}
+
 export interface ContrastScreeningRequest {
   patient_id: string;
   prior_contrast_reaction?: string | null;

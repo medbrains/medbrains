@@ -589,6 +589,7 @@ import type {
   CreateNuclearMedSourceRequest,
   CreateNursingAssessmentRequest,
   CreateNursingTaskRequest,
+  CreateNutritionScreeningRequest,
   CreateObservationNoteRequest,
   CreateOccHealthHazardRequest,
   CreateOccScreeningRequest,
@@ -1278,6 +1279,7 @@ import type {
   NuclearMedSource,
   NursingAssessmentPrintData,
   NursingTask,
+  NutritionScreening,
   OAuthAuthorizeResponse,
   OAuthConnection,
   OAuthExchangeRequest,
@@ -14573,6 +14575,13 @@ export const api = {
     request<MeowsResult>("/clinical/meows", { method: "POST", body: JSON.stringify(data) }),
   computePews: (data: PewsRequest) =>
     request<PewsResult>("/clinical/pews", { method: "POST", body: JSON.stringify(data) }),
+  createNutritionScreening: (data: CreateNutritionScreeningRequest) =>
+    request<NutritionScreening>("/clinical/nutrition-screening", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listNutritionScreenings: (patientId: string) =>
+    request<NutritionScreening[]>(`/clinical/nutrition-screenings?patient_id=${patientId}`),
   createSepsisBundle: (data: CreateSepsisBundleRequest) =>
     request<SepsisBundleView>("/clinical/sepsis-bundle", {
       method: "POST",

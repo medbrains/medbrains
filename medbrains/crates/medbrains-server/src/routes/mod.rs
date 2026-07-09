@@ -5,6 +5,7 @@ pub mod app_manifest;
 pub mod med_reconciliation;
 pub mod meows;
 pub mod news2;
+pub mod nutrition_screening;
 pub mod pews;
 pub mod sepsis;
 pub mod sepsis_bundle;
@@ -321,6 +322,14 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/clinical/qsofa", post(sepsis::qsofa_score))
         .route("/api/clinical/meows", post(meows::meows_score))
         .route("/api/clinical/pews", post(pews::pews_score))
+        .route(
+            "/api/clinical/nutrition-screening",
+            post(nutrition_screening::create_nutrition_screening),
+        )
+        .route(
+            "/api/clinical/nutrition-screenings",
+            get(nutrition_screening::list_nutrition_screenings),
+        )
         .route("/api/clinical/sepsis-bundle", post(sepsis_bundle::create_sepsis_bundle))
         .route(
             "/api/clinical/sepsis-bundle/{id}",

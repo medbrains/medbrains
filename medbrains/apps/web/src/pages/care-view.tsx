@@ -13,6 +13,7 @@ import {
   IconLogout,
   IconLungs,
   IconPill,
+  IconSalad,
   IconUserHeart,
   IconVirus,
 } from "@tabler/icons-react";
@@ -28,6 +29,7 @@ import { MedReconciliationTab } from "./care-view/MedReconciliationTab";
 import { MeowsTab } from "./care-view/MeowsTab";
 import { MyTasksTab } from "./care-view/MyTasksTab";
 import { News2Tab } from "./care-view/News2Tab";
+import { NutritionTab } from "./care-view/NutritionTab";
 import { PatientGridTab } from "./care-view/PatientGridTab";
 import { PewsTab } from "./care-view/PewsTab";
 import { SepsisBundleTab } from "./care-view/SepsisBundleTab";
@@ -116,6 +118,9 @@ export function CareViewPage() {
           <Tabs.Tab value="pews" leftSection={<IconBabyBottle size={16} />}>
             PEWS
           </Tabs.Tab>
+          <Tabs.Tab value="nutrition" leftSection={<IconSalad size={16} />}>
+            Nutrition (MUST)
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="grid" pt="md">
@@ -170,6 +175,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="pews" pt="md">
           <PewsTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="nutrition" pt="md">
+          <NutritionTab />
         </Tabs.Panel>
       </Tabs>
     </div>
