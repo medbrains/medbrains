@@ -65,6 +65,7 @@ import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
+import { adminAccessService } from "@/services/adminAccess.service";
 import { bloodBankService } from "@/services/bloodBank.service";
 
 type UpdateBbLookbackPayload = { id: string } & UpdateBbLookbackRequest;
@@ -1566,6 +1567,16 @@ function CreateTransfusionForm({
   const [patientId, setPatientId] = useState("");
   const [componentId, setComponentId] = useState("");
   const [crossmatchId, setCrossmatchId] = useState("");
+  const [patientVerifier, setPatientVerifier] = useState<string | null>(null);
+  const [productVerifier, setProductVerifier] = useState<string | null>(null);
+  const { data: users = [] } = useQuery({
+    queryKey: ["setup-users"],
+    queryFn: () => adminAccessService.listUsers(),
+    staleTime: 300_000,
+  });
+  const userData = users.map((u) => ({ value: u.id, label: u.full_name }));
+  const twoPersonInvalid =
+    !patientVerifier || !productVerifier || patientVerifier === productVerifier;
 
   return (
     <Stack>
@@ -1583,14 +1594,41 @@ function CreateTransfusionForm({
         onChange={(e) => setCrossmatchId(e.currentTarget.value)}
         placeholder="Optional crossmatch UUID"
       />
+      <Select
+        label="Patient verified by (bedside)"
+        placeholder="First verifier"
+        data={userData}
+        value={patientVerifier}
+        onChange={setPatientVerifier}
+        searchable
+        required
+      />
+      <Select
+        label="Blood unit verified by (bedside)"
+        placeholder="Second verifier — must differ"
+        data={userData}
+        value={productVerifier}
+        onChange={setProductVerifier}
+        searchable
+        required
+        error={
+          patientVerifier && productVerifier && patientVerifier === productVerifier
+            ? "The two verifiers must be different people"
+            : undefined
+        }
+      />
       <Button
         tone="primary"
+        disabled={twoPersonInvalid}
         onClick={() => {
-          if (!patientId || !componentId) return;
+          if (!patientId || !componentId || !patientVerifier || !productVerifier) return;
+          if (patientVerifier === productVerifier) return;
           onSubmit({
             patient_id: patientId,
             component_id: componentId,
             crossmatch_id: crossmatchId || undefined,
+            patient_verified_by: patientVerifier,
+            product_verified_by: productVerifier,
           });
         }}
         loading={loading}

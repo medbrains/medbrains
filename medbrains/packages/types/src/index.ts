@@ -9928,6 +9928,8 @@ export interface TransfusionRecord {
   crossmatch_id: string | null;
   administered_by: string;
   verified_by: string | null;
+  patient_verified_by: string | null;
+  product_verified_by: string | null;
   started_at: string;
   completed_at: string | null;
   volume_transfused_ml: number | null;
@@ -10022,6 +10024,8 @@ export interface CreateTransfusionRequest {
   patient_id: string;
   component_id: string;
   crossmatch_id?: string;
+  patient_verified_by: string;
+  product_verified_by: string;
 }
 
 export interface RecordReactionRequest {

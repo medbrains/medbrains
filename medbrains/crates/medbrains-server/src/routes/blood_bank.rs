@@ -116,6 +116,9 @@ pub struct CreateTransfusionRequest {
     pub patient_id: Uuid,
     pub component_id: Uuid,
     pub crossmatch_id: Option<Uuid>,
+    /// The two independent bedside verifiers (NABH/AABB two-person check).
+    pub patient_verified_by: Uuid,
+    pub product_verified_by: Uuid,
 }
 
 #[derive(Debug, Deserialize)]
@@ -612,6 +615,15 @@ pub async fn create_transfusion(
 ) -> Result<Json<TransfusionRecord>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::CREATE)?;
 
+    // NABH/AABB two-person bedside check: two DIFFERENT qualified staff must verify identity + unit.
+    if body.patient_verified_by == body.product_verified_by {
+        return Err(AppError::BadRequest(
+            "Two different staff must independently verify the patient and the blood unit at the \
+             bedside before transfusion."
+                .to_owned(),
+        ));
+    }
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -662,8 +674,9 @@ pub async fn create_transfusion(
 
     let record = sqlx::query_as::<_, TransfusionRecord>(
         "INSERT INTO transfusion_records \
-         (tenant_id, patient_id, component_id, crossmatch_id, administered_by) \
-         VALUES ($1, $2, $3, $4, $5) \
+         (tenant_id, patient_id, component_id, crossmatch_id, administered_by, \
+          patient_verified_by, product_verified_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -671,6 +684,8 @@ pub async fn create_transfusion(
     .bind(body.component_id)
     .bind(body.crossmatch_id)
     .bind(claims.sub)
+    .bind(body.patient_verified_by)
+    .bind(body.product_verified_by)
     .fetch_one(&mut *tx)
     .await?;
 

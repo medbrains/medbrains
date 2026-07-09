@@ -160,6 +160,8 @@ pub struct TransfusionRecord {
     pub crossmatch_id: Option<Uuid>,
     pub administered_by: Uuid,
     pub verified_by: Option<Uuid>,
+    pub patient_verified_by: Option<Uuid>,
+    pub product_verified_by: Option<Uuid>,
     pub started_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
     pub volume_transfused_ml: Option<i32>,
