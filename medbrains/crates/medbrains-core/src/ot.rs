@@ -259,6 +259,7 @@ pub struct OtAnesthesiaRecord {
     pub blood_products: serde_json::Value,
     pub adverse_events: serde_json::Value,
     pub complications: Option<String>,
+    pub fasting_override_reason: Option<String>,
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

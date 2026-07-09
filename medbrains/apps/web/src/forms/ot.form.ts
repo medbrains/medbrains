@@ -146,6 +146,7 @@ export const DEFAULT_OT_ANESTHESIA_RECORD_FORM_VALUES: OtAnesthesiaRecordFormInp
   intubation_time: "",
   airway_details: "",
   drugs_administered: "",
+  fasting_override_reason: "",
   notes: "",
 };
 
@@ -321,6 +322,7 @@ export function toCreateAnesthesiaRecordRequest(
     intubation_time: optionalTextFromFormValue(values.intubation_time),
     airway_details: airwayDetails ? { notes: airwayDetails } : undefined,
     drugs_administered: optionalSingleItemList(values.drugs_administered),
+    fasting_override_reason: optionalTextFromFormValue(values.fasting_override_reason),
     notes: optionalTextFromFormValue(values.notes),
   };
 }

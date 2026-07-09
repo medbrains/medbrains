@@ -3998,6 +3998,7 @@ export const otAnesthesiaRecordFormSchema = z.object({
   intubation_time: z.string(),
   airway_details: z.string(),
   drugs_administered: z.string(),
+  fasting_override_reason: z.string(),
   notes: z.string(),
 });
 

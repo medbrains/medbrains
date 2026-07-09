@@ -220,7 +220,17 @@ pub struct CreateAnesthesiaRequest {
     pub induction_time: Option<chrono::DateTime<Utc>>,
     pub airway_details: Option<serde_json::Value>,
     pub drugs_administered: Option<serde_json::Value>,
+    /// Documented reason for inducing without confirmed fasting (e.g. emergency RSI, full-stomach
+    /// precautions taken). Required when induction proceeds and pre-op fasting isn't confirmed.
+    pub fasting_override_reason: Option<String>,
     pub notes: Option<String>,
+}
+
+/// Pre-anaesthesia fasting gate: an elective induction should not proceed unless fasting is confirmed
+/// on the pre-op assessment. An emergency induction is allowed only with a documented override reason.
+fn fasting_induction_blocked(fasting_confirmed: bool, override_reason: Option<&str>) -> bool {
+    let documented = override_reason.is_some_and(|r| !r.trim().is_empty());
+    !(fasting_confirmed || documented)
 }
 
 #[derive(Debug, Deserialize)]
@@ -1818,14 +1828,37 @@ pub async fn create_anesthesia(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // Pre-anaesthesia fasting (NPO) gate: don't induce a non-fasted patient (aspiration risk) unless
+    // an emergency override is documented. Only applies when an induction time is being recorded.
+    if body.induction_time.is_some() {
+        let fasting_confirmed: bool = sqlx::query_scalar::<_, Option<bool>>(
+            "SELECT fasting_status FROM ot_preop_assessments \
+             WHERE booking_id = $1 AND tenant_id = $2",
+        )
+        .bind(booking_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .flatten()
+        .unwrap_or(false);
+        if fasting_induction_blocked(fasting_confirmed, body.fasting_override_reason.as_deref()) {
+            return Err(AppError::BadRequest(
+                "Anaesthesia induction requires confirmed pre-operative fasting (NPO). Confirm \
+                 fasting on the pre-op assessment, or document an emergency override reason."
+                    .to_owned(),
+            ));
+        }
+    }
+
     let empty = serde_json::json!([]);
     let row = sqlx::query_as::<_, OtAnesthesiaRecord>(
         "INSERT INTO ot_anesthesia_records \
            (tenant_id, booking_id, anesthetist_id, anesthesia_type, asa_class, \
             induction_time, airway_details, drugs_administered, \
-            monitoring_events, fluids_given, blood_products, adverse_events, notes) \
+            monitoring_events, fluids_given, blood_products, adverse_events, \
+            fasting_override_reason, notes) \
          VALUES ($1, $2, $3, $4::anesthesia_type, $5::asa_classification, \
-                 $6, $7, $8, $9, $10, $11, $12, $13) \
+                 $6, $7, $8, $9, $10, $11, $12, $13, $14) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -1844,6 +1877,7 @@ pub async fn create_anesthesia(
     .bind(&empty)
     .bind(&empty)
     .bind(&empty)
+    .bind(body.fasting_override_reason.as_deref())
     .bind(&body.notes)
     .fetch_one(&mut *tx)
     .await?;
@@ -2396,5 +2430,30 @@ mod count_gate_tests {
     #[test]
     fn blank_action_does_not_count_as_documented() {
         assert!(count_closure_blocked(Some(false), Some(true), Some("   ")));
+    }
+}
+
+#[cfg(test)]
+mod fasting_gate_tests {
+    use super::fasting_induction_blocked;
+
+    #[test]
+    fn confirmed_fasting_allows_induction() {
+        assert!(!fasting_induction_blocked(true, None));
+    }
+
+    #[test]
+    fn unconfirmed_fasting_without_override_blocks() {
+        assert!(fasting_induction_blocked(false, None));
+    }
+
+    #[test]
+    fn documented_override_allows_induction() {
+        assert!(!fasting_induction_blocked(false, Some("Emergency RSI, cricoid pressure applied")));
+    }
+
+    #[test]
+    fn blank_override_does_not_count() {
+        assert!(fasting_induction_blocked(false, Some("  ")));
     }
 }

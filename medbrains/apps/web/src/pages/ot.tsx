@@ -2003,11 +2003,13 @@ function AnesthesiaTab({ bookingId }: { bookingId: string }) {
     control,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<OtAnesthesiaRecordFormInput>({
     resolver: zodResolver(otAnesthesiaRecordFormSchema),
     defaultValues: DEFAULT_OT_ANESTHESIA_RECORD_FORM_VALUES,
   });
+  const inductionTime = watch("induction_time");
 
   const createMutation = useMutation({
     mutationFn: (values: OtAnesthesiaRecordFormInput) =>
@@ -2017,7 +2019,8 @@ function AnesthesiaTab({ bookingId }: { bookingId: string }) {
       toast.success("Anesthesia record created", { title: "Saved" });
       reset(DEFAULT_OT_ANESTHESIA_RECORD_FORM_VALUES);
     },
-    onError: () => toast.error("Failed to save anesthesia record", { title: "Error" }),
+    onError: (e: Error) =>
+      toast.error(e.message || "Failed to save anesthesia record", { title: "Error" }),
   });
 
   if (isLoading) return <Text c="dimmed">Loading...</Text>;
@@ -2096,6 +2099,20 @@ function AnesthesiaTab({ bookingId }: { bookingId: string }) {
         name="induction_time"
         render={({ field }) => <TextInput label="Induction Time (ISO)" {...field} />}
       />
+      {inductionTime.trim() !== "" && (
+        <Controller
+          control={control}
+          name="fasting_override_reason"
+          render={({ field }) => (
+            <Textarea
+              label="Fasting override reason (emergency only)"
+              description="Induction requires confirmed pre-op fasting (NPO). If fasting isn't confirmed, an emergency override reason is required — e.g. emergency RSI with aspiration precautions."
+              placeholder="e.g. Emergency laparotomy — RSI with cricoid pressure, full-stomach precautions."
+              {...field}
+            />
+          )}
+        />
+      )}
       <Controller
         control={control}
         name="intubation_time"

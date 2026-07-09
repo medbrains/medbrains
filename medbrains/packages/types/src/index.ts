@@ -9844,6 +9844,7 @@ export interface OtAnesthesiaRecord {
   blood_products: unknown;
   adverse_events: unknown;
   complications: string | null;
+  fasting_override_reason: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -10028,6 +10029,7 @@ export interface CreateAnesthesiaRecordRequest {
   intubation_time?: string;
   airway_details?: unknown;
   drugs_administered?: unknown;
+  fasting_override_reason?: string;
   notes?: string;
 }
 export interface UpdateAnesthesiaRecordRequest {
