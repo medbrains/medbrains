@@ -3970,6 +3970,58 @@ export interface UpdateEncounterRequest {
   status?: string;
 }
 
+export interface SepsisBundle {
+  id: string;
+  patient_id: string;
+  admission_id: string | null;
+  recognised_at: string;
+  fluids_indicated: boolean;
+  initial_lactate: number | null;
+  lactate_measured_at: string | null;
+  blood_cultures_at: string | null;
+  antibiotics_at: string | null;
+  fluids_started_at: string | null;
+  vasopressors_at: string | null;
+  bundle_compliant: boolean;
+  notes: string | null;
+  recorded_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SepsisBundleElement {
+  key: string;
+  label: string;
+  done: boolean;
+  on_time: boolean;
+  required: boolean;
+}
+
+export interface SepsisBundleView {
+  bundle: SepsisBundle;
+  elements: SepsisBundleElement[];
+}
+
+export interface CreateSepsisBundleRequest {
+  patient_id: string;
+  admission_id?: string | null;
+  recognised_at?: string;
+  fluids_indicated?: boolean;
+  initial_lactate?: number | null;
+  notes?: string | null;
+}
+
+export interface UpdateSepsisBundleRequest {
+  mark_lactate?: boolean;
+  mark_cultures?: boolean;
+  mark_antibiotics?: boolean;
+  mark_fluids?: boolean;
+  mark_vasopressors?: boolean;
+  fluids_indicated?: boolean;
+  initial_lactate?: number | null;
+  notes?: string | null;
+}
+
 export interface PewsRequest {
   behaviour: number;
   cardiovascular: number;

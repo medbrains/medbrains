@@ -5,6 +5,7 @@ pub mod meows;
 pub mod news2;
 pub mod pews;
 pub mod sepsis;
+pub mod sepsis_bundle;
 pub mod stations;
 pub mod vte;
 pub mod admin;
@@ -317,6 +318,12 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/clinical/qsofa", post(sepsis::qsofa_score))
         .route("/api/clinical/meows", post(meows::meows_score))
         .route("/api/clinical/pews", post(pews::pews_score))
+        .route("/api/clinical/sepsis-bundle", post(sepsis_bundle::create_sepsis_bundle))
+        .route(
+            "/api/clinical/sepsis-bundle/{id}",
+            patch(sepsis_bundle::update_sepsis_bundle),
+        )
+        .route("/api/clinical/sepsis-bundles", get(sepsis_bundle::list_sepsis_bundles))
         .route("/api/vte-assessments", post(vte::create_vte_assessment))
         .route(
             "/api/patients/{patient_id}/vte-assessments",

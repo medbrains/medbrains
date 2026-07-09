@@ -8,6 +8,7 @@ import {
   IconBabyCarriage,
   IconBed,
   IconClipboardList,
+  IconDroplet,
   IconHeartbeat,
   IconLogout,
   IconUserHeart,
@@ -25,6 +26,7 @@ import { MyTasksTab } from "./care-view/MyTasksTab";
 import { News2Tab } from "./care-view/News2Tab";
 import { PatientGridTab } from "./care-view/PatientGridTab";
 import { PewsTab } from "./care-view/PewsTab";
+import { SepsisBundleTab } from "./care-view/SepsisBundleTab";
 import { SepsisTab } from "./care-view/SepsisTab";
 import { VteTab } from "./care-view/VteTab";
 
@@ -95,6 +97,9 @@ export function CareViewPage() {
           <Tabs.Tab value="sepsis" leftSection={<IconVirus size={16} />}>
             Sepsis (qSOFA)
           </Tabs.Tab>
+          <Tabs.Tab value="sepsis-bundle" leftSection={<IconDroplet size={16} />}>
+            Sepsis Bundle
+          </Tabs.Tab>
           <Tabs.Tab value="meows" leftSection={<IconBabyCarriage size={16} />}>
             MEOWS
           </Tabs.Tab>
@@ -135,6 +140,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="sepsis" pt="md">
           <SepsisTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="sepsis-bundle" pt="md">
+          <SepsisBundleTab />
         </Tabs.Panel>
 
         <Tabs.Panel value="meows" pt="md">

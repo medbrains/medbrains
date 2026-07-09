@@ -692,6 +692,7 @@ import type {
   CreateSecurityPatientTagRequest,
   CreateSecurityZoneRequest,
   CreateSensitivePatientRequest,
+  CreateSepsisBundleRequest,
   CreateShiftRequest,
   CreateSpecialtyRecordRequest,
   CreateSpecialtyTemplateRequest,
@@ -1618,6 +1619,7 @@ import type {
   SensitivePatient,
   SensitivePatientSummary,
   SeoSetting,
+  SepsisBundleView,
   SequenceRow,
   ServiceBondAgreementPrintData,
   ServiceRow,
@@ -1900,6 +1902,7 @@ import type {
   UpdateSecurityCameraRequest,
   UpdateSecurityIncidentRequest,
   UpdateSecurityZoneRequest,
+  UpdateSepsisBundleRequest,
   UpdateShiftRequest,
   UpdateSsoProviderRequest,
   UpdateStoreCatalogRequest,
@@ -14555,6 +14558,18 @@ export const api = {
     request<MeowsResult>("/clinical/meows", { method: "POST", body: JSON.stringify(data) }),
   computePews: (data: PewsRequest) =>
     request<PewsResult>("/clinical/pews", { method: "POST", body: JSON.stringify(data) }),
+  createSepsisBundle: (data: CreateSepsisBundleRequest) =>
+    request<SepsisBundleView>("/clinical/sepsis-bundle", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateSepsisBundle: (id: string, data: UpdateSepsisBundleRequest) =>
+    request<SepsisBundleView>(`/clinical/sepsis-bundle/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+  listSepsisBundles: (patientId: string) =>
+    request<SepsisBundleView[]>(`/clinical/sepsis-bundles?patient_id=${patientId}`),
 
   // Vitals schedules
   listVitalsSchedules: (params?: { encounter_id?: string; due_only?: boolean }) => {
