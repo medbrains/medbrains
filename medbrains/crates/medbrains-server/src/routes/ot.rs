@@ -936,6 +936,33 @@ pub async fn get_preop(
     Ok(Json(row))
 }
 
+/// Safe-surgery guard: `blood_group_confirmed` may only be set true when the booking's patient
+/// actually has a lab-verified blood group on file — not merely attested on the pre-op form.
+async fn assert_blood_group_on_file(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    booking_id: Uuid,
+) -> Result<(), AppError> {
+    let ok = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (SELECT 1 FROM ot_bookings b JOIN patients p ON p.id = b.patient_id \
+         WHERE b.id = $1 AND b.tenant_id = $2 \
+           AND p.blood_group IS NOT NULL AND p.blood_group_verified)",
+    )
+    .bind(booking_id)
+    .bind(tenant_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    if ok {
+        Ok(())
+    } else {
+        Err(AppError::BadRequest(
+            "Cannot confirm blood group — the patient has no lab-verified blood group on file. \
+             Record and verify the blood group first."
+                .to_owned(),
+        ))
+    }
+}
+
 pub async fn create_preop(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -946,6 +973,10 @@ pub async fn create_preop(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    if body.blood_group_confirmed.unwrap_or(false) {
+        assert_blood_group_on_file(&mut tx, &claims.tenant_id, booking_id).await?;
+    }
 
     let empty = serde_json::json!({});
     let row = sqlx::query_as::<_, OtPreopAssessment>(
@@ -992,6 +1023,10 @@ pub async fn update_preop(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    if body.blood_group_confirmed == Some(true) {
+        assert_blood_group_on_file(&mut tx, &claims.tenant_id, booking_id).await?;
+    }
 
     let row = sqlx::query_as::<_, OtPreopAssessment>(
         "UPDATE ot_preop_assessments SET \
