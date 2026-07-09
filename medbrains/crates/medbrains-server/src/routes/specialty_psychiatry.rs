@@ -343,19 +343,41 @@ pub async fn create_ect_session(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    // MHCA 2017: ECT legally requires informed consent. `consent_obtained` no longer silently
+    // defaults to true, and when claimed it must be backed by a signed consent record on file.
+    let consent_claimed = body.consent_obtained.unwrap_or(false);
+    if consent_claimed {
+        let has_signed = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS (SELECT 1 FROM psych_patients pp \
+             JOIN procedure_consents pc ON pc.patient_id = pp.patient_id AND pc.tenant_id = pp.tenant_id \
+             WHERE pp.id = $1 AND pp.tenant_id = $2 AND pc.status = 'signed')",
+        )
+        .bind(psych_patient_id)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !has_signed {
+            return Err(AppError::BadRequest(
+                "Cannot record consent for ECT — no signed informed-consent record is on file for \
+                 this patient. Capture consent first (Mental Healthcare Act 2017)."
+                    .to_owned(),
+            ));
+        }
+    }
+
     let row = sqlx::query_as::<_, PsychEctRegister>(
         "INSERT INTO psych_ect_register \
          (tenant_id, psych_patient_id, session_number, consent_obtained, \
           laterality, stimulus_dose, seizure_duration_sec, anesthetic, \
           muscle_relaxant, performed_by, anesthetist_id, complications, notes) \
-         VALUES ($1, $2, $3, COALESCE($4, true), $5::ect_laterality, \
+         VALUES ($1, $2, $3, $4, $5::ect_laterality, \
                  $6, $7, $8, $9, $10, $11, $12, $13) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(psych_patient_id)
     .bind(body.session_number)
-    .bind(body.consent_obtained)
+    .bind(consent_claimed)
     .bind(&body.laterality)
     .bind(body.stimulus_dose)
     .bind(body.seizure_duration_sec)
