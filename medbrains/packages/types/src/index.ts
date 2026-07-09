@@ -6551,6 +6551,8 @@ export interface LabCriticalAlert {
   notified_at: string | null;
   acknowledged_by: string | null;
   acknowledged_at: string | null;
+  readback_value: string | null;
+  readback_verified: boolean;
   created_at: string;
 }
 

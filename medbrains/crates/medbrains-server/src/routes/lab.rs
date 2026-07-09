@@ -1908,25 +1908,59 @@ pub async fn list_critical_alerts(
     Ok(Json(rows))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct AcknowledgeCriticalAlertRequest {
+    /// The value the clinician reads back — must match the reported result (NABL closed-loop).
+    pub readback_value: String,
+}
+
 pub async fn acknowledge_critical_alert(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(alert_id): Path<Uuid>,
+    Json(body): Json<AcknowledgeCriticalAlertRequest>,
 ) -> Result<Json<LabCriticalAlert>, AppError> {
     require_permission(&claims, permissions::lab::results::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let existing = sqlx::query_as::<_, LabCriticalAlert>(
+        "SELECT * FROM lab_critical_alerts \
+         WHERE id = $1 AND tenant_id = $2 AND acknowledged_at IS NULL FOR UPDATE",
+    )
+    .bind(alert_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    // NABL read-back: the acknowledging clinician must re-state the exact reported value.
+    let readback = body.readback_value.trim();
+    if readback.is_empty() {
+        return Err(AppError::BadRequest(
+            "Read-back value is required to acknowledge a critical result.".to_owned(),
+        ));
+    }
+    if !readback.eq_ignore_ascii_case(existing.value.trim()) {
+        return Err(AppError::BadRequest(format!(
+            "Read-back mismatch — you entered '{readback}' but the reported result is '{}'. \
+             Confirm the value before acknowledging.",
+            existing.value.trim()
+        )));
+    }
+
     let alert = sqlx::query_as::<_, LabCriticalAlert>(
         "UPDATE lab_critical_alerts SET \
-         acknowledged_by = $1, acknowledged_at = now() \
+         acknowledged_by = $1, acknowledged_at = now(), \
+         readback_value = $4, readback_verified = true \
          WHERE id = $2 AND tenant_id = $3 AND acknowledged_at IS NULL \
          RETURNING *",
     )
     .bind(claims.sub)
     .bind(alert_id)
     .bind(claims.tenant_id)
+    .bind(readback)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;

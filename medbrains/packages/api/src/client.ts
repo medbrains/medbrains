@@ -4940,8 +4940,11 @@ export const api = {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
     return request<LabCriticalAlert[]>(`/lab/critical-alerts${qs}`);
   },
-  acknowledgeCriticalAlert: (alertId: string) =>
-    request<LabCriticalAlert>(`/lab/critical-alerts/${alertId}/acknowledge`, { method: "PUT" }),
+  acknowledgeCriticalAlert: (alertId: string, data: { readback_value: string }) =>
+    request<LabCriticalAlert>(`/lab/critical-alerts/${alertId}/acknowledge`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   // Lab Phase 2 — Report Status
   updateLabReportStatus: (orderId: string, data: UpdateReportStatusRequest) =>

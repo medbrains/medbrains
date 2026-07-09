@@ -141,7 +141,7 @@ import { LabTestSearchSelect } from "@/components/LabTestSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
 import {
   labB2bClientTypeOptions,
   labBethesdaCategoryOptions,
@@ -953,9 +953,18 @@ function LabOrderDetail({
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] }),
   });
+  const [ackAlert, setAckAlert] = useState<LabCriticalAlert | null>(null);
+  const [readback, setReadback] = useState("");
   const acknowledgeMutation = useMutation({
-    mutationFn: (alertId: string) => labService.acknowledgeCriticalAlert(alertId),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["lab-critical-alerts"] }),
+    mutationFn: (vars: { alertId: string; readback_value: string }) =>
+      labService.acknowledgeCriticalAlert(vars.alertId, { readback_value: vars.readback_value }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["lab-critical-alerts"] });
+      setAckAlert(null);
+      setReadback("");
+    },
+    onError: (e: Error) =>
+      notifications.show({ title: "Read-back", message: e.message, color: "danger" }),
   });
   const amendMutation = useMutation({
     mutationFn: (data: AmendResultRequest) => labService.amendLabResult(orderId, data),
@@ -1055,13 +1064,51 @@ function LabOrderDetail({
               <Button
                 tone="subtle-danger"
                 size="xs"
-                onClick={() => acknowledgeMutation.mutate(a.id)}
+                onClick={() => {
+                  setReadback("");
+                  setAckAlert(a);
+                }}
               >
                 Acknowledge
               </Button>
             </Group>
           ))}
         </Alert>
+      )}
+
+      {ackAlert && (
+        <Modal
+          opened
+          onClose={() => setAckAlert(null)}
+          title="Acknowledge critical result — read back"
+          size="sm"
+        >
+          <Stack gap="sm">
+            <Text size="sm">
+              Read back the value for <b>{ackAlert.parameter_name}</b> to confirm you received it
+              correctly.
+            </Text>
+            <TextInput
+              label="Read-back value"
+              placeholder="Type the value you were told"
+              value={readback}
+              onChange={(e) => setReadback(e.currentTarget.value)}
+            />
+            <Button
+              tone="primary"
+              loading={acknowledgeMutation.isPending}
+              disabled={!readback.trim()}
+              onClick={() =>
+                acknowledgeMutation.mutate({
+                  alertId: ackAlert.id,
+                  readback_value: readback.trim(),
+                })
+              }
+            >
+              Confirm acknowledgement
+            </Button>
+          </Stack>
+        </Modal>
       )}
 
       {order.rejection_reason && (

@@ -241,6 +241,8 @@ pub struct LabCriticalAlert {
     pub notified_at: Option<DateTime<Utc>>,
     pub acknowledged_by: Option<Uuid>,
     pub acknowledged_at: Option<DateTime<Utc>>,
+    pub readback_value: Option<String>,
+    pub readback_verified: bool,
     pub created_at: DateTime<Utc>,
 }
 
