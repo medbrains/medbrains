@@ -2315,7 +2315,7 @@ pub async fn create_calibration(
          (tenant_id, test_id, instrument_name, calibrator_lot, \
           calibration_date, next_calibration_date, result_summary, \
           is_passed, performed_by, notes) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, true), $9, $10) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, false), $9, $10) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
