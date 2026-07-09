@@ -635,6 +635,34 @@ pub async fn update_booking(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // IPSG-4 (safe surgery): `consent_obtained` may only be set true when a signed informed-consent
+    // record is actually on file — not merely attested by the client.
+    if body.consent_obtained == Some(true) {
+        let patient_id = sqlx::query_scalar::<_, Uuid>(
+            "SELECT patient_id FROM ot_bookings WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+        let has_signed = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS (SELECT 1 FROM procedure_consents \
+             WHERE tenant_id = $1 AND patient_id = $2 AND status = 'signed')",
+        )
+        .bind(claims.tenant_id)
+        .bind(patient_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !has_signed {
+            return Err(AppError::BadRequest(
+                "Cannot mark consent obtained — no signed informed-consent record is on file for \
+                 this patient. Capture the surgical consent first."
+                    .to_owned(),
+            ));
+        }
+    }
+
     let row = sqlx::query_as::<_, OtBooking>(
         "UPDATE ot_bookings SET \
            ot_room_id = COALESCE($3, ot_room_id), \
