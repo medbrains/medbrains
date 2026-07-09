@@ -12,6 +12,10 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts"
     },
+    "./tokens": {
+      "types": "./src/theme/tokens.ts",
+      "import": "./src/theme/tokens.ts"
+    },
     "./styles/global.scss": "./src/styles/global.scss"
   },
   "scripts": {

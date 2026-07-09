@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
+    "@medbrains/design-system": "workspace:*",
     "@medbrains/edge-rn-bindings": "workspace:*",
     "@medbrains/schemas": "workspace:*",
     "@medbrains/types": "workspace:*",

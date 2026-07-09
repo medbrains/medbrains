@@ -1,34 +1,37 @@
 /**
- * UI tokens shared across the component library. Mirrors the web
- * MedBrains enterprise palette: System Blue brand, Cinnabar accent,
- * Mint vitals, and Apple-warm neutrals.
+ * UI tokens shared across the native component library — now sourced from the single Carbon
+ * design-system token core (`@medbrains/design-system/tokens`) instead of a hand-copied palette, so
+ * TV / kiosk / mobile render the exact same IBM Carbon colours as the web. Export shape is unchanged
+ * for existing consumers; the values are the Carbon ramps.
  */
 
+import { amber, blue, cinnabar, ink, mint, rose, sky } from "@medbrains/design-system/tokens";
+
 export const COLORS = {
-  brand: "#0066CC",
-  brandHover: "#0052A3",
-  brandDeep: "#00182F",
-  ink: "#0D0D0C",
-  canvas: "#FFFFFF",
-  panel: "#F8F8F7",
-  rule: "#E7E7E3",
-  muted: "#5B5B57",
-  copper: "#B7322E",
-  accent: "#B7322E",
-  accentMuted: "#FDE9E6",
-  tint: "#E6F1FF",
-  navActiveBg: "#EEF4FC",
-  navActiveBgEnd: "#E6F1FF",
-  navChildActiveBg: "#E6F1FF",
-  navChildActiveText: "#003E7A",
-  accentGradientStart: "#0066CC",
-  accentGradientMid: "#34D69D",
-  accentGradientEnd: "#B7322E",
-  emerald: "#1CB785",
-  emeraldDim: "rgba(28, 183, 133, 0.25)",
-  vital: "#34D69D",
-  amber: "#FF9F0A",
-  red: "#FF453A",
+  brand: blue[5], // #0f62fe — Carbon interactive
+  brandHover: blue[6], // #0043ce
+  brandDeep: blue[8], // #001d6c
+  ink: ink[10], // #161616
+  canvas: ink[0], // #FFFFFF
+  panel: ink[1], // #f4f4f4
+  rule: ink[2], // #e0e0e0 — border-subtle
+  muted: ink[6], // #6f6f6f
+  copper: cinnabar[5], // vital-green accent (Carbon; formerly copper red)
+  accent: cinnabar[5],
+  accentMuted: cinnabar[0], // #defbe6
+  tint: blue[0], // #edf5ff — brand tint
+  navActiveBg: blue[0],
+  navActiveBgEnd: blue[0],
+  navChildActiveBg: blue[0],
+  navChildActiveText: blue[7], // #002d9c
+  accentGradientStart: blue[5],
+  accentGradientMid: mint[3], // vital green
+  accentGradientEnd: blue[8],
+  emerald: mint[4], // #24a148 — Carbon support-success
+  emeraldDim: "rgba(36, 161, 72, 0.25)",
+  vital: mint[3], // #42be65 — bright vital
+  amber: amber[5], // #f1c21b — Carbon warning
+  red: rose[5], // #da1e28 — Carbon error
 } as const;
 
 export const APP_BAR = {
@@ -46,28 +49,29 @@ export const SPACING = {
   xl: 32,
 } as const;
 
+// Carbon = sharp corners; keep small values for RN touchables where a hairline radius aids tap feel.
 export const RADIUS = {
-  sm: 6,
-  md: 8,
-  lg: 12,
+  sm: 2,
+  md: 2,
+  lg: 4,
 } as const;
 
 export type IntentTone = "neutral" | "info" | "success" | "warn" | "alert" | "copper";
 
 export const INTENT_BG: Record<IntentTone, string> = {
   neutral: COLORS.panel,
-  info: "#E0F2FE",
-  success: "#D1FAE5",
-  warn: "#FEF3C7",
-  alert: "#FEE2E2",
-  copper: COLORS.accentMuted,
+  info: sky[0], // #e5f6ff
+  success: mint[0], // #defbe6
+  warn: amber[0], // #fcf4d6
+  alert: rose[0], // #fff1f1
+  copper: cinnabar[0],
 };
 
 export const INTENT_FG: Record<IntentTone, string> = {
   neutral: COLORS.ink,
-  info: "#0369A1",
-  success: "#047857",
-  warn: "#B45309",
-  alert: "#B91C1C",
-  copper: "#962623",
+  info: sky[6], // #00539a
+  success: mint[6], // #198038
+  warn: amber[6], // #8e6a00
+  alert: rose[6], // #a2191f
+  copper: cinnabar[6], // #0e6027
 };

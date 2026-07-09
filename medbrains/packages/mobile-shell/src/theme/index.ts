@@ -1,6 +1,13 @@
-export {
-  FOREST_COPPER_PALETTE,
-  EMERGENCY_CODES,
-  buildForestCopperTheme,
+export type {
+  ColorScheme,
+  DeviceThemeFactor,
+  PaperColors,
+  PaperTheme,
 } from "./forest-copper.js";
-export type { ColorScheme, PaperColors, PaperTheme } from "./forest-copper.js";
+export {
+  buildDeviceTheme,
+  buildForestCopperTheme,
+  deviceTheme,
+  EMERGENCY_CODES,
+  FOREST_COPPER_PALETTE,
+} from "./forest-copper.js";

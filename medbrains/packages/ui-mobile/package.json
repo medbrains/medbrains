@@ -21,6 +21,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
+  "dependencies": {
+    "@medbrains/design-system": "workspace:*"
+  },
   "peerDependencies": {
     "react": ">=19",
     "react-native": ">=0.76",

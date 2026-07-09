@@ -1,3 +1,4 @@
+import { emergencyCodes } from "@medbrains/design-system/tokens";
 import { COLORS } from "@medbrains/ui-mobile/tokens";
 import type { MD3Theme } from "react-native-paper";
 
@@ -30,14 +31,9 @@ export const FOREST_COPPER_PALETTE = {
   emerald: COLORS.emerald,
 } as const;
 
-export const EMERGENCY_CODES = {
-  blue: COLORS.brand,
-  red: COLORS.red,
-  pink: "#E24C94",
-  black: "#0a0a0a",
-  yellow: "#E6B422",
-  orange: "#E86A1F",
-} as const;
+// Fixed emergency-code colours — single source (design-system), identical on every device. NB the
+// cardiac blue is the fixed #1E63B8, NOT the brand blue.
+export const EMERGENCY_CODES = emergencyCodes;
 
 export type ColorScheme = "light" | "dark";
 
@@ -177,13 +173,13 @@ const typography: PaperTheme["fonts"] = {
   },
 };
 
-export function buildForestCopperTheme(scheme: ColorScheme): PaperTheme {
+export function buildDeviceTheme(scheme: ColorScheme): PaperTheme {
   const isDark = scheme === "dark";
   const p = FOREST_COPPER_PALETTE;
   return {
     dark: isDark,
     isV3: true,
-    roundness: 8,
+    roundness: 2, // Carbon — sharp corners
     version: 3,
     animation: { scale: 1 },
     colors: {
@@ -230,4 +226,38 @@ export function buildForestCopperTheme(scheme: ColorScheme): PaperTheme {
     },
     fonts: typography,
   };
+}
+
+/** Back-compat alias — the values are now Carbon, sourced from the design-system. */
+export const buildForestCopperTheme = buildDeviceTheme;
+
+/** Rendered form-factors that get a device-specific theme preset. */
+export type DeviceThemeFactor = "tv" | "kiosk" | "mobile" | "desktop";
+
+/** Scale every sized MD3 font variant by `factor` — for 10-foot (TV) / large-touch (kiosk) UIs. */
+function withTypeScale(base: PaperTheme, scale: number): PaperTheme {
+  const fonts = { ...base.fonts } as Record<string, { fontSize?: number; lineHeight?: number }>;
+  for (const key of Object.keys(fonts)) {
+    const v = fonts[key];
+    if (v && typeof v.fontSize === "number") {
+      fonts[key] = {
+        ...v,
+        fontSize: Math.round(v.fontSize * scale),
+        lineHeight:
+          typeof v.lineHeight === "number" ? Math.round(v.lineHeight * scale) : v.lineHeight,
+      };
+    }
+  }
+  return { ...base, fonts: fonts as PaperTheme["fonts"] };
+}
+
+/**
+ * Form-factor theme preset on top of the shared Carbon base: TV boards scale type up for 10-foot
+ * legibility, kiosks scale up for touch/readability, mobile/desktop keep base density.
+ */
+export function deviceTheme(factor: DeviceThemeFactor, scheme: ColorScheme = "light"): PaperTheme {
+  const base = buildDeviceTheme(scheme);
+  if (factor === "tv") return withTypeScale(base, 1.4);
+  if (factor === "kiosk") return withTypeScale(base, 1.2);
+  return base;
 }
