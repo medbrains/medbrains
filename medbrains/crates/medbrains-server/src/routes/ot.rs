@@ -663,6 +663,35 @@ pub async fn update_booking(
         }
     }
 
+    // Blood arranged may only be set true when a live blood request exists for the patient.
+    // ponytail: gates on "a request was raised", not full cross-match/reservation — the blood_requests
+    // status vocabulary is free-text; tighten to reserved/crossmatched once that's normalised.
+    if body.blood_arranged == Some(true) {
+        let patient_id = sqlx::query_scalar::<_, Uuid>(
+            "SELECT patient_id FROM ot_bookings WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+        let has_request = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS (SELECT 1 FROM blood_requests \
+             WHERE tenant_id = $1 AND patient_id = $2 AND status NOT IN ('cancelled', 'rejected'))",
+        )
+        .bind(claims.tenant_id)
+        .bind(patient_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !has_request {
+            return Err(AppError::BadRequest(
+                "Cannot mark blood arranged — no active blood request is on file for this patient. \
+                 Raise the blood request / cross-match first."
+                    .to_owned(),
+            ));
+        }
+    }
+
     let row = sqlx::query_as::<_, OtBooking>(
         "UPDATE ot_bookings SET \
            ot_room_id = COALESCE($3, ot_room_id), \
