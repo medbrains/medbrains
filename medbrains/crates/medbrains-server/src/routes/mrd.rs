@@ -314,6 +314,12 @@ pub async fn create_record(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    // Register-first lock (opt-in): an OPD medical record needs a registered OPD visit.
+    if body.record_type.as_deref().unwrap_or("opd") == "opd" {
+        super::opd::assert_patient_opd_registered(&mut tx, &claims.tenant_id, body.patient_id)
+            .await?;
+    }
+
     // Auto-generate record number from sequence if not provided
     let record_number = if let Some(rn) = &body.record_number {
         rn.clone()

@@ -1289,6 +1289,7 @@ import type {
   // Phase 4 Print Data - Clinical Delivery
   OpdPrescriptionPrintData,
   OpdProcedureConsentPrintData,
+  OpdRegistrationPolicy,
   OpenCampRegistrationEncounterRequest,
   OperationNotesPrintData,
   OphthoExam,
@@ -3894,6 +3895,12 @@ export const api = {
   createEncounter: (data: CreateEncounterRequest) =>
     request<CreateEncounterResponse>("/opd/encounters", {
       method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getRegistrationPolicy: () => request<OpdRegistrationPolicy>("/opd/registration-policy"),
+  updateRegistrationPolicy: (data: OpdRegistrationPolicy) =>
+    request<OpdRegistrationPolicy>("/opd/registration-policy", {
+      method: "PUT",
       body: JSON.stringify(data),
     }),
   getEncounter: (id: string) => request<Encounter>(`/opd/encounters/${id}`),

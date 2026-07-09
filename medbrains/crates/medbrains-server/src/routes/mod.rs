@@ -976,6 +976,10 @@ pub fn build_router(state: AppState) -> Router {
             "/api/opd/encounters/{id}",
             get(opd::get_encounter).put(opd::update_encounter),
         )
+        .route(
+            "/api/opd/registration-policy",
+            get(opd::get_registration_policy).put(opd::update_registration_policy),
+        )
         .route("/api/opd/queue", get(opd::list_queue))
         .route(
             "/api/opd/queue/{id}/call",

@@ -912,6 +912,30 @@ function canRecordVitalsFromQueue(row: QueueEntry): boolean {
   return queueActionEnabled(row, "record_vitals");
 }
 
+function OpdRegistrationPolicyToggle() {
+  const canManage = useHasPermission("admin.settings.general.manage");
+  const queryClient = useQueryClient();
+  const { data } = useQuery({
+    queryKey: ["opd-registration-policy"],
+    queryFn: () => opdService.getRegistrationPolicy(),
+    enabled: canManage,
+  });
+  const mutation = useMutation({
+    mutationFn: (require_opd_registration: boolean) =>
+      opdService.updateRegistrationPolicy({ require_opd_registration }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["opd-registration-policy"] }),
+  });
+  if (!canManage) return null;
+  return (
+    <Switch
+      label="Lock records until OPD registered"
+      checked={data?.require_opd_registration ?? false}
+      onChange={(e) => mutation.mutate(e.currentTarget.checked)}
+      disabled={mutation.isPending}
+    />
+  );
+}
+
 function OpdPageInner() {
   const { t } = useTranslation("opd");
   const emit = useClinicalEmit();
@@ -1268,15 +1292,18 @@ function OpdPageInner() {
         icon={<IconStethoscope size={20} stroke={1.5} />}
         color="primary"
         actions={
-          canCreate ? (
-            <Button
-              tone="primary"
-              leftSection={<IconPlus size={16} />}
-              onClick={() => navigate("/opd/new")}
-            >
-              {t("action.newVisit")}
-            </Button>
-          ) : undefined
+          <Group gap="sm">
+            <OpdRegistrationPolicyToggle />
+            {canCreate ? (
+              <Button
+                tone="primary"
+                leftSection={<IconPlus size={16} />}
+                onClick={() => navigate("/opd/new")}
+              >
+                {t("action.newVisit")}
+              </Button>
+            ) : null}
+          </Group>
         }
       />
 

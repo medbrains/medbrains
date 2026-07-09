@@ -3839,6 +3839,11 @@ export interface Encounter {
   updated_at: string;
 }
 
+/** Whether this tenant requires an OPD registration before medical records may be opened. */
+export interface OpdRegistrationPolicy {
+  require_opd_registration: boolean;
+}
+
 export interface OpdQueue {
   id: string;
   tenant_id: string;

@@ -391,6 +391,167 @@ pub(crate) async fn generate_opd_token(
 }
 
 // ══════════════════════════════════════════════════════════
+//  Doctor auto-assignment
+// ══════════════════════════════════════════════════════════
+
+/// Pick the doctor a walk-in should go to when a department is chosen but no specific doctor is:
+/// the least-loaded active doctor who is a member of the department and (if a duty roster exists for
+/// the department today) is on that roster. Load = today's active OPD queue count. Deterministic
+/// tie-break so repeated calls fill evenly. Returns `None` if the department has no eligible doctor.
+// ponytail: correlated count subquery is O(doctors-in-dept) — fine (a handful per dept); revisit
+// only if a single department ever has hundreds of doctors.
+pub(crate) async fn assign_department_doctor(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    department_id: Uuid,
+) -> Result<Option<Uuid>, AppError> {
+    let doctor_id = sqlx::query_scalar::<_, Uuid>(
+        "SELECT u.id FROM users u \
+         WHERE u.tenant_id = $1 AND u.is_active AND u.role = 'doctor' \
+           AND ($2 = u.department_id OR $2 = ANY(u.department_ids)) \
+           AND (NOT EXISTS (SELECT 1 FROM duty_rosters dr \
+                    WHERE dr.tenant_id = $1 AND dr.department_id = $2 \
+                      AND dr.roster_date = CURRENT_DATE) \
+                OR EXISTS (SELECT 1 FROM duty_rosters dr \
+                    JOIN employees e ON e.id = dr.employee_id \
+                    WHERE dr.tenant_id = $1 AND dr.department_id = $2 \
+                      AND dr.roster_date = CURRENT_DATE AND e.user_id = u.id)) \
+         ORDER BY (SELECT count(*) FROM opd_queues q \
+                    WHERE q.tenant_id = $1 AND q.doctor_id = u.id \
+                      AND q.queue_date = CURRENT_DATE \
+                      AND q.status IN ('waiting', 'called')) ASC, \
+                  u.full_name, u.id \
+         LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(department_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(doctor_id)
+}
+
+// ══════════════════════════════════════════════════════════
+//  MRD register-lock (opt-in, tenant-global)
+// ══════════════════════════════════════════════════════════
+
+const MRD_LOCK_MSG: &str = "Register the OPD visit before opening the medical record";
+
+/// True when this tenant requires an OPD registration before medical records may be opened.
+pub(crate) async fn mrd_lock_enabled(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+) -> Result<bool, AppError> {
+    let value = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'mrd' AND key = 'require_opd_registration'",
+    )
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+    Ok(value.and_then(|v| v.as_bool()).unwrap_or(false))
+}
+
+/// When the lock is on, require the encounter to carry an OPD registration (a queue token).
+pub(crate) async fn assert_encounter_registered(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    encounter_id: Uuid,
+) -> Result<(), AppError> {
+    if !mrd_lock_enabled(tx, tenant_id).await? {
+        return Ok(());
+    }
+    let registered = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (SELECT 1 FROM opd_queues WHERE tenant_id = $1 AND encounter_id = $2)",
+    )
+    .bind(tenant_id)
+    .bind(encounter_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    if registered {
+        Ok(())
+    } else {
+        Err(AppError::Conflict(MRD_LOCK_MSG.to_owned()))
+    }
+}
+
+/// When the lock is on, require the patient to have an open OPD encounter / a registration today.
+pub(crate) async fn assert_patient_opd_registered(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    patient_id: Uuid,
+) -> Result<(), AppError> {
+    if !mrd_lock_enabled(tx, tenant_id).await? {
+        return Ok(());
+    }
+    let registered = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (SELECT 1 FROM encounters \
+            WHERE tenant_id = $1 AND patient_id = $2 \
+              AND encounter_type = 'opd' AND status = 'open') \
+         OR EXISTS (SELECT 1 FROM opd_queues q \
+            JOIN encounters e ON e.id = q.encounter_id \
+            WHERE q.tenant_id = $1 AND q.queue_date = CURRENT_DATE AND e.patient_id = $2)",
+    )
+    .bind(tenant_id)
+    .bind(patient_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    if registered {
+        Ok(())
+    } else {
+        Err(AppError::Conflict(MRD_LOCK_MSG.to_owned()))
+    }
+}
+
+/// Whether the tenant requires OPD registration before medical records may be opened.
+#[derive(Debug, serde::Serialize)]
+pub struct OpdRegistrationPolicy {
+    pub require_opd_registration: bool,
+}
+
+/// `GET /api/opd/registration-policy`
+pub async fn get_registration_policy(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<OpdRegistrationPolicy>, AppError> {
+    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let require_opd_registration = mrd_lock_enabled(&mut tx, &claims.tenant_id).await?;
+    tx.commit().await?;
+    Ok(Json(OpdRegistrationPolicy { require_opd_registration }))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateRegistrationPolicyRequest {
+    pub require_opd_registration: bool,
+}
+
+/// `PUT /api/opd/registration-policy`
+pub async fn update_registration_policy(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<UpdateRegistrationPolicyRequest>,
+) -> Result<Json<OpdRegistrationPolicy>, AppError> {
+    require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    sqlx::query(
+        "INSERT INTO tenant_settings (tenant_id, category, key, value) \
+         VALUES ($1, 'mrd', 'require_opd_registration', $2) \
+         ON CONFLICT (tenant_id, category, key) \
+         DO UPDATE SET value = EXCLUDED.value, updated_at = now()",
+    )
+    .bind(claims.tenant_id)
+    .bind(serde_json::Value::Bool(body.require_opd_registration))
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(OpdRegistrationPolicy {
+        require_opd_registration: body.require_opd_registration,
+    }))
+}
+
+// ══════════════════════════════════════════════════════════
 //  GET /api/opd/encounters
 // ══════════════════════════════════════════════════════════
 
@@ -663,6 +824,12 @@ pub async fn create_encounter(
     let doctor_id = linked_appointment
         .as_ref()
         .map_or(body.doctor_id, |appointment| Some(appointment.doctor_id));
+    // No specific doctor chosen → auto-assign the least-loaded on-duty doctor in the department.
+    let doctor_id = if doctor_id.is_none() {
+        assign_department_doctor(&mut tx, &claims.tenant_id, department_id).await?
+    } else {
+        doctor_id
+    };
     let default_visit_type = linked_appointment
         .as_ref()
         .map_or("walk_in", |appointment| {
@@ -1582,6 +1749,9 @@ pub async fn create_consultation(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // Register-first lock (opt-in): no case sheet until the OPD visit is registered.
+    assert_encounter_registered(&mut tx, &claims.tenant_id, encounter_id).await?;
 
     // Resolve patient_id from the encounter so inline lab/radiology
     // orders carry the right FK without a second client round-trip.
