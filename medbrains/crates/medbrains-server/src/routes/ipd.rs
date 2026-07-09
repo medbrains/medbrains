@@ -2957,16 +2957,27 @@ pub async fn verify_mar_barcode(
         .flatten(),
         None => None,
     };
-    let scanned_item = sqlx::query_scalar::<_, Uuid>(
-        "SELECT catalog_item_id FROM batch_stock WHERE barcode = $1 AND tenant_id = $2 LIMIT 1",
+    // Resolve the scanned batch: its catalog item + whether it's expired (computed in SQL).
+    let scanned = sqlx::query_as::<_, (Uuid, bool)>(
+        "SELECT catalog_item_id, (expiry_date IS NOT NULL AND expiry_date < CURRENT_DATE) \
+         FROM batch_stock WHERE barcode = $1 AND tenant_id = $2 LIMIT 1",
     )
     .bind(body.drug_barcode.trim())
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?;
-    let right_drug = match (ordered_item, scanned_item) {
-        (Some(ordered), Some(scanned)) => ordered == scanned,
-        _ => false,
+    // Right drug = scanned batch resolves to the ordered item AND is not expired.
+    let (right_drug, drug_reason) = match (ordered_item, scanned) {
+        (Some(ordered), Some((scanned_item, expired))) => {
+            if ordered != scanned_item {
+                (false, "Wrong drug — the scanned barcode does not match the ordered medication.")
+            } else if expired {
+                (false, "Expired batch — do not administer; quarantine this stock.")
+            } else {
+                (true, "")
+            }
+        }
+        _ => (false, "Wrong drug — the scanned barcode does not match the ordered medication."),
     };
 
     let verified = right_patient && right_drug;
@@ -2975,7 +2986,7 @@ pub async fn verify_mar_barcode(
     } else if !right_patient {
         Some("Wrong patient — the scanned wristband does not match this order.".to_owned())
     } else {
-        Some("Wrong drug — the scanned barcode does not match the ordered medication.".to_owned())
+        Some(drug_reason.to_owned())
     };
 
     if verified {
