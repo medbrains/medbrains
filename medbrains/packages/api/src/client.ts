@@ -14522,6 +14522,13 @@ export const api = {
   },
   updateMarRound: (id: string, data: Record<string, unknown>) =>
     request<unknown>(`/nurse/mar/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  verifyMarBarcode: (id: string, data: { patient_barcode: string; drug_barcode: string }) =>
+    request<{
+      verified: boolean;
+      right_patient: boolean;
+      right_drug: boolean;
+      reason: string | null;
+    }>(`/nurse/mar/${id}/verify-barcode`, { method: "POST", body: JSON.stringify(data) }),
   listMarForPatient: (patient_id: string) => request<unknown[]>(`/nurse/mar/patient/${patient_id}`),
 
   // Vitals schedules

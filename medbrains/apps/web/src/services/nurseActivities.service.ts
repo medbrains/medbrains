@@ -11,6 +11,8 @@ export const nurseActivitiesService = {
     ) as Promise<IpdMedicationAdministration>,
   listMarForPatient: (patientId: string) =>
     api.listMarForPatient(patientId) as Promise<IpdMedicationAdministration[]>,
+  verifyMarBarcode: (id: string, data: { patient_barcode: string; drug_barcode: string }) =>
+    api.verifyMarBarcode(id, data),
   listVitalsSchedules: (...args: Parameters<typeof api.listVitalsSchedules>) =>
     api.listVitalsSchedules(...args),
   createVitalsSchedule: (...args: Parameters<typeof api.createVitalsSchedule>) =>

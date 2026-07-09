@@ -2500,6 +2500,7 @@ pub fn build_router(state: AppState) -> Router {
         // ── Nurse Activities: MAR (canonical ipd_medication_administration) ──
         .route("/api/nurse/mar/due-now", get(ipd::list_mar_due_now))
         .route("/api/nurse/mar/{id}", put(ipd::update_mar_round))
+        .route("/api/nurse/mar/{id}/verify-barcode", post(ipd::verify_mar_barcode))
         .route(
             "/api/nurse/mar/patient/{patient_id}",
             get(ipd::list_mar_for_patient),

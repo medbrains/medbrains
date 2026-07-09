@@ -2822,6 +2822,16 @@ pub async fn update_mar_round(
                     }
                     Some(_) => {}
                 }
+                // BCMA: a high-alert drug must be barcode-verified (right patient + right drug)
+                // server-side before it can be given. `barcode_verified` is set only by the
+                // verify-barcode endpoint, never by the client.
+                if !existing.barcode_verified {
+                    return Err(AppError::BadRequest(
+                        "Scan the patient wristband and the drug barcode to verify the 5 rights \
+                         before administering a high-alert drug."
+                            .to_owned(),
+                    ));
+                }
             }
         }
         MarStatus::Held if body.hold_reason.as_deref().unwrap_or("").trim().is_empty() => {
@@ -2861,7 +2871,8 @@ pub async fn update_mar_round(
     .bind(body.administered_at)
     .bind(administered_by)
     .bind(body.witnessed_by)
-    .bind(body.barcode_verified)
+    // barcode_verified is server-authoritative (set only by verify_mar_barcode); never client-set.
+    .bind(None::<bool>)
     .bind(&body.hold_reason)
     .bind(&body.refused_reason)
     .bind(&body.missed_reason)
@@ -2877,6 +2888,109 @@ pub async fn update_mar_round(
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VerifyBarcodeRequest {
+    /// Scanned patient wristband barcode (the UHID).
+    pub patient_barcode: String,
+    /// Scanned drug/batch barcode.
+    pub drug_barcode: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BarcodeVerifyResult {
+    pub verified: bool,
+    pub right_patient: bool,
+    pub right_drug: bool,
+    pub reason: Option<String>,
+}
+
+/// `POST /api/ipd/mar/{id}/verify-barcode` — BCMA server-side 5-rights check: the scanned wristband
+/// must resolve to this MAR's patient and the scanned drug barcode to this MAR's ordered drug. Only
+/// on a full match is `barcode_verified` stamped (server-authoritative). Mismatches are refused with
+/// the specific failure so the client blocks administration — a wrong-patient / wrong-drug guard.
+pub async fn verify_mar_barcode(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(mar_id): Path<Uuid>,
+    Json(body): Json<VerifyBarcodeRequest>,
+) -> Result<Json<BarcodeVerifyResult>, AppError> {
+    require_any_permission(
+        &claims,
+        &[permissions::ipd::mar::UPDATE, permissions::nurse::mar::ADMINISTER],
+    )?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
+
+    let mar = sqlx::query_as::<_, IpdMedicationAdministration>(
+        "SELECT * FROM ipd_medication_administration WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(mar_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    // Right patient: scanned wristband UHID must equal the admission's patient UHID.
+    let expected_uhid = sqlx::query_scalar::<_, String>(
+        "SELECT p.uhid FROM admissions a JOIN patients p ON p.id = a.patient_id \
+         WHERE a.id = $1 AND a.tenant_id = $2",
+    )
+    .bind(mar.admission_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let right_patient = expected_uhid
+        .as_deref()
+        .is_some_and(|u| u.eq_ignore_ascii_case(body.patient_barcode.trim()));
+
+    // Right drug: scanned batch barcode must resolve to the same catalog item the order specifies.
+    let ordered_item = match mar.prescription_item_id {
+        Some(pi) => sqlx::query_scalar::<_, Option<Uuid>>(
+            "SELECT catalog_item_id FROM prescription_items WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(pi)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .flatten(),
+        None => None,
+    };
+    let scanned_item = sqlx::query_scalar::<_, Uuid>(
+        "SELECT catalog_item_id FROM batch_stock WHERE barcode = $1 AND tenant_id = $2 LIMIT 1",
+    )
+    .bind(body.drug_barcode.trim())
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let right_drug = match (ordered_item, scanned_item) {
+        (Some(ordered), Some(scanned)) => ordered == scanned,
+        _ => false,
+    };
+
+    let verified = right_patient && right_drug;
+    let reason = if verified {
+        None
+    } else if !right_patient {
+        Some("Wrong patient — the scanned wristband does not match this order.".to_owned())
+    } else {
+        Some("Wrong drug — the scanned barcode does not match the ordered medication.".to_owned())
+    };
+
+    if verified {
+        sqlx::query(
+            "UPDATE ipd_medication_administration SET barcode_verified = true, updated_at = now() \
+             WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(mar_id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
+
+    Ok(Json(BarcodeVerifyResult { verified, right_patient, right_drug, reason }))
 }
 
 /// Notify the prescribing doctor that a scheduled dose was held/refused/missed.

@@ -1,6 +1,6 @@
-import { Group, Stack, Text, Textarea } from "@mantine/core";
+import { Group, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import type { MarDueRow, MarStatus, SetupUser, UpdateMarRoundInput } from "@medbrains/types";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import {
   Alert,
@@ -13,6 +13,7 @@ import {
   toast,
 } from "@/components/ui";
 import { adminAccessService } from "@/services/adminAccess.service";
+import { nurseActivitiesService } from "@/services/nurseActivities.service";
 
 interface Props {
   opened: boolean;
@@ -39,8 +40,8 @@ const MODE_STATUS: Record<Mode, MarStatus> = {
  */
 export function AdministerModal({ opened, onClose, dose, isSubmitting, onSubmit }: Props) {
   const [mode, setMode] = useState<Mode>("give");
-  const [patientChecked, setPatientChecked] = useState(false);
-  const [drugChecked, setDrugChecked] = useState(false);
+  const [patientBarcode, setPatientBarcode] = useState("");
+  const [drugBarcode, setDrugBarcode] = useState("");
   const [doseChecked, setDoseChecked] = useState(false);
   const [witness, setWitness] = useState<string | null>(null);
   const [reason, setReason] = useState("");
@@ -52,14 +53,23 @@ export function AdministerModal({ opened, onClose, dose, isSubmitting, onSubmit 
     enabled: opened && dose.is_high_alert,
   });
 
-  const fiveRightsOk = patientChecked && drugChecked && doseChecked;
+  // BCMA — the server verifies right-patient + right-drug from the scans and stamps the record.
+  const verifyMut = useMutation({
+    mutationFn: () =>
+      nurseActivitiesService.verifyMarBarcode(dose.id, {
+        patient_barcode: patientBarcode.trim(),
+        drug_barcode: drugBarcode.trim(),
+      }),
+  });
+  const verified = verifyMut.data?.verified ?? false;
+
   const witnessMissing = dose.is_high_alert && !witness;
   const reasonMissing = mode !== "give" && !reason.trim();
 
   const canSubmit = useMemo(() => {
-    if (mode === "give") return fiveRightsOk && !witnessMissing;
+    if (mode === "give") return doseChecked && !witnessMissing && (!dose.is_high_alert || verified);
     return !reasonMissing;
-  }, [mode, fiveRightsOk, witnessMissing, reasonMissing]);
+  }, [mode, doseChecked, witnessMissing, reasonMissing, dose.is_high_alert, verified]);
 
   const submit = () => {
     if (mode === "give" && witnessMissing) {
@@ -70,7 +80,7 @@ export function AdministerModal({ opened, onClose, dose, isSubmitting, onSubmit 
     }
     const input: UpdateMarRoundInput = { status: MODE_STATUS[mode] };
     if (mode === "give") {
-      input.barcode_verified = patientChecked && drugChecked;
+      // barcode_verified is set server-side by verify-barcode; never sent from here.
       if (witness) input.witnessed_by = witness;
     } else if (mode === "hold") {
       input.hold_reason = reason.trim();
@@ -120,18 +130,40 @@ export function AdministerModal({ opened, onClose, dose, isSubmitting, onSubmit 
         {mode === "give" ? (
           <Stack gap="xs">
             <Text size="sm" fw={600}>
-              Confirm the 5 Rights
+              Scan to verify (right patient + right drug)
             </Text>
-            <Checkbox
-              label={`Right patient — verified ${dose.patient_name} (2-ID / wristband)`}
-              checked={patientChecked}
-              onChange={(e) => setPatientChecked(e.currentTarget.checked)}
+            <TextInput
+              label="Patient wristband"
+              placeholder="Scan the UHID barcode"
+              value={patientBarcode}
+              onChange={(e) => setPatientBarcode(e.currentTarget.value)}
             />
-            <Checkbox
-              label={`Right drug — label matches ${dose.drug_name}`}
-              checked={drugChecked}
-              onChange={(e) => setDrugChecked(e.currentTarget.checked)}
+            <TextInput
+              label="Drug barcode"
+              placeholder="Scan the drug / batch barcode"
+              value={drugBarcode}
+              onChange={(e) => setDrugBarcode(e.currentTarget.value)}
             />
+            <Button
+              tone="secondary"
+              size="xs"
+              loading={verifyMut.isPending}
+              disabled={!patientBarcode.trim() || !drugBarcode.trim()}
+              onClick={() => verifyMut.mutate()}
+            >
+              Verify scan
+            </Button>
+            {verifyMut.data &&
+              (verifyMut.data.verified ? (
+                <Alert tone="success">Verified — right patient and right drug.</Alert>
+              ) : (
+                <Alert tone="danger">{verifyMut.data.reason ?? "Verification failed."}</Alert>
+              ))}
+            {dose.is_high_alert && !verified && (
+              <Text size="xs" c="dimmed">
+                A high-alert drug cannot be given until the scan verifies.
+              </Text>
+            )}
             <Checkbox
               label={`Right dose / route / time — ${dose.dose}, ${dose.route}`}
               checked={doseChecked}
