@@ -13449,6 +13449,13 @@ export interface AllergyConflict {
   reaction: string | null;
 }
 
+export interface PregnancyAlert {
+  drug_name: string;
+  pregnancy_category: string;
+  severity: string;
+  description: string;
+}
+
 export interface DrugSafetyCheckResult {
   interactions: DrugInteractionAlert[];
   allergy_conflicts: AllergyConflict[];
@@ -13457,6 +13464,7 @@ export interface DrugSafetyCheckResult {
   renal_alerts: RenalDoseAlert[];
   hepatic_alerts: HepaticAlert[];
   ingredient_alerts: IngredientAlert[];
+  pregnancy_alerts: PregnancyAlert[];
   conclusion: ClinicalConclusion;
 }
 

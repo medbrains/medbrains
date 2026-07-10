@@ -7,6 +7,7 @@ import type {
   DrugInteractionAlert,
   HepaticAlert,
   IngredientAlert,
+  PregnancyAlert,
   PrescriptionTemplate,
   RenalDoseAlert,
   WeightDoseAlert,
@@ -51,6 +52,7 @@ export interface RxSafety {
   renal_alerts: RenalDoseAlert[];
   hepatic_alerts: HepaticAlert[];
   ingredient_alerts: IngredientAlert[];
+  pregnancy_alerts: PregnancyAlert[];
   conclusion: ClinicalConclusion;
 }
 
@@ -244,6 +246,7 @@ export function RxDoctor({
   const renalAlerts = safety.renal_alerts;
   const hepaticAlerts = safety.hepatic_alerts;
   const ingredientAlerts = safety.ingredient_alerts;
+  const pregnancyAlerts = safety.pregnancy_alerts;
   const seriousIngredient = ingredientAlerts.filter((a) => a.kind === "incompatible");
   const pendingCount = items.filter((it) => it.pendingMD).length;
   const reviewCount =
@@ -254,7 +257,8 @@ export function RxDoctor({
     weightAlerts.length +
     renalAlerts.length +
     hepaticAlerts.length +
-    ingredientAlerts.length;
+    ingredientAlerts.length +
+    pregnancyAlerts.length;
 
   return (
     <Box className={classes.view}>
@@ -553,6 +557,23 @@ export function RxDoctor({
             hepaticAlerts.length
               ? hepaticAlerts.map((h) => `${h.drug_name}: ${h.caution}`).join(" · ")
               : "No hepatic cautions in order"
+          }
+        />
+        <SafetyRow
+          state={
+            pregnancyAlerts.some((p) => p.severity === "contraindicated")
+              ? "flag"
+              : pregnancyAlerts.length
+                ? "warn"
+                : "ok"
+          }
+          label="Pregnancy safety"
+          detail={
+            pregnancyAlerts.length
+              ? pregnancyAlerts
+                  .map((p) => `${p.drug_name}: category ${p.pregnancy_category}`)
+                  .join(" · ")
+              : "No pregnancy-category concerns"
           }
         />
         <SafetyRow

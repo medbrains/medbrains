@@ -108,6 +108,16 @@ pub struct AllergyConflict {
     pub reaction: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct PregnancyAlert {
+    pub drug_name: String,
+    /// US FDA pregnancy category on the catalogue (A/B/C/D/X); only D and X are flagged.
+    pub pregnancy_category: String,
+    /// "contraindicated" (X) | "caution" (D).
+    pub severity: String,
+    pub description: String,
+}
+
 /// Synthesised verdict over all detectors — the AI-pluggable conclusion seam.
 #[derive(Debug, Serialize)]
 pub struct ClinicalConclusion {
@@ -127,6 +137,7 @@ pub struct DrugSafetyCheckResult {
     pub renal_alerts: Vec<RenalDoseAlert>,
     pub hepatic_alerts: Vec<HepaticAlert>,
     pub ingredient_alerts: Vec<IngredientAlert>,
+    pub pregnancy_alerts: Vec<PregnancyAlert>,
     pub conclusion: ClinicalConclusion,
 }
 
@@ -162,6 +173,11 @@ fn synthesize_conclusion(result: &DrugSafetyCheckResult) -> ClinicalConclusion {
     }
     for a in &result.hepatic_alerts {
         issues.push((1, format!("hepatic: {}", a.drug_name)));
+    }
+    for a in &result.pregnancy_alerts {
+        // Category X (contraindicated) is critical; category D is a warning.
+        let rank = if a.severity == "contraindicated" { 2 } else { 1 };
+        issues.push((rank, format!("pregnancy {}: {}", a.pregnancy_category, a.drug_name)));
     }
 
     let issue_count = issues.len() as u32;
@@ -387,6 +403,14 @@ pub async fn check_drug_safety(
     // Combination chemistry: duplicate active ingredients + incompatible pairs.
     let ingredient_alerts = ingredient_alerts_for_items(&mut tx, claims.tenant_id, &body.items).await?;
 
+    // Pregnancy teratogenicity: category D/X products when the patient is pregnant.
+    let pregnancy_alerts = match body.patient_id {
+        Some(pid) if !body.items.is_empty() => {
+            pregnancy_alerts_for_items(&mut tx, claims.tenant_id, pid, &body.items).await?
+        }
+        _ => Vec::new(),
+    };
+
     tx.commit().await?;
 
     let mut result = DrugSafetyCheckResult {
@@ -397,6 +421,7 @@ pub async fn check_drug_safety(
         renal_alerts,
         hepatic_alerts,
         ingredient_alerts,
+        pregnancy_alerts,
         conclusion: ClinicalConclusion {
             severity: "clear".to_owned(),
             summary: String::new(),
@@ -406,6 +431,76 @@ pub async fn check_drug_safety(
     };
     result.conclusion = synthesize_conclusion(&result);
     Ok(Json(result))
+}
+
+/// Pregnancy-category detector: when the patient has an active maternity registration (i.e. is
+/// pregnant), flag any prescribed product whose catalogue FDA pregnancy category is D (evidence of
+/// fetal risk) or X (contraindicated). Advisory — surfaces teratogenic risk at prescribing.
+async fn pregnancy_alerts_for_items(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+    items: &[DoseCheckItem],
+) -> Result<Vec<PregnancyAlert>, AppError> {
+    let catalog_ids: Vec<Uuid> = items.iter().filter_map(|i| i.catalog_item_id).collect();
+    if catalog_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let pregnant: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM maternity_registrations \
+         WHERE tenant_id = $1 AND patient_id = $2 AND status = 'active')",
+    )
+    .bind(tenant_id)
+    .bind(patient_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    if !pregnant {
+        return Ok(Vec::new());
+    }
+
+    #[derive(sqlx::FromRow)]
+    struct CatRow {
+        id: Uuid,
+        pregnancy_category: Option<String>,
+    }
+    let rows = sqlx::query_as::<_, CatRow>(
+        "SELECT id, pregnancy_category FROM pharmacy_catalog \
+         WHERE tenant_id = $1 AND id = ANY($2)",
+    )
+    .bind(tenant_id)
+    .bind(&catalog_ids)
+    .fetch_all(&mut **tx)
+    .await?;
+    let id_to_cat: std::collections::HashMap<Uuid, String> = rows
+        .into_iter()
+        .filter_map(|r| r.pregnancy_category.map(|c| (r.id, c)))
+        .collect();
+
+    let mut alerts = Vec::new();
+    for item in items {
+        let Some(cat) = item.catalog_item_id.and_then(|cid| id_to_cat.get(&cid)) else {
+            continue;
+        };
+        let (severity, description) = match cat.as_str() {
+            "X" => (
+                "contraindicated",
+                "FDA category X — contraindicated in pregnancy; do not prescribe.",
+            ),
+            "D" => (
+                "caution",
+                "FDA category D — positive evidence of fetal risk; use only if the benefit clearly \
+                 outweighs the risk and a safer alternative is unavailable.",
+            ),
+            _ => continue,
+        };
+        alerts.push(PregnancyAlert {
+            drug_name: item.drug_name.clone(),
+            pregnancy_category: cat.clone(),
+            severity: severity.to_owned(),
+            description: description.to_owned(),
+        });
+    }
+    Ok(alerts)
 }
 
 /// Combination-chemistry detector: expand prescribed products to active
