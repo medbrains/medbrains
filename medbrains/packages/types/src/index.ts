@@ -4039,6 +4039,20 @@ export interface LungProtectiveResult {
   response: string;
 }
 
+export interface AnionGapRequest {
+  sodium: number;
+  chloride: number;
+  bicarbonate: number;
+  albumin_g_dl?: number;
+}
+
+export interface AnionGapResult {
+  anion_gap: number;
+  corrected_anion_gap: number | null;
+  category: "high" | "normal" | "low";
+  response: string;
+}
+
 export interface PaediatricFluidRequest {
   weight_kg: number;
 }

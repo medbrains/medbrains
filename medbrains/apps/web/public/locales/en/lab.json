@@ -215,5 +215,6 @@
   "aria.viewDetails": "View details",
   "aria.robot": "Robot",
   "aria.refresh": "Refresh",
-  "aria.close": "Close"
+  "aria.close": "Close",
+  "calculators": "Calculators"
 }

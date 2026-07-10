@@ -78,6 +78,8 @@ import type {
   AncVisit,
   AnesthesiaComplicationEntry,
   AnesthesiaRecordPrintData,
+  AnionGapRequest,
+  AnionGapResult,
   AnthracyclineCumulativeResult,
   AntibioticConsumptionRecord,
   AntibioticStewardshipRequest,
@@ -14614,6 +14616,11 @@ export const api = {
     request<PewsResult>("/clinical/pews", { method: "POST", body: JSON.stringify(data) }),
   computePaediatricFluid: (data: PaediatricFluidRequest) =>
     request<PaediatricFluidResult>("/clinical/paediatric-fluid", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  computeAnionGap: (data: AnionGapRequest) =>
+    request<AnionGapResult>("/clinical/anion-gap", {
       method: "POST",
       body: JSON.stringify(data),
     }),

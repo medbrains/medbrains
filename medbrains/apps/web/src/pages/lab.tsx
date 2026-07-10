@@ -158,6 +158,7 @@ import {
   labSampleTypeOptions,
 } from "@/forms/lab.form";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { AnionGapTab } from "@/pages/lab/AnionGapTab";
 import { statusColor } from "@/lib/status-colors";
 import { labService } from "@/services/lab.service";
 import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "@/utils/printCopies";
@@ -571,6 +572,7 @@ function LabPageInner() {
           {canSpecialized && <Tabs.Tab value="specialized">{t("specialized")}</Tabs.Tab>}
           {canB2b && <Tabs.Tab value="b2b">{t("b2b")}</Tabs.Tab>}
           {canOutsourced && <Tabs.Tab value="outsourced">{t("outsourced")}</Tabs.Tab>}
+          <Tabs.Tab value="calculators">{t("calculators")}</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="orders">
@@ -669,6 +671,10 @@ function LabPageInner() {
             <OutsourcedTab />
           </Tabs.Panel>
         )}
+
+        <Tabs.Panel value="calculators">
+          <AnionGapTab />
+        </Tabs.Panel>
       </Tabs>
 
       <CreateLabOrderDrawer opened={createOpened} onClose={closeCreate} />
