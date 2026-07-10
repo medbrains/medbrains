@@ -11,6 +11,7 @@ import {
   IconCandy,
   IconClipboardList,
   IconDroplet,
+  IconDropletFilled,
   IconHeartbeat,
   IconLogout,
   IconLungs,
@@ -34,6 +35,7 @@ import { MeowsTab } from "./care-view/MeowsTab";
 import { MyTasksTab } from "./care-view/MyTasksTab";
 import { News2Tab } from "./care-view/News2Tab";
 import { NutritionTab } from "./care-view/NutritionTab";
+import { PaediatricFluidTab } from "./care-view/PaediatricFluidTab";
 import { PatientGridTab } from "./care-view/PatientGridTab";
 import { PewsTab } from "./care-view/PewsTab";
 import { SepsisBundleTab } from "./care-view/SepsisBundleTab";
@@ -131,6 +133,9 @@ export function CareViewPage() {
           <Tabs.Tab value="gcs" leftSection={<IconBrain size={16} />}>
             GCS
           </Tabs.Tab>
+          <Tabs.Tab value="paeds-fluid" leftSection={<IconDropletFilled size={16} />}>
+            Paeds Fluid
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="grid" pt="md">
@@ -197,6 +202,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="gcs" pt="md">
           <GcsTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="paeds-fluid" pt="md">
+          <PaediatricFluidTab />
         </Tabs.Panel>
       </Tabs>
     </div>

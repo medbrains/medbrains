@@ -1354,6 +1354,8 @@ import type {
   PackageDetailResponse,
   PackageEstimatePrintData,
   PackageWithInclusions,
+  PaediatricFluidRequest,
+  PaediatricFluidResult,
   PainAssessment,
   PainAssessmentPrintData,
   PaRequirementRule,
@@ -14610,6 +14612,11 @@ export const api = {
     request<MeowsResult>("/clinical/meows", { method: "POST", body: JSON.stringify(data) }),
   computePews: (data: PewsRequest) =>
     request<PewsResult>("/clinical/pews", { method: "POST", body: JSON.stringify(data) }),
+  computePaediatricFluid: (data: PaediatricFluidRequest) =>
+    request<PaediatricFluidResult>("/clinical/paediatric-fluid", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   createNutritionScreening: (data: CreateNutritionScreeningRequest) =>
     request<NutritionScreening>("/clinical/nutrition-screening", {
       method: "POST",

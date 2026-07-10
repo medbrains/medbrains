@@ -4039,6 +4039,17 @@ export interface LungProtectiveResult {
   response: string;
 }
 
+export interface PaediatricFluidRequest {
+  weight_kg: number;
+}
+
+export interface PaediatricFluidResult {
+  weight_kg: number;
+  hourly_ml: number;
+  daily_ml: number;
+  response: string;
+}
+
 export interface GcsRequest {
   eye: number;
   verbal: number;

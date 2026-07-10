@@ -9,6 +9,7 @@ pub mod med_reconciliation;
 pub mod meows;
 pub mod news2;
 pub mod nutrition_screening;
+pub mod paediatric_fluid;
 pub mod pews;
 pub mod sepsis;
 pub mod sepsis_bundle;
@@ -330,6 +331,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/clinical/qsofa", post(sepsis::qsofa_score))
         .route("/api/clinical/meows", post(meows::meows_score))
         .route("/api/clinical/pews", post(pews::pews_score))
+        .route(
+            "/api/clinical/paediatric-fluid",
+            post(paediatric_fluid::paediatric_fluid),
+        )
         .route(
             "/api/clinical/nutrition-screening",
             post(nutrition_screening::create_nutrition_screening),
