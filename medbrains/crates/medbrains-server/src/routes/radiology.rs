@@ -70,10 +70,31 @@ async fn latest_egfr(
     Ok(egfr)
 }
 
+async fn has_documented_contrast_allergy(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+) -> Result<bool, AppError> {
+    let found: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM patient_allergies \
+         WHERE tenant_id = $1 AND patient_id = $2 AND is_active \
+           AND (lower(allergen_name) LIKE '%contrast%' OR lower(allergen_name) LIKE '%iodine%' \
+             OR lower(allergen_name) LIKE '%iodinated%' OR lower(allergen_name) LIKE '%iohexol%' \
+             OR lower(allergen_name) LIKE '%iodixanol%' OR lower(allergen_name) LIKE '%ioversol%' \
+             OR lower(allergen_name) LIKE '%iopamidol%'))",
+    )
+    .bind(tenant_id)
+    .bind(patient_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    Ok(found)
+}
+
 fn compute_contrast_screening(
     egfr: Option<f64>,
     prior_reaction: &str,
     on_metformin: bool,
+    contrast_allergy_on_record: bool,
 ) -> ContrastScreeningResult {
     let mut flags = Vec::new();
 
@@ -101,7 +122,7 @@ fn compute_contrast_screening(
     };
 
     // Reaction risk from attested prior-reaction history.
-    let reaction_risk = match prior_reaction {
+    let mut reaction_risk = match prior_reaction {
         "severe" => {
             flags.push(
                 "Prior SEVERE contrast reaction — radiologist must clear; premedication protocol \
@@ -119,6 +140,15 @@ fn compute_contrast_screening(
         }
         _ => "none",
     };
+    // A documented iodinated-contrast / iodine allergy on the patient record is treated as at least a
+    // severe reaction risk — server-verified, independent of what was attested on the form.
+    if contrast_allergy_on_record {
+        flags.push(
+            "Documented iodinated-contrast / iodine allergy on record — radiologist clearance and a \
+             premedication protocol are required (or use a non-contrast alternative).".to_owned(),
+        );
+        reaction_risk = "severe";
+    }
 
     // Metformin must be withheld when renal function is impaired or unknown.
     let metformin_action = if on_metformin {
@@ -160,8 +190,10 @@ pub async fn contrast_screening(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let egfr = latest_egfr(&mut tx, claims.tenant_id, body.patient_id).await?;
+    let contrast_allergy =
+        has_documented_contrast_allergy(&mut tx, claims.tenant_id, body.patient_id).await?;
     tx.commit().await?;
-    Ok(Json(compute_contrast_screening(egfr, prior, body.on_metformin)))
+    Ok(Json(compute_contrast_screening(egfr, prior, body.on_metformin, contrast_allergy)))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -256,35 +288,42 @@ mod contrast_tests {
 
     #[test]
     fn good_renal_no_history_proceeds() {
-        let r = compute_contrast_screening(Some(90.0), "none", false);
+        let r = compute_contrast_screening(Some(90.0), "none", false, false);
         assert_eq!(r.cin_risk, "low");
         assert_eq!(r.clearance, "proceed");
     }
 
     #[test]
     fn low_egfr_holds_for_review() {
-        let r = compute_contrast_screening(Some(25.0), "none", false);
+        let r = compute_contrast_screening(Some(25.0), "none", false, false);
         assert_eq!(r.cin_risk, "high");
         assert_eq!(r.clearance, "hold_review");
     }
 
     #[test]
     fn severe_reaction_holds_even_with_good_renal() {
-        let r = compute_contrast_screening(Some(90.0), "severe", false);
+        let r = compute_contrast_screening(Some(90.0), "severe", false, false);
         assert_eq!(r.clearance, "hold_review");
     }
 
     #[test]
     fn metformin_held_when_renal_impaired() {
-        let r = compute_contrast_screening(Some(40.0), "none", true);
+        let r = compute_contrast_screening(Some(40.0), "none", true, false);
         assert_eq!(r.metformin_action, "hold_48h");
     }
 
     #[test]
     fn unknown_egfr_proceeds_with_caution() {
-        let r = compute_contrast_screening(None, "none", false);
+        let r = compute_contrast_screening(None, "none", false, false);
         assert_eq!(r.cin_risk, "unknown");
         assert_eq!(r.clearance, "proceed_with_caution");
+    }
+
+    #[test]
+    fn documented_allergy_holds_even_with_good_renal_and_no_attested_history() {
+        let r = compute_contrast_screening(Some(90.0), "none", false, true);
+        assert_eq!(r.reaction_risk, "severe");
+        assert_eq!(r.clearance, "hold_review");
     }
 }
 
