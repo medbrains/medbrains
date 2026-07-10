@@ -71,7 +71,7 @@ import { useMemo, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, Button, IconButton, Table } from "@/components/ui";
+import { Alert, Badge, Button, IconButton, Table } from "@/components/ui";
 import {
   DEFAULT_ICU_BUNDLE_CHECK_FORM_VALUES,
   DEFAULT_ICU_DEVICE_FORM_VALUES,
@@ -743,6 +743,24 @@ function VentilatorTab({ admissionId }: { admissionId: string }) {
     },
   });
 
+  // Lung-protective target: IBW-based tidal volume (ARDSNet). Height + sex are entered here for the
+  // target calc; the watched tidal volume from the form is checked against the 4-8 mL/kg range.
+  const [lpHeight, setLpHeight] = useState<number | "">("");
+  const [lpSex, setLpSex] = useState<string | null>("male");
+  const watchedTidal = useWatch({ control, name: "tidal_volume" });
+  const tidalMl =
+    typeof watchedTidal === "number" ? watchedTidal : Number(watchedTidal) || undefined;
+  const { data: lungTarget } = useQuery({
+    queryKey: ["lung-protective", lpHeight, lpSex, tidalMl],
+    queryFn: () =>
+      icuService.lungProtective({
+        height_cm: Number(lpHeight),
+        sex: lpSex ?? "male",
+        tidal_volume_ml: tidalMl,
+      }),
+    enabled: lpHeight !== "" && Number(lpHeight) >= 100 && !!lpSex,
+  });
+
   const columns = [
     {
       key: "recorded_at",
@@ -885,6 +903,34 @@ function VentilatorTab({ admissionId }: { admissionId: string }) {
               )}
             />
           </Group>
+          <Group grow>
+            <NumberInput
+              label="Height (cm) — for lung-protective Vt"
+              value={lpHeight}
+              onChange={(v) => setLpHeight(typeof v === "number" ? v : "")}
+              min={100}
+              max={250}
+            />
+            <Select
+              label="Sex (for IBW)"
+              data={[
+                { value: "male", label: "Male" },
+                { value: "female", label: "Female" },
+              ]}
+              value={lpSex}
+              onChange={setLpSex}
+            />
+          </Group>
+          {lungTarget && (
+            <Alert
+              tone={lungTarget.within_range === false ? "danger" : "info"}
+              title={`Lung-protective Vt: ${lungTarget.target_ml} mL (6 mL/kg IBW ${lungTarget.ibw_kg} kg; range ${lungTarget.low_ml}–${lungTarget.high_ml} mL)`}
+            >
+              {lungTarget.set_ml_per_kg != null
+                ? `Set Vt is ${lungTarget.set_ml_per_kg} mL/kg IBW. ${lungTarget.response}`
+                : lungTarget.response}
+            </Alert>
+          )}
           <Group grow>
             <Controller
               control={control}

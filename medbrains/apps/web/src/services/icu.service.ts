@@ -9,6 +9,7 @@ export const icuService = {
     api.listIcuVentilatorRecords(...args),
   createIcuVentilatorRecord: (...args: Parameters<typeof api.createIcuVentilatorRecord>) =>
     api.createIcuVentilatorRecord(...args),
+  lungProtective: (...args: Parameters<typeof api.lungProtective>) => api.lungProtective(...args),
   listIcuScores: (...args: Parameters<typeof api.listIcuScores>) => api.listIcuScores(...args),
   createIcuScore: (...args: Parameters<typeof api.createIcuScore>) => api.createIcuScore(...args),
   listIcuDevices: (...args: Parameters<typeof api.listIcuDevices>) => api.listIcuDevices(...args),

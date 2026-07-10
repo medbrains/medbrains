@@ -4,6 +4,7 @@ pub mod aldrete;
 pub mod app_manifest;
 pub mod gcs;
 pub mod hypoglycemia;
+pub mod lung_protective;
 pub mod med_reconciliation;
 pub mod meows;
 pub mod news2;
@@ -322,6 +323,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/clinical/news2", post(news2::news2_score))
         .route("/api/clinical/aldrete", post(aldrete::aldrete_score))
         .route("/api/clinical/gcs", post(gcs::gcs_score))
+        .route(
+            "/api/clinical/lung-protective",
+            post(lung_protective::lung_protective),
+        )
         .route("/api/clinical/qsofa", post(sepsis::qsofa_score))
         .route("/api/clinical/meows", post(meows::meows_score))
         .route("/api/clinical/pews", post(pews::pews_score))

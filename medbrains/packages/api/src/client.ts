@@ -1198,6 +1198,8 @@ import type {
   LookupTerminologyParams,
   LosComparisonRow,
   LtcMedication,
+  LungProtectiveRequest,
+  LungProtectiveResult,
   ManualAutoChargeRequest,
   ManualAutoChargeResponse,
   ManufacturerSummary,
@@ -6856,6 +6858,11 @@ export const api = {
     }),
   listIcuVentilatorRecords: (admissionId: string) =>
     request<IcuVentilatorRecord[]>(`/icu/admissions/${admissionId}/ventilator`),
+  lungProtective: (data: LungProtectiveRequest) =>
+    request<LungProtectiveResult>("/clinical/lung-protective", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   createIcuVentilatorRecord: (admissionId: string, data: CreateIcuVentilatorRequest) =>
     request<IcuVentilatorRecord>(`/icu/admissions/${admissionId}/ventilator`, {
       method: "POST",

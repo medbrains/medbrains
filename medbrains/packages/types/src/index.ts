@@ -4023,6 +4023,22 @@ export interface ContrastScreeningResult {
   flags: string[];
 }
 
+export interface LungProtectiveRequest {
+  height_cm: number;
+  sex: string;
+  tidal_volume_ml?: number;
+}
+
+export interface LungProtectiveResult {
+  ibw_kg: number;
+  target_ml: number;
+  low_ml: number;
+  high_ml: number;
+  set_ml_per_kg: number | null;
+  within_range: boolean | null;
+  response: string;
+}
+
 export interface GcsRequest {
   eye: number;
   verbal: number;
