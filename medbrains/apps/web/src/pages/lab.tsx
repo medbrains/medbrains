@@ -513,6 +513,16 @@ function LabPageInner() {
   });
 
   const unacknowledgedAlerts = criticalAlerts.filter((a: LabCriticalAlert) => !a.acknowledged_at);
+  // NABL: a critical value must be communicated AND acknowledged within a target time. Surface any
+  // that have gone unacknowledged past the target so they can be chased.
+  const CRITICAL_ACK_TARGET_MINUTES = 30;
+  const isAckOverdue = (a: LabCriticalAlert) =>
+    !!a.notified_at &&
+    Date.now() - new Date(a.notified_at).getTime() > CRITICAL_ACK_TARGET_MINUTES * 60_000;
+  const overdueCount = unacknowledgedAlerts.filter(isAckOverdue).length;
+  const sortedUnackAlerts = [...unacknowledgedAlerts].sort(
+    (a, b) => Number(isAckOverdue(b)) - Number(isAckOverdue(a)),
+  );
 
   return (
     <div>
@@ -527,13 +537,18 @@ function LabPageInner() {
         <Alert
           tone="danger"
           icon={<IconAlertTriangle size={18} />}
-          title={`${unacknowledgedAlerts.length} unacknowledged critical alert(s)`}
+          title={`${unacknowledgedAlerts.length} unacknowledged critical alert(s)${
+            overdueCount > 0
+              ? ` — ${overdueCount} overdue for acknowledgement (> ${CRITICAL_ACK_TARGET_MINUTES}m)`
+              : ""
+          }`}
           mb="md"
         >
           <Group gap="xs" wrap="wrap">
-            {unacknowledgedAlerts.slice(0, 5).map((a: LabCriticalAlert) => (
+            {sortedUnackAlerts.slice(0, 5).map((a: LabCriticalAlert) => (
               <Badge key={a.id} tone="danger" variant="filled" size="sm">
                 {a.parameter_name}: {a.value} ({a.flag.replace(/_/g, " ")})
+                {isAckOverdue(a) ? " · overdue" : ""}
               </Badge>
             ))}
             {unacknowledgedAlerts.length > 5 && (
