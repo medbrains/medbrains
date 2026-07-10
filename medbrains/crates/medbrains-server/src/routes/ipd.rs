@@ -4774,6 +4774,31 @@ pub async fn update_discharge_summary(
     )))
 }
 
+/// NABH-mandatory discharge-summary elements that must be present before a summary can be finalized.
+/// Returns the human-readable names of the missing ones.
+fn missing_discharge_summary_fields(
+    final_diagnosis: Option<&str>,
+    condition_at_discharge: Option<&str>,
+    course_in_hospital: Option<&str>,
+    follow_up_instructions: Option<&str>,
+) -> Vec<&'static str> {
+    let blank = |v: Option<&str>| v.is_none_or(|s| s.trim().is_empty());
+    let mut missing = Vec::new();
+    if blank(final_diagnosis) {
+        missing.push("final diagnosis");
+    }
+    if blank(condition_at_discharge) {
+        missing.push("condition at discharge");
+    }
+    if blank(course_in_hospital) {
+        missing.push("course in hospital");
+    }
+    if blank(follow_up_instructions) {
+        missing.push("follow-up instructions");
+    }
+    missing
+}
+
 pub async fn finalize_discharge_summary(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -4784,6 +4809,42 @@ pub async fn finalize_discharge_summary(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    // Completeness gate: a discharge summary can only be finalized once its NABH-required narrative
+    // elements are documented. Finalization is the clinical sign-off, so an incomplete summary must
+    // not be signed off.
+    #[derive(sqlx::FromRow)]
+    struct DischargeSummaryDraft {
+        final_diagnosis: Option<String>,
+        condition_at_discharge: Option<String>,
+        course_in_hospital: Option<String>,
+        follow_up_instructions: Option<String>,
+    }
+    let draft = sqlx::query_as::<_, DischargeSummaryDraft>(
+        "SELECT final_diagnosis, condition_at_discharge, course_in_hospital, \
+         follow_up_instructions FROM ipd_discharge_summaries \
+         WHERE admission_id = $1 AND tenant_id = $2 \
+           AND status = 'draft'::discharge_summary_status",
+    )
+    .bind(admission_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if let Some(d) = &draft {
+        let missing = missing_discharge_summary_fields(
+            d.final_diagnosis.as_deref(),
+            d.condition_at_discharge.as_deref(),
+            d.course_in_hospital.as_deref(),
+            d.follow_up_instructions.as_deref(),
+        );
+        if !missing.is_empty() {
+            return Err(AppError::BadRequest(format!(
+                "Discharge summary is incomplete — document these required elements before \
+                 finalizing: {}.",
+                missing.join(", ")
+            )));
+        }
+    }
 
     let row = sqlx::query_as::<_, IpdDischargeSummary>(
         "UPDATE ipd_discharge_summaries SET \
@@ -7702,4 +7763,26 @@ pub async fn expected_discharges(
 
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+#[cfg(test)]
+mod discharge_summary_tests {
+    use super::missing_discharge_summary_fields;
+
+    #[test]
+    fn complete_summary_has_no_missing() {
+        let missing = missing_discharge_summary_fields(
+            Some("Community-acquired pneumonia"),
+            Some("Stable, afebrile"),
+            Some("IV antibiotics, improved"),
+            Some("Review in 1 week"),
+        );
+        assert!(missing.is_empty());
+    }
+
+    #[test]
+    fn blank_and_missing_fields_are_reported() {
+        let missing = missing_discharge_summary_fields(Some("Sepsis"), Some("   "), None, Some(""));
+        assert_eq!(missing, vec!["condition at discharge", "course in hospital", "follow-up instructions"]);
+    }
 }
