@@ -21,7 +21,8 @@
     "test:e2e": "playwright test",
     "test:e2e:mock": "playwright test --project mock-chromium e2e/mock/",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:headed": "playwright test --headed"
+    "test:e2e:headed": "playwright test --headed",
+    "test:passmark": "playwright test --project passmark"
   },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.2.5",
@@ -104,6 +105,7 @@
     "jsdom": "^29.1.1",
     "madge": "^8.0.0",
     "msw": "^2.14.2",
+    "passmark": "^1.0.16",
     "postcss": "^8.5.14",
     "postcss-preset-mantine": "^1.17.0",
     "postcss-simple-vars": "^7.0.1",

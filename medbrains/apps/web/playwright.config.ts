@@ -109,7 +109,19 @@ export default defineConfig({
         storageState: authStatePath,
       },
       dependencies: ["setup"],
-      testIgnore: /(mock|smoke\/api|crud|forms|analytics|rbac)\/.*\.spec\.ts/,
+      testIgnore: /(mock|smoke\/api|crud|forms|analytics|rbac|passmark)\/.*\.spec\.ts/,
+    },
+
+    {
+      // AI-driven regression tests (opt-in). The specs self-skip unless PASSMARK_ENABLED=1 +
+      // ANTHROPIC_API_KEY are set, so this project is inert in the normal gate. See e2e/passmark/README.md.
+      name: "passmark",
+      testMatch: /passmark\/.*\.passmark\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: authStatePath,
+      },
+      dependencies: ["setup"],
     },
 
     {
