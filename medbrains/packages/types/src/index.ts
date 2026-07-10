@@ -4023,6 +4023,22 @@ export interface ContrastScreeningResult {
   flags: string[];
 }
 
+export interface GcsRequest {
+  eye: number;
+  verbal: number;
+  motor: number;
+}
+
+export interface GcsResult {
+  total: number;
+  eye: number;
+  verbal: number;
+  motor: number;
+  severity: string;
+  airway_at_risk: boolean;
+  response: string;
+}
+
 export interface AldreteRequest {
   activity: number;
   respiration: number;

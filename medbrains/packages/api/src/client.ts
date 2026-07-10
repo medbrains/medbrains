@@ -959,6 +959,8 @@ import type {
   FrontOfficeEnquiryLog,
   FsnAnalysisRow,
   GcsChartPrintData,
+  GcsRequest,
+  GcsResult,
   GenerateDocumentRequest,
   GeneratedDeviceConfig,
   GenerateGstrRequest,
@@ -14593,6 +14595,8 @@ export const api = {
     request<News2Result>("/clinical/news2", { method: "POST", body: JSON.stringify(data) }),
   computeAldrete: (data: AldreteRequest) =>
     request<AldreteResult>("/clinical/aldrete", { method: "POST", body: JSON.stringify(data) }),
+  computeGcs: (data: GcsRequest) =>
+    request<GcsResult>("/clinical/gcs", { method: "POST", body: JSON.stringify(data) }),
   computeQsofa: (data: QsofaRequest) =>
     request<QsofaResult>("/clinical/qsofa", { method: "POST", body: JSON.stringify(data) }),
   computeMeows: (data: MeowsRequest) =>
