@@ -2841,20 +2841,35 @@ pub async fn update_mar_round(
     match status {
         MarStatus::Given => {
             if existing.is_high_alert {
-                match body.witnessed_by {
-                    None => {
-                        return Err(AppError::BadRequest(
-                            "A second-nurse witness is required to administer a high-alert drug."
-                                .to_owned(),
-                        ));
-                    }
-                    Some(w) if w == claims.sub => {
-                        return Err(AppError::BadRequest(
-                            "The witness must be a different nurse from the administering nurse."
-                                .to_owned(),
-                        ));
-                    }
-                    Some(_) => {}
+                let witness = body.witnessed_by.ok_or_else(|| {
+                    AppError::BadRequest(
+                        "A second-nurse witness is required to administer a high-alert drug."
+                            .to_owned(),
+                    )
+                })?;
+                if witness == claims.sub {
+                    return Err(AppError::BadRequest(
+                        "The witness must be a different nurse from the administering nurse."
+                            .to_owned(),
+                    ));
+                }
+                // The witness is a client-supplied id; verify it names a real, active staff user in
+                // this tenant so the IPSG.3 independent double-check can't be satisfied with a
+                // fabricated, deactivated, or cross-tenant id.
+                let witness_is_active = sqlx::query_scalar::<_, bool>(
+                    "SELECT EXISTS( \
+                         SELECT 1 FROM users \
+                         WHERE id = $1 AND tenant_id = $2 AND is_active = true \
+                     )",
+                )
+                .bind(witness)
+                .bind(claims.tenant_id)
+                .fetch_one(&mut *tx)
+                .await?;
+                if !witness_is_active {
+                    return Err(AppError::BadRequest(
+                        "The witness must be an active staff user for this tenant.".to_owned(),
+                    ));
                 }
                 // BCMA: a high-alert drug must be barcode-verified (right patient + right drug)
                 // server-side before it can be given. `barcode_verified` is set only by the
