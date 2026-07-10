@@ -693,6 +693,48 @@ pub async fn create_transfusion(
         )));
     }
 
+    // Cross-match safety (AABB): when a cross-match is linked, it must belong to this patient + unit,
+    // have a compatible result, and be within its 72-hour validity — antibodies can develop after
+    // 72h, so a stale cross-match must not be transfused on.
+    if let Some(crossmatch_id) = body.crossmatch_id {
+        #[derive(sqlx::FromRow)]
+        struct XmRow {
+            status: String,
+            tested_at: Option<DateTime<Utc>>,
+            patient_id: Uuid,
+            component_id: Uuid,
+        }
+        let xm = sqlx::query_as::<_, XmRow>(
+            "SELECT status::text, tested_at, patient_id, component_id FROM crossmatch_requests \
+             WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(crossmatch_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+        if xm.patient_id != body.patient_id || xm.component_id != body.component_id {
+            return Err(AppError::BadRequest(
+                "Cross-match does not belong to this patient and blood unit.".to_owned(),
+            ));
+        }
+        if !["compatible", "issued"].contains(&xm.status.as_str()) {
+            return Err(AppError::BadRequest(format!(
+                "Cross-match is '{}' — a compatible cross-match is required before transfusion.",
+                xm.status
+            )));
+        }
+        let fresh = xm.tested_at.is_some_and(|t| Utc::now() - t <= chrono::Duration::hours(72));
+        if !fresh {
+            return Err(AppError::BadRequest(
+                "Cross-match is older than 72 hours (or untested) — a fresh sample and cross-match \
+                 are required before transfusion."
+                    .to_owned(),
+            ));
+        }
+    }
+
     let record = sqlx::query_as::<_, TransfusionRecord>(
         "INSERT INTO transfusion_records \
          (tenant_id, patient_id, component_id, crossmatch_id, administered_by, \
