@@ -521,17 +521,35 @@ pub async fn list_dnr_orders(
     Ok(Json(rows))
 }
 
+/// A DNR order must be reviewed periodically (NABH / palliative-care policy: reviewed regularly and
+/// whenever the clinical condition changes), so the review interval can't be set open-ended — an
+/// order that is never re-reviewed can outlive the patient's wishes or clinical reality. No single
+/// interval is mandated, so this enforces a sanity range of 1 hour .. 30 days (default 48h).
+const MAX_DNR_REVIEW_HOURS: i32 = 720;
+
+fn validated_dnr_review_hours(requested: Option<i32>) -> Result<i32, AppError> {
+    let hours = requested.unwrap_or(48);
+    if (1..=MAX_DNR_REVIEW_HOURS).contains(&hours) {
+        Ok(hours)
+    } else {
+        Err(AppError::BadRequest(format!(
+            "DNR review interval must be between 1 and {MAX_DNR_REVIEW_HOURS} hours (30 days) — a DNR \
+             order must be periodically reviewed and cannot be left open-ended."
+        )))
+    }
+}
+
 pub async fn create_dnr_order(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateDnrRequest>,
 ) -> Result<Json<DnrOrder>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::dnr::MANAGE)?;
+    let review_hours = validated_dnr_review_hours(body.review_due_hours)?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-
-    let review_hours = body.review_due_hours.unwrap_or(48);
 
     let row = sqlx::query_as::<_, DnrOrder>(
         "INSERT INTO dnr_orders \
@@ -1243,6 +1261,31 @@ mod anthracycline_tests {
     #[test]
     fn unknown_agent_has_no_ceiling() {
         assert_eq!(anthracycline_ceiling_mg_m2("cisplatin"), None);
+    }
+}
+
+#[cfg(test)]
+mod dnr_tests {
+    use super::validated_dnr_review_hours;
+
+    #[test]
+    fn defaults_to_forty_eight_hours() {
+        assert_eq!(validated_dnr_review_hours(None).unwrap(), 48);
+    }
+
+    #[test]
+    fn accepts_within_bounds() {
+        assert_eq!(validated_dnr_review_hours(Some(1)).unwrap(), 1);
+        assert_eq!(validated_dnr_review_hours(Some(720)).unwrap(), 720);
+    }
+
+    #[test]
+    fn rejects_open_ended_and_nonpositive() {
+        // An open-ended DNR could outlive the patient's wishes with no re-review.
+        assert!(validated_dnr_review_hours(Some(721)).is_err());
+        assert!(validated_dnr_review_hours(Some(999_999)).is_err());
+        assert!(validated_dnr_review_hours(Some(0)).is_err());
+        assert!(validated_dnr_review_hours(Some(-5)).is_err());
     }
 }
 
