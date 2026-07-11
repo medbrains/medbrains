@@ -1,9 +1,9 @@
 //! Critical-value acknowledgment escalation (audit P0 #16, NABH/IPSG).
 //!
-//! A critical lab alert that nobody acknowledges within the tenant's
-//! window (lab.critical_ack_minutes, default 15) escalates by SMS.
-//! Recipient priority: department on-call (duty roster) → ordering
-//! doctor's supervisor → repeat to the doctor. Each alert escalates
+//! A critical lab or radiology alert that nobody acknowledges within the
+//! tenant's window (`lab`/`radiology`.`critical_ack_minutes`, default 15)
+//! escalates by SMS. Recipient priority: department on-call (duty roster) →
+//! ordering doctor's supervisor → repeat to the doctor. Each alert escalates
 //! once; the outbox idempotency key guards against double-sends.
 
 use std::time::Duration;
@@ -21,10 +21,19 @@ pub fn spawn(pool: PgPool) {
         loop {
             match escalate_unacknowledged(&pool).await {
                 Ok(escalated) if escalated > 0 => {
-                    tracing::warn!(escalated, "critical alerts escalated — unacknowledged");
+                    tracing::warn!(escalated, "critical lab alerts escalated — unacknowledged");
                 }
                 Ok(_) => {}
-                Err(error) => tracing::error!(%error, "critical alert escalation pass failed"),
+                Err(error) => tracing::error!(%error, "critical lab alert escalation pass failed"),
+            }
+            match escalate_radiology_unacknowledged(&pool).await {
+                Ok(escalated) if escalated > 0 => {
+                    tracing::warn!(escalated, "critical radiology alerts escalated — unacknowledged");
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    tracing::error!(%error, "critical radiology alert escalation pass failed");
+                }
             }
             tokio::time::sleep(Duration::from_secs(PASS_INTERVAL_SECS)).await;
         }
@@ -126,6 +135,113 @@ async fn escalate_unacknowledged(pool: &PgPool) -> Result<u64, AppError> {
         // would just spam the log.
         sqlx::query(
             "UPDATE lab_critical_alerts SET escalated_at = now(), escalated_to = $1 \
+             WHERE id = $2 AND tenant_id = $3 AND escalated_at IS NULL",
+        )
+        .bind(recipient_id)
+        .bind(alert.id)
+        .bind(alert.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        escalated += 1;
+    }
+
+    Ok(escalated)
+}
+
+#[derive(sqlx::FromRow)]
+struct RadiologyOverdueAlert {
+    id: Uuid,
+    tenant_id: Uuid,
+    order_id: Uuid,
+    department_id: Option<Uuid>,
+    finding: String,
+    modality: Option<String>,
+    doctor_id: Option<Uuid>,
+    doctor_phone: Option<String>,
+    supervisor_id: Option<Uuid>,
+    supervisor_phone: Option<String>,
+}
+
+/// Radiology mirror of [`escalate_unacknowledged`]: a critical imaging finding the ordering
+/// physician never acknowledges within the tenant's window escalates up the same on-call chain.
+async fn escalate_radiology_unacknowledged(pool: &PgPool) -> Result<u64, AppError> {
+    let overdue = sqlx::query_as::<_, RadiologyOverdueAlert>(
+        "SELECT ca.id, ca.tenant_id, ca.order_id, enc.department_id, \
+                ca.finding, ca.modality, \
+                d.id AS doctor_id, d.phone AS doctor_phone, \
+                s.id AS supervisor_id, s.phone AS supervisor_phone \
+         FROM radiology_critical_alerts ca \
+         LEFT JOIN radiology_orders ro ON ro.id = ca.order_id \
+         LEFT JOIN encounters enc ON enc.id = ro.encounter_id \
+         LEFT JOIN users d ON d.id = ca.notified_to \
+         LEFT JOIN users s ON s.id = d.supervisor_id \
+         LEFT JOIN tenant_settings ts \
+           ON ts.tenant_id = ca.tenant_id \
+          AND ts.category = 'radiology' AND ts.key = 'critical_ack_minutes' \
+         WHERE ca.acknowledged_at IS NULL \
+           AND ca.escalated_at IS NULL \
+           AND ca.created_at < now() - make_interval(mins => \
+                 COALESCE((ts.value #>> '{}')::int, $1)) \
+         ORDER BY ca.created_at \
+         LIMIT 500",
+    )
+    .bind(DEFAULT_ACK_WINDOW_MINUTES)
+    .fetch_all(pool)
+    .await?;
+
+    let mut escalated = 0u64;
+    for alert in overdue {
+        let mut tx = pool.begin().await?;
+        medbrains_db::pool::set_tenant_context(&mut tx, &alert.tenant_id).await?;
+
+        let has_phone = |phone: &Option<String>| {
+            phone.as_deref().is_some_and(|value| !value.trim().is_empty())
+        };
+        let on_call =
+            super::on_call::current_on_call(&mut tx, alert.tenant_id, alert.department_id).await?;
+        let (recipient_id, recipient_phone) = if let Some(contact) = on_call {
+            (contact.user_id, Some(contact.phone))
+        } else if has_phone(&alert.supervisor_phone) {
+            (alert.supervisor_id, alert.supervisor_phone.clone())
+        } else {
+            (alert.doctor_id, alert.doctor_phone.clone())
+        };
+
+        if let Some(phone) = recipient_phone.filter(|value| !value.trim().is_empty()) {
+            let modality = alert.modality.as_deref().unwrap_or("imaging");
+            medbrains_outbox::queue::queue_in_tx(
+                &mut tx,
+                medbrains_outbox::queue::OutboxRow {
+                    tenant_id: alert.tenant_id,
+                    aggregate_type: "radiology_critical_alert",
+                    aggregate_id: Some(alert.id),
+                    event_type: "sms.cds_critical_interaction",
+                    payload: serde_json::json!({
+                        "to": phone,
+                        "alert_id": alert.id,
+                        "order_id": alert.order_id,
+                        "body": format!(
+                            "ESCALATION: unacknowledged critical {modality} finding: {} \
+                             (order {}). Acknowledge in MedBrains immediately.",
+                            alert.finding, alert.order_id
+                        ),
+                    }),
+                    idempotency_key: Some(format!("radcritesc:{}", alert.id)),
+                },
+            )
+            .await
+            .map_err(|e| AppError::Internal(format!("failed to queue radiology escalation: {e}")))?;
+        } else {
+            tracing::error!(
+                alert_id = %alert.id, order_id = %alert.order_id,
+                "critical radiology alert overdue but no phone on file for doctor or supervisor"
+            );
+        }
+
+        sqlx::query(
+            "UPDATE radiology_critical_alerts SET escalated_at = now(), escalated_to = $1 \
              WHERE id = $2 AND tenant_id = $3 AND escalated_at IS NULL",
         )
         .bind(recipient_id)
