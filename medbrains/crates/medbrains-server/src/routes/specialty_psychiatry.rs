@@ -418,6 +418,24 @@ pub async fn list_restraints(
     Ok(Json(rows))
 }
 
+/// MHCA-2017 / NABH restraint safeguard: a restraint order must be time-limited and periodically
+/// reviewed, so the review interval can't be open-ended. Behavioural restraint for adults is
+/// reviewed at least every 4 hours; an interval outside 1..=4h is rejected so the mandatory review
+/// can't be deferred indefinitely (an unbounded value is effectively unmonitored restraint).
+const MAX_RESTRAINT_REVIEW_HOURS: i32 = 4;
+
+fn validated_review_hours(requested: Option<i32>) -> Result<i32, AppError> {
+    let hours = requested.unwrap_or(MAX_RESTRAINT_REVIEW_HOURS);
+    if (1..=MAX_RESTRAINT_REVIEW_HOURS).contains(&hours) {
+        Ok(hours)
+    } else {
+        Err(AppError::BadRequest(format!(
+            "Restraint review interval must be between 1 and {MAX_RESTRAINT_REVIEW_HOURS} hours \
+             (MHCA 2017 / NABH: restraint must be time-limited and periodically reviewed)."
+        )))
+    }
+}
+
 pub async fn create_restraint(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -428,11 +446,11 @@ pub async fn create_restraint(
         &claims,
         permissions::specialty::psychiatry::restraint::MANAGE,
     )?;
+    let review_hours = validated_review_hours(body.review_due_hours)?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-
-    let review_hours = body.review_due_hours.unwrap_or(4);
 
     let row = sqlx::query_as::<_, PsychSeclusionRestraint>(
         "INSERT INTO psych_seclusion_restraint \
@@ -629,4 +647,29 @@ pub async fn create_counseling_session(
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validated_review_hours;
+
+    #[test]
+    fn defaults_to_four_hours() {
+        assert_eq!(validated_review_hours(None).unwrap(), 4);
+    }
+
+    #[test]
+    fn accepts_within_bounds() {
+        assert_eq!(validated_review_hours(Some(1)).unwrap(), 1);
+        assert_eq!(validated_review_hours(Some(4)).unwrap(), 4);
+    }
+
+    #[test]
+    fn rejects_unbounded_and_nonpositive() {
+        // An open-ended interval would leave the patient in effectively unmonitored restraint.
+        assert!(validated_review_hours(Some(9999)).is_err());
+        assert!(validated_review_hours(Some(5)).is_err());
+        assert!(validated_review_hours(Some(0)).is_err());
+        assert!(validated_review_hours(Some(-1)).is_err());
+    }
 }
