@@ -49,6 +49,7 @@ import type {
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
+  IconActivity,
   IconAlertTriangle,
   IconCheck,
   IconDroplet,
@@ -65,6 +66,7 @@ import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
+import { TransfusionMonitorDrawer } from "@/pages/blood-bank/TransfusionMonitorDrawer";
 import { adminAccessService } from "@/services/adminAccess.service";
 import { bloodBankService } from "@/services/bloodBank.service";
 
@@ -1414,6 +1416,7 @@ function TransfusionsTab() {
   const canCreate = useHasPermission(P.BLOOD_BANK.TRANSFUSION_CREATE);
   const [createOpen, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [reactionId, setReactionId] = useState<string | null>(null);
+  const [monitorId, setMonitorId] = useState<string | null>(null);
 
   const { data: transfusions, isLoading } = useQuery({
     queryKey: ["blood-bank", "transfusions"],
@@ -1493,6 +1496,14 @@ function TransfusionsTab() {
             label: "Actions",
             render: (t: TransfusionRecord) => (
               <Group gap={4}>
+                <Button
+                  tone="ghost"
+                  size="compact-xs"
+                  leftSection={<IconActivity size={14} />}
+                  onClick={() => setMonitorId(t.id)}
+                >
+                  Monitor
+                </Button>
                 {!t.has_reaction && (
                   <Button
                     tone="subtle-danger"
@@ -1553,6 +1564,8 @@ function TransfusionsTab() {
           />
         )}
       </Drawer>
+
+      <TransfusionMonitorDrawer transfusionId={monitorId} onClose={() => setMonitorId(null)} />
     </Stack>
   );
 }

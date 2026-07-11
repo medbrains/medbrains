@@ -1559,6 +1559,7 @@ import type {
   RecordIndicatorValueRequest,
   RecordPaymentRequest,
   RecordReactionRequest,
+  RecordTransfusionObservationRequest,
   ReferralWithNames,
   Refund,
   RefundAdvanceRequest,
@@ -1736,6 +1737,7 @@ import type {
   TransferBedRequest,
   TransferSummaryPrintData,
   TransfusionMonitoringPrintData,
+  TransfusionObservation,
   TransfusionReactionPrintData,
   TransfusionRecord,
   TransfusionRequisitionPrintData,
@@ -6769,6 +6771,13 @@ export const api = {
   recordTransfusionReaction: (id: string, data: RecordReactionRequest) =>
     request<TransfusionRecord>(`/blood-bank/transfusions/${id}/reaction`, {
       method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listTransfusionObservations: (id: string) =>
+    request<TransfusionObservation[]>(`/blood-bank/transfusions/${id}/observations`),
+  recordTransfusionObservation: (id: string, data: RecordTransfusionObservationRequest) =>
+    request<TransfusionObservation>(`/blood-bank/transfusions/${id}/observations`, {
+      method: "POST",
       body: JSON.stringify(data),
     }),
 

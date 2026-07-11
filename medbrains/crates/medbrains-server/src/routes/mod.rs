@@ -4104,6 +4104,11 @@ pub fn build_router(state: AppState) -> Router {
             put(blood_bank::record_reaction),
         )
         .route(
+            "/api/blood-bank/transfusions/{id}/observations",
+            get(blood_bank::list_transfusion_observations)
+                .post(blood_bank::record_transfusion_observation),
+        )
+        .route(
             "/api/blood-bank/tti-report",
             get(blood_bank::get_tti_report),
         )

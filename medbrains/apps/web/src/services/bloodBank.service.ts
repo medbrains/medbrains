@@ -26,6 +26,10 @@ export const bloodBankService = {
     api.createTransfusion(...args),
   recordTransfusionReaction: (...args: Parameters<typeof api.recordTransfusionReaction>) =>
     api.recordTransfusionReaction(...args),
+  listTransfusionObservations: (...args: Parameters<typeof api.listTransfusionObservations>) =>
+    api.listTransfusionObservations(...args),
+  recordTransfusionObservation: (...args: Parameters<typeof api.recordTransfusionObservation>) =>
+    api.recordTransfusionObservation(...args),
   getTtiReport: (...args: Parameters<typeof api.getTtiReport>) => api.getTtiReport(...args),
   getHemovigilanceReport: (...args: Parameters<typeof api.getHemovigilanceReport>) =>
     api.getHemovigilanceReport(...args),

@@ -1701,3 +1701,149 @@ pub async fn get_sbtc_report(
         "lookback_count": lookback_count
     })))
 }
+
+// ══════════════════════════════════════════════════════════
+//  Transfusion monitoring — bedside interval observations
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct TransfusionObservation {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub transfusion_id: Uuid,
+    pub phase: String,
+    pub temperature_c: Option<f64>,
+    pub pulse: Option<i32>,
+    pub systolic_bp: Option<i32>,
+    pub diastolic_bp: Option<i32>,
+    pub respiratory_rate: Option<i32>,
+    pub adverse_signs: bool,
+    pub reaction_suspected: bool,
+    pub notes: Option<String>,
+    pub observed_by: Option<Uuid>,
+    pub observed_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RecordTransfusionObservationRequest {
+    pub phase: String,
+    pub temperature_c: Option<f64>,
+    pub pulse: Option<i32>,
+    pub systolic_bp: Option<i32>,
+    pub diastolic_bp: Option<i32>,
+    pub respiratory_rate: Option<i32>,
+    #[serde(default)]
+    pub adverse_signs: bool,
+    pub notes: Option<String>,
+}
+
+const TRANSFUSION_PHASES: [&str; 4] = ["baseline", "fifteen_min", "periodic", "completion"];
+
+/// A febrile spike (>=38 C) or nurse-observed adverse signs (rigors, urticaria, dyspnoea, loin/back
+/// pain) during a transfusion are the cardinal early signs of an acute reaction — flag it so the
+/// transfusion is stopped and worked up.
+fn suggests_reaction(temperature_c: Option<f64>, adverse_signs: bool) -> bool {
+    adverse_signs || temperature_c.is_some_and(|t| t >= 38.0)
+}
+
+pub async fn record_transfusion_observation(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(transfusion_id): Path<Uuid>,
+    Json(body): Json<RecordTransfusionObservationRequest>,
+) -> Result<Json<TransfusionObservation>, AppError> {
+    require_permission(&claims, permissions::blood_bank::transfusion::CREATE)?;
+    if !TRANSFUSION_PHASES.contains(&body.phase.as_str()) {
+        return Err(AppError::BadRequest(format!(
+            "phase must be one of: {}",
+            TRANSFUSION_PHASES.join(", ")
+        )));
+    }
+    if let Some(t) = body.temperature_c
+        && !(30.0..=45.0).contains(&t)
+    {
+        return Err(AppError::BadRequest("temperature must be between 30 and 45 C".to_owned()));
+    }
+    let reaction_suspected = suggests_reaction(body.temperature_c, body.adverse_signs);
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM transfusions WHERE id = $1 AND tenant_id = $2)",
+    )
+    .bind(transfusion_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if !exists {
+        return Err(AppError::NotFound);
+    }
+
+    let row = sqlx::query_as::<_, TransfusionObservation>(
+        "INSERT INTO transfusion_observations \
+         (tenant_id, transfusion_id, phase, temperature_c, pulse, systolic_bp, diastolic_bp, \
+          respiratory_rate, adverse_signs, reaction_suspected, notes, observed_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(transfusion_id)
+    .bind(&body.phase)
+    .bind(body.temperature_c)
+    .bind(body.pulse)
+    .bind(body.systolic_bp)
+    .bind(body.diastolic_bp)
+    .bind(body.respiratory_rate)
+    .bind(body.adverse_signs)
+    .bind(reaction_suspected)
+    .bind(&body.notes)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn list_transfusion_observations(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(transfusion_id): Path<Uuid>,
+) -> Result<Json<Vec<TransfusionObservation>>, AppError> {
+    require_permission(&claims, permissions::blood_bank::transfusion::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, TransfusionObservation>(
+        "SELECT * FROM transfusion_observations \
+         WHERE transfusion_id = $1 AND tenant_id = $2 ORDER BY observed_at ASC LIMIT 500",
+    )
+    .bind(transfusion_id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[cfg(test)]
+mod observation_tests {
+    use super::suggests_reaction;
+
+    #[test]
+    fn febrile_spike_suggests_reaction() {
+        assert!(suggests_reaction(Some(38.5), false));
+    }
+
+    #[test]
+    fn adverse_signs_suggest_reaction() {
+        assert!(suggests_reaction(None, true));
+        assert!(suggests_reaction(Some(37.0), true));
+    }
+
+    #[test]
+    fn normal_observation_is_clear() {
+        assert!(!suggests_reaction(Some(37.2), false));
+        assert!(!suggests_reaction(None, false));
+    }
+}

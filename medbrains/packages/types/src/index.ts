@@ -10438,6 +10438,37 @@ export interface RecordReactionRequest {
   reaction_details?: string;
 }
 
+export type TransfusionObservationPhase = "baseline" | "fifteen_min" | "periodic" | "completion";
+
+export interface TransfusionObservation {
+  id: string;
+  tenant_id: string;
+  transfusion_id: string;
+  phase: TransfusionObservationPhase;
+  temperature_c: number | null;
+  pulse: number | null;
+  systolic_bp: number | null;
+  diastolic_bp: number | null;
+  respiratory_rate: number | null;
+  adverse_signs: boolean;
+  reaction_suspected: boolean;
+  notes: string | null;
+  observed_by: string | null;
+  observed_at: string;
+  created_at: string;
+}
+
+export interface RecordTransfusionObservationRequest {
+  phase: TransfusionObservationPhase;
+  temperature_c?: number;
+  pulse?: number;
+  systolic_bp?: number;
+  diastolic_bp?: number;
+  respiratory_rate?: number;
+  adverse_signs?: boolean;
+  notes?: string;
+}
+
 // ══════════════════════════════════════════════════════════════
 //  ICU / Critical Care
 // ══════════════════════════════════════════════════════════════
