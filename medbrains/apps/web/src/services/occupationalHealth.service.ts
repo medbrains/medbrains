@@ -23,6 +23,8 @@ export const occupationalHealthService = {
     api.createVaccination(...args),
   listInjuries: (...args: Parameters<typeof api.listInjuries>) => api.listInjuries(...args),
   createInjury: (...args: Parameters<typeof api.createInjury>) => api.createInjury(...args),
+  listExposures: (...args: Parameters<typeof api.listExposures>) => api.listExposures(...args),
+  createExposure: (...args: Parameters<typeof api.createExposure>) => api.createExposure(...args),
   updateInjury: (...args: Parameters<typeof api.updateInjury>) => api.updateInjury(...args),
   listOccHealthHazards: (...args: Parameters<typeof api.listOccHealthHazards>) =>
     api.listOccHealthHazards(...args),

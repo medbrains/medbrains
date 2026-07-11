@@ -709,6 +709,7 @@ import type {
   CreateSpecialtyTemplateRequest,
   CreateSsoGroupMappingRequest,
   CreateSsoProviderRequest,
+  CreateStaffExposureRequest,
   CreateStationHandoffInput,
   CreateStatutoryRecordRequest,
   CreateStewardshipRequest,
@@ -1299,6 +1300,7 @@ import type {
   OccHealthAnalytics,
   OccHealthDrugScreen,
   OccHealthHazard,
+  OccHealthExposure,
   OccHealthInjuryReport,
   // Occupational Health
   OccHealthScreening,
@@ -11484,6 +11486,13 @@ export const api = {
 
   getEmployerView: (id: string) =>
     request<EmployerViewResponse>(`/occ-health/injuries/${id}/employer-view`),
+
+  listExposures: () => request<OccHealthExposure[]>("/occ-health/exposures"),
+  createExposure: (data: CreateStaffExposureRequest) =>
+    request<OccHealthExposure>("/occ-health/exposures", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // ══════════════════════════════════════════════════════════
   //  Utilization Review

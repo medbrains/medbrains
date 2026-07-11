@@ -40,6 +40,7 @@ import type {
 import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
+  IconBiohazard,
   IconCalendar,
   IconCertificate,
   IconChartBar,
@@ -59,6 +60,7 @@ import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
+import { ExposuresPanel } from "@/pages/occupational-health/ExposuresPanel";
 import { occupationalHealthService } from "@/services/occupationalHealth.service";
 
 // ── Constants ──────────────────────────────────────────
@@ -186,6 +188,9 @@ export function OccupationalHealthPage() {
           <Tabs.Tab value="injuries" leftSection={<IconAlertTriangle size={16} />}>
             Injuries & RTW
           </Tabs.Tab>
+          <Tabs.Tab value="exposures" leftSection={<IconBiohazard size={16} />}>
+            Sharps & Exposures
+          </Tabs.Tab>
           <Tabs.Tab value="hazards" leftSection={<IconChecklist size={16} />}>
             Hazard Registry
           </Tabs.Tab>
@@ -208,6 +213,9 @@ export function OccupationalHealthPage() {
         </Tabs.Panel>
         <Tabs.Panel value="injuries" pt="md">
           <InjuriesPanel />
+        </Tabs.Panel>
+        <Tabs.Panel value="exposures" pt="md">
+          <ExposuresPanel />
         </Tabs.Panel>
         <Tabs.Panel value="hazards" pt="md">
           <HazardRegistryPanel />

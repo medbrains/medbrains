@@ -6243,6 +6243,10 @@ pub fn build_router(state: AppState) -> Router {
             get(occ_health::get_employer_view),
         )
         .route(
+            "/api/occ-health/exposures",
+            get(occ_health::list_exposures).post(occ_health::create_exposure),
+        )
+        .route(
             "/api/occ-health/hazards",
             get(occ_health::list_hazards).post(occ_health::create_hazard),
         )

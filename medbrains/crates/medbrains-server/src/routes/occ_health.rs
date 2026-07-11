@@ -5,6 +5,7 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
 };
+use chrono::{DateTime, Utc};
 use medbrains_core::occ_health::{
     OccHealthDrugScreen, OccHealthInjuryReport, OccHealthScreening, OccHealthVaccination,
 };
@@ -418,7 +419,7 @@ pub async fn create_drug_screen(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let specimen_id = format!("DS-{}", chrono::Utc::now().format("%Y%m%d%H%M%S"));
+    let specimen_id = format!("DS-{}", Utc::now().format("%Y%m%d%H%M%S"));
 
     let row = sqlx::query_as::<_, OccHealthDrugScreen>(
         "INSERT INTO occ_health_drug_screens \
@@ -716,7 +717,7 @@ pub async fn create_injury(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let now = chrono::Utc::now();
+    let now = Utc::now();
     let short_uuid = &Uuid::new_v4().to_string()[..8];
     let report_number = format!("INJ-{}-{}", now.format("%Y%m%d%H%M%S"), short_uuid);
 
@@ -1065,4 +1066,165 @@ pub async fn return_to_work_clearance(
 
     tx.commit().await?;
     Ok((StatusCode::CREATED, Json(row)))
+}
+
+// ══════════════════════════════════════════════════════════
+//  Blood & body-fluid / sharps exposure reporting (needlestick)
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct OccHealthExposure {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub employee_id: Uuid,
+    pub exposure_at: DateTime<Utc>,
+    pub exposure_type: String,
+    pub device: Option<String>,
+    pub body_site: Option<String>,
+    pub source_patient_id: Option<Uuid>,
+    pub source_known: bool,
+    pub source_hiv: String,
+    pub source_hbv: String,
+    pub source_hcv: String,
+    pub first_aid_done: bool,
+    pub pep_recommended: bool,
+    pub pep_started: bool,
+    pub pep_details: Option<String>,
+    pub notes: Option<String>,
+    pub reported_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateStaffExposureRequest {
+    pub employee_id: Uuid,
+    pub exposure_at: DateTime<Utc>,
+    pub exposure_type: String,
+    pub device: Option<String>,
+    pub body_site: Option<String>,
+    pub source_patient_id: Option<Uuid>,
+    #[serde(default)]
+    pub source_known: bool,
+    pub source_hiv: Option<String>,
+    pub source_hbv: Option<String>,
+    pub source_hcv: Option<String>,
+    #[serde(default)]
+    pub first_aid_done: bool,
+    #[serde(default)]
+    pub pep_started: bool,
+    pub pep_details: Option<String>,
+    pub notes: Option<String>,
+}
+
+const EXPOSURE_TYPES: [&str; 4] = ["needlestick", "sharps_cut", "mucocutaneous", "other"];
+const SEROSTATUS: [&str; 3] = ["positive", "negative", "unknown"];
+
+/// HIV post-exposure prophylaxis is recommended when there was a real transmission route
+/// (percutaneous or mucous-membrane, i.e. anything but "other") and the source is HIV-positive or of
+/// unknown status. A confirmed HIV-negative source removes the indication. PEP is time-critical
+/// (ideally within 2h, must start within 72h), so this is computed and surfaced at report time.
+fn hiv_pep_recommended(exposure_type: &str, source_hiv: &str) -> bool {
+    exposure_type != "other" && matches!(source_hiv, "positive" | "unknown")
+}
+
+pub async fn create_exposure(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateStaffExposureRequest>,
+) -> Result<(StatusCode, Json<OccHealthExposure>), AppError> {
+    require_permission(&claims, permissions::occ_health::injuries::CREATE)?;
+
+    if !EXPOSURE_TYPES.contains(&body.exposure_type.as_str()) {
+        return Err(AppError::BadRequest(format!(
+            "exposure_type must be one of: {}",
+            EXPOSURE_TYPES.join(", ")
+        )));
+    }
+    let source_hiv = body.source_hiv.as_deref().unwrap_or("unknown");
+    let source_hbv = body.source_hbv.as_deref().unwrap_or("unknown");
+    let source_hcv = body.source_hcv.as_deref().unwrap_or("unknown");
+    for status in [source_hiv, source_hbv, source_hcv] {
+        if !SEROSTATUS.contains(&status) {
+            return Err(AppError::BadRequest(
+                "source serostatus must be positive, negative or unknown".to_owned(),
+            ));
+        }
+    }
+    let pep_recommended = hiv_pep_recommended(&body.exposure_type, source_hiv);
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, OccHealthExposure>(
+        "INSERT INTO occ_health_exposures \
+         (tenant_id, employee_id, exposure_at, exposure_type, device, body_site, source_patient_id, \
+          source_known, source_hiv, source_hbv, source_hcv, first_aid_done, pep_recommended, \
+          pep_started, pep_details, notes, reported_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) \
+         RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.employee_id)
+    .bind(body.exposure_at)
+    .bind(&body.exposure_type)
+    .bind(&body.device)
+    .bind(&body.body_site)
+    .bind(body.source_patient_id)
+    .bind(body.source_known)
+    .bind(source_hiv)
+    .bind(source_hbv)
+    .bind(source_hcv)
+    .bind(body.first_aid_done)
+    .bind(pep_recommended)
+    .bind(body.pep_started)
+    .bind(&body.pep_details)
+    .bind(&body.notes)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok((StatusCode::CREATED, Json(row)))
+}
+
+pub async fn list_exposures(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<OccHealthExposure>>, AppError> {
+    require_permission(&claims, permissions::occ_health::injuries::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, OccHealthExposure>(
+        "SELECT * FROM occ_health_exposures WHERE tenant_id = $1 \
+         ORDER BY exposure_at DESC LIMIT 500",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[cfg(test)]
+mod exposure_tests {
+    use super::hiv_pep_recommended;
+
+    #[test]
+    fn positive_source_percutaneous_recommends_pep() {
+        assert!(hiv_pep_recommended("needlestick", "positive"));
+        assert!(hiv_pep_recommended("sharps_cut", "positive"));
+        assert!(hiv_pep_recommended("mucocutaneous", "positive"));
+    }
+
+    #[test]
+    fn unknown_source_recommends_pep() {
+        assert!(hiv_pep_recommended("needlestick", "unknown"));
+    }
+
+    #[test]
+    fn negative_source_or_no_route_does_not() {
+        assert!(!hiv_pep_recommended("needlestick", "negative"));
+        assert!(!hiv_pep_recommended("other", "positive"));
+        assert!(!hiv_pep_recommended("other", "unknown"));
+    }
 }

@@ -21692,6 +21692,48 @@ export interface CreateInjuryRequest {
   is_osha_recordable?: boolean;
 }
 
+export type ExposureType = "needlestick" | "sharps_cut" | "mucocutaneous" | "other";
+export type SourceSerostatus = "positive" | "negative" | "unknown";
+
+export interface OccHealthExposure {
+  id: string;
+  tenant_id: string;
+  employee_id: string;
+  exposure_at: string;
+  exposure_type: ExposureType;
+  device: string | null;
+  body_site: string | null;
+  source_patient_id: string | null;
+  source_known: boolean;
+  source_hiv: SourceSerostatus;
+  source_hbv: SourceSerostatus;
+  source_hcv: SourceSerostatus;
+  first_aid_done: boolean;
+  pep_recommended: boolean;
+  pep_started: boolean;
+  pep_details: string | null;
+  notes: string | null;
+  reported_by: string | null;
+  created_at: string;
+}
+
+export interface CreateStaffExposureRequest {
+  employee_id: string;
+  exposure_at: string;
+  exposure_type: ExposureType;
+  device?: string;
+  body_site?: string;
+  source_patient_id?: string;
+  source_known?: boolean;
+  source_hiv?: SourceSerostatus;
+  source_hbv?: SourceSerostatus;
+  source_hcv?: SourceSerostatus;
+  first_aid_done?: boolean;
+  pep_started?: boolean;
+  pep_details?: string;
+  notes?: string;
+}
+
 export interface UpdateInjuryRequest {
   injury_description?: string;
   is_osha_recordable?: boolean;
