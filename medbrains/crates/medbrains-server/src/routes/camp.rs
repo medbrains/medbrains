@@ -3537,10 +3537,38 @@ async fn apply_camp_sync_event(
                 .await?;
             }
 
+            // Camp prescriptions are captured offline where the full allergy record isn't
+            // available; at sync the server has it, so flag any drug-allergy conflict for the
+            // pharmacist to catch at review. Non-blocking: the drug was already given in the
+            // field, so we record the prescription and surface the warning rather than reject
+            // the sync (which would silently drop the field record).
+            let allergens = sqlx::query_scalar::<_, String>(
+                "SELECT allergen_name FROM patient_allergies \
+                 WHERE tenant_id = $1 AND patient_id = $2 AND is_active = true \
+                   AND allergy_type = 'drug'",
+            )
+            .bind(claims.tenant_id)
+            .bind(patient_id)
+            .fetch_all(&mut **tx)
+            .await?;
+            let drug_names: Vec<String> =
+                body.items.iter().map(|item| item.drug_name.clone()).collect();
+            let conflicts: Vec<String> = medbrains_core::allergy::find_conflicts(&drug_names, &allergens)
+                .into_iter()
+                .map(|c| format!("{} (allergy: {})", c.drug_name, c.allergen))
+                .collect();
+            let allergy_review_note = (!conflicts.is_empty()).then(|| {
+                format!(
+                    "ALLERGY ALERT (camp sync): conflicts with documented drug allergy — {}. \
+                     Verify before dispensing.",
+                    conflicts.join("; ")
+                )
+            });
+
             let _ = sqlx::query(
                 "INSERT INTO pharmacy_prescriptions \
-                 (tenant_id, prescription_id, patient_id, encounter_id, doctor_id, source, status, priority) \
-                 VALUES ($1, $2, $3, $4, $5, 'opd', 'pending_review', 'normal') \
+                 (tenant_id, prescription_id, patient_id, encounter_id, doctor_id, source, status, priority, review_notes) \
+                 VALUES ($1, $2, $3, $4, $5, 'opd', 'pending_review', 'normal', $6) \
                  ON CONFLICT DO NOTHING",
             )
             .bind(claims.tenant_id)
@@ -3548,6 +3576,7 @@ async fn apply_camp_sync_event(
             .bind(patient_id)
             .bind(encounter_id)
             .bind(body.doctor_id.unwrap_or(claims.sub))
+            .bind(allergy_review_note)
             .execute(&mut **tx)
             .await;
 
