@@ -63,6 +63,51 @@ pub async fn create_substitution(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // Substituting changes the drug the patient actually receives; the prescribe-time allergy check
+    // only validated the ORIGINAL drug. Re-check the substituted drug against the patient's
+    // documented allergies and refuse a substitution to an allergen — the pharmacist must pick a
+    // different equivalent (a true clinical need routes back through the prescriber). IPSG.3.
+    let patient_id = sqlx::query_scalar::<_, Option<Uuid>>(
+        "SELECT o.patient_id FROM pharmacy_orders o \
+         JOIN pharmacy_order_items i ON i.order_id = o.id \
+         WHERE i.id = $1 AND i.tenant_id = $2",
+    )
+    .bind(body.pharmacy_order_item_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .flatten();
+    if let Some(pid) = patient_id
+        && let Some((name, generic)) = sqlx::query_as::<_, (String, Option<String>)>(
+            "SELECT name, generic_name FROM pharmacy_catalog WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(body.substituted_drug_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+    {
+        let allergens = sqlx::query_scalar::<_, String>(
+            "SELECT allergen_name FROM patient_allergies \
+             WHERE tenant_id = $1 AND patient_id = $2 AND is_active = true AND allergy_type = 'drug'",
+        )
+        .bind(claims.tenant_id)
+        .bind(pid)
+        .fetch_all(&mut *tx)
+        .await?;
+        let drug_names: Vec<String> = std::iter::once(name).chain(generic).collect();
+        let conflicts: Vec<String> = medbrains_core::allergy::find_conflicts(&drug_names, &allergens)
+            .into_iter()
+            .map(|c| format!("{} (allergy: {})", c.drug_name, c.allergen))
+            .collect();
+        if !conflicts.is_empty() {
+            return Err(AppError::BadRequest(format!(
+                "Cannot substitute — the substituted drug conflicts with a documented patient \
+                 allergy: {}. Choose a different equivalent.",
+                conflicts.join("; ")
+            )));
+        }
+    }
+
     let row = sqlx::query_as::<_, Substitution>(
         "INSERT INTO pharmacy_substitutions \
          (tenant_id, pharmacy_order_item_id, original_drug_id, substituted_drug_id, \
