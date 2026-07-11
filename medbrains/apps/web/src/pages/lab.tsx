@@ -4,6 +4,7 @@ import "@mantine/charts/styles.css";
 import { LineChart } from "@mantine/charts";
 import {
   Card,
+  Divider,
   Drawer,
   Group,
   NumberInput,
@@ -158,8 +159,9 @@ import {
   labSampleTypeOptions,
 } from "@/forms/lab.form";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
-import { AnionGapTab } from "@/pages/lab/AnionGapTab";
 import { statusColor } from "@/lib/status-colors";
+import { AnionGapTab } from "@/pages/lab/AnionGapTab";
+import { OsmolarGapTab } from "@/pages/lab/OsmolarGapTab";
 import { labService } from "@/services/lab.service";
 import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "@/utils/printCopies";
 
@@ -673,7 +675,11 @@ function LabPageInner() {
         )}
 
         <Tabs.Panel value="calculators">
-          <AnionGapTab />
+          <Stack gap="xl">
+            <AnionGapTab />
+            <Divider />
+            <OsmolarGapTab />
+          </Stack>
         </Tabs.Panel>
       </Tabs>
 

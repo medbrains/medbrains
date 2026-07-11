@@ -4053,6 +4053,21 @@ export interface AnionGapResult {
   response: string;
 }
 
+export interface OsmolarGapRequest {
+  sodium: number;
+  glucose_mg_dl: number;
+  bun_mg_dl: number;
+  measured_osm: number;
+  ethanol_mg_dl?: number;
+}
+
+export interface OsmolarGapResult {
+  calculated_osm: number;
+  osmolar_gap: number;
+  category: "elevated" | "normal";
+  response: string;
+}
+
 export interface PaediatricFluidRequest {
   weight_kg: number;
 }

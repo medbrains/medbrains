@@ -2,6 +2,7 @@ pub mod abdm;
 pub mod access;
 pub mod aldrete;
 pub mod anion_gap;
+pub mod osmolar_gap;
 pub mod app_manifest;
 pub mod gcs;
 pub mod hypoglycemia;
@@ -325,6 +326,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/clinical/news2", post(news2::news2_score))
         .route("/api/clinical/aldrete", post(aldrete::aldrete_score))
         .route("/api/clinical/anion-gap", post(anion_gap::anion_gap))
+        .route("/api/clinical/osmolar-gap", post(osmolar_gap::osmolar_gap))
         .route("/api/clinical/gcs", post(gcs::gcs_score))
         .route(
             "/api/clinical/lung-protective",

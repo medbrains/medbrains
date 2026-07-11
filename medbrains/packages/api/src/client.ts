@@ -1331,6 +1331,8 @@ import type {
   OrderSetUsageStats,
   OrganDonationConsentPrintData,
   OsceScoringSheetPrintData,
+  OsmolarGapRequest,
+  OsmolarGapResult,
   OtAnesthesiaRecord,
   OtBooking,
   OtBookingListResponse,
@@ -14621,6 +14623,11 @@ export const api = {
     }),
   computeAnionGap: (data: AnionGapRequest) =>
     request<AnionGapResult>("/clinical/anion-gap", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  computeOsmolarGap: (data: OsmolarGapRequest) =>
+    request<OsmolarGapResult>("/clinical/osmolar-gap", {
       method: "POST",
       body: JSON.stringify(data),
     }),
