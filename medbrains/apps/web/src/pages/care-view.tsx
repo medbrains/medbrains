@@ -26,6 +26,7 @@ import {
   IconSalad,
   IconUserHeart,
   IconVirus,
+  IconWaveSine,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -53,6 +54,7 @@ import { PatientGridTab } from "./care-view/PatientGridTab";
 import { PewsTab } from "./care-view/PewsTab";
 import { SepsisBundleTab } from "./care-view/SepsisBundleTab";
 import { SepsisTab } from "./care-view/SepsisTab";
+import { SofaTab } from "./care-view/SofaTab";
 import { VteTab } from "./care-view/VteTab";
 import { WellsPeTab } from "./care-view/WellsPeTab";
 
@@ -168,6 +170,9 @@ export function CareViewPage() {
           <Tabs.Tab value="child-pugh" leftSection={<IconFlask size={16} />}>
             Child-Pugh
           </Tabs.Tab>
+          <Tabs.Tab value="sofa" leftSection={<IconWaveSine size={16} />}>
+            SOFA
+          </Tabs.Tab>
           <Tabs.Tab value="paeds-fluid" leftSection={<IconDropletFilled size={16} />}>
             Paeds Fluid
           </Tabs.Tab>
@@ -265,6 +270,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="child-pugh" pt="md">
           <ChildPughTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="sofa" pt="md">
+          <SofaTab />
         </Tabs.Panel>
 
         <Tabs.Panel value="paeds-fluid" pt="md">

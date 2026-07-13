@@ -4407,6 +4407,28 @@ export interface ChildPughResult {
   response: string;
 }
 
+export interface SofaRequest {
+  pao2_fio2: number;
+  respiratory_support?: boolean;
+  platelets: number;
+  bilirubin_mg_dl: number;
+  cardiovascular_score: number;
+  gcs: number;
+  creatinine_mg_dl: number;
+}
+
+export interface SofaResult {
+  total: number;
+  respiration: number;
+  coagulation: number;
+  liver: number;
+  cardiovascular: number;
+  cns: number;
+  renal: number;
+  mortality_band: string;
+  response: string;
+}
+
 export interface MeowsRequest {
   respiratory_rate: number;
   spo2: number;

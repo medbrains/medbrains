@@ -1687,6 +1687,8 @@ import type {
   SiteDomain,
   SnfAdmission,
   SnomedCode,
+  SofaRequest,
+  SofaResult,
   SpcbBmwReturnsPrintData,
   SpecialtyRecord,
   // Specialty Clinical: Other Specialties
@@ -14700,6 +14702,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  computeSofa: (data: SofaRequest) =>
+    request<SofaResult>("/clinical/sofa", { method: "POST", body: JSON.stringify(data) }),
   computePaediatricFluid: (data: PaediatricFluidRequest) =>
     request<PaediatricFluidResult>("/clinical/paediatric-fluid", {
       method: "POST",
