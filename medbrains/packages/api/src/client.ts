@@ -542,6 +542,7 @@ import type {
   CreateIncentiveRuleRequest,
   CreateInclusionRequest,
   CreateIndentRequisitionRequest,
+  CreateIndwellingDeviceRequest,
   CreateInfusionInput,
   CreateInjuryRequest,
   CreateInsuranceClaimRequest,
@@ -1043,6 +1044,7 @@ import type {
   IndentRequisitionDetailResponse,
   // Indent / Store
   IndentRequisitionListResponse,
+  IndwellingDevice,
   InfantWristbandPrintData,
   InfectionDeviceDay,
   // Infection Control
@@ -1299,8 +1301,8 @@ import type {
   OAuthProviderInfo,
   OccHealthAnalytics,
   OccHealthDrugScreen,
-  OccHealthHazard,
   OccHealthExposure,
+  OccHealthHazard,
   OccHealthInjuryReport,
   // Occupational Health
   OccHealthScreening,
@@ -1577,6 +1579,7 @@ import type {
   RejectAssetMovementRequest,
   RejectSampleRequest,
   RemoteVitalReading,
+  RemoveIndwellingDeviceRequest,
   ReorderAlert,
   ReportCatalogResponse,
   ReportDataResponse,
@@ -1602,6 +1605,7 @@ import type {
   ReturnToStoreRequest,
   ReturnToWorkClearanceRequest,
   ReviewBreakGlassRequest,
+  ReviewIndwellingDeviceRequest,
   ReviewPharmacyPrescriptionRequest,
   ReviewPostAction,
   ReviewRoiInput,
@@ -8497,6 +8501,29 @@ export const api = {
 
   recordDeviceDays: (data: RecordDeviceDaysRequest) =>
     request<InfectionDeviceDay>("/infection-control/device-days", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  listIndwellingDevices: (params?: { patient_id?: string; active?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (params?.patient_id) qs.set("patient_id", params.patient_id);
+    if (params?.active !== undefined) qs.set("active", String(params.active));
+    const q = qs.toString();
+    return request<IndwellingDevice[]>(`/infection-control/indwelling-devices${q ? `?${q}` : ""}`);
+  },
+  createIndwellingDevice: (data: CreateIndwellingDeviceRequest) =>
+    request<IndwellingDevice>("/infection-control/indwelling-devices", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  reviewIndwellingDevice: (id: string, data: ReviewIndwellingDeviceRequest) =>
+    request<IndwellingDevice>(`/infection-control/indwelling-devices/${id}/review`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  removeIndwellingDevice: (id: string, data: RemoveIndwellingDeviceRequest) =>
+    request<IndwellingDevice>(`/infection-control/indwelling-devices/${id}/remove`, {
       method: "POST",
       body: JSON.stringify(data),
     }),

@@ -22,6 +22,14 @@ export const infectionControlService = {
   listHygieneAudits: (...args: Parameters<typeof api.listHygieneAudits>) =>
     api.listHygieneAudits(...args),
   listDeviceDays: (...args: Parameters<typeof api.listDeviceDays>) => api.listDeviceDays(...args),
+  listIndwellingDevices: (...args: Parameters<typeof api.listIndwellingDevices>) =>
+    api.listIndwellingDevices(...args),
+  createIndwellingDevice: (...args: Parameters<typeof api.createIndwellingDevice>) =>
+    api.createIndwellingDevice(...args),
+  reviewIndwellingDevice: (...args: Parameters<typeof api.reviewIndwellingDevice>) =>
+    api.reviewIndwellingDevice(...args),
+  removeIndwellingDevice: (...args: Parameters<typeof api.removeIndwellingDevice>) =>
+    api.removeIndwellingDevice(...args),
   createHygieneAudit: (...args: Parameters<typeof api.createHygieneAudit>) =>
     api.createHygieneAudit(...args),
   listOutbreaks: (...args: Parameters<typeof api.listOutbreaks>) => api.listOutbreaks(...args),

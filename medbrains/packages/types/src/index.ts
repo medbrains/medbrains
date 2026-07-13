@@ -15118,6 +15118,49 @@ export interface InfectionSurveillanceEvent {
   updated_at: string;
 }
 
+export type IndwellingDeviceType =
+  | "central_line"
+  | "urinary_catheter"
+  | "ventilator"
+  | "peripheral_iv"
+  | "other";
+
+export interface IndwellingDevice {
+  id: string;
+  tenant_id: string;
+  patient_id: string;
+  admission_id: string | null;
+  device_type: IndwellingDeviceType;
+  site: string | null;
+  indication: string;
+  inserted_at: string;
+  inserted_by: string | null;
+  last_reviewed_at: string;
+  still_indicated: boolean;
+  removed_at: string | null;
+  removed_by: string | null;
+  removal_reason: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface CreateIndwellingDeviceRequest {
+  patient_id: string;
+  admission_id?: string;
+  device_type: IndwellingDeviceType;
+  site?: string;
+  indication: string;
+}
+
+export interface ReviewIndwellingDeviceRequest {
+  still_indicated: boolean;
+  notes?: string;
+}
+
+export interface RemoveIndwellingDeviceRequest {
+  removal_reason: string;
+}
+
 export interface InfectionDeviceDay {
   id: string;
   tenant_id: string;

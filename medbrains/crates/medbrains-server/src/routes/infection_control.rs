@@ -1902,3 +1902,171 @@ pub async fn create_outbreak_rca(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+// ══════════════════════════════════════════════════════════
+//  Indwelling device register — CAUTI / CLABSI / VAP prevention
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct IndwellingDevice {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub patient_id: Uuid,
+    pub admission_id: Option<Uuid>,
+    pub device_type: String,
+    pub site: Option<String>,
+    pub indication: String,
+    pub inserted_at: chrono::DateTime<chrono::Utc>,
+    pub inserted_by: Option<Uuid>,
+    pub last_reviewed_at: chrono::DateTime<chrono::Utc>,
+    pub still_indicated: bool,
+    pub removed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub removed_by: Option<Uuid>,
+    pub removal_reason: Option<String>,
+    pub notes: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateIndwellingDeviceRequest {
+    pub patient_id: Uuid,
+    pub admission_id: Option<Uuid>,
+    pub device_type: String,
+    pub site: Option<String>,
+    pub indication: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReviewIndwellingDeviceRequest {
+    pub still_indicated: bool,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RemoveIndwellingDeviceRequest {
+    pub removal_reason: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListIndwellingDevicesQuery {
+    pub patient_id: Option<Uuid>,
+    pub active: Option<bool>,
+}
+
+const INDWELLING_DEVICE_TYPES: [&str; 5] =
+    ["central_line", "urinary_catheter", "ventilator", "peripheral_iv", "other"];
+
+pub async fn list_indwelling_devices(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<ListIndwellingDevicesQuery>,
+) -> Result<Json<Vec<IndwellingDevice>>, AppError> {
+    require_permission(&claims, permissions::infection_control::surveillance::LIST)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, IndwellingDevice>(
+        "SELECT * FROM indwelling_devices \
+         WHERE tenant_id = $1 \
+           AND ($2::uuid IS NULL OR patient_id = $2) \
+           AND ($3::bool IS NULL OR (removed_at IS NULL) = $3) \
+         ORDER BY removed_at IS NULL DESC, inserted_at DESC LIMIT 500",
+    )
+    .bind(claims.tenant_id)
+    .bind(params.patient_id)
+    .bind(params.active)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+pub async fn create_indwelling_device(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateIndwellingDeviceRequest>,
+) -> Result<Json<IndwellingDevice>, AppError> {
+    require_permission(&claims, permissions::infection_control::surveillance::CREATE)?;
+    if !INDWELLING_DEVICE_TYPES.contains(&body.device_type.as_str()) {
+        return Err(AppError::BadRequest(format!(
+            "device_type must be one of: {}",
+            INDWELLING_DEVICE_TYPES.join(", ")
+        )));
+    }
+    if body.indication.trim().is_empty() {
+        return Err(AppError::BadRequest(
+            "An indication is required — every indwelling device must have a documented reason."
+                .to_owned(),
+        ));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, IndwellingDevice>(
+        "INSERT INTO indwelling_devices \
+         (tenant_id, patient_id, admission_id, device_type, site, indication, inserted_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .bind(body.admission_id)
+    .bind(&body.device_type)
+    .bind(&body.site)
+    .bind(body.indication.trim())
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn review_indwelling_device(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ReviewIndwellingDeviceRequest>,
+) -> Result<Json<IndwellingDevice>, AppError> {
+    require_permission(&claims, permissions::infection_control::surveillance::CREATE)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, IndwellingDevice>(
+        "UPDATE indwelling_devices SET \
+           last_reviewed_at = now(), still_indicated = $3, notes = COALESCE($4, notes) \
+         WHERE id = $1 AND tenant_id = $2 AND removed_at IS NULL RETURNING *",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(body.still_indicated)
+    .bind(&body.notes)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn remove_indwelling_device(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RemoveIndwellingDeviceRequest>,
+) -> Result<Json<IndwellingDevice>, AppError> {
+    require_permission(&claims, permissions::infection_control::surveillance::CREATE)?;
+    if body.removal_reason.trim().is_empty() {
+        return Err(AppError::BadRequest("A removal reason is required.".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, IndwellingDevice>(
+        "UPDATE indwelling_devices SET \
+           removed_at = now(), removed_by = $3, removal_reason = $4 \
+         WHERE id = $1 AND tenant_id = $2 AND removed_at IS NULL RETURNING *",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .bind(body.removal_reason.trim())
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}

@@ -59,6 +59,7 @@ import {
   IconPill,
   IconPlus,
   IconShieldCheck,
+  IconTemperature,
   IconUsers,
   IconVirusSearch,
 } from "@tabler/icons-react";
@@ -72,6 +73,7 @@ import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
+import { InvasiveDevicesPanel } from "@/pages/infection-control/InvasiveDevicesPanel";
 import { infectionControlService } from "@/services/infectionControl.service";
 
 // ── Color Maps ──────────────────────────────────────────
@@ -2494,7 +2496,7 @@ export function InfectionControlPage() {
   const canViewOutbreaks = useHasPermission(P.INFECTION_CONTROL.OUTBREAK_LIST);
   const canViewAnalytics = canViewSurveillance && canViewStewardship && canViewHygiene;
   const visibleTabs = [
-    ...(canViewSurveillance ? ["surveillance"] : []),
+    ...(canViewSurveillance ? ["surveillance", "devices"] : []),
     ...(canViewStewardship ? ["stewardship"] : []),
     ...(canViewBiowaste ? ["biowaste", "sharps"] : []),
     ...(canViewHygiene ? ["hygiene"] : []),
@@ -2544,6 +2546,11 @@ export function InfectionControlPage() {
               Hygiene & Bundles
             </Tabs.Tab>
           )}
+          {canViewSurveillance && (
+            <Tabs.Tab value="devices" leftSection={<IconTemperature size={16} />}>
+              Invasive Devices
+            </Tabs.Tab>
+          )}
           {canViewOutbreaks && (
             <Tabs.Tab value="outbreaks" leftSection={<IconVirusSearch size={16} />}>
               Outbreaks
@@ -2579,6 +2586,11 @@ export function InfectionControlPage() {
         {canViewBiowaste && (
           <Tabs.Panel value="biowaste" pt="md">
             <BiowasteTab />
+          </Tabs.Panel>
+        )}
+        {canViewSurveillance && (
+          <Tabs.Panel value="devices" pt="md">
+            <InvasiveDevicesPanel />
           </Tabs.Panel>
         )}
         {canViewHygiene && (

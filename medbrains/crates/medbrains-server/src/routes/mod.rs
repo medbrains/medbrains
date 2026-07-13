@@ -3166,6 +3166,19 @@ pub fn build_router(state: AppState) -> Router {
             get(infection_control::list_device_days).post(infection_control::record_device_days),
         )
         .route(
+            "/api/infection-control/indwelling-devices",
+            get(infection_control::list_indwelling_devices)
+                .post(infection_control::create_indwelling_device),
+        )
+        .route(
+            "/api/infection-control/indwelling-devices/{id}/review",
+            post(infection_control::review_indwelling_device),
+        )
+        .route(
+            "/api/infection-control/indwelling-devices/{id}/remove",
+            post(infection_control::remove_indwelling_device),
+        )
+        .route(
             "/api/infection-control/stewardship",
             get(infection_control::list_stewardship).post(infection_control::create_stewardship),
         )
