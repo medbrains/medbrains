@@ -42,7 +42,7 @@ import { NursingNotesPanel } from "@/components/crdt/NursingNotesPanel";
 import { EncounterSelect } from "@/components/EncounterSelect";
 import { MedicationRound } from "@/components/Nurse/MedicationRound";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
-import { Alert, Badge, type BadgeTone, Button } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, toast } from "@/components/ui";
 import { RxSuiteWriter } from "@/features/prescription/RxSuiteWriter";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminAccessService } from "@/services/adminAccess.service";
@@ -798,6 +798,7 @@ function CreateIoPanel({ encounterId, onCreated }: { encounterId: string; onCrea
       setVolume(100);
       setNotes("");
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not save I/O entry" }),
   });
 
   return (
@@ -899,11 +900,13 @@ function VitalsTab({
         frequency_minutes: frequency,
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["nurse-vitals-schedules"] }),
+    onError: (e: Error) => toast.error(e.message, { title: "Could not create schedule" }),
   });
 
   const endSchedule = useMutation({
     mutationFn: (id: string) => nurseActivitiesService.endVitalsSchedule(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["nurse-vitals-schedules"] }),
+    onError: (e: Error) => toast.error(e.message, { title: "Could not end schedule" }),
   });
 
   const recordVitals = useMutation({
@@ -923,6 +926,7 @@ function VitalsTab({
         setActiveVitalsTab("timeline");
       }
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not record vitals" }),
   });
 
   return (
@@ -1193,6 +1197,7 @@ function SafetyTab({
       setPainCharacter("");
       setPainIntervention("");
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not save pain assessment" }),
   });
 
   const createFallRisk = useMutation({
@@ -1214,6 +1219,7 @@ function SafetyTab({
       setFallScore(0);
       setFallLevel("low");
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not save fall-risk assessment" }),
   });
 
   const createWound = useMutation({
@@ -1234,6 +1240,7 @@ function SafetyTab({
       setWoundDressing("");
       setWoundNotes("");
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not save wound record" }),
   });
 
   const latestPainStatus = painStatus(painRows?.[0]?.score);
@@ -1589,11 +1596,13 @@ function HandoffWorkflowPanel({
       setAssessment("");
       setRecommendation("");
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not create handoff" }),
   });
 
   const acceptHandoff = useMutation({
     mutationFn: (id: string) => nurseActivitiesService.acceptHandoff(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["nurse-handoffs"] }),
+    onError: (e: Error) => toast.error(e.message, { title: "Could not accept handoff" }),
   });
 
   return (
@@ -1751,6 +1760,7 @@ function NurseRxTab({ encounterId, patientId }: { encounterId: string; patientId
     mutationFn: (data: CreatePrescriptionRequest) =>
       opdService.createPrescription(encounterId, data),
     onSuccess: invalidate,
+    onError: (e: Error) => toast.error(e.message, { title: "Could not create prescription" }),
   });
   const updateMutation = useMutation({
     mutationFn: ({
@@ -1761,6 +1771,7 @@ function NurseRxTab({ encounterId, patientId }: { encounterId: string; patientId
       data: UpdatePrescriptionRequest;
     }) => opdService.updatePrescription(prescriptionId, data),
     onSuccess: invalidate,
+    onError: (e: Error) => toast.error(e.message, { title: "Could not update prescription" }),
   });
 
   const patientName = patient
@@ -1803,6 +1814,7 @@ function EquipmentTab() {
         all_passed: true,
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["nurse-equipment-checks"] }),
+    onError: (e: Error) => toast.error(e.message, { title: "Could not record equipment check" }),
   });
 
   return (
@@ -1891,11 +1903,13 @@ function CodeBlueTab({
       }
       qc.invalidateQueries({ queryKey: ["code-blue"] });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not start code blue" }),
   });
 
   const end = useMutation({
     mutationFn: (id: string) => nurseActivitiesService.endCodeBlue(id, { outcome: "stable" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["code-blue"] }),
+    onError: (e: Error) => toast.error(e.message, { title: "Could not end code blue" }),
   });
 
   return (
