@@ -15,6 +15,7 @@ import {
   IconHeartbeat,
   IconLogout,
   IconLungs,
+  IconLungsFilled,
   IconMoodConfuzed,
   IconMoodSad,
   IconPill,
@@ -45,6 +46,7 @@ import { PewsTab } from "./care-view/PewsTab";
 import { SepsisBundleTab } from "./care-view/SepsisBundleTab";
 import { SepsisTab } from "./care-view/SepsisTab";
 import { VteTab } from "./care-view/VteTab";
+import { WellsPeTab } from "./care-view/WellsPeTab";
 
 export function CareViewPage() {
   useRequirePermission(P.CARE_VIEW.VIEW);
@@ -143,6 +145,9 @@ export function CareViewPage() {
           <Tabs.Tab value="cpot" leftSection={<IconMoodSad size={16} />}>
             CPOT Pain
           </Tabs.Tab>
+          <Tabs.Tab value="wells-pe" leftSection={<IconLungsFilled size={16} />}>
+            Wells PE
+          </Tabs.Tab>
           <Tabs.Tab value="paeds-fluid" leftSection={<IconDropletFilled size={16} />}>
             Paeds Fluid
           </Tabs.Tab>
@@ -220,6 +225,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="cpot" pt="md">
           <CpotTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="wells-pe" pt="md">
+          <WellsPeTab />
         </Tabs.Panel>
 
         <Tabs.Panel value="paeds-fluid" pt="md">

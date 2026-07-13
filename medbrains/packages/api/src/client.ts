@@ -2025,6 +2025,8 @@ import type {
   WardOnDutyRow,
   WardStockRow,
   WaterQualityTestPrintData,
+  WellsPeRequest,
+  WellsPeResult,
   WidgetAccessLevel,
   WidgetDataResponse,
   WidgetTemplate,
@@ -14674,6 +14676,8 @@ export const api = {
     request<CamIcuResult>("/clinical/cam-icu", { method: "POST", body: JSON.stringify(data) }),
   computeCpot: (data: CpotRequest) =>
     request<CpotResult>("/clinical/cpot", { method: "POST", body: JSON.stringify(data) }),
+  computeWellsPe: (data: WellsPeRequest) =>
+    request<WellsPeResult>("/clinical/wells-pe", { method: "POST", body: JSON.stringify(data) }),
   computePaediatricFluid: (data: PaediatricFluidRequest) =>
     request<PaediatricFluidResult>("/clinical/paediatric-fluid", {
       method: "POST",

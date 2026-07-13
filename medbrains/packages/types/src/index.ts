@@ -4311,6 +4311,24 @@ export interface CpotResult {
   response: string;
 }
 
+export interface WellsPeRequest {
+  clinical_signs_dvt?: boolean;
+  pe_most_likely?: boolean;
+  heart_rate_over_100?: boolean;
+  immobilization_or_surgery?: boolean;
+  previous_dvt_pe?: boolean;
+  hemoptysis?: boolean;
+  malignancy?: boolean;
+}
+
+export interface WellsPeResult {
+  score: number;
+  risk_tier: string;
+  pe_likely: boolean;
+  recommended_workup: string;
+  response: string;
+}
+
 export interface MeowsRequest {
   respiratory_rate: number;
   spo2: number;
