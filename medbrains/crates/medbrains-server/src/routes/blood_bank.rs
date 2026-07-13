@@ -471,6 +471,29 @@ pub async fn update_component_status(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // A used / removed blood unit must never re-enter inventory (double-issue / traceability hole).
+    // 'transfused' and 'discarded' are terminal; an 'expired' unit may only be disposed ('discarded').
+    let current = sqlx::query_scalar::<_, String>(
+        "SELECT status::text FROM blood_components WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    let new_status = body.status.as_str();
+    let blocked = match current.as_str() {
+        "transfused" | "discarded" => new_status != current,
+        "expired" => new_status != "expired" && new_status != "discarded",
+        _ => false,
+    };
+    if blocked {
+        return Err(AppError::Conflict(format!(
+            "A '{current}' blood unit cannot be changed to '{new_status}' — a used, expired or \
+             discarded unit must not re-enter inventory."
+        )));
+    }
+
     let discard_clause = if body.status == "discarded" {
         ", discarded_at = now(), discard_reason = $4"
     } else {

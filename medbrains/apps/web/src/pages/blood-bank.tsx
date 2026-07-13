@@ -781,6 +781,7 @@ function InventoryTab() {
       setDiscardComponent(null);
       toast.success("Component status changed", { title: "Status updated" });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Status change blocked" }),
   });
 
   const canDiscard = (c: BloodComponent) => c.status !== "transfused" && c.status !== "discarded";
