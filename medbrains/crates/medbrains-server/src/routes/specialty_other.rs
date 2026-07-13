@@ -868,6 +868,18 @@ pub async fn list_nuclear_administrations(
     Ok(Json(rows))
 }
 
+/// AERB radiation-protection rule: I-131 (radioiodine) therapy at or above 30 mCi requires mandatory
+/// patient isolation — the patient emits penetrating gamma and is a source to others. Computed
+/// server-side so the isolation flag can never be omitted for a high-dose therapeutic dose.
+const I131_ISOLATION_THRESHOLD_MCI: f64 = 30.0;
+
+fn radionuclide_isolation_required(isotope: &str, dose_mci: f64) -> bool {
+    let normalized: String =
+        isotope.chars().filter(char::is_ascii_alphanumeric).collect::<String>().to_lowercase();
+    let is_i131 = normalized.contains("i131") || normalized.contains("iodine131");
+    is_i131 && dose_mci >= I131_ISOLATION_THRESHOLD_MCI
+}
+
 pub async fn create_nuclear_administration(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -878,11 +890,24 @@ pub async fn create_nuclear_administration(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    // The isolation flag must not be client-trusted: for a high-dose I-131 therapeutic dose AERB
+    // mandates isolation, so force it on regardless of what the caller sent.
+    let isotope = sqlx::query_scalar::<_, String>(
+        "SELECT isotope FROM nuclear_med_sources WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(body.source_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    let isolation_required = body.isolation_required.unwrap_or(false)
+        || radionuclide_isolation_required(&isotope, body.dose_mci);
+
     let row = sqlx::query_as::<_, NuclearMedAdministration>(
         "INSERT INTO nuclear_med_administrations \
          (tenant_id, source_id, patient_id, dose_mci, route, indication, \
           administered_by, isolation_required, notes) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, false), $9) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -892,7 +917,7 @@ pub async fn create_nuclear_administration(
     .bind(&body.route)
     .bind(&body.indication)
     .bind(claims.sub)
-    .bind(body.isolation_required)
+    .bind(isolation_required)
     .bind(&body.notes)
     .fetch_one(&mut *tx)
     .await?;
@@ -1519,5 +1544,29 @@ mod dialysis_tests {
     fn missing_inputs_return_none() {
         assert!(uf_rate_ml_kg_hr(2000, 0, 70.0).is_none());
         assert!(uf_rate_ml_kg_hr(2000, 240, 0.0).is_none());
+    }
+}
+
+#[cfg(test)]
+mod nuclear_isolation_tests {
+    use super::radionuclide_isolation_required;
+
+    #[test]
+    fn high_dose_i131_requires_isolation() {
+        assert!(radionuclide_isolation_required("I-131", 100.0));
+        assert!(radionuclide_isolation_required("Iodine-131", 30.0)); // boundary
+        assert!(radionuclide_isolation_required("i131", 45.5));
+    }
+
+    #[test]
+    fn low_dose_i131_does_not() {
+        // Diagnostic / low therapeutic doses below the AERB isolation threshold.
+        assert!(!radionuclide_isolation_required("I-131", 5.0));
+    }
+
+    #[test]
+    fn other_isotopes_do_not() {
+        assert!(!radionuclide_isolation_required("Tc-99m", 100.0));
+        assert!(!radionuclide_isolation_required("Lu-177", 200.0));
     }
 }
