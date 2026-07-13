@@ -165,6 +165,7 @@ import { BedSelect } from "@/components/BedSelect";
 import { PatientConsumablesPanel } from "@/components/Clinical";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { DamaModal } from "@/components/Ipd/DamaModal";
 import { DischargeWorkflowWizard } from "@/components/Ipd/DischargeWorkflowWizard";
 import { MarkDeathModal } from "@/components/Ipd/MarkDeathModal";
@@ -178,7 +179,6 @@ import {
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
-import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import {
   Alert,
@@ -3494,6 +3494,7 @@ function DischargeTab({
         patient_id: result.patient_id ?? patientId,
       });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Discharge blocked" }),
   });
 
   if (status === "discharged" || status === "absconded" || status === "deceased") {

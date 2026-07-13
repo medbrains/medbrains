@@ -1890,8 +1890,9 @@ pub async fn discharge_patient(
         }
     }
 
-    // Clinical safety gate: a patient must not be discharged with an unacknowledged critical lab
-    // result (e.g. critical potassium, haemoglobin) still pending review (NABL/NABH). Enabled by
+    // Clinical safety gate: a patient must not be discharged with an unacknowledged critical result
+    // still pending review — a critical lab value (potassium, haemoglobin) OR a critical imaging
+    // finding (pneumothorax, intracranial bleed) (NABL/NABH critical-results reporting). Enabled by
     // default; a tenant may disable it via clinical.block_discharge_unacked_critical = false. As with
     // the settlement gate, LAMA/absconded/deceased discharges are never blocked.
     let block_unacked_critical = sqlx::query_scalar::<_, serde_json::Value>(
@@ -1905,7 +1906,7 @@ pub async fn discharge_patient(
     .is_none_or(|v| v.as_bool().unwrap_or(v.as_str() != Some("false")));
 
     if block_unacked_critical && matches!(dt, DischargeType::Normal | DischargeType::Referred) {
-        let unacked: i64 = sqlx::query_scalar(
+        let unacked_lab: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM lab_critical_alerts \
              WHERE tenant_id = $1 AND acknowledged_at IS NULL \
                AND patient_id = \
@@ -1915,11 +1916,21 @@ pub async fn discharge_patient(
         .bind(id)
         .fetch_one(&mut *tx)
         .await?;
+        let unacked_rad: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM radiology_critical_alerts \
+             WHERE tenant_id = $1 AND acknowledged_at IS NULL \
+               AND patient_id = \
+                 (SELECT patient_id FROM admissions WHERE id = $2 AND tenant_id = $1)",
+        )
+        .bind(claims.tenant_id)
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
 
-        if unacked > 0 {
+        if unacked_lab > 0 || unacked_rad > 0 {
             return Err(AppError::Conflict(format!(
-                "{unacked} critical lab result(s) are still unacknowledged — review and acknowledge \
-                 them before discharge (clinical.block_discharge_unacked_critical is enabled)."
+                "Unacknowledged critical results must be reviewed before discharge: {unacked_lab} \
+                 lab, {unacked_rad} imaging (clinical.block_discharge_unacked_critical is enabled)."
             )));
         }
     }
