@@ -60,6 +60,16 @@ export function AdministerModal({ opened, onClose, dose, isSubmitting, onSubmit 
         patient_barcode: patientBarcode.trim(),
         drug_barcode: drugBarcode.trim(),
       }),
+    onSuccess: (result) => {
+      if (!result.verified) {
+        // A barcode mismatch (wrong patient / wrong drug) is a BCMA safety stop — surface the
+        // reason loudly rather than silently leaving verification unmet.
+        toast.error(result.reason ?? "Barcode does not match — do not administer.", {
+          title: "Verification failed",
+        });
+      }
+    },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not verify barcode" }),
   });
   const verified = verifyMut.data?.verified ?? false;
 
