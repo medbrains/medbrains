@@ -808,6 +808,7 @@ pub async fn record_reaction(
          reaction_severity = $2::transfusion_reaction_severity, \
          reaction_details = $3, \
          reaction_reported_at = now(), \
+         completed_at = COALESCE(completed_at, now()), \
          updated_at = now() \
          WHERE id = $4 AND tenant_id = $5 \
          RETURNING *",
