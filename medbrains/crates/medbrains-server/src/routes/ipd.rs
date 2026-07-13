@@ -2837,6 +2837,15 @@ pub async fn update_mar_round(
     .await?
     .ok_or(AppError::NotFound)?;
 
+    // A dose already recorded as administered is immutable: re-marking it either double-documents
+    // the administration (reads as a double dose) or silently overwrites who/when it was given.
+    // A held/refused/missed dose can still be corrected (e.g. the patient later accepts it).
+    if matches!(existing.status, MarStatus::Given | MarStatus::SelfAdministered) {
+        return Err(AppError::Conflict(
+            "This dose is already recorded as administered and cannot be changed.".to_owned(),
+        ));
+    }
+
     // Safety rules.
     match status {
         MarStatus::Given => {
