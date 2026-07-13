@@ -1902,6 +1902,64 @@ pub async fn amend_result(
     .execute(&mut *tx)
     .await?;
 
+    // A corrected report must be communicated to the clinician who may have already acted on the
+    // wrong value (CAP/NABL corrected-report reporting). Notify the responsible clinician (encounter
+    // doctor, else ordering provider); skip when the amender is that clinician (no self-noise).
+    let recipient: Uuid = sqlx::query_scalar(
+        "SELECT COALESCE( \
+           (SELECT doctor_id FROM encounters WHERE id = $1 AND tenant_id = $2), $3)",
+    )
+    .bind(order.encounter_id)
+    .bind(claims.tenant_id)
+    .bind(order.ordered_by)
+    .fetch_one(&mut *tx)
+    .await?;
+    let corrected_body =
+        format!("{} was amended — review the corrected report.", original.parameter_name);
+    if recipient != claims.sub {
+        create_notification(
+            &mut tx,
+            claims.tenant_id,
+            NewNotification {
+                user_id: recipient,
+                kind: "warning",
+                title: "Lab result corrected",
+                body: Some(&corrected_body),
+                category: Some("Lab"),
+                entity_type: Some("lab_order"),
+                entity_id: Some(order_id),
+                action_url: Some("/lab"),
+            },
+        )
+        .await?;
+    }
+
+    // If the amendment makes the value critical, re-fire the critical-results loop so the corrected
+    // critical value is acknowledged/escalated like any other — an amendment must not let a critical
+    // value slip through unacknowledged.
+    let amended_is_critical = body
+        .amended_flag
+        .as_deref()
+        .is_some_and(|f| f == "critical_low" || f == "critical_high");
+    if amended_is_critical {
+        sqlx::query(
+            "INSERT INTO lab_critical_alerts \
+             (tenant_id, order_id, result_id, patient_id, parameter_name, value, flag, \
+              notified_to, notified_at) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7::lab_result_flag, $8, now())",
+        )
+        .bind(claims.tenant_id)
+        .bind(order_id)
+        .bind(body.result_id)
+        .bind(order.patient_id)
+        .bind(&original.parameter_name)
+        .bind(&body.amended_value)
+        .bind(body.amended_flag.as_deref())
+        .bind(recipient)
+        .execute(&mut *tx)
+        .await?;
+    }
+
     tx.commit().await?;
     Ok(Json(amendment))
 }
