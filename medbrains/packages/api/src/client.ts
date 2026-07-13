@@ -1001,6 +1001,8 @@ import type {
   HaiRateRow,
   HandHygieneAudit,
   HandoverSummaryResponse,
+  HasBledRequest,
+  HasBledResult,
   HealthPackage,
   HealthResponse,
   HemovigilanceReport,
@@ -14685,6 +14687,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  computeHasBled: (data: HasBledRequest) =>
+    request<HasBledResult>("/clinical/has-bled", { method: "POST", body: JSON.stringify(data) }),
   computePaediatricFluid: (data: PaediatricFluidRequest) =>
     request<PaediatricFluidResult>("/clinical/paediatric-fluid", {
       method: "POST",

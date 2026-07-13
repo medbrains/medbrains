@@ -12,6 +12,7 @@ import {
   IconClipboardList,
   IconDroplet,
   IconDropletFilled,
+  IconDroplets,
   IconHeartbeat,
   IconHeartRateMonitor,
   IconLogout,
@@ -36,6 +37,7 @@ import { CpotTab } from "./care-view/CpotTab";
 import { DischargeTrackerTab } from "./care-view/DischargeTrackerTab";
 import { GcsTab } from "./care-view/GcsTab";
 import { HandoverTab } from "./care-view/HandoverTab";
+import { HasBledTab } from "./care-view/HasBledTab";
 import { HypoglycemiaTab } from "./care-view/HypoglycemiaTab";
 import { MedReconciliationTab } from "./care-view/MedReconciliationTab";
 import { MeowsTab } from "./care-view/MeowsTab";
@@ -153,6 +155,9 @@ export function CareViewPage() {
           <Tabs.Tab value="cha2ds2-vasc" leftSection={<IconHeartRateMonitor size={16} />}>
             CHA₂DS₂-VASc
           </Tabs.Tab>
+          <Tabs.Tab value="has-bled" leftSection={<IconDroplets size={16} />}>
+            HAS-BLED
+          </Tabs.Tab>
           <Tabs.Tab value="paeds-fluid" leftSection={<IconDropletFilled size={16} />}>
             Paeds Fluid
           </Tabs.Tab>
@@ -238,6 +243,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="cha2ds2-vasc" pt="md">
           <Cha2ds2VascTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="has-bled" pt="md">
+          <HasBledTab />
         </Tabs.Panel>
 
         <Tabs.Panel value="paeds-fluid" pt="md">

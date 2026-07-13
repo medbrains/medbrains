@@ -4348,6 +4348,26 @@ export interface Cha2ds2VascResult {
   response: string;
 }
 
+export interface HasBledRequest {
+  age: number;
+  uncontrolled_hypertension?: boolean;
+  abnormal_renal_function?: boolean;
+  abnormal_liver_function?: boolean;
+  stroke?: boolean;
+  bleeding_history?: boolean;
+  labile_inr?: boolean;
+  drugs_antiplatelet_nsaid?: boolean;
+  alcohol_excess?: boolean;
+}
+
+export interface HasBledResult {
+  score: number;
+  elderly_point: number;
+  risk: string;
+  high_risk: boolean;
+  response: string;
+}
+
 export interface MeowsRequest {
   respiratory_rate: number;
   spo2: number;
