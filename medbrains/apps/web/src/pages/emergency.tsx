@@ -3689,6 +3689,12 @@ function MlcCaseDetail({
       void qc.invalidateQueries({ queryKey: ["mlc-documents", mlcCase.id] });
       notifications.show({ title: "Document Created", message: "MLC document saved successfully" });
     },
+    onError: (e: Error) =>
+      notifications.show({
+        title: "Could not save MLC document",
+        message: e.message,
+        color: "red",
+      }),
   });
   const createPoliceIntimationMut = useMutation({
     mutationFn: (data: CreatePoliceIntimationInput) =>
@@ -3709,6 +3715,12 @@ function MlcCaseDetail({
         message: "MLC police intimation has been recorded",
       });
     },
+    onError: (e: Error) =>
+      notifications.show({
+        title: "Could not save police intimation",
+        message: e.message,
+        color: "red",
+      }),
   });
   const confirmPoliceReceiptMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: ConfirmPoliceReceiptInput }) =>
@@ -3723,6 +3735,8 @@ function MlcCaseDetail({
         message: "Police receipt confirmation has been recorded",
       });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not confirm receipt", message: e.message, color: "red" }),
   });
   const mlcPrintMut = useMutation({
     mutationFn: async (variables: {
@@ -5089,6 +5103,12 @@ function MlcTab({
   const selectedPatientId = watch("patient_id");
   const mutation = useMutation({
     mutationFn: (d: CreateMlcCaseRequest) => emergencyService.createMlcCase(d),
+    onError: (e: Error) =>
+      notifications.show({
+        title: "Could not register MLC case",
+        message: e.message,
+        color: "red",
+      }),
     onSuccess: (row) => {
       void qc.invalidateQueries({ queryKey: ["mlc-cases"] });
       emit("mlc.created", mlcCaseClinicalPayload(row));
