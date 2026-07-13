@@ -753,15 +753,61 @@ pub async fn get_order(
 //  Status transitions
 // ══════════════════════════════════════════════════════════
 
+#[derive(Debug, Deserialize)]
+pub struct CollectSampleRequest {
+    /// Scanned/keyed patient wristband identifier (UHID), verified against the order's patient at
+    /// the draw to prevent wrong-blood-in-tube.
+    pub patient_identifier: String,
+}
+
 pub async fn collect_sample(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
+    Json(body): Json<CollectSampleRequest>,
 ) -> Result<Json<LabOrder>, AppError> {
     require_permission(&claims, permissions::lab::results::CREATE)?;
 
+    let provided = body.patient_identifier.trim();
+    if provided.is_empty() {
+        return Err(AppError::BadRequest(
+            "Scan the patient's wristband (or key the UHID) to confirm identity before collecting \
+             the sample."
+                .to_owned(),
+        ));
+    }
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // Positive patient identification at the draw (NABH/CAP/IPSG.1) — the single biggest defence
+    // against wrong-blood-in-tube. The provided wristband identifier must match the order's patient
+    // UHID before the sample can be marked collected; a mismatch blocks collection.
+    let order_patient = sqlx::query_scalar::<_, Uuid>(
+        "SELECT patient_id FROM lab_orders \
+         WHERE id = $1 AND tenant_id = $2 AND status = 'ordered'::lab_order_status",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let Some(patient_id) = order_patient else {
+        return Err(AppError::NotFound);
+    };
+    let uhid = sqlx::query_scalar::<_, Option<String>>("SELECT uhid FROM patients WHERE id = $1")
+        .bind(patient_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .flatten();
+    let identity_matches =
+        uhid.as_deref().is_some_and(|u| u.trim().eq_ignore_ascii_case(provided));
+    if !identity_matches {
+        return Err(AppError::BadRequest(
+            "The scanned ID does not match this order's patient — do NOT collect. Re-check the \
+             wristband against the order."
+                .to_owned(),
+        ));
+    }
 
     let order = sqlx::query_as::<_, LabOrder>(
         "UPDATE lab_orders SET \

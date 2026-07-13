@@ -6131,7 +6131,7 @@ describe("/lab endpoints", () => {
 
   it("collectSample → PUT /lab/orders/{param_1}/collect", async () => {
     mockOk({});
-    await api.collectSample(UUID);
+    await api.collectSample(UUID, { patient_identifier: "UH-0001" });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/lab/orders");

@@ -142,7 +142,16 @@ import { LabTestSearchSelect } from "@/components/LabTestSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Badge, type BadgeTone, Button, IconButton, Modal } from "@/components/ui";
+import {
+  Alert,
+  Badge,
+  type BadgeTone,
+  Button,
+  IconButton,
+  Input,
+  Modal,
+  toast,
+} from "@/components/ui";
 import {
   labB2bClientTypeOptions,
   labBethesdaCategoryOptions,
@@ -866,6 +875,8 @@ function LabOrderDetail({
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const [resultFormOpen, resultFormHandlers] = useDisclosure(false);
+  const [collectOpened, { open: openCollect, close: closeCollect }] = useDisclosure(false);
+  const [scannedId, setScannedId] = useState("");
   const [resultInputs, setResultInputs] = useState<ResultInput[]>([
     { parameter_name: "", value: "" },
   ]);
@@ -892,9 +903,13 @@ function LabOrderDetail({
   );
 
   const collectMutation = useMutation({
-    mutationFn: () => labService.collectSample(orderId),
+    mutationFn: (patientIdentifier: string) =>
+      labService.collectSample(orderId, { patient_identifier: patientIdentifier }),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
+      closeCollect();
+      setScannedId("");
+      toast.success("Identity confirmed — sample collected", { title: "Sample collected" });
       emit("lab.sample_collected", {
         encounter_id: result.encounter_id,
         order_id: result.id,
@@ -904,6 +919,7 @@ function LabOrderDetail({
         test_id: result.test_id,
       });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Identity check failed" }),
   });
   const processMutation = useMutation({
     mutationFn: () => labService.startProcessing(orderId),
@@ -1138,6 +1154,49 @@ function LabOrderDetail({
         </Modal>
       )}
 
+      <Modal
+        opened={collectOpened}
+        onClose={closeCollect}
+        title="Confirm patient identity"
+        size="sm"
+      >
+        <Stack gap="md">
+          <Alert tone="warning" title="Positive patient identification">
+            Confirm you are drawing from the right patient. Scan the wristband (or key the UHID) —
+            the system checks it against this order to prevent wrong-blood-in-tube.
+          </Alert>
+
+          <Card withBorder padding="md" radius="md">
+            <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+              Collecting from
+            </Text>
+            <PatientNameCell patientId={order.patient_id} showUhid={false} />
+          </Card>
+
+          <Input
+            label="Scan wristband / enter UHID"
+            placeholder="Scan the patient's wristband"
+            value={scannedId}
+            onChange={(e) => setScannedId(e.currentTarget.value)}
+            autoFocus
+          />
+
+          <Group justify="flex-end">
+            <Button tone="ghost" onClick={closeCollect}>
+              Cancel
+            </Button>
+            <Button
+              tone="primary"
+              loading={collectMutation.isPending}
+              disabled={!scannedId.trim()}
+              onClick={() => collectMutation.mutate(scannedId.trim())}
+            >
+              Confirm &amp; collect
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+
       {order.rejection_reason && (
         <Badge tone="danger" size="lg">
           Rejected: {order.rejection_reason}
@@ -1148,7 +1207,7 @@ function LabOrderDetail({
       {canCreateResult && (
         <Group>
           {order.status === "ordered" && (
-            <Button tone="primary" size="xs" onClick={() => collectMutation.mutate()}>
+            <Button tone="primary" size="xs" onClick={openCollect}>
               {t("collectSample")}
             </Button>
           )}

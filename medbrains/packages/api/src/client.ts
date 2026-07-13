@@ -294,6 +294,7 @@ import type {
   CodeTestRequest,
   CodeTestResult,
   CollectionEfficiencyReport,
+  CollectSampleRequest,
   CommClinicalMessageRow,
   CommComplaintRow,
   CommCriticalAlertRow,
@@ -4926,7 +4927,8 @@ export const api = {
       body: JSON.stringify(data),
     }),
   getLabOrder: (id: string) => request<LabOrderDetailResponse>(`/lab/orders/${id}`),
-  collectSample: (id: string) => request<LabOrder>(`/lab/orders/${id}/collect`, { method: "PUT" }),
+  collectSample: (id: string, data: CollectSampleRequest) =>
+    request<LabOrder>(`/lab/orders/${id}/collect`, { method: "PUT", body: JSON.stringify(data) }),
   startProcessing: (id: string) =>
     request<LabOrder>(`/lab/orders/${id}/process`, { method: "PUT" }),
   completeLabOrder: (id: string) =>

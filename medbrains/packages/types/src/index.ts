@@ -6819,6 +6819,10 @@ export interface LabOrderListResponse {
   per_page: number;
 }
 
+export interface CollectSampleRequest {
+  patient_identifier: string;
+}
+
 export interface CreateLabOrderRequest {
   patient_id: string;
   encounter_id?: string;
