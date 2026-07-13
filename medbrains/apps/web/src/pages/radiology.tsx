@@ -793,6 +793,8 @@ function OrderDetailDrawer({
       setRecommendations("");
       setIsCritical(false);
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not create report", message: e.message, color: "red" }),
   });
 
   const verifyMutation = useMutation({

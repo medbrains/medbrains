@@ -1017,6 +1017,13 @@ pub async fn create_report(
     .await?
     .ok_or(AppError::NotFound)?;
 
+    // A cancelled imaging order has no valid study — a report must not be created against it.
+    if matches!(order.status, medbrains_core::radiology::RadiologyOrderStatus::Cancelled) {
+        return Err(AppError::Conflict(
+            "Cannot create a report — this radiology order is cancelled.".to_owned(),
+        ));
+    }
+
     let report = sqlx::query_as::<_, RadiologyReport>(
         "INSERT INTO radiology_reports \
          (tenant_id, order_id, reported_by, status, findings, impression, \
