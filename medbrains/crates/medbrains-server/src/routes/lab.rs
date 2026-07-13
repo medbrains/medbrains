@@ -1225,6 +1225,23 @@ pub async fn add_results(
             .await?
             .ok_or(AppError::NotFound)?;
 
+    // Never enter raw results against a closed order: a cancelled order has no valid sample, and a
+    // verified (authorised) report must be corrected through an amendment, not silently overwritten.
+    let closed_reason = match order.status {
+        medbrains_core::lab::LabOrderStatus::Cancelled => {
+            Some("cancelled — its sample is not valid for results")
+        }
+        medbrains_core::lab::LabOrderStatus::Verified => {
+            Some("already verified — correct a value through an amendment instead")
+        }
+        _ => None,
+    };
+    if let Some(reason) = closed_reason {
+        return Err(AppError::Conflict(format!(
+            "Results cannot be entered: this lab order is {reason}."
+        )));
+    }
+
     // Patient age/sex band for reference-range auto-flagging.
     let lab_band = patient_lab_band(&mut tx, claims.tenant_id, order.patient_id).await?;
 
