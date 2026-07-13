@@ -816,6 +816,8 @@ function OrderDetailDrawer({
       }
       notifications.show({ title: "Report verified", message: "", color: "success" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not verify report", message: e.message, color: "red" }),
   });
 
   const order = data?.order;
