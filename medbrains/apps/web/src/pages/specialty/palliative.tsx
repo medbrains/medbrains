@@ -148,6 +148,8 @@ export function PalliativePage() {
         color: "success",
       });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not create DNR order", message: e.message, color: "red" }),
   });
 
   const revokeDnr = useMutation({
@@ -156,6 +158,8 @@ export function PalliativePage() {
       void qc.invalidateQueries({ queryKey: ["dnr-orders"] });
       notifications.show({ title: "Revoked", message: "DNR order revoked", color: "warning" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not revoke DNR order", message: e.message, color: "red" }),
   });
 
   const createPain = useMutation({
@@ -169,6 +173,12 @@ export function PalliativePage() {
         color: "success",
       });
     },
+    onError: (e: Error) =>
+      notifications.show({
+        title: "Could not record pain assessment",
+        message: e.message,
+        color: "red",
+      }),
   });
 
   const createMort = useMutation({
@@ -182,6 +192,12 @@ export function PalliativePage() {
         color: "success",
       });
     },
+    onError: (e: Error) =>
+      notifications.show({
+        title: "Could not create mortuary record",
+        message: e.message,
+        color: "red",
+      }),
   });
 
   const dnrCols: Column<DnrOrder>[] = [
