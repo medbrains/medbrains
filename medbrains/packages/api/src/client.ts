@@ -267,6 +267,8 @@ import type {
   ChiefComplaintMaster,
   ChronicEnrollmentRow,
   ChronicProgram,
+  CiwaArRequest,
+  CiwaArResult,
   // Housekeeping
   CleaningSchedule,
   CleaningTask,
@@ -14689,6 +14691,8 @@ export const api = {
     }),
   computeHasBled: (data: HasBledRequest) =>
     request<HasBledResult>("/clinical/has-bled", { method: "POST", body: JSON.stringify(data) }),
+  computeCiwaAr: (data: CiwaArRequest) =>
+    request<CiwaArResult>("/clinical/ciwa-ar", { method: "POST", body: JSON.stringify(data) }),
   computePaediatricFluid: (data: PaediatricFluidRequest) =>
     request<PaediatricFluidResult>("/clinical/paediatric-fluid", {
       method: "POST",

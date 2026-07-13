@@ -7,6 +7,7 @@ import {
   IconBabyBottle,
   IconBabyCarriage,
   IconBed,
+  IconBottle,
   IconBrain,
   IconCandy,
   IconClipboardList,
@@ -33,6 +34,7 @@ import { careViewService } from "@/services/careView.service";
 import { AldreteTab } from "./care-view/AldreteTab";
 import { CamIcuTab } from "./care-view/CamIcuTab";
 import { Cha2ds2VascTab } from "./care-view/Cha2ds2VascTab";
+import { CiwaArTab } from "./care-view/CiwaArTab";
 import { CpotTab } from "./care-view/CpotTab";
 import { DischargeTrackerTab } from "./care-view/DischargeTrackerTab";
 import { GcsTab } from "./care-view/GcsTab";
@@ -158,6 +160,9 @@ export function CareViewPage() {
           <Tabs.Tab value="has-bled" leftSection={<IconDroplets size={16} />}>
             HAS-BLED
           </Tabs.Tab>
+          <Tabs.Tab value="ciwa-ar" leftSection={<IconBottle size={16} />}>
+            CIWA-Ar
+          </Tabs.Tab>
           <Tabs.Tab value="paeds-fluid" leftSection={<IconDropletFilled size={16} />}>
             Paeds Fluid
           </Tabs.Tab>
@@ -247,6 +252,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="has-bled" pt="md">
           <HasBledTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="ciwa-ar" pt="md">
+          <CiwaArTab />
         </Tabs.Panel>
 
         <Tabs.Panel value="paeds-fluid" pt="md">

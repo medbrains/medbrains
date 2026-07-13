@@ -4368,6 +4368,26 @@ export interface HasBledResult {
   response: string;
 }
 
+export interface CiwaArRequest {
+  nausea_vomiting: number;
+  tremor: number;
+  paroxysmal_sweats: number;
+  anxiety: number;
+  agitation: number;
+  tactile_disturbances: number;
+  auditory_disturbances: number;
+  visual_disturbances: number;
+  headache: number;
+  orientation: number;
+}
+
+export interface CiwaArResult {
+  total: number;
+  severity: string;
+  medication_indicated: boolean;
+  response: string;
+}
+
 export interface MeowsRequest {
   respiratory_rate: number;
   spo2: number;

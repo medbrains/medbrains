@@ -4,6 +4,7 @@ pub mod aldrete;
 pub mod anion_gap;
 pub mod cam_icu;
 pub mod cha2ds2_vasc;
+pub mod ciwa_ar;
 pub mod cpot;
 pub mod has_bled;
 pub mod wells_pe;
@@ -345,6 +346,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/clinical/wells-pe", post(wells_pe::wells_pe_score))
         .route("/api/clinical/cha2ds2-vasc", post(cha2ds2_vasc::cha2ds2_vasc_score))
         .route("/api/clinical/has-bled", post(has_bled::has_bled_score))
+        .route("/api/clinical/ciwa-ar", post(ciwa_ar::ciwa_ar_score))
         .route(
             "/api/clinical/paediatric-fluid",
             post(paediatric_fluid::paediatric_fluid),
