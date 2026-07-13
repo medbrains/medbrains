@@ -253,6 +253,8 @@ import type {
   CensusWardRow,
   CertInIncident,
   CertInIncidentUpdate,
+  Cha2ds2VascRequest,
+  Cha2ds2VascResult,
   ChargeMaster,
   // Order Basket
   CheckBasketRequest,
@@ -14678,6 +14680,11 @@ export const api = {
     request<CpotResult>("/clinical/cpot", { method: "POST", body: JSON.stringify(data) }),
   computeWellsPe: (data: WellsPeRequest) =>
     request<WellsPeResult>("/clinical/wells-pe", { method: "POST", body: JSON.stringify(data) }),
+  computeCha2ds2Vasc: (data: Cha2ds2VascRequest) =>
+    request<Cha2ds2VascResult>("/clinical/cha2ds2-vasc", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   computePaediatricFluid: (data: PaediatricFluidRequest) =>
     request<PaediatricFluidResult>("/clinical/paediatric-fluid", {
       method: "POST",

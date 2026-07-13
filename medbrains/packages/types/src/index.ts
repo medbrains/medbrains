@@ -4329,6 +4329,25 @@ export interface WellsPeResult {
   response: string;
 }
 
+export interface Cha2ds2VascRequest {
+  age: number;
+  sex_female?: boolean;
+  congestive_heart_failure?: boolean;
+  hypertension?: boolean;
+  diabetes?: boolean;
+  stroke_tia_thromboembolism?: boolean;
+  vascular_disease?: boolean;
+}
+
+export interface Cha2ds2VascResult {
+  score: number;
+  age_points: number;
+  sex_points: number;
+  non_sex_score: number;
+  anticoagulation: string;
+  response: string;
+}
+
 export interface MeowsRequest {
   respiratory_rate: number;
   spo2: number;

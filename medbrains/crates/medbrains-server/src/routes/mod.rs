@@ -3,6 +3,7 @@ pub mod access;
 pub mod aldrete;
 pub mod anion_gap;
 pub mod cam_icu;
+pub mod cha2ds2_vasc;
 pub mod cpot;
 pub mod wells_pe;
 pub mod osmolar_gap;
@@ -341,6 +342,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/clinical/cam-icu", post(cam_icu::cam_icu_assessment))
         .route("/api/clinical/cpot", post(cpot::cpot_score))
         .route("/api/clinical/wells-pe", post(wells_pe::wells_pe_score))
+        .route("/api/clinical/cha2ds2-vasc", post(cha2ds2_vasc::cha2ds2_vasc_score))
         .route(
             "/api/clinical/paediatric-fluid",
             post(paediatric_fluid::paediatric_fluid),

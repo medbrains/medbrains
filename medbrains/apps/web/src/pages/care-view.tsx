@@ -13,6 +13,7 @@ import {
   IconDroplet,
   IconDropletFilled,
   IconHeartbeat,
+  IconHeartRateMonitor,
   IconLogout,
   IconLungs,
   IconLungsFilled,
@@ -30,6 +31,7 @@ import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { careViewService } from "@/services/careView.service";
 import { AldreteTab } from "./care-view/AldreteTab";
 import { CamIcuTab } from "./care-view/CamIcuTab";
+import { Cha2ds2VascTab } from "./care-view/Cha2ds2VascTab";
 import { CpotTab } from "./care-view/CpotTab";
 import { DischargeTrackerTab } from "./care-view/DischargeTrackerTab";
 import { GcsTab } from "./care-view/GcsTab";
@@ -148,6 +150,9 @@ export function CareViewPage() {
           <Tabs.Tab value="wells-pe" leftSection={<IconLungsFilled size={16} />}>
             Wells PE
           </Tabs.Tab>
+          <Tabs.Tab value="cha2ds2-vasc" leftSection={<IconHeartRateMonitor size={16} />}>
+            CHA₂DS₂-VASc
+          </Tabs.Tab>
           <Tabs.Tab value="paeds-fluid" leftSection={<IconDropletFilled size={16} />}>
             Paeds Fluid
           </Tabs.Tab>
@@ -229,6 +234,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="wells-pe" pt="md">
           <WellsPeTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="cha2ds2-vasc" pt="md">
+          <Cha2ds2VascTab />
         </Tabs.Panel>
 
         <Tabs.Panel value="paeds-fluid" pt="md">
