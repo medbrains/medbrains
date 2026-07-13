@@ -1565,6 +1565,36 @@ pub async fn update_mlc_case(
     )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // Medico-legal safeguard: an MLC case must not be closed until the police have been informed.
+    // Require a recorded police intimation (or an FIR number, set now or already on file) before the
+    // status may move to 'closed' — closing a medico-legal case without police intimation is improper.
+    if body.status.as_deref() == Some("closed") {
+        let intimation_exists = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM mlc_police_intimations WHERE mlc_case_id = $1)",
+        )
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
+        let fir_now = body.fir_number.as_deref().map(str::trim).is_some_and(|s| !s.is_empty());
+        let fir_on_file = sqlx::query_scalar::<_, Option<String>>(
+            "SELECT fir_number FROM mlc_cases WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .flatten()
+        .is_some_and(|s| !s.trim().is_empty());
+        if !intimation_exists && !fir_now && !fir_on_file {
+            return Err(AppError::Conflict(
+                "Cannot close this MLC case — record a police intimation or FIR number first. \
+                 The police must be informed for every medico-legal case."
+                    .to_owned(),
+            ));
+        }
+    }
+
     let row = sqlx::query_as::<_, MlcCase>(
         "UPDATE mlc_cases SET
             status = COALESCE($3::mlc_status, status),

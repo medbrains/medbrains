@@ -5108,6 +5108,8 @@ function MlcTab({
       resetUpdate(emptyMlcCaseUpdateForm);
       notifications.show({ title: "MLC Updated", message: "MLC case details updated" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "MLC update blocked", message: e.message, color: "red" }),
   });
 
   const mlcStatusColor = (s: string) => {
