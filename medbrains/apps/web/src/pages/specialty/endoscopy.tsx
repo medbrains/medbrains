@@ -82,6 +82,8 @@ export function EndoscopyPage() {
       procHandlers.close();
       notifications.show({ title: "Created", message: "Procedure recorded", color: "success" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not record procedure", message: e.message, color: "red" }),
   });
 
   // ── Create Scope ──
@@ -94,6 +96,8 @@ export function EndoscopyPage() {
       scopeHandlers.close();
       notifications.show({ title: "Created", message: "Scope registered", color: "success" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not register scope", message: e.message, color: "red" }),
   });
 
   const procCols: Column<EndoscopyProcedure>[] = [

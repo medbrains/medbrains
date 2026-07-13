@@ -96,6 +96,8 @@ export function PsychiatryPage() {
         color: "success",
       });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not register patient", message: e.message, color: "red" }),
   });
 
   const releaseRestraint = useMutation({
@@ -104,6 +106,12 @@ export function PsychiatryPage() {
       void qc.invalidateQueries({ queryKey: ["psych-restraints"] });
       notifications.show({ title: "Released", message: "Restraint released", color: "success" });
     },
+    onError: (e: Error) =>
+      notifications.show({
+        title: "Could not release restraint",
+        message: e.message,
+        color: "red",
+      }),
   });
 
   const patCols: Column<PsychPatient>[] = [

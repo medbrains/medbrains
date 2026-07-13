@@ -105,6 +105,8 @@ export function CathLabPage() {
       procHandlers.close();
       notifications.show({ title: "Created", message: "Procedure created", color: "success" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not create procedure", message: e.message, color: "red" }),
   });
 
   // ── Columns ──

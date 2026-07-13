@@ -79,6 +79,8 @@ function NewbornVerifyDrawer({
         scanned_mother_uhid: uhid.trim(),
         scanned_band: band.trim() || undefined,
       }),
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not verify identity", message: e.message, color: "red" }),
   });
   const result = verify.data;
   return (
@@ -182,6 +184,12 @@ export function MaternityPage() {
         color: "success",
       });
     },
+    onError: (e: Error) =>
+      notifications.show({
+        title: "Could not create registration",
+        message: e.message,
+        color: "red",
+      }),
   });
 
   const regCols: Column<MaternityRegistration>[] = [
