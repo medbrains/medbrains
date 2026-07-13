@@ -925,6 +925,7 @@ function LabOrderDetail({
     mutationFn: () => labService.startProcessing(orderId),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] }),
+    onError: (e: Error) => toast.error(e.message, { title: "Could not start processing" }),
   });
   const completeMutation = useMutation({
     mutationFn: () => labService.completeLabOrder(orderId),
@@ -939,6 +940,7 @@ function LabOrderDetail({
         test_id: result.test_id,
       });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not complete order" }),
   });
   const verifyMutation = useMutation({
     mutationFn: () => labService.verifyResults(orderId),
@@ -953,11 +955,13 @@ function LabOrderDetail({
         test_id: result.test_id,
       });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not verify results" }),
   });
   const cancelMutation = useMutation({
     mutationFn: () => labService.cancelLabOrder(orderId),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] }),
+    onError: (e: Error) => toast.error(e.message, { title: "Could not cancel order" }),
   });
   const rejectMutation = useMutation({
     mutationFn: (reason: string) => labService.rejectSample(orderId, { rejection_reason: reason }),
@@ -966,6 +970,7 @@ function LabOrderDetail({
       void queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
       setRejectionReason("");
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not reject sample" }),
   });
   const addResultsMutation = useMutation({
     mutationFn: () => labService.addLabResults(orderId, { results: resultInputs }),
@@ -980,6 +985,7 @@ function LabOrderDetail({
       resultFormHandlers.close();
       setResultInputs([{ parameter_name: "", value: "" }]);
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not save results" }),
   });
 
   // Report status mutations
@@ -990,11 +996,13 @@ function LabOrderDetail({
       }),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] }),
+    onError: (e: Error) => toast.error(e.message, { title: "Could not update report status" }),
   });
   const lockReportMutation = useMutation({
     mutationFn: () => labService.lockLabReport(orderId),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] }),
+    onError: (e: Error) => toast.error(e.message, { title: "Could not lock report" }),
   });
   const [ackAlert, setAckAlert] = useState<LabCriticalAlert | null>(null);
   const [readback, setReadback] = useState("");
@@ -1015,6 +1023,7 @@ function LabOrderDetail({
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
       setAmendData(null);
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not amend result" }),
   });
   const addOnMutation = useMutation({
     mutationFn: (testId: string) => labService.addOnLabTest(orderId, { test_id: testId }),
@@ -1026,6 +1035,7 @@ function LabOrderDetail({
         color: "success",
       });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not add on test" }),
   });
 
   const autoValidateMutation = useMutation({
