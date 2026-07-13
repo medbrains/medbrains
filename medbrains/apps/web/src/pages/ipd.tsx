@@ -2678,6 +2678,7 @@ function AdmissionPrescriptionsTab({
     mutationFn: (data: CreatePrescriptionRequest) =>
       ipdService.createPrescription(encounterId, data),
     onSuccess: invalidate,
+    onError: (e: Error) => toast.error(e.message, { title: "Prescription blocked" }),
   });
   const updateMutation = useMutation({
     mutationFn: ({
@@ -2688,6 +2689,7 @@ function AdmissionPrescriptionsTab({
       data: UpdatePrescriptionRequest;
     }) => ipdService.updatePrescription(prescriptionId, data),
     onSuccess: invalidate,
+    onError: (e: Error) => toast.error(e.message, { title: "Prescription blocked" }),
   });
 
   const fullName = patient
@@ -3164,6 +3166,7 @@ function DischargeSummaryTab({
       void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-summary", admissionId] });
       toast.success("Discharge summary finalized", { title: "Finalized" });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Cannot finalize" }),
   });
 
   if (summary && !editing) {
@@ -3411,6 +3414,7 @@ function TransferTab({
       setBedId("");
       setNotes("");
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Transfer blocked" }),
   });
 
   if (status !== "admitted") {
@@ -4740,6 +4744,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
       setRestraintStatus(null);
       setRestraintNotes("");
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not log restraint check" }),
   });
 
   const rows = docs ?? [];
