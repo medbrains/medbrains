@@ -1379,6 +1379,7 @@ function PharmacyOrdersTab({
         patient_id: order.patient_id,
       });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not dispense order" }),
   });
   const orders = data?.orders ?? [];
   const firstDispensableOrder = orders.find((order) => order.status === "ordered");
@@ -1404,6 +1405,7 @@ function PharmacyOrdersTab({
         reason: "cancelled_from_pharmacy_queue",
       });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not cancel order" }),
   });
 
   const columns: Column<PharmacyOrder>[] = [
@@ -2672,6 +2674,7 @@ function PharmacyOrderDetail({
       });
       clearDispenseHandoff();
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not dispense order" }),
   });
 
   const canSubstituteDrug = useHasPermission(P.PHARMACY_IMPROVEMENTS.SUBSTITUTION_RECORD);
