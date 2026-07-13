@@ -17,6 +17,26 @@ use crate::{
     state::AppState,
 };
 
+/// ReBAC pre-check: the caller must hold `view` on the admission an ICU record belongs to.
+/// Admission `view` is granted to the attending, department/ward members, care-team groups and
+/// explicit shares (see `infra/spicedb/schema.zed`); bypass roles short-circuit inside `check`.
+/// This mirrors the admission guard in `routes/ipd.rs` so ICU records are scoped to the patient's
+/// care team, not readable/writable by every holder of an `icu::*` permission across the tenant.
+/// Fails closed (`NotFound`) if the relationship is absent or the backend errors.
+async fn require_admission_access(
+    state: &AppState,
+    claims: &Claims,
+    admission_id: Uuid,
+) -> Result<(), AppError> {
+    let authz_ctx = crate::middleware::authorization::authz_context(claims);
+    let allowed = state
+        .authz
+        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "admission", admission_id)
+        .await
+        .unwrap_or(false);
+    if allowed { Ok(()) } else { Err(AppError::NotFound) }
+}
+
 // ══════════════════════════════════════════════════════════
 //  Request types
 // ══════════════════════════════════════════════════════════
@@ -119,6 +139,7 @@ pub async fn list_flowsheets(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<IcuFlowsheet>>, AppError> {
     require_permission(&claims, permissions::icu::flowsheets::LIST)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -143,6 +164,7 @@ pub async fn create_flowsheet(
     Json(body): Json<CreateFlowsheetRequest>,
 ) -> Result<Json<IcuFlowsheet>, AppError> {
     require_permission(&claims, permissions::icu::flowsheets::CREATE)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -189,6 +211,7 @@ pub async fn list_ventilator_records(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<IcuVentilatorRecord>>, AppError> {
     require_permission(&claims, permissions::icu::ventilator::LIST)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -213,6 +236,7 @@ pub async fn create_ventilator_record(
     Json(body): Json<CreateVentilatorRequest>,
 ) -> Result<Json<IcuVentilatorRecord>, AppError> {
     require_permission(&claims, permissions::icu::ventilator::CREATE)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -259,6 +283,7 @@ pub async fn list_scores(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<IcuScore>>, AppError> {
     require_permission(&claims, permissions::icu::scores::LIST)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -283,6 +308,7 @@ pub async fn create_score(
     Json(body): Json<CreateScoreRequest>,
 ) -> Result<Json<IcuScore>, AppError> {
     require_permission(&claims, permissions::icu::scores::CREATE)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -323,6 +349,8 @@ pub async fn list_devices(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    require_admission_access(&state, &claims, admission_id).await?;
+
     let rows = sqlx::query_as::<_, IcuDevice>(
         "SELECT * FROM icu_devices WHERE admission_id = $1 AND tenant_id = $2 \
          ORDER BY inserted_at DESC LIMIT 5000",
@@ -346,6 +374,8 @@ pub async fn create_device(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let row = sqlx::query_as::<_, IcuDevice>(
         "INSERT INTO icu_devices \
@@ -376,6 +406,16 @@ pub async fn remove_device(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let admission_id: Uuid = sqlx::query_scalar(
+        "SELECT admission_id FROM icu_devices WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(device_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    require_admission_access(&state, &claims, admission_id).await?;
+
     let row = sqlx::query_as::<_, IcuDevice>(
         "UPDATE icu_devices SET \
          is_active = false, removed_at = now(), removed_by = $1, updated_at = now() \
@@ -403,6 +443,16 @@ pub async fn list_bundle_checks(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let admission_id: Uuid = sqlx::query_scalar(
+        "SELECT admission_id FROM icu_devices WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(device_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    require_admission_access(&state, &claims, admission_id).await?;
+
     let rows = sqlx::query_as::<_, IcuBundleCheck>(
         "SELECT * FROM icu_bundle_checks WHERE device_id = $1 AND tenant_id = $2 \
          ORDER BY checked_at DESC LIMIT 5000",
@@ -426,6 +476,16 @@ pub async fn create_bundle_check(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let admission_id: Uuid = sqlx::query_scalar(
+        "SELECT admission_id FROM icu_devices WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(device_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let row = sqlx::query_as::<_, IcuBundleCheck>(
         "INSERT INTO icu_bundle_checks \
@@ -457,6 +517,7 @@ pub async fn list_nutrition(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<IcuNutrition>>, AppError> {
     require_permission(&claims, permissions::icu::nutrition::LIST)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -481,6 +542,7 @@ pub async fn create_nutrition(
     Json(body): Json<CreateNutritionRequest>,
 ) -> Result<Json<IcuNutrition>, AppError> {
     require_permission(&claims, permissions::icu::nutrition::CREATE)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -519,6 +581,7 @@ pub async fn list_neonatal_records(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<IcuNeonatalRecord>>, AppError> {
     require_permission(&claims, permissions::icu::neonatal::LIST)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -543,6 +606,7 @@ pub async fn create_neonatal_record(
     Json(body): Json<CreateNeonatalRequest>,
 ) -> Result<Json<IcuNeonatalRecord>, AppError> {
     require_permission(&claims, permissions::icu::neonatal::CREATE)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
