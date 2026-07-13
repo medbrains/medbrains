@@ -247,6 +247,8 @@ function TemplatesTab({
       close();
       notifications.show({ title: "Created", message: "Template created", color: "success" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not create template", message: e.message, color: "red" }),
   });
 
   const updateMut = useMutation({
@@ -258,6 +260,8 @@ function TemplatesTab({
       setEditing(null);
       notifications.show({ title: "Updated", message: "Template updated", color: "success" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not update template", message: e.message, color: "red" }),
   });
 
   const deleteMut = useMutation({
@@ -266,6 +270,8 @@ function TemplatesTab({
       void qc.invalidateQueries({ queryKey: ["consent-templates"] });
       notifications.show({ title: "Deleted", message: "Template removed", color: "danger" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not delete template", message: e.message, color: "red" }),
   });
 
   const columns: Column<ConsentTemplateListItem>[] = [
@@ -369,6 +375,8 @@ function TemplatesTab({
         color: "success",
       });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not create template", message: e.message, color: "red" }),
   });
 
   const mloMut = useMutation({
@@ -382,6 +390,8 @@ function TemplatesTab({
         color: "success",
       });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not create template", message: e.message, color: "red" }),
   });
 
   return (
@@ -1364,6 +1374,8 @@ function VerificationTab({ canRevoke }: { canRevoke: boolean }) {
         color: "orange",
       });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not revoke consent", message: e.message, color: "red" }),
   });
   const contextPatientId = patientId.trim().length >= 32 ? patientId.trim() : null;
 
@@ -1493,6 +1505,8 @@ function SignaturesTab({ canManage }: { canManage: boolean }) {
       close();
       notifications.show({ title: "Created", message: "Signature recorded", color: "success" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not record signature", message: e.message, color: "red" }),
   });
 
   const deleteMut = useMutation({
@@ -1501,6 +1515,8 @@ function SignaturesTab({ canManage }: { canManage: boolean }) {
       void qc.invalidateQueries({ queryKey: ["consent-signatures"] });
       notifications.show({ title: "Deleted", message: "Signature removed", color: "danger" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not delete signature", message: e.message, color: "red" }),
   });
 
   const columns: Column<ConsentSignatureMetadata>[] = [
