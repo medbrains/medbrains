@@ -400,6 +400,7 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
       closeDonate();
       toast.success("Blood donation has been recorded", { title: "Donation recorded" });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not record donation" }),
   });
 
   const reactionMut = useMutation({
@@ -410,6 +411,7 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
       setReactionDonation(null);
       toast.warning("Adverse reaction has been recorded", { title: "Reaction documented" });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not record reaction" }),
   });
 
   return (
@@ -1214,6 +1216,7 @@ function CrossmatchTab() {
       closeCreate();
       toast.success("Crossmatch request submitted", { title: "Request created" });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not create request" }),
   });
 
   const updateMut = useMutation({
@@ -1226,6 +1229,7 @@ function CrossmatchTab() {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "crossmatch"] });
       toast.success("Crossmatch request updated", { title: "Updated" });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not update crossmatch" }),
   });
 
   const columns = [
@@ -1431,6 +1435,7 @@ function TransfusionsTab() {
       closeCreate();
       toast.success("Blood transfusion started", { title: "Transfusion recorded" });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not start transfusion" }),
   });
 
   const reactionMut = useMutation({
@@ -1454,6 +1459,7 @@ function TransfusionsTab() {
       setReactionId(null);
       toast.warning("Transfusion reaction has been reported", { title: "Reaction recorded" });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Could not record reaction" }),
   });
 
   const columns = [
