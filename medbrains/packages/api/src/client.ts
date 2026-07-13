@@ -265,6 +265,8 @@ import type {
   CheckPaRequiredRequest,
   ChemoProtocol,
   ChiefComplaintMaster,
+  ChildPughRequest,
+  ChildPughResult,
   ChronicEnrollmentRow,
   ChronicProgram,
   CiwaArRequest,
@@ -14693,6 +14695,11 @@ export const api = {
     request<HasBledResult>("/clinical/has-bled", { method: "POST", body: JSON.stringify(data) }),
   computeCiwaAr: (data: CiwaArRequest) =>
     request<CiwaArResult>("/clinical/ciwa-ar", { method: "POST", body: JSON.stringify(data) }),
+  computeChildPugh: (data: ChildPughRequest) =>
+    request<ChildPughResult>("/clinical/child-pugh", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   computePaediatricFluid: (data: PaediatricFluidRequest) =>
     request<PaediatricFluidResult>("/clinical/paediatric-fluid", {
       method: "POST",

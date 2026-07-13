@@ -4388,6 +4388,25 @@ export interface CiwaArResult {
   response: string;
 }
 
+export interface ChildPughRequest {
+  bilirubin_mg_dl: number;
+  albumin_g_dl: number;
+  inr: number;
+  ascites: string;
+  encephalopathy: string;
+}
+
+export interface ChildPughResult {
+  total: number;
+  bilirubin_points: number;
+  albumin_points: number;
+  inr_points: number;
+  ascites_points: number;
+  encephalopathy_points: number;
+  class: string;
+  response: string;
+}
+
 export interface MeowsRequest {
   respiratory_rate: number;
   spo2: number;

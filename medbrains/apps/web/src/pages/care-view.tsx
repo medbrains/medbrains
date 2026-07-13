@@ -14,6 +14,7 @@ import {
   IconDroplet,
   IconDropletFilled,
   IconDroplets,
+  IconFlask,
   IconHeartbeat,
   IconHeartRateMonitor,
   IconLogout,
@@ -34,6 +35,7 @@ import { careViewService } from "@/services/careView.service";
 import { AldreteTab } from "./care-view/AldreteTab";
 import { CamIcuTab } from "./care-view/CamIcuTab";
 import { Cha2ds2VascTab } from "./care-view/Cha2ds2VascTab";
+import { ChildPughTab } from "./care-view/ChildPughTab";
 import { CiwaArTab } from "./care-view/CiwaArTab";
 import { CpotTab } from "./care-view/CpotTab";
 import { DischargeTrackerTab } from "./care-view/DischargeTrackerTab";
@@ -163,6 +165,9 @@ export function CareViewPage() {
           <Tabs.Tab value="ciwa-ar" leftSection={<IconBottle size={16} />}>
             CIWA-Ar
           </Tabs.Tab>
+          <Tabs.Tab value="child-pugh" leftSection={<IconFlask size={16} />}>
+            Child-Pugh
+          </Tabs.Tab>
           <Tabs.Tab value="paeds-fluid" leftSection={<IconDropletFilled size={16} />}>
             Paeds Fluid
           </Tabs.Tab>
@@ -256,6 +261,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="ciwa-ar" pt="md">
           <CiwaArTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="child-pugh" pt="md">
+          <ChildPughTab />
         </Tabs.Panel>
 
         <Tabs.Panel value="paeds-fluid" pt="md">
