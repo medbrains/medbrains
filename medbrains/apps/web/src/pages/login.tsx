@@ -1,5 +1,15 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Anchor, Center, Checkbox, PasswordInput, Stack, Text, TextInput } from "@mantine/core";
+import {
+  Anchor,
+  Box,
+  Center,
+  Checkbox,
+  PasswordInput,
+  Stack,
+  Text,
+  TextInput,
+  UnstyledButton,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { api } from "@medbrains/api";
 import { userSchema } from "@medbrains/schemas";
@@ -136,10 +146,10 @@ export function LoginPage() {
   }
 
   return (
-    <div className={classes.wrapper}>
+    <Box className={classes.wrapper}>
       {/* Left — marketing panel (complementary landmark) */}
       <aside className={classes.manifesto} aria-label="About MedBrains">
-        <div className={classes.manifestoLogo}>
+        <Box className={classes.manifestoLogo}>
           <Image
             src="/logo/medbrains-mark.svg"
             alt=""
@@ -150,7 +160,7 @@ export function LoginPage() {
             loading="eager"
           />
           <span className={classes.manifestoLogoText}>MedBrains</span>
-        </div>
+        </Box>
 
         <HealthTipsSlider />
 
@@ -174,7 +184,7 @@ export function LoginPage() {
 
       {/* Right — white form (main landmark) */}
       <main className={classes.formSide}>
-        <div className={classes.container}>
+        <Box className={classes.container}>
           <Stack align="center" gap="xs" mb="xl">
             <Brand surface="signin" />
             <Text
@@ -221,7 +231,7 @@ export function LoginPage() {
                   visibilityToggleButtonProps={{ "aria-label": "Show or hide password" }}
                 />
 
-                <div className={classes.formFooter}>
+                <Box className={classes.formFooter}>
                   <Controller
                     control={loginForm.control}
                     name="remember_me"
@@ -237,7 +247,7 @@ export function LoginPage() {
                   <Anchor component={Link} to="/forgot-password" size="xs" c="primary">
                     Forgot password?
                   </Anchor>
-                </div>
+                </Box>
 
                 {loginMutation.isError && (
                   <Alert tone="danger" radius="md">
@@ -301,17 +311,18 @@ export function LoginPage() {
             ))}
 
           {isDesktop && (
-            <div className={classes.desktopSetup}>
-              <button
-                type="button"
+            <Box className={classes.desktopSetup}>
+              <UnstyledButton
                 className={classes.desktopSetupToggle}
                 onClick={desktopSetupDisclosure.toggle}
+                aria-expanded={desktopSetupOpened}
+                aria-controls="desktop-setup-panel"
               >
                 Desktop connection setup
-              </button>
+              </UnstyledButton>
 
               {desktopSetupOpened && (
-                <div className={classes.desktopSetupPanel}>
+                <Box id="desktop-setup-panel" className={classes.desktopSetupPanel}>
                   <TextInput
                     label="Backend API URL"
                     description="Use /api for local dev, or enter a vendor / on-prem server URL."
@@ -324,7 +335,7 @@ export function LoginPage() {
                     size="sm"
                   />
 
-                  <div className={classes.desktopSetupActions}>
+                  <Box className={classes.desktopSetupActions}>
                     <Button tone="secondary" size="xs" onClick={testDesktopConnection}>
                       Test
                     </Button>
@@ -334,44 +345,44 @@ export function LoginPage() {
                     <Button tone="ghost" size="xs" onClick={resetDesktopConnection}>
                       Reset
                     </Button>
-                  </div>
+                  </Box>
 
                   {connectionStatus && (
                     <Alert tone={connectionStatus.color} radius="md">
                       {connectionStatus.message}
                     </Alert>
                   )}
-                </div>
+                </Box>
               )}
-            </div>
+            </Box>
           )}
 
-          <div className={classes.footer}>
+          <Box className={classes.footer}>
             {!isConfigured && (
-              <div className={classes.onboardingLink}>
+              <Box className={classes.onboardingLink}>
                 New installation? <Link to="/onboarding">Set up now &rarr;</Link>
-              </div>
+              </Box>
             )}
 
-            <div className={classes.devHelper}>
-              <button
-                type="button"
+            <Box className={classes.devHelper}>
+              <UnstyledButton
                 className={classes.devToggle}
                 onClick={devCredsDisclosure.toggle}
                 aria-expanded={devCredsOpened}
+                aria-controls="dev-creds-panel"
               >
                 {devCredsOpened ? "Hide dev credentials" : "Dev credentials"}
-              </button>
+              </UnstyledButton>
               {devCredsOpened && (
-                <div className={classes.devCreds}>
+                <Box id="dev-creds-panel" className={classes.devCreds}>
                   <Text size="xs" c="var(--mb-text-secondary)" ff="var(--font-mono, monospace)">
                     admin / admin123
                   </Text>
-                </div>
+                </Box>
               )}
-            </div>
+            </Box>
 
-            <div className={classes.version}>MedBrains HMS v0.1.0</div>
+            <Box className={classes.version}>MedBrains HMS v0.1.0</Box>
             <Text size="xs" c="var(--mb-text-secondary)" ta="center" mt={4}>
               <Anchor component={Link} to="/terms" c="inherit">
                 Terms
@@ -382,9 +393,9 @@ export function LoginPage() {
               </Anchor>
             </Text>
             <Brand surface="footer" />
-          </div>
-        </div>
+          </Box>
+        </Box>
       </main>
-    </div>
+    </Box>
   );
 }
