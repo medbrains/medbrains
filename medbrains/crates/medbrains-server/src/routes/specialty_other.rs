@@ -762,6 +762,28 @@ pub async fn update_mortuary_record(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    // Medico-legal safeguard: an MLC body is evidence and must not be released until the post-mortem
+    // is complete. Block a release of an is_mlc body with no post-mortem on file (and not being
+    // recorded in this same update).
+    if body.status.as_deref() == Some("released") {
+        let (is_mlc, pm_on_file) = sqlx::query_as::<_, (bool, bool)>(
+            "SELECT is_mlc, (pm_date IS NOT NULL) FROM mortuary_records WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+        let pm_done = pm_on_file
+            || body.pm_performed_by.as_deref().is_some_and(|s| !s.trim().is_empty());
+        if is_mlc && !pm_done {
+            return Err(AppError::Conflict(
+                "Cannot release a medico-legal (MLC) body before the post-mortem is completed — \
+                 record the post-mortem first."
+                    .to_owned(),
+            ));
+        }
+    }
+
     let row = sqlx::query_as::<_, MortuaryRecord>(
         "UPDATE mortuary_records SET \
          status = COALESCE($2::body_status, status), \
