@@ -306,6 +306,8 @@ function RadiologyOrdersTab() {
       void qc.invalidateQueries({ queryKey: ["radiology-orders"] });
       notifications.show({ title: "Order cancelled", message: "", color: "danger" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not cancel order", message: e.message, color: "red" }),
   });
 
   const statusTransitionMutation = useMutation({
@@ -324,6 +326,8 @@ function RadiologyOrdersTab() {
         });
       }
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not update status", message: e.message, color: "red" }),
   });
 
   const orders = data?.orders ?? [];
