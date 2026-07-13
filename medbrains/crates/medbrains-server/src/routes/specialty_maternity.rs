@@ -429,21 +429,29 @@ pub async fn list_newborns(
     Ok(Json(rows))
 }
 
+/// An Rh-negative mother delivering must receive anti-D (Rho) immunoglobulin within 72h to prevent
+/// isoimmunisation (haemolytic disease of a future newborn), unless the baby is confirmed Rh-negative.
+fn is_rh_negative(rh_factor: &str) -> bool {
+    let n = rh_factor.trim().to_lowercase();
+    n.contains("neg") || n == "-"
+}
+
 pub async fn create_newborn(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(labor_id): Path<Uuid>,
     Json(body): Json<CreateNewbornRequest>,
-) -> Result<Json<NewbornRecord>, AppError> {
+) -> Result<Json<CreateNewbornResponse>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::newborn::CREATE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
     // Infant-identity safety: resolve and store the mother from the labor -> maternity registration
-    // chain so every newborn is unambiguously linked to its mother (never a NULL mother_id).
-    let mother_id: Uuid = sqlx::query_scalar(
-        "SELECT mr.patient_id FROM labor_records lr \
+    // chain so every newborn is unambiguously linked to its mother (never a NULL mother_id). Also
+    // read the mother's Rh factor to flag the anti-D requirement.
+    let (mother_id, mother_rh): (Uuid, Option<String>) = sqlx::query_as(
+        "SELECT mr.patient_id, mr.rh_factor FROM labor_records lr \
          JOIN maternity_registrations mr ON mr.id = lr.registration_id AND mr.tenant_id = lr.tenant_id \
          WHERE lr.id = $1 AND lr.tenant_id = $2",
     )
@@ -491,8 +499,18 @@ pub async fn create_newborn(
     .fetch_one(&mut *tx)
     .await?;
 
+    let anti_d_required = mother_rh.as_deref().is_some_and(is_rh_negative);
+
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(CreateNewbornResponse { newborn: row, anti_d_required }))
+}
+
+#[derive(Debug, Serialize)]
+pub struct CreateNewbornResponse {
+    pub newborn: NewbornRecord,
+    /// Mother is Rh-negative — anti-D (Rho) immunoglobulin is required within 72h to prevent
+    /// isoimmunisation (unless the baby is confirmed Rh-negative).
+    pub anti_d_required: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -618,4 +636,26 @@ pub async fn create_postnatal(
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+#[cfg(test)]
+mod anti_d_tests {
+    use super::is_rh_negative;
+
+    #[test]
+    fn negative_variants() {
+        assert!(is_rh_negative("negative"));
+        assert!(is_rh_negative("Negative"));
+        assert!(is_rh_negative("neg"));
+        assert!(is_rh_negative("-"));
+        assert!(is_rh_negative(" NEG "));
+    }
+
+    #[test]
+    fn positive_variants() {
+        assert!(!is_rh_negative("positive"));
+        assert!(!is_rh_negative("pos"));
+        assert!(!is_rh_negative("+"));
+        assert!(!is_rh_negative(""));
+    }
 }

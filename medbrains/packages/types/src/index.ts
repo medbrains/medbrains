@@ -19191,6 +19191,11 @@ export interface CreateLaborRecordRequest {
   partograph_data?: Record<string, unknown>;
 }
 
+export interface CreateNewbornResponse {
+  newborn: NewbornRecord;
+  anti_d_required: boolean;
+}
+
 export interface NewbornRecord {
   id: string;
   tenant_id: string;

@@ -594,6 +594,7 @@ import type {
   CreateNdpsEntryRequest,
   CreateNeedleStickIncidentRequest,
   CreateNewbornRecordRequest,
+  CreateNewbornResponse,
   CreateNuclearMedAdminRequest,
   CreateNuclearMedSourceRequest,
   CreateNursingAssessmentRequest,
@@ -10175,7 +10176,7 @@ export const api = {
   listNewborns: (laborId: string) =>
     request<NewbornRecord[]>(`/specialty/maternity/labor/${laborId}/newborns`),
   createNewborn: (laborId: string, data: CreateNewbornRecordRequest) =>
-    request<NewbornRecord>(`/specialty/maternity/labor/${laborId}/newborns`, {
+    request<CreateNewbornResponse>(`/specialty/maternity/labor/${laborId}/newborns`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
