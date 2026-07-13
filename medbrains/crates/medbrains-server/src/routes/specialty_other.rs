@@ -13,7 +13,7 @@ use medbrains_core::specialty::palliative::{
     DnrOrder, MortuaryRecord, NuclearMedAdministration, NuclearMedSource, PainAssessment,
 };
 use medbrains_core::specialty::pmr::{AudiologyTest, PsychometricTest, RehabPlan, RehabSession};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
@@ -211,8 +211,31 @@ pub struct CreateDialysisRequest {
     pub dialyzer_type: Option<String>,
     pub pre_weight_kg: Option<f64>,
     pub uf_goal_ml: Option<i32>,
+    /// Planned session duration (minutes) — used to check the ultrafiltration rate up front.
+    pub duration_minutes: Option<i32>,
     pub heparin_dose: Option<String>,
     pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CreateDialysisResponse {
+    pub session: DialysisSession,
+    /// Planned ultrafiltration rate in mL/kg/hr, when weight + goal + duration are all given.
+    pub uf_rate_ml_kg_hr: Option<f64>,
+    /// True when the planned UF rate exceeds the safe ceiling (KDOQI ~13 mL/kg/hr).
+    pub uf_rate_exceeds_safe: bool,
+}
+
+/// KDOQI ultrafiltration-rate safety: removing fluid faster than ~13 mL/kg/hr drives intradialytic
+/// hypotension and is associated with higher mortality. Returns the planned UF rate in mL/kg/hr, or
+/// None when weight/duration are missing or non-positive.
+const MAX_SAFE_UF_RATE_ML_KG_HR: f64 = 13.0;
+
+fn uf_rate_ml_kg_hr(uf_goal_ml: i32, duration_minutes: i32, pre_weight_kg: f64) -> Option<f64> {
+    if duration_minutes <= 0 || pre_weight_kg <= 0.0 || uf_goal_ml < 0 {
+        return None;
+    }
+    Some(f64::from(uf_goal_ml) / (f64::from(duration_minutes) / 60.0) / pre_weight_kg)
 }
 
 #[derive(Debug, Deserialize)]
@@ -1011,7 +1034,7 @@ pub async fn create_dialysis_session(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateDialysisRequest>,
-) -> Result<Json<DialysisSession>, AppError> {
+) -> Result<Json<CreateDialysisResponse>, AppError> {
     require_permission(&claims, permissions::specialty::other::dialysis::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1020,8 +1043,8 @@ pub async fn create_dialysis_session(
     let row = sqlx::query_as::<_, DialysisSession>(
         "INSERT INTO dialysis_sessions \
          (tenant_id, patient_id, machine_number, access_type, dialyzer_type, \
-          pre_weight_kg, uf_goal_ml, heparin_dose, performed_by, notes) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) \
+          pre_weight_kg, uf_goal_ml, duration_minutes, heparin_dose, performed_by, notes) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -1031,6 +1054,7 @@ pub async fn create_dialysis_session(
     .bind(&body.dialyzer_type)
     .bind(body.pre_weight_kg)
     .bind(body.uf_goal_ml)
+    .bind(body.duration_minutes)
     .bind(&body.heparin_dose)
     .bind(claims.sub)
     .bind(&body.notes)
@@ -1057,7 +1081,13 @@ pub async fn create_dialysis_session(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(row))
+
+    let uf_rate_ml_kg_hr = match (body.uf_goal_ml, body.duration_minutes, body.pre_weight_kg) {
+        (Some(goal), Some(mins), Some(weight)) => uf_rate_ml_kg_hr(goal, mins, weight),
+        _ => None,
+    };
+    let uf_rate_exceeds_safe = uf_rate_ml_kg_hr.is_some_and(|r| r > MAX_SAFE_UF_RATE_ML_KG_HR);
+    Ok(Json(CreateDialysisResponse { session: row, uf_rate_ml_kg_hr, uf_rate_exceeds_safe }))
 }
 
 pub async fn update_dialysis_session(
@@ -1464,4 +1494,30 @@ pub async fn create_radiation_session(
     .await?;
     tx.commit().await?;
     Ok(Json(row))
+}
+
+#[cfg(test)]
+mod dialysis_tests {
+    use super::uf_rate_ml_kg_hr;
+
+    #[test]
+    fn safe_rate() {
+        // 2000 mL over 240 min for a 70 kg patient = 2000/4/70 = 7.14 mL/kg/hr (safe).
+        let r = uf_rate_ml_kg_hr(2000, 240, 70.0).unwrap();
+        assert!((r - 7.142_857).abs() < 1e-3);
+        assert!(r <= 13.0);
+    }
+
+    #[test]
+    fn excessive_rate() {
+        // 4000 mL over 180 min for a 60 kg patient = 4000/3/60 = 22.2 mL/kg/hr (unsafe).
+        let r = uf_rate_ml_kg_hr(4000, 180, 60.0).unwrap();
+        assert!(r > 13.0);
+    }
+
+    #[test]
+    fn missing_inputs_return_none() {
+        assert!(uf_rate_ml_kg_hr(2000, 0, 70.0).is_none());
+        assert!(uf_rate_ml_kg_hr(2000, 240, 0.0).is_none());
+    }
 }

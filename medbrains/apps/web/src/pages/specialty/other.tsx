@@ -138,11 +138,22 @@ export function OtherSpecialtiesPage() {
   const createDial = useMutation({
     mutationFn: (data: CreateDialysisSessionRequest) =>
       specialtyService.createDialysisSession(data),
-    onSuccess: () => {
+    onSuccess: (result) => {
       void qc.invalidateQueries({ queryKey: ["dialysis-sessions"] });
       dialHandlers.close();
-      notifications.show({ title: "Created", message: "Session created", color: "success" });
+      if (result.uf_rate_exceeds_safe && result.uf_rate_ml_kg_hr != null) {
+        notifications.show({
+          title: "High ultrafiltration rate",
+          message: `Planned UF ${result.uf_rate_ml_kg_hr.toFixed(1)} mL/kg/hr exceeds the safe ceiling (~13). Extend the session or lower the goal to avoid intradialytic hypotension.`,
+          color: "orange",
+          autoClose: false,
+        });
+      } else {
+        notifications.show({ title: "Created", message: "Session created", color: "success" });
+      }
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Failed", message: e.message, color: "danger" }),
   });
 
   const createChemo = useMutation({
@@ -601,6 +612,17 @@ export function OtherSpecialtiesPage() {
             value={dialForm.uf_goal_ml ?? ""}
             onChange={(v) =>
               setDialForm((p) => ({ ...p, uf_goal_ml: typeof v === "number" ? v : undefined }))
+            }
+          />
+          <NumberInput
+            label="Planned duration (min)"
+            description="Checked against the safe ultrafiltration rate (~13 mL/kg/hr)"
+            value={dialForm.duration_minutes ?? ""}
+            onChange={(v) =>
+              setDialForm((p) => ({
+                ...p,
+                duration_minutes: typeof v === "number" ? v : undefined,
+              }))
             }
           />
           <Button

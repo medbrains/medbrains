@@ -19312,7 +19312,14 @@ export interface CreateDialysisSessionRequest {
   access_type?: string;
   pre_weight_kg?: number;
   uf_goal_ml?: number;
+  duration_minutes?: number;
   pre_vitals?: Record<string, unknown>;
+}
+
+export interface CreateDialysisResponse {
+  session: DialysisSession;
+  uf_rate_ml_kg_hr: number | null;
+  uf_rate_exceeds_safe: boolean;
 }
 
 export interface ChemoProtocol {

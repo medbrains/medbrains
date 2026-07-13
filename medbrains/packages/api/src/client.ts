@@ -474,6 +474,7 @@ import type {
   CreateDesignationRequest,
   CreateDeviceInstanceRequest,
   CreateDiagnosisRequest,
+  CreateDialysisResponse,
   CreateDialysisSessionRequest,
   CreateDietOrderRequest,
   CreateDietTemplateRequest,
@@ -10341,7 +10342,7 @@ export const api = {
     return request<DialysisSession[]>(`/specialty/dialysis/sessions${qs ? `?${qs}` : ""}`);
   },
   createDialysisSession: (data: CreateDialysisSessionRequest) =>
-    request<DialysisSession>("/specialty/dialysis/sessions", {
+    request<CreateDialysisResponse>("/specialty/dialysis/sessions", {
       method: "POST",
       body: JSON.stringify(data),
     }),
