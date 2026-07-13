@@ -4293,6 +4293,24 @@ export interface CamIcuResult {
   response: string;
 }
 
+export interface CpotRequest {
+  facial_expression: number;
+  body_movements: number;
+  muscle_tension: number;
+  ventilator_or_vocalization: number;
+  intubated?: boolean;
+}
+
+export interface CpotResult {
+  total: number;
+  facial_expression: number;
+  body_movements: number;
+  muscle_tension: number;
+  ventilator_or_vocalization: number;
+  significant_pain: boolean;
+  response: string;
+}
+
 export interface MeowsRequest {
   respiratory_rate: number;
   spo2: number;

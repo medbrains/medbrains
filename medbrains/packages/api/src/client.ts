@@ -347,6 +347,8 @@ import type {
   CoSignatureRequest,
   CourseWithModules,
   CoverageAssignment,
+  CpotRequest,
+  CpotResult,
   CreateAccreditationStandardRequest,
   CreateAdmissionRequest,
   CreateAdmissionResponse,
@@ -14670,6 +14672,8 @@ export const api = {
     request<PewsResult>("/clinical/pews", { method: "POST", body: JSON.stringify(data) }),
   computeCamIcu: (data: CamIcuRequest) =>
     request<CamIcuResult>("/clinical/cam-icu", { method: "POST", body: JSON.stringify(data) }),
+  computeCpot: (data: CpotRequest) =>
+    request<CpotResult>("/clinical/cpot", { method: "POST", body: JSON.stringify(data) }),
   computePaediatricFluid: (data: PaediatricFluidRequest) =>
     request<PaediatricFluidResult>("/clinical/paediatric-fluid", {
       method: "POST",
