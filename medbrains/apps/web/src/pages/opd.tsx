@@ -3569,6 +3569,7 @@ function PrescriptionsTab({
         prescription_id: result.prescription.id,
       });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Prescription blocked" }),
   });
 
   const updateMutation = useMutation({
@@ -3593,6 +3594,7 @@ function PrescriptionsTab({
         title: "Prescription updated",
       });
     },
+    onError: (e: Error) => toast.error(e.message, { title: "Prescription blocked" }),
   });
 
   return (
