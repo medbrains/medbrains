@@ -203,6 +203,8 @@ import type {
   BulkCreateUsersRequest,
   CalculateIncentiveRequest,
   CalibrationCertificatePrintData,
+  CamIcuRequest,
+  CamIcuResult,
   // Camp Management
   Camp,
   CampAnalytics,
@@ -14666,6 +14668,8 @@ export const api = {
     request<MeowsResult>("/clinical/meows", { method: "POST", body: JSON.stringify(data) }),
   computePews: (data: PewsRequest) =>
     request<PewsResult>("/clinical/pews", { method: "POST", body: JSON.stringify(data) }),
+  computeCamIcu: (data: CamIcuRequest) =>
+    request<CamIcuResult>("/clinical/cam-icu", { method: "POST", body: JSON.stringify(data) }),
   computePaediatricFluid: (data: PaediatricFluidRequest) =>
     request<PaediatricFluidResult>("/clinical/paediatric-fluid", {
       method: "POST",

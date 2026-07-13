@@ -4275,6 +4275,24 @@ export interface PewsResult {
   response: string;
 }
 
+export interface CamIcuRequest {
+  rass: number;
+  acute_change_or_fluctuating: boolean;
+  inattention: boolean;
+  disorganized_thinking: boolean;
+}
+
+export interface CamIcuResult {
+  rass: number;
+  assessable: boolean;
+  feature1_acute_or_fluctuating: boolean;
+  feature2_inattention: boolean;
+  feature3_altered_loc: boolean;
+  feature4_disorganized_thinking: boolean;
+  delirium_present: boolean;
+  response: string;
+}
+
 export interface MeowsRequest {
   respiratory_rate: number;
   spo2: number;

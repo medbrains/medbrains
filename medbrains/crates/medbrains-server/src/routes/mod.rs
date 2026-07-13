@@ -2,6 +2,7 @@ pub mod abdm;
 pub mod access;
 pub mod aldrete;
 pub mod anion_gap;
+pub mod cam_icu;
 pub mod osmolar_gap;
 pub mod app_manifest;
 pub mod gcs;
@@ -335,6 +336,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/clinical/qsofa", post(sepsis::qsofa_score))
         .route("/api/clinical/meows", post(meows::meows_score))
         .route("/api/clinical/pews", post(pews::pews_score))
+        .route("/api/clinical/cam-icu", post(cam_icu::cam_icu_assessment))
         .route(
             "/api/clinical/paediatric-fluid",
             post(paediatric_fluid::paediatric_fluid),

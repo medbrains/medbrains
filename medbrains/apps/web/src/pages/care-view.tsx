@@ -15,6 +15,7 @@ import {
   IconHeartbeat,
   IconLogout,
   IconLungs,
+  IconMoodConfuzed,
   IconPill,
   IconSalad,
   IconUserHeart,
@@ -26,6 +27,7 @@ import { PageHeader } from "@/components";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { careViewService } from "@/services/careView.service";
 import { AldreteTab } from "./care-view/AldreteTab";
+import { CamIcuTab } from "./care-view/CamIcuTab";
 import { DischargeTrackerTab } from "./care-view/DischargeTrackerTab";
 import { GcsTab } from "./care-view/GcsTab";
 import { HandoverTab } from "./care-view/HandoverTab";
@@ -133,6 +135,9 @@ export function CareViewPage() {
           <Tabs.Tab value="gcs" leftSection={<IconBrain size={16} />}>
             GCS
           </Tabs.Tab>
+          <Tabs.Tab value="cam-icu" leftSection={<IconMoodConfuzed size={16} />}>
+            CAM-ICU
+          </Tabs.Tab>
           <Tabs.Tab value="paeds-fluid" leftSection={<IconDropletFilled size={16} />}>
             Paeds Fluid
           </Tabs.Tab>
@@ -202,6 +207,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="gcs" pt="md">
           <GcsTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="cam-icu" pt="md">
+          <CamIcuTab />
         </Tabs.Panel>
 
         <Tabs.Panel value="paeds-fluid" pt="md">
