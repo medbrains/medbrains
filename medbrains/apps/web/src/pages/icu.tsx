@@ -286,6 +286,8 @@ function InfusionTracker({
       setAdding(false);
       setInfForm({});
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not add infusion", message: e.message, color: "red" }),
   });
 
   return (
@@ -446,6 +448,8 @@ function FlowsheetsTab({ admissionId }: { admissionId: string }) {
       close();
       reset(DEFAULT_ICU_FLOWSHEET_FORM_VALUES);
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not record flowsheet", message: e.message, color: "red" }),
   });
   const handleCreate = handleSubmit((values) => {
     createMut.mutate(toCreateIcuFlowsheetRequest(values));
@@ -741,6 +745,12 @@ function VentilatorTab({ admissionId }: { admissionId: string }) {
       close();
       reset(DEFAULT_ICU_VENTILATOR_FORM_VALUES);
     },
+    onError: (e: Error) =>
+      notifications.show({
+        title: "Could not save ventilator record",
+        message: e.message,
+        color: "red",
+      }),
   });
 
   // Lung-protective target: IBW-based tidal volume (ARDSNet). Height + sex are entered here for the
@@ -1201,6 +1211,8 @@ function ScoresTab({ admissionId }: { admissionId: string }) {
       close();
       reset(DEFAULT_ICU_SCORE_FORM_VALUES);
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not record score", message: e.message, color: "red" }),
   });
 
   const columns = [
@@ -1338,6 +1350,8 @@ function DevicesTab({ admissionId }: { admissionId: string }) {
       close();
       resetDeviceForm(DEFAULT_ICU_DEVICE_FORM_VALUES);
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not track device", message: e.message, color: "red" }),
   });
 
   const removeMut = useMutation({
@@ -1346,6 +1360,8 @@ function DevicesTab({ admissionId }: { admissionId: string }) {
       void qc.invalidateQueries({ queryKey: ["icu-devices", admissionId] });
       notifications.show({ title: "Device removed", message: "", color: "primary" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not remove device", message: e.message, color: "red" }),
   });
 
   // Bundle check state
@@ -1376,6 +1392,12 @@ function DevicesTab({ admissionId }: { admissionId: string }) {
       notifications.show({ title: "Bundle check saved", message: "", color: "success" });
       resetBundleForm(DEFAULT_ICU_BUNDLE_CHECK_FORM_VALUES);
     },
+    onError: (e: Error) =>
+      notifications.show({
+        title: "Could not save bundle check",
+        message: e.message,
+        color: "red",
+      }),
   });
 
   const columns = [
@@ -1598,6 +1620,8 @@ function NutritionTab({ admissionId }: { admissionId: string }) {
       close();
       reset(DEFAULT_ICU_NUTRITION_FORM_VALUES);
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not record nutrition", message: e.message, color: "red" }),
   });
 
   const columns = [
@@ -1978,6 +2002,12 @@ function NeonatalTab({ admissionId }: { admissionId: string }) {
       close();
       reset(DEFAULT_ICU_NEONATAL_FORM_VALUES);
     },
+    onError: (e: Error) =>
+      notifications.show({
+        title: "Could not save neonatal record",
+        message: e.message,
+        color: "red",
+      }),
   });
 
   const columns = [
