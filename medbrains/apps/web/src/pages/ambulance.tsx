@@ -60,8 +60,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
-import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import type { Column } from "@/components/DataTable";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import {
   ambulanceFuelTypeOptions,
@@ -238,6 +238,8 @@ function FleetTab() {
       close();
       notifications.show({ title: "Ambulance added", message: "Fleet updated", color: "green" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not add ambulance", message: e.message, color: "red" }),
   });
 
   const updateMut = useMutation({
@@ -249,6 +251,8 @@ function FleetTab() {
       setEditing(null);
       notifications.show({ title: "Updated", message: "Ambulance updated", color: "green" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not update ambulance", message: e.message, color: "red" }),
   });
 
   const columns: Column<AmbulanceRow>[] = [
@@ -579,6 +583,8 @@ function TripsTab() {
       close();
       notifications.show({ title: "Trip created", message: "Trip booked", color: "green" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not create trip", message: e.message, color: "red" }),
   });
 
   const statusMut = useMutation({
@@ -593,6 +599,12 @@ function TripsTab() {
         color: "blue",
       });
     },
+    onError: (e: Error) =>
+      notifications.show({
+        title: "Could not update trip status",
+        message: e.message,
+        color: "red",
+      }),
   });
 
   const getNextStatus = (current: AmbulanceTripStatus): AmbulanceTripStatus | null => {
@@ -909,6 +921,8 @@ function DriversTab() {
       close();
       notifications.show({ title: "Driver added", message: "Driver registered", color: "green" });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Could not add driver", message: e.message, color: "red" }),
   });
 
   const columns: Column<AmbulanceDriverRow>[] = [
@@ -1154,6 +1168,12 @@ function MaintenanceTab() {
       close();
       notifications.show({ title: "Scheduled", message: "Maintenance scheduled", color: "green" });
     },
+    onError: (e: Error) =>
+      notifications.show({
+        title: "Could not schedule maintenance",
+        message: e.message,
+        color: "red",
+      }),
   });
 
   const updateStatusMut = useMutation({
@@ -1163,6 +1183,12 @@ function MaintenanceTab() {
       void qc.invalidateQueries({ queryKey: ["ambulance-maintenance"] });
       notifications.show({ title: "Updated", message: "Maintenance updated", color: "blue" });
     },
+    onError: (e: Error) =>
+      notifications.show({
+        title: "Could not update maintenance",
+        message: e.message,
+        color: "red",
+      }),
   });
 
   const columns: Column<AmbulanceMaintenanceRow>[] = [
