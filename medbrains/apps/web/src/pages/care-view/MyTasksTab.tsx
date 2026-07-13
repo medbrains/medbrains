@@ -111,6 +111,8 @@ function NursingTasksTable({
       void queryClient.invalidateQueries({ queryKey: ["care-view", "my-tasks"] });
       void queryClient.invalidateQueries({ queryKey: ["care-view", "ward-grid"] });
     },
+    onError: (e: Error) =>
+      notifications.show({ title: "Task not completed", message: e.message, color: "red" }),
   });
 
   const columns: Column<NurseTaskItem>[] = [
