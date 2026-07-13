@@ -442,10 +442,24 @@ function AllergiesTab({ patient }: { patient: Patient }) {
   const createMutation = useMutation({
     mutationFn: (values: PatientDetailAllergyFormInput) =>
       patientDetailService.createPatientAllergy(patient.id, toCreatePatientAllergyRequest(values)),
-    onSuccess: () => {
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["patient-allergies", patient.id] });
       void queryClient.invalidateQueries({ queryKey: ["allergen-catalog"] });
-      notifications.show({ title: "Allergy added", message: "Allergy recorded", color: "success" });
+      const conflicts = result.active_medication_conflicts;
+      if (conflicts.length > 0) {
+        notifications.show({
+          title: "Active medication conflicts this allergy",
+          message: `Review / discontinue: ${conflicts.join(", ")}`,
+          color: "orange",
+          autoClose: false,
+        });
+      } else {
+        notifications.show({
+          title: "Allergy added",
+          message: "Allergy recorded",
+          color: "success",
+        });
+      }
       handleClose();
     },
     onError: (err: Error) => {

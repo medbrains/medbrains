@@ -2453,6 +2453,11 @@ export interface PatientAllergy {
   updated_at: string;
 }
 
+export interface CreateAllergyResponse {
+  allergy: PatientAllergy;
+  active_medication_conflicts: string[];
+}
+
 export interface PatientConsent {
   id: string;
   tenant_id: string;

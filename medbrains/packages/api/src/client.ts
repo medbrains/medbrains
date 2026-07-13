@@ -351,6 +351,7 @@ import type {
   CreateAdrRequest,
   CreateAdvanceRequest,
   CreateAlertThresholdRequest,
+  CreateAllergyResponse,
   CreateAmbulanceDriverRequest,
   CreateAmbulanceMaintenanceRequest,
   CreateAmbulanceRequest,
@@ -3556,7 +3557,7 @@ export const api = {
       `/patients/allergen-catalog${allergyType ? `?allergy_type=${encodeURIComponent(allergyType)}` : ""}`,
     ),
   createPatientAllergy: (patientId: string, data: CreatePatientAllergyRequest) =>
-    request<PatientAllergy>(`/patients/${patientId}/allergies`, {
+    request<CreateAllergyResponse>(`/patients/${patientId}/allergies`, {
       method: "POST",
       body: JSON.stringify(data),
     }),

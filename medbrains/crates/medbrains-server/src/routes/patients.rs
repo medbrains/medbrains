@@ -2697,7 +2697,7 @@ pub async fn create_patient_allergy(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
     Json(body): Json<CreateAllergyRequest>,
-) -> Result<Json<PatientAllergy>, AppError> {
+) -> Result<Json<CreateAllergyResponse>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
 
     let mut errors = ValidationErrors::new();
@@ -2755,8 +2755,39 @@ pub async fn create_patient_allergy(
         .await?;
     }
 
+    // A newly-documented DRUG allergy to something the patient is currently prescribed is a live
+    // hazard — surface the conflicting active orders so the clinician reviews/discontinues them.
+    // Non-blocking: the allergy is a fact and must be recorded; the active order is the problem.
+    let mut active_medication_conflicts: Vec<String> = Vec::new();
+    if allergy_type_str == "drug" {
+        let active_meds = sqlx::query_scalar::<_, String>(
+            "SELECT DISTINCT pi.drug_name FROM prescription_items pi \
+             JOIN prescriptions p ON p.id = pi.prescription_id \
+             WHERE p.tenant_id = $1 AND p.patient_id = $2 AND pi.item_status = 'active'",
+        )
+        .bind(claims.tenant_id)
+        .bind(patient_id)
+        .fetch_all(&mut *tx)
+        .await?;
+        active_medication_conflicts =
+            medbrains_core::allergy::find_conflicts(
+                &active_meds,
+                std::slice::from_ref(&body.allergen_name),
+            )
+                .into_iter()
+                .map(|c| c.drug_name)
+                .collect();
+    }
+
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(CreateAllergyResponse { allergy: row, active_medication_conflicts }))
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct CreateAllergyResponse {
+    pub allergy: PatientAllergy,
+    /// Active prescription drug names that conflict with the newly-recorded allergy.
+    pub active_medication_conflicts: Vec<String>,
 }
 
 #[derive(Debug, serde::Serialize, sqlx::FromRow)]
