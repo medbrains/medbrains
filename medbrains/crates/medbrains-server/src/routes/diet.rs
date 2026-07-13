@@ -323,6 +323,28 @@ pub async fn create_diet_order_in_tx(
     claims: &Claims,
     body: &CreateDietOrderRequest,
 ) -> Result<DietOrder, AppError> {
+    // Aspiration-safety: don't start a feeding diet while an NPO (nil-per-os) order is active for the
+    // patient — feeding an NPO patient (pre-op, aspiration risk, ileus) is a harm event. The NPO
+    // order must be cancelled first.
+    if !body.is_npo.unwrap_or(false) {
+        let active_npo = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM diet_orders \
+             WHERE tenant_id = $1 AND patient_id = $2 AND is_npo = true \
+               AND status = 'active'::diet_order_status)",
+        )
+        .bind(claims.tenant_id)
+        .bind(body.patient_id)
+        .fetch_one(&mut **tx)
+        .await?;
+        if active_npo {
+            return Err(AppError::Conflict(
+                "Patient has an active NPO (nil-per-os) order — cancel it before starting a \
+                 feeding diet."
+                    .to_owned(),
+            ));
+        }
+    }
+
     let row = sqlx::query_as::<_, DietOrder>(
         "INSERT INTO diet_orders (tenant_id, patient_id, admission_id, template_id, diet_type, ordered_by, special_instructions, allergies_flagged, is_npo, npo_reason, start_date, end_date, calories_target, protein_g, carbs_g, fat_g, preferences)
          VALUES ($1, $2, $3, $4, COALESCE($5::diet_type, 'regular'), $6, $7, COALESCE($8, '[]'::jsonb), COALESCE($9, FALSE), $10, COALESCE($11::date, CURRENT_DATE), $12::date, $13, $14, $15, $16, COALESCE($17, '{}'::jsonb))
