@@ -1486,6 +1486,8 @@ pub struct DischargeMedsRequest {
     pub encounter_id: Option<Uuid>,
     pub items: Vec<OrderItemInput>,
     pub notes: Option<String>,
+    /// Pharmacist's reason for dispensing despite a documented drug allergy.
+    pub allergy_override_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -3630,6 +3632,45 @@ pub async fn create_discharge_dispensing(
     .bind(body.discharge_summary_id)
     .fetch_one(&mut *tx)
     .await?;
+
+    // Discharge (to-take-out) meds are a real dispensing event and must not bypass the allergy
+    // check that dispense_order enforces — dispensing a discharge drug the patient is allergic to is
+    // the same hazard. Warn & require an acknowledged reason; a block early-returns (rolling back the
+    // order just inserted). Mirrors dispense_order. IPSG.3.
+    let dispense_drug_names: Vec<String> = body.items.iter().map(|i| i.drug_name.clone()).collect();
+    let allergy_conflicts =
+        drug_allergy_conflicts(&mut tx, claims.tenant_id, body.patient_id, &dispense_drug_names)
+            .await?;
+    if !allergy_conflicts.is_empty() {
+        let reason = body
+            .allergy_override_reason
+            .as_deref()
+            .map(str::trim)
+            .filter(|r| !r.is_empty());
+        match reason {
+            None => {
+                return Err(AppError::BadRequest(format!(
+                    "Patient has a documented drug allergy conflicting with: {}. Provide an override reason to dispense.",
+                    allergy_conflict_summary(&allergy_conflicts)
+                )));
+            }
+            Some(reason) => {
+                log_allergy_overrides(
+                    &mut tx,
+                    &allergy_conflicts,
+                    &AllergyOverrideLog {
+                        tenant_id: claims.tenant_id,
+                        patient_id: body.patient_id,
+                        overridden_by: claims.sub,
+                        reason,
+                        context: "discharge_dispensing",
+                        order_id: Some(order.id),
+                    },
+                )
+                .await?;
+            }
+        }
+    }
 
     let mut items = Vec::with_capacity(body.items.len());
     for item in &body.items {

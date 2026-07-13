@@ -8892,6 +8892,7 @@ export interface CreateDischargeMedsRequest {
   encounter_id?: string;
   items: PharmacyOrderItemInput[];
   notes?: string;
+  allergy_override_reason?: string;
 }
 
 export interface CreateNdpsEntryRequest {
