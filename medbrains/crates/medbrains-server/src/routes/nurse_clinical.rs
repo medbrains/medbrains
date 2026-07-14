@@ -15,6 +15,28 @@ use crate::{
     state::AppState,
 };
 
+/// Per-encounter access gate (ReBAC): the caller must be linked to the
+/// encounter to read or write its restraint/wound data. Returns `NotFound`
+/// (not `Forbidden`) so the endpoint isn't an existence oracle. Composes on top
+/// of `require_permission` + tenant RLS. See RFC-PATIENT-ACCESS-CONTROL.
+async fn require_encounter_access(
+    state: &AppState,
+    claims: &Claims,
+    encounter_id: Uuid,
+) -> Result<(), AppError> {
+    let authz_ctx = crate::middleware::authorization::authz_context(claims);
+    let allowed = state
+        .authz
+        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "encounter", encounter_id)
+        .await
+        .unwrap_or(false);
+    if allowed {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
+}
+
 // ── restraint_monitoring_events ─────────────────────────────────────
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -51,6 +73,7 @@ pub async fn create_restraint_event(
     Json(body): Json<CreateRestraintEventRequest>,
 ) -> Result<Json<RestraintEvent>, AppError> {
     require_permission(&claims, permissions::nurse::restraint::RECORD)?;
+    require_encounter_access(&state, &claims, body.encounter_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -85,6 +108,20 @@ pub async fn list_restraint_for_order(
     require_permission(&claims, permissions::nurse::restraint::VIEW)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // Resolve the order's encounter from its events, then gate. An order with no
+    // events yet has an empty list (nothing to leak), so gating is a no-op there.
+    let encounter_id: Option<Uuid> = sqlx::query_scalar(
+        "SELECT encounter_id FROM restraint_monitoring_events \
+         WHERE restraint_order_id = $1 AND tenant_id = $2 LIMIT 1",
+    )
+    .bind(restraint_order_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if let Some(eid) = encounter_id {
+        require_encounter_access(&state, &claims, eid).await?;
+    }
 
     let rows = sqlx::query_as::<_, RestraintEvent>(
         "SELECT * FROM restraint_monitoring_events \
@@ -147,6 +184,7 @@ pub async fn create_wound(
     Json(body): Json<CreateWoundRequest>,
 ) -> Result<Json<WoundAssessment>, AppError> {
     require_permission(&claims, permissions::nurse::wound::RECORD)?;
+    require_encounter_access(&state, &claims, body.encounter_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -189,6 +227,7 @@ pub async fn list_wounds_for_encounter(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<Vec<WoundAssessment>>, AppError> {
     require_permission(&claims, permissions::nurse::wound::VIEW)?;
+    require_encounter_access(&state, &claims, encounter_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
