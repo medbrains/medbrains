@@ -15,6 +15,26 @@ use crate::{
     state::AppState,
 };
 
+/// ReBAC pre-check: the caller must hold `view` on the encounter whose handoffs are being read.
+/// Encounter `view` is derived from the attending, department members, care-team groups and explicit
+/// shares (see `infra/spicedb/schema.zed`); bypass roles short-circuit inside `check`. Mirrors the
+/// guard on `opd::get_encounter`, so an encounter's SBAR handoffs are scoped to the patient's care
+/// team rather than readable for every holder of `nurse::handoff::VIEW` across the tenant. Fails
+/// closed to `NotFound`.
+async fn require_encounter_access(
+    state: &AppState,
+    claims: &Claims,
+    encounter_id: Uuid,
+) -> Result<(), AppError> {
+    let authz_ctx = crate::middleware::authorization::authz_context(claims);
+    let allowed = state
+        .authz
+        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "encounter", encounter_id)
+        .await
+        .unwrap_or(false);
+    if allowed { Ok(()) } else { Err(AppError::NotFound) }
+}
+
 // ── shift_handoffs (SBAR) ───────────────────────────────────────────
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -116,6 +136,7 @@ pub async fn list_handoffs_for_encounter(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<Vec<ShiftHandoff>>, AppError> {
     require_permission(&claims, permissions::nurse::handoff::VIEW)?;
+    require_encounter_access(&state, &claims, encounter_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
