@@ -114,7 +114,9 @@ fn compute_contrast_screening(
             "high"
         }
         Some(e) if e < 45.0 => {
-            flags.push(format!("eGFR {e:.0} — moderate CIN risk; hydrate and minimise contrast volume."));
+            flags.push(format!(
+                "eGFR {e:.0} — moderate CIN risk; hydrate and minimise contrast volume."
+            ));
             "moderate"
         }
         Some(e) if e < 60.0 => "low_moderate",
@@ -126,12 +128,15 @@ fn compute_contrast_screening(
         "severe" => {
             flags.push(
                 "Prior SEVERE contrast reaction — radiologist must clear; premedication protocol \
-                 and resuscitation readiness required.".to_owned(),
+                 and resuscitation readiness required."
+                    .to_owned(),
             );
             "severe"
         }
         "moderate" => {
-            flags.push("Prior moderate contrast reaction — premedication protocol advised.".to_owned());
+            flags.push(
+                "Prior moderate contrast reaction — premedication protocol advised.".to_owned(),
+            );
             "moderate"
         }
         "mild" => {
@@ -175,7 +180,14 @@ fn compute_contrast_screening(
         "proceed"
     };
 
-    ContrastScreeningResult { egfr, cin_risk, reaction_risk, metformin_action, clearance, flags }
+    ContrastScreeningResult {
+        egfr,
+        cin_risk,
+        reaction_risk,
+        metformin_action,
+        clearance,
+        flags,
+    }
 }
 
 /// `POST /api/radiology/contrast-screening` — pre-contrast CIN + reaction risk from the patient's
@@ -186,6 +198,12 @@ pub async fn contrast_screening(
     Json(body): Json<ContrastScreeningRequest>,
 ) -> Result<Json<ContrastScreeningResult>, AppError> {
     require_permission(&claims, permissions::radiology::orders::VIEW)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
     let prior = body.prior_contrast_reaction.as_deref().unwrap_or("none");
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -193,7 +211,12 @@ pub async fn contrast_screening(
     let contrast_allergy =
         has_documented_contrast_allergy(&mut tx, claims.tenant_id, body.patient_id).await?;
     tx.commit().await?;
-    Ok(Json(compute_contrast_screening(egfr, prior, body.on_metformin, contrast_allergy)))
+    Ok(Json(compute_contrast_screening(
+        egfr,
+        prior,
+        body.on_metformin,
+        contrast_allergy,
+    )))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -240,6 +263,12 @@ pub async fn cumulative_dose(
     Query(params): Query<CumulativeDoseQuery>,
 ) -> Result<Json<CumulativeDoseResult>, AppError> {
     require_permission(&claims, permissions::radiology::orders::VIEW)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let (study_count, total_dlp): (i64, Option<f64>) = sqlx::query_as(
@@ -425,6 +454,12 @@ pub async fn list_orders(
     Query(params): Query<ListOrdersQuery>,
 ) -> Result<Json<OrderListResponse>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
 
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
@@ -568,6 +603,12 @@ pub async fn create_order(
     Json(body): Json<CreateOrderRequest>,
 ) -> Result<Json<RadiologyOrder>, AppError> {
     require_permission(&claims, permissions::radiology::orders::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -765,6 +806,12 @@ pub async fn get_order(
     Path(id): Path<Uuid>,
 ) -> Result<Json<OrderDetailResponse>, AppError> {
     require_permission(&claims, permissions::radiology::orders::VIEW)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
 
     // ── ReBAC pre-check — must hold `view` on the radiology_order ─
     let authz_ctx = crate::middleware::authorization::authz_context(&claims);
@@ -832,6 +879,12 @@ pub async fn update_order_status(
     Json(body): Json<UpdateStatusRequest>,
 ) -> Result<Json<RadiologyOrder>, AppError> {
     require_permission(&claims, permissions::radiology::orders::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -936,6 +989,12 @@ pub async fn cancel_order(
     Json(body): Json<CancelOrderRequest>,
 ) -> Result<Json<RadiologyOrder>, AppError> {
     require_permission(&claims, permissions::radiology::orders::CANCEL)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1000,6 +1059,12 @@ pub async fn create_report(
     Json(body): Json<CreateReportRequest>,
 ) -> Result<Json<RadiologyReport>, AppError> {
     require_permission(&claims, permissions::radiology::reports::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
 
     let report_status = body.status.as_deref().unwrap_or("draft");
     let is_critical = body.is_critical.unwrap_or(false);
@@ -1018,7 +1083,10 @@ pub async fn create_report(
     .ok_or(AppError::NotFound)?;
 
     // A cancelled imaging order has no valid study — a report must not be created against it.
-    if matches!(order.status, medbrains_core::radiology::RadiologyOrderStatus::Cancelled) {
+    if matches!(
+        order.status,
+        medbrains_core::radiology::RadiologyOrderStatus::Cancelled
+    ) {
         return Err(AppError::Conflict(
             "Cannot create a report — this radiology order is cancelled.".to_owned(),
         ));
@@ -1148,6 +1216,12 @@ pub async fn verify_report(
     Path(id): Path<Uuid>,
 ) -> Result<Json<RadiologyReport>, AppError> {
     require_permission(&claims, permissions::radiology::reports::VERIFY)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1253,6 +1327,12 @@ pub async fn list_modalities(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<RadiologyModality>>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1275,6 +1355,12 @@ pub async fn create_modality(
     Json(body): Json<CreateModalityRequest>,
 ) -> Result<Json<RadiologyModality>, AppError> {
     require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1302,6 +1388,12 @@ pub async fn update_modality(
     Json(body): Json<UpdateModalityRequest>,
 ) -> Result<Json<RadiologyModality>, AppError> {
     require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1335,6 +1427,12 @@ pub async fn delete_modality(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1365,6 +1463,12 @@ pub async fn record_dose(
     Json(body): Json<RecordDoseRequest>,
 ) -> Result<Json<RadiationDoseRecord>, AppError> {
     require_permission(&claims, permissions::radiology::orders::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
 
     let dose_unit = body.dose_unit.as_deref().unwrap_or("mGy");
 
@@ -1425,6 +1529,12 @@ pub async fn list_radiology_appointments(
     Query(query): Query<ListAppointmentsQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1476,6 +1586,12 @@ pub async fn create_radiology_appointment(
     Json(body): Json<CreateRadiologyAppointmentRequest>,
 ) -> Result<Json<RadiologyOrder>, AppError> {
     require_permission(&claims, permissions::radiology::orders::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1520,6 +1636,12 @@ pub async fn get_radiology_tat(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<RadiologyTatRow>>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1556,6 +1678,12 @@ pub async fn list_dicom_studies(
     Query(params): Query<DicomStudyQuery>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1616,6 +1744,12 @@ pub async fn get_prior_studies(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1669,6 +1803,12 @@ pub async fn create_share_link(
     // Minting a PUBLIC DICOM viewer link is a management action, not a read —
     // gate on modalities::MANAGE, not the orders::LIST read permission.
     require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1757,6 +1897,12 @@ pub async fn get_pacs_config(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1781,6 +1927,12 @@ pub async fn update_pacs_config(
     // Overwriting the tenant's PACS/Orthanc integration config is a management
     // action — gate on modalities::MANAGE, not the orders::LIST read permission.
     require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1805,6 +1957,12 @@ pub async fn list_dosimetry_records(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1842,6 +2000,12 @@ pub async fn create_dosimetry_record(
     // Recording staff radiation-dosimetry compliance is a management action —
     // gate on modalities::MANAGE, not the orders::LIST read permission.
     require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1894,6 +2058,12 @@ pub async fn get_download_package(
     Path(study_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1944,6 +2114,12 @@ pub async fn list_patient_reports(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientRadiologyReport>>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1977,6 +2153,12 @@ pub async fn acknowledge_critical_alert(
     Path(alert_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::radiology::reports::VERIFY)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "radiology",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
