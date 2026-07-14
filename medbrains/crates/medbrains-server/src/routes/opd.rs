@@ -1606,6 +1606,7 @@ pub async fn list_vitals(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<Vec<Vital>>, AppError> {
     require_permission(&claims, permissions::opd::vitals::LIST)?;
+    crate::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1630,6 +1631,7 @@ pub async fn create_vital(
     Json(body): Json<CreateVitalRequest>,
 ) -> Result<Json<Vital>, AppError> {
     require_permission(&claims, permissions::opd::vitals::CREATE)?;
+    crate::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
 
     // Auto-calculate BMI
     let bmi = match (body.weight_kg, body.height_cm) {
@@ -1757,6 +1759,7 @@ pub async fn get_consultation(
             permissions::opd::visit::UPDATE,
         ],
     )?;
+    crate::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1784,6 +1787,7 @@ pub async fn create_consultation(
     Json(body): Json<CreateConsultationRequest>,
 ) -> Result<Json<Consultation>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    crate::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
     let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
     validate_opd_soap_note_write_access(&restricted_fields)?;
 
@@ -2073,6 +2077,7 @@ pub async fn list_diagnoses(
             permissions::opd::diagnoses::DELETE,
         ],
     )?;
+    crate::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2102,6 +2107,7 @@ pub async fn create_diagnosis(
     Json(body): Json<CreateDiagnosisRequest>,
 ) -> Result<Json<Diagnosis>, AppError> {
     require_permission(&claims, permissions::opd::diagnoses::CREATE)?;
+    crate::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
     let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
     validate_opd_diagnosis_write_access(&restricted_fields)?;
 
@@ -2342,6 +2348,7 @@ pub async fn list_prescriptions(
             permissions::pharmacy::prescriptions::LIST,
         ],
     )?;
+    crate::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2470,6 +2477,7 @@ pub async fn create_prescription(
             permissions::nurse::prescriptions::DRAFT,
         ],
     )?;
+    crate::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
     // Prescribing — require fresh re-auth (the 5-min window keeps it light).
     crate::routes::step_up::require_step_up(&state, &jar, &claims)?;
 
@@ -3904,6 +3912,7 @@ pub async fn list_procedure_orders(
             permissions::opd::procedures::CANCEL,
         ],
     )?;
+    crate::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5525,6 +5534,7 @@ pub async fn admit_from_opd(
     Json(body): Json<AdmitFromOpdRequest>,
 ) -> Result<Json<AdmitFromOpdResponse>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    crate::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
     require_permission(&claims, permissions::ipd::admissions::CREATE)?;
 
     let mut tx = state.db.begin().await?;
@@ -5787,6 +5797,7 @@ pub async fn pharmacy_dispatch_status(
             permissions::pharmacy::dispensing::CREATE,
         ],
     )?;
+    crate::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
