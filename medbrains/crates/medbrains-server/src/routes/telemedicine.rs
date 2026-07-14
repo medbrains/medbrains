@@ -482,6 +482,24 @@ pub async fn schedule_follow_up(
     .await?
     .ok_or(AppError::NotFound)?;
     tx.commit().await?;
+
+    // Link the follow-up's doctor to the patient so the scheduled tele-provider
+    // can see the patient ahead of the visit (ReBAC). Additive — no lock-out.
+    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    state
+        .authz
+        .write_tuple(
+            &authz_ctx,
+            "patient",
+            row.patient_id,
+            medbrains_authz::Relation::Viewer,
+            medbrains_authz::Subject::User(row.doctor_id),
+            None,
+            Some("tele_followup_doctor".to_owned()),
+        )
+        .await
+        .map_err(|e| AppError::Internal(format!("tele follow-up authz grant failed: {e}")))?;
+
     Ok(Json(row))
 }
 
