@@ -23,6 +23,49 @@ use crate::state::AppState;
 /// well within the window.
 const MAX_FANOUT: i64 = 50;
 
+/// Shared helper: gate on ReBAC `Viewer` of a single object type (encounter,
+/// admission, …). `NotFound` on deny (not an existence oracle). Used for
+/// encounter-/admission-keyed reads where the care team is linked directly to
+/// that object (created with `dept_member`/`attending`/`ward_member`).
+async fn require_object_view(
+    state: &AppState,
+    claims: &Claims,
+    object_type: &str,
+    object_id: Uuid,
+) -> Result<(), AppError> {
+    let ctx = crate::middleware::authorization::authz_context(claims);
+    let allowed = state
+        .authz
+        .check(&ctx, medbrains_authz::Relation::Viewer, object_type, object_id)
+        .await
+        .unwrap_or(false);
+    if allowed {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
+}
+
+/// Gate on access to a specific encounter (its treating department / attending
+/// / explicit grant). See `RFC-ACCESS-RESOLUTION-GRAPH`.
+pub async fn require_encounter_access(
+    state: &AppState,
+    claims: &Claims,
+    encounter_id: Uuid,
+) -> Result<(), AppError> {
+    require_object_view(state, claims, "encounter", encounter_id).await
+}
+
+/// Gate on access to a specific admission (its ward/treating department /
+/// attending / explicit grant).
+pub async fn require_admission_access(
+    state: &AppState,
+    claims: &Claims,
+    admission_id: Uuid,
+) -> Result<(), AppError> {
+    require_object_view(state, claims, "admission", admission_id).await
+}
+
 /// Gate a per-patient read/write on graph reachability. Returns `NotFound`
 /// (not `Forbidden`) so the endpoint is not an existence oracle. `super_admin`/
 /// `hospital_admin` short-circuit inside `check`. Composes on top of

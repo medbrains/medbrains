@@ -532,6 +532,7 @@ pub async fn get_wristband_print_data(
     Query(query): Query<WristbandPrintQuery>,
 ) -> Result<Json<WristbandPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::wristband::PRINT)?;
+    crate::authz_patient::require_admission_access(&state, &claims, admission_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -731,6 +732,7 @@ pub async fn get_discharge_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<DischargeSummaryPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    crate::authz_patient::require_admission_access(&state, &claims, admission_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -1088,6 +1090,7 @@ pub async fn get_treatment_chart_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<TreatmentChartPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    crate::authz_patient::require_admission_access(&state, &claims, admission_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -1489,6 +1492,7 @@ pub async fn get_registration_card_print_data(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<RegistrationCardPrintData>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    crate::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1709,6 +1713,7 @@ pub async fn get_opd_prescription_print_data(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<OpdPrescriptionPrintData>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    crate::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -2104,6 +2109,7 @@ pub async fn get_cumulative_lab_report_print_data(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<CumulativeLabReportPrintData>, AppError> {
     require_permission(&claims, permissions::lab::reports::VIEW)?;
+    crate::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2451,6 +2457,7 @@ pub async fn get_death_certificate_print_data(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<DeathCertificatePrintData>, AppError> {
     require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
+    crate::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
