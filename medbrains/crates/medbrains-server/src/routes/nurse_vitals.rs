@@ -18,6 +18,29 @@ use crate::{
     state::AppState,
 };
 
+/// Per-encounter access gate (ReBAC): the caller must be linked to the
+/// encounter (its treating department, attending, or an explicit grant) to
+/// read or write its nursing data. Returns `NotFound` (not `Forbidden`) so the
+/// endpoint isn't an existence oracle. Composes on top of `require_permission`
+/// (role authority) + tenant RLS. See RFC-PATIENT-ACCESS-CONTROL.
+async fn require_encounter_access(
+    state: &AppState,
+    claims: &Claims,
+    encounter_id: Uuid,
+) -> Result<(), AppError> {
+    let authz_ctx = crate::middleware::authorization::authz_context(claims);
+    let allowed = state
+        .authz
+        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "encounter", encounter_id)
+        .await
+        .unwrap_or(false);
+    if allowed {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
+}
+
 // ── vitals readings ─────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
@@ -40,6 +63,7 @@ pub async fn create_vitals_reading(
     Json(body): Json<CreateVitalsReadingRequest>,
 ) -> Result<Json<Vital>, AppError> {
     require_permission(&claims, permissions::nurse::vitals::RECORD)?;
+    require_encounter_access(&state, &claims, body.encounter_id).await?;
 
     let bmi = match (body.weight_kg, body.height_cm) {
         (Some(weight), Some(height)) if height > Decimal::ZERO => {
@@ -96,6 +120,7 @@ pub async fn list_vitals_for_encounter(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<Vec<Vital>>, AppError> {
     require_permission(&claims, permissions::nurse::vitals::VIEW)?;
+    require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -141,6 +166,7 @@ pub async fn create_vitals_schedule(
     Json(body): Json<CreateVitalsScheduleRequest>,
 ) -> Result<Json<VitalsSchedule>, AppError> {
     require_permission(&claims, permissions::nurse::vitals::RECORD)?;
+    require_encounter_access(&state, &claims, body.encounter_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -174,6 +200,9 @@ pub async fn list_vitals_schedules(
     Query(q): Query<ListVitalsSchedulesQuery>,
 ) -> Result<Json<Vec<VitalsSchedule>>, AppError> {
     require_permission(&claims, permissions::nurse::vitals::VIEW)?;
+    if let Some(eid) = q.encounter_id {
+        require_encounter_access(&state, &claims, eid).await?;
+    }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -204,6 +233,17 @@ pub async fn end_vitals_schedule(
     require_permission(&claims, permissions::nurse::vitals::RECORD)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // Resolve the schedule's encounter, then gate on encounter access.
+    let encounter_id: Uuid = sqlx::query_scalar(
+        "SELECT encounter_id FROM vitals_capture_schedules WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    require_encounter_access(&state, &claims, encounter_id).await?;
 
     let row = sqlx::query_as::<_, VitalsSchedule>(
         "UPDATE vitals_capture_schedules SET ended_at = now() \
@@ -248,6 +288,7 @@ pub async fn create_io_entry(
     Json(body): Json<CreateIoEntryRequest>,
 ) -> Result<Json<IoEntry>, AppError> {
     require_permission(&claims, permissions::nurse::intake_output::RECORD)?;
+    require_encounter_access(&state, &claims, body.encounter_id).await?;
     if body.volume_ml <= 0 {
         return Err(AppError::BadRequest("volume_ml must be > 0".to_owned()));
     }
@@ -279,6 +320,7 @@ pub async fn list_io_for_encounter(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<Vec<IoEntry>>, AppError> {
     require_permission(&claims, permissions::nurse::intake_output::VIEW)?;
+    require_encounter_access(&state, &claims, encounter_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -316,6 +358,7 @@ pub async fn io_balance(
     Query(q): Query<IoBalanceQuery>,
 ) -> Result<Json<IoBalance>, AppError> {
     require_permission(&claims, permissions::nurse::intake_output::VIEW)?;
+    require_encounter_access(&state, &claims, encounter_id).await?;
     let hours = q.since_hours.unwrap_or(24).clamp(1, 720);
     let since = Utc::now() - Duration::hours(hours);
 
@@ -383,6 +426,7 @@ pub async fn create_pain_entry(
     Json(body): Json<CreatePainEntryRequest>,
 ) -> Result<Json<PainEntry>, AppError> {
     require_permission(&claims, permissions::nurse::pain::RECORD)?;
+    require_encounter_access(&state, &claims, body.encounter_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -415,6 +459,7 @@ pub async fn list_pain_for_encounter(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<Vec<PainEntry>>, AppError> {
     require_permission(&claims, permissions::nurse::pain::VIEW)?;
+    require_encounter_access(&state, &claims, encounter_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -461,6 +506,7 @@ pub async fn create_fall_risk(
     Json(body): Json<CreateFallRiskRequest>,
 ) -> Result<Json<FallRiskRow>, AppError> {
     require_permission(&claims, permissions::nurse::fall_risk::RECORD)?;
+    require_encounter_access(&state, &claims, body.encounter_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -491,6 +537,7 @@ pub async fn list_fall_risk_for_encounter(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<Vec<FallRiskRow>>, AppError> {
     require_permission(&claims, permissions::nurse::fall_risk::VIEW)?;
+    require_encounter_access(&state, &claims, encounter_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
