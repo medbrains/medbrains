@@ -5,6 +5,7 @@ pub mod authorization;
 pub mod authz_write_guard;
 pub mod client_ip;
 pub mod cookies;
+pub mod entitlement;
 pub mod csrf;
 pub mod field_access;
 pub mod ip_restrict;

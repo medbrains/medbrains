@@ -27,6 +27,12 @@ pub async fn list_ophtho_exams(
     Query(q): Query<ListExamsQuery>,
 ) -> Result<Json<Vec<OphthoExam>>, AppError> {
     require_permission(&claims, permissions::specialty::ophthalmology::exams::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "ophthalmology",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -53,6 +59,12 @@ pub async fn get_ophtho_exam(
     Path(id): Path<Uuid>,
 ) -> Result<Json<OphthoExam>, AppError> {
     require_permission(&claims, permissions::specialty::ophthalmology::exams::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "ophthalmology",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -95,6 +107,12 @@ pub async fn create_ophtho_exam(
     Json(body): Json<CreateExamRequest>,
 ) -> Result<Json<OphthoExam>, AppError> {
     require_permission(&claims, permissions::specialty::ophthalmology::exams::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "ophthalmology",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -149,6 +167,12 @@ pub async fn update_ophtho_exam(
     Json(body): Json<UpdateExamRequest>,
 ) -> Result<Json<OphthoExam>, AppError> {
     require_permission(&claims, permissions::specialty::ophthalmology::exams::UPDATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "ophthalmology",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
