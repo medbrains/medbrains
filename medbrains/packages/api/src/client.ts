@@ -1243,6 +1243,8 @@ import type {
   MedicationTimelineEvent,
   MedReconciliationItem,
   MedReconciliationView,
+  MeldRequest,
+  MeldResult,
   MeowsRequest,
   MeowsResult,
   MergePatientRequest,
@@ -14704,6 +14706,8 @@ export const api = {
     }),
   computeSofa: (data: SofaRequest) =>
     request<SofaResult>("/clinical/sofa", { method: "POST", body: JSON.stringify(data) }),
+  computeMeld: (data: MeldRequest) =>
+    request<MeldResult>("/clinical/meld", { method: "POST", body: JSON.stringify(data) }),
   computePaediatricFluid: (data: PaediatricFluidRequest) =>
     request<PaediatricFluidResult>("/clinical/paediatric-fluid", {
       method: "POST",

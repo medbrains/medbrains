@@ -4429,6 +4429,19 @@ export interface SofaResult {
   response: string;
 }
 
+export interface MeldRequest {
+  bilirubin_mg_dl: number;
+  inr: number;
+  creatinine_mg_dl: number;
+  dialysis_twice_past_week?: boolean;
+}
+
+export interface MeldResult {
+  score: number;
+  mortality_band: string;
+  response: string;
+}
+
 export interface MeowsRequest {
   respiratory_rate: number;
   spo2: number;

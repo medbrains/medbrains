@@ -23,6 +23,7 @@ import {
   IconMoodConfuzed,
   IconMoodSad,
   IconPill,
+  IconReportMedical,
   IconSalad,
   IconUserHeart,
   IconVirus,
@@ -45,6 +46,7 @@ import { HandoverTab } from "./care-view/HandoverTab";
 import { HasBledTab } from "./care-view/HasBledTab";
 import { HypoglycemiaTab } from "./care-view/HypoglycemiaTab";
 import { MedReconciliationTab } from "./care-view/MedReconciliationTab";
+import { MeldTab } from "./care-view/MeldTab";
 import { MeowsTab } from "./care-view/MeowsTab";
 import { MyTasksTab } from "./care-view/MyTasksTab";
 import { News2Tab } from "./care-view/News2Tab";
@@ -173,6 +175,9 @@ export function CareViewPage() {
           <Tabs.Tab value="sofa" leftSection={<IconWaveSine size={16} />}>
             SOFA
           </Tabs.Tab>
+          <Tabs.Tab value="meld" leftSection={<IconReportMedical size={16} />}>
+            MELD
+          </Tabs.Tab>
           <Tabs.Tab value="paeds-fluid" leftSection={<IconDropletFilled size={16} />}>
             Paeds Fluid
           </Tabs.Tab>
@@ -274,6 +279,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="sofa" pt="md">
           <SofaTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="meld" pt="md">
+          <MeldTab />
         </Tabs.Panel>
 
         <Tabs.Panel value="paeds-fluid" pt="md">
