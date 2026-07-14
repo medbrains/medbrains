@@ -10,8 +10,6 @@ use crate::{
     registry, relations::Relation,
 };
 
-const EXPANSION_DEPTH_LIMIT: u8 = 5;
-
 #[derive(Debug)]
 pub struct PgAuthzBackend {
     pool: PgPool,
@@ -71,128 +69,57 @@ impl AuthzBackend for PgAuthzBackend {
         let mut tx = self.pool.begin().await?;
         self.set_tenant_ctx(&mut tx, ctx.tenant_id).await?;
 
-        // Caveated tuples must not resolve until their request-time context
-        // is evaluated. The Postgres fallback does not yet run the caveat
-        // evaluator in SQL, so it intentionally denies caveated tuples.
-
-        // 1. Direct user grant
-        let direct: bool = sqlx::query_scalar(
+        // Single-round-trip resolution: the four subject-match paths (direct
+        // user / role / department / group) are OR-ed into one `EXISTS` instead
+        // of up to four sequential queries (DSA: batch N round-trips into 1 —
+        // see CLAUDE.md). Semantics are byte-for-byte identical to the previous
+        // sequential checks.
+        //
+        // Multi-hop traversal (department hierarchy, nested groups, tuple-set
+        // rewrites) is intentionally NOT added: the SpiceDB schema — the source
+        // of truth the durable backend must agree with — models none of them
+        // (`department` has only `member: user`, `access_group_members` is flat,
+        // and no `tuple_set` subject grants are ever written). Adding traversal
+        // here would make the PG fallback MORE permissive than SpiceDB, i.e. a
+        // security divergence. Caveated tuples are denied (the caveat evaluator
+        // is not run in SQL).
+        let dept_strs: Vec<String> = ctx.department_ids.iter().map(Uuid::to_string).collect();
+        let allowed: bool = sqlx::query_scalar(
             "SELECT EXISTS (
-                 SELECT 1 FROM relation_tuples
-                 WHERE tenant_id = $1
-                   AND object_type = $2 AND object_id = $3
-	                   AND relation = ANY($4)
-	                   AND status = 'active'
-	                   AND (expires_at IS NULL OR expires_at > now())
-	                   AND caveat IS NULL
-	                   AND subject_type = 'user' AND subject_id = $5
-	             )",
+                 SELECT 1 FROM relation_tuples rt
+                 WHERE rt.tenant_id = $1
+                   AND rt.object_type = $2 AND rt.object_id = $3
+                   AND rt.relation = ANY($4)
+                   AND rt.status = 'active'
+                   AND (rt.expires_at IS NULL OR rt.expires_at > now())
+                   AND rt.caveat IS NULL
+                   AND (
+                        (rt.subject_type = 'user' AND rt.subject_id = $5)
+                     OR (rt.subject_type = 'role' AND rt.subject_id = $6)
+                     OR (rt.subject_type = 'department' AND rt.subject_id = ANY($7))
+                     OR (rt.subject_type = 'group' AND EXISTS (
+                            SELECT 1 FROM access_group_members m
+                            WHERE m.tenant_id = rt.tenant_id
+                              AND m.user_id = $8
+                              AND m.group_id::text = rt.subject_id
+                              AND (m.expires_at IS NULL OR m.expires_at > now())
+                         ))
+                   )
+             )",
         )
         .bind(ctx.tenant_id)
         .bind(object_type)
         .bind(object_id)
         .bind(&candidate_relations)
         .bind(ctx.user_id.to_string())
-        .fetch_one(&mut *tx)
-        .await?;
-
-        if direct {
-            tx.commit().await?;
-            return Ok(true);
-        }
-
-        // 2. Role grant
-        let role: bool = sqlx::query_scalar(
-            "SELECT EXISTS (
-                 SELECT 1 FROM relation_tuples
-                 WHERE tenant_id = $1
-                   AND object_type = $2 AND object_id = $3
-	                   AND relation = ANY($4)
-	                   AND status = 'active'
-	                   AND (expires_at IS NULL OR expires_at > now())
-	                   AND caveat IS NULL
-	                   AND subject_type = 'role' AND subject_id = $5
-	             )",
-        )
-        .bind(ctx.tenant_id)
-        .bind(object_type)
-        .bind(object_id)
-        .bind(&candidate_relations)
         .bind(&ctx.role)
-        .fetch_one(&mut *tx)
-        .await?;
-
-        if role {
-            tx.commit().await?;
-            return Ok(true);
-        }
-
-        // 3. Department grant — if any of caller's department_ids matches
-        if !ctx.department_ids.is_empty() {
-            let dept_strs: Vec<String> = ctx.department_ids.iter().map(Uuid::to_string).collect();
-            let dept: bool = sqlx::query_scalar(
-                "SELECT EXISTS (
-                     SELECT 1 FROM relation_tuples
-                     WHERE tenant_id = $1
-                       AND object_type = $2 AND object_id = $3
-	                       AND relation = ANY($4)
-	                       AND status = 'active'
-	                       AND (expires_at IS NULL OR expires_at > now())
-	                       AND caveat IS NULL
-	                       AND subject_type = 'department' AND subject_id = ANY($5)
-	                 )",
-            )
-            .bind(ctx.tenant_id)
-            .bind(object_type)
-            .bind(object_id)
-            .bind(&candidate_relations)
-            .bind(&dept_strs)
-            .fetch_one(&mut *tx)
-            .await?;
-
-            if dept {
-                tx.commit().await?;
-                return Ok(true);
-            }
-        }
-
-        // 4. Group grant — caller's active group memberships
-        let group: bool = sqlx::query_scalar(
-            "SELECT EXISTS (
-                 SELECT 1 FROM relation_tuples rt
-                 JOIN access_group_members m
-                   ON m.tenant_id = rt.tenant_id
-                  AND m.user_id = $5
-                  AND m.group_id::text = rt.subject_id
-                  AND (m.expires_at IS NULL OR m.expires_at > now())
-                 WHERE rt.tenant_id = $1
-                   AND rt.object_type = $2 AND rt.object_id = $3
-	                   AND rt.relation = ANY($4)
-	                   AND rt.status = 'active'
-	                   AND (rt.expires_at IS NULL OR rt.expires_at > now())
-	                   AND rt.caveat IS NULL
-	                   AND rt.subject_type = 'group'
-	             )",
-        )
-        .bind(ctx.tenant_id)
-        .bind(object_type)
-        .bind(object_id)
-        .bind(&candidate_relations)
+        .bind(&dept_strs)
         .bind(ctx.user_id)
         .fetch_one(&mut *tx)
         .await?;
 
-        if group {
-            tx.commit().await?;
-            return Ok(true);
-        }
-
-        // 5. Tuple-set rewrites — depth-limited
-        let _ = EXPANSION_DEPTH_LIMIT; // hookup deferred to Phase 3.3
-        // TODO(phase-3.3): tuple_set rewrites + closure-table inheritance.
-
         tx.commit().await?;
-        Ok(false)
+        Ok(allowed)
     }
 
     async fn expand(
