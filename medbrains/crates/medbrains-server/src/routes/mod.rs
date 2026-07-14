@@ -12,6 +12,7 @@ pub mod cpot;
 pub mod has_bled;
 pub mod meld;
 pub mod sofa;
+pub mod wells_dvt;
 pub mod wells_pe;
 pub mod osmolar_gap;
 pub mod app_manifest;
@@ -349,6 +350,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/clinical/cam-icu", post(cam_icu::cam_icu_assessment))
         .route("/api/clinical/cpot", post(cpot::cpot_score))
         .route("/api/clinical/wells-pe", post(wells_pe::wells_pe_score))
+        .route("/api/clinical/wells-dvt", post(wells_dvt::wells_dvt_score))
         .route("/api/clinical/cha2ds2-vasc", post(cha2ds2_vasc::cha2ds2_vasc_score))
         .route("/api/clinical/has-bled", post(has_bled::has_bled_score))
         .route("/api/clinical/ciwa-ar", post(ciwa_ar::ciwa_ar_score))

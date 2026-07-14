@@ -29,6 +29,7 @@ import {
   IconStethoscope,
   IconUserHeart,
   IconVirus,
+  IconWalk,
   IconWaveSine,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
@@ -62,6 +63,7 @@ import { SepsisBundleTab } from "./care-view/SepsisBundleTab";
 import { SepsisTab } from "./care-view/SepsisTab";
 import { SofaTab } from "./care-view/SofaTab";
 import { VteTab } from "./care-view/VteTab";
+import { WellsDvtTab } from "./care-view/WellsDvtTab";
 import { WellsPeTab } from "./care-view/WellsPeTab";
 
 export function CareViewPage() {
@@ -188,6 +190,9 @@ export function CareViewPage() {
           <Tabs.Tab value="glasgow-blatchford" leftSection={<IconMedicalCross size={16} />}>
             GI Bleed (GBS)
           </Tabs.Tab>
+          <Tabs.Tab value="wells-dvt" leftSection={<IconWalk size={16} />}>
+            Wells DVT
+          </Tabs.Tab>
           <Tabs.Tab value="paeds-fluid" leftSection={<IconDropletFilled size={16} />}>
             Paeds Fluid
           </Tabs.Tab>
@@ -301,6 +306,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="glasgow-blatchford" pt="md">
           <GlasgowBlatchfordTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="wells-dvt" pt="md">
+          <WellsDvtTab />
         </Tabs.Panel>
 
         <Tabs.Panel value="paeds-fluid" pt="md">

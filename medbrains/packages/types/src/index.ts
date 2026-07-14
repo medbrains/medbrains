@@ -4479,6 +4479,27 @@ export interface GlasgowBlatchfordResult {
   response: string;
 }
 
+export interface WellsDvtRequest {
+  active_cancer?: boolean;
+  paralysis_or_immobilisation?: boolean;
+  bedridden_or_surgery?: boolean;
+  localized_tenderness?: boolean;
+  entire_leg_swollen?: boolean;
+  calf_swelling_3cm?: boolean;
+  pitting_edema?: boolean;
+  collateral_veins?: boolean;
+  previous_dvt?: boolean;
+  alternative_diagnosis?: boolean;
+}
+
+export interface WellsDvtResult {
+  score: number;
+  risk_tier: string;
+  dvt_likely: boolean;
+  recommended_workup: string;
+  response: string;
+}
+
 export interface MeowsRequest {
   respiratory_rate: number;
   spo2: number;

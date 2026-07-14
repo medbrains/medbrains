@@ -2041,6 +2041,8 @@ import type {
   WardOnDutyRow,
   WardStockRow,
   WaterQualityTestPrintData,
+  WellsDvtRequest,
+  WellsDvtResult,
   WellsPeRequest,
   WellsPeResult,
   WidgetAccessLevel,
@@ -14694,6 +14696,8 @@ export const api = {
     request<CpotResult>("/clinical/cpot", { method: "POST", body: JSON.stringify(data) }),
   computeWellsPe: (data: WellsPeRequest) =>
     request<WellsPeResult>("/clinical/wells-pe", { method: "POST", body: JSON.stringify(data) }),
+  computeWellsDvt: (data: WellsDvtRequest) =>
+    request<WellsDvtResult>("/clinical/wells-dvt", { method: "POST", body: JSON.stringify(data) }),
   computeCha2ds2Vasc: (data: Cha2ds2VascRequest) =>
     request<Cha2ds2VascResult>("/clinical/cha2ds2-vasc", {
       method: "POST",
