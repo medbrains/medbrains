@@ -991,6 +991,8 @@ import type {
   GeoSubdistrict,
   GeoTown,
   GlAccount,
+  GlasgowBlatchfordRequest,
+  GlasgowBlatchfordResult,
   GoodsReceiptNote,
   GrnDetailResponse,
   GrnListResponse,
@@ -14712,6 +14714,11 @@ export const api = {
     request<MeldResult>("/clinical/meld", { method: "POST", body: JSON.stringify(data) }),
   computeCurb65: (data: Curb65Request) =>
     request<Curb65Result>("/clinical/curb-65", { method: "POST", body: JSON.stringify(data) }),
+  computeGlasgowBlatchford: (data: GlasgowBlatchfordRequest) =>
+    request<GlasgowBlatchfordResult>("/clinical/glasgow-blatchford", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   computePaediatricFluid: (data: PaediatricFluidRequest) =>
     request<PaediatricFluidResult>("/clinical/paediatric-fluid", {
       method: "POST",

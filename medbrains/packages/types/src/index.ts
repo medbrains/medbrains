@@ -4458,6 +4458,27 @@ export interface Curb65Result {
   response: string;
 }
 
+export interface GlasgowBlatchfordRequest {
+  urea_mmol_l: number;
+  hemoglobin_g_dl: number;
+  sex_male?: boolean;
+  systolic_bp: number;
+  pulse_100_plus?: boolean;
+  melena?: boolean;
+  syncope?: boolean;
+  hepatic_disease?: boolean;
+  cardiac_failure?: boolean;
+}
+
+export interface GlasgowBlatchfordResult {
+  score: number;
+  urea_points: number;
+  hemoglobin_points: number;
+  systolic_bp_points: number;
+  risk: string;
+  response: string;
+}
+
 export interface MeowsRequest {
   respiratory_rate: number;
   spo2: number;

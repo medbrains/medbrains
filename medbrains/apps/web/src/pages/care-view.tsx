@@ -20,6 +20,7 @@ import {
   IconLogout,
   IconLungs,
   IconLungsFilled,
+  IconMedicalCross,
   IconMoodConfuzed,
   IconMoodSad,
   IconPill,
@@ -44,6 +45,7 @@ import { CpotTab } from "./care-view/CpotTab";
 import { Curb65Tab } from "./care-view/Curb65Tab";
 import { DischargeTrackerTab } from "./care-view/DischargeTrackerTab";
 import { GcsTab } from "./care-view/GcsTab";
+import { GlasgowBlatchfordTab } from "./care-view/GlasgowBlatchfordTab";
 import { HandoverTab } from "./care-view/HandoverTab";
 import { HasBledTab } from "./care-view/HasBledTab";
 import { HypoglycemiaTab } from "./care-view/HypoglycemiaTab";
@@ -183,6 +185,9 @@ export function CareViewPage() {
           <Tabs.Tab value="curb-65" leftSection={<IconStethoscope size={16} />}>
             CURB-65
           </Tabs.Tab>
+          <Tabs.Tab value="glasgow-blatchford" leftSection={<IconMedicalCross size={16} />}>
+            GI Bleed (GBS)
+          </Tabs.Tab>
           <Tabs.Tab value="paeds-fluid" leftSection={<IconDropletFilled size={16} />}>
             Paeds Fluid
           </Tabs.Tab>
@@ -292,6 +297,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="curb-65" pt="md">
           <Curb65Tab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="glasgow-blatchford" pt="md">
+          <GlasgowBlatchfordTab />
         </Tabs.Panel>
 
         <Tabs.Panel value="paeds-fluid" pt="md">
