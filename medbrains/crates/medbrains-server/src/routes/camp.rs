@@ -6590,6 +6590,60 @@ pub async fn open_registration_encounter(
     .await?;
 
     tx.commit().await?;
+
+    // Wire the camp registration into the ReBAC access-control system, exactly
+    // like a normal OPD registration + encounter (RFC-ACCESS-RESOLUTION-GRAPH):
+    // a newly-created camp patient gets its owner grant, and the camp encounter
+    // gets its care-team link (department + attending). Without this, camp-
+    // originated encounters are invisible to the treating team under per-
+    // encounter enforcement.
+    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    if context.patient_id.is_none() {
+        state
+            .authz
+            .write_tuple(
+                &authz_ctx,
+                "patient",
+                patient_id,
+                medbrains_authz::Relation::Owner,
+                medbrains_authz::Subject::User(claims.sub),
+                None,
+                Some("camp_registration".to_owned()),
+            )
+            .await
+            .map_err(|e| AppError::Internal(format!("camp patient authz grant failed: {e}")))?;
+    }
+    state
+        .authz
+        .grant_raw(
+            &authz_ctx,
+            "encounter",
+            link.encounter_id,
+            "dept_member",
+            medbrains_authz::Subject::Department(department_id),
+            None,
+            Some("camp_encounter_department".to_owned()),
+        )
+        .await
+        .map_err(|e| AppError::Internal(format!("camp encounter dept authz grant failed: {e}")))?;
+    if let Some(doctor) = doctor_id {
+        state
+            .authz
+            .write_tuple(
+                &authz_ctx,
+                "encounter",
+                link.encounter_id,
+                medbrains_authz::Relation::AttendingPhysician,
+                medbrains_authz::Subject::User(doctor),
+                None,
+                Some("camp_encounter_attending".to_owned()),
+            )
+            .await
+            .map_err(|e| {
+                AppError::Internal(format!("camp encounter attending authz grant failed: {e}"))
+            })?;
+    }
+
     let response = OpenCampRegistrationEncounterResponse {
         encounter_id: link.encounter_id,
         queue_id: link.queue_id,
