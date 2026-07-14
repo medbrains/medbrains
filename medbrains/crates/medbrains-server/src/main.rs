@@ -386,6 +386,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             "{static_dir}/index.html"
         )));
 
+    // Real-time notification bridge: LISTEN on the `notification_created`
+    // channel (migration 0285 trigger) and republish committed rows to the
+    // NotificationHub for WebSocket fan-out. Clone the hub before `state` is
+    // moved into the router.
+    medbrains_server::services::notification_listener::spawn(db_pool.clone(), state.notifications.clone());
+
     // Build router with all routes + static file fallback
     let app: Router = routes::build_router(state)
         .fallback_service(spa_fallback)
