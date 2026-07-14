@@ -27,6 +27,29 @@ use crate::{
     state::AppState,
 };
 
+/// Per-admission access gate (ReBAC): the caller must be linked to the
+/// admission (its treating/ward department, attending, or an explicit grant) to
+/// print its clinical record. Returns `NotFound` (not `Forbidden`) so the
+/// endpoint isn't an existence oracle. Composes on top of `require_permission`
+/// + tenant RLS. See RFC-PATIENT-ACCESS-CONTROL.
+async fn require_admission_access(
+    state: &AppState,
+    claims: &Claims,
+    admission_id: Uuid,
+) -> Result<(), AppError> {
+    let authz_ctx = crate::middleware::authorization::authz_context(claims);
+    let allowed = state
+        .authz
+        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "admission", admission_id)
+        .await
+        .unwrap_or(false);
+    if allowed {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
+}
+
 // ── Helper row types ─────────────────────────────────────
 
 #[derive(Debug, sqlx::FromRow)]
@@ -49,6 +72,7 @@ pub async fn get_progress_note_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<ProgressNotePrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -164,6 +188,7 @@ pub async fn get_nursing_assessment_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<NursingAssessmentPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -299,6 +324,7 @@ pub async fn get_mar_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<MarPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -432,6 +458,7 @@ pub async fn get_vitals_chart_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<VitalsChartPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -536,6 +563,7 @@ pub async fn get_io_chart_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<IoChartPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -669,6 +697,7 @@ pub async fn get_discharge_checklist_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<DischargeChecklistPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -858,6 +887,7 @@ pub async fn get_fluid_balance_chart_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<FluidBalanceChartPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -967,6 +997,7 @@ pub async fn get_pain_assessment_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<PainAssessmentPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1080,6 +1111,7 @@ pub async fn get_fall_risk_assessment_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<FallRiskAssessmentPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1196,6 +1228,7 @@ pub async fn get_pressure_ulcer_risk_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<PressureUlcerRiskPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1298,6 +1331,7 @@ pub async fn get_gcs_chart_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<GcsChartPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
