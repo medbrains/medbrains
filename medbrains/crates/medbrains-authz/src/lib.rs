@@ -159,6 +159,25 @@ pub trait AuthzBackend: Send + Sync {
         reason: Option<String>,
     ) -> Result<Uuid, AuthzError>;
 
+    /// Write a tuple with an explicit **raw relation name** — for relations
+    /// the `Relation` enum doesn't model (`dept_member`, `ward_member`,
+    /// `group_member`, `member`). Otherwise identical to `write_tuple`:
+    /// tenant-scoped, audited, idempotent. Returns the durable tuple id
+    /// (backends without a durable store return a deterministic synthetic id).
+    /// This is what routes call to link a whole department/ward to a patient,
+    /// encounter or admission without per-user fan-out.
+    #[allow(clippy::too_many_arguments)]
+    async fn grant_raw(
+        &self,
+        ctx: &AuthzContext,
+        object_type: &str,
+        object_id: Uuid,
+        relation_name: &str,
+        subject: Subject,
+        expires_at: Option<chrono::DateTime<chrono::Utc>>,
+        reason: Option<String>,
+    ) -> Result<Uuid, AuthzError>;
+
     /// Revoke a tuple by id (soft delete: status='revoked', audit-friendly).
     async fn revoke_tuple(&self, ctx: &AuthzContext, tuple_id: Uuid) -> Result<(), AuthzError>;
 

@@ -175,6 +175,45 @@ impl AuthzBackend for InMemoryBackend {
         Ok(tuple_id)
     }
 
+    async fn grant_raw(
+        &self,
+        ctx: &AuthzContext,
+        object_type: &str,
+        object_id: Uuid,
+        relation_name: &str,
+        subject: Subject,
+        expires_at: Option<chrono::DateTime<chrono::Utc>>,
+        reason: Option<String>,
+    ) -> Result<Uuid, AuthzError> {
+        let spec = registry::lookup(object_type)
+            .ok_or_else(|| AuthzError::UnknownObjectType(object_type.to_string()))?;
+        if spec.bypass_only {
+            return Err(AuthzError::Other(format!("{object_type} is bypass_only")));
+        }
+        let tuple_id = Uuid::new_v4();
+        let tuple = RelationTuple {
+            tuple_id,
+            tenant_id: ctx.tenant_id,
+            object_type: object_type.to_string(),
+            object_id,
+            relation: relation_name.to_string(),
+            subject,
+            caveat: None,
+            expires_at,
+            status: TupleStatus::Active,
+            granted_by: ctx.user_id,
+            granted_at: chrono::Utc::now(),
+            granted_reason: reason,
+            source: TupleSource::Explicit,
+            derived_from: None,
+        };
+        self.tuples
+            .lock()
+            .expect("authz test backend lock poisoned")
+            .push(tuple);
+        Ok(tuple_id)
+    }
+
     async fn revoke_tuple(&self, ctx: &AuthzContext, tuple_id: Uuid) -> Result<(), AuthzError> {
         let mut tuples = self
             .tuples
@@ -237,6 +276,37 @@ mod tests {
                 .await
                 .unwrap()
         );
+    }
+
+    #[tokio::test]
+    async fn grant_raw_stores_department_tuple() {
+        let backend = InMemoryBackend::new();
+        let tenant = Uuid::new_v4();
+        let alice = Uuid::new_v4();
+        let dept = Uuid::new_v4();
+        let encounter = Uuid::new_v4();
+        let actx = ctx(tenant, alice, "doctor");
+
+        // Link the whole department to the encounter via the raw relation
+        // (`dept_member` has no `Relation` enum variant).
+        let id = backend
+            .grant_raw(
+                &actx,
+                "encounter",
+                encounter,
+                "dept_member",
+                Subject::Department(dept),
+                None,
+                Some("encounter_department".to_owned()),
+            )
+            .await
+            .unwrap();
+        assert_ne!(id, Uuid::nil());
+
+        let tuples = backend.expand(&actx, "encounter", encounter).await.unwrap();
+        assert_eq!(tuples.len(), 1);
+        assert_eq!(tuples[0].relation, "dept_member");
+        assert!(matches!(tuples[0].subject, Subject::Department(d) if d == dept));
     }
 
     #[tokio::test]

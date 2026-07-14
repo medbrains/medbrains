@@ -518,7 +518,9 @@ pub async fn get_registration_policy(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let require_opd_registration = mrd_lock_enabled(&mut tx, &claims.tenant_id).await?;
     tx.commit().await?;
-    Ok(Json(OpdRegistrationPolicy { require_opd_registration }))
+    Ok(Json(OpdRegistrationPolicy {
+        require_opd_registration,
+    }))
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -985,6 +987,44 @@ pub async fn create_encounter(
     crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
+
+    // Link the encounter's care team so per-encounter reads resolve (ReBAC).
+    // Department viewer = the whole treating department sees it (one tuple, no
+    // per-user fan-out); attending_physician = the assigned doctor. Mirrors the
+    // grant written for patients at registration (patients::create_patient).
+    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    if let Some(dept_id) = encounter.department_id {
+        state
+            .authz
+            .grant_raw(
+                &authz_ctx,
+                "encounter",
+                encounter.id,
+                "dept_member",
+                medbrains_authz::Subject::Department(dept_id),
+                None,
+                Some("encounter_department".to_owned()),
+            )
+            .await
+            .map_err(|e| AppError::Internal(format!("encounter dept authz grant failed: {e}")))?;
+    }
+    if let Some(doc_id) = encounter.doctor_id {
+        state
+            .authz
+            .write_tuple(
+                &authz_ctx,
+                "encounter",
+                encounter.id,
+                medbrains_authz::Relation::AttendingPhysician,
+                medbrains_authz::Subject::User(doc_id),
+                None,
+                Some("encounter_attending".to_owned()),
+            )
+            .await
+            .map_err(|e| {
+                AppError::Internal(format!("encounter attending authz grant failed: {e}"))
+            })?;
+    }
 
     let doctor_name = if let Some(did) = encounter.doctor_id {
         sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
@@ -2441,7 +2481,9 @@ pub async fn create_prescription(
 
     let order_mode = body.order_mode.as_deref().unwrap_or("written");
     if !["written", "verbal", "telephone"].contains(&order_mode) {
-        return Err(AppError::BadRequest(format!("Invalid order mode '{order_mode}'.")));
+        return Err(AppError::BadRequest(format!(
+            "Invalid order mode '{order_mode}'."
+        )));
     }
     let is_verbal = order_mode != "written";
 
@@ -2457,7 +2499,11 @@ pub async fn create_prescription(
                 "Read-back must be confirmed for a verbal/telephone order.".to_owned(),
             ));
         }
-        (ordering, Some(claims.sub), Some(Utc::now() + chrono::Duration::hours(24)))
+        (
+            ordering,
+            Some(claims.sub),
+            Some(Utc::now() + chrono::Duration::hours(24)),
+        )
     } else {
         (claims.sub, None, None)
     };
@@ -2500,7 +2546,10 @@ pub async fn create_prescription(
         let summary = dose_alerts
             .iter()
             .map(|a| {
-                format!("{} {}/day exceeds max {}", a.drug_name, a.total_per_day_label, a.max_per_day_label)
+                format!(
+                    "{} {}/day exceeds max {}",
+                    a.drug_name, a.total_per_day_label, a.max_per_day_label
+                )
             })
             .collect::<Vec<_>>()
             .join("; ");
@@ -2584,7 +2633,11 @@ pub async fn create_prescription(
     // active ingredient (generic / INN) are a common prescribing error. Warn &
     // require an acknowledged reason (logged). Free-text lines without a
     // catalogue id are skipped — we can't resolve their ingredient.
-    let dup_catalog_ids: Vec<Uuid> = body.items.iter().filter_map(|i| i.catalog_item_id).collect();
+    let dup_catalog_ids: Vec<Uuid> = body
+        .items
+        .iter()
+        .filter_map(|i| i.catalog_item_id)
+        .collect();
     let mut duplicate_groups: Vec<String> = Vec::new();
     if dup_catalog_ids.len() > 1 {
         let ingredients = sqlx::query_as::<_, (Uuid, String)>(
@@ -2595,11 +2648,9 @@ pub async fn create_prescription(
         .bind(&dup_catalog_ids)
         .fetch_all(&mut *tx)
         .await?;
-        let id_to_ingredient: HashMap<Uuid, String> =
-            ingredients.into_iter().collect();
+        let id_to_ingredient: HashMap<Uuid, String> = ingredients.into_iter().collect();
 
-        let mut by_ingredient: HashMap<String, Vec<String>> =
-            HashMap::new();
+        let mut by_ingredient: HashMap<String, Vec<String>> = HashMap::new();
         for item in &body.items {
             if let Some(cid) = item.catalog_item_id {
                 if let Some(ingredient) = id_to_ingredient.get(&cid) {

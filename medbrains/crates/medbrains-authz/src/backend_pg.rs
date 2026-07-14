@@ -364,6 +364,54 @@ impl AuthzBackend for PgAuthzBackend {
         Ok(tuple_id)
     }
 
+    async fn grant_raw(
+        &self,
+        ctx: &AuthzContext,
+        object_type: &str,
+        object_id: Uuid,
+        relation_name: &str,
+        subject: Subject,
+        expires_at: Option<chrono::DateTime<chrono::Utc>>,
+        reason: Option<String>,
+    ) -> Result<Uuid, AuthzError> {
+        // Raw relations (dept_member, ward_member, …) aren't in the `Relation`
+        // enum, so skip the enum allowed-relations check; still honour bypass_only.
+        let spec = registry::lookup(object_type)
+            .ok_or_else(|| AuthzError::UnknownObjectType(object_type.to_string()))?;
+        if spec.bypass_only {
+            return Err(AuthzError::Other(format!(
+                "{object_type} is bypass_only — explicit grants forbidden"
+            )));
+        }
+
+        let (subject_type, subject_id) = serialize_subject(&subject);
+        let mut tx = self.pool.begin().await?;
+        self.set_tenant_ctx(&mut tx, ctx.tenant_id).await?;
+
+        let tuple_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO relation_tuples (
+                 tuple_id, tenant_id, object_type, object_id, relation,
+                 subject_type, subject_id, expires_at, granted_by,
+                 granted_reason, source
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'explicit')",
+        )
+        .bind(tuple_id)
+        .bind(ctx.tenant_id)
+        .bind(object_type)
+        .bind(object_id)
+        .bind(relation_name)
+        .bind(subject_type)
+        .bind(subject_id)
+        .bind(expires_at)
+        .bind(ctx.user_id)
+        .bind(reason)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok(tuple_id)
+    }
+
     async fn revoke_tuple(&self, ctx: &AuthzContext, tuple_id: Uuid) -> Result<(), AuthzError> {
         let mut tx = self.pool.begin().await?;
         self.set_tenant_ctx(&mut tx, ctx.tenant_id).await?;

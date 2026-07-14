@@ -473,6 +473,32 @@ impl AuthzBackend for SpiceDbBackend {
         ))
     }
 
+    async fn grant_raw(
+        &self,
+        _ctx: &AuthzContext,
+        object_type: &str,
+        object_id: Uuid,
+        relation_name: &str,
+        subject: Subject,
+        expires_at: Option<chrono::DateTime<chrono::Utc>>,
+        _reason: Option<String>,
+    ) -> Result<Uuid, AuthzError> {
+        self.write_raw(
+            object_type,
+            object_id,
+            relation_name,
+            subject.clone(),
+            expires_at,
+        )
+        .await?;
+        Ok(synthetic_tuple_id_str(
+            object_type,
+            object_id,
+            relation_name,
+            &subject,
+        ))
+    }
+
     async fn revoke_specific(
         &self,
         _ctx: &AuthzContext,
@@ -623,12 +649,7 @@ fn relationship_to_tuple(rel: v1::Relationship) -> Option<RelationTuple> {
     let subject = subject_ref_to_subject(&subject_obj.object_type, &subject_obj.object_id);
 
     Some(RelationTuple {
-        tuple_id: _synthetic_tuple_id_str(
-            &resource.object_type,
-            object_id,
-            &rel.relation,
-            &subject,
-        ),
+        tuple_id: synthetic_tuple_id_str(&resource.object_type, object_id, &rel.relation, &subject),
         // SpiceDB's tenancy lives in object_id prefix (we use bare uuids,
         // so tenant context is implicit in the AuthzContext).
         tenant_id: Uuid::nil(),
@@ -694,7 +715,7 @@ fn synthetic_tuple_id(
 /// Same hash but takes the relation as a `&str` — convenient when
 /// reading back tuples whose relation is a free-form string from
 /// `SpiceDB` (some relations may not be in our `Relation` enum).
-fn _synthetic_tuple_id_str(
+fn synthetic_tuple_id_str(
     object_type: &str,
     object_id: Uuid,
     relation: &str,

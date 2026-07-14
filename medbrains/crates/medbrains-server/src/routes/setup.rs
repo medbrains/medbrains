@@ -106,7 +106,10 @@ pub async fn update_tenant(
     let custom_domain = body.custom_domain.as_ref().map(|d| d.trim().to_lowercase());
     if let Some(domain) = custom_domain.as_deref() {
         if !domain.is_empty() && !is_valid_domain(domain) {
-            errors.add("custom_domain", "Enter a valid domain like hms.hospital.com");
+            errors.add(
+                "custom_domain",
+                "Enter a valid domain like hms.hospital.com",
+            );
         }
     }
 
@@ -624,7 +627,9 @@ pub async fn create_location(
     validation::validate_code(&mut errors, "code", &body.code);
     validation::validate_name(&mut errors, "name", &body.name);
 
-    let valid_levels = ["campus", "building", "floor", "wing", "zone", "room", "bed", "station"];
+    let valid_levels = [
+        "campus", "building", "floor", "wing", "zone", "room", "bed", "station",
+    ];
     if !valid_levels.contains(&body.level.as_str()) {
         errors.add("level", "Invalid location level");
     }
@@ -1383,56 +1388,48 @@ pub async fn create_user(
     // the next backfill run; we DON'T roll back the user create on
     // tuple write failure (user still exists, just without scoped
     // access until backfill catches up).
-    if let Some(spicedb) = downcast_spicedb(&state.authz) {
-        for d in dept_ids {
-            if let Err(e) = spicedb
-                .write_raw(
-                    "department",
-                    *d,
-                    "member",
-                    medbrains_authz::Subject::User(row.id),
-                    None,
-                )
-                .await
-            {
-                tracing::warn!(error = %e, user = %row.id, dept = %d,
-                    "rebac: failed to write department:#member tuple — backfill will retry");
-            }
+    // Link the user's department/group memberships via the raw-relation grant
+    // (`dept_member`/`group_member` aren't in the `Relation` enum). Best-effort:
+    // the user exists regardless; the outbox/backfill retries a failed tuple.
+    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    for d in dept_ids {
+        if let Err(e) = state
+            .authz
+            .grant_raw(
+                &authz_ctx,
+                "department",
+                *d,
+                "member",
+                medbrains_authz::Subject::User(row.id),
+                None,
+                Some("user_department".to_owned()),
+            )
+            .await
+        {
+            tracing::warn!(error = %e, user = %row.id, dept = %d,
+                "rebac: failed to write department:#member tuple — backfill will retry");
         }
-        for g in group_ids {
-            if let Err(e) = spicedb
-                .write_raw(
-                    "access_group",
-                    *g,
-                    "member",
-                    medbrains_authz::Subject::User(row.id),
-                    None,
-                )
-                .await
-            {
-                tracing::warn!(error = %e, user = %row.id, group = %g,
-                    "rebac: failed to write access_group:#member tuple — backfill will retry");
-            }
+    }
+    for g in group_ids {
+        if let Err(e) = state
+            .authz
+            .grant_raw(
+                &authz_ctx,
+                "access_group",
+                *g,
+                "member",
+                medbrains_authz::Subject::User(row.id),
+                None,
+                Some("user_group".to_owned()),
+            )
+            .await
+        {
+            tracing::warn!(error = %e, user = %row.id, group = %g,
+                "rebac: failed to write access_group:#member tuple — backfill will retry");
         }
     }
 
     Ok(Json(row))
-}
-
-/// Downcast `Arc<dyn AuthzBackend>` to the SpiceDB-specific backend if
-/// that's what's wired. Used for tuple emission helpers (`write_raw`)
-/// that aren't part of the trait surface. Returns `None` on the
-/// `PgAuthzBackend` fallback path.
-fn downcast_spicedb(
-    authz: &std::sync::Arc<dyn medbrains_authz::AuthzBackend>,
-) -> Option<&medbrains_authz::backend_spicedb::SpiceDbBackend> {
-    // We can't downcast through `dyn AuthzBackend` directly without
-    // `Any` — instead, expose the operation through a trait-method or
-    // skip when the backend doesn't support it. For now, return None;
-    // a follow-up will add `as_spicedb(&self) -> Option<&SpiceDbBackend>`
-    // to the trait.
-    let _ = authz;
-    None
 }
 
 pub async fn update_user(
@@ -4203,7 +4200,9 @@ pub async fn import_locations(
             continue;
         }
 
-        let valid_levels = ["campus", "building", "floor", "wing", "zone", "room", "bed", "station"];
+        let valid_levels = [
+            "campus", "building", "floor", "wing", "zone", "room", "bed", "station",
+        ];
         if !valid_levels.contains(&level.as_str()) {
             errors.push(format!("Row {row_num}: invalid level '{level}'"));
             skipped += 1;
@@ -5616,7 +5615,8 @@ pub async fn add_access_group_member(
     .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
-    let member_audit = serde_json::json!({ "user_id": body.user_id, "expires_at": body.expires_at });
+    let member_audit =
+        serde_json::json!({ "user_id": body.user_id, "expires_at": body.expires_at });
     medbrains_db::audit::AuditLogger::log(
         &mut tx,
         &medbrains_db::audit::AuditEntry {

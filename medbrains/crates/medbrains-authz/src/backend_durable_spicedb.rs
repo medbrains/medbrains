@@ -233,6 +233,64 @@ impl AuthzBackend for DurableSpiceDbBackend {
         Ok(tuple_id)
     }
 
+    async fn grant_raw(
+        &self,
+        ctx: &AuthzContext,
+        object_type: &str,
+        object_id: Uuid,
+        relation_name: &str,
+        subject: Subject,
+        expires_at: Option<chrono::DateTime<chrono::Utc>>,
+        reason: Option<String>,
+    ) -> Result<Uuid, AuthzError> {
+        // Postgres `relation_tuples` is the durable source of truth; SpiceDB is
+        // the queryable projection. Write PG first (real tuple id), then push
+        // the raw relation to SpiceDB best-effort — the outbox/backfill retries
+        // on failure. Mirrors `write_tuple`.
+        let tuple_id = self
+            .pg
+            .grant_raw(
+                ctx,
+                object_type,
+                object_id,
+                relation_name,
+                subject.clone(),
+                expires_at,
+                reason,
+            )
+            .await?;
+
+        if matches!(subject, Subject::Role(_)) {
+            mark_tuple_sync(
+                &self.pool,
+                ctx.tenant_id,
+                tuple_id,
+                "skipped",
+                Some("role-subject SpiceDB grants require role#member modeling".to_owned()),
+            )
+            .await?;
+            return Ok(tuple_id);
+        }
+
+        match self
+            .spicedb
+            .write_raw(object_type, object_id, relation_name, subject, expires_at)
+            .await
+        {
+            Ok(()) => {
+                mark_tuple_sync(&self.pool, ctx.tenant_id, tuple_id, "applied", None).await?;
+            }
+            Err(e) => {
+                let error = e.to_string();
+                tracing::warn!(error = %error, tuple_id = %tuple_id,
+                    "rebac: SpiceDB raw write failed; queued in relation_tuples outbox");
+                mark_tuple_sync(&self.pool, ctx.tenant_id, tuple_id, "failed", Some(error)).await?;
+            }
+        }
+
+        Ok(tuple_id)
+    }
+
     async fn revoke_tuple(&self, ctx: &AuthzContext, tuple_id: Uuid) -> Result<(), AuthzError> {
         let tuple = load_tuple_by_id(&self.pool, ctx.tenant_id, tuple_id).await?;
         self.pg.revoke_tuple(ctx, tuple_id).await?;
