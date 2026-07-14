@@ -293,6 +293,8 @@ pub async fn list_rehab_plans(
     Query(params): Query<ListRehabPlansQuery>,
 ) -> Result<Json<Vec<RehabPlan>>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::plans::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -318,6 +320,8 @@ pub async fn create_rehab_plan(
     Json(body): Json<CreateRehabPlanRequest>,
 ) -> Result<Json<RehabPlan>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::plans::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -354,6 +358,8 @@ pub async fn list_rehab_sessions(
     Path(plan_id): Path<Uuid>,
 ) -> Result<Json<Vec<RehabSession>>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::sessions::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -376,6 +382,8 @@ pub async fn create_rehab_session(
     Json(body): Json<CreateRehabSessionRequest>,
 ) -> Result<Json<RehabSession>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::sessions::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -415,6 +423,8 @@ pub async fn list_audiology_tests(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<AudiologyTest>>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::audiology::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -435,6 +445,8 @@ pub async fn create_audiology_test(
     Json(body): Json<CreateAudiologyTestRequest>,
 ) -> Result<Json<AudiologyTest>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::audiology::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -472,6 +484,8 @@ pub async fn list_psychometric_tests(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<PsychometricTest>>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::psychometric::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -492,6 +506,8 @@ pub async fn create_psychometric_test(
     Json(body): Json<CreatePsychometricRequest>,
 ) -> Result<Json<PsychometricTest>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::psychometric::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -527,6 +543,12 @@ pub async fn list_dnr_orders(
     Query(params): Query<ListDnrQuery>,
 ) -> Result<Json<Vec<DnrOrder>>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::dnr::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "palliative",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -568,6 +590,12 @@ pub async fn create_dnr_order(
     Json(body): Json<CreateDnrRequest>,
 ) -> Result<Json<DnrOrder>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::dnr::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "palliative",
+    )
+    .await?;
     let review_hours = validated_dnr_review_hours(body.review_due_hours)?;
 
     let mut tx = state.db.begin().await?;
@@ -604,6 +632,12 @@ pub async fn revoke_dnr_order(
     Json(body): Json<RevokeDnrRequest>,
 ) -> Result<Json<DnrOrder>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::dnr::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "palliative",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -630,6 +664,12 @@ pub async fn list_pain_assessments(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<PainAssessment>>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::pain::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "palliative",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -650,6 +690,12 @@ pub async fn create_pain_assessment(
     Json(body): Json<CreatePainAssessmentRequest>,
 ) -> Result<Json<PainAssessment>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::pain::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "palliative",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -689,6 +735,12 @@ pub async fn list_mortuary_records(
     Query(params): Query<ListMortuaryQuery>,
 ) -> Result<Json<Vec<MortuaryRecord>>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::mortuary::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "palliative",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -717,6 +769,12 @@ pub async fn create_mortuary_record(
         &claims,
         permissions::specialty::palliative::mortuary::MANAGE,
     )?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "palliative",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -758,6 +816,12 @@ pub async fn update_mortuary_record(
         &claims,
         permissions::specialty::palliative::mortuary::MANAGE,
     )?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "palliative",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -774,7 +838,10 @@ pub async fn update_mortuary_record(
         .await?
         .ok_or(AppError::NotFound)?;
         let pm_done = pm_on_file
-            || body.pm_performed_by.as_deref().is_some_and(|s| !s.trim().is_empty());
+            || body
+                .pm_performed_by
+                .as_deref()
+                .is_some_and(|s| !s.trim().is_empty());
         if is_mlc && !pm_done {
             return Err(AppError::Conflict(
                 "Cannot release a medico-legal (MLC) body before the post-mortem is completed — \
@@ -825,6 +892,12 @@ pub async fn list_nuclear_sources(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<NuclearMedSource>>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::nucmed::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "palliative",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -845,6 +918,12 @@ pub async fn create_nuclear_source(
     Json(body): Json<CreateNuclearSourceRequest>,
 ) -> Result<Json<NuclearMedSource>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::nucmed::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "palliative",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -876,6 +955,12 @@ pub async fn list_nuclear_administrations(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<NuclearMedAdministration>>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::nucmed::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "palliative",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -896,8 +981,11 @@ pub async fn list_nuclear_administrations(
 const I131_ISOLATION_THRESHOLD_MCI: f64 = 30.0;
 
 fn radionuclide_isolation_required(isotope: &str, dose_mci: f64) -> bool {
-    let normalized: String =
-        isotope.chars().filter(char::is_ascii_alphanumeric).collect::<String>().to_lowercase();
+    let normalized: String = isotope
+        .chars()
+        .filter(char::is_ascii_alphanumeric)
+        .collect::<String>()
+        .to_lowercase();
     let is_i131 = normalized.contains("i131") || normalized.contains("iodine131");
     is_i131 && dose_mci >= I131_ISOLATION_THRESHOLD_MCI
 }
@@ -908,6 +996,12 @@ pub async fn create_nuclear_administration(
     Json(body): Json<CreateNuclearAdminRequest>,
 ) -> Result<Json<NuclearMedAdministration>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::nucmed::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "palliative",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -958,6 +1052,12 @@ pub async fn list_specialty_templates(
     Query(params): Query<ListTemplatesQuery>,
 ) -> Result<Json<Vec<SpecialtyTemplate>>, AppError> {
     require_permission(&claims, permissions::specialty::other::templates::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "specialty_other",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -981,6 +1081,12 @@ pub async fn create_specialty_template(
     Json(body): Json<CreateTemplateRequest>,
 ) -> Result<Json<SpecialtyTemplate>, AppError> {
     require_permission(&claims, permissions::specialty::other::templates::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "specialty_other",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1008,6 +1114,12 @@ pub async fn list_specialty_records(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<SpecialtyRecord>>, AppError> {
     require_permission(&claims, permissions::specialty::other::records::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "specialty_other",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1028,6 +1140,12 @@ pub async fn create_specialty_record(
     Json(body): Json<CreateRecordRequest>,
 ) -> Result<Json<SpecialtyRecord>, AppError> {
     require_permission(&claims, permissions::specialty::other::records::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "specialty_other",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1060,6 +1178,12 @@ pub async fn list_dialysis_sessions(
     Query(params): Query<ListDialysisQuery>,
 ) -> Result<Json<Vec<DialysisSession>>, AppError> {
     require_permission(&claims, permissions::specialty::other::dialysis::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "specialty_other",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1083,6 +1207,12 @@ pub async fn create_dialysis_session(
     Json(body): Json<CreateDialysisRequest>,
 ) -> Result<Json<CreateDialysisResponse>, AppError> {
     require_permission(&claims, permissions::specialty::other::dialysis::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "specialty_other",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1134,7 +1264,11 @@ pub async fn create_dialysis_session(
         _ => None,
     };
     let uf_rate_exceeds_safe = uf_rate_ml_kg_hr.is_some_and(|r| r > MAX_SAFE_UF_RATE_ML_KG_HR);
-    Ok(Json(CreateDialysisResponse { session: row, uf_rate_ml_kg_hr, uf_rate_exceeds_safe }))
+    Ok(Json(CreateDialysisResponse {
+        session: row,
+        uf_rate_ml_kg_hr,
+        uf_rate_exceeds_safe,
+    }))
 }
 
 pub async fn update_dialysis_session(
@@ -1144,6 +1278,12 @@ pub async fn update_dialysis_session(
     Json(body): Json<UpdateDialysisRequest>,
 ) -> Result<Json<DialysisSession>, AppError> {
     require_permission(&claims, permissions::specialty::other::dialysis::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "specialty_other",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1184,6 +1324,12 @@ pub async fn list_chemo_protocols(
     Query(params): Query<ListChemoQuery>,
 ) -> Result<Json<Vec<ChemoProtocol>>, AppError> {
     require_permission(&claims, permissions::specialty::other::records::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "specialty_other",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1209,6 +1355,12 @@ pub async fn create_chemo_protocol(
     Json(body): Json<CreateChemoRequest>,
 ) -> Result<Json<ChemoProtocol>, AppError> {
     require_permission(&claims, permissions::specialty::other::records::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "specialty_other",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1287,6 +1439,12 @@ pub async fn anthracycline_cumulative(
     Query(params): Query<AnthracyclineCumulativeQuery>,
 ) -> Result<Json<AnthracyclineCumulativeResult>, AppError> {
     require_permission(&claims, permissions::specialty::other::records::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "specialty_other",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1325,7 +1483,10 @@ mod anthracycline_tests {
     #[test]
     fn doxorubicin_ceiling() {
         assert_eq!(anthracycline_ceiling_mg_m2("Doxorubicin"), Some(450.0));
-        assert_eq!(anthracycline_ceiling_mg_m2("liposomal doxorubicin"), Some(450.0));
+        assert_eq!(
+            anthracycline_ceiling_mg_m2("liposomal doxorubicin"),
+            Some(450.0)
+        );
     }
 
     #[test]
@@ -1373,6 +1534,12 @@ pub async fn update_chemo_protocol(
     Json(body): Json<UpdateChemoRequest>,
 ) -> Result<Json<ChemoProtocol>, AppError> {
     require_permission(&claims, permissions::specialty::other::records::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "specialty_other",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1418,6 +1585,12 @@ pub async fn list_cancer_stagings(
     Query(q): Query<StagingQuery>,
 ) -> Result<Json<Vec<CancerStaging>>, AppError> {
     require_permission(&claims, permissions::specialty::other::oncology::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "specialty_other",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1453,6 +1626,12 @@ pub async fn create_cancer_staging(
     Json(body): Json<CreateStagingRequest>,
 ) -> Result<Json<CancerStaging>, AppError> {
     require_permission(&claims, permissions::specialty::other::oncology::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "specialty_other",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1485,6 +1664,12 @@ pub async fn list_radiation_sessions(
     Query(q): Query<StagingQuery>,
 ) -> Result<Json<Vec<RadiationSession>>, AppError> {
     require_permission(&claims, permissions::specialty::other::oncology::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "specialty_other",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1519,6 +1704,12 @@ pub async fn create_radiation_session(
     Json(body): Json<CreateRadiationRequest>,
 ) -> Result<Json<RadiationSession>, AppError> {
     require_permission(&claims, permissions::specialty::other::oncology::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "specialty_other",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
