@@ -18,6 +18,26 @@ use crate::{
     state::AppState,
 };
 
+/// ReBAC pre-check: the caller must hold `view` on the patient whose reconciliations are being read.
+/// Patient `view` is granted to the registering clerk (owner), the attending, department/ward members,
+/// care-team groups and explicit shares (see `infra/spicedb/schema.zed`); bypass roles short-circuit
+/// inside `check`. Mirrors the guard on `patients::get_patient`, so a patient's medication
+/// reconciliations are scoped to the care team rather than readable for every holder of
+/// `ipd::nursing_assessment::LIST` across the tenant. Fails closed to `NotFound`.
+async fn require_patient_access(
+    state: &AppState,
+    claims: &Claims,
+    patient_id: Uuid,
+) -> Result<(), AppError> {
+    let authz_ctx = crate::middleware::authorization::authz_context(claims);
+    let allowed = state
+        .authz
+        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", patient_id)
+        .await
+        .unwrap_or(false);
+    if allowed { Ok(()) } else { Err(AppError::NotFound) }
+}
+
 const TRANSITIONS: [&str; 3] = ["admission", "transfer", "discharge"];
 const SOURCES: [&str; 4] = ["home", "opd", "transfer", "other"];
 const DECISIONS: [&str; 4] = ["continue", "modify", "stop", "hold"];
@@ -244,6 +264,7 @@ pub async fn list_med_reconciliations(
     Query(params): Query<ListMedReconciliationQuery>,
 ) -> Result<Json<Vec<MedReconciliationView>>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+    require_patient_access(&state, &claims, params.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let recons = sqlx::query_as::<_, MedReconciliation>(&format!(
