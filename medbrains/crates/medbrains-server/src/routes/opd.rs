@@ -3795,6 +3795,42 @@ pub async fn create_referral(
     .await?;
 
     tx.commit().await?;
+
+    // A referral brings the receiving department (and named doctor, if any)
+    // onto the patient's care team so they can see the referred patient (ReBAC).
+    // dept_member@to_department = the whole receiving department; viewer@to_doctor
+    // = the named consultant. Grant on the patient (not just the encounter) — a
+    // referral establishes an ongoing care relationship. Mirrors create_encounter.
+    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    state
+        .authz
+        .grant_raw(
+            &authz_ctx,
+            "patient",
+            body.patient_id,
+            "dept_member",
+            medbrains_authz::Subject::Department(body.to_department_id),
+            None,
+            Some("referral_to_department".to_owned()),
+        )
+        .await
+        .map_err(|e| AppError::Internal(format!("referral dept authz grant failed: {e}")))?;
+    if let Some(to_doctor_id) = body.to_doctor_id {
+        state
+            .authz
+            .write_tuple(
+                &authz_ctx,
+                "patient",
+                body.patient_id,
+                medbrains_authz::Relation::Viewer,
+                medbrains_authz::Subject::User(to_doctor_id),
+                None,
+                Some("referral_to_doctor".to_owned()),
+            )
+            .await
+            .map_err(|e| AppError::Internal(format!("referral doctor authz grant failed: {e}")))?;
+    }
+
     Ok(Json(row))
 }
 
