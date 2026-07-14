@@ -311,6 +311,7 @@ pub fn build_router(state: AppState) -> Router {
         // WebSocket routes (TV displays)
         .route("/ws/queue/{department_id}", get(ws::queue_ws_handler))
         .route("/ws/queue", get(ws::queue_ws_handler_all))
+        .route("/ws/notifications", get(notifications::notifications_ws_handler))
         // Payment Gateway Webhooks (no auth — called by the provider)
         .route("/api/webhooks/razorpay", post(payment_gateway::razorpay_webhook))
         .route("/api/webhooks/cashfree", post(payment_gateway::cashfree_webhook))

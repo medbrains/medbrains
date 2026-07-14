@@ -2,11 +2,18 @@
 
 use axum::{
     Extension, Json,
-    extract::{Path, Query, State},
+    extract::{
+        Path, Query, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
+    },
+    http::{HeaderMap, header::COOKIE},
+    response::IntoResponse,
 };
+use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::services::notification_hub::{NotificationEvent, user_topic};
 use crate::{error::AppError, middleware::auth::Claims, state::AppState};
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -152,15 +159,18 @@ pub struct NewNotification<'a> {
 }
 
 /// Insert a notification row (call inside a tenant-scoped transaction).
+/// Returns the new row id so a caller can publish it live post-commit via
+/// [`publish_notification`]. Existing callers that write `…await?;` and discard
+/// the id keep compiling (persist-only; they gain real-time by publishing).
 pub async fn create_notification(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
     notification: NewNotification<'_>,
-) -> Result<(), AppError> {
-    sqlx::query(
+) -> Result<Uuid, AppError> {
+    let id: Uuid = sqlx::query_scalar(
         "INSERT INTO notifications \
          (tenant_id, user_id, kind, title, body, category, entity_type, entity_id, action_url) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id",
     )
     .bind(tenant_id)
     .bind(notification.user_id)
@@ -171,7 +181,124 @@ pub async fn create_notification(
     .bind(notification.entity_type)
     .bind(notification.entity_id)
     .bind(notification.action_url)
-    .execute(&mut **tx)
+    .fetch_one(&mut **tx)
     .await?;
+    Ok(id)
+}
+
+/// Fan a persisted notification out to the recipient's live sockets (call
+/// **after** the transaction commits — persist-then-deliver; the DB row is the
+/// source of truth, real-time is best-effort on top). O(subscribers).
+pub fn publish_notification(state: &AppState, tenant_id: Uuid, id: Uuid, n: &NewNotification<'_>) {
+    let event = NotificationEvent {
+        id,
+        tenant_id,
+        kind: n.kind.to_owned(),
+        title: n.title.to_owned(),
+        body: n.body.map(str::to_owned),
+        category: n.category.map(str::to_owned),
+        entity_type: n.entity_type.map(str::to_owned),
+        entity_id: n.entity_id,
+        action_url: n.action_url.map(str::to_owned),
+    };
+    let hub = state.notifications.clone();
+    let topic = user_topic(n.user_id);
+    // Fire-and-forget: delivery must never block or fail the request path.
+    tokio::spawn(async move {
+        hub.publish(&[topic], event).await;
+    });
+}
+
+/// Convenience for non-transactional producers: insert in its own tenant-scoped
+/// transaction, commit, then publish live. Go-forward creator that gets
+/// real-time for free.
+pub async fn create_and_publish(
+    state: &AppState,
+    tenant_id: Uuid,
+    notification: NewNotification<'_>,
+) -> Result<(), AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+    let id = create_notification(&mut tx, tenant_id, notification.clone_ref()).await?;
+    tx.commit().await?;
+    publish_notification(state, tenant_id, id, &notification);
     Ok(())
+}
+
+impl NewNotification<'_> {
+    /// Shallow copy of the borrowed fields (all `Copy`/`&str`) so the value can
+    /// be used both for the insert and the post-commit publish.
+    fn clone_ref(&self) -> NewNotification<'_> {
+        NewNotification {
+            user_id: self.user_id,
+            kind: self.kind,
+            title: self.title,
+            body: self.body,
+            category: self.category,
+            entity_type: self.entity_type,
+            entity_id: self.entity_id,
+            action_url: self.action_url,
+        }
+    }
+}
+
+// ── Real-time delivery: WebSocket ─────────────────────────────────
+#[derive(Debug, Deserialize)]
+pub struct WsAuthQuery {
+    /// Fallback auth for non-cookie clients (mobile/native): `?token=<jwt>`.
+    pub token: Option<String>,
+}
+
+/// `GET /ws/notifications` — the caller's live notification stream. Authed
+/// inside the handler (WS upgrades bypass the API auth layer): `access_token`
+/// cookie first (browsers send it on upgrade), else `?token=` (mobile). On
+/// reconnect the client backfills missed rows via `GET /api/notifications`.
+pub async fn notifications_ws_handler(
+    ws: WebSocketUpgrade,
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(q): Query<WsAuthQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let token = headers
+        .get(COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|c| crate::middleware::auth::parse_cookie_value(c, "access_token").map(str::to_owned))
+        .or(q.token)
+        .ok_or(AppError::Unauthorized)?;
+    let claims = crate::middleware::auth::decode_and_validate(&token, &state.jwt_decoding_key)?;
+    let user_id = claims.sub;
+    Ok(ws.on_upgrade(move |socket| handle_notifications_socket(socket, state, user_id)))
+}
+
+async fn handle_notifications_socket(socket: WebSocket, state: AppState, user_id: Uuid) {
+    let (mut sender, mut receiver) = socket.split();
+    let mut rx = state.notifications.subscribe(&user_topic(user_id)).await;
+
+    // Forward hub events → socket. Lagged (bounded backlog exceeded) is
+    // non-fatal: the client backfills via the REST feed on the next poll.
+    let send_task = tokio::spawn(async move {
+        loop {
+            match rx.recv().await {
+                Ok(event) => {
+                    let Ok(json) = serde_json::to_string(&*event) else {
+                        continue;
+                    };
+                    if sender.send(Message::Text(json.into())).await.is_err() {
+                        break;
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+            }
+        }
+    });
+
+    // Drain inbound (ping/close) until the client disconnects.
+    while let Some(result) = receiver.next().await {
+        match result {
+            Ok(Message::Close(_)) | Err(_) => break,
+            _ => {}
+        }
+    }
+    send_task.abort();
 }

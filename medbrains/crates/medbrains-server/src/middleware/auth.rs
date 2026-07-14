@@ -89,7 +89,7 @@ pub async fn auth_middleware(
 }
 
 /// Decode and validate an Ed25519 JWT token.
-fn decode_and_validate(token: &str, key: &DecodingKey) -> Result<Claims, AppError> {
+pub(crate) fn decode_and_validate(token: &str, key: &DecodingKey) -> Result<Claims, AppError> {
     let mut validation = Validation::new(Algorithm::EdDSA);
     validation.set_required_spec_claims(&["exp", "sub"]);
     let token_data =
@@ -98,7 +98,7 @@ fn decode_and_validate(token: &str, key: &DecodingKey) -> Result<Claims, AppErro
 }
 
 /// Parse a specific cookie value from the raw `Cookie` header string.
-fn parse_cookie_value<'a>(header: &'a str, name: &str) -> Option<&'a str> {
+pub(crate) fn parse_cookie_value<'a>(header: &'a str, name: &str) -> Option<&'a str> {
     for pair in header.split(';') {
         let trimmed = pair.trim();
         if let Some(val) = trimmed.strip_prefix(name) {

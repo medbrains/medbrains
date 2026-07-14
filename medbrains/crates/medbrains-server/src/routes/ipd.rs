@@ -3201,6 +3201,7 @@ async fn notify_prescriber_dose_not_given_in_tx(
         },
     )
     .await
+    .map(|_| ())
 }
 
 // ══════════════════════════════════════════════════════════
