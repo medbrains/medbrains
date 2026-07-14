@@ -1494,9 +1494,8 @@ pub async fn create_admission(
     // Link the care team on BOTH the inline encounter and the admission so
     // per-encounter and per-admission reads resolve (ReBAC). Department viewer
     // = the whole treating department (one tuple, no per-user fan-out);
-    // attending = the admitting doctor. Mirrors create_encounter / patient
-    // registration. Ward-level (ward_member) linking is a follow-up — it needs
-    // the ward→department resolution.
+    // attending = the admitting doctor; ward_member (below) covers ward staff.
+    // Mirrors create_encounter / patient registration.
     let authz_ctx = crate::middleware::authorization::authz_context(&claims);
     for (object_type, object_id) in [("encounter", encounter.id), ("admission", admission.id)] {
         state
@@ -1541,6 +1540,37 @@ pub async fn create_admission(
         )
         .await
         .map_err(|e| AppError::Internal(format!("admission attending authz grant failed: {e}")))?;
+
+    // Ward-level visibility: link the ward's department so ward staff (who may
+    // sit in a different department than the admitting one) resolve on the
+    // admission. Best-effort lookup; the grant itself is fatal like the others.
+    if let Some(ward_id) = effective_ward_id {
+        let ward_dept: Option<Uuid> =
+            sqlx::query_scalar("SELECT department_id FROM wards WHERE id = $1 AND tenant_id = $2")
+                .bind(ward_id)
+                .bind(claims.tenant_id)
+                .fetch_optional(&state.db)
+                .await
+                .ok()
+                .flatten();
+        if let Some(dept) = ward_dept {
+            state
+                .authz
+                .grant_raw(
+                    &authz_ctx,
+                    "admission",
+                    admission.id,
+                    "ward_member",
+                    medbrains_authz::Subject::Department(dept),
+                    None,
+                    Some("admission_ward".to_owned()),
+                )
+                .await
+                .map_err(|e| {
+                    AppError::Internal(format!("admission ward authz grant failed: {e}"))
+                })?;
+        }
+    }
 
     let doctor_name = sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
         .bind(admission.admitting_doctor)
