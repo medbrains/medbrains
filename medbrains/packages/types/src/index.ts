@@ -4442,6 +4442,22 @@ export interface MeldResult {
   response: string;
 }
 
+export interface Curb65Request {
+  confusion?: boolean;
+  urea_over_7?: boolean;
+  respiratory_rate_30_plus?: boolean;
+  low_blood_pressure?: boolean;
+  age: number;
+}
+
+export interface Curb65Result {
+  score: number;
+  age_point: number;
+  risk: string;
+  disposition: string;
+  response: string;
+}
+
 export interface MeowsRequest {
   respiratory_rate: number;
   spo2: number;

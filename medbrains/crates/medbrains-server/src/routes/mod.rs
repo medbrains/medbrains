@@ -6,6 +6,7 @@ pub mod cam_icu;
 pub mod cha2ds2_vasc;
 pub mod child_pugh;
 pub mod ciwa_ar;
+pub mod curb65;
 pub mod cpot;
 pub mod has_bled;
 pub mod meld;
@@ -353,6 +354,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/clinical/child-pugh", post(child_pugh::child_pugh_score))
         .route("/api/clinical/sofa", post(sofa::sofa_score))
         .route("/api/clinical/meld", post(meld::meld_score))
+        .route("/api/clinical/curb-65", post(curb65::curb65_score))
         .route(
             "/api/clinical/paediatric-fluid",
             post(paediatric_fluid::paediatric_fluid),

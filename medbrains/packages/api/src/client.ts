@@ -796,6 +796,8 @@ import type {
   CumulativeDoseResult,
   CumulativeLabReportPrintData,
   CumulativeReportResponse,
+  Curb65Request,
+  Curb65Result,
   // Custom Code
   CustomCodeSnippet,
   CustomRole,
@@ -14708,6 +14710,8 @@ export const api = {
     request<SofaResult>("/clinical/sofa", { method: "POST", body: JSON.stringify(data) }),
   computeMeld: (data: MeldRequest) =>
     request<MeldResult>("/clinical/meld", { method: "POST", body: JSON.stringify(data) }),
+  computeCurb65: (data: Curb65Request) =>
+    request<Curb65Result>("/clinical/curb-65", { method: "POST", body: JSON.stringify(data) }),
   computePaediatricFluid: (data: PaediatricFluidRequest) =>
     request<PaediatricFluidResult>("/clinical/paediatric-fluid", {
       method: "POST",

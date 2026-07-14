@@ -25,6 +25,7 @@ import {
   IconPill,
   IconReportMedical,
   IconSalad,
+  IconStethoscope,
   IconUserHeart,
   IconVirus,
   IconWaveSine,
@@ -40,6 +41,7 @@ import { Cha2ds2VascTab } from "./care-view/Cha2ds2VascTab";
 import { ChildPughTab } from "./care-view/ChildPughTab";
 import { CiwaArTab } from "./care-view/CiwaArTab";
 import { CpotTab } from "./care-view/CpotTab";
+import { Curb65Tab } from "./care-view/Curb65Tab";
 import { DischargeTrackerTab } from "./care-view/DischargeTrackerTab";
 import { GcsTab } from "./care-view/GcsTab";
 import { HandoverTab } from "./care-view/HandoverTab";
@@ -178,6 +180,9 @@ export function CareViewPage() {
           <Tabs.Tab value="meld" leftSection={<IconReportMedical size={16} />}>
             MELD
           </Tabs.Tab>
+          <Tabs.Tab value="curb-65" leftSection={<IconStethoscope size={16} />}>
+            CURB-65
+          </Tabs.Tab>
           <Tabs.Tab value="paeds-fluid" leftSection={<IconDropletFilled size={16} />}>
             Paeds Fluid
           </Tabs.Tab>
@@ -283,6 +288,10 @@ export function CareViewPage() {
 
         <Tabs.Panel value="meld" pt="md">
           <MeldTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="curb-65" pt="md">
+          <Curb65Tab />
         </Tabs.Panel>
 
         <Tabs.Panel value="paeds-fluid" pt="md">
