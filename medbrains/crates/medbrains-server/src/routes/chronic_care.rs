@@ -15,6 +15,26 @@ use crate::{
     middleware::client_ip::ClientIp, state::AppState,
 };
 
+/// ReBAC pre-check: the caller must hold `view` on the patient whose chronic-care data is being read.
+/// Patient `view` is granted to the registering clerk (owner), the attending, department/ward members,
+/// care-team groups and explicit shares (see `infra/spicedb/schema.zed`); bypass roles short-circuit
+/// inside `check`. Mirrors the guard on `patients::get_patient`, so a patient's chronic enrollments and
+/// medication timeline are scoped to the care team rather than readable for every holder of the
+/// chronic-care permissions across the tenant. Fails closed to `NotFound`.
+async fn require_patient_access(
+    state: &AppState,
+    claims: &Claims,
+    patient_id: Uuid,
+) -> Result<(), AppError> {
+    let authz_ctx = crate::middleware::authorization::authz_context(claims);
+    let allowed = state
+        .authz
+        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", patient_id)
+        .await
+        .unwrap_or(false);
+    if allowed { Ok(()) } else { Err(AppError::NotFound) }
+}
+
 // ══════════════════════════════════════════════════════════
 //  Request / Query / Response types
 // ══════════════════════════════════════════════════════════
@@ -581,6 +601,7 @@ pub async fn patient_enrollments(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<ChronicEnrollmentRow>>, AppError> {
     require_permission(&claims, permissions::chronic::enrollments::LIST)?;
+    require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -726,6 +747,7 @@ pub async fn drug_timeline(
     Query(params): Query<TimelineQuery>,
 ) -> Result<Json<Vec<DrugTimelineRow>>, AppError> {
     require_permission(&claims, permissions::chronic::timeline::VIEW)?;
+    require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -765,6 +787,7 @@ pub async fn drug_timeline_with_labs(
     Query(params): Query<TimelineQuery>,
 ) -> Result<Json<DrugTimelineWithLabsResponse>, AppError> {
     require_permission(&claims, permissions::chronic::timeline::VIEW)?;
+    require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
