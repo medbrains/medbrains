@@ -85,6 +85,11 @@ pub async fn list_scans(
     Query(q): Query<ListScanQuery>,
 ) -> Result<Json<Vec<CaseSheetScan>>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::VIEW)?;
+    // Patient-scoped list is a clinical read → gate on patient access. The
+    // unscoped list is the MRD processing queue (operational, role-gated).
+    if let Some(patient_id) = q.patient_id {
+        crate::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
+    }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let scans = sqlx::query_as::<_, CaseSheetScan>(
@@ -120,6 +125,9 @@ pub async fn get_scan(
     .await?
     .ok_or(AppError::NotFound)?;
     tx.commit().await?;
+    // A scanned case sheet is patient clinical content — gate on patient access
+    // (reachable via the patient's care team; RFC-ACCESS-RESOLUTION-GRAPH).
+    crate::authz_patient::require_patient_access(&state, &claims, scan.patient_id).await?;
     Ok(Json(scan))
 }
 

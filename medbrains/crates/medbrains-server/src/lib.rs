@@ -22,6 +22,7 @@
 //! - [`error`] — Unified error types and responses
 //! - [`validation`] — Request validation helpers
 
+pub mod authz_patient;
 pub mod clinical_credential;
 pub mod config;
 pub mod error;
