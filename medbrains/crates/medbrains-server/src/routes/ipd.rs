@@ -1491,6 +1491,57 @@ pub async fn create_admission(
 
     tx.commit().await?;
 
+    // Link the care team on BOTH the inline encounter and the admission so
+    // per-encounter and per-admission reads resolve (ReBAC). Department viewer
+    // = the whole treating department (one tuple, no per-user fan-out);
+    // attending = the admitting doctor. Mirrors create_encounter / patient
+    // registration. Ward-level (ward_member) linking is a follow-up — it needs
+    // the ward→department resolution.
+    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    for (object_type, object_id) in [("encounter", encounter.id), ("admission", admission.id)] {
+        state
+            .authz
+            .grant_raw(
+                &authz_ctx,
+                object_type,
+                object_id,
+                "dept_member",
+                medbrains_authz::Subject::Department(body.department_id),
+                None,
+                Some("admission_department".to_owned()),
+            )
+            .await
+            .map_err(|e| {
+                AppError::Internal(format!("{object_type} dept authz grant failed: {e}"))
+            })?;
+    }
+    state
+        .authz
+        .write_tuple(
+            &authz_ctx,
+            "encounter",
+            encounter.id,
+            medbrains_authz::Relation::AttendingPhysician,
+            medbrains_authz::Subject::User(doctor_id),
+            None,
+            Some("admission_encounter_attending".to_owned()),
+        )
+        .await
+        .map_err(|e| AppError::Internal(format!("encounter attending authz grant failed: {e}")))?;
+    state
+        .authz
+        .write_tuple(
+            &authz_ctx,
+            "admission",
+            admission.id,
+            medbrains_authz::Relation::AttendingPhysician,
+            medbrains_authz::Subject::User(admission.admitting_doctor),
+            None,
+            Some("admission_attending".to_owned()),
+        )
+        .await
+        .map_err(|e| AppError::Internal(format!("admission attending authz grant failed: {e}")))?;
+
     let doctor_name = sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
         .bind(admission.admitting_doctor)
         .fetch_optional(&state.db)
