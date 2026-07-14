@@ -236,6 +236,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         jwt_decoding_key: decoding_key,
         cookie_config,
         queue_broadcaster: routes::ws::QueueBroadcaster::new(),
+        notifications: medbrains_server::services::notification_hub::NotificationHub::new(),
         trusted_proxies: Arc::new(config.trusted_proxies.clone()),
         system_state_cache: SystemStateCache::new(),
         outbox: Arc::clone(&outbox_registry),

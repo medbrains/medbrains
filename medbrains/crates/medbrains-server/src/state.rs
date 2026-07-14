@@ -27,6 +27,9 @@ pub struct AppState {
     pub cookie_config: CookieConfig,
     /// Broadcaster for real-time TV display updates
     pub queue_broadcaster: QueueBroadcaster,
+    /// Real-time notification fan-out hub (RFC-NOTIFICATION-SYSTEM). Every
+    /// notification is published here for live WS delivery to web/mobile/TV/kiosk.
+    pub notifications: crate::services::notification_hub::NotificationHub,
     /// Trusted proxy CIDRs for X-Forwarded-For validation.
     /// Only trust forwarded headers if the direct connection is from one of these networks.
     pub trusted_proxies: Arc<Vec<ipnet::IpNet>>,
