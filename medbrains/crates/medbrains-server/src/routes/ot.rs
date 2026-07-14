@@ -8,8 +8,7 @@ use chrono::{NaiveDate, Utc};
 use medbrains_core::ipd::{AnesthesiaComplicationEntry, SurgeonCaseloadEntry};
 use medbrains_core::ot::{
     ChecklistPhase, OtAnesthesiaRecord, OtBooking, OtCaseRecord, OtPostopHandoff, OtPostopRecord,
-    OtPreopAssessment, OtPreopHandoff, OtRoom,
-    OtSurgeonPreference, OtSurgicalSafetyChecklist,
+    OtPreopAssessment, OtPreopHandoff, OtRoom, OtSurgeonPreference, OtSurgicalSafetyChecklist,
 };
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
@@ -189,8 +188,7 @@ fn count_closure_blocked(
     !(action_documented || counts_ok)
 }
 
-const COUNT_CLOSURE_ERROR: &str =
-    "Cannot close the case: the final sponge/instrument count is not confirmed correct. Recount, \
+const COUNT_CLOSURE_ERROR: &str = "Cannot close the case: the final sponge/instrument count is not confirmed correct. Recount, \
      obtain an intra-operative X-ray, and document the reconciliation action before closing.";
 
 #[derive(Debug, Deserialize)]
@@ -322,6 +320,8 @@ pub async fn list_rooms(
             permissions::ot::bookings::UPDATE,
         ],
     )?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -343,6 +343,8 @@ pub async fn create_room(
     Json(body): Json<CreateRoomRequest>,
 ) -> Result<Json<OtRoom>, AppError> {
     require_permission(&claims, permissions::ot::rooms::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -373,6 +375,8 @@ pub async fn update_room(
     Json(body): Json<UpdateRoomRequest>,
 ) -> Result<Json<OtRoom>, AppError> {
     require_permission(&claims, permissions::ot::rooms::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -414,6 +418,8 @@ pub async fn list_bookings(
     Query(params): Query<ListBookingsQuery>,
 ) -> Result<Json<BookingListResponse>, AppError> {
     require_permission(&claims, permissions::ot::bookings::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
@@ -535,6 +541,8 @@ pub async fn get_booking(
     Path(id): Path<Uuid>,
 ) -> Result<Json<OtBooking>, AppError> {
     require_permission(&claims, permissions::ot::bookings::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -558,6 +566,8 @@ pub async fn create_booking(
     Json(body): Json<CreateBookingRequest>,
 ) -> Result<Json<OtBooking>, AppError> {
     require_permission(&claims, permissions::ot::bookings::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -672,6 +682,8 @@ pub async fn update_booking(
     Json(body): Json<UpdateBookingRequest>,
 ) -> Result<Json<OtBooking>, AppError> {
     require_permission(&claims, permissions::ot::bookings::UPDATE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -779,6 +791,8 @@ pub async fn update_booking_status(
     Json(body): Json<UpdateBookingStatusRequest>,
 ) -> Result<Json<OtBooking>, AppError> {
     require_permission(&claims, permissions::ot::bookings::UPDATE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -961,6 +975,8 @@ pub async fn get_preop(
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<Option<OtPreopAssessment>>, AppError> {
     require_permission(&claims, permissions::ot::preop::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1011,6 +1027,8 @@ pub async fn create_preop(
     Json(body): Json<CreatePreopRequest>,
 ) -> Result<Json<OtPreopAssessment>, AppError> {
     require_permission(&claims, permissions::ot::preop::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1061,6 +1079,8 @@ pub async fn update_preop(
     Json(body): Json<UpdatePreopRequest>,
 ) -> Result<Json<OtPreopAssessment>, AppError> {
     require_permission(&claims, permissions::ot::preop::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1113,11 +1133,23 @@ fn preop_handoff_items() -> &'static [(&'static str, &'static str)] {
         ("npo_confirmed", "Fasting / NPO status confirmed"),
         ("site_marked", "Surgical site marked (or not applicable)"),
         ("allergies_checked", "Allergies reviewed and band applied"),
-        ("prosthetics_removed", "Dentures, lenses, jewellery and prosthetics removed"),
+        (
+            "prosthetics_removed",
+            "Dentures, lenses, jewellery and prosthetics removed",
+        ),
         ("preop_meds_given", "Pre-op medication given as ordered"),
-        ("valuables_secured", "Valuables handed to relatives / secured"),
-        ("records_available", "Case notes, imaging and investigations available"),
-        ("blood_arranged", "Blood arranged if required (or not applicable)"),
+        (
+            "valuables_secured",
+            "Valuables handed to relatives / secured",
+        ),
+        (
+            "records_available",
+            "Case notes, imaging and investigations available",
+        ),
+        (
+            "blood_arranged",
+            "Blood arranged if required (or not applicable)",
+        ),
     ]
 }
 
@@ -1133,7 +1165,10 @@ fn postop_handoff_items() -> &'static [(&'static str, &'static str)] {
         ("bleeding_output", "Bleeding / drain output assessed"),
         ("aldrete_recorded", "Aldrete score recorded"),
         ("postop_orders", "Post-op orders and analgesia handed over"),
-        ("belongings_notes", "Patient belongings and case notes accompany patient"),
+        (
+            "belongings_notes",
+            "Patient belongings and case notes accompany patient",
+        ),
     ]
 }
 
@@ -1190,6 +1225,8 @@ pub async fn get_preop_handoff(
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<Option<OtPreopHandoff>>, AppError> {
     require_permission(&claims, permissions::ot::preop::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1215,6 +1252,8 @@ pub async fn upsert_preop_handoff(
     Json(body): Json<UpsertHandoffRequest>,
 ) -> Result<Json<OtPreopHandoff>, AppError> {
     require_permission(&claims, permissions::ot::preop::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1298,6 +1337,8 @@ pub async fn get_postop_handoff(
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<Option<OtPostopHandoff>>, AppError> {
     require_permission(&claims, permissions::ot::postop::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1323,6 +1364,8 @@ pub async fn upsert_postop_handoff(
     Json(body): Json<UpsertHandoffRequest>,
 ) -> Result<Json<OtPostopHandoff>, AppError> {
     require_permission(&claims, permissions::ot::postop::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1409,6 +1452,8 @@ pub async fn get_checklists(
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<Vec<OtSurgicalSafetyChecklist>>, AppError> {
     require_permission(&claims, permissions::ot::safety_checklist::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1452,29 +1497,71 @@ async fn who_phase_complete(
 fn who_checklist_items(phase: &str) -> &'static [(&'static str, &'static str)] {
     match phase {
         "sign_in" => &[
-            ("patient_identity", "Patient confirmed: identity, site, procedure, consent"),
+            (
+                "patient_identity",
+                "Patient confirmed: identity, site, procedure, consent",
+            ),
             ("site_marked", "Surgical site marked (or not applicable)"),
-            ("anaesthesia_check", "Anaesthesia machine and medication check complete"),
-            ("pulse_oximeter", "Pulse oximeter on patient and functioning"),
+            (
+                "anaesthesia_check",
+                "Anaesthesia machine and medication check complete",
+            ),
+            (
+                "pulse_oximeter",
+                "Pulse oximeter on patient and functioning",
+            ),
             ("allergy", "Known allergy reviewed"),
             ("airway_risk", "Difficult airway / aspiration risk assessed"),
-            ("blood_loss_risk", "Risk of >500ml blood loss assessed (IV access / fluids)"),
+            (
+                "blood_loss_risk",
+                "Risk of >500ml blood loss assessed (IV access / fluids)",
+            ),
         ],
         "time_out" => &[
-            ("team_introductions", "Team members introduced by name and role"),
-            ("confirm_patient", "Surgeon, anaesthetist and nurse confirm patient, site, procedure"),
-            ("antibiotic_prophylaxis", "Antibiotic prophylaxis given within the last 60 minutes"),
+            (
+                "team_introductions",
+                "Team members introduced by name and role",
+            ),
+            (
+                "confirm_patient",
+                "Surgeon, anaesthetist and nurse confirm patient, site, procedure",
+            ),
+            (
+                "antibiotic_prophylaxis",
+                "Antibiotic prophylaxis given within the last 60 minutes",
+            ),
             ("imaging", "Essential imaging displayed (or not required)"),
-            ("critical_steps", "Surgeon reviews critical or unexpected steps"),
-            ("anaesthesia_concerns", "Anaesthesia reviews patient-specific concerns"),
-            ("sterility", "Nursing confirms sterility and equipment readiness"),
+            (
+                "critical_steps",
+                "Surgeon reviews critical or unexpected steps",
+            ),
+            (
+                "anaesthesia_concerns",
+                "Anaesthesia reviews patient-specific concerns",
+            ),
+            (
+                "sterility",
+                "Nursing confirms sterility and equipment readiness",
+            ),
         ],
         "sign_out" => &[
             ("procedure_recorded", "Name of the procedure recorded"),
-            ("counts_correct", "Instrument, sponge and needle counts correct"),
-            ("specimen_labelled", "Specimen labelled (including patient name)"),
-            ("equipment_problems", "Any equipment problems identified and addressed"),
-            ("recovery_concerns", "Key concerns for recovery and management reviewed"),
+            (
+                "counts_correct",
+                "Instrument, sponge and needle counts correct",
+            ),
+            (
+                "specimen_labelled",
+                "Specimen labelled (including patient name)",
+            ),
+            (
+                "equipment_problems",
+                "Any equipment problems identified and addressed",
+            ),
+            (
+                "recovery_concerns",
+                "Key concerns for recovery and management reviewed",
+            ),
         ],
         _ => &[],
     }
@@ -1535,6 +1622,8 @@ pub async fn create_checklist(
     Json(body): Json<CreateChecklistRequest>,
 ) -> Result<Json<OtSurgicalSafetyChecklist>, AppError> {
     require_permission(&claims, permissions::ot::safety_checklist::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     // Seed the standard WHO items when the caller didn't supply a populated list.
     let items = match &body.items {
@@ -1569,6 +1658,8 @@ pub async fn update_checklist(
     Json(body): Json<UpdateChecklistRequest>,
 ) -> Result<Json<OtSurgicalSafetyChecklist>, AppError> {
     require_permission(&claims, permissions::ot::safety_checklist::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1632,6 +1723,8 @@ pub async fn get_case_record(
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<Option<OtCaseRecord>>, AppError> {
     require_permission(&claims, permissions::ot::case_records::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1655,6 +1748,8 @@ pub async fn create_case_record(
     Json(body): Json<CreateCaseRecordRequest>,
 ) -> Result<Json<OtCaseRecord>, AppError> {
     require_permission(&claims, permissions::ot::case_records::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     // Enforce the surgical-count gate when the record is created already closed.
     if body.closure_time.is_some()
@@ -1717,6 +1812,8 @@ pub async fn update_case_record(
     Json(body): Json<UpdateCaseRecordRequest>,
 ) -> Result<Json<OtCaseRecord>, AppError> {
     require_permission(&claims, permissions::ot::case_records::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1801,6 +1898,8 @@ pub async fn get_anesthesia(
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<Option<OtAnesthesiaRecord>>, AppError> {
     require_permission(&claims, permissions::ot::anesthesia::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1824,6 +1923,8 @@ pub async fn create_anesthesia(
     Json(body): Json<CreateAnesthesiaRequest>,
 ) -> Result<Json<OtAnesthesiaRecord>, AppError> {
     require_permission(&claims, permissions::ot::anesthesia::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1893,6 +1994,8 @@ pub async fn update_anesthesia(
     Json(body): Json<UpdateAnesthesiaRequest>,
 ) -> Result<Json<OtAnesthesiaRecord>, AppError> {
     require_permission(&claims, permissions::ot::anesthesia::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1938,6 +2041,8 @@ pub async fn get_postop(
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<Option<OtPostopRecord>>, AppError> {
     require_permission(&claims, permissions::ot::postop::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1961,6 +2066,8 @@ pub async fn create_postop(
     Json(body): Json<CreatePostopRequest>,
 ) -> Result<Json<OtPostopRecord>, AppError> {
     require_permission(&claims, permissions::ot::postop::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1999,6 +2106,8 @@ pub async fn update_postop(
     Json(body): Json<UpdatePostopRequest>,
 ) -> Result<Json<OtPostopRecord>, AppError> {
     require_permission(&claims, permissions::ot::postop::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2006,7 +2115,10 @@ pub async fn update_postop(
     // PACU discharge-readiness gate: a patient may not be moved to the ward or
     // discharged from recovery until the Aldrete score is ≥ 9 (transfer to ICU
     // is exempt — unstable patients go to ICU precisely because they aren't).
-    if matches!(body.recovery_status.as_deref(), Some("shifted_to_ward" | "discharged")) {
+    if matches!(
+        body.recovery_status.as_deref(),
+        Some("shifted_to_ward" | "discharged")
+    ) {
         let existing_aldrete: Option<i32> = sqlx::query_scalar(
             "SELECT aldrete_score_discharge FROM ot_postop_records \
              WHERE booking_id = $1 AND tenant_id = $2",
@@ -2016,7 +2128,11 @@ pub async fn update_postop(
         .fetch_optional(&mut *tx)
         .await?
         .flatten();
-        if body.aldrete_score_discharge.or(existing_aldrete).is_none_or(|s| s < 9) {
+        if body
+            .aldrete_score_discharge
+            .or(existing_aldrete)
+            .is_none_or(|s| s < 9)
+        {
             return Err(AppError::BadRequest(
                 "PACU discharge requires an Aldrete score of 9 or higher.".to_owned(),
             ));
@@ -2068,6 +2184,8 @@ pub async fn list_surgeon_preferences(
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<Vec<OtSurgeonPreference>>, AppError> {
     require_permission(&claims, permissions::ot::preferences::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2106,6 +2224,8 @@ pub async fn create_surgeon_preference(
     Json(body): Json<CreateSurgeonPreferenceRequest>,
 ) -> Result<Json<OtSurgeonPreference>, AppError> {
     require_permission(&claims, permissions::ot::preferences::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2145,6 +2265,8 @@ pub async fn update_surgeon_preference(
     Json(body): Json<UpdateSurgeonPreferenceRequest>,
 ) -> Result<Json<OtSurgeonPreference>, AppError> {
     require_permission(&claims, permissions::ot::preferences::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2190,6 +2312,8 @@ pub async fn delete_surgeon_preference(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::ot::preferences::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2217,6 +2341,8 @@ pub async fn get_schedule(
     Query(params): Query<ScheduleQuery>,
 ) -> Result<Json<Vec<OtBooking>>, AppError> {
     require_permission(&claims, permissions::ot::bookings::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let date = params.date.unwrap_or_else(|| Utc::now().date_naive());
 
@@ -2278,6 +2404,8 @@ pub async fn ot_utilization(
     // siblings (get_surgeon_caseload, list_anesthesia_complications), not the
     // unrelated consumables-management grant.
     require_permission(&claims, permissions::ot::reports::VIEW)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let from = params
         .from
@@ -2321,6 +2449,8 @@ pub async fn get_surgeon_caseload(
     Query(params): Query<UtilizationQuery>,
 ) -> Result<Json<Vec<SurgeonCaseloadEntry>>, AppError> {
     require_permission(&claims, permissions::ot::reports::VIEW)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let from = params
         .from
@@ -2363,6 +2493,8 @@ pub async fn list_anesthesia_complications(
     Query(params): Query<UtilizationQuery>,
 ) -> Result<Json<Vec<AnesthesiaComplicationEntry>>, AppError> {
     require_permission(&claims, permissions::ot::reports::VIEW)?;
+    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+        .await?;
 
     let from = params
         .from
@@ -2424,7 +2556,11 @@ mod count_gate_tests {
 
     #[test]
     fn documented_action_allows_closure_despite_bad_count() {
-        assert!(!count_closure_blocked(Some(false), Some(true), Some("Intra-op X-ray clear")));
+        assert!(!count_closure_blocked(
+            Some(false),
+            Some(true),
+            Some("Intra-op X-ray clear")
+        ));
     }
 
     #[test]
@@ -2449,7 +2585,10 @@ mod fasting_gate_tests {
 
     #[test]
     fn documented_override_allows_induction() {
-        assert!(!fasting_induction_blocked(false, Some("Emergency RSI, cricoid pressure applied")));
+        assert!(!fasting_induction_blocked(
+            false,
+            Some("Emergency RSI, cricoid pressure applied")
+        ));
     }
 
     #[test]
