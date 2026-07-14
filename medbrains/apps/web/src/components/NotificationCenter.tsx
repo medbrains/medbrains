@@ -5,7 +5,9 @@ import { IconBell, IconChecks } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
+import { useEffectOnce } from "react-use";
 import { Button, IconButton } from "@/components/ui";
+import { type NotificationStreamEvent, useNotificationStream } from "@/hooks/useNotificationStream";
 import styles from "./NotificationCenter.module.scss";
 
 const KIND_TONE: Record<string, string> = {
@@ -35,7 +37,8 @@ export function NotificationCenter() {
   const { data: count } = useQuery({
     queryKey: ["notifications-unread"],
     queryFn: () => api.notificationsUnreadCount(),
-    refetchInterval: 30_000,
+    // Live delivery is the WS stream below; the poll is only a fallback.
+    refetchInterval: 60_000,
   });
   const { data: list, isLoading } = useQuery({
     queryKey: ["notifications", tab],
@@ -47,6 +50,33 @@ export function NotificationCenter() {
     void queryClient.invalidateQueries({ queryKey: ["notifications"] });
     void queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
   };
+
+  // Ask once for OS-level notification permission so live events can pop a
+  // browser notification even when the tab is unfocused.
+  useEffectOnce(() => {
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      void Notification.requestPermission();
+    }
+  });
+
+  const showBrowserNotification = (event: NotificationStreamEvent) => {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    const notification = new Notification(event.title, {
+      body: event.body ?? undefined,
+      tag: event.id, // de-dupes if the same event re-delivers
+    });
+    notification.onclick = () => {
+      window.focus();
+      if (event.action_url) navigate(event.action_url);
+      notification.close();
+    };
+  };
+
+  // Live stream: refresh the feed/badge and raise a browser notification.
+  useNotificationStream((event) => {
+    invalidate();
+    showBrowserNotification(event);
+  });
   const markRead = useMutation({
     mutationFn: (id: string) => api.markNotificationRead(id),
     onSuccess: invalidate,
