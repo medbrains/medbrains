@@ -17,6 +17,26 @@ use crate::{
     state::AppState,
 };
 
+/// ReBAC pre-check: the caller must hold `view` on the patient whose consent is being read.
+/// Patient `view` is granted to the registering clerk (owner), the attending, department/ward
+/// members, care-team groups and explicit shares (see `infra/spicedb/schema.zed`); bypass roles
+/// short-circuit inside `check`. Mirrors the guard on `patients::get_patient`, so a point-of-care
+/// consent verification is scoped to the patient's care team rather than readable for every holder
+/// of `consent::VERIFY` across the tenant. Fails closed to `NotFound`.
+async fn require_patient_access(
+    state: &AppState,
+    claims: &Claims,
+    patient_id: Uuid,
+) -> Result<(), AppError> {
+    let authz_ctx = crate::middleware::authorization::authz_context(claims);
+    let allowed = state
+        .authz
+        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", patient_id)
+        .await
+        .unwrap_or(false);
+    if allowed { Ok(()) } else { Err(AppError::NotFound) }
+}
+
 // ══════════════════════════════════════════════════════════
 //  Request / Query types
 // ══════════════════════════════════════════════════════════
@@ -404,6 +424,7 @@ pub async fn verify_consent(
     Json(body): Json<VerifyConsentRequest>,
 ) -> Result<Json<VerifyConsentResponse>, AppError> {
     require_permission(&claims, permissions::consent::VERIFY)?;
+    require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -481,6 +502,7 @@ pub async fn patient_summary(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<ConsentSummaryItem>>, AppError> {
     require_permission(&claims, permissions::consent::VERIFY)?;
+    require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
