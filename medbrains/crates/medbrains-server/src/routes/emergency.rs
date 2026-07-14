@@ -617,6 +617,12 @@ pub async fn list_visits(
             permissions::emergency::resuscitation::CREATE,
         ],
     )?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ErVisit>(
@@ -666,6 +672,12 @@ pub async fn get_visit(
             permissions::emergency::mlc_police_intimations::REPRINT,
         ],
     )?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row =
@@ -684,6 +696,12 @@ pub async fn create_visit(
     Json(body): Json<CreateVisitRequest>,
 ) -> Result<Json<ErVisit>, AppError> {
     require_permission(&claims, permissions::emergency::visits::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let inferred_mlc_case_type = infer_mlc_case_type(&[
         body.chief_complaint.as_deref(),
         body.notes.as_deref(),
@@ -820,6 +838,12 @@ pub async fn update_visit(
     Json(body): Json<UpdateVisitRequest>,
 ) -> Result<Json<ErVisit>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, ErVisit>(
@@ -876,6 +900,12 @@ pub async fn list_triage(
             permissions::emergency::triage::CREATE,
         ],
     )?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ErTriageAssessment>(
@@ -896,6 +926,12 @@ pub async fn create_triage(
     Json(body): Json<CreateTriageRequest>,
 ) -> Result<Json<ErTriageAssessment>, AppError> {
     require_permission(&claims, permissions::emergency::triage::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let inferred_mlc_case_type = infer_mlc_case_type(&[
         body.chief_complaint.as_deref(),
         body.disability_assessment.as_deref(),
@@ -996,6 +1032,12 @@ pub async fn list_resuscitation_logs(
             permissions::emergency::resuscitation::CREATE,
         ],
     )?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ErResuscitationLog>(
@@ -1016,6 +1058,12 @@ pub async fn create_resuscitation_log(
     Json(body): Json<CreateResuscitationLogRequest>,
 ) -> Result<Json<ErResuscitationLog>, AppError> {
     require_permission(&claims, permissions::emergency::resuscitation::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let log_type = match body.log_type.trim() {
         "medication" | "fluid" | "procedure" | "airway" | "cpr" | "defibrillation" | "vitals"
         | "note" => body.log_type.trim().to_owned(),
@@ -1137,6 +1185,12 @@ pub async fn list_code_activations(
             permissions::emergency::codes::UPDATE,
         ],
     )?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ErCodeActivation>(
@@ -1155,6 +1209,12 @@ pub async fn create_code_activation(
     Json(body): Json<CreateCodeActivationRequest>,
 ) -> Result<Json<ErCodeActivation>, AppError> {
     require_permission(&claims, permissions::emergency::codes::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let code_type = match body.code_type.as_str() {
         "code_blue" | "code_yellow" | "code_pink" | "code_orange" | "code_red" | "code_silver"
         | "code_black" => body.code_type,
@@ -1284,6 +1344,12 @@ pub async fn deactivate_code(
     Json(body): Json<DeactivateCodeRequest>,
 ) -> Result<Json<ErCodeActivation>, AppError> {
     require_permission(&claims, permissions::emergency::codes::UPDATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let outcome = match body.outcome.trim() {
         "resolved" | "stable" | "rosc" | "transferred" | "expired" | "false_alarm"
         | "escalated" => body.outcome.trim().to_owned(),
@@ -1359,6 +1425,12 @@ pub async fn list_mlc_cases(
             permissions::emergency::mlc_police_intimations::REPRINT,
         ],
     )?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let restricted_fields = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -1388,6 +1460,12 @@ pub async fn create_mlc_case(
     Json(body): Json<CreateMlcCaseRequest>,
 ) -> Result<Json<MlcCase>, AppError> {
     require_permission(&claims, permissions::emergency::mlc::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let restricted_fields = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -1515,6 +1593,12 @@ pub async fn update_mlc_case(
     Json(body): Json<UpdateMlcCaseRequest>,
 ) -> Result<Json<MlcCase>, AppError> {
     require_permission(&claims, permissions::emergency::mlc::UPDATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     if let Some(status) = body.status.as_deref() {
         match status {
             "registered" | "under_investigation" | "opinion_given" | "court_pending" | "closed" => {
@@ -1576,7 +1660,11 @@ pub async fn update_mlc_case(
         .bind(id)
         .fetch_one(&mut *tx)
         .await?;
-        let fir_now = body.fir_number.as_deref().map(str::trim).is_some_and(|s| !s.is_empty());
+        let fir_now = body
+            .fir_number
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|s| !s.is_empty());
         let fir_on_file = sqlx::query_scalar::<_, Option<String>>(
             "SELECT fir_number FROM mlc_cases WHERE id = $1 AND tenant_id = $2",
         )
@@ -1643,6 +1731,12 @@ pub async fn list_mlc_documents(
             permissions::emergency::mlc_documents::COURT_SUMMONS_CREATE,
         ],
     )?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let restricted_fields = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -1675,6 +1769,12 @@ pub async fn create_mlc_document(
 ) -> Result<Json<MlcDocument>, AppError> {
     let required_permission = mlc_document_create_permission(&body.document_type)?;
     require_permission(&claims, required_permission)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let restricted_fields = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -1745,6 +1845,12 @@ pub async fn list_police_intimations(
             permissions::emergency::mlc_police_intimations::REPRINT,
         ],
     )?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let restricted_fields = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -1779,6 +1885,12 @@ pub async fn create_police_intimation(
         &claims,
         permissions::emergency::mlc_police_intimations::CREATE,
     )?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let restricted_fields = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -1860,6 +1972,12 @@ pub async fn confirm_police_receipt(
         &claims,
         permissions::emergency::mlc_police_intimations::CONFIRM,
     )?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let restricted_fields = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -1918,6 +2036,12 @@ pub async fn list_mass_casualty_events(
             permissions::emergency::mass_casualty::CLOSE,
         ],
     )?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, MassCasualtyEvent>(
@@ -1936,6 +2060,12 @@ pub async fn create_mass_casualty_event(
     Json(body): Json<CreateMassCasualtyEventRequest>,
 ) -> Result<Json<MassCasualtyEvent>, AppError> {
     require_permission(&claims, permissions::emergency::mass_casualty::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, MassCasualtyEvent>(
@@ -1975,6 +2105,12 @@ pub async fn update_mass_casualty_event(
             ));
         }
     }
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, MassCasualtyEvent>(
@@ -2018,6 +2154,12 @@ pub async fn admit_from_er(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
     require_permission(&claims, permissions::ipd::admissions::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2284,6 +2426,12 @@ pub async fn get_discharge_summary(
     Path(er_visit_id): Path<Uuid>,
 ) -> Result<Json<Option<ErDischargeSummary>>, AppError> {
     require_permission(&claims, permissions::emergency::visits::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2307,6 +2455,12 @@ pub async fn create_discharge_summary(
     Json(body): Json<ErDischargeSummaryRequest>,
 ) -> Result<Json<ErDischargeSummary>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2343,6 +2497,12 @@ pub async fn update_discharge_summary(
     Json(body): Json<ErDischargeSummaryRequest>,
 ) -> Result<Json<ErDischargeSummary>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2381,6 +2541,12 @@ pub async fn finalize_discharge_summary(
     Path(er_visit_id): Path<Uuid>,
 ) -> Result<Json<ErDischargeSummary>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2428,6 +2594,12 @@ pub async fn list_observation_notes(
     Path(visit_id): Path<Uuid>,
 ) -> Result<Json<Vec<ErObservationNote>>, AppError> {
     require_permission(&claims, permissions::emergency::visits::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ErObservationNote>(
@@ -2449,6 +2621,12 @@ pub async fn create_observation_note(
     Json(body): Json<CreateObservationNoteRequest>,
 ) -> Result<Json<ErObservationNote>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
 
     let note = trim_optional_text(body.note.as_deref());
     let has_vitals = body.pulse.is_some()
@@ -2512,6 +2690,12 @@ pub async fn list_bays(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<ErBay>>, AppError> {
     require_permission(&claims, permissions::emergency::visits::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ErBay>(
@@ -2530,10 +2714,18 @@ pub async fn create_bay(
     Json(body): Json<ErBayRequest>,
 ) -> Result<Json<ErBay>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let code = body.code.trim();
     let name = body.name.trim();
     if code.is_empty() || name.is_empty() {
-        return Err(AppError::BadRequest("Code and name are required".to_owned()));
+        return Err(AppError::BadRequest(
+            "Code and name are required".to_owned(),
+        ));
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2561,6 +2753,12 @@ pub async fn update_bay(
     Json(body): Json<ErBayRequest>,
 ) -> Result<Json<ErBay>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "emergency",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, ErBay>(
