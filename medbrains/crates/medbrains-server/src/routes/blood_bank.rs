@@ -138,6 +138,12 @@ pub async fn list_donors(
     Query(params): Query<ListDonorsQuery>,
 ) -> Result<Json<DonorListResponse>, AppError> {
     require_permission(&claims, permissions::blood_bank::donors::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
@@ -218,6 +224,12 @@ pub async fn create_donor(
     Json(body): Json<CreateDonorRequest>,
 ) -> Result<Json<BloodDonor>, AppError> {
     require_permission(&claims, permissions::blood_bank::donors::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -255,6 +267,12 @@ pub async fn get_donor(
     Path(id): Path<Uuid>,
 ) -> Result<Json<BloodDonor>, AppError> {
     require_permission(&claims, permissions::blood_bank::donors::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -283,6 +301,12 @@ pub async fn create_donation(
     Json(body): Json<CreateDonationRequest>,
 ) -> Result<Json<BloodDonation>, AppError> {
     require_permission(&claims, permissions::blood_bank::donors::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let dtype = body.donation_type.as_deref().unwrap_or("whole_blood");
 
@@ -330,6 +354,12 @@ pub async fn list_donations(
     Path(donor_id): Path<Uuid>,
 ) -> Result<Json<Vec<BloodDonation>>, AppError> {
     require_permission(&claims, permissions::blood_bank::donors::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -354,6 +384,12 @@ pub async fn update_donation(
     Json(body): Json<UpdateDonationRequest>,
 ) -> Result<Json<BloodDonation>, AppError> {
     require_permission(&claims, permissions::blood_bank::donors::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -387,6 +423,12 @@ pub async fn list_components(
     Query(params): Query<ListComponentsQuery>,
 ) -> Result<Json<Vec<BloodComponent>>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -433,6 +475,12 @@ pub async fn create_component(
     Json(body): Json<CreateComponentRequest>,
 ) -> Result<Json<BloodComponent>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -467,6 +515,12 @@ pub async fn update_component_status(
     Json(body): Json<UpdateComponentStatusRequest>,
 ) -> Result<Json<BloodComponent>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -535,6 +589,12 @@ pub async fn list_crossmatch_requests(
     Query(p): Query<crate::pagination::Pagination>,
 ) -> Result<Json<crate::pagination::Paginated<CrossmatchRequest>>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -565,6 +625,12 @@ pub async fn create_crossmatch_request(
     Json(body): Json<CreateCrossmatchRequest>,
 ) -> Result<Json<CrossmatchRequest>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let ct = body.component_type.as_deref().unwrap_or("prbc");
     let units = body.units_requested.unwrap_or(1);
@@ -600,6 +666,12 @@ pub async fn update_crossmatch(
     Json(body): Json<UpdateCrossmatchRequest>,
 ) -> Result<Json<CrossmatchRequest>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -637,6 +709,12 @@ pub async fn create_transfusion(
     Json(body): Json<CreateTransfusionRequest>,
 ) -> Result<Json<TransfusionRecord>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     // NABH/AABB two-person bedside check: two DIFFERENT qualified staff must verify identity + unit.
     if body.patient_verified_by == body.product_verified_by {
@@ -748,7 +826,9 @@ pub async fn create_transfusion(
                 xm.status
             )));
         }
-        let fresh = xm.tested_at.is_some_and(|t| Utc::now() - t <= chrono::Duration::hours(72));
+        let fresh = xm
+            .tested_at
+            .is_some_and(|t| Utc::now() - t <= chrono::Duration::hours(72));
         if !fresh {
             return Err(AppError::BadRequest(
                 "Cross-match is older than 72 hours (or untested) — a fresh sample and cross-match \
@@ -820,6 +900,12 @@ pub async fn record_reaction(
     Json(body): Json<RecordReactionRequest>,
 ) -> Result<Json<TransfusionRecord>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -873,6 +959,12 @@ pub async fn list_transfusions(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<TransfusionRecord>>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -904,6 +996,12 @@ pub async fn get_tti_report(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -936,6 +1034,12 @@ pub async fn get_hemovigilance_report(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1089,6 +1193,12 @@ pub async fn list_campaigns(
     Query(params): Query<ListCampaignsQuery>,
 ) -> Result<Json<Vec<BbRecruitmentCampaign>>, AppError> {
     require_permission(&claims, permissions::blood_bank::donors::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1122,6 +1232,12 @@ pub async fn create_campaign(
     Json(body): Json<CreateCampaignRequest>,
 ) -> Result<Json<BbRecruitmentCampaign>, AppError> {
     require_permission(&claims, permissions::blood_bank::donors::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1156,6 +1272,12 @@ pub async fn update_campaign(
     Json(body): Json<UpdateCampaignRequest>,
 ) -> Result<Json<BbRecruitmentCampaign>, AppError> {
     require_permission(&claims, permissions::blood_bank::donors::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1191,6 +1313,12 @@ pub async fn list_devices(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<BbColdChainDevice>>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1213,6 +1341,12 @@ pub async fn create_device(
     Json(body): Json<CreateDeviceRequest>,
 ) -> Result<Json<BbColdChainDevice>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1246,6 +1380,12 @@ pub async fn add_reading(
     Json(body): Json<AddReadingRequest>,
 ) -> Result<Json<BbColdChainReading>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1311,6 +1451,12 @@ pub async fn list_readings(
     Query(params): Query<ListReadingsQuery>,
 ) -> Result<Json<Vec<BbColdChainReading>>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1339,6 +1485,12 @@ pub async fn create_return(
     Json(body): Json<CreateReturnRequest>,
 ) -> Result<Json<BbBloodReturn>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let ts = Utc::now().format("%Y%m%d%H%M%S");
     let short_id = &Uuid::new_v4().to_string()[..8];
@@ -1375,6 +1527,12 @@ pub async fn inspect_return(
     Json(body): Json<InspectReturnRequest>,
 ) -> Result<Json<BbBloodReturn>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1423,6 +1581,12 @@ pub async fn list_msbos(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<BbMsbosGuideline>>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1445,6 +1609,12 @@ pub async fn create_msbos(
     Json(body): Json<CreateMsbosRequest>,
 ) -> Result<Json<BbMsbosGuideline>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1480,6 +1650,12 @@ pub async fn list_lookback(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<BbLookbackEvent>>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1502,6 +1678,12 @@ pub async fn create_lookback(
     Json(body): Json<CreateLookbackRequest>,
 ) -> Result<Json<BbLookbackEvent>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let ts = Utc::now().format("%Y%m%d%H%M%S");
     let short_id = &Uuid::new_v4().to_string()[..8];
@@ -1540,6 +1722,12 @@ pub async fn update_lookback(
     Json(body): Json<UpdateLookbackRequest>,
 ) -> Result<Json<BbLookbackEvent>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1588,6 +1776,12 @@ pub async fn list_billing(
     Query(params): Query<ListBillingQuery>,
 ) -> Result<Json<Vec<BbBillingItem>>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1633,6 +1827,12 @@ pub async fn create_billing(
     Json(body): Json<CreateBillingRequest>,
 ) -> Result<Json<BbBillingItem>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::MANAGE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let ts = Utc::now().format("%Y%m%d%H%M%S");
     let short_id = &Uuid::new_v4().to_string()[..8];
@@ -1677,6 +1877,12 @@ pub async fn get_sbtc_report(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1778,6 +1984,12 @@ pub async fn record_transfusion_observation(
     Json(body): Json<RecordTransfusionObservationRequest>,
 ) -> Result<Json<TransfusionObservation>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::CREATE)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
     if !TRANSFUSION_PHASES.contains(&body.phase.as_str()) {
         return Err(AppError::BadRequest(format!(
             "phase must be one of: {}",
@@ -1787,7 +1999,9 @@ pub async fn record_transfusion_observation(
     if let Some(t) = body.temperature_c
         && !(30.0..=45.0).contains(&t)
     {
-        return Err(AppError::BadRequest("temperature must be between 30 and 45 C".to_owned()));
+        return Err(AppError::BadRequest(
+            "temperature must be between 30 and 45 C".to_owned(),
+        ));
     }
     let reaction_suspected = suggests_reaction(body.temperature_c, body.adverse_signs);
 
@@ -1836,6 +2050,12 @@ pub async fn list_transfusion_observations(
     Path(transfusion_id): Path<Uuid>,
 ) -> Result<Json<Vec<TransfusionObservation>>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::LIST)?;
+    crate::middleware::entitlement::require_module_enabled(
+        &state.db,
+        claims.tenant_id,
+        "blood_bank",
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, TransfusionObservation>(
