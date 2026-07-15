@@ -17,6 +17,7 @@ export * from "./app-surfaces.js";
 export * from "./auth/index.js";
 export * from "./biometric/index.js";
 export * from "./nav/index.js";
+export * from "./notifications/index.js";
 export * from "./offline/index.js";
 export * from "./pairing/index.js";
 export * from "./secret-store/index.js";
