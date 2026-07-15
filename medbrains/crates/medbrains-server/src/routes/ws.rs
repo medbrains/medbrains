@@ -224,48 +224,45 @@ pub async fn queue_ws_handler_all(
     ws.on_upgrade(move |socket| handle_multi_queue_socket(socket, state))
 }
 
-/// Handle a single-department WebSocket connection.
-async fn handle_queue_socket(socket: WebSocket, _department_id: Uuid, state: AppState) {
+/// Handle a single-department WebSocket connection. Subscribes to the real
+/// per-department queue channel AND the global announcement channel (emergency
+/// codes must reach every board) from `state.queue_broadcaster`. Bounded
+/// (lag-drop) and torn down on disconnect.
+async fn handle_queue_socket(socket: WebSocket, department_id: Uuid, state: AppState) {
     let (mut sender, mut receiver) = socket.split();
 
-    // Get broadcaster from state extension (we'll add this)
-    let _broadcaster = state.db.clone(); // Placeholder - we need to add broadcaster to state
+    let mut queue_rx = state
+        .queue_broadcaster
+        .get_or_create_channel(department_id)
+        .await
+        .subscribe();
+    let mut announce_rx = state.queue_broadcaster.subscribe_announcements();
 
-    // For now, let's create a simple broadcaster inline
-    // In production, this should be part of AppState
-    let (_tx, mut rx) = broadcast::channel::<QueueEvent>(100);
-
-    // Spawn task to forward broadcast messages to WebSocket
     let send_task = tokio::spawn(async move {
-        while let Ok(event) = rx.recv().await {
-            let msg = match serde_json::to_string(&event) {
-                Ok(json) => Message::Text(json.into()),
-                Err(_) => continue,
+        loop {
+            let json = tokio::select! {
+                ev = queue_rx.recv() => match ev {
+                    Ok(event) => serde_json::to_string(&event).ok(),
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => break,
+                },
+                ev = announce_rx.recv() => match ev {
+                    Ok(event) => serde_json::to_string(&event).ok(),
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => break,
+                },
             };
-            if sender.send(msg).await.is_err() {
+            let Some(json) = json else { continue };
+            if sender.send(Message::Text(json.into())).await.is_err() {
                 break;
             }
         }
     });
 
-    // Handle incoming messages (ping/pong, close)
+    // Inbound: exit on close (boards are read-only displays).
     while let Some(result) = receiver.next().await {
         match result {
-            Ok(Message::Text(text)) => {
-                // Try to parse as client message
-                if let Ok(msg) = serde_json::from_str::<ClientMessage>(&text) {
-                    match msg {
-                        ClientMessage::Ping => {
-                            // Client ping - could respond with pong
-                        }
-                        ClientMessage::Subscribe { .. } | ClientMessage::Unsubscribe { .. } => {
-                            // Handle subscription changes
-                        }
-                    }
-                }
-            }
-            Ok(Message::Close(_)) => break,
-            Err(_) => break,
+            Ok(Message::Close(_)) | Err(_) => break,
             _ => {}
         }
     }
