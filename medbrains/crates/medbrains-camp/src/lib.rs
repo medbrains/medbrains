@@ -23,15 +23,12 @@ use serde_json::Value;
 use std::{collections::HashMap, str::FromStr};
 use uuid::Uuid;
 
-use crate::{
-    error::AppError,
-    middleware::{
-        auth::Claims,
-        authorization::{is_bypass_role, require_any_permission, require_permission},
-        field_access,
-    },
-    state::AppState,
-};
+use axum::routing::{get,post,put,delete};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::{is_bypass_role, require_any_permission, require_permission};
+use medbrains_server_core::middleware::field_access;
+use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Query types
@@ -5029,7 +5026,7 @@ pub async fn sync_camp_inbound(
                 tx.commit().await?;
 
                 if let Some(patient_id) = patient_grant_id {
-                    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+                    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
                     if let Err(err) = state
                         .authz
                         .write_tuple(
@@ -5915,7 +5912,7 @@ pub async fn activate_camp(
     if let Some(department_id) = row.organizing_department_id {
         event = event.with_department(department_id);
     }
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -6400,7 +6397,7 @@ pub async fn create_registration(
         if let Some(department_id) = row.clinical_department_id {
             event = event.with_department(department_id);
         }
-        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     }
 
     tx.commit().await?;
@@ -6597,7 +6594,7 @@ pub async fn open_registration_encounter(
     // gets its care-team link (department + attending). Without this, camp-
     // originated encounters are invisible to the treating team under per-
     // encounter enforcement.
-    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
     if context.patient_id.is_none() {
         state
             .authz
@@ -6852,7 +6849,7 @@ pub async fn create_screening(
         if let Some(department_id) = registration_context.organizing_department_id {
             event = event.with_department(department_id);
         }
-        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     }
 
     tx.commit().await?;
@@ -7175,7 +7172,7 @@ async fn mirror_camp_billing_to_common_billing_in_tx(
     payment_mode: Option<&str>,
     payment_reference: Option<&str>,
 ) -> Result<(), AppError> {
-    if !super::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "camp").await? {
+    if !medbrains_server_services::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "camp").await? {
         return Ok(());
     }
 
@@ -7211,10 +7208,10 @@ async fn mirror_camp_billing_to_common_billing_in_tx(
         "{} · {} · {}",
         row.service_description, context.camp_name, context.registration_number
     );
-    let charge = super::billing::auto_charge(
+    let charge = medbrains_server_services::billing::auto_charge(
         tx,
         &claims.tenant_id,
-        super::billing::AutoChargeInput {
+        medbrains_server_services::billing::AutoChargeInput {
             patient_id,
             encounter_id: None,
             charge_code,
@@ -7796,4 +7793,149 @@ pub async fn camp_report(
         "generated_at": Utc::now(),
         "generated_by": claims.sub,
     })))
+}
+
+/// Medical camp management (camps, registrations, screening, referrals, follow-up) routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/camp/camps",
+            get(list_camps).post(create_camp),
+        )
+        .route(
+            "/api/camp/camps/{id}",
+            get(get_camp).put(update_camp),
+        )
+        .route(
+            "/api/camp/camps/{id}/packet",
+            get(get_camp_packet),
+        )
+        .route(
+            "/api/camp/camps/{id}/planning-summary",
+            get(get_camp_planning_summary),
+        )
+        .route(
+            "/api/camp/sync/inbound",
+            post(sync_camp_inbound),
+        )
+        .route(
+            "/api/camp/lookups/staff",
+            get(list_staff_options),
+        )
+        .route(
+            "/api/camp/lookups/medicines",
+            get(list_medicine_options),
+        )
+        .route(
+            "/api/camp/camps/{camp_id}/remote-operations",
+            get(get_remote_operations),
+        )
+        .route(
+            "/api/camp/camps/{camp_id}/remote-setup",
+            put(upsert_remote_setup),
+        )
+        .route(
+            "/api/camp/remote-checklist/{id}",
+            put(update_remote_checklist_item),
+        )
+        .route(
+            "/api/camp/camps/{camp_id}/supplies",
+            post(create_supply_item),
+        )
+        .route(
+            "/api/camp/camps/{camp_id}/supplies/bulk",
+            post(bulk_create_supply_items),
+        )
+        .route(
+            "/api/camp/supplies/{id}",
+            put(update_supply_item),
+        )
+        .route(
+            "/api/camp/camps/{camp_id}/referrals",
+            get(list_camp_referrals).post(create_camp_referral),
+        )
+        .route(
+            "/api/camp/referrals/{id}",
+            put(update_camp_referral),
+        )
+        .route(
+            "/api/camp/camps/{camp_id}/incidents",
+            post(create_camp_incident),
+        )
+        .route(
+            "/api/camp/incidents/{id}",
+            put(update_camp_incident),
+        )
+        .route(
+            "/api/camp/camps/{id}/approve",
+            put(approve_camp),
+        )
+        .route(
+            "/api/camp/camps/{id}/activate",
+            put(activate_camp),
+        )
+        .route(
+            "/api/camp/camps/{id}/complete",
+            put(complete_camp),
+        )
+        .route(
+            "/api/camp/camps/{id}/cancel",
+            put(cancel_camp),
+        )
+        .route(
+            "/api/camp/camps/{camp_id}/team",
+            get(list_team_members).post(add_team_member),
+        )
+        .route(
+            "/api/camp/camps/{camp_id}/team/{id}",
+            delete(remove_team_member),
+        )
+        .route(
+            "/api/camp/registrations",
+            get(list_registrations).post(create_registration),
+        )
+        .route(
+            "/api/camp/registrations/{id}",
+            put(update_registration),
+        )
+        .route(
+            "/api/camp/registrations/{id}/open-encounter",
+            post(open_registration_encounter),
+        )
+        .route(
+            "/api/camp/screenings",
+            get(list_screenings).post(create_screening),
+        )
+        .route(
+            "/api/camp/lab-samples",
+            get(list_lab_samples).post(create_lab_sample),
+        )
+        .route(
+            "/api/camp/lab-samples/{id}/link",
+            put(link_lab_sample),
+        )
+        .route(
+            "/api/camp/billing",
+            get(list_billing).post(create_billing),
+        )
+        .route(
+            "/api/camp/followups",
+            get(list_followups).post(create_followup),
+        )
+        .route(
+            "/api/camp/followups/{id}",
+            put(update_followup),
+        )
+        .route(
+            "/api/camp/camps/{id}/stats",
+            get(camp_stats),
+        )
+        .route(
+            "/api/camp/analytics",
+            get(camp_analytics),
+        )
+        .route(
+            "/api/camp/camps/{id}/report",
+            get(camp_report),
+        )
 }

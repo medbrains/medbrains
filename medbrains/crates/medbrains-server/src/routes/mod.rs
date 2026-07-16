@@ -12,7 +12,6 @@ pub mod audit;
 pub mod auth;
 pub mod billing;
 pub mod bme;
-pub mod camp;
 pub mod catalog_import;
 pub mod client_errors;
 pub mod clinical_offline;
@@ -2943,22 +2942,7 @@ pub fn build_router(state: AppState) -> Router {
             get(consent::get_signature).delete(consent::delete_signature),
         )
         // ── Camp Management ───────────────────────────────────
-        .route(
-            "/api/camp/camps",
-            get(camp::list_camps).post(camp::create_camp),
-        )
-        .route(
-            "/api/camp/camps/{id}",
-            get(camp::get_camp).put(camp::update_camp),
-        )
-        .route(
-            "/api/camp/camps/{id}/packet",
-            get(camp::get_camp_packet),
-        )
-        .route(
-            "/api/camp/camps/{id}/planning-summary",
-            get(camp::get_camp_planning_summary),
-        )
+        .merge(medbrains_camp::router())
         .route(
             "/api/camp/camps/{camp_id}/asset-candidates",
             get(assets::list_camp_asset_candidates),
@@ -2978,130 +2962,6 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/camp/asset-reservations/{id}/cancel",
             put(assets::cancel_camp_asset_reservation),
-        )
-        .route(
-            "/api/camp/sync/inbound",
-            post(camp::sync_camp_inbound),
-        )
-        .route(
-            "/api/camp/lookups/staff",
-            get(camp::list_staff_options),
-        )
-        .route(
-            "/api/camp/lookups/medicines",
-            get(camp::list_medicine_options),
-        )
-        .route(
-            "/api/camp/camps/{camp_id}/remote-operations",
-            get(camp::get_remote_operations),
-        )
-        .route(
-            "/api/camp/camps/{camp_id}/remote-setup",
-            put(camp::upsert_remote_setup),
-        )
-        .route(
-            "/api/camp/remote-checklist/{id}",
-            put(camp::update_remote_checklist_item),
-        )
-        .route(
-            "/api/camp/camps/{camp_id}/supplies",
-            post(camp::create_supply_item),
-        )
-        .route(
-            "/api/camp/camps/{camp_id}/supplies/bulk",
-            post(camp::bulk_create_supply_items),
-        )
-        .route(
-            "/api/camp/supplies/{id}",
-            put(camp::update_supply_item),
-        )
-        .route(
-            "/api/camp/camps/{camp_id}/referrals",
-            get(camp::list_camp_referrals).post(camp::create_camp_referral),
-        )
-        .route(
-            "/api/camp/referrals/{id}",
-            put(camp::update_camp_referral),
-        )
-        .route(
-            "/api/camp/camps/{camp_id}/incidents",
-            post(camp::create_camp_incident),
-        )
-        .route(
-            "/api/camp/incidents/{id}",
-            put(camp::update_camp_incident),
-        )
-        .route(
-            "/api/camp/camps/{id}/approve",
-            put(camp::approve_camp),
-        )
-        .route(
-            "/api/camp/camps/{id}/activate",
-            put(camp::activate_camp),
-        )
-        .route(
-            "/api/camp/camps/{id}/complete",
-            put(camp::complete_camp),
-        )
-        .route(
-            "/api/camp/camps/{id}/cancel",
-            put(camp::cancel_camp),
-        )
-        .route(
-            "/api/camp/camps/{camp_id}/team",
-            get(camp::list_team_members).post(camp::add_team_member),
-        )
-        .route(
-            "/api/camp/camps/{camp_id}/team/{id}",
-            delete(camp::remove_team_member),
-        )
-        .route(
-            "/api/camp/registrations",
-            get(camp::list_registrations).post(camp::create_registration),
-        )
-        .route(
-            "/api/camp/registrations/{id}",
-            put(camp::update_registration),
-        )
-        .route(
-            "/api/camp/registrations/{id}/open-encounter",
-            post(camp::open_registration_encounter),
-        )
-        .route(
-            "/api/camp/screenings",
-            get(camp::list_screenings).post(camp::create_screening),
-        )
-        .route(
-            "/api/camp/lab-samples",
-            get(camp::list_lab_samples).post(camp::create_lab_sample),
-        )
-        .route(
-            "/api/camp/lab-samples/{id}/link",
-            put(camp::link_lab_sample),
-        )
-        .route(
-            "/api/camp/billing",
-            get(camp::list_billing).post(camp::create_billing),
-        )
-        .route(
-            "/api/camp/followups",
-            get(camp::list_followups).post(camp::create_followup),
-        )
-        .route(
-            "/api/camp/followups/{id}",
-            put(camp::update_followup),
-        )
-        .route(
-            "/api/camp/camps/{id}/stats",
-            get(camp::camp_stats),
-        )
-        .route(
-            "/api/camp/analytics",
-            get(camp::camp_analytics),
-        )
-        .route(
-            "/api/camp/camps/{id}/report",
-            get(camp::camp_report),
         )
         .merge(medbrains_ambulance::router())
         .merge(medbrains_care_mgmt::router())
