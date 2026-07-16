@@ -34,11 +34,10 @@ pub mod routes;
 pub mod secret_backend;
 pub mod services;
 pub mod storage_archive;
-pub mod tenant_config;
 
 // Shared server foundation — moved to `medbrains-server-core` and re-exported here
 // so `crate::error`, `crate::state`, `crate::middleware`, … keep resolving across
 // the ~189 route modules.
 pub use medbrains_server_core::{
-    config, error, middleware, s3_presign, signing, state, validation,
+    config, error, middleware, s3_presign, signing, state, tenant_config, validation,
 };

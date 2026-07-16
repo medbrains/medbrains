@@ -7,10 +7,10 @@ use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::error::AppError;
-use crate::middleware::auth::Claims;
-use crate::middleware::authorization::require_permission;
-use crate::state::AppState;
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 const COLS: &str = "id, tenant_id, protocol_number, title, sponsor, phase, status, indication, \
      principal_investigator, target_enrollment, start_date, end_date, notes, is_active, \

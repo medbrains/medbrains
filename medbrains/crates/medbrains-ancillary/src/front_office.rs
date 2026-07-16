@@ -12,7 +12,7 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -222,10 +222,10 @@ pub async fn upsert_visiting_hours(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let default_max_visitors = crate::tenant_config::setting_i32(
+    let default_max_visitors = medbrains_server_core::tenant_config::setting_i32(
         &mut tx,
         &claims.tenant_id,
-        crate::tenant_config::keys::MAX_VISITORS_PER_PATIENT,
+        medbrains_server_core::tenant_config::keys::MAX_VISITORS_PER_PATIENT,
         2,
     )
     .await?;
@@ -386,10 +386,10 @@ pub async fn create_pass(
     let valid_hours = match body.valid_hours {
         Some(hours) => hours,
         None => {
-            crate::tenant_config::setting_i32(
+            medbrains_server_core::tenant_config::setting_i32(
                 &mut tx,
                 &claims.tenant_id,
-                crate::tenant_config::keys::VISITOR_PASS_VALID_HOURS,
+                medbrains_server_core::tenant_config::keys::VISITOR_PASS_VALID_HOURS,
                 2,
             )
             .await?
