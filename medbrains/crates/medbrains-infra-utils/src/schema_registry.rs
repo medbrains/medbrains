@@ -8,7 +8,7 @@ use medbrains_core::{
 };
 use serde::Serialize;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError,
     middleware::{auth::Claims, authorization::require_permission},
     state::AppState,

@@ -4,7 +4,6 @@ pub mod app_manifest;
 pub mod vte;
 pub mod admin;
 pub mod admin_simulator;
-pub mod aebas;
 pub mod ai;
 pub mod ambulance;
 pub mod analytics;
@@ -21,7 +20,6 @@ pub mod client_errors;
 pub mod clinical_offline;
 pub mod cms;
 pub mod communications;
-pub mod config_transfer;
 pub mod consent;
 pub mod coverage;
 pub mod cssd;
@@ -31,7 +29,6 @@ pub mod debug;
 pub mod device_pairing;
 pub mod devices;
 pub mod diet;
-pub mod dlt;
 pub mod doctor_packages;
 pub mod document_ingestion;
 pub mod documents;
@@ -110,7 +107,6 @@ pub mod radiology;
 pub mod regulatory;
 pub mod reports;
 pub mod roi;
-pub mod schema_registry;
 pub mod security;
 pub mod setup;
 pub mod sso;
@@ -441,14 +437,6 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/documents/render/templates/{code}",
             put(documents_render::save_template),
-        )
-        .route(
-            "/api/setup/config-export",
-            get(config_transfer::export_config),
-        )
-        .route(
-            "/api/setup/config-import",
-            post(config_transfer::import_config),
         )
         .route(
             "/api/setup/users/{id}/reset-password",
@@ -2802,23 +2790,7 @@ pub fn build_router(state: AppState) -> Router {
             get(regulatory::nabl_document_tracking),
         )
         .merge(medbrains_infection_control::router())
-        // ── Schema Registry ──────────────────────────────
-        .route(
-            "/api/schema/modules",
-            get(schema_registry::list_modules),
-        )
-        .route(
-            "/api/schema/modules/{code}/entities",
-            get(schema_registry::list_module_entities),
-        )
-        .route(
-            "/api/schema/events",
-            get(schema_registry::list_event_schemas),
-        )
-        .route(
-            "/api/schema/events/{event_type}",
-            get(schema_registry::get_event_schema),
-        )
+        .merge(medbrains_infra_utils::router())
         // ── Orchestration Engine ────────────────────────────
         .route(
             "/api/orchestration/events",
@@ -4502,15 +4474,6 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/communications/templates/{id}",
             put(communications::update_template),
-        )
-        // DLT template registry — India SMS compliance
-        .route(
-            "/api/communications/dlt-templates",
-            get(dlt::list_templates).post(dlt::create_template),
-        )
-        .route(
-            "/api/communications/dlt-templates/{id}",
-            put(dlt::update_template).delete(dlt::delete_template),
         )
         .route(
             "/api/communications/messages",
@@ -6238,12 +6201,6 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/incentive-calculations", get(it_security::list_incentive_calculations).post(it_security::calculate_incentive))
         .route("/api/incentive-calculations/{id}/approve", post(it_security::approve_incentive))
         .route("/api/incentive-calculations/{id}/paid", post(it_security::mark_incentive_paid))
-        // ── AEBAS / BAS attendance integration ───────────────────────
-        .route("/api/aebas/status", get(aebas::status))
-        .route(
-            "/api/aebas/period-summary",
-            post(aebas::import_period_summary),
-        )
         // ── Device Integration ───────────────────────────────────────
         // Adapter catalog (global knowledge base)
         .route("/api/devices/manufacturers", get(devices::list_manufacturers))
