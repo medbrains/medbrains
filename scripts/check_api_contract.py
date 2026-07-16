@@ -266,26 +266,46 @@ def normalize_backend_path(raw_path: str) -> str:
     return path
 
 
+def backend_route_sources() -> list[Path]:
+    """
+    Route definitions live in routes/mod.rs plus each extracted leaf domain
+    crate's `router()` (RFC-SERVER-CRATE-SPLIT). Scan mod.rs and every workspace
+    crate source file that registers routes (`.route(`), deduped.
+    """
+    sources = [ROUTES_RS]
+    crates_dir = REPO_ROOT / "medbrains" / "crates"
+    for rs in sorted(crates_dir.glob("medbrains-*/src/**/*.rs")):
+        if rs == ROUTES_RS:
+            continue
+        try:
+            if ".route(" in rs.read_text():
+                sources.append(rs)
+        except OSError:
+            continue
+    return sources
+
+
 def extract_backend_endpoints() -> list[tuple[str, str, int]]:
     """
-    Extract (method, path, line_number) from routes/mod.rs.
+    Extract (method, path, line_number) from routes/mod.rs and all leaf-crate routers.
     """
-    source = ROUTES_RS.read_text()
     endpoints = []
 
-    for match in RE_ROUTE.finditer(source):
-        raw_path = match.group(1)
-        handler_chain = match.group(2)
-        line_no = source[:match.start()].count('\n') + 1
+    for source_file in backend_route_sources():
+        source = source_file.read_text()
+        for match in RE_ROUTE.finditer(source):
+            raw_path = match.group(1)
+            handler_chain = match.group(2)
+            line_no = source[:match.start()].count('\n') + 1
 
-        normalized_path = normalize_backend_path(raw_path)
+            normalized_path = normalize_backend_path(raw_path)
 
-        methods = [m.group(1).upper() for m in RE_HANDLER.finditer(handler_chain)]
-        if not methods:
-            continue
+            methods = [m.group(1).upper() for m in RE_HANDLER.finditer(handler_chain)]
+            if not methods:
+                continue
 
-        for method in methods:
-            endpoints.append((method, normalized_path, line_no))
+            for method in methods:
+                endpoints.append((method, normalized_path, line_no))
 
     return endpoints
 

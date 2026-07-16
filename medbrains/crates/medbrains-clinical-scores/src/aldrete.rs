@@ -8,7 +8,7 @@ use axum::{Extension, Json, extract::State};
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };

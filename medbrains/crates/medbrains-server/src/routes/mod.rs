@@ -1,27 +1,21 @@
 pub mod abdm;
 pub mod access;
-pub mod aldrete;
 pub mod anion_gap;
 pub mod cam_icu;
 pub mod cha2ds2_vasc;
 pub mod child_pugh;
 pub mod ciwa_ar;
-pub mod curb65;
 pub mod glasgow_blatchford;
 pub mod cpot;
 pub mod has_bled;
-pub mod meld;
-pub mod sofa;
 pub mod wells_dvt;
 pub mod wells_pe;
 pub mod osmolar_gap;
 pub mod app_manifest;
-pub mod gcs;
 pub mod hypoglycemia;
 pub mod lung_protective;
 pub mod med_reconciliation;
 pub mod meows;
-pub mod news2;
 pub mod nutrition_screening;
 pub mod paediatric_fluid;
 pub mod pews;
@@ -336,11 +330,9 @@ pub fn build_router(state: AppState) -> Router {
             "/api/stations/{id}",
             put(stations::update_station).delete(stations::delete_station),
         )
-        .route("/api/clinical/news2", post(news2::news2_score))
-        .route("/api/clinical/aldrete", post(aldrete::aldrete_score))
+        .merge(medbrains_clinical_scores::router())
         .route("/api/clinical/anion-gap", post(anion_gap::anion_gap))
         .route("/api/clinical/osmolar-gap", post(osmolar_gap::osmolar_gap))
-        .route("/api/clinical/gcs", post(gcs::gcs_score))
         .route(
             "/api/clinical/lung-protective",
             post(lung_protective::lung_protective),
@@ -356,9 +348,6 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/clinical/has-bled", post(has_bled::has_bled_score))
         .route("/api/clinical/ciwa-ar", post(ciwa_ar::ciwa_ar_score))
         .route("/api/clinical/child-pugh", post(child_pugh::child_pugh_score))
-        .route("/api/clinical/sofa", post(sofa::sofa_score))
-        .route("/api/clinical/meld", post(meld::meld_score))
-        .route("/api/clinical/curb-65", post(curb65::curb65_score))
         .route(
             "/api/clinical/glasgow-blatchford",
             post(glasgow_blatchford::glasgow_blatchford_score),
