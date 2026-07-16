@@ -19,15 +19,12 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    error::AppError,
-    middleware::{
-        auth::Claims,
-        authorization::{is_bypass_role, require_any_permission, require_permission},
-    },
-    routes::notifications::{NewNotification, create_notification},
-    state::AppState,
-};
+use axum::routing::{get,post,put};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::{is_bypass_role, require_any_permission, require_permission};
+use medbrains_server_core::notifications::{NewNotification, create_notification};
+use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Response types
@@ -111,7 +108,7 @@ fn has_operational_lab_order_scope(claims: &Claims) -> bool {
     claims_have_any_permission(claims, LAB_OPERATIONAL_ORDER_SCOPE_PERMISSIONS)
 }
 
-pub(crate) async fn grant_lab_order_creator_viewer(
+pub async fn grant_lab_order_creator_viewer(
     state: &AppState,
     claims: &Claims,
     order_id: Uuid,
@@ -121,7 +118,7 @@ pub(crate) async fn grant_lab_order_creator_viewer(
         return Ok(());
     }
 
-    let authz_ctx = crate::middleware::authorization::authz_context(claims);
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
     state
         .authz
         .write_tuple(
@@ -383,7 +380,7 @@ pub async fn list_orders(
     let offset = (page - 1) * per_page;
 
     // ── ReBAC scope — only lab orders caller has `view` on ────
-    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
     let visible_ids: Option<Vec<Uuid>> =
         if authz_ctx.is_bypass || has_operational_lab_order_scope(&claims) {
             None
@@ -531,8 +528,8 @@ pub async fn create_order_in_tx(
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct CreateOrderOptions {
-    pub(crate) auto_bill: bool,
+pub struct CreateOrderOptions {
+    pub auto_bill: bool,
 }
 
 impl Default for CreateOrderOptions {
@@ -541,7 +538,7 @@ impl Default for CreateOrderOptions {
     }
 }
 
-pub(crate) async fn create_order_in_tx_with_options(
+pub async fn create_order_in_tx_with_options(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
     body: &CreateOrderRequest,
@@ -592,10 +589,10 @@ pub(crate) async fn create_order_in_tx_with_options(
     // Auto-issue a lab sample-collection token (one per patient per day; gated
     // by the tenant's lab-token enablement). Skipped for dummy/test orders.
     if !is_dummy {
-        crate::routes::tokens::issue_token_once_per_patient_day(
+        medbrains_tokens::issue_token_once_per_patient_day(
             tx,
             claims.tenant_id,
-            crate::routes::tokens::IssueToken {
+            medbrains_tokens::IssueToken {
                 module: "lab",
                 scope: "global",
                 scope_id: None,
@@ -652,7 +649,7 @@ async fn auto_bill_lab_order_in_tx(
     claims: &Claims,
     order: &LabOrder,
 ) -> Result<(), AppError> {
-    if !super::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "lab").await? {
+    if !medbrains_server_services::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "lab").await? {
         return Ok(());
     }
 
@@ -676,10 +673,10 @@ async fn auto_bill_lab_order_in_tx(
         return Ok(());
     };
 
-    super::billing::auto_charge(
+    medbrains_server_services::billing::auto_charge(
         tx,
         &claims.tenant_id,
-        super::billing::AutoChargeInput {
+        medbrains_server_services::billing::AutoChargeInput {
             patient_id: order.patient_id,
             encounter_id: Some(order.encounter_id),
             charge_code: test.code,
@@ -708,7 +705,7 @@ pub async fn get_order(
     require_permission(&claims, permissions::lab::orders::VIEW)?;
 
     // ── ReBAC pre-check — must hold `view` on the lab_order ───
-    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
     if !has_operational_lab_order_scope(&claims) {
         let allowed = state
             .authz
@@ -840,7 +837,7 @@ pub async fn collect_sample(
         )
         .with_patient(o.patient_id)
         .with_encounter(o.encounter_id);
-        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     }
 
     tx.commit().await?;
@@ -914,7 +911,7 @@ pub async fn complete_order(
         )
         .with_patient(o.patient_id)
         .with_encounter(o.encounter_id);
-        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     }
 
     tx.commit().await?;
@@ -954,7 +951,7 @@ pub async fn complete_order(
         .flatten()
         .unwrap_or(0);
 
-        let _ = crate::orchestration::lifecycle::emit_after_event(
+        let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
             &state.db,
             claims.tenant_id,
             claims.sub,
@@ -1017,7 +1014,7 @@ pub async fn verify_results(
         )
         .with_patient(o.patient_id)
         .with_encounter(o.encounter_id);
-        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
         // Close the loop back to the ordering clinician: signal that verified results
         // are ready to review. Routine (non-critical) results otherwise gave the doctor
@@ -1079,7 +1076,7 @@ pub async fn cancel_order(
     .await?;
 
     if order.is_some() {
-        super::billing::reverse_auto_charge_for_source(
+        medbrains_server_services::billing::reverse_auto_charge_for_source(
             &mut tx,
             &claims.tenant_id,
             "lab",
@@ -1428,7 +1425,7 @@ pub async fn add_results(
         )
         .with_patient(order.patient_id)
         .with_encounter(order.encounter_id);
-        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     }
 
     tx.commit().await?;
@@ -4779,4 +4776,268 @@ pub async fn get_b2b_credit_summary(
 
     tx.commit().await?;
     Ok(Json(result))
+}
+
+/// Laboratory (orders, samples, results, catalog, QC) routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/lab/home-collections",
+            get(list_home_collections).post(create_home_collection),
+        )
+        .route(
+            "/api/lab/home-collections/stats",
+            get(get_home_collection_stats),
+        )
+        .route(
+            "/api/lab/home-collections/{id}",
+            put(update_home_collection),
+        )
+        .route(
+            "/api/lab/home-collections/{id}/status",
+            post(update_home_collection_status),
+        )
+        .route(
+            "/api/lab/collection-centers",
+            get(list_collection_centers).post(create_collection_center),
+        )
+        .route(
+            "/api/lab/collection-centers/{id}",
+            put(update_collection_center),
+        )
+        .route(
+            "/api/lab/sample-archive",
+            get(list_sample_archive).post(create_sample_archive),
+        )
+        .route(
+            "/api/lab/sample-archive/{id}/retrieve",
+            post(retrieve_sample_archive),
+        )
+        .route(
+            "/api/lab/report-dispatches",
+            get(list_report_dispatches).post(create_report_dispatch),
+        )
+        .route(
+            "/api/lab/report-dispatches/{id}/confirm",
+            post(confirm_report_dispatch),
+        )
+        .route(
+            "/api/lab/report-templates",
+            get(list_report_templates).post(create_report_template),
+        )
+        .route(
+            "/api/lab/report-templates/{id}",
+            put(update_report_template),
+        )
+        .route(
+            "/api/lab/stat-orders",
+            get(list_stat_orders),
+        )
+        .route(
+            "/api/lab/eqas",
+            get(list_eqas).post(create_eqas),
+        )
+        .route(
+            "/api/lab/eqas/{id}",
+            put(update_eqas),
+        )
+        .route(
+            "/api/lab/proficiency-tests",
+            get(list_proficiency_tests).post(create_proficiency_test),
+        )
+        .route(
+            "/api/lab/nabl-documents",
+            get(list_nabl_documents).post(create_nabl_document),
+        )
+        .route(
+            "/api/lab/nabl-documents/{id}",
+            put(update_nabl_document),
+        )
+        .route(
+            "/api/lab/reagent-consumption",
+            get(get_reagent_consumption),
+        )
+        .route(
+            "/api/lab/histopath/{order_id}",
+            get(get_histopath_report),
+        )
+        .route(
+            "/api/lab/histopath",
+            post(create_histopath_report),
+        )
+        .route(
+            "/api/lab/cytology/{order_id}",
+            get(get_cytology_report),
+        )
+        .route(
+            "/api/lab/cytology",
+            post(create_cytology_report),
+        )
+        .route(
+            "/api/lab/molecular/{order_id}",
+            get(get_molecular_report),
+        )
+        .route(
+            "/api/lab/molecular",
+            post(create_molecular_report),
+        )
+        .route(
+            "/api/lab/b2b-clients",
+            get(list_b2b_clients).post(create_b2b_client),
+        )
+        .route(
+            "/api/lab/b2b-clients/{id}",
+            put(update_b2b_client),
+        )
+        .route(
+            "/api/lab/b2b-clients/{id}/rates",
+            get(list_b2b_rates).post(create_b2b_rate),
+        )
+        // Phase 2 static routes (MUST be before /orders/{id})
+        .route(
+            "/api/lab/critical-alerts",
+            get(list_critical_alerts),
+        )
+        .route(
+            "/api/lab/critical-alerts/{id}/acknowledge",
+            put(acknowledge_critical_alert),
+        )
+        .route(
+            "/api/lab/tat-monitoring",
+            get(get_tat_monitoring),
+        )
+        .route(
+            "/api/lab/reagent-lots",
+            get(list_reagent_lots).post(create_reagent_lot),
+        )
+        .route(
+            "/api/lab/reagent-lots/{id}",
+            put(update_reagent_lot),
+        )
+        .route(
+            "/api/lab/qc-results",
+            get(list_qc_results).post(create_qc_result),
+        )
+        .route(
+            "/api/lab/calibrations",
+            get(list_calibrations).post(create_calibration),
+        )
+        .route(
+            "/api/lab/phlebotomy-queue",
+            get(list_phlebotomy_queue).post(create_phlebotomy_entry),
+        )
+        .route(
+            "/api/lab/phlebotomy-queue/{id}/status",
+            put(update_phlebotomy_status),
+        )
+        .route(
+            "/api/lab/outsourced",
+            get(list_outsourced_orders).post(create_outsourced_order),
+        )
+        .route(
+            "/api/lab/outsourced/{id}",
+            put(update_outsourced_order),
+        )
+        .route(
+            "/api/lab/patients/{pid}/cumulative/{test_id}",
+            get(get_cumulative_report),
+        )
+        // Phase 4 Lab routes
+        .route("/api/lab/analyzer-worklist", get(get_analyzer_worklist))
+        .route("/api/lab/phlebotomy/{id}/assign", put(assign_phlebotomist))
+        .route("/api/lab/reports/bulk-print", post(bulk_print_reports))
+        .route("/api/lab/report-delivery-config", get(get_report_delivery_config).put(update_report_delivery_config))
+        .route("/api/lab/referral-doctors", get(list_referral_doctors).post(create_referral_doctor))
+        .route("/api/lab/referral-doctors/{id}", put(update_referral_doctor))
+        .route("/api/lab/referral-payouts", get(list_referral_payouts).post(create_referral_payout))
+        .route("/api/lab/b2b-credit-summary", get(get_b2b_credit_summary))
+        // Phase 1 Lab routes
+        .route(
+            "/api/lab/orders",
+            get(list_orders).post(create_order),
+        )
+        .route(
+            "/api/lab/orders/{id}",
+            get(get_order),
+        )
+        .route(
+            "/api/lab/orders/{id}/collect",
+            put(collect_sample),
+        )
+        .route(
+            "/api/lab/orders/{id}/process",
+            put(start_processing),
+        )
+        .route(
+            "/api/lab/orders/{id}/complete",
+            put(complete_order),
+        )
+        .route(
+            "/api/lab/orders/{id}/verify",
+            put(verify_results),
+        )
+        .route(
+            "/api/lab/orders/{id}/cancel",
+            put(cancel_order),
+        )
+        .route(
+            "/api/lab/orders/{id}/results",
+            get(list_results).post(add_results),
+        )
+        .route(
+            "/api/lab/orders/{id}/results/amend",
+            post(amend_result),
+        )
+        .route(
+            "/api/lab/orders/{id}/amendments",
+            get(list_amendments),
+        )
+        .route(
+            "/api/lab/orders/{id}/report-status",
+            put(update_report_status),
+        )
+        .route(
+            "/api/lab/orders/{id}/lock-report",
+            put(lock_report),
+        )
+        .route(
+            "/api/lab/orders/{id}/add-on",
+            post(add_on_test),
+        )
+        .route(
+            "/api/lab/orders/{id}/reject",
+            put(reject_sample),
+        )
+        .route(
+            "/api/lab/catalog",
+            get(list_catalog).post(create_catalog_entry),
+        )
+        .route(
+            "/api/lab/catalog/{id}",
+            put(update_catalog_entry),
+        )
+        .route(
+            "/api/lab/panels",
+            get(list_panels).post(create_panel),
+        )
+        .route(
+            "/api/lab/panels/{id}",
+            get(get_panel).put(update_panel).delete(delete_panel),
+        )
+        .route(
+            "/api/lab/results/{id}/auto-validate",
+            post(auto_validate_result),
+        )
+        .route(
+            "/api/lab/critical-alerts/doctor/{doctor_id}",
+            get(list_doctor_critical_alerts),
+        )
+        .route(
+            "/api/lab/analytics/tat",
+            get(get_tat_analytics),
+        )
+        .route(
+            "/api/lab/orders/{id}/crossmatch",
+            get(get_order_crossmatch),
+        )
 }
