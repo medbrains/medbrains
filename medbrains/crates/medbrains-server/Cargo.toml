@@ -13,6 +13,7 @@ medbrains-seed = { path = "../medbrains-seed" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-clinical-scores = { path = "../medbrains-clinical-scores" }
 medbrains-clinical-ops = { path = "../medbrains-clinical-ops" }
+medbrains-identity = { path = "../medbrains-identity" }
 medbrains-materials = { path = "../medbrains-materials" }
 medbrains-facilities = { path = "../medbrains-facilities" }
 medbrains-documents = { path = "../medbrains-documents" }

@@ -23,6 +23,7 @@ members = [
     "crates/medbrains-server-core",
     "crates/medbrains-clinical-scores",
     "crates/medbrains-clinical-ops",
+    "crates/medbrains-identity",
     "crates/medbrains-materials",
     "crates/medbrains-facilities",
     "crates/medbrains-documents",

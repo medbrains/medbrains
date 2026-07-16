@@ -36,7 +36,6 @@ pub mod emergency;
 pub mod fhir;
 pub mod health;
 pub mod hr;
-pub mod iam;
 pub mod indent;
 pub mod infra_settings;
 pub mod invitations;
@@ -60,6 +59,7 @@ pub mod news;
 pub mod nhcx_callback;
 pub mod nhcx_onboarding;
 pub use medbrains_server_core::notifications;
+pub use medbrains_identity::sso;
 pub mod oauth;
 pub mod onboarding;
 pub mod opd;
@@ -99,7 +99,6 @@ pub mod regulatory;
 pub mod reports;
 pub mod security;
 pub mod setup;
-pub mod sso;
 pub mod sso_login;
 pub mod step_up;
 pub mod case_sheet_scan;
@@ -276,23 +275,7 @@ pub fn build_router(state: AppState) -> Router {
                 .get(sharing::list_grants),
         )
         .route("/api/sharing/granted-to-me", get(sharing::list_granted_to_me))
-        // IAM-style permission access requests
-        .route(
-            "/api/iam/access-requests",
-            get(iam::list_access_requests).post(iam::create_access_request),
-        )
-        .route(
-            "/api/iam/access-requests/{id}/approve",
-            post(iam::approve_access_request),
-        )
-        .route(
-            "/api/iam/access-requests/{id}/reject",
-            post(iam::reject_access_request),
-        )
-        .route(
-            "/api/iam/access-requests/{id}/revoke",
-            post(iam::revoke_access_request),
-        )
+        .merge(medbrains_identity::router())
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/step-up", post(step_up::step_up))
         .route("/api/auth/logout-all", post(auth::logout_all))
@@ -824,23 +807,6 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/widget-templates",
             get(dashboard::list_widget_templates),
-        )
-        // Enterprise SSO — admin configuration (identity providers + group mappings)
-        .route(
-            "/api/admin/sso/providers",
-            get(sso::list_providers).post(sso::create_provider),
-        )
-        .route(
-            "/api/admin/sso/providers/{id}",
-            put(sso::update_provider).delete(sso::delete_provider),
-        )
-        .route(
-            "/api/admin/sso/providers/{id}/mappings",
-            get(sso::list_mappings).post(sso::create_mapping),
-        )
-        .route(
-            "/api/admin/sso/mappings/{id}",
-            delete(sso::delete_mapping),
         )
         // Dashboard — summary
         .route("/api/dashboard/summary", get(dashboard::dashboard_summary))
