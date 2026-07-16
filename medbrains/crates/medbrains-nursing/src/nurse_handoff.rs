@@ -10,7 +10,7 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -26,7 +26,7 @@ async fn require_encounter_access(
     claims: &Claims,
     encounter_id: Uuid,
 ) -> Result<(), AppError> {
-    let authz_ctx = crate::middleware::authorization::authz_context(claims);
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
     let allowed = state
         .authz
         .check(&authz_ctx, medbrains_authz::Relation::Viewer, "encounter", encounter_id)
@@ -204,7 +204,7 @@ pub async fn start_code_blue(
     .fetch_one(&mut *tx)
     .await?;
 
-    crate::routes::nabh_evidence::mirror_code_blue_started(
+    medbrains_server_core::nabh_evidence::mirror_code_blue_started(
         &mut tx,
         claims.tenant_id,
         claims.sub,
@@ -227,7 +227,7 @@ pub async fn start_code_blue(
     if let Some(encounter_id) = row.encounter_id {
         event = event.with_encounter(encounter_id);
     }
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -304,14 +304,14 @@ pub async fn end_code_blue(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    crate::routes::nabh_evidence::mirror_code_blue_started(
+    medbrains_server_core::nabh_evidence::mirror_code_blue_started(
         &mut tx,
         claims.tenant_id,
         claims.sub,
         row.id,
     )
     .await?;
-    crate::routes::nabh_evidence::mirror_code_blue_ended(&mut tx, claims.tenant_id, row.id).await?;
+    medbrains_server_core::nabh_evidence::mirror_code_blue_ended(&mut tx, claims.tenant_id, row.id).await?;
     let mut event = ClinicalEventEnvelope::new(
         claims.tenant_id,
         ClinicalEventName::EmergencyCodeBlueCompleted,
@@ -328,7 +328,7 @@ pub async fn end_code_blue(
     if let Some(encounter_id) = row.encounter_id {
         event = event.with_encounter(encounter_id);
     }
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
     Ok(Json(row))
