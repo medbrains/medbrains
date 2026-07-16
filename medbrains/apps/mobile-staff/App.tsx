@@ -19,6 +19,7 @@ import { apiConfig } from "./src/api/config";
 import { Navigator } from "./src/navigator";
 import { StaffLoginGate } from "./src/login-gate";
 import { MODULES } from "./src/modules";
+import { NotificationBridge } from "./src/notification-bridge";
 
 const theme = buildDeviceTheme("light");
 
@@ -28,6 +29,7 @@ export default function App() {
       <PaperProvider theme={theme}>
         <StatusBar style="dark" />
         <AuthProvider secretStore={apiConfig.store}>
+          <NotificationBridge apiBase={apiConfig.baseUrl} />
           <Shell
             variant="staff"
             modules={MODULES}
