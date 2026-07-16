@@ -19,6 +19,7 @@ from `CLAUDE.md`; every UI PR must comply.
 | [CARBON-TYPOGRAPHY-RULES.md](./CARBON-TYPOGRAPHY-RULES.md) | IBM Plex, type scale (14px body / clinical density), weights, hierarchy, readability + a11y |
 | [CARBON-CONTENT-RULES.md](./CARBON-CONTENT-RULES.md) | Voice & tone, sentence case, error messages, clinical accuracy, inclusive/accessible content, i18n |
 | [DEVICE-CONSTRAINED-RULES.md](./DEVICE-CONSTRAINED-RULES.md) | **Low-end device "Power of Ten"** — TV/kiosk/mobile/IoT/edge: bound everything, zero leaks, virtualize lists, memory budgets, fail-safe, share-don't-copy |
+| [DEVICE-SURFACE-DESIGN-RULES.md](./DEVICE-SURFACE-DESIGN-RULES.md) | **Right design system per surface** — web=Carbon 2x-grid; mobile=Carbon-for-RN/Material+44px targets; TV=10-foot UI (D-pad focus, overscan 48/27dp, light-on-dark); kiosk=touch; IoT=minimal. Carbon brand tokens layered on every surface, never the web grid forced onto TV/mobile |
 
 Existing companions: [UI_GUIDELINES.md](./UI_GUIDELINES.md),
 [ACCESSIBILITY.md](./ACCESSIBILITY.md), [ui-plan-before-build.md](./ui-plan-before-build.md).
