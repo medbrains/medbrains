@@ -11,7 +11,7 @@ use uuid::Uuid;
 use medbrains_core::case_mgmt::{CaseAssignment, CaseReferral, DischargeBarrier};
 use medbrains_core::permissions;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
