@@ -1,25 +1,9 @@
 pub mod abdm;
 pub mod access;
-pub mod anion_gap;
-pub mod cam_icu;
-pub mod cha2ds2_vasc;
-pub mod child_pugh;
-pub mod ciwa_ar;
-pub mod glasgow_blatchford;
-pub mod cpot;
-pub mod has_bled;
-pub mod wells_dvt;
-pub mod wells_pe;
-pub mod osmolar_gap;
 pub mod app_manifest;
 pub mod hypoglycemia;
-pub mod lung_protective;
 pub mod med_reconciliation;
-pub mod meows;
 pub mod nutrition_screening;
-pub mod paediatric_fluid;
-pub mod pews;
-pub mod sepsis;
 pub mod sepsis_bundle;
 pub mod stations;
 pub mod vte;
@@ -331,31 +315,6 @@ pub fn build_router(state: AppState) -> Router {
             put(stations::update_station).delete(stations::delete_station),
         )
         .merge(medbrains_clinical_scores::router())
-        .route("/api/clinical/anion-gap", post(anion_gap::anion_gap))
-        .route("/api/clinical/osmolar-gap", post(osmolar_gap::osmolar_gap))
-        .route(
-            "/api/clinical/lung-protective",
-            post(lung_protective::lung_protective),
-        )
-        .route("/api/clinical/qsofa", post(sepsis::qsofa_score))
-        .route("/api/clinical/meows", post(meows::meows_score))
-        .route("/api/clinical/pews", post(pews::pews_score))
-        .route("/api/clinical/cam-icu", post(cam_icu::cam_icu_assessment))
-        .route("/api/clinical/cpot", post(cpot::cpot_score))
-        .route("/api/clinical/wells-pe", post(wells_pe::wells_pe_score))
-        .route("/api/clinical/wells-dvt", post(wells_dvt::wells_dvt_score))
-        .route("/api/clinical/cha2ds2-vasc", post(cha2ds2_vasc::cha2ds2_vasc_score))
-        .route("/api/clinical/has-bled", post(has_bled::has_bled_score))
-        .route("/api/clinical/ciwa-ar", post(ciwa_ar::ciwa_ar_score))
-        .route("/api/clinical/child-pugh", post(child_pugh::child_pugh_score))
-        .route(
-            "/api/clinical/glasgow-blatchford",
-            post(glasgow_blatchford::glasgow_blatchford_score),
-        )
-        .route(
-            "/api/clinical/paediatric-fluid",
-            post(paediatric_fluid::paediatric_fluid),
-        )
         .route(
             "/api/clinical/nutrition-screening",
             post(nutrition_screening::create_nutrition_screening),
