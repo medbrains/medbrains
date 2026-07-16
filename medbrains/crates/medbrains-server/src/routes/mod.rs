@@ -1,7 +1,6 @@
 pub mod abdm;
 pub mod access;
 pub mod app_manifest;
-pub mod stations;
 pub mod vte;
 pub mod admin;
 pub mod admin_db_topology;
@@ -22,7 +21,6 @@ pub mod bme;
 pub mod camp;
 pub mod care_view;
 pub mod catalog_import;
-pub mod ckb;
 pub mod client_errors;
 pub mod clinical_offline;
 pub mod cms;
@@ -47,7 +45,6 @@ pub mod email_verification;
 pub mod emergency;
 pub mod facilities;
 pub mod fhir;
-pub mod geo;
 pub mod health;
 pub mod housekeeping;
 pub mod hr;
@@ -58,7 +55,6 @@ pub mod infra_settings;
 pub mod invitations;
 pub mod mail_provisioning;
 pub mod insurance;
-pub mod integration;
 pub mod ipd;
 pub mod ipd_post_discharge;
 pub mod it_security;
@@ -73,6 +69,7 @@ pub use medbrains_server_core::nabh_evidence;
 // reports.rs (which reuses scheduling helpers) keeps resolving crate::routes::scheduling.
 pub use medbrains_scheduling::scheduling;
 pub use medbrains_telehealth::cds;
+pub use medbrains_platform::ckb;
 pub mod nabh_indicators;
 pub mod news;
 pub mod news_feed;
@@ -136,10 +133,8 @@ pub mod sharing;
 pub mod signatures;
 pub mod signed_documents;
 pub mod specialty_interventional;
-pub mod station_handoff;
 pub mod specialty_other;
 pub mod storage;
-pub mod terminology;
 pub mod tokens;
 pub mod tv;
 pub mod upload;
@@ -218,32 +213,6 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/onboarding/status", get(onboarding::status))
         .route("/api/onboarding/init", post(onboarding::init))
         // Geo — public read-only endpoints
-        .route("/api/geo/countries", get(geo::list_countries))
-        .route(
-            "/api/geo/countries/{id}/states",
-            get(geo::list_states),
-        )
-        .route(
-            "/api/geo/states/{id}/districts",
-            get(geo::list_districts),
-        )
-        .route("/api/geo/regulators", get(geo::list_regulators))
-        .route(
-            "/api/geo/regulators/auto-detect",
-            get(geo::auto_detect_regulators),
-        )
-        .route(
-            "/api/geo/districts/{id}/subdistricts",
-            get(geo::list_subdistricts),
-        )
-        .route(
-            "/api/geo/subdistricts/{id}/towns",
-            get(geo::list_towns),
-        )
-        .route(
-            "/api/geo/pincode/{code}",
-            get(geo::search_pincode),
-        )
         // CMS Public API (no auth required)
         .route("/api/public/tenant-by-host", get(setup::tenant_by_host))
         .route(
@@ -286,14 +255,6 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/client-errors/report", post(client_errors::report_client_error))
         .route("/api/access/manifest", get(access::get_manifest))
         .route("/api/app/manifest", get(app_manifest::get_app_manifest))
-        .route(
-            "/api/stations",
-            get(stations::list_stations).post(stations::create_station),
-        )
-        .route(
-            "/api/stations/{id}",
-            put(stations::update_station).delete(stations::delete_station),
-        )
         .merge(medbrains_clinical_scores::router())
         .merge(medbrains_clinical_ops::router())
         .route("/api/vte-assessments", post(vte::create_vte_assessment))
@@ -1115,18 +1076,6 @@ pub fn build_router(state: AppState) -> Router {
             put(opd::update_clinical_corpus_entry),
         )
         .route(
-            "/api/terminology/search",
-            get(terminology::search_terminology),
-        )
-        .route(
-            "/api/terminology/search-with-suggestions",
-            get(terminology::search_terminology_with_suggestions),
-        )
-        .route(
-            "/api/terminology/lookup",
-            get(terminology::lookup_terminology),
-        )
-        .route(
             "/api/opd/chief-complaints",
             get(opd::list_chief_complaints),
         )
@@ -1217,18 +1166,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/opd/analytics/followup",
             get(opd::followup_compliance),
         )
-        // ── Clinical Knowledge Base ─────────────────────
-        .route("/api/ckb/diagnoses", get(ckb::list_diagnoses))
-        .route("/api/ckb/formulary", get(ckb::list_formulary))
-        .route("/api/ckb/lab-reference", get(ckb::list_lab_reference))
-        .route("/api/ckb/nlem-generics", get(ckb::list_nlem_generics))
-        .route("/api/ckb/state-schemes", get(ckb::list_state_schemes))
-        .route("/api/ckb/state-formulary", get(ckb::list_state_formulary))
-        .route("/api/ckb/notifiable-reports", get(ckb::list_notifiable_reports))
-        .route(
-            "/api/ckb/notifiable-reports/{id}",
-            put(ckb::update_notifiable_report),
-        )
+        .merge(medbrains_platform::router())
         .merge(medbrains_telehealth::router())
         // ── Billing ──────────────────────────────────────
         .route(
@@ -2890,42 +2828,6 @@ pub fn build_router(state: AppState) -> Router {
             "/api/schema/events/{event_type}",
             get(schema_registry::get_event_schema),
         )
-        // ── Integration Hub ──────────────────────────────
-        .route(
-            "/api/integration/default-pipelines",
-            get(integration::list_default_pipelines),
-        )
-        .route(
-            "/api/integration/pipelines",
-            get(integration::list_pipelines).post(integration::create_pipeline),
-        )
-        .route(
-            "/api/integration/pipelines/{id}",
-            get(integration::get_pipeline)
-                .put(integration::update_pipeline)
-                .delete(integration::delete_pipeline),
-        )
-        .route(
-            "/api/integration/pipelines/{id}/status",
-            put(integration::update_pipeline_status),
-        )
-        .route(
-            "/api/integration/pipelines/{id}/trigger",
-            post(integration::trigger_pipeline),
-        )
-        .route(
-            "/api/integration/pipelines/{id}/executions",
-            get(integration::list_executions),
-        )
-        .route(
-            "/api/integration/executions/{id}",
-            get(integration::get_execution),
-        )
-        .route(
-            "/api/integration/node-templates",
-            get(integration::list_node_templates)
-                .post(integration::create_node_template),
-        )
         // ── Orchestration Engine ────────────────────────────
         .route(
             "/api/orchestration/events",
@@ -4026,14 +3928,6 @@ pub fn build_router(state: AppState) -> Router {
             post(payroll::finalize_payroll_run),
         )
         .route("/api/hr/payroll/payslips", get(payroll::list_payslips))
-        .route(
-            "/api/station-handoffs",
-            get(station_handoff::list_station_handoffs).post(station_handoff::create_station_handoff),
-        )
-        .route(
-            "/api/station-handoffs/{id}/acknowledge",
-            put(station_handoff::acknowledge_station_handoff),
-        )
         .route(
             "/api/roi-requests",
             get(roi::list_roi_requests).post(roi::create_roi_request),

@@ -8,7 +8,7 @@ use medbrains_core::geo::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{error::AppError, state::AppState};
+use medbrains_server_core::{error::AppError, state::AppState};
 
 // ── GET /api/geo/countries ──────────────────────────────────
 

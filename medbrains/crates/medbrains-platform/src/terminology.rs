@@ -8,7 +8,7 @@ use serde_json::Value;
 use std::collections::HashSet;
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };

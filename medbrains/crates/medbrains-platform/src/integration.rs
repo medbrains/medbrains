@@ -13,7 +13,7 @@ use medbrains_core::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError,
     middleware::{auth::Claims, authorization::require_permission},
     state::AppState,
@@ -395,7 +395,7 @@ pub async fn trigger_pipeline(
         .unwrap_or("manual");
 
     let _ =
-        crate::events::emit_event(&state.db, claims.tenant_id, claims.sub, event_type, input).await;
+        medbrains_workflow::events::emit_event(&state.db, claims.tenant_id, claims.sub, event_type, input).await;
 
     // Fetch the latest execution for this pipeline (emit_event created one)
     let execution = sqlx::query_as::<_, IntegrationExecution>(
@@ -582,7 +582,7 @@ pub async fn list_default_pipelines(
         })
         .unwrap_or_default();
 
-    let rows = crate::orchestration::default_pipelines::DEFAULT_SUBSCRIBERS
+    let rows = medbrains_workflow::orchestration::default_pipelines::DEFAULT_SUBSCRIBERS
         .iter()
         .map(|(et, desc)| DefaultPipelineRow {
             event_type: et,

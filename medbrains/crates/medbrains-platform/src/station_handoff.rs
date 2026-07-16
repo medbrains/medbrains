@@ -13,7 +13,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{error::AppError, middleware::auth::Claims, state::AppState};
+use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct StationHandoff {
