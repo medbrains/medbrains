@@ -82,7 +82,7 @@ async fn seed_dev_email_defaults(
     Ok(())
 }
 
-pub(crate) async fn seed_canonical_fixtures_for_tenant(
+pub async fn seed_canonical_fixtures_for_tenant(
     pool: &PgPool,
     tenant_id: uuid::Uuid,
 ) -> Result<(), Box<dyn std::error::Error>> {

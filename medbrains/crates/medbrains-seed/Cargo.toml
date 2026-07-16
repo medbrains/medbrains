@@ -1,0 +1,20 @@
+[package]
+name = "medbrains-seed"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[dependencies]
+medbrains-core = { path = "../medbrains-core" }
+medbrains-db = { path = "../medbrains-db" }
+sqlx = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+argon2 = { workspace = true }
+rust_decimal = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

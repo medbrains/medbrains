@@ -4,7 +4,6 @@ use serde_json::Value;
 use crate::{
     error::AppError,
     middleware::{auth::Claims, authorization::is_bypass_role},
-    seed,
     state::AppState,
 };
 
@@ -16,7 +15,7 @@ pub async fn seed_canonical_fixtures(
         return Err(AppError::Forbidden);
     }
 
-    seed::seed_canonical_fixtures_for_tenant(&state.db, claims.tenant_id)
+    medbrains_seed::seed_canonical_fixtures_for_tenant(&state.db, claims.tenant_id)
         .await
         .map_err(|err| AppError::Internal(format!("canonical fixture seed failed: {err}")))?;
 

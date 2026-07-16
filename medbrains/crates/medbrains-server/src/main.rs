@@ -25,7 +25,6 @@ use medbrains_server::{
     },
     orchestration, routes,
     s3_presign::S3PresignClient,
-    seed,
     state::{AppState, CookieConfig},
 };
 
@@ -249,7 +248,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Run seed (insert default tenant + super_admin if not exists)
-    seed::run_seed(&db_pool).await?;
+    medbrains_seed::run_seed(&db_pool).await?;
 
     // Provision SSO from the local creds file (sso.local.json) if present — turnkey
     // federation without manual /admin/sso setup.

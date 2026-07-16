@@ -36,7 +36,6 @@ pub mod pagination;
 pub mod routes;
 pub mod s3_presign;
 pub mod secret_backend;
-pub mod seed;
 pub mod services;
 pub mod signing;
 pub mod state;
