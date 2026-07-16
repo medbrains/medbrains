@@ -11,6 +11,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import {
   AuthProvider,
+  NotificationBridge,
   Shell,
   buildDeviceTheme,
 } from "@medbrains/mobile-shell";
@@ -27,6 +28,7 @@ export default function App() {
       <PaperProvider theme={theme}>
         <StatusBar style="dark" />
         <AuthProvider secretStore={apiConfig.store}>
+          <NotificationBridge apiBase={apiConfig.baseUrl} surface="Mobile-Camp" />
           <Shell
             variant="camp"
             modules={MODULES}
