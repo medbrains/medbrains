@@ -9,12 +9,12 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
-use crate::{
-    error::AppError,
-    middleware::{auth::Claims, authorization::require_permission},
-    orchestration::code_executor,
-    state::AppState,
-};
+use axum::routing::{get, post};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
+use medbrains_workflow::orchestration::code_executor;
 
 // ── Types ─────────────────────────────────────────────────
 
@@ -293,8 +293,24 @@ pub async fn ai_generate_code(
     );
 
     let result =
-        super::ai::extract::<AiGeneratedCode>(&state, &claims.tenant_id, &preamble, &req.prompt)
+        medbrains_server_services::llm::extract::<AiGeneratedCode>(&state, &claims.tenant_id, &preamble, &req.prompt)
             .await?;
 
     Ok(Json(result))
+}
+
+/// Custom-code snippet + pipeline-code-execution routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/integration/code-snippets",
+            get(list_snippets).post(create_snippet),
+        )
+        .route(
+            "/api/integration/code-snippets/{id}",
+            get(get_snippet).put(update_snippet),
+        )
+        .route("/api/integration/code-snippets/test", post(test_code))
+        .route("/api/integration/code/compile-rust", post(compile_rust))
+        .route("/api/integration/code/ai-generate", post(ai_generate_code))
 }

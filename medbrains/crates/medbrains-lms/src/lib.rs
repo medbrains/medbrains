@@ -15,11 +15,11 @@ use medbrains_core::lms::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    error::AppError,
-    middleware::{auth::Claims, authorization::require_permission},
-    state::AppState,
-};
+use axum::routing::{delete, get, post, put};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Response types
@@ -1625,7 +1625,7 @@ pub async fn ai_generate_course(
     );
 
     let generated =
-        super::ai::extract::<AiGeneratedCourse>(&state, &claims.tenant_id, preamble, &prompt)
+        medbrains_server_services::llm::extract::<AiGeneratedCourse>(&state, &claims.tenant_id, preamble, &prompt)
             .await?;
 
     Ok(Json(generated))
@@ -1716,4 +1716,37 @@ pub async fn ai_save_course(
 
     tx.commit().await?;
     Ok(Json(course))
+}
+
+/// Learning-management-system (courses, quizzes, enrollments, paths, certs, compliance) routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/lms/courses", get(list_courses).post(create_course))
+        .route("/api/lms/courses/{id}", get(get_course).put(update_course).delete(delete_course))
+        .route("/api/lms/courses/{id}/modules", post(add_module))
+        .route("/api/lms/courses/{course_id}/modules/{module_id}", put(update_module).delete(delete_module))
+        .route("/api/lms/courses/{id}/modules/reorder", put(reorder_modules))
+        .route("/api/lms/courses/{course_id}/quizzes", get(list_quizzes).post(create_quiz))
+        .route("/api/lms/quizzes/{id}", put(update_quiz))
+        .route("/api/lms/quizzes/{quiz_id}/questions", post(add_question))
+        .route("/api/lms/quizzes/{quiz_id}/questions/{qid}", put(update_question).delete(delete_question))
+        .route("/api/lms/enrollments", get(list_enrollments).post(assign_course))
+        .route("/api/lms/enrollments/bulk-role", post(bulk_assign_by_role))
+        .route("/api/lms/enrollments/{id}", put(update_enrollment))
+        .route("/api/lms/my/enrollments", get(my_enrollments))
+        .route("/api/lms/my/enrollments/{id}", get(my_course_detail))
+        .route("/api/lms/my/enrollments/{id}/progress", put(update_progress))
+        .route("/api/lms/my/quiz-attempts", post(start_quiz_attempt))
+        .route("/api/lms/my/quiz-attempts/{id}", put(submit_quiz_attempt))
+        .route("/api/lms/paths", get(list_paths).post(create_path))
+        .route("/api/lms/paths/{id}", get(get_path).put(update_path))
+        .route("/api/lms/paths/{id}/courses", post(add_path_course))
+        .route("/api/lms/paths/{path_id}/courses/{course_id}", delete(remove_path_course))
+        .route("/api/lms/certificates", get(list_certificates).post(issue_certificate))
+        .route("/api/lms/my/certificates", get(my_certificates))
+        .route("/api/lms/compliance", get(compliance_overview))
+        .route("/api/lms/compliance/courses/{id}", get(compliance_by_course))
+        .route("/api/lms/compliance/users/{id}", get(compliance_by_user))
+        .route("/api/lms/courses/ai-generate", post(ai_generate_course))
+        .route("/api/lms/courses/ai-save", post(ai_save_course))
 }

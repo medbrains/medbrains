@@ -23,7 +23,6 @@ pub mod communications;
 pub mod consent;
 pub mod coverage;
 pub mod cssd;
-pub mod custom_code;
 pub mod dashboard;
 pub mod debug;
 pub mod device_pairing;
@@ -44,7 +43,6 @@ pub mod ipd;
 pub mod ipd_post_discharge;
 pub mod it_security;
 pub mod lab;
-pub mod lms;
 pub mod materials;
 pub mod mfa;
 pub mod mrd;
@@ -2682,29 +2680,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/orchestration/jobs/stats",
             get(orchestration::job_stats),
         )
-        // ── Custom Code — Pipeline Code Execution ─────────
-        .route(
-            "/api/integration/code-snippets",
-            get(custom_code::list_snippets)
-                .post(custom_code::create_snippet),
-        )
-        .route(
-            "/api/integration/code-snippets/{id}",
-            get(custom_code::get_snippet)
-                .put(custom_code::update_snippet),
-        )
-        .route(
-            "/api/integration/code-snippets/test",
-            post(custom_code::test_code),
-        )
-        .route(
-            "/api/integration/code/compile-rust",
-            post(custom_code::compile_rust),
-        )
-        .route(
-            "/api/integration/code/ai-generate",
-            post(custom_code::ai_generate_code),
-        )
+        .merge(medbrains_custom_code::router())
         // ── AI Clinical Copilot — streaming chat (SSE) + history + whispers ─
         .route("/api/ai/chat", post(ai::chat))
         .route("/api/ai/whispers", get(ai::whispers))
@@ -3781,35 +3757,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/bme/analytics/uptime",
             get(bme::get_uptime_analytics),
         )
-        // ── LMS (Learning Management System) ─────────────────────
-        .route("/api/lms/courses", get(lms::list_courses).post(lms::create_course))
-        .route("/api/lms/courses/{id}", get(lms::get_course).put(lms::update_course).delete(lms::delete_course))
-        .route("/api/lms/courses/{id}/modules", post(lms::add_module))
-        .route("/api/lms/courses/{course_id}/modules/{module_id}", put(lms::update_module).delete(lms::delete_module))
-        .route("/api/lms/courses/{id}/modules/reorder", put(lms::reorder_modules))
-        .route("/api/lms/courses/{course_id}/quizzes", get(lms::list_quizzes).post(lms::create_quiz))
-        .route("/api/lms/quizzes/{id}", put(lms::update_quiz))
-        .route("/api/lms/quizzes/{quiz_id}/questions", post(lms::add_question))
-        .route("/api/lms/quizzes/{quiz_id}/questions/{qid}", put(lms::update_question).delete(lms::delete_question))
-        .route("/api/lms/enrollments", get(lms::list_enrollments).post(lms::assign_course))
-        .route("/api/lms/enrollments/bulk-role", post(lms::bulk_assign_by_role))
-        .route("/api/lms/enrollments/{id}", put(lms::update_enrollment))
-        .route("/api/lms/my/enrollments", get(lms::my_enrollments))
-        .route("/api/lms/my/enrollments/{id}", get(lms::my_course_detail))
-        .route("/api/lms/my/enrollments/{id}/progress", put(lms::update_progress))
-        .route("/api/lms/my/quiz-attempts", post(lms::start_quiz_attempt))
-        .route("/api/lms/my/quiz-attempts/{id}", put(lms::submit_quiz_attempt))
-        .route("/api/lms/paths", get(lms::list_paths).post(lms::create_path))
-        .route("/api/lms/paths/{id}", get(lms::get_path).put(lms::update_path))
-        .route("/api/lms/paths/{id}/courses", post(lms::add_path_course))
-        .route("/api/lms/paths/{path_id}/courses/{course_id}", delete(lms::remove_path_course))
-        .route("/api/lms/certificates", get(lms::list_certificates).post(lms::issue_certificate))
-        .route("/api/lms/my/certificates", get(lms::my_certificates))
-        .route("/api/lms/compliance", get(lms::compliance_overview))
-        .route("/api/lms/compliance/courses/{id}", get(lms::compliance_by_course))
-        .route("/api/lms/compliance/users/{id}", get(lms::compliance_by_user))
-        .route("/api/lms/courses/ai-generate", post(lms::ai_generate_course))
-        .route("/api/lms/courses/ai-save", post(lms::ai_save_course))
+        .merge(medbrains_lms::router())
         // ── MRD (Medical Records Department) ────────────────────
         .route(
             "/api/mrd/records",
