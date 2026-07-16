@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -43,7 +43,7 @@ async fn queue_biowaste_event(
         }),
     )
     .with_department(row.department_id);
-    crate::events::queue_clinical_event_in_tx(tx, &event)
+    medbrains_workflow::events::queue_clinical_event_in_tx(tx, &event)
         .await
         .map(|_| ())
 }
@@ -769,7 +769,7 @@ pub async fn create_biowaste(
     .fetch_one(&mut *tx)
     .await?;
 
-    crate::routes::nabh_evidence::mirror_biowaste_record(&mut tx, claims.tenant_id, row.id).await?;
+    medbrains_server_core::nabh_evidence::mirror_biowaste_record(&mut tx, claims.tenant_id, row.id).await?;
     queue_biowaste_event(&mut tx, &claims, &row).await?;
 
     tx.commit().await?;
