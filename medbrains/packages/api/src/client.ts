@@ -3446,6 +3446,11 @@ export const api = {
     request<UnreadCountResponse>(`/notifications/${id}/read`, { method: "POST" }),
   markAllNotificationsRead: () =>
     request<UnreadCountResponse>("/notifications/read-all", { method: "POST" }),
+  registerPushToken: (input: { expo_token: string; platform?: string; surface?: string }) =>
+    request<{ ok: boolean }>("/notifications/push-tokens", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
   // ── Unified token / queue system ──
   issueToken: (input: IssueTokenInput) =>
     request<ModuleToken>("/tokens/issue", { method: "POST", body: JSON.stringify(input) }),

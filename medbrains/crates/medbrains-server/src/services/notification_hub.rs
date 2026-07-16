@@ -129,6 +129,18 @@ impl NotificationHub {
     pub async fn topic_count(&self) -> usize {
         self.topics.read().await.len()
     }
+
+    /// Whether a topic currently has at least one live receiver. Used to skip
+    /// a push notification when the user already has an open socket (cost /
+    /// duplicate-suppression). Per-process — a connection on another instance
+    /// is not visible here (acceptable: the device de-dupes when foregrounded).
+    pub async fn has_subscribers(&self, topic: &str) -> bool {
+        self.topics
+            .read()
+            .await
+            .get(topic)
+            .is_some_and(|sender| sender.receiver_count() > 0)
+    }
 }
 
 #[cfg(test)]

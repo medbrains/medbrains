@@ -144,6 +144,45 @@ pub async fn mark_all_notifications_read(
     Ok(Json(UnreadCountResponse { unread_count: 0 }))
 }
 
+// ── Push token registration ──────────────────────────────────────
+#[derive(Debug, Deserialize)]
+pub struct RegisterPushTokenRequest {
+    pub expo_token: String,
+    pub platform: Option<String>,
+    pub surface: Option<String>,
+}
+
+/// POST /api/notifications/push-tokens — register (or refresh) this device's
+/// Expo push token so the notification listener can deliver a push when the app
+/// is backgrounded. Idempotent per (tenant, user, token).
+pub async fn register_push_token(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<RegisterPushTokenRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    if body.expo_token.trim().is_empty() {
+        return Err(AppError::BadRequest("expo_token is required".to_owned()));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    sqlx::query(
+        "INSERT INTO device_push_tokens (tenant_id, user_id, expo_token, platform, surface) \
+         VALUES ($1, $2, $3, $4, $5) \
+         ON CONFLICT (tenant_id, user_id, expo_token) DO UPDATE SET \
+           platform = EXCLUDED.platform, surface = EXCLUDED.surface, \
+           revoked = false, last_seen_at = now()",
+    )
+    .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .bind(body.expo_token.trim())
+    .bind(&body.platform)
+    .bind(&body.surface)
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
 // ── Producer helper ──────────────────────────────────────────────
 /// A notification to insert for a recipient user. Use via `create_notification`.
 #[derive(Debug)]

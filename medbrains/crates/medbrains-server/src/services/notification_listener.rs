@@ -39,9 +39,10 @@ struct Payload {
 
 /// Spawn the supervised LISTEN bridge. Call once at startup.
 pub fn spawn(pool: PgPool, hub: NotificationHub) {
+    let http = reqwest::Client::new();
     tokio::spawn(async move {
         loop {
-            if let Err(error) = run(&pool, &hub).await {
+            if let Err(error) = run(&pool, &hub, &http).await {
                 tracing::warn!(%error, "notification listener stopped; reconnecting");
             }
             tokio::time::sleep(RECONNECT_DELAY).await;
@@ -49,7 +50,7 @@ pub fn spawn(pool: PgPool, hub: NotificationHub) {
     });
 }
 
-async fn run(pool: &PgPool, hub: &NotificationHub) -> Result<(), sqlx::Error> {
+async fn run(pool: &PgPool, hub: &NotificationHub, http: &reqwest::Client) -> Result<(), sqlx::Error> {
     let mut listener = PgListener::connect_with(pool).await?;
     listener.listen(CHANNEL).await?;
     tracing::info!("notification listener connected");
@@ -59,18 +60,73 @@ async fn run(pool: &PgPool, hub: &NotificationHub) -> Result<(), sqlx::Error> {
             tracing::warn!("notification listener: skipping malformed payload");
             continue;
         };
+        let topic = user_topic(payload.user_id);
         let event = NotificationEvent {
             id: payload.id,
             tenant_id: payload.tenant_id,
-            kind: payload.kind,
-            title: payload.title,
-            body: payload.body,
-            category: payload.category,
-            entity_type: payload.entity_type,
+            kind: payload.kind.clone(),
+            title: payload.title.clone(),
+            body: payload.body.clone(),
+            category: payload.category.clone(),
+            entity_type: payload.entity_type.clone(),
             entity_id: payload.entity_id,
-            action_url: payload.action_url,
+            action_url: payload.action_url.clone(),
         };
-        hub.publish(&[user_topic(payload.user_id)], event).await;
+        hub.publish(std::slice::from_ref(&topic), event).await;
+
+        // Push only when the user has no live socket on this instance — the
+        // WS already delivered otherwise (cost + duplicate suppression).
+        if !hub.has_subscribers(&topic).await {
+            send_push(pool, http, &payload).await;
+        }
+    }
+}
+
+/// Look up the user's live Expo push tokens and send one batched push request.
+/// Best-effort: any error is logged and swallowed (never blocks the listener).
+async fn send_push(pool: &PgPool, http: &reqwest::Client, payload: &Payload) {
+    let tokens: Vec<String> = {
+        let Ok(mut tx) = pool.begin().await else {
+            return;
+        };
+        if medbrains_db::pool::set_tenant_context(&mut tx, &payload.tenant_id)
+            .await
+            .is_err()
+        {
+            return;
+        }
+        let tokens = sqlx::query_scalar::<_, String>(
+            "SELECT expo_token FROM device_push_tokens \
+             WHERE user_id = $1 AND revoked = false LIMIT 100",
+        )
+        .bind(payload.user_id)
+        .fetch_all(&mut *tx)
+        .await
+        .unwrap_or_default();
+        let _ = tx.commit().await;
+        tokens
+    };
+    if tokens.is_empty() {
+        return;
+    }
+    let messages: Vec<serde_json::Value> = tokens
+        .iter()
+        .map(|token| {
+            serde_json::json!({
+                "to": token,
+                "title": payload.title,
+                "body": payload.body,
+                "data": { "id": payload.id, "action_url": payload.action_url },
+            })
+        })
+        .collect();
+    if let Err(error) = http
+        .post("https://exp.host/--/api/v2/push/send")
+        .json(&messages)
+        .send()
+        .await
+    {
+        tracing::warn!(%error, "expo push send failed");
     }
 }
 

@@ -978,6 +978,10 @@ pub fn build_router(state: AppState) -> Router {
             "/api/notifications/read-all",
             post(notifications::mark_all_notifications_read),
         )
+        .route(
+            "/api/notifications/push-tokens",
+            post(notifications::register_push_token),
+        )
         // Dashboards — user-facing
         .route("/api/dashboards", get(dashboard::list_dashboards))
         .route("/api/dashboards/my", get(dashboard::get_my_dashboard))
