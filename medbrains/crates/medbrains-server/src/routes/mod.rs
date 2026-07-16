@@ -134,20 +134,15 @@ pub mod sso_login;
 pub mod step_up;
 pub mod case_sheet_scan;
 pub mod home_health;
-pub mod long_term_care;
 pub mod microsite;
 pub mod vpn;
 pub mod ward_stock;
 pub mod sharing;
 pub mod signatures;
 pub mod signed_documents;
-pub mod specialty_dental;
 pub mod specialty_interventional;
 pub mod station_handoff;
-pub mod specialty_maternity;
-pub mod specialty_ophtho;
 pub mod specialty_other;
-pub mod specialty_psychiatry;
 pub mod storage;
 pub mod telemedicine;
 pub mod terminology;
@@ -3253,61 +3248,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/microsite/config",
             get(microsite::get_microsite_config).put(microsite::update_microsite_config),
         )
-        // ── Long-Term Care — MDS assessments (#2961) ──
-        .route(
-            "/api/ltc/mds",
-            get(long_term_care::list_mds_assessments).post(long_term_care::create_mds_assessment),
-        )
-        .route(
-            "/api/ltc/mds/{id}/complete",
-            post(long_term_care::complete_mds_assessment),
-        )
-        .route(
-            "/api/ltc/medications",
-            get(long_term_care::list_ltc_medications).post(long_term_care::add_ltc_medication),
-        )
-        .route(
-            "/api/ltc/medications/{id}/refill",
-            post(long_term_care::refill_ltc_medication),
-        )
-        .route(
-            "/api/ltc/medications/{id}",
-            put(long_term_care::update_ltc_medication),
-        )
-        .route(
-            "/api/ltc/rehab",
-            get(long_term_care::list_rehab_progress).post(long_term_care::add_rehab_progress),
-        )
-        .route(
-            "/api/ltc/family-messages",
-            get(long_term_care::list_family_messages).post(long_term_care::post_family_message),
-        )
-        .route(
-            "/api/ltc/family-messages/{id}",
-            put(long_term_care::update_family_message),
-        )
-        .route(
-            "/api/ltc/readmission-risk",
-            get(long_term_care::list_readmission_risk)
-                .post(long_term_care::assess_readmission_risk),
-        )
-        .route(
-            "/api/ltc/referrals",
-            get(long_term_care::list_home_care_referrals)
-                .post(long_term_care::create_home_care_referral),
-        )
-        .route(
-            "/api/ltc/referrals/{id}",
-            put(long_term_care::update_home_care_referral),
-        )
-        .route(
-            "/api/ltc/snf-admissions",
-            get(long_term_care::list_snf_admissions).post(long_term_care::create_snf_admission),
-        )
-        .route(
-            "/api/ltc/snf-admissions/{id}",
-            put(long_term_care::update_snf_admission),
-        )
+        .merge(medbrains_specialty::router())
         .merge(medbrains_ancillary::router())
         // ── Home Healthcare — home medication administration (#2979) ──
         .route(
@@ -5186,28 +5127,6 @@ pub fn build_router(state: AppState) -> Router {
             "/api/security/debriefs/{id}",
             get(security::get_debrief),
         )
-        // ── Specialty Clinical: Ophthalmology ──
-        .route(
-            "/api/specialty/ophthalmology/exams",
-            get(specialty_ophtho::list_ophtho_exams).post(specialty_ophtho::create_ophtho_exam),
-        )
-        .route(
-            "/api/specialty/ophthalmology/exams/{id}",
-            get(specialty_ophtho::get_ophtho_exam).put(specialty_ophtho::update_ophtho_exam),
-        )
-        // ── Specialty Clinical: Dental ──
-        .route(
-            "/api/specialty/dental/exams",
-            get(specialty_dental::list_dental_exams).post(specialty_dental::create_dental_exam),
-        )
-        .route(
-            "/api/specialty/dental/exams/{id}",
-            get(specialty_dental::get_dental_exam).put(specialty_dental::update_dental_exam),
-        )
-        .route(
-            "/api/specialty/dental/exams/{exam_id}/chart",
-            get(specialty_dental::list_chart_entries).post(specialty_dental::create_chart_entry),
-        )
         // ── Specialty Clinical: Oncology depth (staging + radiation) ──
         .route(
             "/api/specialty/oncology/staging",
@@ -5278,88 +5197,6 @@ pub fn build_router(state: AppState) -> Router {
             "/api/specialty/endoscopy/procedures/{procedure_id}/biopsies",
             get(specialty_interventional::list_biopsy_specimens)
                 .post(specialty_interventional::create_biopsy_specimen),
-        )
-        // ── Specialty Clinical: Psychiatry ──
-        .route(
-            "/api/specialty/psychiatry/patients",
-            get(specialty_psychiatry::list_psych_patients)
-                .post(specialty_psychiatry::create_psych_patient),
-        )
-        .route(
-            "/api/specialty/psychiatry/patients/{id}",
-            get(specialty_psychiatry::get_psych_patient)
-                .put(specialty_psychiatry::update_psych_patient),
-        )
-        .route(
-            "/api/specialty/psychiatry/patients/{patient_id}/assessments",
-            get(specialty_psychiatry::list_assessments)
-                .post(specialty_psychiatry::create_assessment),
-        )
-        .route(
-            "/api/specialty/psychiatry/patients/{patient_id}/ect",
-            get(specialty_psychiatry::list_ect_sessions)
-                .post(specialty_psychiatry::create_ect_session),
-        )
-        .route(
-            "/api/specialty/psychiatry/patients/{patient_id}/restraints",
-            get(specialty_psychiatry::list_restraints)
-                .post(specialty_psychiatry::create_restraint),
-        )
-        .route(
-            "/api/specialty/psychiatry/restraints/{id}/release",
-            put(specialty_psychiatry::release_restraint),
-        )
-        .route(
-            "/api/specialty/psychiatry/patients/{patient_id}/mhrb",
-            get(specialty_psychiatry::list_mhrb_notifications)
-                .post(specialty_psychiatry::create_mhrb_notification),
-        )
-        .route(
-            "/api/specialty/psychiatry/mhrb/{id}",
-            put(specialty_psychiatry::update_mhrb_notification),
-        )
-        .route(
-            "/api/specialty/psychiatry/patients/{patient_id}/counseling",
-            get(specialty_psychiatry::list_counseling_sessions)
-                .post(specialty_psychiatry::create_counseling_session),
-        )
-        // ── Specialty Clinical: Maternity ──
-        .route(
-            "/api/specialty/maternity/registrations",
-            get(specialty_maternity::list_registrations)
-                .post(specialty_maternity::create_registration),
-        )
-        .route(
-            "/api/specialty/maternity/registrations/{id}",
-            get(specialty_maternity::get_registration),
-        )
-        .route(
-            "/api/specialty/maternity/registrations/{registration_id}/anc",
-            get(specialty_maternity::list_anc_visits)
-                .post(specialty_maternity::create_anc_visit),
-        )
-        .route(
-            "/api/specialty/maternity/registrations/{registration_id}/labor",
-            get(specialty_maternity::list_labor_records)
-                .post(specialty_maternity::create_labor_record),
-        )
-        .route(
-            "/api/specialty/maternity/labor/{id}",
-            put(specialty_maternity::update_labor_record),
-        )
-        .route(
-            "/api/specialty/maternity/labor/{labor_id}/newborns",
-            get(specialty_maternity::list_newborns)
-                .post(specialty_maternity::create_newborn),
-        )
-        .route(
-            "/api/specialty/maternity/newborns/{newborn_id}/verify-identity",
-            post(specialty_maternity::verify_newborn_identity),
-        )
-        .route(
-            "/api/specialty/maternity/registrations/{registration_id}/postnatal",
-            get(specialty_maternity::list_postnatal)
-                .post(specialty_maternity::create_postnatal),
         )
         // ── Specialty Clinical: PMR / Audiology ──
         .route(

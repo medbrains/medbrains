@@ -11,7 +11,7 @@ use medbrains_core::specialty::maternity::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -137,7 +137,7 @@ pub async fn list_registrations(
         &claims,
         permissions::specialty::maternity::registrations::LIST,
     )?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -169,7 +169,7 @@ pub async fn get_registration(
         &claims,
         permissions::specialty::maternity::registrations::LIST,
     )?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -195,7 +195,7 @@ pub async fn create_registration(
         &claims,
         permissions::specialty::maternity::registrations::CREATE,
     )?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -242,7 +242,7 @@ pub async fn list_anc_visits(
     Path(registration_id): Path<Uuid>,
 ) -> Result<Json<Vec<AncVisit>>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::anc::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -266,7 +266,7 @@ pub async fn create_anc_visit(
     Json(body): Json<CreateAncVisitRequest>,
 ) -> Result<Json<AncVisit>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::anc::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -317,7 +317,7 @@ pub async fn list_labor_records(
     Path(registration_id): Path<Uuid>,
 ) -> Result<Json<Vec<LaborRecord>>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::labor::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -341,7 +341,7 @@ pub async fn create_labor_record(
     Json(body): Json<CreateLaborRecordRequest>,
 ) -> Result<Json<LaborRecord>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::labor::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -376,7 +376,7 @@ pub async fn update_labor_record(
     Json(body): Json<UpdateLaborRecordRequest>,
 ) -> Result<Json<LaborRecord>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::labor::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -430,7 +430,7 @@ pub async fn list_newborns(
     Path(labor_id): Path<Uuid>,
 ) -> Result<Json<Vec<NewbornRecord>>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::newborn::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -461,7 +461,7 @@ pub async fn create_newborn(
     Json(body): Json<CreateNewbornRequest>,
 ) -> Result<Json<CreateNewbornResponse>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::newborn::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -559,7 +559,7 @@ pub async fn verify_newborn_identity(
     Json(body): Json<VerifyNewbornIdentityRequest>,
 ) -> Result<Json<VerifyNewbornIdentityResult>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::newborn::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -605,7 +605,7 @@ pub async fn list_postnatal(
     Path(registration_id): Path<Uuid>,
 ) -> Result<Json<Vec<PostnatalRecord>>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::newborn::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -630,7 +630,7 @@ pub async fn create_postnatal(
     Json(body): Json<CreatePostnatalRequest>,
 ) -> Result<Json<PostnatalRecord>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::newborn::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

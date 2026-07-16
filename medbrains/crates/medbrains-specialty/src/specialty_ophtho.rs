@@ -9,10 +9,10 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::error::AppError;
-use crate::middleware::auth::Claims;
-use crate::middleware::authorization::require_permission;
-use crate::state::AppState;
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 #[derive(Debug, Deserialize)]
 pub struct ListExamsQuery {
@@ -27,7 +27,7 @@ pub async fn list_ophtho_exams(
     Query(q): Query<ListExamsQuery>,
 ) -> Result<Json<Vec<OphthoExam>>, AppError> {
     require_permission(&claims, permissions::specialty::ophthalmology::exams::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "ophthalmology",
@@ -59,7 +59,7 @@ pub async fn get_ophtho_exam(
     Path(id): Path<Uuid>,
 ) -> Result<Json<OphthoExam>, AppError> {
     require_permission(&claims, permissions::specialty::ophthalmology::exams::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "ophthalmology",
@@ -107,7 +107,7 @@ pub async fn create_ophtho_exam(
     Json(body): Json<CreateExamRequest>,
 ) -> Result<Json<OphthoExam>, AppError> {
     require_permission(&claims, permissions::specialty::ophthalmology::exams::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "ophthalmology",
@@ -167,7 +167,7 @@ pub async fn update_ophtho_exam(
     Json(body): Json<UpdateExamRequest>,
 ) -> Result<Json<OphthoExam>, AppError> {
     require_permission(&claims, permissions::specialty::ophthalmology::exams::UPDATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "ophthalmology",

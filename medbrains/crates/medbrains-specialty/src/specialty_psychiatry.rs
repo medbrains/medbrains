@@ -12,7 +12,7 @@ use medbrains_core::specialty::psychiatry::{
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -123,7 +123,7 @@ pub async fn list_psych_patients(
     Query(params): Query<ListPsychPatientsQuery>,
 ) -> Result<Json<Vec<PsychPatient>>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::patients::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "psychiatry",
@@ -154,7 +154,7 @@ pub async fn get_psych_patient(
     Path(id): Path<Uuid>,
 ) -> Result<Json<PsychPatient>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::patients::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "psychiatry",
@@ -182,7 +182,7 @@ pub async fn create_psych_patient(
         &claims,
         permissions::specialty::psychiatry::patients::CREATE,
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "psychiatry",
@@ -228,7 +228,7 @@ pub async fn update_psych_patient(
         &claims,
         permissions::specialty::psychiatry::patients::UPDATE,
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "psychiatry",
@@ -277,7 +277,7 @@ pub async fn list_assessments(
         &claims,
         permissions::specialty::psychiatry::assessments::LIST,
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "psychiatry",
@@ -309,7 +309,7 @@ pub async fn create_assessment(
         &claims,
         permissions::specialty::psychiatry::assessments::CREATE,
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "psychiatry",
@@ -352,7 +352,7 @@ pub async fn list_ect_sessions(
     Path(psych_patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PsychEctRegister>>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::ect::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "psychiatry",
@@ -381,7 +381,7 @@ pub async fn create_ect_session(
     Json(body): Json<CreateEctRequest>,
 ) -> Result<Json<PsychEctRegister>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::ect::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "psychiatry",
@@ -450,7 +450,7 @@ pub async fn list_restraints(
     Path(psych_patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PsychSeclusionRestraint>>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::restraint::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "psychiatry",
@@ -500,7 +500,7 @@ pub async fn create_restraint(
         &claims,
         permissions::specialty::psychiatry::restraint::MANAGE,
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "psychiatry",
@@ -544,7 +544,7 @@ pub async fn release_restraint(
         &claims,
         permissions::specialty::psychiatry::restraint::MANAGE,
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "psychiatry",
@@ -578,7 +578,7 @@ pub async fn list_mhrb_notifications(
     Path(psych_patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PsychMhrbNotification>>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::mhrb::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "psychiatry",
@@ -607,7 +607,7 @@ pub async fn create_mhrb_notification(
     Json(body): Json<CreateMhrbNotificationRequest>,
 ) -> Result<Json<PsychMhrbNotification>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::mhrb::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "psychiatry",
@@ -642,7 +642,7 @@ pub async fn update_mhrb_notification(
     Json(body): Json<UpdateMhrbNotificationRequest>,
 ) -> Result<Json<PsychMhrbNotification>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::mhrb::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "psychiatry",
@@ -681,7 +681,7 @@ pub async fn list_counseling_sessions(
         &claims,
         permissions::specialty::psychiatry::assessments::LIST,
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "psychiatry",
@@ -713,7 +713,7 @@ pub async fn create_counseling_session(
         &claims,
         permissions::specialty::psychiatry::assessments::CREATE,
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "psychiatry",

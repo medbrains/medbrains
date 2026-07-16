@@ -8,10 +8,10 @@ use medbrains_core::specialty::dental::{DentalChartEntry, DentalExam};
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::error::AppError;
-use crate::middleware::auth::Claims;
-use crate::middleware::authorization::require_permission;
-use crate::state::AppState;
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 #[derive(Debug, Deserialize)]
 pub struct ListExamsQuery {
@@ -26,7 +26,7 @@ pub async fn list_dental_exams(
     Query(q): Query<ListExamsQuery>,
 ) -> Result<Json<Vec<DentalExam>>, AppError> {
     require_permission(&claims, permissions::specialty::dental::exams::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -54,7 +54,7 @@ pub async fn get_dental_exam(
     Path(id): Path<Uuid>,
 ) -> Result<Json<DentalExam>, AppError> {
     require_permission(&claims, permissions::specialty::dental::exams::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -87,7 +87,7 @@ pub async fn create_dental_exam(
     Json(body): Json<CreateExamRequest>,
 ) -> Result<Json<DentalExam>, AppError> {
     require_permission(&claims, permissions::specialty::dental::exams::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -128,7 +128,7 @@ pub async fn update_dental_exam(
     Json(body): Json<UpdateExamRequest>,
 ) -> Result<Json<DentalExam>, AppError> {
     require_permission(&claims, permissions::specialty::dental::exams::UPDATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -160,7 +160,7 @@ pub async fn list_chart_entries(
     Path(exam_id): Path<Uuid>,
 ) -> Result<Json<Vec<DentalChartEntry>>, AppError> {
     require_permission(&claims, permissions::specialty::dental::chart::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -194,7 +194,7 @@ pub async fn create_chart_entry(
     Json(body): Json<CreateChartEntryRequest>,
 ) -> Result<Json<DentalChartEntry>, AppError> {
     require_permission(&claims, permissions::specialty::dental::chart::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
         .await?;
     if body.tooth_number.trim().is_empty() || body.condition.trim().is_empty() {
         return Err(AppError::BadRequest(
