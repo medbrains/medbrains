@@ -9,6 +9,7 @@ medbrains-db = { path = "../medbrains-db" }
 medbrains-crypto = { path = "../medbrains-crypto" }
 argon2 = { workspace = true }
 axum = { workspace = true }
+tokio = { workspace = true }
 sqlx = { workspace = true }
 url = { workspace = true }
 getrandom = { version = "0.3", features = ["std"] }
