@@ -209,9 +209,16 @@ if [[ -d "$migrations_dir" ]]; then
   fi
 fi
 
+# Parallel rustc front-end: cargo already parallelizes across crates, but
+# `medbrains-server` is one ~226k-line crate whose front-end (parse/typeck/borrowck/
+# MIR) is the serial bottleneck on stable. `-Zthreads` multi-threads it. RUSTC_BOOTSTRAP=1
+# unlocks the flag on the *pinned stable* compiler (same codegen as CI, just threaded),
+# so we don't drift onto nightly. Opt out with MB_RUSTC_THREADS=1; tune with e.g. =10.
+MB_RUSTC_THREADS="${MB_RUSTC_THREADS:-8}"
 if [[ "$SKIP_BACKEND_BUILD" != "true" || "$backend_needs_build" == "true" || ! -x "$BACKEND_BIN" ]]; then
-  echo "Compiling backend before launch..."
-  cargo build -p medbrains-server --bin medbrains-server
+  echo "Compiling backend before launch (parallel front-end: ${MB_RUSTC_THREADS} threads)..."
+  RUSTC_BOOTSTRAP=1 RUSTFLAGS="${RUSTFLAGS:-} -Zthreads=${MB_RUSTC_THREADS}" \
+    cargo build -p medbrains-server --bin medbrains-server
 fi
 
 echo "Compiling Pingora proxy before launch..."
