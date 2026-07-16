@@ -6,6 +6,7 @@
 
 pub mod config;
 pub mod error;
+pub mod permissions;
 pub mod s3_presign;
 pub mod signing;
 pub mod validation;
