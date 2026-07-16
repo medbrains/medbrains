@@ -28,7 +28,6 @@ pub mod devices;
 pub mod doctor_packages;
 pub mod documents_render;
 pub mod email_verification;
-pub mod emergency;
 pub mod fhir;
 pub mod health;
 pub mod hr;
@@ -3225,82 +3224,7 @@ pub fn build_router(state: AppState) -> Router {
             get(blood_bank::get_sbtc_report),
         )
         .merge(medbrains_cssd::router())
-        // ── Emergency ──────────────────────────────────────
-        .route(
-            "/api/emergency/visits",
-            get(emergency::list_visits).post(emergency::create_visit),
-        )
-        .route(
-            "/api/emergency/visits/{id}",
-            get(emergency::get_visit).put(emergency::update_visit),
-        )
-        .route(
-            "/api/emergency/bays",
-            get(emergency::list_bays).post(emergency::create_bay),
-        )
-        .route("/api/emergency/bays/{id}", put(emergency::update_bay))
-        .route(
-            "/api/emergency/visits/{id}/discharge-summary",
-            get(emergency::get_discharge_summary)
-                .post(emergency::create_discharge_summary)
-                .put(emergency::update_discharge_summary),
-        )
-        .route(
-            "/api/emergency/visits/{id}/discharge-summary/finalize",
-            post(emergency::finalize_discharge_summary),
-        )
-        .route(
-            "/api/emergency/visits/{visit_id}/triage",
-            get(emergency::list_triage).post(emergency::create_triage),
-        )
-        .route(
-            "/api/emergency/visits/{visit_id}/observation-notes",
-            get(emergency::list_observation_notes).post(emergency::create_observation_note),
-        )
-        .route(
-            "/api/emergency/visits/{visit_id}/resuscitation",
-            get(emergency::list_resuscitation_logs).post(emergency::create_resuscitation_log),
-        )
-        .route(
-            "/api/emergency/codes",
-            get(emergency::list_code_activations).post(emergency::create_code_activation),
-        )
-        .route(
-            "/api/emergency/codes/{id}/deactivate",
-            put(emergency::deactivate_code),
-        )
-        .route(
-            "/api/emergency/mlc",
-            get(emergency::list_mlc_cases).post(emergency::create_mlc_case),
-        )
-        .route(
-            "/api/emergency/mlc/{id}",
-            put(emergency::update_mlc_case),
-        )
-        .route(
-            "/api/emergency/mlc/{mlc_id}/documents",
-            get(emergency::list_mlc_documents).post(emergency::create_mlc_document),
-        )
-        .route(
-            "/api/emergency/mlc/{mlc_id}/police-intimations",
-            get(emergency::list_police_intimations).post(emergency::create_police_intimation),
-        )
-        .route(
-            "/api/emergency/mlc/police-intimations/{id}/confirm",
-            put(emergency::confirm_police_receipt),
-        )
-        .route(
-            "/api/emergency/mass-casualty",
-            get(emergency::list_mass_casualty_events).post(emergency::create_mass_casualty_event),
-        )
-        .route(
-            "/api/emergency/mass-casualty/{id}",
-            put(emergency::update_mass_casualty_event),
-        )
-        .route(
-            "/api/emergency/visits/{id}/admit",
-            post(emergency::admit_from_er),
-        )
+        .merge(medbrains_emergency::router())
         .merge(medbrains_diet::router())
         // ── HR & Staff Management ───────────────────────────
         .route(

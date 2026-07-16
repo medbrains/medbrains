@@ -19,6 +19,7 @@ medbrains-ambulance = { path = "../medbrains-ambulance" }
 medbrains-microsite = { path = "../medbrains-microsite" }
 medbrains-home-health = { path = "../medbrains-home-health" }
 medbrains-diet = { path = "../medbrains-diet" }
+medbrains-emergency = { path = "../medbrains-emergency" }
 medbrains-clinical-scores = { path = "../medbrains-clinical-scores" }
 medbrains-clinical-ops = { path = "../medbrains-clinical-ops" }
 medbrains-identity = { path = "../medbrains-identity" }

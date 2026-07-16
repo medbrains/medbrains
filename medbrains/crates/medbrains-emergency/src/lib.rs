@@ -16,15 +16,12 @@ use medbrains_core::privacy::{mask_free_text, mask_identifier_keep_last, mask_na
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{
-    error::AppError,
-    middleware::{
-        auth::Claims,
-        authorization::{is_bypass_role, require_any_permission, require_permission},
-        field_access,
-    },
-    state::AppState,
-};
+use axum::routing::{get,post,put};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::{is_bypass_role, require_any_permission, require_permission};
+use medbrains_server_core::middleware::field_access;
+use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
 //  Request types
@@ -591,7 +588,7 @@ async fn auto_create_mlc_case_for_visit(
             }),
         )
         .with_patient(patient_id);
-        crate::events::queue_clinical_event_in_tx(tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(tx, &event).await?;
     }
 
     Ok(())
@@ -617,7 +614,7 @@ pub async fn list_visits(
             permissions::emergency::resuscitation::CREATE,
         ],
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -672,7 +669,7 @@ pub async fn get_visit(
             permissions::emergency::mlc_police_intimations::REPRINT,
         ],
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -696,7 +693,7 @@ pub async fn create_visit(
     Json(body): Json<CreateVisitRequest>,
 ) -> Result<Json<ErVisit>, AppError> {
     require_permission(&claims, permissions::emergency::visits::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -784,14 +781,14 @@ pub async fn create_visit(
     .await?;
 
     // Auto-bill ER consultation charge
-    if super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "emergency")
+    if medbrains_server_services::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "emergency")
         .await
         .unwrap_or(false)
     {
-        let _ = super::billing::auto_charge(
+        let _ = medbrains_server_services::billing::auto_charge(
             &mut tx,
             &claims.tenant_id,
-            super::billing::AutoChargeInput {
+            medbrains_server_services::billing::AutoChargeInput {
                 patient_id: row.patient_id,
                 encounter_id: Some(encounter_id),
                 charge_code: "CON_EMERGENCY".to_owned(),
@@ -825,7 +822,7 @@ pub async fn create_visit(
         }),
     )
     .with_patient(row.patient_id);
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -838,7 +835,7 @@ pub async fn update_visit(
     Json(body): Json<UpdateVisitRequest>,
 ) -> Result<Json<ErVisit>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -900,7 +897,7 @@ pub async fn list_triage(
             permissions::emergency::triage::CREATE,
         ],
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -926,7 +923,7 @@ pub async fn create_triage(
     Json(body): Json<CreateTriageRequest>,
 ) -> Result<Json<ErTriageAssessment>, AppError> {
     require_permission(&claims, permissions::emergency::triage::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -1032,7 +1029,7 @@ pub async fn list_resuscitation_logs(
             permissions::emergency::resuscitation::CREATE,
         ],
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -1058,7 +1055,7 @@ pub async fn create_resuscitation_log(
     Json(body): Json<CreateResuscitationLogRequest>,
 ) -> Result<Json<ErResuscitationLog>, AppError> {
     require_permission(&claims, permissions::emergency::resuscitation::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -1185,7 +1182,7 @@ pub async fn list_code_activations(
             permissions::emergency::codes::UPDATE,
         ],
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -1209,7 +1206,7 @@ pub async fn create_code_activation(
     Json(body): Json<CreateCodeActivationRequest>,
 ) -> Result<Json<ErCodeActivation>, AppError> {
     require_permission(&claims, permissions::emergency::codes::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -1319,7 +1316,7 @@ pub async fn create_code_activation(
         if let Err(e) = state
             .authz
             .write_tuple(
-                &crate::middleware::authorization::authz_context(&claims),
+                &medbrains_server_core::middleware::authorization::authz_context(&claims),
                 "access_group",
                 gid,
                 medbrains_authz::Relation::Viewer, // mapped to "member" via relation_to_relname
@@ -1344,7 +1341,7 @@ pub async fn deactivate_code(
     Json(body): Json<DeactivateCodeRequest>,
 ) -> Result<Json<ErCodeActivation>, AppError> {
     require_permission(&claims, permissions::emergency::codes::UPDATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -1425,7 +1422,7 @@ pub async fn list_mlc_cases(
             permissions::emergency::mlc_police_intimations::REPRINT,
         ],
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -1460,7 +1457,7 @@ pub async fn create_mlc_case(
     Json(body): Json<CreateMlcCaseRequest>,
 ) -> Result<Json<MlcCase>, AppError> {
     require_permission(&claims, permissions::emergency::mlc::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -1581,7 +1578,7 @@ pub async fn create_mlc_case(
         }),
     )
     .with_patient(row.patient_id);
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     tx.commit().await?;
     Ok(Json(filter_mlc_case_response(row, &restricted_fields)))
 }
@@ -1593,7 +1590,7 @@ pub async fn update_mlc_case(
     Json(body): Json<UpdateMlcCaseRequest>,
 ) -> Result<Json<MlcCase>, AppError> {
     require_permission(&claims, permissions::emergency::mlc::UPDATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -1731,7 +1728,7 @@ pub async fn list_mlc_documents(
             permissions::emergency::mlc_documents::COURT_SUMMONS_CREATE,
         ],
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -1769,7 +1766,7 @@ pub async fn create_mlc_document(
 ) -> Result<Json<MlcDocument>, AppError> {
     let required_permission = mlc_document_create_permission(&body.document_type)?;
     require_permission(&claims, required_permission)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -1845,7 +1842,7 @@ pub async fn list_police_intimations(
             permissions::emergency::mlc_police_intimations::REPRINT,
         ],
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -1885,7 +1882,7 @@ pub async fn create_police_intimation(
         &claims,
         permissions::emergency::mlc_police_intimations::CREATE,
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -1954,7 +1951,7 @@ pub async fn create_police_intimation(
         }),
     )
     .with_patient(patient_id);
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     tx.commit().await?;
     Ok(Json(filter_mlc_police_intimation_response(
         row,
@@ -1972,7 +1969,7 @@ pub async fn confirm_police_receipt(
         &claims,
         permissions::emergency::mlc_police_intimations::CONFIRM,
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -2036,7 +2033,7 @@ pub async fn list_mass_casualty_events(
             permissions::emergency::mass_casualty::CLOSE,
         ],
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -2060,7 +2057,7 @@ pub async fn create_mass_casualty_event(
     Json(body): Json<CreateMassCasualtyEventRequest>,
 ) -> Result<Json<MassCasualtyEvent>, AppError> {
     require_permission(&claims, permissions::emergency::mass_casualty::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -2105,7 +2102,7 @@ pub async fn update_mass_casualty_event(
             ));
         }
     }
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -2154,7 +2151,7 @@ pub async fn admit_from_er(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
     require_permission(&claims, permissions::ipd::admissions::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -2267,7 +2264,7 @@ pub async fn admit_from_er(
     let admission_ward_id = bed_ward_id.or(body.ward_id);
 
     let encounter_date =
-        crate::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
+        medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
     let encounter_id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO encounters \
          (tenant_id, patient_id, encounter_type, status, doctor_id, encounter_date, notes, attributes) \
@@ -2370,7 +2367,7 @@ pub async fn admit_from_er(
     .with_patient(visit.patient_id)
     .with_admission(admission_id)
     .with_encounter(encounter_id);
-    crate::events::queue_clinical_event_in_tx(&mut tx, &admission_event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &admission_event).await?;
 
     let bed_event = ClinicalEventEnvelope::new(
         claims.tenant_id,
@@ -2390,7 +2387,7 @@ pub async fn admit_from_er(
     .with_patient(visit.patient_id)
     .with_admission(admission_id)
     .with_encounter(encounter_id);
-    crate::events::queue_clinical_event_in_tx(&mut tx, &bed_event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &bed_event).await?;
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({
@@ -2426,7 +2423,7 @@ pub async fn get_discharge_summary(
     Path(er_visit_id): Path<Uuid>,
 ) -> Result<Json<Option<ErDischargeSummary>>, AppError> {
     require_permission(&claims, permissions::emergency::visits::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -2455,7 +2452,7 @@ pub async fn create_discharge_summary(
     Json(body): Json<ErDischargeSummaryRequest>,
 ) -> Result<Json<ErDischargeSummary>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -2497,7 +2494,7 @@ pub async fn update_discharge_summary(
     Json(body): Json<ErDischargeSummaryRequest>,
 ) -> Result<Json<ErDischargeSummary>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -2541,7 +2538,7 @@ pub async fn finalize_discharge_summary(
     Path(er_visit_id): Path<Uuid>,
 ) -> Result<Json<ErDischargeSummary>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -2594,7 +2591,7 @@ pub async fn list_observation_notes(
     Path(visit_id): Path<Uuid>,
 ) -> Result<Json<Vec<ErObservationNote>>, AppError> {
     require_permission(&claims, permissions::emergency::visits::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -2621,7 +2618,7 @@ pub async fn create_observation_note(
     Json(body): Json<CreateObservationNoteRequest>,
 ) -> Result<Json<ErObservationNote>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -2690,7 +2687,7 @@ pub async fn list_bays(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<ErBay>>, AppError> {
     require_permission(&claims, permissions::emergency::visits::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -2714,7 +2711,7 @@ pub async fn create_bay(
     Json(body): Json<ErBayRequest>,
 ) -> Result<Json<ErBay>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -2753,7 +2750,7 @@ pub async fn update_bay(
     Json(body): Json<ErBayRequest>,
 ) -> Result<Json<ErBay>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "emergency",
@@ -2780,4 +2777,84 @@ pub async fn update_bay(
     .ok_or(AppError::NotFound)?;
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// Emergency department (triage, ER register, MLC, disaster) routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/emergency/visits",
+            get(list_visits).post(create_visit),
+        )
+        .route(
+            "/api/emergency/visits/{id}",
+            get(get_visit).put(update_visit),
+        )
+        .route(
+            "/api/emergency/bays",
+            get(list_bays).post(create_bay),
+        )
+        .route("/api/emergency/bays/{id}", put(update_bay))
+        .route(
+            "/api/emergency/visits/{id}/discharge-summary",
+            get(get_discharge_summary)
+                .post(create_discharge_summary)
+                .put(update_discharge_summary),
+        )
+        .route(
+            "/api/emergency/visits/{id}/discharge-summary/finalize",
+            post(finalize_discharge_summary),
+        )
+        .route(
+            "/api/emergency/visits/{visit_id}/triage",
+            get(list_triage).post(create_triage),
+        )
+        .route(
+            "/api/emergency/visits/{visit_id}/observation-notes",
+            get(list_observation_notes).post(create_observation_note),
+        )
+        .route(
+            "/api/emergency/visits/{visit_id}/resuscitation",
+            get(list_resuscitation_logs).post(create_resuscitation_log),
+        )
+        .route(
+            "/api/emergency/codes",
+            get(list_code_activations).post(create_code_activation),
+        )
+        .route(
+            "/api/emergency/codes/{id}/deactivate",
+            put(deactivate_code),
+        )
+        .route(
+            "/api/emergency/mlc",
+            get(list_mlc_cases).post(create_mlc_case),
+        )
+        .route(
+            "/api/emergency/mlc/{id}",
+            put(update_mlc_case),
+        )
+        .route(
+            "/api/emergency/mlc/{mlc_id}/documents",
+            get(list_mlc_documents).post(create_mlc_document),
+        )
+        .route(
+            "/api/emergency/mlc/{mlc_id}/police-intimations",
+            get(list_police_intimations).post(create_police_intimation),
+        )
+        .route(
+            "/api/emergency/mlc/police-intimations/{id}/confirm",
+            put(confirm_police_receipt),
+        )
+        .route(
+            "/api/emergency/mass-casualty",
+            get(list_mass_casualty_events).post(create_mass_casualty_event),
+        )
+        .route(
+            "/api/emergency/mass-casualty/{id}",
+            put(update_mass_casualty_event),
+        )
+        .route(
+            "/api/emergency/visits/{id}/admit",
+            post(admit_from_er),
+        )
 }
