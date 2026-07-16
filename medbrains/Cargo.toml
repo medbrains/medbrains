@@ -21,6 +21,7 @@ members = [
     "crates/medbrains-offline-core",
     "crates/medbrains-seed",
     "crates/medbrains-server-core",
+    "crates/medbrains-server-services",
     "crates/medbrains-clinical-scores",
     "crates/medbrains-clinical-ops",
     "crates/medbrains-identity",
