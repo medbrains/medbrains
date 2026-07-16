@@ -5,7 +5,6 @@ pub mod vte;
 pub mod admin;
 pub mod admin_simulator;
 pub mod ai;
-pub mod ambulance;
 pub mod analytics;
 pub mod appointments;
 pub mod assets;
@@ -22,12 +21,10 @@ pub mod cms;
 pub mod communications;
 pub mod consent;
 pub mod coverage;
-pub mod cssd;
 pub mod dashboard;
 pub mod debug;
 pub mod device_pairing;
 pub mod devices;
-pub mod diet;
 pub mod doctor_packages;
 pub mod documents_render;
 pub mod email_verification;
@@ -58,6 +55,8 @@ pub mod nhcx_callback;
 pub mod nhcx_onboarding;
 pub use medbrains_server_core::notifications;
 pub use medbrains_identity::sso;
+// order_basket reaches diet's order-creation helper via super::diet
+pub use medbrains_diet as diet;
 pub mod oauth;
 pub mod onboarding;
 pub mod opd;
@@ -100,8 +99,6 @@ pub mod setup;
 pub mod sso_login;
 pub mod step_up;
 pub mod case_sheet_scan;
-pub mod home_health;
-pub mod microsite;
 pub mod vpn;
 pub mod ward_stock;
 pub mod sharing;
@@ -2708,126 +2705,10 @@ pub fn build_router(state: AppState) -> Router {
             get(ipd::list_ward_beds).post(ipd::assign_bed_to_ward),
         )
         .route("/api/ipd/wards/{id}/on-duty", get(ipd::ward_on_duty))
-        // ── Hospital micro-site — health packages (#2953) ──
-        .route(
-            "/api/microsite/packages",
-            get(microsite::list_health_packages).post(microsite::create_health_package),
-        )
-        .route(
-            "/api/microsite/packages/{id}",
-            put(microsite::update_health_package).delete(microsite::delete_health_package),
-        )
-        .route(
-            "/api/microsite/packages/{id}/book",
-            post(microsite::book_health_package),
-        )
-        .route(
-            "/api/microsite/testimonials",
-            get(microsite::list_testimonials).post(microsite::create_testimonial),
-        )
-        .route(
-            "/api/microsite/testimonials/{id}",
-            put(microsite::moderate_testimonial),
-        )
-        .route(
-            "/api/microsite/seo",
-            get(microsite::list_seo_settings).post(microsite::upsert_seo_setting),
-        )
-        .route(
-            "/api/microsite/domains",
-            get(microsite::list_site_domains).post(microsite::add_site_domain),
-        )
-        .route(
-            "/api/microsite/domains/{id}/verify",
-            post(microsite::verify_site_domain),
-        )
-        .route(
-            "/api/microsite/config",
-            get(microsite::get_microsite_config).put(microsite::update_microsite_config),
-        )
+        .merge(medbrains_microsite::router())
         .merge(medbrains_specialty::router())
         .merge(medbrains_ancillary::router())
-        // ── Home Healthcare — home medication administration (#2979) ──
-        .route(
-            "/api/home-health/medications",
-            get(home_health::list_home_meds).post(home_health::schedule_home_med),
-        )
-        .route(
-            "/api/home-health/medications/{id}",
-            put(home_health::record_home_med),
-        )
-        .route(
-            "/api/home-health/escalations",
-            get(home_health::list_escalations).post(home_health::raise_escalation),
-        )
-        .route(
-            "/api/home-health/escalations/{id}",
-            put(home_health::update_escalation),
-        )
-        .route(
-            "/api/home-health/progress-notes",
-            get(home_health::list_progress_notes).post(home_health::add_progress_note),
-        )
-        .route(
-            "/api/home-health/discharge-program",
-            get(home_health::list_discharge_program).post(home_health::add_discharge_item),
-        )
-        .route(
-            "/api/home-health/discharge-program/{id}",
-            put(home_health::toggle_discharge_item),
-        )
-        .route(
-            "/api/home-health/visits",
-            get(home_health::list_home_visits).post(home_health::schedule_home_visit),
-        )
-        .route(
-            "/api/home-visits/{id}",
-            put(home_health::update_home_visit),
-        )
-        .route(
-            "/api/home-visits/{id}/document",
-            put(home_health::document_home_visit),
-        )
-        .route(
-            "/api/home-health/remote-vitals",
-            get(home_health::list_remote_vitals).post(home_health::ingest_remote_vital),
-        )
-        .route(
-            "/api/home-health/packages",
-            get(home_health::list_home_care_packages).post(home_health::create_home_care_package),
-        )
-        .route(
-            "/api/home-health/packages/{id}/consume",
-            post(home_health::consume_package_visit),
-        )
-        .route(
-            "/api/home-visits/{id}/bill",
-            post(home_health::bill_home_visit),
-        )
-        .route(
-            "/api/home-health/caregiver-education",
-            get(home_health::list_caregiver_education)
-                .post(home_health::record_caregiver_education),
-        )
-        .route(
-            "/api/home-health/hospice",
-            get(home_health::list_hospice_enrollments).post(home_health::enroll_hospice),
-        )
-        .route("/api/hospice/{id}", put(home_health::update_hospice))
-        .route(
-            "/api/home-health/advance-directives",
-            get(home_health::list_advance_directives)
-                .post(home_health::create_advance_directive),
-        )
-        .route(
-            "/api/advance-directives/{id}/revoke",
-            post(home_health::revoke_advance_directive),
-        )
-        .route(
-            "/api/home-health/bereavement",
-            get(home_health::list_bereavement).post(home_health::schedule_bereavement),
-        )
-        .route("/api/bereavement/{id}", put(home_health::update_bereavement))
+        .merge(medbrains_home_health::router())
         // ── Case-sheet digitization (B2 ingestion) ──
         .route(
             "/api/case-sheets/scans",
@@ -3343,63 +3224,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/blood-bank/sbtc-report",
             get(blood_bank::get_sbtc_report),
         )
-        // ── CSSD ──────────────────────────────────────────
-        .route(
-            "/api/cssd/instruments",
-            get(cssd::list_instruments).post(cssd::create_instrument),
-        )
-        .route(
-            "/api/cssd/instruments/{id}",
-            put(cssd::update_instrument),
-        )
-        .route(
-            "/api/cssd/sets",
-            get(cssd::list_sets).post(cssd::create_set),
-        )
-        .route(
-            "/api/cssd/sets/{set_id}/items",
-            get(cssd::get_set_items),
-        )
-        .route(
-            "/api/cssd/sterilizers",
-            get(cssd::list_sterilizers).post(cssd::create_sterilizer),
-        )
-        .route(
-            "/api/cssd/sterilizers/{id}",
-            put(cssd::update_sterilizer),
-        )
-        .route(
-            "/api/cssd/sterilizers/{id}/maintenance",
-            get(cssd::list_maintenance_logs).post(cssd::create_maintenance_log),
-        )
-        .route(
-            "/api/cssd/loads",
-            get(cssd::list_loads).post(cssd::create_load),
-        )
-        .route(
-            "/api/cssd/loads/{id}/status",
-            put(cssd::update_load_status),
-        )
-        .route(
-            "/api/cssd/loads/{id}/items",
-            post(cssd::add_load_item),
-        )
-        .route(
-            "/api/cssd/loads/{id}/indicators",
-            get(cssd::list_indicators).post(cssd::record_indicator),
-        )
-        .route(
-            "/api/cssd/issuances",
-            get(cssd::list_issuances).post(cssd::create_issuance),
-        )
-        .route(
-            "/api/cssd/issuances/{id}/return",
-            put(cssd::return_issuance),
-        )
-        .route(
-            "/api/cssd/issuances/{id}/recall",
-            put(cssd::recall_issuance),
-        )
+        .merge(medbrains_cssd::router())
         // ── Emergency ──────────────────────────────────────
         .route(
             "/api/emergency/visits",
@@ -3476,55 +3301,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/emergency/visits/{id}/admit",
             post(emergency::admit_from_er),
         )
-        // ── Diet & Kitchen ──────────────────────────────────
-        .route(
-            "/api/diet/templates",
-            get(diet::list_templates).post(diet::create_template),
-        )
-        .route(
-            "/api/diet/templates/{id}",
-            put(diet::update_template),
-        )
-        .route(
-            "/api/diet/orders",
-            get(diet::list_diet_orders).post(diet::create_diet_order),
-        )
-        .route(
-            "/api/diet/orders/{id}",
-            put(diet::update_diet_order),
-        )
-        .route(
-            "/api/diet/menus",
-            get(diet::list_menus).post(diet::create_menu),
-        )
-        .route(
-            "/api/diet/menus/{menu_id}/items",
-            get(diet::list_menu_items).post(diet::create_menu_item),
-        )
-        .route(
-            "/api/diet/meal-preps",
-            get(diet::list_meal_preps).post(diet::create_meal_prep),
-        )
-        .route(
-            "/api/diet/meal-preps/{id}/status",
-            put(diet::update_meal_prep_status),
-        )
-        .route(
-            "/api/diet/meal-counts",
-            get(diet::list_meal_counts).post(diet::create_meal_count),
-        )
-        .route(
-            "/api/diet/inventory",
-            get(diet::list_inventory).post(diet::create_inventory_item),
-        )
-        .route(
-            "/api/diet/inventory/{id}",
-            put(diet::update_inventory_item),
-        )
-        .route(
-            "/api/diet/audits",
-            get(diet::list_audits).post(diet::create_audit),
-        )
+        .merge(medbrains_diet::router())
         // ── HR & Staff Management ───────────────────────────
         .route(
             "/api/hr/designations",
@@ -4071,51 +3848,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/camp/camps/{id}/report",
             get(camp::camp_report),
         )
-        // ── Ambulance Fleet Management ────────────────────────
-        .route(
-            "/api/ambulance/fleet",
-            get(ambulance::list_ambulances).post(ambulance::create_ambulance),
-        )
-        .route(
-            "/api/ambulance/fleet/{id}",
-            get(ambulance::get_ambulance).put(ambulance::update_ambulance),
-        )
-        .route(
-            "/api/ambulance/fleet/{id}/location",
-            put(ambulance::update_ambulance_location),
-        )
-        .route(
-            "/api/ambulance/drivers",
-            get(ambulance::list_drivers).post(ambulance::create_driver),
-        )
-        .route(
-            "/api/ambulance/drivers/{id}",
-            put(ambulance::update_driver),
-        )
-        .route(
-            "/api/ambulance/trips",
-            get(ambulance::list_trips).post(ambulance::create_trip),
-        )
-        .route(
-            "/api/ambulance/trips/{id}",
-            get(ambulance::get_trip).put(ambulance::update_trip),
-        )
-        .route(
-            "/api/ambulance/trips/{id}/status",
-            put(ambulance::update_trip_status),
-        )
-        .route(
-            "/api/ambulance/trips/{trip_id}/logs",
-            get(ambulance::list_trip_logs).post(ambulance::add_trip_log),
-        )
-        .route(
-            "/api/ambulance/maintenance",
-            get(ambulance::list_maintenance).post(ambulance::create_maintenance),
-        )
-        .route(
-            "/api/ambulance/maintenance/{id}",
-            put(ambulance::update_maintenance),
-        )
+        .merge(medbrains_ambulance::router())
         .merge(medbrains_care_mgmt::router())
         // ── Communication Hub ─────────────────────────────────
         .route(

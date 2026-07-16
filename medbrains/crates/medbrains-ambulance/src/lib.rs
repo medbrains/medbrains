@@ -13,10 +13,11 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use axum::routing::{get,put};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Query types
@@ -766,14 +767,14 @@ pub async fn update_trip_status(
     // Auto-bill ambulance transport on trip completion (if billable)
     if body.status == "completed" && row.is_billable {
         if let Some(patient_id) = row.patient_id {
-            if super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "ambulance")
+            if medbrains_server_services::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "ambulance")
                 .await
                 .unwrap_or(false)
             {
                 let encounter_id = row.er_visit_id.unwrap_or(row.id);
-                let _ = super::billing::create_service_charge(
+                let _ = medbrains_server_services::billing::create_service_charge(
                     &mut tx,
-                    super::billing::ServiceChargeInput {
+                    medbrains_server_services::billing::ServiceChargeInput {
                         tenant_id: claims.tenant_id,
                         patient_id,
                         encounter_id,
@@ -962,4 +963,53 @@ pub async fn update_maintenance(
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// Ambulance / EMS routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/ambulance/fleet",
+            get(list_ambulances).post(create_ambulance),
+        )
+        .route(
+            "/api/ambulance/fleet/{id}",
+            get(get_ambulance).put(update_ambulance),
+        )
+        .route(
+            "/api/ambulance/fleet/{id}/location",
+            put(update_ambulance_location),
+        )
+        .route(
+            "/api/ambulance/drivers",
+            get(list_drivers).post(create_driver),
+        )
+        .route(
+            "/api/ambulance/drivers/{id}",
+            put(update_driver),
+        )
+        .route(
+            "/api/ambulance/trips",
+            get(list_trips).post(create_trip),
+        )
+        .route(
+            "/api/ambulance/trips/{id}",
+            get(get_trip).put(update_trip),
+        )
+        .route(
+            "/api/ambulance/trips/{id}/status",
+            put(update_trip_status),
+        )
+        .route(
+            "/api/ambulance/trips/{trip_id}/logs",
+            get(list_trip_logs).post(add_trip_log),
+        )
+        .route(
+            "/api/ambulance/maintenance",
+            get(list_maintenance).post(create_maintenance),
+        )
+        .route(
+            "/api/ambulance/maintenance/{id}",
+            put(update_maintenance),
+        )
 }

@@ -12,10 +12,11 @@ use medbrains_core::permissions;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use axum::routing::{get,put};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
 //  Request types
@@ -182,7 +183,7 @@ pub async fn list_templates(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<DietTemplate>>, AppError> {
     require_permission(&claims, permissions::diet::templates::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -203,7 +204,7 @@ pub async fn create_template(
     Json(body): Json<CreateTemplateRequest>,
 ) -> Result<Json<DietTemplate>, AppError> {
     require_permission(&claims, permissions::diet::templates::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -240,7 +241,7 @@ pub async fn update_template(
     Json(body): Json<UpdateTemplateRequest>,
 ) -> Result<Json<DietTemplate>, AppError> {
     require_permission(&claims, permissions::diet::templates::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -293,7 +294,7 @@ pub async fn list_diet_orders(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<DietOrder>>, AppError> {
     require_permission(&claims, permissions::diet::orders::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -315,7 +316,7 @@ pub async fn create_diet_order(
     Json(body): Json<CreateDietOrderRequest>,
 ) -> Result<Json<DietOrder>, AppError> {
     require_permission(&claims, permissions::diet::orders::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -381,14 +382,14 @@ pub async fn create_diet_order_in_tx(
     .await?;
 
     // Auto-bill diet order (best-effort, swallowed on failure)
-    if super::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "diet")
+    if medbrains_server_services::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "diet")
         .await
         .unwrap_or(false)
     {
         let encounter_id = row.admission_id.unwrap_or(row.id);
-        let _ = super::billing::create_service_charge(
+        let _ = medbrains_server_services::billing::create_service_charge(
             tx,
-            super::billing::ServiceChargeInput {
+            medbrains_server_services::billing::ServiceChargeInput {
                 tenant_id: claims.tenant_id,
                 patient_id: row.patient_id,
                 encounter_id,
@@ -412,7 +413,7 @@ pub async fn update_diet_order(
     Json(body): Json<UpdateDietOrderRequest>,
 ) -> Result<Json<DietOrder>, AppError> {
     require_permission(&claims, permissions::diet::orders::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -457,7 +458,7 @@ pub async fn list_menus(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<KitchenMenu>>, AppError> {
     require_permission(&claims, permissions::diet::kitchen::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -479,7 +480,7 @@ pub async fn create_menu(
     Json(body): Json<CreateMenuRequest>,
 ) -> Result<Json<KitchenMenu>, AppError> {
     require_permission(&claims, permissions::diet::kitchen::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -509,7 +510,7 @@ pub async fn list_menu_items(
     Path(menu_id): Path<Uuid>,
 ) -> Result<Json<Vec<KitchenMenuItem>>, AppError> {
     require_permission(&claims, permissions::diet::kitchen::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -533,7 +534,7 @@ pub async fn create_menu_item(
     Json(body): Json<CreateMenuItemRequest>,
 ) -> Result<Json<KitchenMenuItem>, AppError> {
     require_permission(&claims, permissions::diet::kitchen::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -573,7 +574,7 @@ pub async fn list_meal_preps(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<MealPreparation>>, AppError> {
     require_permission(&claims, permissions::diet::kitchen::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -595,7 +596,7 @@ pub async fn create_meal_prep(
     Json(body): Json<CreateMealPrepRequest>,
 ) -> Result<Json<MealPreparation>, AppError> {
     require_permission(&claims, permissions::diet::kitchen::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -624,7 +625,7 @@ pub async fn update_meal_prep_status(
     Json(body): Json<UpdateMealPrepStatusRequest>,
 ) -> Result<Json<MealPreparation>, AppError> {
     require_permission(&claims, permissions::diet::kitchen::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -690,7 +691,7 @@ pub async fn list_meal_counts(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<MealCount>>, AppError> {
     require_permission(&claims, permissions::diet::kitchen::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -712,7 +713,7 @@ pub async fn create_meal_count(
     Json(body): Json<CreateMealCountRequest>,
 ) -> Result<Json<MealCount>, AppError> {
     require_permission(&claims, permissions::diet::kitchen::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -756,7 +757,7 @@ pub async fn list_inventory(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<KitchenInventory>>, AppError> {
     require_permission(&claims, permissions::diet::inventory::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -778,7 +779,7 @@ pub async fn create_inventory_item(
     Json(body): Json<CreateInventoryRequest>,
 ) -> Result<Json<KitchenInventory>, AppError> {
     require_permission(&claims, permissions::diet::inventory::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -811,7 +812,7 @@ pub async fn update_inventory_item(
     Json(body): Json<UpdateInventoryRequest>,
 ) -> Result<Json<KitchenInventory>, AppError> {
     require_permission(&claims, permissions::diet::inventory::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -856,7 +857,7 @@ pub async fn list_audits(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<KitchenAudit>>, AppError> {
     require_permission(&claims, permissions::diet::audits::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -878,7 +879,7 @@ pub async fn create_audit(
     Json(body): Json<CreateAuditRequest>,
 ) -> Result<Json<KitchenAudit>, AppError> {
     require_permission(&claims, permissions::diet::audits::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "diet")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -904,4 +905,57 @@ pub async fn create_audit(
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// Diet & nutrition routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/diet/templates",
+            get(list_templates).post(create_template),
+        )
+        .route(
+            "/api/diet/templates/{id}",
+            put(update_template),
+        )
+        .route(
+            "/api/diet/orders",
+            get(list_diet_orders).post(create_diet_order),
+        )
+        .route(
+            "/api/diet/orders/{id}",
+            put(update_diet_order),
+        )
+        .route(
+            "/api/diet/menus",
+            get(list_menus).post(create_menu),
+        )
+        .route(
+            "/api/diet/menus/{menu_id}/items",
+            get(list_menu_items).post(create_menu_item),
+        )
+        .route(
+            "/api/diet/meal-preps",
+            get(list_meal_preps).post(create_meal_prep),
+        )
+        .route(
+            "/api/diet/meal-preps/{id}/status",
+            put(update_meal_prep_status),
+        )
+        .route(
+            "/api/diet/meal-counts",
+            get(list_meal_counts).post(create_meal_count),
+        )
+        .route(
+            "/api/diet/inventory",
+            get(list_inventory).post(create_inventory_item),
+        )
+        .route(
+            "/api/diet/inventory/{id}",
+            put(update_inventory_item),
+        )
+        .route(
+            "/api/diet/audits",
+            get(list_audits).post(create_audit),
+        )
 }

@@ -14,6 +14,11 @@ medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-server-services = { path = "../medbrains-server-services" }
 medbrains-custom-code = { path = "../medbrains-custom-code" }
 medbrains-lms = { path = "../medbrains-lms" }
+medbrains-cssd = { path = "../medbrains-cssd" }
+medbrains-ambulance = { path = "../medbrains-ambulance" }
+medbrains-microsite = { path = "../medbrains-microsite" }
+medbrains-home-health = { path = "../medbrains-home-health" }
+medbrains-diet = { path = "../medbrains-diet" }
 medbrains-clinical-scores = { path = "../medbrains-clinical-scores" }
 medbrains-clinical-ops = { path = "../medbrains-clinical-ops" }
 medbrains-identity = { path = "../medbrains-identity" }

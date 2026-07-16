@@ -12,10 +12,11 @@ use medbrains_core::permissions;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use axum::routing::{get,post,put};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
 //  Request types
@@ -654,13 +655,13 @@ pub async fn create_issuance(
 
     // Auto-bill CSSD issuance if issued to a patient
     if let Some(patient_id) = row.issued_to_patient_id {
-        if super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "cssd")
+        if medbrains_server_services::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "cssd")
             .await
             .unwrap_or(false)
         {
-            let _ = super::billing::create_service_charge(
+            let _ = medbrains_server_services::billing::create_service_charge(
                 &mut tx,
-                super::billing::ServiceChargeInput {
+                medbrains_server_services::billing::ServiceChargeInput {
                     tenant_id: claims.tenant_id,
                     patient_id,
                     encounter_id: row.id,
@@ -796,4 +797,65 @@ pub async fn create_maintenance_log(
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// CSSD sterilization routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/cssd/instruments",
+            get(list_instruments).post(create_instrument),
+        )
+        .route(
+            "/api/cssd/instruments/{id}",
+            put(update_instrument),
+        )
+        .route(
+            "/api/cssd/sets",
+            get(list_sets).post(create_set),
+        )
+        .route(
+            "/api/cssd/sets/{set_id}/items",
+            get(get_set_items),
+        )
+        .route(
+            "/api/cssd/sterilizers",
+            get(list_sterilizers).post(create_sterilizer),
+        )
+        .route(
+            "/api/cssd/sterilizers/{id}",
+            put(update_sterilizer),
+        )
+        .route(
+            "/api/cssd/sterilizers/{id}/maintenance",
+            get(list_maintenance_logs).post(create_maintenance_log),
+        )
+        .route(
+            "/api/cssd/loads",
+            get(list_loads).post(create_load),
+        )
+        .route(
+            "/api/cssd/loads/{id}/status",
+            put(update_load_status),
+        )
+        .route(
+            "/api/cssd/loads/{id}/items",
+            post(add_load_item),
+        )
+        .route(
+            "/api/cssd/loads/{id}/indicators",
+            get(list_indicators).post(record_indicator),
+        )
+        .route(
+            "/api/cssd/issuances",
+            get(list_issuances).post(create_issuance),
+        )
+        .route(
+            "/api/cssd/issuances/{id}/return",
+            put(return_issuance),
+        )
+        .route(
+            "/api/cssd/issuances/{id}/recall",
+            put(recall_issuance),
+        )
 }

@@ -10,10 +10,11 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::error::AppError;
-use crate::middleware::auth::Claims;
-use crate::middleware::authorization::require_permission;
-use crate::state::AppState;
+use axum::routing::{get,post,put};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 const COLS: &str = "id, tenant_id, patient_id, drug_name, dose, route, is_infusion, \
      infusion_rate, scheduled_at, administered_at, administered_by, administration_site, \
@@ -828,10 +829,10 @@ pub async fn create_home_care_package(
     .fetch_one(&mut *tx)
     .await?;
 
-    let charge = super::billing::auto_charge(
+    let charge = medbrains_server_services::billing::auto_charge(
         &mut tx,
         &claims.tenant_id,
-        super::billing::AutoChargeInput {
+        medbrains_server_services::billing::AutoChargeInput {
             patient_id: body.patient_id,
             encounter_id: None,
             charge_code: "HOME_CARE_PKG".to_owned(),
@@ -899,10 +900,10 @@ pub async fn bill_home_visit(
             .await?
             .ok_or(AppError::NotFound)?;
 
-    let charge = super::billing::auto_charge(
+    let charge = medbrains_server_services::billing::auto_charge(
         &mut tx,
         &claims.tenant_id,
-        super::billing::AutoChargeInput {
+        medbrains_server_services::billing::AutoChargeInput {
             patient_id,
             encounter_id: None,
             charge_code: "HOME_VISIT".to_owned(),
@@ -1399,4 +1400,89 @@ pub async fn update_bereavement(
     .ok_or(AppError::NotFound)?;
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// Home health care routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/home-health/medications",
+            get(list_home_meds).post(schedule_home_med),
+        )
+        .route(
+            "/api/home-health/medications/{id}",
+            put(record_home_med),
+        )
+        .route(
+            "/api/home-health/escalations",
+            get(list_escalations).post(raise_escalation),
+        )
+        .route(
+            "/api/home-health/escalations/{id}",
+            put(update_escalation),
+        )
+        .route(
+            "/api/home-health/progress-notes",
+            get(list_progress_notes).post(add_progress_note),
+        )
+        .route(
+            "/api/home-health/discharge-program",
+            get(list_discharge_program).post(add_discharge_item),
+        )
+        .route(
+            "/api/home-health/discharge-program/{id}",
+            put(toggle_discharge_item),
+        )
+        .route(
+            "/api/home-health/visits",
+            get(list_home_visits).post(schedule_home_visit),
+        )
+        .route(
+            "/api/home-visits/{id}",
+            put(update_home_visit),
+        )
+        .route(
+            "/api/home-visits/{id}/document",
+            put(document_home_visit),
+        )
+        .route(
+            "/api/home-health/remote-vitals",
+            get(list_remote_vitals).post(ingest_remote_vital),
+        )
+        .route(
+            "/api/home-health/packages",
+            get(list_home_care_packages).post(create_home_care_package),
+        )
+        .route(
+            "/api/home-health/packages/{id}/consume",
+            post(consume_package_visit),
+        )
+        .route(
+            "/api/home-visits/{id}/bill",
+            post(bill_home_visit),
+        )
+        .route(
+            "/api/home-health/caregiver-education",
+            get(list_caregiver_education)
+                .post(record_caregiver_education),
+        )
+        .route(
+            "/api/home-health/hospice",
+            get(list_hospice_enrollments).post(enroll_hospice),
+        )
+        .route("/api/hospice/{id}", put(update_hospice))
+        .route(
+            "/api/home-health/advance-directives",
+            get(list_advance_directives)
+                .post(create_advance_directive),
+        )
+        .route(
+            "/api/advance-directives/{id}/revoke",
+            post(revoke_advance_directive),
+        )
+        .route(
+            "/api/home-health/bereavement",
+            get(list_bereavement).post(schedule_bereavement),
+        )
+        .route("/api/bereavement/{id}", put(update_bereavement))
 }

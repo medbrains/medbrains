@@ -9,10 +9,11 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::error::AppError;
-use crate::middleware::auth::Claims;
-use crate::middleware::authorization::require_permission;
-use crate::state::AppState;
+use axum::routing::{get,post,put};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 const HP_COLS: &str = "id, name, description, price, includes, category, is_active, is_promoted, \
      valid_until, created_at";
@@ -198,10 +199,10 @@ pub async fn book_health_package(
     .fetch_one(&mut *tx)
     .await?;
 
-    let charge = super::billing::auto_charge(
+    let charge = medbrains_server_services::billing::auto_charge(
         &mut tx,
         &claims.tenant_id,
-        super::billing::AutoChargeInput {
+        medbrains_server_services::billing::AutoChargeInput {
             patient_id: body.patient_id,
             encounter_id: None,
             charge_code: "HEALTH_PKG".to_owned(),
@@ -578,4 +579,45 @@ pub async fn update_microsite_config(
     .await?;
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// Public microsite health packages routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/microsite/packages",
+            get(list_health_packages).post(create_health_package),
+        )
+        .route(
+            "/api/microsite/packages/{id}",
+            put(update_health_package).delete(delete_health_package),
+        )
+        .route(
+            "/api/microsite/packages/{id}/book",
+            post(book_health_package),
+        )
+        .route(
+            "/api/microsite/testimonials",
+            get(list_testimonials).post(create_testimonial),
+        )
+        .route(
+            "/api/microsite/testimonials/{id}",
+            put(moderate_testimonial),
+        )
+        .route(
+            "/api/microsite/seo",
+            get(list_seo_settings).post(upsert_seo_setting),
+        )
+        .route(
+            "/api/microsite/domains",
+            get(list_site_domains).post(add_site_domain),
+        )
+        .route(
+            "/api/microsite/domains/{id}/verify",
+            post(verify_site_domain),
+        )
+        .route(
+            "/api/microsite/config",
+            get(get_microsite_config).put(update_microsite_config),
+        )
 }
