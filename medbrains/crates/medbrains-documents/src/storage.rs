@@ -3,7 +3,7 @@
 //! hash-chained transition audit log, request restores of
 //! archive-tier documents, trigger an ad-hoc sweep.
 //!
-//! Real tier transitions happen in `crate::storage_archive` — these
+//! Real tier transitions happen in `medbrains_server_core::storage_archive` — these
 //! handlers only read state and queue manual operations.
 
 use axum::{
@@ -15,9 +15,9 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::error::AppError;
-use crate::middleware::auth::Claims;
-use crate::state::AppState;
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::state::AppState;
 
 fn require_permission(claims: &Claims, perm: &str) -> Result<(), AppError> {
     if claims.role == "super_admin" || claims.role == "hospital_admin" {

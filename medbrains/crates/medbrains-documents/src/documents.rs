@@ -13,7 +13,7 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -804,7 +804,7 @@ pub async fn list_outputs(
     // Patient-scoped listing is a clinical read → gate on patient access. The
     // unscoped audit list is operational (documents.audit.LIST role-gated).
     if let Some(patient_id) = params.patient_id {
-        crate::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
+        medbrains_server_core::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
     }
 
     let mut tx = state.db.begin().await?;
@@ -850,7 +850,7 @@ pub async fn get_output(
     // access (reachable via the patient's care team). Non-patient docs (tenant
     // reports etc.) stay permission-gated.
     if let Some(patient_id) = row.patient_id {
-        crate::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
+        medbrains_server_core::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
     }
     Ok(Json(row))
 }
