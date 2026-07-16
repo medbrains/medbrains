@@ -36,6 +36,7 @@
     "@react-navigation/native-stack": ">=7",
     "expo-camera": ">=17",
     "expo-local-authentication": ">=17",
+    "expo-notifications": ">=0.32",
     "expo-secure-store": ">=15",
     "react": ">=19",
     "react-native": ">=0.76",
@@ -43,6 +44,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.10",
+    "expo-notifications": "~0.32.17",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "typescript": "^5.9.3",
