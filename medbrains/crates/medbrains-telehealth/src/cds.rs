@@ -16,7 +16,7 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError,
     middleware::auth::Claims,
     middleware::authorization::{require_any_permission, require_permission},

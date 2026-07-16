@@ -12,7 +12,7 @@ use medbrains_core::telemedicine::{TeleConsultation, TeleConsultationListItem, T
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -485,7 +485,7 @@ pub async fn schedule_follow_up(
 
     // Link the follow-up's doctor to the patient so the scheduled tele-provider
     // can see the patient ahead of the visit (ReBAC). Additive — no lock-out.
-    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
     state
         .authz
         .write_tuple(
