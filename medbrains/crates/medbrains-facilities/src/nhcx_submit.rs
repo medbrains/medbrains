@@ -17,10 +17,10 @@ use serde::Deserialize;
 use sqlx::FromRow;
 use uuid::Uuid;
 
-use crate::error::AppError;
-use crate::middleware::auth::Claims;
-use crate::middleware::authorization::require_permission;
-use crate::state::AppState;
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 use medbrains_core::nhcx::{
     CLAIM_BUNDLE_PROFILE, CONFIDENTIALITY_SYSTEM, COVERAGE_ELIGIBILITY_BUNDLE_PROFILE,
     SNOMED_HEALTHCARE_PROFESSIONAL_CODE, SNOMED_INSTITUTIONAL_CLAIM_CODE,

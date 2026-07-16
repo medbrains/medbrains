@@ -14,7 +14,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -400,7 +400,7 @@ pub async fn create_gas_reading(
     .fetch_one(&mut *tx)
     .await?;
 
-    crate::routes::nabh_evidence::mirror_medical_gas_alarm(&mut tx, claims.tenant_id, row.id)
+    medbrains_server_core::nabh_evidence::mirror_medical_gas_alarm(&mut tx, claims.tenant_id, row.id)
         .await?;
 
     tx.commit().await?;
@@ -759,7 +759,7 @@ pub async fn create_fire_drill(
     .fetch_one(&mut *tx)
     .await?;
 
-    crate::routes::nabh_evidence::mirror_fire_drill(&mut tx, claims.tenant_id, claims.sub, row.id)
+    medbrains_server_core::nabh_evidence::mirror_fire_drill(&mut tx, claims.tenant_id, claims.sub, row.id)
         .await?;
 
     tx.commit().await?;

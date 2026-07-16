@@ -12,7 +12,7 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -28,7 +28,7 @@ async fn require_admission_access(
     claims: &Claims,
     admission_id: Uuid,
 ) -> Result<(), AppError> {
-    let authz_ctx = crate::middleware::authorization::authz_context(claims);
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
     let allowed = state
         .authz
         .check(&authz_ctx, medbrains_authz::Relation::Viewer, "admission", admission_id)
