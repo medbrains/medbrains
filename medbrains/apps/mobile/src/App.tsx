@@ -4,6 +4,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { PaperProvider } from "react-native-paper";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { config } from "./config";
 import { RootNavigator } from "./navigation/RootNavigator";
 import { theme } from "./theme/paper-theme";
@@ -18,7 +19,9 @@ export default function App() {
       <PaperProvider theme={theme}>
         <QueryClientProvider client={queryClient}>
           <NavigationContainer>
-            <RootNavigator />
+            <ErrorBoundary>
+              <RootNavigator />
+            </ErrorBoundary>
           </NavigationContainer>
         </QueryClientProvider>
       </PaperProvider>

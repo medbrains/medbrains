@@ -61,7 +61,6 @@ export function HomeScreen() {
             <View style={styles.statusList}>
               <StatusChip label={mobileHomeText("home.health.overall")} status={data.status} />
               <StatusChip label={mobileHomeText("home.health.postgres")} status={data.postgres} />
-              <StatusChip label={mobileHomeText("home.health.yottadb")} status={data.yottadb} />
             </View>
           )}
         </Card.Content>
