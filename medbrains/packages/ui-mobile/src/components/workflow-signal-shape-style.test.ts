@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
+import { COLORS, INTENT_FG } from "../tokens.js";
 import { workflowSignalColors, workflowSignalShapeStyle } from "./workflow-signal-shape-style.js";
 
 describe("workflow signal mobile shape style", () => {
-  it("maps workflow tones to mobile-safe contrast colors", () => {
-    expect(workflowSignalColors("risk").text).toBe("#B91C1C");
-    expect(workflowSignalColors("active").border).toBe("#0066CC");
-    expect(workflowSignalColors("ready").text).toBe("#047857");
-    expect(workflowSignalColors("complete").text).toBe("#047857");
-    expect(workflowSignalColors("blocked").text).toBe("#B45309");
-    expect(workflowSignalColors("neutral").text).toBe("#5B5B57");
+  it("maps workflow tones to Carbon intent colors", () => {
+    // Assert the semantic mapping against the token source, not brittle literals.
+    expect(workflowSignalColors("risk").text).toBe(INTENT_FG.alert);
+    expect(workflowSignalColors("active").border).toBe(COLORS.brand);
+    expect(workflowSignalColors("ready").text).toBe(INTENT_FG.success);
+    expect(workflowSignalColors("complete").text).toBe(INTENT_FG.success);
+    expect(workflowSignalColors("blocked").text).toBe(INTENT_FG.warn);
+    expect(workflowSignalColors("neutral").text).toBe(COLORS.muted);
   });
 
   it("renders stop, handoff, ready, and bed states as distinct marker geometry", () => {

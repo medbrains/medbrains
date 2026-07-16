@@ -1,3 +1,4 @@
+import { amber, blue, cinnabar, mint } from "@medbrains/design-system/tokens";
 import { describe, expect, it } from "vitest";
 import {
   APP_BAR,
@@ -5,20 +6,23 @@ import {
   INTENT_BG,
   INTENT_FG,
   type IntentTone,
+  OVERSCAN,
   RADIUS,
   SPACING,
 } from "./tokens.js";
 
 describe("tokens", () => {
-  it("color tokens match the locked web enterprise palette", () => {
-    expect(COLORS.brand).toBe("#0066CC");
-    expect(COLORS.copper).toBe("#B7322E");
+  it("colors are wired to the Carbon design-system ramps", () => {
+    // Assert the wiring (correct ramp index), not brittle literals — so the test
+    // tracks the single Carbon token source and can't go stale on a palette shift.
+    expect(COLORS.brand).toBe(blue[5]);
+    expect(COLORS.copper).toBe(cinnabar[5]);
     expect(COLORS.accent).toBe(COLORS.copper);
-    expect(COLORS.vital).toBe("#34D69D");
-    expect(COLORS.emerald).toBe("#1CB785");
-    expect(COLORS.amber).toBe("#FF9F0A");
-    expect(COLORS.navActiveBg).toBe("#EEF4FC");
-    expect(COLORS.accentGradientEnd).toBe("#B7322E");
+    expect(COLORS.vital).toBe(mint[3]);
+    expect(COLORS.emerald).toBe(mint[4]);
+    expect(COLORS.amber).toBe(amber[5]);
+    expect(COLORS.navActiveBg).toBe(blue[0]);
+    expect(COLORS.accentGradientEnd).toBe(blue[8]);
     expect(APP_BAR.background).toBe(COLORS.navActiveBg);
     expect(APP_BAR.title).toBe(COLORS.brandDeep);
   });
@@ -38,8 +42,15 @@ describe("tokens", () => {
     expect(SPACING.lg).toBeLessThan(SPACING.xl);
   });
 
-  it("radius is monotonic", () => {
-    expect(RADIUS.sm).toBeLessThan(RADIUS.md);
-    expect(RADIUS.md).toBeLessThan(RADIUS.lg);
+  it("radius follows Carbon sharp-corner intent (small, non-decreasing)", () => {
+    // Carbon = sharp corners; sm and md are intentionally equal (2px hairline).
+    expect(RADIUS.sm).toBeLessThanOrEqual(RADIUS.md);
+    expect(RADIUS.md).toBeLessThanOrEqual(RADIUS.lg);
+    expect(RADIUS.lg).toBeLessThanOrEqual(4);
+  });
+
+  it("overscan is the TV 10-foot safe area (48dp L/R, 27dp T/B)", () => {
+    expect(OVERSCAN.horizontal).toBe(48);
+    expect(OVERSCAN.vertical).toBe(27);
   });
 });
