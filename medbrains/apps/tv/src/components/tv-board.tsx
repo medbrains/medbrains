@@ -9,7 +9,7 @@
  */
 
 import type { IntentTone } from "@medbrains/ui-mobile";
-import { Badge, COLORS, INTENT_BG, INTENT_FG, SPACING } from "@medbrains/ui-mobile";
+import { Badge, COLORS, INTENT_BG, INTENT_FG, OVERSCAN, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
 import { ScrollView, View } from "react-native";
 import { Text } from "react-native-paper";
@@ -45,7 +45,11 @@ export function TvBoard({
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: COLORS.brandDeep }}
-      contentContainerStyle={{ padding: SPACING.lg, minHeight: "100%" }}
+      contentContainerStyle={{
+        paddingHorizontal: OVERSCAN.horizontal,
+        paddingVertical: OVERSCAN.vertical,
+        minHeight: "100%",
+      }}
     >
       <View style={{ marginBottom: SPACING.lg }}>
         <Text

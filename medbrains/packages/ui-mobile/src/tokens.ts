@@ -49,6 +49,13 @@ export const SPACING = {
   xl: 32,
 } as const;
 
+// TV 10-foot overscan safe area (Android TV / Google TV): keep content off the
+// outer 5% of the panel — 48dp L/R, 27dp T/B. See docs/DEVICE-SURFACE-DESIGN-RULES.md §TV.
+export const OVERSCAN = {
+  horizontal: 48,
+  vertical: 27,
+} as const;
+
 // Carbon = sharp corners; keep small values for RN touchables where a hairline radius aids tap feel.
 export const RADIUS = {
   sm: 2,
