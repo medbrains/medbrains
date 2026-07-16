@@ -12,6 +12,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
 sqlx = { workspace = true }
+rust_decimal = { workspace = true }
+chrono = { workspace = true }
 rig-core = { workspace = true }
 schemars = { workspace = true }
 

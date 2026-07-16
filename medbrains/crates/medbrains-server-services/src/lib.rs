@@ -5,4 +5,5 @@
 //! Domain crates depend on this instead of reaching into sibling route modules,
 //! keeping the dependency graph acyclic.
 
+pub mod billing;
 pub mod llm;
