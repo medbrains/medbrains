@@ -29,16 +29,13 @@ use serde_json::json;
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::{
-    error::AppError,
-    middleware::{
-        auth::Claims,
-        authorization::{is_bypass_role, require_any_permission, require_permission},
-        field_access,
-    },
-    routes::notifications::{NewNotification, create_notification},
-    state::AppState,
-};
+use axum::routing::{get,post,put,delete};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::{is_bypass_role, require_any_permission, require_permission};
+use medbrains_server_core::middleware::field_access;
+use medbrains_server_core::notifications::{NewNotification, create_notification};
+use medbrains_server_core::state::AppState;
 use medbrains_core::form::FieldAccessLevel;
 
 // ══════════════════════════════════════════════════════════
@@ -805,7 +802,7 @@ async fn queue_ndps_movement_created_event_in_tx(
     if let Some(patient_id) = entry.patient_id {
         event = event.with_patient(patient_id);
     }
-    crate::events::queue_clinical_event_in_tx(tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(tx, &event).await?;
     Ok(())
 }
 
@@ -1656,7 +1653,7 @@ pub async fn list_orders(
     let offset = (page - 1) * per_page;
 
     // ── ReBAC scope — only pharmacy orders caller has `view` on ─
-    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
     let visible_ids: Option<Vec<Uuid>> = if authz_ctx.is_bypass {
         None
     } else {
@@ -1977,16 +1974,16 @@ pub async fn create_order_in_tx(
     } else {
         event
     };
-    crate::events::queue_clinical_event_in_tx(tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(tx, &event).await?;
 
     ensure_order_items_stock_available_for_billing_in_tx(tx, &claims.tenant_id, &items).await?;
     ensure_pharmacy_billing_indent_for_order_in_tx(tx, &claims.tenant_id, &order, &items).await?;
 
     // Auto-issue a pharmacy token (per store counter when known).
-    crate::routes::tokens::issue_token_in_tx(
+    medbrains_tokens::issue_token_in_tx(
         tx,
         claims.tenant_id,
-        crate::routes::tokens::IssueToken {
+        medbrains_tokens::IssueToken {
             module: "pharmacy",
             scope: if order.store_location_id.is_some() { "counter" } else { "global" },
             scope_id: order.store_location_id,
@@ -2205,7 +2202,7 @@ async fn ensure_pharmacy_billing_indent_for_order_in_tx(
     order: &PharmacyOrder,
     items: &[PharmacyOrderItem],
 ) -> Result<PharmacyBillingIndentResult, AppError> {
-    if !super::billing::is_auto_billing_enabled(tx, tenant_id, "pharmacy").await? {
+    if !medbrains_server_services::billing::is_auto_billing_enabled(tx, tenant_id, "pharmacy").await? {
         return Ok(PharmacyBillingIndentResult::default());
     }
 
@@ -2229,10 +2226,10 @@ async fn ensure_pharmacy_billing_indent_for_order_in_tx(
             |cid| format!("PHARMA-{cid}"),
         );
 
-        let charge = super::billing::auto_charge_with_batch(
+        let charge = medbrains_server_services::billing::auto_charge_with_batch(
             tx,
             tenant_id,
-            super::billing::AutoChargeInput {
+            medbrains_server_services::billing::AutoChargeInput {
                 patient_id: order.patient_id,
                 encounter_id: order.encounter_id,
                 charge_code: code,
@@ -2243,7 +2240,7 @@ async fn ensure_pharmacy_billing_indent_for_order_in_tx(
                 unit_price_override: Some(item.unit_price),
                 tax_percent_override: Some(tax_percent),
             },
-            super::billing::BatchTrace {
+            medbrains_server_services::billing::BatchTrace {
                 batch_number: item.batch_number.clone(),
                 expiry_date: item.expiry_date,
             },
@@ -2287,7 +2284,7 @@ pub async fn get_order(
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     // ── ReBAC pre-check — must hold `view` on the pharmacy_order ─
-    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
     let allowed = state
         .authz
         .check(
@@ -2424,7 +2421,7 @@ async fn sync_invoice_item_quantity_in_tx(
     .execute(&mut **tx)
     .await?;
 
-    super::billing::recalculate_invoice_totals(tx, linked.invoice_id, *tenant_id).await?;
+    medbrains_server_services::billing::recalculate_invoice_totals(tx, linked.invoice_id, *tenant_id).await?;
     Ok(())
 }
 
@@ -2439,7 +2436,7 @@ async fn reverse_invoice_item_for_removed_order_item_in_tx(
     };
     ensure_invoice_can_follow_order_edit(&linked)?;
 
-    super::billing::reverse_auto_charge_for_source(
+    medbrains_server_services::billing::reverse_auto_charge_for_source(
         tx,
         tenant_id,
         "pharmacy",
@@ -3030,14 +3027,14 @@ pub async fn dispense_order(
     if let Some(admission_id) = admission_id {
         event = event.with_admission(admission_id);
     }
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
 
     let total_amount: Decimal = items.iter().map(|i| i.total_price).sum();
 
     // Emit integration event
-    let _ = crate::orchestration::lifecycle::emit_after_event(
+    let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
@@ -3202,7 +3199,7 @@ pub async fn cancel_order(
         .await?;
 
         for order_item_id in order_item_ids {
-            super::billing::reverse_auto_charge_for_source(
+            medbrains_server_services::billing::reverse_auto_charge_for_source(
                 &mut tx,
                 &claims.tenant_id,
                 "pharmacy",
@@ -3237,7 +3234,7 @@ pub async fn cancel_order(
         if let Some(admission_id) = admission_id {
             event = event.with_admission(admission_id);
         }
-        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     }
 
     tx.commit().await?;
@@ -4149,7 +4146,7 @@ pub async fn create_ndps_entry(
 ) -> Result<Json<NdpsRegisterEntry>, AppError> {
     require_permission(&claims, permissions::pharmacy::ndps::MANAGE)?;
     // Controlled-substance (NDPS) register entry — require fresh re-auth.
-    crate::routes::step_up::require_step_up(&state, &jar, &claims)?;
+    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
@@ -5389,7 +5386,7 @@ pub async fn process_return(
 
     if let Some(oi) = order_item {
         if new_status == "approved" {
-            super::billing::reverse_auto_charge_quantity_for_source(
+            medbrains_server_services::billing::reverse_auto_charge_quantity_for_source(
                 &mut tx,
                 &claims.tenant_id,
                 "pharmacy",
@@ -6284,7 +6281,7 @@ pub async fn review_prescription(
         if let Some(admission_id) = admission_id {
             event = event.with_admission(admission_id);
         }
-        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
         billing_invoice_lifecycle_payload = Some(billing_payload);
     }
 
@@ -6327,7 +6324,7 @@ pub async fn review_prescription(
         if let Some(admission_id) = admission_id {
             event = event.with_admission(admission_id);
         }
-        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
         created_order_lifecycle_payload = Some(order_payload);
     }
 
@@ -6358,12 +6355,12 @@ pub async fn review_prescription(
     if let Some(admission_id) = admission_id {
         review_event = review_event.with_admission(admission_id);
     }
-    crate::events::queue_clinical_event_in_tx(&mut tx, &review_event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &review_event).await?;
 
     tx.commit().await?;
 
     if let Some(billing_payload) = billing_invoice_lifecycle_payload {
-        let _ = crate::orchestration::lifecycle::emit_after_event(
+        let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
             &state.db,
             claims.tenant_id,
             claims.sub,
@@ -6373,7 +6370,7 @@ pub async fn review_prescription(
         .await;
     }
     if let Some(order_payload) = created_order_lifecycle_payload {
-        let _ = crate::orchestration::lifecycle::emit_after_event(
+        let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
             &state.db,
             claims.tenant_id,
             claims.sub,
@@ -6382,7 +6379,7 @@ pub async fn review_prescription(
         )
         .await;
     }
-    let _ = crate::orchestration::lifecycle::emit_after_event(
+    let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
@@ -7677,9 +7674,9 @@ async fn mirror_patient_pos_sale_to_billing_in_tx(
     }
 
     let payment_mode = billing_payment_mode_for_pharmacy(&sale.payment_mode)?;
-    let invoice_number = super::billing::generate_invoice_number(tx, &tenant_id).await?;
+    let invoice_number = medbrains_server_services::billing::generate_invoice_number(tx, &tenant_id).await?;
     let admission_id =
-        super::billing::admission_id_for_encounter_in_tx(tx, &tenant_id, order.encounter_id)
+        medbrains_server_services::billing::admission_id_for_encounter_in_tx(tx, &tenant_id, order.encounter_id)
             .await?;
     let invoice = sqlx::query_as::<_, InvoiceId>(
         "INSERT INTO invoices \
@@ -7810,4 +7807,165 @@ pub struct ReconcileItemInput {
 #[derive(Debug, Deserialize)]
 pub struct AnalyticsDateQuery {
     pub days: Option<i32>,
+}
+
+/// Pharmacy (orders, dispensing, catalog, stock, transfers, analytics, finance) routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/pharmacy/orders",
+            get(list_orders).post(create_order),
+        )
+        .route(
+            "/api/pharmacy/orders/{id}",
+            get(get_order),
+        )
+        .route(
+            "/api/pharmacy/orders/{id}/items/{item_id}",
+            put(update_order_item).delete(remove_order_item),
+        )
+        .route(
+            "/api/pharmacy/orders/{id}/dispense",
+            put(dispense_order),
+        )
+        .route(
+            "/api/pharmacy/orders/{id}/cancel",
+            put(cancel_order),
+        )
+        .route(
+            "/api/pharmacy/catalog",
+            get(list_catalog).post(create_catalog_entry),
+        )
+        .route(
+            "/api/pharmacy/catalog/{id}",
+            put(update_catalog_entry),
+        )
+        .route("/api/pharmacy/stock", get(list_stock))
+        .route(
+            "/api/pharmacy/stock/transactions",
+            post(create_stock_transaction),
+        )
+        .route(
+            "/api/pharmacy/orders/{id}/validate",
+            post(validate_order),
+        )
+        .route("/api/pharmacy/otc-sale", post(create_otc_sale))
+        .route(
+            "/api/pharmacy/discharge-dispensing",
+            post(create_discharge_dispensing),
+        )
+        .route(
+            "/api/pharmacy/ndps-register",
+            get(list_ndps_entries).post(create_ndps_entry),
+        )
+        .route(
+            "/api/pharmacy/ndps-register/balance",
+            get(ndps_balance),
+        )
+        .route(
+            "/api/pharmacy/ndps-register/report",
+            get(ndps_report),
+        )
+        .route(
+            "/api/pharmacy/batches",
+            get(list_batches).post(create_batch),
+        )
+        .route(
+            "/api/pharmacy/batches/near-expiry",
+            get(near_expiry_report),
+        )
+        .route(
+            "/api/pharmacy/batches/write-off-expired",
+            post(write_off_expired),
+        )
+        .route(
+            "/api/pharmacy/stock/by-location",
+            get(location_stock_dashboard),
+        )
+        .route(
+            "/api/pharmacy/batches/dead-stock",
+            get(dead_stock_report),
+        )
+        .route(
+            "/api/pharmacy/store-assignments",
+            get(list_store_assignments).post(create_store_assignment),
+        )
+        .route(
+            "/api/pharmacy/staff",
+            get(list_pharmacy_staff).post(assign_pharmacy_staff),
+        )
+        .route(
+            "/api/pharmacy/staff/{id}",
+            delete(remove_pharmacy_staff),
+        )
+        .route("/api/pharmacy/my-locations", get(my_pharmacies))
+        .route(
+            "/api/pharmacy/transfers",
+            get(list_transfers).post(create_transfer),
+        )
+        .route(
+            "/api/pharmacy/transfers/{id}/approve",
+            put(approve_transfer),
+        )
+        .route(
+            "/api/pharmacy/transfers/{id}/dispatch",
+            post(dispatch_transfer),
+        )
+        .route(
+            "/api/pharmacy/transfers/{id}/receive",
+            post(receive_transfer),
+        )
+        .route(
+            "/api/pharmacy/returns",
+            get(list_returns).post(create_return),
+        )
+        .route(
+            "/api/pharmacy/returns/batch",
+            post(create_return_batch),
+        )
+        .route(
+            "/api/pharmacy/returns/{id}/process",
+            put(process_return),
+        )
+        .route(
+            "/api/pharmacy/analytics/consumption",
+            get(consumption_analysis),
+        )
+        .route(
+            "/api/pharmacy/analytics/abc-ved",
+            get(abc_ved_analysis),
+        )
+        .route(
+            "/api/pharmacy/analytics/utilization",
+            get(drug_utilization_review),
+        )
+        .route(
+            "/api/pharmacy/interactions/check",
+            post(check_drug_interactions),
+        )
+        .route(
+            "/api/pharmacy/prescriptions/{id}/audit",
+            get(prescription_audit),
+        )
+        .route(
+            "/api/pharmacy/formulary/check",
+            post(formulary_check),
+        )
+        .route("/api/pharmacy/rx-queue", get(list_rx_queue))
+        .route("/api/pharmacy/rx-queue/{id}", get(get_rx_detail))
+        .route("/api/pharmacy/rx-queue/{id}/review", put(review_prescription))
+        .route("/api/pharmacy/safety/allergy-check", post(check_patient_allergies))
+        .route("/api/pharmacy/batches/fefo-select", post(select_fefo_batch))
+        .route("/api/pharmacy/pos/sales", get(list_pos_sales).post(create_pos_sale))
+        .route("/api/pharmacy/pos/sales/{id}/items", get(list_pos_sale_items))
+        .route("/api/pharmacy/pos/sales/{id}/cancel", put(cancel_pos_sale))
+        .route("/api/pharmacy/pos/sales/{id}/return-items", put(return_pos_items))
+        .route("/api/pharmacy/pos/day-summary", get(pos_day_summary))
+        .route("/api/pharmacy/pricing/resolve", post(resolve_drug_price))
+        .route("/api/pharmacy/pricing/tiers", put(upsert_pricing_tier))
+        .route("/api/pharmacy/stock/reconcile", post(stock_reconciliation))
+        .route("/api/pharmacy/stock/reorder-suggestions", get(reorder_suggestions))
+        .route("/api/pharmacy/analytics/daily-sales", get(daily_sales_summary))
+        .route("/api/pharmacy/analytics/fill-rate", get(prescription_fill_rate))
+        .route("/api/pharmacy/analytics/margins", get(margin_analysis))
 }

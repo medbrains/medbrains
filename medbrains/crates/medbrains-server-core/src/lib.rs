@@ -17,6 +17,7 @@ pub mod permissions;
 pub mod queue_broadcast;
 pub mod s3_presign;
 pub mod state;
+pub mod step_up;
 pub mod authz_patient;
 pub mod tenant_config;
 pub mod signing;

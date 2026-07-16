@@ -25,6 +25,7 @@ medbrains-blood-bank = { path = "../medbrains-blood-bank" }
 medbrains-radiology = { path = "../medbrains-radiology" }
 medbrains-tokens = { path = "../medbrains-tokens" }
 medbrains-lab = { path = "../medbrains-lab" }
+medbrains-pharmacy = { path = "../medbrains-pharmacy" }
 medbrains-clinical-scores = { path = "../medbrains-clinical-scores" }
 medbrains-clinical-ops = { path = "../medbrains-clinical-ops" }
 medbrains-identity = { path = "../medbrains-identity" }

@@ -51,12 +51,15 @@ pub mod nhcx_callback;
 pub mod nhcx_onboarding;
 pub use medbrains_server_core::notifications;
 pub use medbrains_identity::sso;
+pub use medbrains_server_core::step_up;
 // order_basket reaches diet's order-creation helper via super::diet
 pub use medbrains_diet as diet;
 // opd/order_basket reach radiology order helpers via super::radiology; public viewer route too
 pub use medbrains_radiology as radiology;
 // opd/order_basket reach lab order helpers via super::lab
 pub use medbrains_lab as lab;
+// ai/ipd_post_discharge/order_basket reach pharmacy order + med-safety helpers via super::pharmacy
+pub use medbrains_pharmacy as pharmacy;
 // billing/lab/pharmacy/patients/appointments reach token helpers via crate::routes::tokens
 pub use medbrains_tokens as tokens;
 pub mod oauth;
@@ -70,7 +73,6 @@ pub mod patient_packages;
 pub mod patients;
 pub mod payment_gateway;
 pub mod payroll;
-pub mod pharmacy;
 pub mod pharmacy_cash_drawer;
 pub mod pharmacy_dispense_ops;
 pub mod pharmacy_finance;
@@ -98,7 +100,7 @@ pub mod reports;
 pub mod security;
 pub mod setup;
 pub mod sso_login;
-pub mod step_up;
+
 pub mod case_sheet_scan;
 pub mod vpn;
 pub mod ward_stock;
@@ -1548,84 +1550,11 @@ pub fn build_router(state: AppState) -> Router {
         )
         .merge(medbrains_radiology::router())
         // ── Pharmacy ────────────────────────────────────
-        .route(
-            "/api/pharmacy/orders",
-            get(pharmacy::list_orders).post(pharmacy::create_order),
-        )
-        .route(
-            "/api/pharmacy/orders/{id}",
-            get(pharmacy::get_order),
-        )
-        .route(
-            "/api/pharmacy/orders/{id}/items/{item_id}",
-            put(pharmacy::update_order_item).delete(pharmacy::remove_order_item),
-        )
-        .route(
-            "/api/pharmacy/orders/{id}/dispense",
-            put(pharmacy::dispense_order),
-        )
-        .route(
-            "/api/pharmacy/orders/{id}/cancel",
-            put(pharmacy::cancel_order),
-        )
-        .route(
-            "/api/pharmacy/catalog",
-            get(pharmacy::list_catalog).post(pharmacy::create_catalog_entry),
-        )
+        .merge(medbrains_pharmacy::router())
         .route(
             "/api/pharmacy/catalog/import",
             post(catalog_import::import_pharmacy_catalog),
         )
-        .route(
-            "/api/pharmacy/catalog/{id}",
-            put(pharmacy::update_catalog_entry),
-        )
-        .route("/api/pharmacy/stock", get(pharmacy::list_stock))
-        .route(
-            "/api/pharmacy/stock/transactions",
-            post(pharmacy::create_stock_transaction),
-        )
-        // Phase 2 — dispensing enhancements
-        .route(
-            "/api/pharmacy/orders/{id}/validate",
-            post(pharmacy::validate_order),
-        )
-        .route("/api/pharmacy/otc-sale", post(pharmacy::create_otc_sale))
-        .route(
-            "/api/pharmacy/discharge-dispensing",
-            post(pharmacy::create_discharge_dispensing),
-        )
-        // Phase 2 — NDPS register
-        .route(
-            "/api/pharmacy/ndps-register",
-            get(pharmacy::list_ndps_entries).post(pharmacy::create_ndps_entry),
-        )
-        .route(
-            "/api/pharmacy/ndps-register/balance",
-            get(pharmacy::ndps_balance),
-        )
-        .route(
-            "/api/pharmacy/ndps-register/report",
-            get(pharmacy::ndps_report),
-        )
-        // Phase 2 — batch & expiry
-        .route(
-            "/api/pharmacy/batches",
-            get(pharmacy::list_batches).post(pharmacy::create_batch),
-        )
-        .route(
-            "/api/pharmacy/batches/near-expiry",
-            get(pharmacy::near_expiry_report),
-        )
-        .route(
-            "/api/pharmacy/batches/write-off-expired",
-            post(pharmacy::write_off_expired),
-        )
-        .route(
-            "/api/pharmacy/stock/by-location",
-            get(pharmacy::location_stock_dashboard),
-        )
-        // ── Ward / floor PAR stock ──
         .route(
             "/api/pharmacy/ward-stock",
             get(ward_stock::list_ward_stock),
@@ -1639,96 +1568,6 @@ pub fn build_router(state: AppState) -> Router {
             "/api/pharmacy/ward-stock/consume",
             post(ward_stock::consume_ward_stock),
         )
-        .route(
-            "/api/pharmacy/batches/dead-stock",
-            get(pharmacy::dead_stock_report),
-        )
-        // Phase 2 — multi-store & transfers
-        .route(
-            "/api/pharmacy/store-assignments",
-            get(pharmacy::list_store_assignments).post(pharmacy::create_store_assignment),
-        )
-        .route(
-            "/api/pharmacy/staff",
-            get(pharmacy::list_pharmacy_staff).post(pharmacy::assign_pharmacy_staff),
-        )
-        .route(
-            "/api/pharmacy/staff/{id}",
-            delete(pharmacy::remove_pharmacy_staff),
-        )
-        .route("/api/pharmacy/my-locations", get(pharmacy::my_pharmacies))
-        .route(
-            "/api/pharmacy/transfers",
-            get(pharmacy::list_transfers).post(pharmacy::create_transfer),
-        )
-        .route(
-            "/api/pharmacy/transfers/{id}/approve",
-            put(pharmacy::approve_transfer),
-        )
-        .route(
-            "/api/pharmacy/transfers/{id}/dispatch",
-            post(pharmacy::dispatch_transfer),
-        )
-        .route(
-            "/api/pharmacy/transfers/{id}/receive",
-            post(pharmacy::receive_transfer),
-        )
-        // Phase 2 — returns
-        .route(
-            "/api/pharmacy/returns",
-            get(pharmacy::list_returns).post(pharmacy::create_return),
-        )
-        .route(
-            "/api/pharmacy/returns/batch",
-            post(pharmacy::create_return_batch),
-        )
-        .route(
-            "/api/pharmacy/returns/{id}/process",
-            put(pharmacy::process_return),
-        )
-        // Phase 2 — analytics
-        .route(
-            "/api/pharmacy/analytics/consumption",
-            get(pharmacy::consumption_analysis),
-        )
-        .route(
-            "/api/pharmacy/analytics/abc-ved",
-            get(pharmacy::abc_ved_analysis),
-        )
-        .route(
-            "/api/pharmacy/analytics/utilization",
-            get(pharmacy::drug_utilization_review),
-        )
-        .route(
-            "/api/pharmacy/interactions/check",
-            post(pharmacy::check_drug_interactions),
-        )
-        .route(
-            "/api/pharmacy/prescriptions/{id}/audit",
-            get(pharmacy::prescription_audit),
-        )
-        .route(
-            "/api/pharmacy/formulary/check",
-            post(pharmacy::formulary_check),
-        )
-        // ── Pharmacy Phase 3: Rx Queue, POS, Safety, Pricing ──
-        .route("/api/pharmacy/rx-queue", get(pharmacy::list_rx_queue))
-        .route("/api/pharmacy/rx-queue/{id}", get(pharmacy::get_rx_detail))
-        .route("/api/pharmacy/rx-queue/{id}/review", put(pharmacy::review_prescription))
-        .route("/api/pharmacy/safety/allergy-check", post(pharmacy::check_patient_allergies))
-        .route("/api/pharmacy/batches/fefo-select", post(pharmacy::select_fefo_batch))
-        .route("/api/pharmacy/pos/sales", get(pharmacy::list_pos_sales).post(pharmacy::create_pos_sale))
-        .route("/api/pharmacy/pos/sales/{id}/items", get(pharmacy::list_pos_sale_items))
-        .route("/api/pharmacy/pos/sales/{id}/cancel", put(pharmacy::cancel_pos_sale))
-        .route("/api/pharmacy/pos/sales/{id}/return-items", put(pharmacy::return_pos_items))
-        .route("/api/pharmacy/pos/day-summary", get(pharmacy::pos_day_summary))
-        .route("/api/pharmacy/pricing/resolve", post(pharmacy::resolve_drug_price))
-        .route("/api/pharmacy/pricing/tiers", put(pharmacy::upsert_pricing_tier))
-        .route("/api/pharmacy/stock/reconcile", post(pharmacy::stock_reconciliation))
-        .route("/api/pharmacy/stock/reorder-suggestions", get(pharmacy::reorder_suggestions))
-        .route("/api/pharmacy/analytics/daily-sales", get(pharmacy::daily_sales_summary))
-        .route("/api/pharmacy/analytics/fill-rate", get(pharmacy::prescription_fill_rate))
-        .route("/api/pharmacy/analytics/margins", get(pharmacy::margin_analysis))
         // ── Pharmacy Finance (credit notes + store indents) ──
         .route(
             "/api/pharmacy/credit-notes",

@@ -35,6 +35,7 @@ members = [
     "crates/medbrains-radiology",
     "crates/medbrains-tokens",
     "crates/medbrains-lab",
+    "crates/medbrains-pharmacy",
     "crates/medbrains-clinical-scores",
     "crates/medbrains-clinical-ops",
     "crates/medbrains-identity",
