@@ -10,12 +10,12 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    error::AppError,
-    middleware::{auth::Claims, authorization::require_permission},
-    routes::ws::QueueEvent,
-    state::AppState,
-};
+use axum::routing::{get,post};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::queue_broadcast::QueueEvent;
+use medbrains_server_core::state::AppState;
 
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Token {
@@ -514,4 +514,18 @@ pub async fn call_next(
         }
         None => Ok(Json(None)),
     }
+}
+
+/// Queue token routes (issue, board, call-next, advance, serve, complete).
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/tokens/issue", post(issue_token))
+        .route("/api/tokens/board", get(list_board))
+        .route("/api/tokens/mine", get(my_tokens))
+        .route("/api/tokens/call-next", post(call_next))
+        .route("/api/tokens/{id}/advance", post(advance_token))
+        .route("/api/tokens/{id}/call", post(call_token))
+        .route("/api/tokens/{id}/serve", post(serve_token))
+        .route("/api/tokens/{id}/complete", post(complete_token))
+        .route("/api/tokens/{id}/no-show", post(no_show_token))
 }

@@ -33,6 +33,7 @@ members = [
     "crates/medbrains-indent",
     "crates/medbrains-blood-bank",
     "crates/medbrains-radiology",
+    "crates/medbrains-tokens",
     "crates/medbrains-clinical-scores",
     "crates/medbrains-clinical-ops",
     "crates/medbrains-identity",

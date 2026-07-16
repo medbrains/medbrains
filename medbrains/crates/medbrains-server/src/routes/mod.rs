@@ -56,6 +56,8 @@ pub use medbrains_identity::sso;
 pub use medbrains_diet as diet;
 // opd/order_basket reach radiology order helpers via super::radiology; public viewer route too
 pub use medbrains_radiology as radiology;
+// billing/lab/pharmacy/patients/appointments reach token helpers via crate::routes::tokens
+pub use medbrains_tokens as tokens;
 pub mod oauth;
 pub mod onboarding;
 pub mod opd;
@@ -103,7 +105,6 @@ pub mod sharing;
 pub mod signed_documents;
 pub mod specialty_interventional;
 pub mod specialty_other;
-pub mod tokens;
 pub mod tv;
 pub mod upload;
 pub mod ws;
@@ -745,16 +746,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/masters/relations",
             get(patients::list_relations),
         )
-        // Unified token / queue system — any module + scope, live boards
-        .route("/api/tokens/issue", post(tokens::issue_token))
-        .route("/api/tokens/board", get(tokens::list_board))
-        .route("/api/tokens/mine", get(tokens::my_tokens))
-        .route("/api/tokens/call-next", post(tokens::call_next))
-        .route("/api/tokens/{id}/advance", post(tokens::advance_token))
-        .route("/api/tokens/{id}/call", post(tokens::call_token))
-        .route("/api/tokens/{id}/serve", post(tokens::serve_token))
-        .route("/api/tokens/{id}/complete", post(tokens::complete_token))
-        .route("/api/tokens/{id}/no-show", post(tokens::no_show_token))
+        .merge(medbrains_tokens::router())
         // Notification centre — per-user in-app feed
         .route("/api/notifications", get(notifications::list_notifications))
         .route(
