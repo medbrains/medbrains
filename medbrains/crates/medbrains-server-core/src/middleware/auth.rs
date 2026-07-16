@@ -89,7 +89,7 @@ pub async fn auth_middleware(
 }
 
 /// Decode and validate an Ed25519 JWT token.
-pub(crate) fn decode_and_validate(token: &str, key: &DecodingKey) -> Result<Claims, AppError> {
+pub fn decode_and_validate(token: &str, key: &DecodingKey) -> Result<Claims, AppError> {
     let mut validation = Validation::new(Algorithm::EdDSA);
     validation.set_required_spec_claims(&["exp", "sub"]);
     let token_data =
@@ -98,7 +98,7 @@ pub(crate) fn decode_and_validate(token: &str, key: &DecodingKey) -> Result<Clai
 }
 
 /// Parse a specific cookie value from the raw `Cookie` header string.
-pub(crate) fn parse_cookie_value<'a>(header: &'a str, name: &str) -> Option<&'a str> {
+pub fn parse_cookie_value<'a>(header: &'a str, name: &str) -> Option<&'a str> {
     for pair in header.split(';') {
         let trimmed = pair.trim();
         if let Some(val) = trimmed.strip_prefix(name) {
@@ -140,7 +140,7 @@ async fn hydrate_permissions(db: &PgPool, claims: &mut Claims) -> Result<(), App
         return Ok(());
     }
     let perms =
-        crate::routes::auth::resolve_permissions(db, claims.tenant_id, claims.sub, &claims.role)
+        crate::permissions::resolve_permissions(db, claims.tenant_id, claims.sub, &claims.role)
             .await?;
     claims.permissions = perms;
     Ok(())

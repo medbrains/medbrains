@@ -5,10 +5,21 @@ edition = "2024"
 rust-version = "1.85"
 
 [dependencies]
+medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-crypto = { path = "../medbrains-crypto" }
+medbrains-authz = { version = "0.1.0", path = "../medbrains-authz" }
+medbrains-db-topology = { path = "../medbrains-db-topology" }
+medbrains-outbox = { path = "../medbrains-outbox" }
+medbrains-print = { version = "0.1.0", path = "../medbrains-print" }
 argon2 = { workspace = true }
 axum = { workspace = true }
+axum-extra = { version = "0.10", features = ["cookie"] }
+http-body = "1"
+tower = { workspace = true }
+tower-http = { workspace = true }
+jsonwebtoken = { workspace = true }
+time = "0.3"
 tokio = { workspace = true }
 sqlx = { workspace = true }
 url = { workspace = true }

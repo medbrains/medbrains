@@ -27,17 +27,18 @@ pub mod clinical_credential;
 pub mod event_tokens;
 pub mod events;
 pub mod hospital_time;
-pub mod middleware;
 pub mod oauth;
 pub mod orchestration;
 pub mod pagination;
 pub mod routes;
 pub mod secret_backend;
 pub mod services;
-pub mod state;
 pub mod storage_archive;
 pub mod tenant_config;
 
 // Shared server foundation — moved to `medbrains-server-core` and re-exported here
-// so `crate::error`, `crate::config`, … keep resolving across the ~189 route modules.
-pub use medbrains_server_core::{config, error, s3_presign, signing, validation};
+// so `crate::error`, `crate::state`, `crate::middleware`, … keep resolving across
+// the ~189 route modules.
+pub use medbrains_server_core::{
+    config, error, middleware, s3_presign, signing, state, validation,
+};

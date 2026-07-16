@@ -7,7 +7,7 @@ use medbrains_outbox::Registry as OutboxRegistry;
 use sqlx::PgPool;
 
 use crate::middleware::system_state::SystemStateCache;
-use crate::routes::ws::QueueBroadcaster;
+use crate::queue_broadcast::QueueBroadcaster;
 use crate::s3_presign::S3PresignClient;
 
 /// Cookie configuration for `HttpOnly` cookie-based auth.
@@ -29,7 +29,7 @@ pub struct AppState {
     pub queue_broadcaster: QueueBroadcaster,
     /// Real-time notification fan-out hub (RFC-NOTIFICATION-SYSTEM). Every
     /// notification is published here for live WS delivery to web/mobile/TV/kiosk.
-    pub notifications: crate::services::notification_hub::NotificationHub,
+    pub notifications: crate::notification_hub::NotificationHub,
     /// Trusted proxy CIDRs for X-Forwarded-For validation.
     /// Only trust forwarded headers if the direct connection is from one of these networks.
     pub trusted_proxies: Arc<Vec<ipnet::IpNet>>,
