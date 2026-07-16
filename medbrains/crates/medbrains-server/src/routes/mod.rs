@@ -3,9 +3,7 @@ pub mod access;
 pub mod app_manifest;
 pub mod vte;
 pub mod admin;
-pub mod admin_db_topology;
 pub mod admin_simulator;
-pub mod admin_system_state;
 pub mod aebas;
 pub mod ai;
 pub mod ambulance;
@@ -15,7 +13,6 @@ pub mod assets;
 pub mod audit;
 pub mod auth;
 pub mod billing;
-pub mod blog;
 pub mod blood_bank;
 pub mod bme;
 pub mod camp;
@@ -61,7 +58,6 @@ pub mod lms;
 pub mod materials;
 pub mod mfa;
 pub mod mrd;
-pub mod multi_hospital;
 pub use medbrains_server_core::nabh_evidence;
 // scheduling routes moved to the medbrains-scheduling leaf; re-exported so
 // reports.rs (which reuses scheduling helpers) keeps resolving crate::routes::scheduling.
@@ -70,7 +66,6 @@ pub use medbrains_telehealth::cds;
 pub use medbrains_platform::ckb;
 pub mod nabh_indicators;
 pub mod news;
-pub mod news_feed;
 pub mod nhcx_callback;
 pub mod nhcx_onboarding;
 pub mod nhcx_participants;
@@ -5869,152 +5864,7 @@ pub fn build_router(state: AppState) -> Router {
             get(print_data_academic::get_hospital_branding),
         )
         // ── Multi-Hospital Management ──────────────────────────────────
-        // Hospital Groups
-        .route(
-            "/api/multi-hospital/groups",
-            get(multi_hospital::list_groups).post(multi_hospital::create_group),
-        )
-        .route(
-            "/api/multi-hospital/groups/{id}",
-            get(multi_hospital::get_group)
-                .put(multi_hospital::update_group)
-                .delete(multi_hospital::delete_group),
-        )
-        // Regions
-        .route(
-            "/api/multi-hospital/regions",
-            get(multi_hospital::list_regions).post(multi_hospital::create_region),
-        )
-        .route(
-            "/api/multi-hospital/regions/{id}",
-            get(multi_hospital::get_region).delete(multi_hospital::delete_region),
-        )
-        // Hospitals in Group
-        .route(
-            "/api/multi-hospital/hospitals",
-            get(multi_hospital::list_all_hospitals),
-        )
-        .route(
-            "/api/multi-hospital/groups/{group_id}/hospitals",
-            get(multi_hospital::list_hospitals_in_group),
-        )
-        .route(
-            "/api/multi-hospital/hospital-assignments",
-            post(multi_hospital::assign_hospital_to_group),
-        )
-        .route(
-            "/api/multi-hospital/hospital-assignments/{tenant_id}",
-            delete(multi_hospital::remove_hospital_from_group),
-        )
-        // User Assignments
-        .route(
-            "/api/multi-hospital/users/{user_id}/assignments",
-            get(multi_hospital::list_user_assignments),
-        )
-        .route(
-            "/api/multi-hospital/user-assignments",
-            get(multi_hospital::list_multi_hospital_users)
-                .post(multi_hospital::create_user_assignment),
-        )
-        .route(
-            "/api/multi-hospital/user-assignments/{assignment_id}",
-            delete(multi_hospital::delete_user_assignment),
-        )
-        // Patient Transfers
-        .route(
-            "/api/multi-hospital/transfers/patients/outgoing",
-            get(multi_hospital::list_outgoing_transfers),
-        )
-        .route(
-            "/api/multi-hospital/transfers/patients/incoming",
-            get(multi_hospital::list_incoming_transfers),
-        )
-        .route(
-            "/api/multi-hospital/transfers/patients",
-            post(multi_hospital::create_patient_transfer),
-        )
-        .route(
-            "/api/multi-hospital/transfers/patients/{id}",
-            get(multi_hospital::get_patient_transfer)
-                .put(multi_hospital::update_patient_transfer),
-        )
-        // Stock Transfers
-        .route(
-            "/api/multi-hospital/transfers/stock/outgoing",
-            get(multi_hospital::list_outgoing_stock_transfers),
-        )
-        .route(
-            "/api/multi-hospital/transfers/stock/incoming",
-            get(multi_hospital::list_incoming_stock_transfers),
-        )
-        .route(
-            "/api/multi-hospital/transfers/stock",
-            post(multi_hospital::create_stock_transfer),
-        )
-        .route(
-            "/api/multi-hospital/transfers/stock/{id}",
-            get(multi_hospital::get_stock_transfer)
-                .put(multi_hospital::update_stock_transfer),
-        )
-        .route(
-            "/api/multi-hospital/transfers/stock/{transfer_id}/items",
-            get(multi_hospital::get_stock_transfer_items),
-        )
-        // Group KPIs & Dashboard
-        .route(
-            "/api/multi-hospital/groups/{group_id}/dashboard",
-            get(multi_hospital::get_group_dashboard),
-        )
-        .route(
-            "/api/multi-hospital/groups/{group_id}/kpis",
-            get(multi_hospital::list_group_kpis),
-        )
-        .route(
-            "/api/multi-hospital/hospitals/{tenant_id}/kpi",
-            get(multi_hospital::get_hospital_kpi),
-        )
-        // Doctor Rotation
-        .route(
-            "/api/multi-hospital/groups/{group_id}/rotations",
-            get(multi_hospital::list_doctor_rotations)
-                .post(multi_hospital::create_doctor_rotation),
-        )
-        .route(
-            "/api/multi-hospital/doctors/{doctor_id}/rotations",
-            get(multi_hospital::get_doctor_rotation),
-        )
-        .route(
-            "/api/multi-hospital/rotations/{id}",
-            delete(multi_hospital::delete_doctor_rotation),
-        )
-        // Group Masters
-        .route(
-            "/api/multi-hospital/groups/{group_id}/drugs",
-            get(multi_hospital::list_group_drugs),
-        )
-        .route(
-            "/api/multi-hospital/groups/{group_id}/tests",
-            get(multi_hospital::list_group_tests),
-        )
-        .route(
-            "/api/multi-hospital/groups/{group_id}/tariffs",
-            get(multi_hospital::list_group_tariffs),
-        )
-        .route(
-            "/api/multi-hospital/price-overrides",
-            get(multi_hospital::list_price_overrides),
-        )
-        // Group Templates
-        .route(
-            "/api/multi-hospital/groups/{group_id}/templates",
-            get(multi_hospital::list_group_templates)
-                .post(multi_hospital::create_group_template),
-        )
-        .route(
-            "/api/multi-hospital/templates/{id}",
-            get(multi_hospital::get_group_template)
-                .delete(multi_hospital::delete_group_template),
-        )
+        .merge(medbrains_admin::router())
         // ── CMS & Blog ──────────────────────────────────────────────
         // Dashboard
         .route(
@@ -6262,12 +6112,6 @@ pub fn build_router(state: AppState) -> Router {
             "/api/audit/access-log",
             get(audit::list_access_log).post(audit::log_access),
         )
-        // Sprint A.6 — system_state admin endpoints
-        .route(
-            "/api/admin/system_state",
-            get(admin_system_state::get_system_state)
-                .post(admin_system_state::update_system_state),
-        )
         // Internal data simulator control plane (super_admin / hospital_admin).
         // Schedules carry a JSON profile + cron; run-now kicks the engine
         // in a detached task and returns the run_id immediately.
@@ -6300,17 +6144,6 @@ pub fn build_router(state: AppState) -> Router {
             get(admin_simulator::get_run),
         )
         // Medical news feed — global ingested articles (list/search + reader).
-        // Hospital blog — published reads + author CRUD.
-        .route("/api/blog", get(blog::list_blog).post(blog::create_blog))
-        .route(
-            "/api/blog/{id}",
-            get(blog::get_blog).put(blog::update_blog).delete(blog::delete_blog),
-        )
-        .route("/api/news-feed", get(news_feed::list_news_feed))
-        .route(
-            "/api/news-feed/{id}",
-            get(news_feed::get_news_feed_article),
-        )
         // News / health advisories — public list (any auth'd role), admin CRUD.
         .route("/api/news", get(news::list_active))
         .route(
@@ -6320,12 +6153,6 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/admin/news/{id}",
             put(news::update_article).delete(news::delete_article),
-        )
-        // Sprint B.4.3 — per-tenant DB topology selector (aurora ↔ patroni)
-        .route(
-            "/api/admin/db-topology",
-            get(admin_db_topology::get_db_topology)
-                .post(admin_db_topology::update_db_topology),
         )
         .route(
             "/api/audit/access-log/patient/{id}",

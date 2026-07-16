@@ -11,7 +11,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{error::AppError, state::AppState};
+use medbrains_server_core::{error::AppError, state::AppState};
 
 // Full article incl. `content` (body text) — for the single-article reader only.
 const DETAIL_COLS: &str = "id, topic, source, title, summary, content, url, image_url, author, \
