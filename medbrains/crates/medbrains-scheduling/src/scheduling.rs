@@ -14,7 +14,7 @@ use medbrains_core::scheduling::{
     NoshowPredictionScore, SchedulingOverbookingRule, SchedulingWaitlistEntry,
 };
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };

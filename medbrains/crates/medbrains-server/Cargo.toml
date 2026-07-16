@@ -13,6 +13,7 @@ medbrains-seed = { path = "../medbrains-seed" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-clinical-scores = { path = "../medbrains-clinical-scores" }
 medbrains-clinical-ops = { path = "../medbrains-clinical-ops" }
+medbrains-scheduling = { path = "../medbrains-scheduling" }
 medbrains-ancillary = { path = "../medbrains-ancillary" }
 medbrains-community-health = { path = "../medbrains-community-health" }
 # Body::size_hint for the dev payload-size logger (middleware::payload_size_log).
