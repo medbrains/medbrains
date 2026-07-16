@@ -1,0 +1,29 @@
+[package]
+name = "medbrains-opd"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[dependencies]
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-server-services = { path = "../medbrains-server-services" }
+medbrains-workflow = { path = "../medbrains-workflow" }
+medbrains-radiology = { path = "../medbrains-radiology" }
+medbrains-lab = { path = "../medbrains-lab" }
+medbrains-telehealth = { path = "../medbrains-telehealth" }
+medbrains-platform = { path = "../medbrains-platform" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-db = { path = "../medbrains-db" }
+medbrains-authz = { path = "../medbrains-authz" }
+axum = { workspace = true }
+axum-extra = { version = "0.10", features = ["cookie"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+rust_decimal = { workspace = true }
+sqlx = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

@@ -59,11 +59,12 @@ pub use medbrains_radiology as radiology;
 pub use medbrains_lab as lab;
 // ai/ipd_post_discharge/order_basket reach pharmacy order + med-safety helpers via super::pharmacy
 pub use medbrains_pharmacy as pharmacy;
+// case_sheet_scan/mrd/appointments reach opd helpers via super::opd
+pub use medbrains_opd as opd;
 // billing/lab/pharmacy/patients/appointments reach token helpers via crate::routes::tokens
 pub use medbrains_tokens as tokens;
 pub mod oauth;
 pub mod onboarding;
-pub mod opd;
 pub mod orchestration;
 pub mod order_basket;
 pub mod order_sets;
@@ -806,8 +807,8 @@ pub fn build_router(state: AppState) -> Router {
             "/api/dashboard/widget-data/{widget_id}",
             get(dashboard::get_widget_data),
         )
-        .route("/api/opd/verbal-orders", get(opd::list_verbal_orders))
-        // ── OPD Appointments ────────────────────────────
+        // ── OPD + OPD Appointments ──────────────────────────
+        .merge(medbrains_opd::router())
         .route(
             "/api/opd/schedules",
             get(appointments::list_schedules).post(appointments::create_schedule),
@@ -856,235 +857,9 @@ pub fn build_router(state: AppState) -> Router {
             "/api/opd/appointments/{id}/no-show",
             put(appointments::mark_appointment_no_show),
         )
-        // ── OPD ──────────────────────────────────────────
-        .route(
-            "/api/opd/encounters",
-            get(opd::list_encounters).post(opd::create_encounter),
-        )
-        .route(
-            "/api/opd/encounters/{id}",
-            get(opd::get_encounter).put(opd::update_encounter),
-        )
-        .route(
-            "/api/opd/registration-policy",
-            get(opd::get_registration_policy).put(opd::update_registration_policy),
-        )
-        .route("/api/opd/queue", get(opd::list_queue))
-        .route(
-            "/api/opd/queue/{id}/call",
-            put(opd::call_queue_entry),
-        )
-        .route(
-            "/api/opd/queue/{id}/start",
-            put(opd::start_consultation),
-        )
-        .route(
-            "/api/opd/queue/{id}/complete",
-            put(opd::complete_queue_entry),
-        )
-        .route(
-            "/api/opd/queue/{id}/no-show",
-            put(opd::mark_no_show),
-        )
-        .route(
-            "/api/opd/encounters/{id}/vitals",
-            get(opd::list_vitals).post(opd::create_vital),
-        )
-        .route(
-            "/api/opd/encounters/{id}/consultation",
-            get(opd::get_consultation).post(opd::create_consultation),
-        )
-        .route(
-            "/api/opd/encounters/{eid}/consultation/{id}",
-            put(opd::update_consultation),
-        )
-        .route(
-            "/api/opd/encounters/{id}/diagnoses",
-            get(opd::list_diagnoses).post(opd::create_diagnosis),
-        )
-        .route(
-            "/api/opd/encounters/{id}/diagnoses/{did}",
-            put(opd::update_diagnosis).delete(opd::delete_diagnosis),
-        )
-        .route(
-            "/api/opd/encounters/{id}/prescriptions",
-            get(opd::list_prescriptions).post(opd::create_prescription),
-        )
-        .route(
-            "/api/opd/prescriptions/{id}",
-            get(opd::get_prescription).put(opd::update_prescription),
-        )
-        .route(
-            "/api/opd/prescription-templates",
-            get(opd::list_prescription_templates).post(opd::create_prescription_template),
-        )
-        .route(
-            "/api/opd/prescription-templates/{id}",
-            delete(opd::delete_prescription_template),
-        )
-        .route(
-            "/api/opd/patients/{id}/prescriptions",
-            get(opd::list_patient_prescriptions),
-        )
-        .route(
-            "/api/opd/patients/{id}/diagnoses",
-            get(opd::list_patient_diagnoses),
-        )
-        .route(
-            "/api/opd/patients/{id}/certificates",
-            get(opd::list_certificates),
-        )
-        .route(
-            "/api/opd/certificates",
-            post(opd::create_certificate),
-        )
-        .route(
-            "/api/opd/certificates/{id}/void",
-            put(opd::void_certificate),
-        )
-        // ── OPD Round 3: Vitals history, Referrals, Procedures, Duplicate check
-        .route(
-            "/api/opd/patients/{id}/vitals-history",
-            get(opd::list_patient_vitals_history),
-        )
-        .route(
-            "/api/opd/patients/{id}/referrals",
-            get(opd::list_patient_referrals),
-        )
-        .route(
-            "/api/opd/referrals",
-            post(opd::create_referral),
-        )
-        .route(
-            "/api/opd/procedure-catalog",
-            get(opd::list_procedure_catalog),
-        )
         .route(
             "/api/opd/procedure-catalog/import",
             post(catalog_import::import_procedure_catalog),
-        )
-        .route(
-            "/api/opd/encounters/{id}/procedure-orders",
-            get(opd::list_procedure_orders),
-        )
-        .route(
-            "/api/opd/procedure-orders",
-            post(opd::create_procedure_order),
-        )
-        .route(
-            "/api/opd/procedure-orders/{id}",
-            delete(opd::cancel_procedure_order),
-        )
-        .route(
-            "/api/opd/duplicate-check",
-            get(opd::check_duplicate_orders),
-        )
-        .route(
-            "/api/opd/icd10/search",
-            get(opd::search_icd10),
-        )
-        .route(
-            "/api/opd/icd11/search",
-            get(opd::search_icd11),
-        )
-        .route(
-            "/api/opd/clinical-corpus",
-            get(opd::search_clinical_corpus).post(opd::create_clinical_corpus_entry),
-        )
-        .route(
-            "/api/opd/clinical-corpus/{id}",
-            put(opd::update_clinical_corpus_entry),
-        )
-        .route(
-            "/api/opd/chief-complaints",
-            get(opd::list_chief_complaints),
-        )
-        // ── OPD Post-Consultation ──────────────────────────
-        .route(
-            "/api/opd/docket",
-            get(opd::get_doctor_docket),
-        )
-        .route(
-            "/api/opd/docket/generate",
-            post(opd::generate_doctor_docket),
-        )
-        .route(
-            "/api/opd/reminders",
-            get(opd::list_reminders).post(opd::create_reminder),
-        )
-        .route(
-            "/api/opd/reminders/{id}/complete",
-            put(opd::complete_reminder),
-        )
-        .route(
-            "/api/opd/reminders/{id}/cancel",
-            put(opd::cancel_reminder),
-        )
-        .route(
-            "/api/opd/patients/{id}/feedback",
-            get(opd::list_feedback),
-        )
-        .route(
-            "/api/opd/feedback",
-            post(opd::create_feedback),
-        )
-        .route(
-            "/api/opd/patients/{id}/consents",
-            get(opd::list_consents),
-        )
-        .route(
-            "/api/opd/consents",
-            post(opd::create_consent),
-        )
-        .route(
-            "/api/opd/consents/{id}/sign",
-            put(opd::sign_consent),
-        )
-        .route(
-            "/api/opd/consents/{id}/revoke",
-            put(opd::revoke_consent),
-        )
-        // OPD — consultation templates
-        .route(
-            "/api/opd/consultation-templates",
-            get(opd::list_consultation_templates).post(opd::create_consultation_template),
-        )
-        .route(
-            "/api/opd/consultation-templates/{id}",
-            delete(opd::delete_consultation_template),
-        )
-        // ── OPD Phase 2 ─────────────────────────────────
-        .route(
-            "/api/opd/snomed/search",
-            get(opd::search_snomed),
-        )
-        .route(
-            "/api/opd/appointment-groups",
-            post(opd::book_appointment_group),
-        )
-        .route(
-            "/api/opd/appointment-groups/{group_id}",
-            get(opd::list_appointment_group),
-        )
-        .route(
-            "/api/opd/queue/wait-estimate",
-            get(opd::get_wait_estimate),
-        )
-        .route(
-            "/api/opd/encounters/{id}/admit-to-ipd",
-            post(opd::admit_from_opd),
-        )
-        .route(
-            "/api/opd/visits/{id}/pharmacy-status",
-            get(opd::pharmacy_dispatch_status),
-        )
-        .route(
-            "/api/opd/referrals/tracking",
-            get(opd::referral_tracking),
-        )
-        .route(
-            "/api/opd/analytics/followup",
-            get(opd::followup_compliance),
         )
         .merge(medbrains_platform::router())
         .merge(medbrains_telehealth::router())

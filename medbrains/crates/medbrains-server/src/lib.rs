@@ -22,7 +22,7 @@
 //! - [`error`] — Unified error types and responses
 //! - [`validation`] — Request validation helpers
 
-pub mod clinical_credential;
+
 pub mod event_tokens;
 pub mod routes;
 pub mod secret_backend;
@@ -34,6 +34,7 @@ pub mod storage_archive;
 // the ~189 route modules.
 pub use medbrains_workflow::{events, orchestration};
 pub use medbrains_server_core::{
+    clinical_credential,
     authz_patient, config, error, hospital_time, middleware, oauth, pagination, s3_presign,
     signing, state, tenant_config, validation,
 };
