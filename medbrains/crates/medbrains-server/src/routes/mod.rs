@@ -19,12 +19,10 @@ pub mod blog;
 pub mod blood_bank;
 pub mod bme;
 pub mod camp;
-pub mod care_view;
 pub mod catalog_import;
 pub mod client_errors;
 pub mod clinical_offline;
 pub mod cms;
-pub mod command_center;
 pub mod communications;
 pub mod config_transfer;
 pub mod consent;
@@ -116,7 +114,6 @@ pub mod quality;
 pub mod radiology;
 pub mod regulatory;
 pub mod reports;
-pub mod retrospective;
 pub mod roi;
 pub mod schema_registry;
 pub mod security;
@@ -138,7 +135,6 @@ pub mod storage;
 pub mod tokens;
 pub mod tv;
 pub mod upload;
-pub mod utilization_review;
 pub mod ws;
 
 use axum::{
@@ -4577,81 +4573,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/communications/feedback/stats",
             get(communications::get_feedback_stats),
         )
-        // ── Command Center ───────────────────────────────────
-        .route(
-            "/api/command-center/patient-flow",
-            get(command_center::patient_flow_snapshot),
-        )
-        .route(
-            "/api/command-center/patient-flow/hourly",
-            get(command_center::hourly_flow),
-        )
-        .route(
-            "/api/command-center/bottlenecks",
-            get(command_center::detect_bottlenecks),
-        )
-        .route(
-            "/api/command-center/department-load",
-            get(command_center::department_load),
-        )
-        .route(
-            "/api/command-center/alerts",
-            get(command_center::active_alerts),
-        )
-        .route(
-            "/api/command-center/alerts/{id}/acknowledge",
-            post(command_center::acknowledge_alert),
-        )
-        .route(
-            "/api/command-center/alert-thresholds",
-            get(command_center::list_thresholds)
-                .post(command_center::create_threshold),
-        )
-        .route(
-            "/api/command-center/alert-thresholds/{id}",
-            put(command_center::update_threshold),
-        )
-        .route(
-            "/api/command-center/pending-discharges",
-            get(command_center::list_pending_discharges),
-        )
-        .route(
-            "/api/command-center/discharge-blockers/{id}",
-            get(command_center::get_discharge_blockers),
-        )
-        .route(
-            "/api/command-center/bed-turnaround",
-            get(command_center::bed_turnaround_status),
-        )
-        .route(
-            "/api/command-center/bed-turnaround/stats",
-            get(command_center::turnaround_stats),
-        )
-        .route(
-            "/api/command-center/transport",
-            get(command_center::list_transport_requests)
-                .post(command_center::create_transport_request),
-        )
-        .route(
-            "/api/command-center/transport/{id}",
-            put(command_center::update_transport_request),
-        )
-        .route(
-            "/api/command-center/transport/{id}/assign",
-            put(command_center::assign_transport),
-        )
-        .route(
-            "/api/command-center/transport/{id}/complete",
-            put(command_center::complete_transport),
-        )
-        .route(
-            "/api/command-center/kpis",
-            get(command_center::all_kpis),
-        )
-        .route(
-            "/api/command-center/kpis/{code}",
-            get(command_center::kpi_detail),
-        )
+        .merge(medbrains_analytics::router())
         // ── Facilities Management ──────────────────────────────
         .route(
             "/api/facilities/gas-readings",
@@ -5284,106 +5206,7 @@ pub fn build_router(state: AppState) -> Router {
             get(insurance::dashboard),
         )
         .merge(medbrains_community_health::router())
-        // ── Utilization Review ─────────────────────────────
-        .route(
-            "/api/utilization-review/reviews",
-            get(utilization_review::list_reviews).post(utilization_review::create_review),
-        )
-        .route(
-            "/api/utilization-review/reviews/outliers",
-            get(utilization_review::list_outliers),
-        )
-        .route(
-            "/api/utilization-review/reviews/{id}",
-            get(utilization_review::get_review).put(utilization_review::update_review),
-        )
-        .route(
-            "/api/utilization-review/reviews/{id}/ai-extract",
-            post(utilization_review::ai_extract_stub),
-        )
-        .route(
-            "/api/utilization-review/reviews/admission/{admission_id}",
-            get(utilization_review::list_by_admission),
-        )
-        .route(
-            "/api/utilization-review/communications",
-            get(utilization_review::list_communications).post(utilization_review::create_communication),
-        )
-        .route(
-            "/api/utilization-review/communications/{id}",
-            put(utilization_review::update_communication),
-        )
-        .route(
-            "/api/utilization-review/conversions",
-            get(utilization_review::list_conversions).post(utilization_review::create_conversion),
-        )
-        .route(
-            "/api/utilization-review/analytics",
-            get(utilization_review::analytics_summary),
-        )
-        .route(
-            "/api/utilization-review/analytics/los-comparison",
-            get(utilization_review::los_comparison),
-        )
         .merge(medbrains_scheduling::router())
-        // ── Care View ────────────────────────────────────────
-        .route(
-            "/api/care-view/ward-grid",
-            get(care_view::ward_patient_grid),
-        )
-        .route(
-            "/api/care-view/my-tasks",
-            get(care_view::my_tasks),
-        )
-        .route(
-            "/api/care-view/vitals-checklist",
-            get(care_view::vitals_checklist),
-        )
-        .route(
-            "/api/care-view/handover",
-            get(care_view::handover_summary),
-        )
-        .route(
-            "/api/care-view/discharge-tracker",
-            get(care_view::discharge_readiness),
-        )
-        .route(
-            "/api/care-view/tasks/{task_id}/complete",
-            post(care_view::complete_task),
-        )
-        .route(
-            "/api/care-view/admissions/{id}/primary-nurse",
-            put(care_view::update_primary_nurse),
-        )
-        // ── Retrospective Data Entry ─────────────────────────
-        .route(
-            "/api/retrospective/settings",
-            get(retrospective::get_retro_settings).put(retrospective::update_retro_settings),
-        )
-        .route(
-            "/api/retrospective/encounters",
-            post(retrospective::create_retro_encounter),
-        )
-        .route(
-            "/api/retrospective/entries",
-            get(retrospective::list_retro_entries),
-        )
-        .route(
-            "/api/retrospective/entries/{id}",
-            get(retrospective::get_retro_entry),
-        )
-        .route(
-            "/api/retrospective/entries/{id}/approve",
-            put(retrospective::approve_retro_entry),
-        )
-        .route(
-            "/api/retrospective/entries/{id}/reject",
-            put(retrospective::reject_retro_entry),
-        )
-        .route(
-            "/api/retrospective/audit/{source_table}/{source_id}",
-            get(retrospective::retro_audit_trail),
-        )
         // ── Clinical & Operational Analytics ────────────────────
         .route(
             "/api/analytics/revenue/department",
