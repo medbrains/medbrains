@@ -14,7 +14,7 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -1139,7 +1139,7 @@ pub async fn create_sharp_replacement(
     .fetch_one(&mut *tx)
     .await?;
 
-    crate::routes::nabh_evidence::mirror_biowaste_record(&mut tx, claims.tenant_id, row.id).await?;
+    medbrains_server_core::nabh_evidence::mirror_biowaste_record(&mut tx, claims.tenant_id, row.id).await?;
     let event = ClinicalEventEnvelope::new(
         claims.tenant_id,
         ClinicalEventName::HousekeepingBmwDisposalRecorded,
@@ -1155,7 +1155,7 @@ pub async fn create_sharp_replacement(
         }),
     )
     .with_department(row.department_id);
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({

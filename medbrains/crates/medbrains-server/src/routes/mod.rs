@@ -35,7 +35,6 @@ pub mod email_verification;
 pub mod emergency;
 pub mod fhir;
 pub mod health;
-pub mod housekeeping;
 pub mod hr;
 pub mod iam;
 pub mod indent;
@@ -94,7 +93,6 @@ pub mod print_data_mrd;
 pub mod print_data_quality;
 pub mod print_data_regulatory;
 pub mod print_data_surgical;
-pub mod procurement;
 pub mod quality;
 pub mod radiology;
 pub mod regulatory;
@@ -2459,83 +2457,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/indent/reorder-indent", post(indent::create_reorder_indent))
         .route("/api/indent/reorder-alerts", get(indent::list_reorder_alerts))
         .route("/api/indent/reorder-alerts/{id}/acknowledge", put(indent::acknowledge_alert))
-        // ── Procurement ──────────────────────────────────
-        .route(
-            "/api/procurement/vendors",
-            get(procurement::list_vendors).post(procurement::create_vendor),
-        )
-        .route(
-            "/api/procurement/vendors/{id}",
-            get(procurement::get_vendor).put(procurement::update_vendor),
-        )
-        .route(
-            "/api/procurement/store-locations",
-            get(procurement::list_store_locations).post(procurement::create_store_location),
-        )
-        .route(
-            "/api/procurement/store-locations/{id}",
-            put(procurement::update_store_location),
-        )
-        .route(
-            "/api/procurement/purchase-orders",
-            get(procurement::list_purchase_orders).post(procurement::create_purchase_order),
-        )
-        .route(
-            "/api/procurement/purchase-orders/{id}",
-            get(procurement::get_purchase_order),
-        )
-        .route(
-            "/api/procurement/purchase-orders/{id}/approve",
-            put(procurement::approve_purchase_order),
-        )
-        .route(
-            "/api/procurement/purchase-orders/{id}/send",
-            put(procurement::send_purchase_order),
-        )
-        .route(
-            "/api/procurement/purchase-orders/{id}/cancel",
-            put(procurement::cancel_purchase_order),
-        )
-        .route(
-            "/api/procurement/grns",
-            get(procurement::list_grns).post(procurement::create_grn),
-        )
-        .route(
-            "/api/procurement/grns/{id}",
-            get(procurement::get_grn),
-        )
-        .route(
-            "/api/procurement/grns/{id}/complete",
-            put(procurement::complete_grn),
-        )
-        .route(
-            "/api/procurement/rate-contracts",
-            get(procurement::list_rate_contracts).post(procurement::create_rate_contract),
-        )
-        .route(
-            "/api/procurement/rate-contracts/{id}",
-            get(procurement::get_rate_contract),
-        )
-        .route(
-            "/api/procurement/batch-stock",
-            get(procurement::list_batch_stock),
-        )
-        // ── Procurement Phase 2 ─────────────────────────────
-        .route("/api/procurement/vendor-performance", get(procurement::vendor_performance))
-        .route(
-            "/api/procurement/vendors/{id}/ledger",
-            get(procurement::vendor_ledger),
-        )
-        .route("/api/procurement/vendor-comparison", get(procurement::vendor_comparison))
-        .route("/api/procurement/emergency-purchase", post(procurement::create_emergency_po))
-        .route(
-            "/api/procurement/supplier-payments",
-            get(procurement::list_supplier_payments).post(procurement::create_supplier_payment),
-        )
-        .route(
-            "/api/procurement/supplier-payments/{id}",
-            put(procurement::update_supplier_payment),
-        )
+        .merge(medbrains_materials::router())
         // ── Quality Management ──────────────────────────────
         .route(
             "/api/quality/indicators",
@@ -3660,93 +3582,6 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/diet/audits",
             get(diet::list_audits).post(diet::create_audit),
-        )
-        // ── Housekeeping ─────────────────────────────────────
-        .route(
-            "/api/housekeeping/schedules",
-            get(housekeeping::list_cleaning_schedules)
-                .post(housekeeping::create_cleaning_schedule),
-        )
-        .route(
-            "/api/housekeeping/schedules/{id}",
-            put(housekeeping::update_cleaning_schedule),
-        )
-        .route(
-            "/api/housekeeping/tasks",
-            get(housekeeping::list_cleaning_tasks)
-                .post(housekeeping::create_cleaning_task),
-        )
-        .route(
-            "/api/housekeeping/tasks/{id}/status",
-            put(housekeeping::update_task_status),
-        )
-        .route(
-            "/api/housekeeping/tasks/{id}/verify",
-            put(housekeeping::verify_task),
-        )
-        .route(
-            "/api/housekeeping/turnarounds",
-            get(housekeeping::list_turnarounds)
-                .post(housekeeping::create_turnaround),
-        )
-        .route(
-            "/api/housekeeping/turnarounds/{id}/complete",
-            put(housekeeping::complete_turnaround),
-        )
-        .route(
-            "/api/housekeeping/pest-control",
-            get(housekeeping::list_pest_control_schedules)
-                .post(housekeeping::create_pest_control_schedule),
-        )
-        .route(
-            "/api/housekeeping/pest-control/{id}",
-            put(housekeeping::update_pest_control_schedule),
-        )
-        .route(
-            "/api/housekeeping/pest-control-logs",
-            get(housekeeping::list_pest_control_logs)
-                .post(housekeeping::create_pest_control_log),
-        )
-        .route(
-            "/api/housekeeping/linen",
-            get(housekeeping::list_linen_items)
-                .post(housekeeping::create_linen_item),
-        )
-        .route(
-            "/api/housekeeping/linen/{id}",
-            put(housekeeping::update_linen_item),
-        )
-        .route(
-            "/api/housekeeping/linen-movements",
-            get(housekeeping::list_linen_movements)
-                .post(housekeeping::create_linen_movement),
-        )
-        .route(
-            "/api/housekeeping/laundry-batches",
-            get(housekeeping::list_laundry_batches)
-                .post(housekeeping::create_laundry_batch),
-        )
-        .route(
-            "/api/housekeeping/laundry-batches/{id}/complete",
-            put(housekeeping::complete_laundry_batch),
-        )
-        .route(
-            "/api/housekeeping/par-levels",
-            get(housekeeping::list_par_levels)
-                .post(housekeeping::upsert_par_level),
-        )
-        .route(
-            "/api/housekeeping/condemnations",
-            get(housekeeping::list_condemnations)
-                .post(housekeeping::create_condemnation),
-        )
-        .route(
-            "/api/housekeeping/bmw/schedule",
-            get(housekeeping::get_bmw_schedule),
-        )
-        .route(
-            "/api/housekeeping/bmw/sharp-replacement",
-            post(housekeeping::create_sharp_replacement),
         )
         // ── HR & Staff Management ───────────────────────────
         .route(
