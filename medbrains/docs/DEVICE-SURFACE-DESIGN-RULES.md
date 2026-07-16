@@ -2,6 +2,19 @@
 
 **Status:** LAW · Companion to `DESIGN-RULES.md` (web Carbon), `DEVICE-CONSTRAINED-RULES.md` (performance).
 
+## The 10 Commandments of Device-Surface Design (LAW)
+
+1. **Use the right design system per surface** — never force the web Carbon 2x-grid onto TV or mobile.
+2. **Carbon is the brand, not the layout** — colour/type/spacing from `@medbrains/design-system` tokens; never a raw hex, never a per-surface palette fork.
+3. **On TV, obey the 10-foot UI** — a default-focused element, explicit D-pad directional logic, and an **obvious** focus state (`hasTVPreferredFocus`/`TVFocusGuideView`).
+4. **On TV, respect overscan** — keep content in the safe area (48dp L/R, 27dp T/B); light-on-dark, large legible type, nothing critical in the outer 5%.
+5. **On mobile, follow Carbon-for-RN + platform HIG** — Material 3 / Apple HIG nav + safe-area insets; **touch targets ≥ 44px**.
+6. **On kiosk, make it self-service** — large targets, one linear flow, forgiving timeouts, high contrast.
+7. **Virtualize and bound everything** — `FlatList`/`getItemLayout`, never `ScrollView.map`; every loop/cache/queue capped (Power of Ten); memory flat over uptime.
+8. **Fail safe, never blank** — an error boundary per screen, offline last-good render; a board never shows white or a spinner-forever.
+9. **Share, never copy** — all shared logic/tokens from `@medbrains/*`; diverge only by surface variant, never by fork.
+10. **Accessible on every surface (WCAG 2.2 AA)** — visible ≥2px focus, ≥ target size, real labels, never colour-alone, honour reduced-motion.
+
 ## Principle
 
 IBM Carbon is MedBrains' **brand + token language** (Blue 60 `#0f62fe`, IBM Plex, Carbon neutral ramp,
