@@ -24,8 +24,6 @@
 
 pub mod clinical_credential;
 pub mod event_tokens;
-pub mod hospital_time;
-pub mod pagination;
 pub mod routes;
 pub mod secret_backend;
 pub mod services;
@@ -36,6 +34,6 @@ pub mod storage_archive;
 // the ~189 route modules.
 pub use medbrains_workflow::{events, orchestration};
 pub use medbrains_server_core::{
-    authz_patient, config, error, middleware, oauth, s3_presign, signing, state, tenant_config,
-    validation,
+    authz_patient, config, error, hospital_time, middleware, oauth, pagination, s3_presign,
+    signing, state, tenant_config, validation,
 };
