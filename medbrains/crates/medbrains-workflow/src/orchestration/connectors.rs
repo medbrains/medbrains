@@ -9,7 +9,7 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::error::AppError;
+use medbrains_server_core::error::AppError;
 
 /// List all connectors for a tenant (plus global templates where tenant_id IS NULL).
 pub async fn list_connectors(

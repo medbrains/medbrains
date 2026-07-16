@@ -7,7 +7,7 @@
 use medbrains_core::orchestration::EventRegistryRow;
 use sqlx::PgPool;
 
-use crate::error::AppError;
+use medbrains_server_core::error::AppError;
 
 /// List registered events, optionally filtered by module.
 pub async fn list_events(

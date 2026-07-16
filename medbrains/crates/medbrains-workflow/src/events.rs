@@ -13,7 +13,7 @@ use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::error::AppError;
+use medbrains_server_core::error::AppError;
 
 /// Emit an internal event.
 ///
