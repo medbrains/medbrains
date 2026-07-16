@@ -32,6 +32,7 @@ members = [
     "crates/medbrains-emergency",
     "crates/medbrains-indent",
     "crates/medbrains-blood-bank",
+    "crates/medbrains-radiology",
     "crates/medbrains-clinical-scores",
     "crates/medbrains-clinical-ops",
     "crates/medbrains-identity",

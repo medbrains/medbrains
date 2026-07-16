@@ -15,10 +15,11 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use axum::routing::{get,post,put};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
 //  Pre-contrast safety screening
@@ -198,7 +199,7 @@ pub async fn contrast_screening(
     Json(body): Json<ContrastScreeningRequest>,
 ) -> Result<Json<ContrastScreeningResult>, AppError> {
     require_permission(&claims, permissions::radiology::orders::VIEW)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -263,7 +264,7 @@ pub async fn cumulative_dose(
     Query(params): Query<CumulativeDoseQuery>,
 ) -> Result<Json<CumulativeDoseResult>, AppError> {
     require_permission(&claims, permissions::radiology::orders::VIEW)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -454,7 +455,7 @@ pub async fn list_orders(
     Query(params): Query<ListOrdersQuery>,
 ) -> Result<Json<OrderListResponse>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -466,7 +467,7 @@ pub async fn list_orders(
     let offset = (page - 1) * per_page;
 
     // ── ReBAC scope — only radiology orders caller has `view` on ─
-    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
     let visible_ids: Option<Vec<Uuid>> = if authz_ctx.is_bypass {
         None
     } else {
@@ -603,7 +604,7 @@ pub async fn create_order(
     Json(body): Json<CreateOrderRequest>,
 ) -> Result<Json<RadiologyOrder>, AppError> {
     require_permission(&claims, permissions::radiology::orders::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -630,8 +631,8 @@ pub async fn create_order_in_tx(
 }
 
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct CreateOrderOptions {
-    pub(crate) auto_bill: bool,
+pub struct CreateOrderOptions {
+    pub auto_bill: bool,
 }
 
 impl Default for CreateOrderOptions {
@@ -640,7 +641,7 @@ impl Default for CreateOrderOptions {
     }
 }
 
-pub(crate) async fn create_order_in_tx_with_options(
+pub async fn create_order_in_tx_with_options(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
     body: &CreateOrderRequest,
@@ -669,7 +670,7 @@ pub(crate) async fn create_order_in_tx_with_options(
     }
 
     let is_dummy =
-        body.is_dummy.unwrap_or(false) && crate::middleware::authorization::is_bypass_role(claims);
+        body.is_dummy.unwrap_or(false) && medbrains_server_core::middleware::authorization::is_bypass_role(claims);
 
     let order = sqlx::query_as::<_, RadiologyOrder>(
         "INSERT INTO radiology_orders \
@@ -743,7 +744,7 @@ async fn auto_bill_radiology_order_in_tx(
     claims: &Claims,
     order: &RadiologyOrder,
 ) -> Result<(), AppError> {
-    if !super::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "radiology").await? {
+    if !medbrains_server_services::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "radiology").await? {
         return Ok(());
     }
 
@@ -776,10 +777,10 @@ async fn auto_bill_radiology_order_in_tx(
         },
     );
 
-    super::billing::auto_charge(
+    medbrains_server_services::billing::auto_charge(
         tx,
         &claims.tenant_id,
-        super::billing::AutoChargeInput {
+        medbrains_server_services::billing::AutoChargeInput {
             patient_id: order.patient_id,
             encounter_id: Some(encounter_id),
             charge_code,
@@ -806,7 +807,7 @@ pub async fn get_order(
     Path(id): Path<Uuid>,
 ) -> Result<Json<OrderDetailResponse>, AppError> {
     require_permission(&claims, permissions::radiology::orders::VIEW)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -814,7 +815,7 @@ pub async fn get_order(
     .await?;
 
     // ── ReBAC pre-check — must hold `view` on the radiology_order ─
-    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
     let allowed = state
         .authz
         .check(
@@ -879,7 +880,7 @@ pub async fn update_order_status(
     Json(body): Json<UpdateStatusRequest>,
 ) -> Result<Json<RadiologyOrder>, AppError> {
     require_permission(&claims, permissions::radiology::orders::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -935,7 +936,7 @@ pub async fn update_order_status(
         if let Some(encounter_id) = order.encounter_id {
             event = event.with_encounter(encounter_id);
         }
-        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     }
 
     tx.commit().await?;
@@ -952,7 +953,7 @@ pub async fn update_order_status(
         .flatten()
         .unwrap_or_else(|| "Unknown".to_owned());
 
-        let _ = crate::orchestration::lifecycle::emit_after_event(
+        let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
             &state.db,
             claims.tenant_id,
             claims.sub,
@@ -989,7 +990,7 @@ pub async fn cancel_order(
     Json(body): Json<CancelOrderRequest>,
 ) -> Result<Json<RadiologyOrder>, AppError> {
     require_permission(&claims, permissions::radiology::orders::CANCEL)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -1014,7 +1015,7 @@ pub async fn cancel_order(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    super::billing::reverse_auto_charge_for_source(
+    medbrains_server_services::billing::reverse_auto_charge_for_source(
         &mut tx,
         &claims.tenant_id,
         "radiology",
@@ -1042,7 +1043,7 @@ pub async fn cancel_order(
     if let Some(encounter_id) = order.encounter_id {
         event = event.with_encounter(encounter_id);
     }
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
     Ok(Json(order))
@@ -1059,7 +1060,7 @@ pub async fn create_report(
     Json(body): Json<CreateReportRequest>,
 ) -> Result<Json<RadiologyReport>, AppError> {
     require_permission(&claims, permissions::radiology::reports::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -1162,10 +1163,10 @@ pub async fn create_report(
         .fetch_one(&mut *tx)
         .await?;
         let snippet: String = finding.chars().take(140).collect();
-        crate::routes::notifications::create_notification(
+        medbrains_server_core::notifications::create_notification(
             &mut tx,
             claims.tenant_id,
-            crate::routes::notifications::NewNotification {
+            medbrains_server_core::notifications::NewNotification {
                 user_id: recipient,
                 kind: "danger",
                 title: "Critical imaging finding",
@@ -1200,7 +1201,7 @@ pub async fn create_report(
     if let Some(encounter_id) = order.encounter_id {
         event = event.with_encounter(encounter_id);
     }
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
     Ok(Json(report))
@@ -1216,7 +1217,7 @@ pub async fn verify_report(
     Path(id): Path<Uuid>,
 ) -> Result<Json<RadiologyReport>, AppError> {
     require_permission(&claims, permissions::radiology::reports::VERIFY)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -1280,7 +1281,7 @@ pub async fn verify_report(
     if let Some(encounter_id) = order.encounter_id {
         event = event.with_encounter(encounter_id);
     }
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     // Close the loop back to the ordering clinician: signal the verified imaging report
     // is ready to review. Routine reports otherwise gave no signal — only critical
@@ -1297,10 +1298,10 @@ pub async fn verify_report(
     .fetch_one(&mut *tx)
     .await?;
     if recipient != claims.sub {
-        crate::routes::notifications::create_notification(
+        medbrains_server_core::notifications::create_notification(
             &mut tx,
             claims.tenant_id,
-            crate::routes::notifications::NewNotification {
+            medbrains_server_core::notifications::NewNotification {
                 user_id: recipient,
                 kind: "info",
                 title: "Imaging report ready",
@@ -1327,7 +1328,7 @@ pub async fn list_modalities(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<RadiologyModality>>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -1355,7 +1356,7 @@ pub async fn create_modality(
     Json(body): Json<CreateModalityRequest>,
 ) -> Result<Json<RadiologyModality>, AppError> {
     require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -1388,7 +1389,7 @@ pub async fn update_modality(
     Json(body): Json<UpdateModalityRequest>,
 ) -> Result<Json<RadiologyModality>, AppError> {
     require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -1427,7 +1428,7 @@ pub async fn delete_modality(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -1463,7 +1464,7 @@ pub async fn record_dose(
     Json(body): Json<RecordDoseRequest>,
 ) -> Result<Json<RadiationDoseRecord>, AppError> {
     require_permission(&claims, permissions::radiology::orders::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -1529,7 +1530,7 @@ pub async fn list_radiology_appointments(
     Query(query): Query<ListAppointmentsQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -1586,7 +1587,7 @@ pub async fn create_radiology_appointment(
     Json(body): Json<CreateRadiologyAppointmentRequest>,
 ) -> Result<Json<RadiologyOrder>, AppError> {
     require_permission(&claims, permissions::radiology::orders::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -1636,7 +1637,7 @@ pub async fn get_radiology_tat(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<RadiologyTatRow>>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -1678,7 +1679,7 @@ pub async fn list_dicom_studies(
     Query(params): Query<DicomStudyQuery>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -1744,7 +1745,7 @@ pub async fn get_prior_studies(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -1803,7 +1804,7 @@ pub async fn create_share_link(
     // Minting a PUBLIC DICOM viewer link is a management action, not a read —
     // gate on modalities::MANAGE, not the orders::LIST read permission.
     require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -1897,7 +1898,7 @@ pub async fn get_pacs_config(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -1927,7 +1928,7 @@ pub async fn update_pacs_config(
     // Overwriting the tenant's PACS/Orthanc integration config is a management
     // action — gate on modalities::MANAGE, not the orders::LIST read permission.
     require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -1957,7 +1958,7 @@ pub async fn list_dosimetry_records(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -2000,7 +2001,7 @@ pub async fn create_dosimetry_record(
     // Recording staff radiation-dosimetry compliance is a management action —
     // gate on modalities::MANAGE, not the orders::LIST read permission.
     require_permission(&claims, permissions::radiology::modalities::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -2058,7 +2059,7 @@ pub async fn get_download_package(
     Path(study_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -2114,7 +2115,7 @@ pub async fn list_patient_reports(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientRadiologyReport>>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -2153,7 +2154,7 @@ pub async fn acknowledge_critical_alert(
     Path(alert_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::radiology::reports::VERIFY)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "radiology",
@@ -2180,4 +2181,77 @@ pub async fn acknowledge_critical_alert(
     Ok(Json(
         serde_json::json!({ "id": alert_id, "acknowledged_at": acknowledged_at }),
     ))
+}
+
+/// Radiology (orders, studies, reports, PACS, dosimetry) authenticated routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/radiology/orders",
+            get(list_orders).post(create_order),
+        )
+        .route(
+            "/api/radiology/contrast-screening",
+            post(contrast_screening),
+        )
+        .route(
+            "/api/radiology/cumulative-dose",
+            get(cumulative_dose),
+        )
+        .route(
+            "/api/radiology/orders/{id}",
+            get(get_order),
+        )
+        .route(
+            "/api/radiology/orders/{id}/status",
+            put(update_order_status),
+        )
+        .route(
+            "/api/radiology/orders/{id}/cancel",
+            put(cancel_order),
+        )
+        .route(
+            "/api/radiology/patients/{patient_id}/reports",
+            get(list_patient_reports),
+        )
+        .route(
+            "/api/radiology/orders/{id}/report",
+            post(create_report),
+        )
+        .route(
+            "/api/radiology/orders/{id}/dose",
+            post(record_dose),
+        )
+        .route(
+            "/api/radiology/reports/{id}/verify",
+            put(verify_report),
+        )
+        .route(
+            "/api/radiology/critical-alerts/{id}/acknowledge",
+            put(acknowledge_critical_alert),
+        )
+        .route(
+            "/api/radiology/modalities",
+            get(list_modalities).post(create_modality),
+        )
+        .route(
+            "/api/radiology/modalities/{id}",
+            put(update_modality).delete(delete_modality),
+        )
+        .route(
+            "/api/radiology/appointments",
+            get(list_radiology_appointments)
+                .post(create_radiology_appointment),
+        )
+        .route(
+            "/api/radiology/analytics/tat",
+            get(get_radiology_tat),
+        )
+        // Radiology Phase 2: PACS + Dosimetry
+        .route("/api/radiology/dicom-studies", get(list_dicom_studies))
+        .route("/api/radiology/dicom-studies/{patient_id}/prior", get(get_prior_studies))
+        .route("/api/radiology/share-links", post(create_share_link))
+        .route("/api/radiology/pacs-config", get(get_pacs_config).put(update_pacs_config))
+        .route("/api/radiology/dosimetry", get(list_dosimetry_records).post(create_dosimetry_record))
+        .route("/api/radiology/download-package/{study_id}", get(get_download_package))
 }

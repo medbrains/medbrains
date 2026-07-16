@@ -54,6 +54,8 @@ pub use medbrains_server_core::notifications;
 pub use medbrains_identity::sso;
 // order_basket reaches diet's order-creation helper via super::diet
 pub use medbrains_diet as diet;
+// opd/order_basket reach radiology order helpers via super::radiology; public viewer route too
+pub use medbrains_radiology as radiology;
 pub mod oauth;
 pub mod onboarding;
 pub mod opd;
@@ -88,7 +90,6 @@ pub mod print_data_quality;
 pub mod print_data_regulatory;
 pub mod print_data_surgical;
 pub mod quality;
-pub mod radiology;
 pub mod regulatory;
 pub mod reports;
 pub mod security;
@@ -1811,75 +1812,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/lab/orders/{id}/crossmatch",
             get(lab::get_order_crossmatch),
         )
-        // ── Radiology ──────────────────────────────────
-        .route(
-            "/api/radiology/orders",
-            get(radiology::list_orders).post(radiology::create_order),
-        )
-        .route(
-            "/api/radiology/contrast-screening",
-            post(radiology::contrast_screening),
-        )
-        .route(
-            "/api/radiology/cumulative-dose",
-            get(radiology::cumulative_dose),
-        )
-        .route(
-            "/api/radiology/orders/{id}",
-            get(radiology::get_order),
-        )
-        .route(
-            "/api/radiology/orders/{id}/status",
-            put(radiology::update_order_status),
-        )
-        .route(
-            "/api/radiology/orders/{id}/cancel",
-            put(radiology::cancel_order),
-        )
-        .route(
-            "/api/radiology/patients/{patient_id}/reports",
-            get(radiology::list_patient_reports),
-        )
-        .route(
-            "/api/radiology/orders/{id}/report",
-            post(radiology::create_report),
-        )
-        .route(
-            "/api/radiology/orders/{id}/dose",
-            post(radiology::record_dose),
-        )
-        .route(
-            "/api/radiology/reports/{id}/verify",
-            put(radiology::verify_report),
-        )
-        .route(
-            "/api/radiology/critical-alerts/{id}/acknowledge",
-            put(radiology::acknowledge_critical_alert),
-        )
-        .route(
-            "/api/radiology/modalities",
-            get(radiology::list_modalities).post(radiology::create_modality),
-        )
-        .route(
-            "/api/radiology/modalities/{id}",
-            put(radiology::update_modality).delete(radiology::delete_modality),
-        )
-        .route(
-            "/api/radiology/appointments",
-            get(radiology::list_radiology_appointments)
-                .post(radiology::create_radiology_appointment),
-        )
-        .route(
-            "/api/radiology/analytics/tat",
-            get(radiology::get_radiology_tat),
-        )
-        // Radiology Phase 2: PACS + Dosimetry
-        .route("/api/radiology/dicom-studies", get(radiology::list_dicom_studies))
-        .route("/api/radiology/dicom-studies/{patient_id}/prior", get(radiology::get_prior_studies))
-        .route("/api/radiology/share-links", post(radiology::create_share_link))
-        .route("/api/radiology/pacs-config", get(radiology::get_pacs_config).put(radiology::update_pacs_config))
-        .route("/api/radiology/dosimetry", get(radiology::list_dosimetry_records).post(radiology::create_dosimetry_record))
-        .route("/api/radiology/download-package/{study_id}", get(radiology::get_download_package))
+        .merge(medbrains_radiology::router())
         // ── Pharmacy ────────────────────────────────────
         .route(
             "/api/pharmacy/orders",

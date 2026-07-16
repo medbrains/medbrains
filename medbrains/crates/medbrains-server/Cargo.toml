@@ -22,6 +22,7 @@ medbrains-diet = { path = "../medbrains-diet" }
 medbrains-emergency = { path = "../medbrains-emergency" }
 medbrains-indent = { path = "../medbrains-indent" }
 medbrains-blood-bank = { path = "../medbrains-blood-bank" }
+medbrains-radiology = { path = "../medbrains-radiology" }
 medbrains-clinical-scores = { path = "../medbrains-clinical-scores" }
 medbrains-clinical-ops = { path = "../medbrains-clinical-ops" }
 medbrains-identity = { path = "../medbrains-identity" }
