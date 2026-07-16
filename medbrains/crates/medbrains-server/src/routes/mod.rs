@@ -75,7 +75,7 @@ pub mod materials;
 pub mod mfa;
 pub mod mrd;
 pub mod multi_hospital;
-pub mod nabh_evidence;
+pub use medbrains_server_core::nabh_evidence;
 pub mod nabh_indicators;
 pub mod news;
 pub mod news_feed;
