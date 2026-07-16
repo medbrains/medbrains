@@ -20,6 +20,7 @@ members = [
     "crates/medbrains-fhir",
     "crates/medbrains-offline-core",
     "crates/medbrains-seed",
+    "crates/medbrains-server-core",
     "apps/edge",
     "apps/desktop/src-tauri",
 ]

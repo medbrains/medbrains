@@ -1,0 +1,32 @@
+[package]
+name = "medbrains-server-core"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[dependencies]
+medbrains-db = { path = "../medbrains-db" }
+medbrains-crypto = { path = "../medbrains-crypto" }
+argon2 = { workspace = true }
+axum = { workspace = true }
+sqlx = { workspace = true }
+url = { workspace = true }
+getrandom = { version = "0.3", features = ["std"] }
+ipnet = "2"
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+figment = { workspace = true }
+thiserror = { workspace = true }
+sha2 = { workspace = true }
+base64 = { workspace = true }
+regex = { workspace = true }
+reqwest = { workspace = true }
+ed25519-dalek = "2"
+aws-sdk-s3 = { version = "1", default-features = false, features = ["rt-tokio"] }
+aws-config = { version = "1", default-features = false, features = ["rt-tokio"] }
+
+[lints]
+workspace = true

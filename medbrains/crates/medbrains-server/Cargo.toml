@@ -10,6 +10,7 @@ license.workspace = true
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-seed = { path = "../medbrains-seed" }
+medbrains-server-core = { path = "../medbrains-server-core" }
 # Body::size_hint for the dev payload-size logger (middleware::payload_size_log).
 http-body = "1"
 # jemalloc global allocator — better multithreaded heap behaviour + lower
