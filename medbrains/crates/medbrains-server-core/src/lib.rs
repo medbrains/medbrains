@@ -8,6 +8,7 @@ pub mod config;
 pub mod error;
 pub mod middleware;
 pub mod nabh_evidence;
+pub mod notifications;
 pub mod notification_hub;
 pub mod permissions;
 pub mod queue_broadcast;

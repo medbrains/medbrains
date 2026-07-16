@@ -13,7 +13,7 @@ use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::services::notification_hub::{NotificationEvent, user_topic};
+use crate::notification_hub::{NotificationEvent, user_topic};
 use crate::{error::AppError, middleware::auth::Claims, state::AppState};
 
 #[derive(Debug, Serialize, sqlx::FromRow)]

@@ -59,7 +59,7 @@ pub mod nabh_indicators;
 pub mod news;
 pub mod nhcx_callback;
 pub mod nhcx_onboarding;
-pub mod notifications;
+pub use medbrains_server_core::notifications;
 pub mod oauth;
 pub mod onboarding;
 pub mod opd;
