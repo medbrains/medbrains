@@ -19,13 +19,12 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::{require_any_permission, require_permission},
-    routes::billing::{AutoChargeInput, auto_charge},
-    state::AppState,
-};
+use axum::routing::{get,post,put};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::{require_any_permission, require_permission};
+use medbrains_server_services::billing::{AutoChargeInput, auto_charge};
+use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Response types
@@ -488,7 +487,7 @@ pub async fn submit_requisition(
         }),
     )
     .with_department(req.department_id);
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
 
@@ -518,7 +517,7 @@ pub async fn submit_requisition(
             .await
             .unwrap_or(0);
 
-    let _ = crate::orchestration::lifecycle::emit_after_event(
+    let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
@@ -715,7 +714,7 @@ pub async fn approve_requisition(
         }),
     )
     .with_department(requisition.department_id);
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
 
@@ -729,7 +728,7 @@ pub async fn approve_requisition(
             .flatten()
             .unwrap_or_else(|| "Unknown".to_owned());
 
-    let _ = crate::orchestration::lifecycle::emit_after_event(
+    let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
@@ -922,7 +921,7 @@ pub async fn issue_requisition(
         }),
     )
     .with_department(requisition.department_id);
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
     Ok(Json(RequisitionDetailResponse { requisition, items }))
@@ -2695,4 +2694,84 @@ pub async fn acknowledge_alert(
 
     tx.commit().await?;
     Ok(Json(alert))
+}
+
+/// Indent / store requisition routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/indent/requisitions",
+            get(list_requisitions).post(create_requisition),
+        )
+        .route(
+            "/api/indent/requisitions/{id}",
+            get(get_requisition),
+        )
+        .route(
+            "/api/indent/requisitions/{id}/submit",
+            put(submit_requisition),
+        )
+        .route(
+            "/api/indent/requisitions/{id}/approve",
+            put(approve_requisition),
+        )
+        .route(
+            "/api/indent/requisitions/{id}/reject",
+            put(reject_requisition),
+        )
+        .route(
+            "/api/indent/requisitions/{id}/issue",
+            put(issue_requisition),
+        )
+        .route(
+            "/api/indent/requisitions/{id}/cancel",
+            put(cancel_requisition),
+        )
+        .route(
+            "/api/indent/catalog",
+            get(list_catalog).post(create_catalog_item),
+        )
+        .route(
+            "/api/indent/catalog/{id}",
+            put(update_catalog_item),
+        )
+        .route(
+            "/api/indent/stock/movements",
+            get(list_stock_movements)
+                .post(create_stock_movement),
+        )
+        // ── Indent Analytics ─────────────────────────────
+        .route("/api/indent/analytics/consumption", get(consumption_analysis))
+        .route("/api/indent/analytics/dead-stock", get(dead_stock_report))
+        .route("/api/indent/analytics/purchase-vs-consumption", get(purchase_consumption_trend))
+        .route("/api/indent/analytics/valuation", get(inventory_valuation))
+        .route("/api/indent/analytics/compliance", get(compliance_report))
+        .route("/api/indent/analytics/fsn", get(fsn_analysis))
+        .route("/api/indent/analytics/abc", get(abc_analysis))
+        .route("/api/indent/analytics/ved", get(ved_analysis))
+        // ── Indent Store Ops ─────────────────────────────
+        .route("/api/indent/department-issues", post(department_issue))
+        .route(
+            "/api/indent/patient-consumables",
+            get(list_patient_consumables).post(issue_to_patient),
+        )
+        .route("/api/indent/returns", post(return_to_store))
+        .route("/api/indent/consignment-stock", get(list_consignment_stock))
+        .route("/api/indent/consignment-usage", post(record_consignment_usage))
+        // ── Indent Assets & Implants ─────────────────────
+        .route(
+            "/api/indent/implant-registry",
+            get(list_implant_registry).post(create_implant_entry),
+        )
+        .route("/api/indent/implant-registry/{id}", put(update_implant_entry))
+        .route(
+            "/api/indent/condemnations",
+            get(list_condemnations).post(create_condemnation),
+        )
+        .route("/api/indent/condemnations/{id}/status", put(update_condemnation_status))
+        // ── Indent Reorder Alerts ────────────────────────
+        .route("/api/indent/reorder-alerts/check", post(check_reorder_alerts))
+        .route("/api/indent/reorder-indent", post(create_reorder_indent))
+        .route("/api/indent/reorder-alerts", get(list_reorder_alerts))
+        .route("/api/indent/reorder-alerts/{id}/acknowledge", put(acknowledge_alert))
 }

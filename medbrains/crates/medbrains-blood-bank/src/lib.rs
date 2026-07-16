@@ -16,10 +16,11 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use axum::routing::{get,post,put};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Response types
@@ -138,7 +139,7 @@ pub async fn list_donors(
     Query(params): Query<ListDonorsQuery>,
 ) -> Result<Json<DonorListResponse>, AppError> {
     require_permission(&claims, permissions::blood_bank::donors::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -224,7 +225,7 @@ pub async fn create_donor(
     Json(body): Json<CreateDonorRequest>,
 ) -> Result<Json<BloodDonor>, AppError> {
     require_permission(&claims, permissions::blood_bank::donors::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -267,7 +268,7 @@ pub async fn get_donor(
     Path(id): Path<Uuid>,
 ) -> Result<Json<BloodDonor>, AppError> {
     require_permission(&claims, permissions::blood_bank::donors::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -301,7 +302,7 @@ pub async fn create_donation(
     Json(body): Json<CreateDonationRequest>,
 ) -> Result<Json<BloodDonation>, AppError> {
     require_permission(&claims, permissions::blood_bank::donors::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -354,7 +355,7 @@ pub async fn list_donations(
     Path(donor_id): Path<Uuid>,
 ) -> Result<Json<Vec<BloodDonation>>, AppError> {
     require_permission(&claims, permissions::blood_bank::donors::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -384,7 +385,7 @@ pub async fn update_donation(
     Json(body): Json<UpdateDonationRequest>,
 ) -> Result<Json<BloodDonation>, AppError> {
     require_permission(&claims, permissions::blood_bank::donors::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -423,7 +424,7 @@ pub async fn list_components(
     Query(params): Query<ListComponentsQuery>,
 ) -> Result<Json<Vec<BloodComponent>>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -475,7 +476,7 @@ pub async fn create_component(
     Json(body): Json<CreateComponentRequest>,
 ) -> Result<Json<BloodComponent>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -515,7 +516,7 @@ pub async fn update_component_status(
     Json(body): Json<UpdateComponentStatusRequest>,
 ) -> Result<Json<BloodComponent>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -586,10 +587,10 @@ pub async fn update_component_status(
 pub async fn list_crossmatch_requests(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Query(p): Query<crate::pagination::Pagination>,
-) -> Result<Json<crate::pagination::Paginated<CrossmatchRequest>>, AppError> {
+    Query(p): Query<medbrains_server_core::pagination::Pagination>,
+) -> Result<Json<medbrains_server_core::pagination::Paginated<CrossmatchRequest>>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -616,7 +617,7 @@ pub async fn list_crossmatch_requests(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(crate::pagination::Paginated::new(requests, total, &p)))
+    Ok(Json(medbrains_server_core::pagination::Paginated::new(requests, total, &p)))
 }
 
 pub async fn create_crossmatch_request(
@@ -625,7 +626,7 @@ pub async fn create_crossmatch_request(
     Json(body): Json<CreateCrossmatchRequest>,
 ) -> Result<Json<CrossmatchRequest>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -666,7 +667,7 @@ pub async fn update_crossmatch(
     Json(body): Json<UpdateCrossmatchRequest>,
 ) -> Result<Json<CrossmatchRequest>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -709,7 +710,7 @@ pub async fn create_transfusion(
     Json(body): Json<CreateTransfusionRequest>,
 ) -> Result<Json<TransfusionRecord>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -872,10 +873,10 @@ pub async fn create_transfusion(
 
     // Auto-charge the transfusion (was a silent revenue leak). Master-priced by the
     // "BLOOD_TRANSFUSION" code; unconfigured → a visible ₹0 line, never a missed charge.
-    super::billing::auto_charge(
+    medbrains_server_services::billing::auto_charge(
         &mut tx,
         &claims.tenant_id,
-        super::billing::AutoChargeInput {
+        medbrains_server_services::billing::AutoChargeInput {
             patient_id: body.patient_id,
             encounter_id: None,
             charge_code: "BLOOD_TRANSFUSION".to_owned(),
@@ -900,7 +901,7 @@ pub async fn record_reaction(
     Json(body): Json<RecordReactionRequest>,
 ) -> Result<Json<TransfusionRecord>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -931,7 +932,7 @@ pub async fn record_reaction(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    crate::routes::nabh_evidence::mirror_transfusion_reaction(&mut tx, claims.tenant_id, record.id)
+    medbrains_server_core::nabh_evidence::mirror_transfusion_reaction(&mut tx, claims.tenant_id, record.id)
         .await?;
     let event = ClinicalEventEnvelope::new(
         claims.tenant_id,
@@ -948,7 +949,7 @@ pub async fn record_reaction(
         }),
     )
     .with_patient(record.patient_id);
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
     Ok(Json(record))
@@ -959,7 +960,7 @@ pub async fn list_transfusions(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<TransfusionRecord>>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -996,7 +997,7 @@ pub async fn get_tti_report(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -1034,7 +1035,7 @@ pub async fn get_hemovigilance_report(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -1193,7 +1194,7 @@ pub async fn list_campaigns(
     Query(params): Query<ListCampaignsQuery>,
 ) -> Result<Json<Vec<BbRecruitmentCampaign>>, AppError> {
     require_permission(&claims, permissions::blood_bank::donors::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -1232,7 +1233,7 @@ pub async fn create_campaign(
     Json(body): Json<CreateCampaignRequest>,
 ) -> Result<Json<BbRecruitmentCampaign>, AppError> {
     require_permission(&claims, permissions::blood_bank::donors::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -1272,7 +1273,7 @@ pub async fn update_campaign(
     Json(body): Json<UpdateCampaignRequest>,
 ) -> Result<Json<BbRecruitmentCampaign>, AppError> {
     require_permission(&claims, permissions::blood_bank::donors::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -1313,7 +1314,7 @@ pub async fn list_devices(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<BbColdChainDevice>>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -1341,7 +1342,7 @@ pub async fn create_device(
     Json(body): Json<CreateDeviceRequest>,
 ) -> Result<Json<BbColdChainDevice>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -1380,7 +1381,7 @@ pub async fn add_reading(
     Json(body): Json<AddReadingRequest>,
 ) -> Result<Json<BbColdChainReading>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -1451,7 +1452,7 @@ pub async fn list_readings(
     Query(params): Query<ListReadingsQuery>,
 ) -> Result<Json<Vec<BbColdChainReading>>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -1485,7 +1486,7 @@ pub async fn create_return(
     Json(body): Json<CreateReturnRequest>,
 ) -> Result<Json<BbBloodReturn>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -1527,7 +1528,7 @@ pub async fn inspect_return(
     Json(body): Json<InspectReturnRequest>,
 ) -> Result<Json<BbBloodReturn>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -1581,7 +1582,7 @@ pub async fn list_msbos(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<BbMsbosGuideline>>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -1609,7 +1610,7 @@ pub async fn create_msbos(
     Json(body): Json<CreateMsbosRequest>,
 ) -> Result<Json<BbMsbosGuideline>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -1650,7 +1651,7 @@ pub async fn list_lookback(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<BbLookbackEvent>>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -1678,7 +1679,7 @@ pub async fn create_lookback(
     Json(body): Json<CreateLookbackRequest>,
 ) -> Result<Json<BbLookbackEvent>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -1722,7 +1723,7 @@ pub async fn update_lookback(
     Json(body): Json<UpdateLookbackRequest>,
 ) -> Result<Json<BbLookbackEvent>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -1776,7 +1777,7 @@ pub async fn list_billing(
     Query(params): Query<ListBillingQuery>,
 ) -> Result<Json<Vec<BbBillingItem>>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -1827,7 +1828,7 @@ pub async fn create_billing(
     Json(body): Json<CreateBillingRequest>,
 ) -> Result<Json<BbBillingItem>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -1877,7 +1878,7 @@ pub async fn get_sbtc_report(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -1984,7 +1985,7 @@ pub async fn record_transfusion_observation(
     Json(body): Json<RecordTransfusionObservationRequest>,
 ) -> Result<Json<TransfusionObservation>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -2050,7 +2051,7 @@ pub async fn list_transfusion_observations(
     Path(transfusion_id): Path<Uuid>,
 ) -> Result<Json<Vec<TransfusionObservation>>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "blood_bank",
@@ -2090,4 +2091,107 @@ mod observation_tests {
         assert!(!suggests_reaction(Some(37.2), false));
         assert!(!suggests_reaction(None, false));
     }
+}
+
+/// Blood bank (donors, inventory, cross-match, transfusion, SBTC) routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/blood-bank/donors",
+            get(list_donors).post(create_donor),
+        )
+        .route(
+            "/api/blood-bank/donors/{id}",
+            get(get_donor),
+        )
+        .route(
+            "/api/blood-bank/donors/{donor_id}/donations",
+            get(list_donations).post(create_donation),
+        )
+        .route(
+            "/api/blood-bank/donations/{donation_id}",
+            put(update_donation),
+        )
+        .route(
+            "/api/blood-bank/components",
+            get(list_components).post(create_component),
+        )
+        .route(
+            "/api/blood-bank/components/{id}/status",
+            put(update_component_status),
+        )
+        .route(
+            "/api/blood-bank/crossmatch",
+            get(list_crossmatch_requests).post(create_crossmatch_request),
+        )
+        .route(
+            "/api/blood-bank/crossmatch/{id}",
+            put(update_crossmatch),
+        )
+        .route(
+            "/api/blood-bank/transfusions",
+            get(list_transfusions).post(create_transfusion),
+        )
+        .route(
+            "/api/blood-bank/transfusions/{id}/reaction",
+            put(record_reaction),
+        )
+        .route(
+            "/api/blood-bank/transfusions/{id}/observations",
+            get(list_transfusion_observations)
+                .post(record_transfusion_observation),
+        )
+        .route(
+            "/api/blood-bank/tti-report",
+            get(get_tti_report),
+        )
+        .route(
+            "/api/blood-bank/hemovigilance",
+            get(get_hemovigilance_report),
+        )
+        // ── Blood Bank Phase 2 ────────────────────────────
+        .route(
+            "/api/blood-bank/recruitment",
+            get(list_campaigns).post(create_campaign),
+        )
+        .route(
+            "/api/blood-bank/recruitment/{id}",
+            put(update_campaign),
+        )
+        .route(
+            "/api/blood-bank/cold-chain/devices",
+            get(list_devices).post(create_device),
+        )
+        .route(
+            "/api/blood-bank/cold-chain/readings",
+            get(list_readings).post(add_reading),
+        )
+        .route(
+            "/api/blood-bank/returns",
+            post(create_return),
+        )
+        .route(
+            "/api/blood-bank/returns/{id}",
+            put(inspect_return),
+        )
+        .route(
+            "/api/blood-bank/msbos",
+            get(list_msbos).post(create_msbos),
+        )
+        .route(
+            "/api/blood-bank/lookback",
+            get(list_lookback).post(create_lookback),
+        )
+        .route(
+            "/api/blood-bank/lookback/{id}",
+            put(update_lookback),
+        )
+        .route(
+            "/api/blood-bank/billing",
+            get(list_billing).post(create_billing),
+        )
+        .route(
+            "/api/blood-bank/sbtc-report",
+            get(get_sbtc_report),
+        )
 }

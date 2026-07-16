@@ -30,6 +30,8 @@ members = [
     "crates/medbrains-home-health",
     "crates/medbrains-diet",
     "crates/medbrains-emergency",
+    "crates/medbrains-indent",
+    "crates/medbrains-blood-bank",
     "crates/medbrains-clinical-scores",
     "crates/medbrains-clinical-ops",
     "crates/medbrains-identity",

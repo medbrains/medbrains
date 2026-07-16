@@ -11,7 +11,6 @@ pub mod assets;
 pub mod audit;
 pub mod auth;
 pub mod billing;
-pub mod blood_bank;
 pub mod bme;
 pub mod camp;
 pub mod catalog_import;
@@ -31,7 +30,6 @@ pub mod email_verification;
 pub mod fhir;
 pub mod health;
 pub mod hr;
-pub mod indent;
 pub mod infra_settings;
 pub mod invitations;
 pub mod mail_provisioning;
@@ -2341,82 +2339,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/pharmacy/drug-margins/daily",
             get(pharmacy_free_dispensing::list_margins),
         )
-        // ── Indent / Store ─────────────────────────────────
-        .route(
-            "/api/indent/requisitions",
-            get(indent::list_requisitions).post(indent::create_requisition),
-        )
-        .route(
-            "/api/indent/requisitions/{id}",
-            get(indent::get_requisition),
-        )
-        .route(
-            "/api/indent/requisitions/{id}/submit",
-            put(indent::submit_requisition),
-        )
-        .route(
-            "/api/indent/requisitions/{id}/approve",
-            put(indent::approve_requisition),
-        )
-        .route(
-            "/api/indent/requisitions/{id}/reject",
-            put(indent::reject_requisition),
-        )
-        .route(
-            "/api/indent/requisitions/{id}/issue",
-            put(indent::issue_requisition),
-        )
-        .route(
-            "/api/indent/requisitions/{id}/cancel",
-            put(indent::cancel_requisition),
-        )
-        .route(
-            "/api/indent/catalog",
-            get(indent::list_catalog).post(indent::create_catalog_item),
-        )
-        .route(
-            "/api/indent/catalog/{id}",
-            put(indent::update_catalog_item),
-        )
-        .route(
-            "/api/indent/stock/movements",
-            get(indent::list_stock_movements)
-                .post(indent::create_stock_movement),
-        )
-        // ── Indent Analytics ─────────────────────────────
-        .route("/api/indent/analytics/consumption", get(indent::consumption_analysis))
-        .route("/api/indent/analytics/dead-stock", get(indent::dead_stock_report))
-        .route("/api/indent/analytics/purchase-vs-consumption", get(indent::purchase_consumption_trend))
-        .route("/api/indent/analytics/valuation", get(indent::inventory_valuation))
-        .route("/api/indent/analytics/compliance", get(indent::compliance_report))
-        .route("/api/indent/analytics/fsn", get(indent::fsn_analysis))
-        .route("/api/indent/analytics/abc", get(indent::abc_analysis))
-        .route("/api/indent/analytics/ved", get(indent::ved_analysis))
-        // ── Indent Store Ops ─────────────────────────────
-        .route("/api/indent/department-issues", post(indent::department_issue))
-        .route(
-            "/api/indent/patient-consumables",
-            get(indent::list_patient_consumables).post(indent::issue_to_patient),
-        )
-        .route("/api/indent/returns", post(indent::return_to_store))
-        .route("/api/indent/consignment-stock", get(indent::list_consignment_stock))
-        .route("/api/indent/consignment-usage", post(indent::record_consignment_usage))
-        // ── Indent Assets & Implants ─────────────────────
-        .route(
-            "/api/indent/implant-registry",
-            get(indent::list_implant_registry).post(indent::create_implant_entry),
-        )
-        .route("/api/indent/implant-registry/{id}", put(indent::update_implant_entry))
-        .route(
-            "/api/indent/condemnations",
-            get(indent::list_condemnations).post(indent::create_condemnation),
-        )
-        .route("/api/indent/condemnations/{id}/status", put(indent::update_condemnation_status))
-        // ── Indent Reorder Alerts ────────────────────────
-        .route("/api/indent/reorder-alerts/check", post(indent::check_reorder_alerts))
-        .route("/api/indent/reorder-indent", post(indent::create_reorder_indent))
-        .route("/api/indent/reorder-alerts", get(indent::list_reorder_alerts))
-        .route("/api/indent/reorder-alerts/{id}/acknowledge", put(indent::acknowledge_alert))
+        .merge(medbrains_indent::router())
         .merge(medbrains_materials::router())
         // ── Quality Management ──────────────────────────────
         .route(
@@ -3124,105 +3047,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/ot/analytics/anesthesia-complications",
             get(ot::list_anesthesia_complications),
         )
-        // ── Blood Bank ──────────────────────────────────────
-        .route(
-            "/api/blood-bank/donors",
-            get(blood_bank::list_donors).post(blood_bank::create_donor),
-        )
-        .route(
-            "/api/blood-bank/donors/{id}",
-            get(blood_bank::get_donor),
-        )
-        .route(
-            "/api/blood-bank/donors/{donor_id}/donations",
-            get(blood_bank::list_donations).post(blood_bank::create_donation),
-        )
-        .route(
-            "/api/blood-bank/donations/{donation_id}",
-            put(blood_bank::update_donation),
-        )
-        .route(
-            "/api/blood-bank/components",
-            get(blood_bank::list_components).post(blood_bank::create_component),
-        )
-        .route(
-            "/api/blood-bank/components/{id}/status",
-            put(blood_bank::update_component_status),
-        )
-        .route(
-            "/api/blood-bank/crossmatch",
-            get(blood_bank::list_crossmatch_requests).post(blood_bank::create_crossmatch_request),
-        )
-        .route(
-            "/api/blood-bank/crossmatch/{id}",
-            put(blood_bank::update_crossmatch),
-        )
-        .route(
-            "/api/blood-bank/transfusions",
-            get(blood_bank::list_transfusions).post(blood_bank::create_transfusion),
-        )
-        .route(
-            "/api/blood-bank/transfusions/{id}/reaction",
-            put(blood_bank::record_reaction),
-        )
-        .route(
-            "/api/blood-bank/transfusions/{id}/observations",
-            get(blood_bank::list_transfusion_observations)
-                .post(blood_bank::record_transfusion_observation),
-        )
-        .route(
-            "/api/blood-bank/tti-report",
-            get(blood_bank::get_tti_report),
-        )
-        .route(
-            "/api/blood-bank/hemovigilance",
-            get(blood_bank::get_hemovigilance_report),
-        )
-        // ── Blood Bank Phase 2 ────────────────────────────
-        .route(
-            "/api/blood-bank/recruitment",
-            get(blood_bank::list_campaigns).post(blood_bank::create_campaign),
-        )
-        .route(
-            "/api/blood-bank/recruitment/{id}",
-            put(blood_bank::update_campaign),
-        )
-        .route(
-            "/api/blood-bank/cold-chain/devices",
-            get(blood_bank::list_devices).post(blood_bank::create_device),
-        )
-        .route(
-            "/api/blood-bank/cold-chain/readings",
-            get(blood_bank::list_readings).post(blood_bank::add_reading),
-        )
-        .route(
-            "/api/blood-bank/returns",
-            post(blood_bank::create_return),
-        )
-        .route(
-            "/api/blood-bank/returns/{id}",
-            put(blood_bank::inspect_return),
-        )
-        .route(
-            "/api/blood-bank/msbos",
-            get(blood_bank::list_msbos).post(blood_bank::create_msbos),
-        )
-        .route(
-            "/api/blood-bank/lookback",
-            get(blood_bank::list_lookback).post(blood_bank::create_lookback),
-        )
-        .route(
-            "/api/blood-bank/lookback/{id}",
-            put(blood_bank::update_lookback),
-        )
-        .route(
-            "/api/blood-bank/billing",
-            get(blood_bank::list_billing).post(blood_bank::create_billing),
-        )
-        .route(
-            "/api/blood-bank/sbtc-report",
-            get(blood_bank::get_sbtc_report),
-        )
+        .merge(medbrains_blood_bank::router())
         .merge(medbrains_cssd::router())
         .merge(medbrains_emergency::router())
         .merge(medbrains_diet::router())
