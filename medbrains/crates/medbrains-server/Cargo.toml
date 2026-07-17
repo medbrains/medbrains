@@ -59,6 +59,11 @@ medbrains-ai = { path = "../medbrains-ai" }
 medbrains-mfa = { path = "../medbrains-mfa" }
 medbrains-auth = { path = "../medbrains-auth" }
 medbrains-payroll = { path = "../medbrains-payroll" }
+medbrains-doctor-packages = { path = "../medbrains-doctor-packages" }
+medbrains-invitations = { path = "../medbrains-invitations" }
+medbrains-news = { path = "../medbrains-news" }
+medbrains-vte = { path = "../medbrains-vte" }
+medbrains-pharmacy-cash-drawer = { path = "../medbrains-pharmacy-cash-drawer" }
 medbrains-device-pairing = { path = "../medbrains-device-pairing" }
 medbrains-nhcx-callback = { path = "../medbrains-nhcx-callback" }
 medbrains-patient-packages = { path = "../medbrains-patient-packages" }

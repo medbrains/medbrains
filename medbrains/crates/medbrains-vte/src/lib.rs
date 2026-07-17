@@ -3,6 +3,7 @@
 //! contraindicates it. The score + risk band are computed server-side from the documented factors,
 //! so the risk stratification can't be mis-entered. NABH/JCI preventable-VTE measure.
 
+use axum::routing::{get,post};
 use axum::{
     Extension, Json,
     extract::{Path, State},
@@ -11,7 +12,7 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -216,4 +217,14 @@ mod tests {
         r.recent_trauma_surgery = true; // +2
         assert_eq!(padua_score(&r), 6);
     }
+}
+
+/// vte routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/vte-assessments", post(create_vte_assessment))
+        .route(
+            "/api/patients/{patient_id}/vte-assessments",
+            get(list_vte_assessments),
+        )
 }

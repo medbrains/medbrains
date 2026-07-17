@@ -1,6 +1,7 @@
 //! Doctor packages (admin) — package templates + inclusion lines.
 //! See `RFCs/sprints/SPRINT-doctor-activities.md` §2.3.
 
+use axum::routing::{delete,get,post};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -12,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -307,4 +308,25 @@ pub async fn remove_inclusion(
         return Err(AppError::NotFound);
     }
     Ok(Json(json!({ "deleted": true })))
+}
+
+/// doctor_packages routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/admin/doctor-packages",
+            get(list_packages).post(create_package),
+        )
+        .route(
+            "/api/admin/doctor-packages/{id}",
+            get(get_package).put(update_package),
+        )
+        .route(
+            "/api/admin/doctor-packages/{id}/inclusions",
+            post(add_inclusion),
+        )
+        .route(
+            "/api/admin/doctor-packages/{pid}/inclusions/{iid}",
+            delete(remove_inclusion),
+        )
 }

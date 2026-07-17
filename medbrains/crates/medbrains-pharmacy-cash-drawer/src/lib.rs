@@ -2,6 +2,7 @@
 //!
 //! Per RFCs/sprints/SPRINT-pharmacy-finance.md items #1, #2, #3.
 
+use axum::routing::{get,put};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -14,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError,
     middleware::auth::Claims,
     middleware::authorization::{require_any_permission, require_permission},
@@ -262,4 +263,22 @@ pub async fn list_drawers(
 
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+/// pharmacy_cash_drawer routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/pharmacy/cash-drawers",
+            get(list_drawers)
+                .post(open_drawer),
+        )
+        .route(
+            "/api/pharmacy/cash-drawers/me/active",
+            get(get_my_active_drawer),
+        )
+        .route(
+            "/api/pharmacy/cash-drawers/{id}/close",
+            put(close_drawer),
+        )
 }

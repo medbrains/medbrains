@@ -1,7 +1,6 @@
 pub mod abdm;
 pub mod access;
 pub mod app_manifest;
-pub mod vte;
 pub mod admin;
 pub mod admin_simulator;
 pub mod appointments;
@@ -9,11 +8,9 @@ pub mod audit;
 pub mod billing;
 pub mod coverage;
 pub mod debug;
-pub mod doctor_packages;
 pub mod documents_render;
 pub mod fhir;
 pub mod health;
-pub mod invitations;
 pub mod mail_provisioning;
 pub mod materials;
 pub use medbrains_server_core::nabh_evidence;
@@ -22,7 +19,6 @@ pub use medbrains_server_core::nabh_evidence;
 pub use medbrains_scheduling::scheduling;
 pub use medbrains_telehealth::cds;
 pub use medbrains_platform::ckb;
-pub mod news;
 pub mod nhcx_onboarding;
 pub use medbrains_server_core::notifications;
 pub use medbrains_identity::sso;
@@ -50,7 +46,6 @@ pub use medbrains_setup as setup;
 pub use medbrains_tokens as tokens;
 pub mod oauth;
 pub mod orchestration;
-pub mod pharmacy_cash_drawer;
 pub mod pharmacy_petty_cash;
 pub mod pharmacy_repeats;
 
@@ -114,14 +109,7 @@ pub fn build_router(state: AppState) -> Router {
         // CMS Public API (no auth required)
         .route("/api/public/tenant-by-host", get(setup::tenant_by_host))
         .merge(medbrains_onboarding::email_verification::router())
-        .route(
-            "/api/public/invitations/{token}",
-            get(invitations::get_public),
-        )
-        .route(
-            "/api/public/invitations/{token}/accept",
-            post(invitations::accept),
-        )
+        .merge(medbrains_invitations::router())
         .merge(medbrains_cms::router())
         // WebSocket routes (TV displays)
         .route("/ws/queue/{department_id}", get(ws::queue_ws_handler))
@@ -140,11 +128,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/app/manifest", get(app_manifest::get_app_manifest))
         .merge(medbrains_clinical_scores::router())
         .merge(medbrains_clinical_ops::router())
-        .route("/api/vte-assessments", post(vte::create_vte_assessment))
-        .route(
-            "/api/patients/{patient_id}/vte-assessments",
-            get(vte::list_vte_assessments),
-        )
+        .merge(medbrains_vte::router())
         .merge(medbrains_setup::router())
         // ── FHIR R4 read API (ABDM HIE-CM HIP role + generic interop) ──
         .route("/api/fhir/metadata", get(fhir::metadata))
@@ -209,11 +193,6 @@ pub fn build_router(state: AppState) -> Router {
             "/api/admin/mail/mailboxes",
             post(mail_provisioning::create_mailbox),
         )
-        .route(
-            "/api/admin/invitations",
-            get(invitations::list).post(invitations::create),
-        )
-        .route("/api/admin/invitations/{id}", delete(invitations::revoke))
         // Setup — bed types
         // Setup — tax categories
         // Setup — payment methods
@@ -783,19 +762,7 @@ pub fn build_router(state: AppState) -> Router {
                 .post(pharmacy_repeats::dispense_repeat),
         )
         // ── Pharmacy Finance: Cash Drawer ──────────────────
-        .route(
-            "/api/pharmacy/cash-drawers",
-            get(pharmacy_cash_drawer::list_drawers)
-                .post(pharmacy_cash_drawer::open_drawer),
-        )
-        .route(
-            "/api/pharmacy/cash-drawers/me/active",
-            get(pharmacy_cash_drawer::get_my_active_drawer),
-        )
-        .route(
-            "/api/pharmacy/cash-drawers/{id}/close",
-            put(pharmacy_cash_drawer::close_drawer),
-        )
+        .merge(medbrains_pharmacy_cash_drawer::router())
         // ── Nurse Activities: MAR (canonical ipd_medication_administration) ──
         .merge(medbrains_ipd::router())
         .merge(medbrains_nursing::router())
@@ -956,22 +923,7 @@ pub fn build_router(state: AppState) -> Router {
         // ── Order Basket ────────────────────────────────────
         .merge(medbrains_order_basket::router())
         // ── Doctor Packages (admin) ─────────────────────────
-        .route(
-            "/api/admin/doctor-packages",
-            get(doctor_packages::list_packages).post(doctor_packages::create_package),
-        )
-        .route(
-            "/api/admin/doctor-packages/{id}",
-            get(doctor_packages::get_package).put(doctor_packages::update_package),
-        )
-        .route(
-            "/api/admin/doctor-packages/{id}/inclusions",
-            post(doctor_packages::add_inclusion),
-        )
-        .route(
-            "/api/admin/doctor-packages/{pid}/inclusions/{iid}",
-            delete(doctor_packages::remove_inclusion),
-        )
+        .merge(medbrains_doctor_packages::router())
         // ── Patient Packages ────────────────────────────────
         .merge(medbrains_patient_packages::router())
         // ── Doctor Coverage (admin) ─────────────────────────
@@ -1102,15 +1054,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         // Medical news feed — global ingested articles (list/search + reader).
         // News / health advisories — public list (any auth'd role), admin CRUD.
-        .route("/api/news", get(news::list_active))
-        .route(
-            "/api/admin/news",
-            get(news::list_all).post(news::create_article),
-        )
-        .route(
-            "/api/admin/news/{id}",
-            put(news::update_article).delete(news::delete_article),
-        )
+        .merge(medbrains_news::router())
         .route(
             "/api/audit/access-log/patient/{id}",
             get(audit::patient_access_log),

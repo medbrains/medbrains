@@ -7,6 +7,7 @@
 //! globally then sets the tenant RLS context for the user INSERT. Only the
 //! SHA-256 hash of the token is stored.
 
+use axum::routing::{delete,get,post};
 use argon2::password_hash::{SaltString, rand_core::OsRng};
 use argon2::{Argon2, PasswordHasher};
 use axum::extract::{Path, State};
@@ -16,10 +17,10 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use crate::middleware::auth::Claims;
-use crate::middleware::authorization::require_permission;
-use crate::validation::{self, ValidationErrors};
-use crate::{error::AppError, state::AppState};
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::validation::{self, ValidationErrors};
+use medbrains_server_core::{error::AppError, state::AppState};
 use medbrains_core::permissions;
 
 const INVITE_TTL_DAYS: i64 = 7;
@@ -286,4 +287,22 @@ pub async fn accept(
     tx.commit().await?;
 
     Ok(Json(json!({ "status": "ok" })))
+}
+
+/// invitations routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/public/invitations/{token}",
+            get(get_public),
+        )
+        .route(
+            "/api/public/invitations/{token}/accept",
+            post(accept),
+        )
+        .route(
+            "/api/admin/invitations",
+            get(list).post(create),
+        )
+        .route("/api/admin/invitations/{id}", delete(revoke))
 }

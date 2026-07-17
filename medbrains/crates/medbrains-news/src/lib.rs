@@ -8,6 +8,7 @@
 //!
 //! Active = `is_active = true AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at > now())`.
 
+use axum::routing::{get,put};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -17,7 +18,7 @@ use medbrains_core::news::NewsArticle;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::is_bypass_role,
     state::AppState,
 };
@@ -251,4 +252,18 @@ pub async fn delete_article(
         return Err(AppError::NotFound);
     }
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// news routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/news", get(list_active))
+        .route(
+            "/api/admin/news",
+            get(list_all).post(create_article),
+        )
+        .route(
+            "/api/admin/news/{id}",
+            put(update_article).delete(delete_article),
+        )
 }
