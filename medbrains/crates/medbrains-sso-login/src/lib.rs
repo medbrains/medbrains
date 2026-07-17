@@ -16,6 +16,7 @@ use axum::{
     extract::{Path, Query, State},
     response::Redirect,
 };
+use axum::routing::{get};
 use axum_extra::extract::CookieJar;
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::Utc;
@@ -24,7 +25,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError,
     middleware::auth::{Claims, encode_jwt},
     middleware::cookies::{build_access_cookie, build_refresh_cookie, build_csrf_cookie},
@@ -851,4 +852,18 @@ mod tests {
         assert!(u.chars().next().unwrap().is_ascii_lowercase());
         assert!(u.len() >= 3 && u.len() <= 30);
     }
+}
+
+/// sso_login routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/auth/sso/providers",
+            get(list_active_providers),
+        )
+        .route(
+            "/api/auth/sso/{provider_id}/authorize",
+            get(oidc_authorize),
+        )
+        .route("/api/auth/sso/callback", get(oidc_callback))
 }

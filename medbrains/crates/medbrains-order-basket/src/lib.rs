@@ -20,6 +20,7 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
+use axum::routing::{get,post};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
@@ -27,7 +28,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError,
     middleware::{
         auth::Claims,
@@ -397,7 +398,7 @@ pub async fn sign_basket(
     tx.commit().await?;
 
     for created_order in created.iter().filter(|item| item.order_type == "lab") {
-        super::lab::grant_lab_order_creator_viewer(
+        medbrains_lab::grant_lab_order_creator_viewer(
             &state,
             &claims,
             created_order.order_id,
@@ -1004,7 +1005,7 @@ async fn dispatch_item(
 ) -> Result<ItemResult, AppError> {
     match item {
         BasketItem::Lab(it) => {
-            let req = super::lab::CreateOrderRequest {
+            let req = medbrains_lab::CreateOrderRequest {
                 encounter_id: *encounter_id,
                 patient_id: *patient_id,
                 test_id: it.test_id,
@@ -1012,11 +1013,11 @@ async fn dispatch_item(
                 notes: it.notes.clone().or_else(|| it.indication.clone()),
                 is_dummy: None,
             };
-            let order = super::lab::create_order_in_tx_with_options(
+            let order = medbrains_lab::create_order_in_tx_with_options(
                 tx,
                 claims,
                 &req,
-                super::lab::CreateOrderOptions { auto_bill: false },
+                medbrains_lab::CreateOrderOptions { auto_bill: false },
             )
             .await?;
             Ok(ItemResult {
@@ -1025,7 +1026,7 @@ async fn dispatch_item(
             })
         }
         BasketItem::Radiology(it) => {
-            let req = super::radiology::CreateOrderRequest {
+            let req = medbrains_radiology::CreateOrderRequest {
                 patient_id: *patient_id,
                 encounter_id: Some(*encounter_id),
                 modality_id: it.modality_id,
@@ -1039,11 +1040,11 @@ async fn dispatch_item(
                 allergy_flagged: it.allergy_flagged,
                 is_dummy: None,
             };
-            let order = super::radiology::create_order_in_tx_with_options(
+            let order = medbrains_radiology::create_order_in_tx_with_options(
                 tx,
                 claims,
                 &req,
-                super::radiology::CreateOrderOptions { auto_bill: false },
+                medbrains_radiology::CreateOrderOptions { auto_bill: false },
             )
             .await?;
             Ok(ItemResult {
@@ -1052,7 +1053,7 @@ async fn dispatch_item(
             })
         }
         BasketItem::Diet(it) => {
-            let req = super::diet::CreateDietOrderRequest {
+            let req = medbrains_diet::CreateDietOrderRequest {
                 patient_id: *patient_id,
                 admission_id: Some(*encounter_id),
                 template_id: it.template_id,
@@ -1069,7 +1070,7 @@ async fn dispatch_item(
                 fat_g: None,
                 preferences: None,
             };
-            let order = super::diet::create_diet_order_in_tx(tx, claims, &req).await?;
+            let order = medbrains_diet::create_diet_order_in_tx(tx, claims, &req).await?;
             Ok(ItemResult {
                 order_type: "diet".to_owned(),
                 order_id: order.id,
@@ -1331,7 +1332,7 @@ async fn run_basket_checks(
             };
             Some((
                 idx,
-                super::pharmacy::MedicationSafetyItem {
+                medbrains_pharmacy::MedicationSafetyItem {
                     catalog_item_id: Some(drug.drug_id),
                     drug_name: drug.drug_name.clone(),
                     quantity: drug.quantity,
@@ -1344,7 +1345,7 @@ async fn run_basket_checks(
             .iter()
             .map(|(_, item)| item.clone())
             .collect::<Vec<_>>();
-        let drug_warnings = super::pharmacy::evaluate_medication_safety_in_tx(
+        let drug_warnings = medbrains_pharmacy::evaluate_medication_safety_in_tx(
             tx,
             tenant_id,
             patient_id,
@@ -1363,8 +1364,8 @@ async fn run_basket_checks(
             warnings.push(BasketWarning {
                 code: warning.code,
                 severity: match warning.severity {
-                    super::pharmacy::MedicationSafetySeverity::Warn => WarningSeverity::Warn,
-                    super::pharmacy::MedicationSafetySeverity::Block => WarningSeverity::Block,
+                    medbrains_pharmacy::MedicationSafetySeverity::Warn => WarningSeverity::Warn,
+                    medbrains_pharmacy::MedicationSafetySeverity::Block => WarningSeverity::Block,
                 },
                 message: warning.message,
                 refs: vec![item_idx],
@@ -1436,7 +1437,7 @@ fn first_unacknowledged_block<'a>(
 
 fn warning_is_overrideable(code: &str) -> bool {
     !matches!(code, "SCHEDULE_X_REQUIRES_PAPER")
-        && super::pharmacy::medication_safety_warning_is_overrideable(code)
+        && medbrains_pharmacy::medication_safety_warning_is_overrideable(code)
 }
 
 fn ack_for_warning<'a>(acks: &'a [WarningAck], code: &str) -> Option<&'a str> {
@@ -1468,4 +1469,31 @@ async fn queue_post_sign_side_effects(
     //     idempotency_key: Some(signature_id.to_string()),
     //   }).await?;
     Ok(())
+}
+
+/// order_basket routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/orders/basket/check",
+            post(check_basket),
+        )
+        .route(
+            "/api/orders/basket/sign",
+            post(sign_basket),
+        )
+        .route(
+            "/api/orders/basket/drafts/{encounter_id}",
+            get(get_draft)
+                .put(save_draft)
+                .delete(delete_draft),
+        )
+        .route(
+            "/api/orders/basket/preview-cost",
+            post(preview_cost),
+        )
+        .route(
+            "/api/orders/basket/previous/{patient_id}",
+            get(carry_forward),
+        )
 }

@@ -57,14 +57,12 @@ pub use medbrains_tokens as tokens;
 pub mod oauth;
 pub mod onboarding;
 pub mod orchestration;
-pub mod order_basket;
 pub mod patient_packages;
 pub mod payroll;
 pub mod pharmacy_cash_drawer;
 pub mod pharmacy_dispense_ops;
 pub mod pharmacy_petty_cash;
 pub mod pharmacy_repeats;
-pub mod sso_login;
 
 pub mod case_sheet_scan;
 pub mod ward_stock;
@@ -123,15 +121,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/health", get(health::health_check))
         .route("/api/auth/refresh", post(auth::refresh_token))
         // Enterprise SSO login flow — pre-auth (no JWT yet).
-        .route(
-            "/api/auth/sso/providers",
-            get(sso_login::list_active_providers),
-        )
-        .route(
-            "/api/auth/sso/{provider_id}/authorize",
-            get(sso_login::oidc_authorize),
-        )
-        .route("/api/auth/sso/callback", get(sso_login::oidc_callback))
+        .merge(medbrains_sso_login::router())
         // NHCX async-response webhook — gateway authenticates via JWS,
         // not bearer token, so this lives on the public router.
         .route(
@@ -1054,28 +1044,7 @@ pub fn build_router(state: AppState) -> Router {
         // ── Specialty Clinical: Other Specialties ──
         .merge(medbrains_documents::router())
         // ── Order Basket ────────────────────────────────────
-        .route(
-            "/api/orders/basket/check",
-            post(order_basket::check_basket),
-        )
-        .route(
-            "/api/orders/basket/sign",
-            post(order_basket::sign_basket),
-        )
-        .route(
-            "/api/orders/basket/drafts/{encounter_id}",
-            get(order_basket::get_draft)
-                .put(order_basket::save_draft)
-                .delete(order_basket::delete_draft),
-        )
-        .route(
-            "/api/orders/basket/preview-cost",
-            post(order_basket::preview_cost),
-        )
-        .route(
-            "/api/orders/basket/previous/{patient_id}",
-            get(order_basket::carry_forward),
-        )
+        .merge(medbrains_order_basket::router())
         // ── Doctor Packages (admin) ─────────────────────────
         .route(
             "/api/admin/doctor-packages",
