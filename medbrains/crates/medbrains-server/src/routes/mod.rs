@@ -4,7 +4,6 @@ pub mod app_manifest;
 pub mod vte;
 pub mod admin;
 pub mod admin_simulator;
-pub mod ai;
 pub mod appointments;
 pub mod audit;
 pub mod auth;
@@ -921,15 +920,9 @@ pub fn build_router(state: AppState) -> Router {
         )
         .merge(medbrains_custom_code::router())
         // ── AI Clinical Copilot — streaming chat (SSE) + history + whispers ─
-        .route("/api/ai/chat", post(ai::chat))
-        .route("/api/ai/whispers", get(ai::whispers))
+        .merge(medbrains_ai::router())
         // ── VPN platform — device enrollment (RFC-VPN-PLATFORM) ─
         .merge(medbrains_vpn::router())
-        .route("/api/ai/conversations", get(ai::list_conversations))
-        .route(
-            "/api/ai/conversations/{id}/messages",
-            get(ai::conversation_messages),
-        )
         // ── IPD Phase 2: Wards, Bed Dashboard, Reports, Templates ─
         // Registered BEFORE /api/ipd/admissions/{id} to avoid path collision
         .merge(medbrains_microsite::router())

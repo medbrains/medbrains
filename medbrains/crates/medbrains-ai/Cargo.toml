@@ -1,0 +1,28 @@
+[package]
+name = "medbrains-ai"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[dependencies]
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-server-services = { path = "../medbrains-server-services" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-db = { path = "../medbrains-db" }
+medbrains-patients = { path = "../medbrains-patients" }
+medbrains-pharmacy = { path = "../medbrains-pharmacy" }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+sqlx = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+futures = { workspace = true }
+tower = { workspace = true }
+async-stream = { workspace = true }
+rig-core = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

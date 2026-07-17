@@ -14,12 +14,13 @@ use axum::{
     extract::{Path, State},
     response::sse::{Event, KeepAlive, Sse},
 };
+use axum::routing::{get,post};
 use futures::{Stream, StreamExt as _};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::middleware::auth::Claims;
-use crate::{error::AppError, state::AppState};
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::{error::AppError, state::AppState};
 
 /// The finalized app router, stashed by `main` after construction, so read tools
 /// can dispatch requests in-process (reusing auth/RLS/permission/audit). Set once.
@@ -72,7 +73,7 @@ const CALL_API_ALLOWLIST: &[&str] = &[
 /// Shared LLM access layer (provider resolution + structured extraction) now
 /// lives in `medbrains-server-services` so leaf domain crates (custom-code, LMS)
 /// can reach it without depending back on `medbrains-server`. Re-exported here so
-/// `super::ai::extract` and the in-file chat routes keep resolving.
+/// the server-services LLM extract helper and the in-file chat routes keep resolving.
 pub use medbrains_server_services::llm::{AiConfig, extract, resolve_config};
 
 /// System preamble for the clinical assistant. Edit the prose in
@@ -292,15 +293,15 @@ impl DrugSafetyTool {
         &self,
         drug: &str,
         patient_id: Uuid,
-    ) -> Result<Vec<crate::routes::pharmacy::MedicationSafetyWarning>, AppError> {
+    ) -> Result<Vec<medbrains_pharmacy::MedicationSafetyWarning>, AppError> {
         let mut tx = self.db.begin().await?;
         medbrains_db::pool::set_full_context(&mut tx, &self.tenant_id, &self.department_ids).await?;
-        let items = [crate::routes::pharmacy::MedicationSafetyItem {
+        let items = [medbrains_pharmacy::MedicationSafetyItem {
             catalog_item_id: None,
             drug_name: drug.to_owned(),
             quantity: 1,
         }];
-        let warnings = crate::routes::pharmacy::evaluate_medication_safety_in_tx(
+        let warnings = medbrains_pharmacy::evaluate_medication_safety_in_tx(
             &mut tx,
             &self.tenant_id,
             &patient_id,
@@ -429,12 +430,12 @@ impl DraftPrescriptionTool {
     ) -> Result<(bool, Vec<String>), AppError> {
         let mut tx = self.db.begin().await?;
         medbrains_db::pool::set_full_context(&mut tx, &self.tenant_id, &self.department_ids).await?;
-        let items = [crate::routes::pharmacy::MedicationSafetyItem {
+        let items = [medbrains_pharmacy::MedicationSafetyItem {
             catalog_item_id: None,
             drug_name: drug.to_owned(),
             quantity: 1,
         }];
-        let warnings = crate::routes::pharmacy::evaluate_medication_safety_in_tx(
+        let warnings = medbrains_pharmacy::evaluate_medication_safety_in_tx(
             &mut tx,
             &self.tenant_id,
             &patient_id,
@@ -442,7 +443,7 @@ impl DraftPrescriptionTool {
         )
         .await?;
         let blocked = warnings.iter().any(|w| {
-            matches!(w.severity, crate::routes::pharmacy::MedicationSafetySeverity::Block)
+            matches!(w.severity, medbrains_pharmacy::MedicationSafetySeverity::Block)
         });
         let messages: Vec<String> = warnings
             .iter()
@@ -566,9 +567,9 @@ impl PatientOverviewTool {
     async fn overview(&self, patient_id: Uuid) -> Result<String, AppError> {
         // Same access rule as the grounding gate: admins bypass, others ReBAC.
         let is_admin =
-            crate::middleware::authorization::BYPASS_ROLES.contains(&self.claims.role.as_str());
+            medbrains_server_core::middleware::authorization::BYPASS_ROLES.contains(&self.claims.role.as_str());
         if !is_admin {
-            crate::routes::patients::require_patient_viewer(&self.state, &self.claims, patient_id)
+            medbrains_patients::require_patient_viewer(&self.state, &self.claims, patient_id)
                 .await?;
         }
         let mut tx = self.state.db.begin().await?;
@@ -658,7 +659,7 @@ impl CallApiTool {
             .ok_or_else(|| AppError::Internal("router unavailable".to_owned()))?
             .clone();
         // Mint a token for the caller so the request goes through the real auth path.
-        let token = crate::middleware::auth::encode_jwt(&self.claims, &self.state.jwt_encoding_key)
+        let token = medbrains_server_core::middleware::auth::encode_jwt(&self.claims, &self.state.jwt_encoding_key)
             .map_err(|_| AppError::Internal("token mint failed".to_owned()))?;
         let request = axum::http::Request::builder()
             .method(axum::http::Method::GET)
@@ -825,11 +826,11 @@ async fn open_turn(
         .and_then(|s| Uuid::parse_str(s).ok());
     // Admins bypass every other check, so they bypass the patient-viewer gate too
     // (otherwise a missing SpiceDB relation silently drops grounding for them).
-    let is_admin = crate::middleware::authorization::BYPASS_ROLES.contains(&claims.role.as_str());
+    let is_admin = medbrains_server_core::middleware::authorization::BYPASS_ROLES.contains(&claims.role.as_str());
     let grounded_patient = match patient_id {
         Some(pid)
             if is_admin
-                || crate::routes::patients::require_patient_viewer(state, claims, pid)
+                || medbrains_patients::require_patient_viewer(state, claims, pid)
                     .await
                     .is_ok() =>
         {
@@ -1418,4 +1419,16 @@ pub async fn conversation_messages(
     .await?;
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+/// ai routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/ai/chat", post(chat))
+        .route("/api/ai/whispers", get(whispers))
+        .route("/api/ai/conversations", get(list_conversations))
+        .route(
+            "/api/ai/conversations/{id}/messages",
+            get(conversation_messages),
+        )
 }

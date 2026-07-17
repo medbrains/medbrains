@@ -423,7 +423,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Make the finalized router available to the AI assistant's in-process read
     // tool (call_api), so it dispatches GETs through the real middleware stack.
-    let _ = routes::ai::AI_ROUTER.set(app.clone());
+    let _ = medbrains_ai::AI_ROUTER.set(app.clone());
 
     // Start orchestration background tasks
     orchestration::jobs::start_job_worker(db_pool.clone());
