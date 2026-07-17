@@ -4,13 +4,14 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use axum::routing::{get,put};
 use chrono::{DateTime, Utc};
 use medbrains_core::{form::FieldAccessLevel, permissions};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError,
     middleware::authorization::{require_any_permission, require_permission},
     middleware::{auth::Claims, field_access},
@@ -984,4 +985,53 @@ pub struct PosLookupResult {
     pub status: Option<String>,
     pub created_at: DateTime<Utc>,
     pub items: serde_json::Value,
+}
+
+/// pharmacy_finance routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/pharmacy/credit-notes",
+            get(list_credit_notes).post(create_credit_note),
+        )
+        .route(
+            "/api/pharmacy/credit-notes/{id}",
+            get(get_credit_note),
+        )
+        .route(
+            "/api/pharmacy/credit-notes/{id}/approve",
+            put(approve_credit_note),
+        )
+        .route(
+            "/api/pharmacy/credit-notes/{id}/settle",
+            put(settle_credit_note),
+        )
+        .route(
+            "/api/pharmacy/credit-notes/{id}/cancel",
+            put(cancel_credit_note),
+        )
+        .route(
+            "/api/pharmacy/store-indents",
+            get(list_store_indents).post(create_store_indent),
+        )
+        .route(
+            "/api/pharmacy/store-indents/{id}/approve",
+            put(approve_store_indent),
+        )
+        .route(
+            "/api/pharmacy/store-indents/{id}/issue",
+            put(issue_store_indent),
+        )
+        .route(
+            "/api/pharmacy/store-indents/{id}/receive",
+            put(receive_store_indent),
+        )
+        .route(
+            "/api/pharmacy/patient-orders/{patient_id}",
+            get(list_patient_orders_for_return),
+        )
+        .route(
+            "/api/pharmacy/pos/lookup",
+            get(lookup_pos_sale),
+        )
 }

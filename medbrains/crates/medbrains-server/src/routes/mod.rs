@@ -12,7 +12,6 @@ pub mod billing;
 pub mod catalog_import;
 pub mod client_errors;
 pub mod clinical_offline;
-pub mod cms;
 pub mod coverage;
 pub mod debug;
 pub mod device_pairing;
@@ -68,13 +67,10 @@ pub mod patient_packages;
 pub mod payroll;
 pub mod pharmacy_cash_drawer;
 pub mod pharmacy_dispense_ops;
-pub mod pharmacy_finance;
 pub mod pharmacy_free_dispensing;
 pub mod pharmacy_payments;
 pub mod pharmacy_petty_cash;
 pub mod pharmacy_repeats;
-pub mod pharmacy_safety;
-pub mod security;
 pub mod sso_login;
 
 pub mod case_sheet_scan;
@@ -170,14 +166,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/public/invitations/{token}/accept",
             post(invitations::accept),
         )
-        .route("/api/public/cms/posts", get(cms::public_list_posts))
-        .route("/api/public/cms/posts/featured", get(cms::public_featured_posts))
-        .route("/api/public/cms/posts/{slug}", get(cms::public_get_post))
-        .route("/api/public/cms/posts/{post_id}/view", post(cms::public_record_view))
-        .route("/api/public/cms/pages/{slug}", get(cms::public_get_page))
-        .route("/api/public/cms/subscribe", post(cms::public_subscribe))
-        .route("/api/public/cms/confirm/{token}", get(cms::public_confirm_subscription))
-        .route("/api/public/cms/unsubscribe/{token}", get(cms::public_unsubscribe))
+        .merge(medbrains_cms::router())
         // WebSocket routes (TV displays)
         .route("/ws/queue/{department_id}", get(ws::queue_ws_handler))
         .route("/ws/queue", get(ws::queue_ws_handler_all))
@@ -854,91 +843,9 @@ pub fn build_router(state: AppState) -> Router {
             post(ward_stock::consume_ward_stock),
         )
         // ── Pharmacy Finance (credit notes + store indents) ──
-        .route(
-            "/api/pharmacy/credit-notes",
-            get(pharmacy_finance::list_credit_notes).post(pharmacy_finance::create_credit_note),
-        )
-        .route(
-            "/api/pharmacy/credit-notes/{id}",
-            get(pharmacy_finance::get_credit_note),
-        )
-        .route(
-            "/api/pharmacy/credit-notes/{id}/approve",
-            put(pharmacy_finance::approve_credit_note),
-        )
-        .route(
-            "/api/pharmacy/credit-notes/{id}/settle",
-            put(pharmacy_finance::settle_credit_note),
-        )
-        .route(
-            "/api/pharmacy/credit-notes/{id}/cancel",
-            put(pharmacy_finance::cancel_credit_note),
-        )
-        .route(
-            "/api/pharmacy/store-indents",
-            get(pharmacy_finance::list_store_indents).post(pharmacy_finance::create_store_indent),
-        )
-        .route(
-            "/api/pharmacy/store-indents/{id}/approve",
-            put(pharmacy_finance::approve_store_indent),
-        )
-        .route(
-            "/api/pharmacy/store-indents/{id}/issue",
-            put(pharmacy_finance::issue_store_indent),
-        )
-        .route(
-            "/api/pharmacy/store-indents/{id}/receive",
-            put(pharmacy_finance::receive_store_indent),
-        )
-        .route(
-            "/api/pharmacy/patient-orders/{patient_id}",
-            get(pharmacy_finance::list_patient_orders_for_return),
-        )
-        .route(
-            "/api/pharmacy/pos/lookup",
-            get(pharmacy_finance::lookup_pos_sale),
-        )
+        .merge(medbrains_pharmacy_finance::router())
         // ── Pharmacy Safety ──────────────────────────────
-        .route(
-            "/api/pharmacy/recalls",
-            get(pharmacy_safety::list_recalls).post(pharmacy_safety::create_recall),
-        )
-        .route(
-            "/api/pharmacy/recalls/{id}/complete",
-            put(pharmacy_safety::complete_recall),
-        )
-        .route(
-            "/api/pharmacy/recalls/{id}/affected-patients",
-            get(pharmacy_safety::get_recall_affected_patients),
-        )
-        .route(
-            "/api/pharmacy/destruction",
-            get(pharmacy_safety::list_destructions).post(pharmacy_safety::create_destruction),
-        )
-        .route(
-            "/api/pharmacy/destruction/{id}/certificate",
-            get(pharmacy_safety::get_destruction_certificate),
-        )
-        .route(
-            "/api/pharmacy/substitutes/{drug_id}",
-            get(pharmacy_safety::list_substitutes),
-        )
-        .route(
-            "/api/pharmacy/substitutes",
-            post(pharmacy_safety::create_substitute),
-        )
-        .route(
-            "/api/pharmacy/emergency-kits",
-            get(pharmacy_safety::list_kits).post(pharmacy_safety::create_kit),
-        )
-        .route(
-            "/api/pharmacy/emergency-kits/{id}/check",
-            put(pharmacy_safety::check_kit),
-        )
-        .route(
-            "/api/pharmacy/emergency-kits/{id}/restock",
-            put(pharmacy_safety::restock_kit),
-        )
+        .merge(medbrains_pharmacy_safety::router())
         // ── Pharmacy Payments ────────────────────────────
         .route(
             "/api/pharmacy/payments",
@@ -1291,78 +1198,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_analytics::router())
         .merge(medbrains_facilities::router())
         // ── Security Department ──────────────────────────────────
-        .route(
-            "/api/security/zones",
-            get(security::list_zones)
-                .post(security::create_zone),
-        )
-        .route(
-            "/api/security/zones/{id}",
-            put(security::update_zone),
-        )
-        .route(
-            "/api/security/access-logs",
-            get(security::list_access_logs)
-                .post(security::create_access_log),
-        )
-        .route(
-            "/api/security/cards",
-            get(security::list_access_cards)
-                .post(security::create_access_card),
-        )
-        .route(
-            "/api/security/cards/{id}",
-            put(security::update_access_card),
-        )
-        .route(
-            "/api/security/cards/{id}/deactivate",
-            put(security::deactivate_access_card),
-        )
-        .route(
-            "/api/security/cameras",
-            get(security::list_cameras)
-                .post(security::create_camera),
-        )
-        .route(
-            "/api/security/cameras/{id}",
-            put(security::update_camera),
-        )
-        .route(
-            "/api/security/incidents",
-            get(security::list_incidents)
-                .post(security::create_incident),
-        )
-        .route(
-            "/api/security/incidents/{id}",
-            get(security::get_incident)
-                .put(security::update_incident),
-        )
-        .route(
-            "/api/security/patient-tags",
-            get(security::list_patient_tags)
-                .post(security::create_patient_tag),
-        )
-        .route(
-            "/api/security/patient-tags/{id}/deactivate",
-            put(security::deactivate_patient_tag),
-        )
-        .route(
-            "/api/security/tag-alerts",
-            get(security::list_tag_alerts),
-        )
-        .route(
-            "/api/security/tag-alerts/{id}/resolve",
-            put(security::resolve_tag_alert),
-        )
-        .route(
-            "/api/security/debriefs",
-            get(security::list_debriefs)
-                .post(security::create_debrief),
-        )
-        .route(
-            "/api/security/debriefs/{id}",
-            get(security::get_debrief),
-        )
+        .merge(medbrains_security::router())
         // ── Specialty Clinical: Oncology depth (staging + radiation) ──
         .merge(medbrains_specialty_other::router())
         // ── Specialty Clinical: Cath Lab ──
@@ -1488,162 +1324,18 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_admin::router())
         // ── CMS & Blog ──────────────────────────────────────────────
         // Dashboard
-        .route(
-            "/api/cms/dashboard",
-            get(cms::get_dashboard_stats),
-        )
         // Categories
-        .route(
-            "/api/cms/categories",
-            get(cms::list_categories).post(cms::create_category),
-        )
-        .route(
-            "/api/cms/categories/tree",
-            get(cms::list_categories_tree),
-        )
-        .route(
-            "/api/cms/categories/{id}",
-            get(cms::get_category)
-                .put(cms::update_category)
-                .delete(cms::delete_category),
-        )
         // Tags
-        .route(
-            "/api/cms/tags",
-            get(cms::list_tags).post(cms::create_tag),
-        )
-        .route(
-            "/api/cms/tags/{id}",
-            get(cms::get_tag)
-                .put(cms::update_tag)
-                .delete(cms::delete_tag),
-        )
-        .route(
-            "/api/cms/tags/bulk-delete",
-            post(cms::bulk_delete_tags),
-        )
         // Authors
-        .route(
-            "/api/cms/authors",
-            get(cms::list_authors).post(cms::create_author),
-        )
-        .route(
-            "/api/cms/authors/{id}",
-            get(cms::get_author)
-                .put(cms::update_author)
-                .delete(cms::delete_author),
-        )
         // Media Library
-        .route(
-            "/api/cms/media",
-            get(cms::list_media).post(cms::create_media),
-        )
-        .route(
-            "/api/cms/media/{id}",
-            get(cms::get_media)
-                .put(cms::update_media)
-                .delete(cms::delete_media),
-        )
         // Posts
-        .route(
-            "/api/cms/posts",
-            get(cms::list_posts).post(cms::create_post),
-        )
-        .route(
-            "/api/cms/posts/{id}",
-            get(cms::get_post)
-                .put(cms::update_post)
-                .delete(cms::delete_post),
-        )
         // Post Workflow
-        .route(
-            "/api/cms/posts/{id}/submit-review",
-            post(cms::submit_post_for_review),
-        )
-        .route(
-            "/api/cms/posts/{id}/review",
-            post(cms::review_post),
-        )
-        .route(
-            "/api/cms/posts/{id}/medical-review",
-            post(cms::medical_review_post),
-        )
-        .route(
-            "/api/cms/posts/{id}/publish",
-            post(cms::publish_post),
-        )
-        .route(
-            "/api/cms/posts/{id}/schedule",
-            post(cms::schedule_post),
-        )
-        .route(
-            "/api/cms/posts/{id}/archive",
-            post(cms::archive_post),
-        )
-        .route(
-            "/api/cms/posts/{id}/unarchive",
-            post(cms::unarchive_post),
-        )
         // Post Revisions
-        .route(
-            "/api/cms/posts/{post_id}/revisions",
-            get(cms::list_post_revisions),
-        )
-        .route(
-            "/api/cms/posts/{post_id}/revisions/{revision_number}",
-            get(cms::get_post_revision),
-        )
-        .route(
-            "/api/cms/posts/{post_id}/revisions/{revision_number}/restore",
-            post(cms::restore_post_revision),
-        )
         // Post Analytics
-        .route(
-            "/api/cms/posts/{id}/analytics",
-            get(cms::get_post_analytics),
-        )
-        .route(
-            "/api/cms/analytics/top-posts",
-            get(cms::list_top_posts),
-        )
         // Subscribers
-        .route(
-            "/api/cms/subscribers",
-            get(cms::list_subscribers),
-        )
-        .route(
-            "/api/cms/subscribers/{id}",
-            get(cms::get_subscriber).delete(cms::delete_subscriber),
-        )
-        .route(
-            "/api/cms/subscribers/export",
-            get(cms::export_subscribers),
-        )
         // Pages
-        .route(
-            "/api/cms/pages",
-            get(cms::list_pages).post(cms::create_page),
-        )
-        .route(
-            "/api/cms/pages/{id}",
-            get(cms::get_page)
-                .put(cms::update_page)
-                .delete(cms::delete_page),
-        )
         // Settings
-        .route(
-            "/api/cms/settings",
-            get(cms::get_settings).put(cms::update_settings),
-        )
         // Menus
-        .route(
-            "/api/cms/menus",
-            get(cms::list_menus),
-        )
-        .route(
-            "/api/cms/menus/{location}",
-            get(cms::get_menu).put(cms::update_menu),
-        )
         // ── TV Displays & Queue ──────────────────────────────────
         .merge(medbrains_tv::router())
         // Specialty queue displays

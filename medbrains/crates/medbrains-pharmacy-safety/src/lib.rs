@@ -2,13 +2,14 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use axum::routing::{get,post,put};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -626,4 +627,49 @@ pub async fn restock_kit(
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// pharmacy_safety routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/pharmacy/recalls",
+            get(list_recalls).post(create_recall),
+        )
+        .route(
+            "/api/pharmacy/recalls/{id}/complete",
+            put(complete_recall),
+        )
+        .route(
+            "/api/pharmacy/recalls/{id}/affected-patients",
+            get(get_recall_affected_patients),
+        )
+        .route(
+            "/api/pharmacy/destruction",
+            get(list_destructions).post(create_destruction),
+        )
+        .route(
+            "/api/pharmacy/destruction/{id}/certificate",
+            get(get_destruction_certificate),
+        )
+        .route(
+            "/api/pharmacy/substitutes/{drug_id}",
+            get(list_substitutes),
+        )
+        .route(
+            "/api/pharmacy/substitutes",
+            post(create_substitute),
+        )
+        .route(
+            "/api/pharmacy/emergency-kits",
+            get(list_kits).post(create_kit),
+        )
+        .route(
+            "/api/pharmacy/emergency-kits/{id}/check",
+            put(check_kit),
+        )
+        .route(
+            "/api/pharmacy/emergency-kits/{id}/restock",
+            put(restock_kit),
+        )
 }

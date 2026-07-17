@@ -4,6 +4,7 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use axum::routing::{get,put};
 use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::permissions;
 use medbrains_core::security::{
@@ -13,7 +14,7 @@ use medbrains_core::security::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -1075,4 +1076,81 @@ pub async fn create_debrief(
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// security routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/security/zones",
+            get(list_zones)
+                .post(create_zone),
+        )
+        .route(
+            "/api/security/zones/{id}",
+            put(update_zone),
+        )
+        .route(
+            "/api/security/access-logs",
+            get(list_access_logs)
+                .post(create_access_log),
+        )
+        .route(
+            "/api/security/cards",
+            get(list_access_cards)
+                .post(create_access_card),
+        )
+        .route(
+            "/api/security/cards/{id}",
+            put(update_access_card),
+        )
+        .route(
+            "/api/security/cards/{id}/deactivate",
+            put(deactivate_access_card),
+        )
+        .route(
+            "/api/security/cameras",
+            get(list_cameras)
+                .post(create_camera),
+        )
+        .route(
+            "/api/security/cameras/{id}",
+            put(update_camera),
+        )
+        .route(
+            "/api/security/incidents",
+            get(list_incidents)
+                .post(create_incident),
+        )
+        .route(
+            "/api/security/incidents/{id}",
+            get(get_incident)
+                .put(update_incident),
+        )
+        .route(
+            "/api/security/patient-tags",
+            get(list_patient_tags)
+                .post(create_patient_tag),
+        )
+        .route(
+            "/api/security/patient-tags/{id}/deactivate",
+            put(deactivate_patient_tag),
+        )
+        .route(
+            "/api/security/tag-alerts",
+            get(list_tag_alerts),
+        )
+        .route(
+            "/api/security/tag-alerts/{id}/resolve",
+            put(resolve_tag_alert),
+        )
+        .route(
+            "/api/security/debriefs",
+            get(list_debriefs)
+                .post(create_debrief),
+        )
+        .route(
+            "/api/security/debriefs/{id}",
+            get(get_debrief),
+        )
 }
