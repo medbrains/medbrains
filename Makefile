@@ -1,4 +1,4 @@
-.PHONY: help dev dev-fast dev-icd dev-backend dev-frontend local-https-cert dev-proxy dev-https db db-icd db-stop db-reset \
+.PHONY: help dev dev-watch dev-fast dev-icd dev-backend dev-frontend local-https-cert dev-proxy dev-https db db-icd db-stop db-reset \
        build build-backend build-frontend \
        camp-mobile camp-mobile-ios camp-mobile-android \
        mobile-staff-start mobile-staff-start-lan \
@@ -41,6 +41,9 @@ help: ## Show this help
 
 dev: ## Start everything through the local HTTPS proxy
 	@$(MAKE) -C $(ROOT) dev DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_DOMAIN=$(DEV_DESKTOP_HTTPS_DOMAIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN) DEV_ICD_HTTPS_DOMAIN=$(DEV_ICD_HTTPS_DOMAIN) DEV_ICD_HTTPS_ORIGIN=$(DEV_ICD_HTTPS_ORIGIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG)
+
+dev-watch: ## Same as dev but the BACKEND auto-rebuilds+restarts on save (cargo-watch)
+	@$(MAKE) -C $(ROOT) dev-watch DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_DOMAIN=$(DEV_DESKTOP_HTTPS_DOMAIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN) DEV_ICD_HTTPS_DOMAIN=$(DEV_ICD_HTTPS_DOMAIN) DEV_ICD_HTTPS_ORIGIN=$(DEV_ICD_HTTPS_ORIGIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG)
 
 dev-fast: ## Start everything through HTTPS, skipping unchanged backend rebuilds
 	@$(MAKE) -C $(ROOT) dev-fast DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_DOMAIN=$(DEV_DESKTOP_HTTPS_DOMAIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN) DEV_ICD_HTTPS_DOMAIN=$(DEV_ICD_HTTPS_DOMAIN) DEV_ICD_HTTPS_ORIGIN=$(DEV_ICD_HTTPS_ORIGIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG)
