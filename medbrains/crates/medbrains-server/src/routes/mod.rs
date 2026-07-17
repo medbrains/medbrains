@@ -65,6 +65,7 @@ pub use medbrains_patients as patients;
 // payment_gateway webhook routes stay in the no-auth public chain in mod.rs
 pub use medbrains_payment_gateway as payment_gateway;
 pub use medbrains_vpn as vpn;
+pub use medbrains_setup as setup;
 // billing/lab/pharmacy/patients/appointments reach token helpers via crate::routes::tokens
 pub use medbrains_tokens as tokens;
 pub mod oauth;
@@ -86,7 +87,6 @@ pub mod print_data;
 pub mod print_data_academic;
 pub mod reports;
 pub mod security;
-pub mod setup;
 pub mod sso_login;
 
 pub mod case_sheet_scan;
@@ -220,26 +220,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/patients/{patient_id}/vte-assessments",
             get(vte::list_vte_assessments),
         )
-        .route(
-            "/api/access-groups",
-            get(setup::list_access_groups).post(setup::create_access_group),
-        )
-        .route(
-            "/api/access-groups/{id}",
-            put(setup::update_access_group).delete(setup::delete_access_group),
-        )
-        .route(
-            "/api/access-groups/{id}/members",
-            get(setup::list_access_group_members).post(setup::add_access_group_member),
-        )
-        .route(
-            "/api/access-groups/{group_id}/members/{user_id}",
-            delete(setup::remove_access_group_member),
-        )
-        .route(
-            "/api/setup/users/{id}/visible-screens",
-            get(setup::list_visible_screens),
-        )
+        .merge(medbrains_setup::router())
         // ── FHIR R4 read API (ABDM HIE-CM HIP role + generic interop) ──
         .route("/api/fhir/metadata", get(fhir::metadata))
         .route("/api/fhir/Patient/{id}", get(fhir::read_patient))
@@ -277,97 +258,13 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/onboarding/setup", post(onboarding::setup))
         .route("/api/onboarding/complete", post(onboarding::complete))
         // Setup — tenant
-        .route(
-            "/api/setup/tenant",
-            get(setup::get_tenant).put(setup::update_tenant),
-        )
-        .route("/api/setup/tenant/geo", put(setup::update_tenant_geo_with_presets))
-        .route("/api/setup/compliance", post(setup::create_compliance))
         // Setup — generic tenant settings
-        .route(
-            "/api/setup/settings",
-            get(setup::get_settings).put(setup::update_setting),
-        )
-        .route(
-            "/api/setup/device-settings",
-            get(setup::get_secure_device_settings).put(setup::update_secure_device_setting),
-        )
         // Setup — brand entities (multi-entity branding)
-        .route("/api/setup/brand-entities", get(setup::list_brand_entities).post(setup::create_brand_entity))
-        .route("/api/setup/brand-entities/{id}", put(setup::update_brand_entity).delete(setup::delete_brand_entity))
         // Setup — facilities
-        .route(
-            "/api/setup/facilities",
-            get(setup::list_facilities).post(setup::create_facility),
-        )
-        .route(
-            "/api/setup/facilities/{id}",
-            put(setup::update_facility).delete(setup::delete_facility),
-        )
         // Setup — locations
-        .route(
-            "/api/setup/locations",
-            get(setup::list_locations).post(setup::create_location),
-        )
-        .route(
-            "/api/setup/locations/{id}",
-            put(setup::update_location).delete(setup::delete_location),
-        )
-        .route(
-            "/api/setup/locations/directory",
-            get(setup::list_location_directory),
-        )
-        .route(
-            "/api/setup/locations/{id}/staff",
-            get(setup::list_location_staff).post(setup::assign_location_staff),
-        )
-        .route(
-            "/api/setup/locations/{id}/staff/{user_id}",
-            delete(setup::remove_location_staff),
-        )
         // Setup — departments
-        .route(
-            "/api/setup/departments",
-            get(setup::list_departments).post(setup::create_department),
-        )
-        .route(
-            "/api/setup/departments/{id}",
-            put(setup::update_department).delete(setup::delete_department),
-        )
         // Setup — roles
-        .route(
-            "/api/setup/roles",
-            get(setup::list_roles).post(setup::create_role),
-        )
-        .route(
-            "/api/setup/roles/{id}",
-            put(setup::update_role).delete(setup::delete_role),
-        )
-        .route(
-            "/api/setup/roles/{id}/permissions",
-            put(setup::update_role_permissions),
-        )
-        .route(
-            "/api/setup/roles/{id}/field-access",
-            put(setup::update_role_field_access),
-        )
-        .route(
-            "/api/setup/roles/{id}/widget-access",
-            put(setup::update_role_widget_access),
-        )
         // Setup — users
-        .route(
-            "/api/setup/users",
-            get(setup::list_users).post(setup::create_user),
-        )
-        .route(
-            "/api/setup/doctors",
-            get(setup::list_doctors),
-        )
-        .route(
-            "/api/setup/users/{id}",
-            put(setup::update_user).delete(setup::delete_user),
-        )
         // Server-side document rendering (epic #267)
         .route(
             "/api/documents/render",
@@ -393,33 +290,11 @@ pub fn build_router(state: AppState) -> Router {
             "/api/documents/render/templates/{code}",
             put(documents_render::save_template),
         )
-        .route(
-            "/api/setup/users/{id}/reset-password",
-            post(setup::reset_user_password),
-        )
-        .route(
-            "/api/setup/users/{id}/access-matrix",
-            put(setup::update_user_access_matrix),
-        )
         // Setup — modules
-        .route("/api/setup/modules", get(setup::list_modules))
-        .route("/api/setup/modules/{code}", put(setup::update_module))
         .route("/api/setup/edition", get(onboarding::get_edition))
         .route("/api/setup/edition/apply", post(onboarding::apply_edition))
         // Setup — sequences
-        .route(
-            "/api/setup/sequences",
-            get(setup::list_sequences).post(setup::create_sequence),
-        )
-        .route(
-            "/api/setup/sequences/{seq_type}",
-            put(setup::update_sequence).delete(setup::delete_sequence),
-        )
         // Setup — services
-        .route(
-            "/api/setup/services",
-            get(setup::list_services).post(setup::create_service),
-        )
         .route(
             "/api/setup/services/import",
             post(catalog_import::import_services),
@@ -458,123 +333,22 @@ pub fn build_router(state: AppState) -> Router {
             get(invitations::list).post(invitations::create),
         )
         .route("/api/admin/invitations/{id}", delete(invitations::revoke))
-        .route(
-            "/api/setup/services/{id}",
-            put(setup::update_service).delete(setup::delete_service),
-        )
         // Setup — bed types
-        .route(
-            "/api/setup/bed-types",
-            get(setup::list_bed_types).post(setup::create_bed_type),
-        )
-        .route(
-            "/api/setup/bed-types/{id}",
-            put(setup::update_bed_type).delete(setup::delete_bed_type),
-        )
         // Setup — tax categories
-        .route(
-            "/api/setup/tax-categories",
-            get(setup::list_tax_categories).post(setup::create_tax_category),
-        )
-        .route(
-            "/api/setup/tax-categories/{id}",
-            put(setup::update_tax_category).delete(setup::delete_tax_category),
-        )
         // Setup — payment methods
-        .route(
-            "/api/setup/payment-methods",
-            get(setup::list_payment_methods).post(setup::create_payment_method),
-        )
-        .route(
-            "/api/setup/payment-methods/{id}",
-            put(setup::update_payment_method).delete(setup::delete_payment_method),
-        )
         // Setup — branding
-        .route(
-            "/api/setup/branding",
-            get(setup::get_branding).put(setup::update_branding),
-        )
         // Setup — module master data seeding
-        .route(
-            "/api/setup/module-masters",
-            post(setup::seed_module_masters),
-        )
         // Setup — CSV import
-        .route("/api/setup/locations/import", post(setup::import_locations))
-        .route("/api/setup/departments/import", post(setup::import_departments))
-        .route("/api/setup/users/import", post(setup::import_users))
         // Setup — user-facility assignments
-        .route(
-            "/api/setup/users/{id}/facilities",
-            get(setup::list_user_facilities).put(setup::assign_user_facilities),
-        )
         // Setup — auto-create compliance checklist
-        .route(
-            "/api/setup/facilities/{id}/auto-compliance",
-            post(setup::auto_create_compliance),
-        )
         // Setup — print templates
-        .route(
-            "/api/setup/print-templates",
-            get(setup::get_print_templates).put(setup::upsert_print_template),
-        )
         // Setup — clinical masters (religions, occupations, relations)
-        .route(
-            "/api/setup/masters/religions",
-            get(setup::list_master_religions).post(setup::create_master_religion),
-        )
-        .route(
-            "/api/setup/masters/religions/{id}",
-            put(setup::update_master_religion).delete(setup::delete_master_religion),
-        )
-        .route(
-            "/api/setup/masters/occupations",
-            get(setup::list_master_occupations).post(setup::create_master_occupation),
-        )
-        .route(
-            "/api/setup/masters/occupations/{id}",
-            put(setup::update_master_occupation).delete(setup::delete_master_occupation),
-        )
-        .route(
-            "/api/setup/masters/relations",
-            get(setup::list_master_relations).post(setup::create_master_relation),
-        )
-        .route(
-            "/api/setup/masters/relations/{id}",
-            put(setup::update_master_relation).delete(setup::delete_master_relation),
-        )
         // Setup — insurance providers
-        .route(
-            "/api/setup/masters/insurance-providers",
-            get(setup::list_insurance_providers).post(setup::create_insurance_provider),
-        )
         .route(
             "/api/setup/masters/insurance-providers/import",
             post(catalog_import::import_insurance_providers),
         )
-        .route(
-            "/api/setup/masters/insurance-providers/{id}",
-            put(setup::update_insurance_provider).delete(setup::delete_insurance_provider),
-        )
         // Setup — bulk / template / health / config
-        .route("/api/setup/users/bulk", post(setup::bulk_create_users))
-        .route(
-            "/api/setup/departments/template",
-            post(setup::seed_department_template),
-        )
-        .route(
-            "/api/setup/completeness",
-            get(setup::completeness_check),
-        )
-        .route("/api/setup/health", get(setup::system_health))
-        .route(
-            "/api/setup/config/export",
-            get(setup::export_config),
-        )
-        .route(
-            "/api/setup/config/import",
-            post(setup::import_config),
-        )
         // Patients
         .merge(medbrains_patients::router())
         // Patient — identifiers
