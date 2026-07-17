@@ -35,7 +35,6 @@ pub mod ipd_post_discharge;
 pub mod it_security;
 pub mod materials;
 pub mod mfa;
-pub mod mrd;
 pub use medbrains_server_core::nabh_evidence;
 // scheduling routes moved to the medbrains-scheduling leaf; re-exported so
 // reports.rs (which reuses scheduling helpers) keeps resolving crate::routes::scheduling.
@@ -2090,118 +2089,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         .merge(medbrains_lms::router())
         // ── MRD (Medical Records Department) ────────────────────
-        .route(
-            "/api/mrd/records",
-            get(mrd::list_records).post(mrd::create_record),
-        )
-        .route(
-            "/api/mrd/records/{id}",
-            get(mrd::get_record).put(mrd::update_record),
-        )
-        .route(
-            "/api/mrd/records/{id}/movements",
-            get(mrd::list_movements),
-        )
-        .route(
-            "/api/mrd/records/{id}/issue",
-            post(mrd::issue_record),
-        )
-        .route(
-            "/api/mrd/records/{record_id}/movements/{id}/return",
-            post(mrd::return_record),
-        )
-        .route(
-            "/api/mrd/births",
-            get(mrd::list_births).post(mrd::create_birth),
-        )
-        .route(
-            "/api/mrd/births/{id}",
-            get(mrd::get_birth),
-        )
-        .route(
-            "/api/mrd/deaths",
-            get(mrd::list_deaths).post(mrd::create_death),
-        )
-        .route(
-            "/api/mrd/deaths/{id}",
-            get(mrd::get_death),
-        )
-        .route(
-            "/api/mrd/retention-policies",
-            get(mrd::list_retention_policies).post(mrd::create_retention_policy),
-        )
-        .route(
-            "/api/mrd/retention-policies/{id}",
-            put(mrd::update_retention_policy),
-        )
-        .route(
-            "/api/mrd/storage-locations",
-            get(mrd::list_storage_locations).post(mrd::create_storage_location),
-        )
-        .route(
-            "/api/mrd/storage-locations/{id}",
-            put(mrd::update_storage_location),
-        )
-        .route(
-            "/api/mrd/case-sheets",
-            get(mrd::list_case_sheet_packets),
-        )
-        .route(
-            "/api/mrd/case-sheets/from-opd/{encounter_id}",
-            post(mrd::generate_opd_case_sheet_packet),
-        )
-        .route(
-            "/api/mrd/case-sheets/from-ipd/{admission_id}",
-            post(mrd::generate_ipd_case_sheet_packet),
-        )
-        .route(
-            "/api/mrd/case-sheets/{id}",
-            get(mrd::get_case_sheet_packet),
-        )
-        .route(
-            "/api/mrd/case-sheets/{id}/pages",
-            get(mrd::list_case_sheet_pages),
-        )
-        .route(
-            "/api/mrd/case-sheets/{packet_id}/pages/{page_id}/status",
-            put(mrd::update_case_sheet_page_status),
-        )
-        .route(
-            "/api/mrd/case-sheets/{id}/completeness",
-            get(mrd::get_case_sheet_completeness),
-        )
-        .route(
-            "/api/mrd/case-sheets/{id}/print",
-            post(mrd::print_case_sheet_packet),
-        )
-        .route(
-            "/api/mrd/case-sheets/{id}/file",
-            post(mrd::file_case_sheet_packet),
-        )
-        .route(
-            "/api/mrd/stats/morbidity-mortality",
-            get(mrd::stats_morbidity_mortality),
-        )
-        .route(
-            "/api/mrd/stats/admission-discharge",
-            get(mrd::stats_admission_discharge),
-        )
-        .route(
-            "/api/mrd/form-records",
-            get(mrd::list_form_records),
-        )
-        .route(
-            "/api/mrd/form-records/{id}/complete",
-            post(mrd::complete_form_record),
-        )
-        .route(
-            "/api/mrd/form-records/{id}/verify",
-            post(mrd::verify_form_record),
-        )
-        .route(
-            "/api/mrd/form-records/{id}/attach-document",
-            post(mrd::attach_form_document),
-        )
+        .merge(medbrains_mrd::router())
         // ── Consent Management ───────────────────────────────
         .route(
             "/api/consent/templates",

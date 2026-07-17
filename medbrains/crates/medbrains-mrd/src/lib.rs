@@ -14,12 +14,11 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::{require_any_permission, require_permission},
-    state::AppState,
-};
+use axum::routing::{get,post,put};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::{require_any_permission, require_permission};
+use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Query types
@@ -316,7 +315,7 @@ pub async fn create_record(
 
     // Register-first lock (opt-in): an OPD medical record needs a registered OPD visit.
     if body.record_type.as_deref().unwrap_or("opd") == "opd" {
-        super::opd::assert_patient_opd_registered(&mut tx, &claims.tenant_id, body.patient_id)
+        medbrains_opd::assert_patient_opd_registered(&mut tx, &claims.tenant_id, body.patient_id)
             .await?;
     }
 
@@ -2011,7 +2010,7 @@ pub async fn generate_opd_case_sheet_packet(
     if let Some(admission_id) = row.admission_id {
         event = event.with_admission(admission_id);
     }
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -2151,7 +2150,7 @@ pub async fn generate_ipd_case_sheet_packet(
     if let Some(admission_id) = row.admission_id {
         event = event.with_admission(admission_id);
     }
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -2307,7 +2306,7 @@ pub async fn print_case_sheet_packet(
     if let Some(admission_id) = row.admission_id {
         event = event.with_admission(admission_id);
     }
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -2726,4 +2725,121 @@ pub async fn attach_form_document(
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// Medical Records Department (records, coding, deficiencies, ROI, forms) routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/mrd/records",
+            get(list_records).post(create_record),
+        )
+        .route(
+            "/api/mrd/records/{id}",
+            get(get_record).put(update_record),
+        )
+        .route(
+            "/api/mrd/records/{id}/movements",
+            get(list_movements),
+        )
+        .route(
+            "/api/mrd/records/{id}/issue",
+            post(issue_record),
+        )
+        .route(
+            "/api/mrd/records/{record_id}/movements/{id}/return",
+            post(return_record),
+        )
+        .route(
+            "/api/mrd/births",
+            get(list_births).post(create_birth),
+        )
+        .route(
+            "/api/mrd/births/{id}",
+            get(get_birth),
+        )
+        .route(
+            "/api/mrd/deaths",
+            get(list_deaths).post(create_death),
+        )
+        .route(
+            "/api/mrd/deaths/{id}",
+            get(get_death),
+        )
+        .route(
+            "/api/mrd/retention-policies",
+            get(list_retention_policies).post(create_retention_policy),
+        )
+        .route(
+            "/api/mrd/retention-policies/{id}",
+            put(update_retention_policy),
+        )
+        .route(
+            "/api/mrd/storage-locations",
+            get(list_storage_locations).post(create_storage_location),
+        )
+        .route(
+            "/api/mrd/storage-locations/{id}",
+            put(update_storage_location),
+        )
+        .route(
+            "/api/mrd/case-sheets",
+            get(list_case_sheet_packets),
+        )
+        .route(
+            "/api/mrd/case-sheets/from-opd/{encounter_id}",
+            post(generate_opd_case_sheet_packet),
+        )
+        .route(
+            "/api/mrd/case-sheets/from-ipd/{admission_id}",
+            post(generate_ipd_case_sheet_packet),
+        )
+        .route(
+            "/api/mrd/case-sheets/{id}",
+            get(get_case_sheet_packet),
+        )
+        .route(
+            "/api/mrd/case-sheets/{id}/pages",
+            get(list_case_sheet_pages),
+        )
+        .route(
+            "/api/mrd/case-sheets/{packet_id}/pages/{page_id}/status",
+            put(update_case_sheet_page_status),
+        )
+        .route(
+            "/api/mrd/case-sheets/{id}/completeness",
+            get(get_case_sheet_completeness),
+        )
+        .route(
+            "/api/mrd/case-sheets/{id}/print",
+            post(print_case_sheet_packet),
+        )
+        .route(
+            "/api/mrd/case-sheets/{id}/file",
+            post(file_case_sheet_packet),
+        )
+        .route(
+            "/api/mrd/stats/morbidity-mortality",
+            get(stats_morbidity_mortality),
+        )
+        .route(
+            "/api/mrd/stats/admission-discharge",
+            get(stats_admission_discharge),
+        )
+        .route(
+            "/api/mrd/form-records",
+            get(list_form_records),
+        )
+        .route(
+            "/api/mrd/form-records/{id}/complete",
+            post(complete_form_record),
+        )
+        .route(
+            "/api/mrd/form-records/{id}/verify",
+            post(verify_form_record),
+        )
+        .route(
+            "/api/mrd/form-records/{id}/attach-document",
+            post(attach_form_document),
+        )
 }

@@ -31,6 +31,7 @@ medbrains-opd = { path = "../medbrains-opd" }
 medbrains-ipd = { path = "../medbrains-ipd" }
 medbrains-patients = { path = "../medbrains-patients" }
 medbrains-dashboard = { path = "../medbrains-dashboard" }
+medbrains-mrd = { path = "../medbrains-mrd" }
 medbrains-clinical-scores = { path = "../medbrains-clinical-scores" }
 medbrains-clinical-ops = { path = "../medbrains-clinical-ops" }
 medbrains-identity = { path = "../medbrains-identity" }
