@@ -43,6 +43,15 @@ export default defineConfig(async ({ command }) => {
   return {
     cacheDir: process.env.VITE_CACHE_DIR ?? path.resolve(__dirname, "node_modules/.vite"),
     plugins,
+    // Vite 8 changed CJS default-import interop: `import X from "cjs-dual-pkg"`
+    // now yields the module-namespace object instead of the default export,
+    // which breaks CJS/dual-package deps at runtime — e.g. lottie-react rendered
+    // as an object ("Element type is invalid … got: object" in <CrabLottie>).
+    // Restore the Vite 7 interop until those deps ship pure ESM. Deprecated flag;
+    // revisit when lottie-react (and any other CJS default-imports) are ESM-only.
+    legacy: {
+      inconsistentCjsInterop: true,
+    },
     // Strip noisy/leaky console + debugger from PRODUCTION builds only (dev keeps
     // them). `pure` drops console.log/info/debug (which may log PHI) via dead-code
     // elimination; console.warn/error are KEPT — error is the client-error report
