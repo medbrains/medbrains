@@ -42,6 +42,7 @@ members = [
     "crates/medbrains-patients",
     "crates/medbrains-dashboard",
     "crates/medbrains-mrd",
+    "crates/medbrains-ot",
     "crates/medbrains-clinical-scores",
     "crates/medbrains-clinical-ops",
     "crates/medbrains-identity",

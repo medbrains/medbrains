@@ -67,7 +67,6 @@ pub mod onboarding;
 pub mod orchestration;
 pub mod order_basket;
 pub mod order_sets;
-pub mod ot;
 pub mod patient_packages;
 pub mod payment_gateway;
 pub mod payroll;
@@ -1775,82 +1774,7 @@ pub fn build_router(state: AppState) -> Router {
             get(nabh_indicators::get_indicators),
         )
         // ── Operation Theatre ──────────────────────────────
-        .route(
-            "/api/ot/rooms",
-            get(ot::list_rooms).post(ot::create_room),
-        )
-        .route(
-            "/api/ot/rooms/{id}",
-            put(ot::update_room),
-        )
-        .route(
-            "/api/ot/bookings",
-            get(ot::list_bookings).post(ot::create_booking),
-        )
-        .route(
-            "/api/ot/bookings/{id}",
-            get(ot::get_booking).put(ot::update_booking),
-        )
-        .route(
-            "/api/ot/bookings/{id}/status",
-            put(ot::update_booking_status),
-        )
-        .route(
-            "/api/ot/bookings/{booking_id}/preop",
-            get(ot::get_preop).post(ot::create_preop).put(ot::update_preop),
-        )
-        .route(
-            "/api/ot/bookings/{booking_id}/preop-handoff",
-            get(ot::get_preop_handoff).put(ot::upsert_preop_handoff),
-        )
-        .route(
-            "/api/ot/bookings/{booking_id}/checklists",
-            get(ot::get_checklists).post(ot::create_checklist),
-        )
-        .route(
-            "/api/ot/bookings/{booking_id}/checklists/{checklist_id}",
-            put(ot::update_checklist),
-        )
-        .route(
-            "/api/ot/bookings/{booking_id}/case-record",
-            get(ot::get_case_record).post(ot::create_case_record).put(ot::update_case_record),
-        )
-        .route(
-            "/api/ot/bookings/{booking_id}/anesthesia",
-            get(ot::get_anesthesia).post(ot::create_anesthesia).put(ot::update_anesthesia),
-        )
-        .route(
-            "/api/ot/bookings/{booking_id}/postop",
-            get(ot::get_postop).post(ot::create_postop).put(ot::update_postop),
-        )
-        .route(
-            "/api/ot/bookings/{booking_id}/postop-handoff",
-            get(ot::get_postop_handoff).put(ot::upsert_postop_handoff),
-        )
-        .route(
-            "/api/ot/surgeon-preferences",
-            get(ot::list_surgeon_preferences).post(ot::create_surgeon_preference),
-        )
-        .route(
-            "/api/ot/surgeon-preferences/{id}",
-            put(ot::update_surgeon_preference).delete(ot::delete_surgeon_preference),
-        )
-        .route(
-            "/api/ot/schedule",
-            get(ot::get_schedule),
-        )
-        .route(
-            "/api/ot/analytics/utilization",
-            get(ot::ot_utilization),
-        )
-        .route(
-            "/api/ot/analytics/surgeon-caseload",
-            get(ot::get_surgeon_caseload),
-        )
-        .route(
-            "/api/ot/analytics/anesthesia-complications",
-            get(ot::list_anesthesia_complications),
-        )
+        .merge(medbrains_ot::router())
         .merge(medbrains_blood_bank::router())
         .merge(medbrains_cssd::router())
         .merge(medbrains_emergency::router())

@@ -15,14 +15,11 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    error::AppError,
-    middleware::{
-        auth::Claims,
-        authorization::{require_any_permission, require_permission},
-    },
-    state::AppState,
-};
+use axum::routing::{get,put};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::{require_any_permission, require_permission};
+use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Response types
@@ -320,7 +317,7 @@ pub async fn list_rooms(
             permissions::ot::bookings::UPDATE,
         ],
     )?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -343,7 +340,7 @@ pub async fn create_room(
     Json(body): Json<CreateRoomRequest>,
 ) -> Result<Json<OtRoom>, AppError> {
     require_permission(&claims, permissions::ot::rooms::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -375,7 +372,7 @@ pub async fn update_room(
     Json(body): Json<UpdateRoomRequest>,
 ) -> Result<Json<OtRoom>, AppError> {
     require_permission(&claims, permissions::ot::rooms::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -418,7 +415,7 @@ pub async fn list_bookings(
     Query(params): Query<ListBookingsQuery>,
 ) -> Result<Json<BookingListResponse>, AppError> {
     require_permission(&claims, permissions::ot::bookings::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let page = params.page.unwrap_or(1).max(1);
@@ -541,7 +538,7 @@ pub async fn get_booking(
     Path(id): Path<Uuid>,
 ) -> Result<Json<OtBooking>, AppError> {
     require_permission(&claims, permissions::ot::bookings::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -566,7 +563,7 @@ pub async fn create_booking(
     Json(body): Json<CreateBookingRequest>,
 ) -> Result<Json<OtBooking>, AppError> {
     require_permission(&claims, permissions::ot::bookings::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -628,7 +625,7 @@ pub async fn create_booking(
 
     // Credential gate — a REVOKED registration can't operate (hard block); EXPIRED is a
     // soft gate (override reason, logged). Same rule as prescribing.
-    crate::clinical_credential::enforce_prescriber_credential(
+    medbrains_server_core::clinical_credential::enforce_prescriber_credential(
         &mut tx,
         claims.tenant_id,
         body.primary_surgeon_id,
@@ -682,7 +679,7 @@ pub async fn update_booking(
     Json(body): Json<UpdateBookingRequest>,
 ) -> Result<Json<OtBooking>, AppError> {
     require_permission(&claims, permissions::ot::bookings::UPDATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -791,7 +788,7 @@ pub async fn update_booking_status(
     Json(body): Json<UpdateBookingStatusRequest>,
 ) -> Result<Json<OtBooking>, AppError> {
     require_permission(&claims, permissions::ot::bookings::UPDATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -868,14 +865,14 @@ pub async fn update_booking_status(
 
     // Auto-bill OT charges on surgery completion
     if body.status == "completed"
-        && super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "ot")
+        && medbrains_server_services::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "ot")
             .await
             .unwrap_or(false)
     {
         let encounter_id = row.admission_id.unwrap_or(row.id);
-        let _ = super::billing::create_service_charge(
+        let _ = medbrains_server_services::billing::create_service_charge(
             &mut tx,
-            super::billing::ServiceChargeInput {
+            medbrains_server_services::billing::ServiceChargeInput {
                 tenant_id: claims.tenant_id,
                 patient_id: row.patient_id,
                 encounter_id,
@@ -892,9 +889,9 @@ pub async fn update_booking_status(
         // assigned. Distinct source id (the booking id collides with the
         // surgery charge under auto_charge's (source, source_id) idempotency).
         if row.anesthetist_id.is_some() {
-            let _ = super::billing::create_service_charge(
+            let _ = medbrains_server_services::billing::create_service_charge(
                 &mut tx,
-                super::billing::ServiceChargeInput {
+                medbrains_server_services::billing::ServiceChargeInput {
                     tenant_id: claims.tenant_id,
                     patient_id: row.patient_id,
                     encounter_id,
@@ -914,9 +911,9 @@ pub async fn update_booking_status(
             let minutes = (end - start).num_minutes();
             if minutes > 0 {
                 let hours = i32::try_from((minutes + 59) / 60).unwrap_or(1).max(1);
-                let _ = super::billing::create_service_charge(
+                let _ = medbrains_server_services::billing::create_service_charge(
                     &mut tx,
-                    super::billing::ServiceChargeInput {
+                    medbrains_server_services::billing::ServiceChargeInput {
                         tenant_id: claims.tenant_id,
                         patient_id: row.patient_id,
                         encounter_id,
@@ -942,10 +939,10 @@ pub async fn update_booking_status(
         .fetch_all(&mut *tx)
         .await?;
         for (usage_id, item_name, qty, unit_price) in consumables {
-            let _ = super::billing::auto_charge(
+            let _ = medbrains_server_services::billing::auto_charge(
                 &mut tx,
                 &claims.tenant_id,
-                super::billing::AutoChargeInput {
+                medbrains_server_services::billing::AutoChargeInput {
                     patient_id: row.patient_id,
                     encounter_id: Some(encounter_id),
                     charge_code: "OT_CONSUMABLE".to_owned(),
@@ -975,7 +972,7 @@ pub async fn get_preop(
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<Option<OtPreopAssessment>>, AppError> {
     require_permission(&claims, permissions::ot::preop::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -1027,7 +1024,7 @@ pub async fn create_preop(
     Json(body): Json<CreatePreopRequest>,
 ) -> Result<Json<OtPreopAssessment>, AppError> {
     require_permission(&claims, permissions::ot::preop::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -1079,7 +1076,7 @@ pub async fn update_preop(
     Json(body): Json<UpdatePreopRequest>,
 ) -> Result<Json<OtPreopAssessment>, AppError> {
     require_permission(&claims, permissions::ot::preop::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -1225,7 +1222,7 @@ pub async fn get_preop_handoff(
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<Option<OtPreopHandoff>>, AppError> {
     require_permission(&claims, permissions::ot::preop::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -1252,7 +1249,7 @@ pub async fn upsert_preop_handoff(
     Json(body): Json<UpsertHandoffRequest>,
 ) -> Result<Json<OtPreopHandoff>, AppError> {
     require_permission(&claims, permissions::ot::preop::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -1337,7 +1334,7 @@ pub async fn get_postop_handoff(
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<Option<OtPostopHandoff>>, AppError> {
     require_permission(&claims, permissions::ot::postop::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -1364,7 +1361,7 @@ pub async fn upsert_postop_handoff(
     Json(body): Json<UpsertHandoffRequest>,
 ) -> Result<Json<OtPostopHandoff>, AppError> {
     require_permission(&claims, permissions::ot::postop::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -1452,7 +1449,7 @@ pub async fn get_checklists(
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<Vec<OtSurgicalSafetyChecklist>>, AppError> {
     require_permission(&claims, permissions::ot::safety_checklist::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -1622,7 +1619,7 @@ pub async fn create_checklist(
     Json(body): Json<CreateChecklistRequest>,
 ) -> Result<Json<OtSurgicalSafetyChecklist>, AppError> {
     require_permission(&claims, permissions::ot::safety_checklist::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     // Seed the standard WHO items when the caller didn't supply a populated list.
@@ -1658,7 +1655,7 @@ pub async fn update_checklist(
     Json(body): Json<UpdateChecklistRequest>,
 ) -> Result<Json<OtSurgicalSafetyChecklist>, AppError> {
     require_permission(&claims, permissions::ot::safety_checklist::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -1723,7 +1720,7 @@ pub async fn get_case_record(
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<Option<OtCaseRecord>>, AppError> {
     require_permission(&claims, permissions::ot::case_records::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -1748,7 +1745,7 @@ pub async fn create_case_record(
     Json(body): Json<CreateCaseRecordRequest>,
 ) -> Result<Json<OtCaseRecord>, AppError> {
     require_permission(&claims, permissions::ot::case_records::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     // Enforce the surgical-count gate when the record is created already closed.
@@ -1812,7 +1809,7 @@ pub async fn update_case_record(
     Json(body): Json<UpdateCaseRecordRequest>,
 ) -> Result<Json<OtCaseRecord>, AppError> {
     require_permission(&claims, permissions::ot::case_records::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -1898,7 +1895,7 @@ pub async fn get_anesthesia(
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<Option<OtAnesthesiaRecord>>, AppError> {
     require_permission(&claims, permissions::ot::anesthesia::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -1923,7 +1920,7 @@ pub async fn create_anesthesia(
     Json(body): Json<CreateAnesthesiaRequest>,
 ) -> Result<Json<OtAnesthesiaRecord>, AppError> {
     require_permission(&claims, permissions::ot::anesthesia::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -1994,7 +1991,7 @@ pub async fn update_anesthesia(
     Json(body): Json<UpdateAnesthesiaRequest>,
 ) -> Result<Json<OtAnesthesiaRecord>, AppError> {
     require_permission(&claims, permissions::ot::anesthesia::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -2041,7 +2038,7 @@ pub async fn get_postop(
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<Option<OtPostopRecord>>, AppError> {
     require_permission(&claims, permissions::ot::postop::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -2066,7 +2063,7 @@ pub async fn create_postop(
     Json(body): Json<CreatePostopRequest>,
 ) -> Result<Json<OtPostopRecord>, AppError> {
     require_permission(&claims, permissions::ot::postop::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -2106,7 +2103,7 @@ pub async fn update_postop(
     Json(body): Json<UpdatePostopRequest>,
 ) -> Result<Json<OtPostopRecord>, AppError> {
     require_permission(&claims, permissions::ot::postop::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -2184,7 +2181,7 @@ pub async fn list_surgeon_preferences(
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<Vec<OtSurgeonPreference>>, AppError> {
     require_permission(&claims, permissions::ot::preferences::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -2224,7 +2221,7 @@ pub async fn create_surgeon_preference(
     Json(body): Json<CreateSurgeonPreferenceRequest>,
 ) -> Result<Json<OtSurgeonPreference>, AppError> {
     require_permission(&claims, permissions::ot::preferences::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -2265,7 +2262,7 @@ pub async fn update_surgeon_preference(
     Json(body): Json<UpdateSurgeonPreferenceRequest>,
 ) -> Result<Json<OtSurgeonPreference>, AppError> {
     require_permission(&claims, permissions::ot::preferences::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -2312,7 +2309,7 @@ pub async fn delete_surgeon_preference(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::ot::preferences::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let mut tx = state.db.begin().await?;
@@ -2341,7 +2338,7 @@ pub async fn get_schedule(
     Query(params): Query<ScheduleQuery>,
 ) -> Result<Json<Vec<OtBooking>>, AppError> {
     require_permission(&claims, permissions::ot::bookings::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let date = params.date.unwrap_or_else(|| Utc::now().date_naive());
@@ -2404,7 +2401,7 @@ pub async fn ot_utilization(
     // siblings (get_surgeon_caseload, list_anesthesia_complications), not the
     // unrelated consumables-management grant.
     require_permission(&claims, permissions::ot::reports::VIEW)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let from = params
@@ -2449,7 +2446,7 @@ pub async fn get_surgeon_caseload(
     Query(params): Query<UtilizationQuery>,
 ) -> Result<Json<Vec<SurgeonCaseloadEntry>>, AppError> {
     require_permission(&claims, permissions::ot::reports::VIEW)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let from = params
@@ -2493,7 +2490,7 @@ pub async fn list_anesthesia_complications(
     Query(params): Query<UtilizationQuery>,
 ) -> Result<Json<Vec<AnesthesiaComplicationEntry>>, AppError> {
     require_permission(&claims, permissions::ot::reports::VIEW)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
     let from = params
@@ -2595,4 +2592,85 @@ mod fasting_gate_tests {
     fn blank_override_does_not_count() {
         assert!(fasting_induction_blocked(false, Some("  ")));
     }
+}
+
+/// Operation theatre (rooms, schedules, checklists, counts, anesthesia) routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/ot/rooms",
+            get(list_rooms).post(create_room),
+        )
+        .route(
+            "/api/ot/rooms/{id}",
+            put(update_room),
+        )
+        .route(
+            "/api/ot/bookings",
+            get(list_bookings).post(create_booking),
+        )
+        .route(
+            "/api/ot/bookings/{id}",
+            get(get_booking).put(update_booking),
+        )
+        .route(
+            "/api/ot/bookings/{id}/status",
+            put(update_booking_status),
+        )
+        .route(
+            "/api/ot/bookings/{booking_id}/preop",
+            get(get_preop).post(create_preop).put(update_preop),
+        )
+        .route(
+            "/api/ot/bookings/{booking_id}/preop-handoff",
+            get(get_preop_handoff).put(upsert_preop_handoff),
+        )
+        .route(
+            "/api/ot/bookings/{booking_id}/checklists",
+            get(get_checklists).post(create_checklist),
+        )
+        .route(
+            "/api/ot/bookings/{booking_id}/checklists/{checklist_id}",
+            put(update_checklist),
+        )
+        .route(
+            "/api/ot/bookings/{booking_id}/case-record",
+            get(get_case_record).post(create_case_record).put(update_case_record),
+        )
+        .route(
+            "/api/ot/bookings/{booking_id}/anesthesia",
+            get(get_anesthesia).post(create_anesthesia).put(update_anesthesia),
+        )
+        .route(
+            "/api/ot/bookings/{booking_id}/postop",
+            get(get_postop).post(create_postop).put(update_postop),
+        )
+        .route(
+            "/api/ot/bookings/{booking_id}/postop-handoff",
+            get(get_postop_handoff).put(upsert_postop_handoff),
+        )
+        .route(
+            "/api/ot/surgeon-preferences",
+            get(list_surgeon_preferences).post(create_surgeon_preference),
+        )
+        .route(
+            "/api/ot/surgeon-preferences/{id}",
+            put(update_surgeon_preference).delete(delete_surgeon_preference),
+        )
+        .route(
+            "/api/ot/schedule",
+            get(get_schedule),
+        )
+        .route(
+            "/api/ot/analytics/utilization",
+            get(ot_utilization),
+        )
+        .route(
+            "/api/ot/analytics/surgeon-caseload",
+            get(get_surgeon_caseload),
+        )
+        .route(
+            "/api/ot/analytics/anesthesia-complications",
+            get(list_anesthesia_complications),
+        )
 }

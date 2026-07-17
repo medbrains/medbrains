@@ -44,9 +44,9 @@ use crate::{
 //  the billing routes and the `super::billing::…` callers resolve unchanged.
 // ══════════════════════════════════════════════════════════
 pub(crate) use medbrains_server_services::billing::{
-    AutoChargeInput, SeqResult, ServiceChargeInput, admission_id_for_encounter_in_tx, auto_charge,
-    create_service_charge, generate_invoice_number, is_auto_billing_enabled,
-    recalculate_invoice_totals, reverse_auto_charge_for_source, reverse_invoice_item_by_id_in_tx,
+    AutoChargeInput, SeqResult, admission_id_for_encounter_in_tx, auto_charge,
+    generate_invoice_number, is_auto_billing_enabled, recalculate_invoice_totals,
+    reverse_auto_charge_for_source, reverse_invoice_item_by_id_in_tx,
     verified_admission_id_for_invoice_in_tx,
 };
 
