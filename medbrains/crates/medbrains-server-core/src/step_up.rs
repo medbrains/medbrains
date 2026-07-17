@@ -31,7 +31,7 @@ struct StepUpClaims {
     exp: usize,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct StepUpRequest {
     pub password: String,
 }

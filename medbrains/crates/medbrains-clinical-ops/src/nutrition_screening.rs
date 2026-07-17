@@ -53,6 +53,7 @@ pub struct CreateNutritionScreeningRequest {
     pub notes: Option<String>,
 }
 
+#[derive(Debug)]
 pub struct MustScore {
     pub bmi: f64,
     pub bmi_score: i32,
