@@ -4,6 +4,7 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use axum::routing::{get,post,put};
 use chrono::{DateTime, Duration, NaiveTime, TimeZone, Utc};
 use medbrains_core::fatigue::{self, FatigueThresholds};
 use medbrains_core::hr::{
@@ -20,14 +21,12 @@ use argon2::{
     password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
 };
 
-use crate::validation::{self, ValidationErrors};
-use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::require_permission,
-    routes::notifications::{NewNotification, create_notification},
-    state::AppState,
-};
+use medbrains_server_core::validation::{self, ValidationErrors};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::notifications::{NewNotification, create_notification};
+use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Response types
@@ -852,7 +851,7 @@ pub async fn update_employee(
     // VPN device revocation runs its own transaction (best-effort, same as delete_user).
     if revokes_access {
         if let Some(user_id) = row.user_id {
-            crate::routes::vpn::revoke_user_devices(&state, claims.tenant_id, user_id).await?;
+            medbrains_vpn::revoke_user_devices(&state, claims.tenant_id, user_id).await?;
         }
     }
 
@@ -2474,4 +2473,117 @@ pub async fn training_compliance(
         programs,
         expiring_credentials,
     }))
+}
+
+/// HR & staff management (designations, attendance, shifts, duty-hours, training) routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/hr/designations",
+            get(list_designations).post(create_designation),
+        )
+        .route(
+            "/api/hr/designations/{id}",
+            put(update_designation),
+        )
+        .route(
+            "/api/hr/me/profile",
+            get(get_my_profile).put(update_my_profile),
+        )
+        .route(
+            "/api/hr/employees",
+            get(list_employees).post(create_employee),
+        )
+        .route(
+            "/api/hr/employees/{id}",
+            get(get_employee).put(update_employee),
+        )
+        .route(
+            "/api/hr/employees/{id}/credentials",
+            get(list_credentials).post(create_credential),
+        )
+        .route(
+            "/api/hr/employees/{id}/credentials/{cid}",
+            put(update_credential),
+        )
+        .route(
+            "/api/hr/employees/{id}/leave-balances",
+            get(list_leave_balances),
+        )
+        .route(
+            "/api/hr/employees/{id}/training-records",
+            get(list_training_records),
+        )
+        .route(
+            "/api/hr/employees/{id}/appraisals",
+            get(list_appraisals),
+        )
+        .route(
+            "/api/hr/employees/{id}/statutory-records",
+            get(list_statutory_records),
+        )
+        .route(
+            "/api/hr/shifts",
+            get(list_shifts).post(create_shift),
+        )
+        .route(
+            "/api/hr/shifts/{id}",
+            put(update_shift),
+        )
+        .route(
+            "/api/hr/rosters",
+            get(list_rosters).post(create_roster),
+        )
+        .route(
+            "/api/hr/rosters/{id}/approve-swap",
+            put(approve_swap),
+        )
+        .route(
+            "/api/hr/attendance",
+            get(list_attendance).post(create_attendance),
+        )
+        .route("/api/hr/duty-hours", get(list_duty_hours))
+        .route("/api/hr/my-shift", get(get_my_shift))
+        .route("/api/hr/my-shift/start", post(start_shift))
+        .route("/api/hr/my-shift/extend", post(extend_shift))
+        .route("/api/hr/my-shift/pause", post(pause_shift))
+        .route("/api/hr/my-shift/resume", post(resume_shift))
+        .route("/api/hr/my-shift/end", post(end_shift))
+        .route("/api/hr/my-shift/acknowledge-fatigue", post(acknowledge_fatigue))
+        .route(
+            "/api/hr/leaves",
+            get(list_leave_requests).post(create_leave_request),
+        )
+        .route(
+            "/api/hr/leaves/{id}/action",
+            put(leave_action),
+        )
+        .route(
+            "/api/hr/leaves/{id}/cancel",
+            put(cancel_leave),
+        )
+        .route(
+            "/api/hr/on-call",
+            get(list_on_call).post(create_on_call),
+        )
+        .route(
+            "/api/hr/training-programs",
+            get(list_training_programs).post(create_training_program),
+        )
+        .route(
+            "/api/hr/training-records",
+            post(create_training_record),
+        )
+        .route(
+            "/api/hr/appraisals",
+            post(create_appraisal),
+        )
+        .route(
+            "/api/hr/statutory-records",
+            post(create_statutory_record),
+        )
+        .route(
+            "/api/hr/training/compliance",
+            get(training_compliance),
+        )
 }

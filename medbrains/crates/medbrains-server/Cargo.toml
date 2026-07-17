@@ -38,6 +38,7 @@ medbrains-regulatory = { path = "../medbrains-regulatory" }
 medbrains-payment-gateway = { path = "../medbrains-payment-gateway" }
 medbrains-print-data = { path = "../medbrains-print-data" }
 medbrains-vpn = { path = "../medbrains-vpn" }
+medbrains-hr = { path = "../medbrains-hr" }
 medbrains-clinical-scores = { path = "../medbrains-clinical-scores" }
 medbrains-clinical-ops = { path = "../medbrains-clinical-ops" }
 medbrains-identity = { path = "../medbrains-identity" }

@@ -48,6 +48,7 @@ members = [
     "crates/medbrains-payment-gateway",
     "crates/medbrains-print-data",
     "crates/medbrains-vpn",
+    "crates/medbrains-hr",
     "crates/medbrains-clinical-scores",
     "crates/medbrains-clinical-ops",
     "crates/medbrains-identity",

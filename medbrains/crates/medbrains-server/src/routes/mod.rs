@@ -27,7 +27,6 @@ pub mod documents_render;
 pub mod email_verification;
 pub mod fhir;
 pub mod health;
-pub mod hr;
 pub mod infra_settings;
 pub mod invitations;
 pub mod mail_provisioning;
@@ -1497,70 +1496,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_emergency::router())
         .merge(medbrains_diet::router())
         // ── HR & Staff Management ───────────────────────────
-        .route(
-            "/api/hr/designations",
-            get(hr::list_designations).post(hr::create_designation),
-        )
-        .route(
-            "/api/hr/designations/{id}",
-            put(hr::update_designation),
-        )
-        .route(
-            "/api/hr/me/profile",
-            get(hr::get_my_profile).put(hr::update_my_profile),
-        )
-        .route(
-            "/api/hr/employees",
-            get(hr::list_employees).post(hr::create_employee),
-        )
-        .route(
-            "/api/hr/employees/{id}",
-            get(hr::get_employee).put(hr::update_employee),
-        )
-        .route(
-            "/api/hr/employees/{id}/credentials",
-            get(hr::list_credentials).post(hr::create_credential),
-        )
-        .route(
-            "/api/hr/employees/{id}/credentials/{cid}",
-            put(hr::update_credential),
-        )
-        .route(
-            "/api/hr/employees/{id}/leave-balances",
-            get(hr::list_leave_balances),
-        )
-        .route(
-            "/api/hr/employees/{id}/training-records",
-            get(hr::list_training_records),
-        )
-        .route(
-            "/api/hr/employees/{id}/appraisals",
-            get(hr::list_appraisals),
-        )
-        .route(
-            "/api/hr/employees/{id}/statutory-records",
-            get(hr::list_statutory_records),
-        )
-        .route(
-            "/api/hr/shifts",
-            get(hr::list_shifts).post(hr::create_shift),
-        )
-        .route(
-            "/api/hr/shifts/{id}",
-            put(hr::update_shift),
-        )
-        .route(
-            "/api/hr/rosters",
-            get(hr::list_rosters).post(hr::create_roster),
-        )
-        .route(
-            "/api/hr/rosters/{id}/approve-swap",
-            put(hr::approve_swap),
-        )
-        .route(
-            "/api/hr/attendance",
-            get(hr::list_attendance).post(hr::create_attendance),
-        )
+        .merge(medbrains_hr::router())
         // ── Payroll ──
         .route(
             "/api/hr/payroll/structures",
@@ -1575,50 +1511,6 @@ pub fn build_router(state: AppState) -> Router {
             post(payroll::finalize_payroll_run),
         )
         .route("/api/hr/payroll/payslips", get(payroll::list_payslips))
-        .route("/api/hr/duty-hours", get(hr::list_duty_hours))
-        .route("/api/hr/my-shift", get(hr::get_my_shift))
-        .route("/api/hr/my-shift/start", post(hr::start_shift))
-        .route("/api/hr/my-shift/extend", post(hr::extend_shift))
-        .route("/api/hr/my-shift/pause", post(hr::pause_shift))
-        .route("/api/hr/my-shift/resume", post(hr::resume_shift))
-        .route("/api/hr/my-shift/end", post(hr::end_shift))
-        .route("/api/hr/my-shift/acknowledge-fatigue", post(hr::acknowledge_fatigue))
-        .route(
-            "/api/hr/leaves",
-            get(hr::list_leave_requests).post(hr::create_leave_request),
-        )
-        .route(
-            "/api/hr/leaves/{id}/action",
-            put(hr::leave_action),
-        )
-        .route(
-            "/api/hr/leaves/{id}/cancel",
-            put(hr::cancel_leave),
-        )
-        .route(
-            "/api/hr/on-call",
-            get(hr::list_on_call).post(hr::create_on_call),
-        )
-        .route(
-            "/api/hr/training-programs",
-            get(hr::list_training_programs).post(hr::create_training_program),
-        )
-        .route(
-            "/api/hr/training-records",
-            post(hr::create_training_record),
-        )
-        .route(
-            "/api/hr/appraisals",
-            post(hr::create_appraisal),
-        )
-        .route(
-            "/api/hr/statutory-records",
-            post(hr::create_statutory_record),
-        )
-        .route(
-            "/api/hr/training/compliance",
-            get(hr::training_compliance),
-        )
         // ── BME / CMMS ───────────────────────────────────────
         .route(
             "/api/bme/equipment",
