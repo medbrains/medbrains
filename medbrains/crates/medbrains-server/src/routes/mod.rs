@@ -6,6 +6,7 @@ pub mod appointments;
 pub mod audit;
 pub mod coverage;
 pub mod debug;
+pub mod nhcx_onboarding;
 pub mod health;
 pub use medbrains_server_core::nabh_evidence;
 // scheduling routes moved to the medbrains-scheduling leaf; re-exported so
@@ -13,7 +14,6 @@ pub use medbrains_server_core::nabh_evidence;
 pub use medbrains_scheduling::scheduling;
 pub use medbrains_telehealth::cds;
 pub use medbrains_platform::ckb;
-pub mod nhcx_onboarding;
 pub use medbrains_server_core::notifications;
 pub use medbrains_identity::sso;
 pub use medbrains_server_core::step_up;
@@ -38,7 +38,6 @@ pub use medbrains_vpn as vpn;
 pub use medbrains_setup as setup;
 // billing/lab/pharmacy/patients/appointments reach token helpers via crate::routes::tokens
 pub use medbrains_tokens as tokens;
-pub mod oauth;
 pub mod orchestration;
 
 
@@ -281,16 +280,7 @@ pub fn build_router(state: AppState) -> Router {
         // ── Payment Gateway ─────────────────────────────
         .merge(medbrains_payment_gateway::router())
         // ── OAuth connect (common token module) ──────────
-        .route("/api/oauth/providers", get(oauth::list_oauth_providers))
-        .route(
-            "/api/oauth/{provider}/authorize",
-            get(oauth::oauth_authorize),
-        )
-        .route("/api/oauth/{provider}/exchange", post(oauth::oauth_exchange))
-        .route(
-            "/api/oauth/connections/{provider}",
-            delete(oauth::oauth_disconnect),
-        )
+        .merge(medbrains_oauth::router())
         // ── Lab ──────────────────────────────────────────
         .merge(medbrains_lab::router())
         .merge(medbrains_radiology::router())

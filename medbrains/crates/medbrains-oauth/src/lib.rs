@@ -1,6 +1,7 @@
 //! OAuth connect routes — the admin-facing side of the common token module.
 //! Authorize → consent → exchange → stored connection; list + disconnect.
 
+use axum::routing::{delete,get,post};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -9,7 +10,7 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError,
     middleware::auth::Claims,
     middleware::authorization::require_permission,
@@ -145,4 +146,19 @@ pub async fn oauth_disconnect(
         return Err(AppError::NotFound);
     }
     Ok(Json(serde_json::json!({ "status": "disconnected" })))
+}
+
+/// oauth routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/oauth/providers", get(list_oauth_providers))
+        .route(
+            "/api/oauth/{provider}/authorize",
+            get(oauth_authorize),
+        )
+        .route("/api/oauth/{provider}/exchange", post(oauth_exchange))
+        .route(
+            "/api/oauth/connections/{provider}",
+            delete(oauth_disconnect),
+        )
 }
