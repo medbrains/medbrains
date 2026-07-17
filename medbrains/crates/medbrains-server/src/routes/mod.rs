@@ -14,7 +14,6 @@ pub mod debug;
 pub mod device_pairing;
 pub mod doctor_packages;
 pub mod documents_render;
-pub mod email_verification;
 pub mod fhir;
 pub mod health;
 pub mod invitations;
@@ -55,7 +54,6 @@ pub use medbrains_setup as setup;
 // billing/lab/pharmacy/patients/appointments reach token helpers via crate::routes::tokens
 pub use medbrains_tokens as tokens;
 pub mod oauth;
-pub mod onboarding;
 pub mod orchestration;
 pub mod patient_packages;
 pub mod payroll;
@@ -131,15 +129,11 @@ pub fn build_router(state: AppState) -> Router {
         // Device pairing — gated by short-lived one-time token, not JWT
         .route("/api/device-pairing/pair", post(device_pairing::pair_device))
         // Onboarding — public endpoints
-        .route("/api/onboarding/status", get(onboarding::status))
-        .route("/api/onboarding/init", post(onboarding::init))
+        .merge(medbrains_onboarding::router())
         // Geo — public read-only endpoints
         // CMS Public API (no auth required)
         .route("/api/public/tenant-by-host", get(setup::tenant_by_host))
-        .route(
-            "/api/auth/verify-email",
-            post(email_verification::verify_email),
-        )
+        .merge(medbrains_onboarding::email_verification::router())
         .route(
             "/api/public/invitations/{token}",
             get(invitations::get_public),
@@ -162,10 +156,6 @@ pub fn build_router(state: AppState) -> Router {
     let protected = Router::new()
         // Auth
         .route("/api/auth/me", get(auth::me))
-        .route(
-            "/api/auth/resend-verification",
-            post(email_verification::resend),
-        )
         .merge(medbrains_client_errors::router())
         .route("/api/access/manifest", get(access::get_manifest))
         .route("/api/app/manifest", get(app_manifest::get_app_manifest))
@@ -200,12 +190,6 @@ pub fn build_router(state: AppState) -> Router {
         // Phase A.1 — offline JWT revocation feed for mobile/TV/edge
         .route("/api/auth/revocations", get(auth::list_revocations))
         // Onboarding progress
-        .route(
-            "/api/onboarding/progress",
-            get(onboarding::get_progress).put(onboarding::update_progress),
-        )
-        .route("/api/onboarding/setup", post(onboarding::setup))
-        .route("/api/onboarding/complete", post(onboarding::complete))
         // Setup — tenant
         // Setup — generic tenant settings
         // Setup — brand entities (multi-entity branding)
@@ -240,8 +224,6 @@ pub fn build_router(state: AppState) -> Router {
             put(documents_render::save_template),
         )
         // Setup — modules
-        .route("/api/setup/edition", get(onboarding::get_edition))
-        .route("/api/setup/edition/apply", post(onboarding::apply_edition))
         // Setup — sequences
         // Setup — services
         .merge(medbrains_catalog_import::router())

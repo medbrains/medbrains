@@ -64,6 +64,7 @@ members = [
     "crates/medbrains-catalog-import",
     "crates/medbrains-sso-login",
     "crates/medbrains-order-basket",
+    "crates/medbrains-onboarding",
     "crates/medbrains-ipd-post-discharge",
     "crates/medbrains-client-errors",
     "crates/medbrains-vpn",

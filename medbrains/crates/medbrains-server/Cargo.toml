@@ -54,6 +54,7 @@ medbrains-sharing = { path = "../medbrains-sharing" }
 medbrains-catalog-import = { path = "../medbrains-catalog-import" }
 medbrains-sso-login = { path = "../medbrains-sso-login" }
 medbrains-order-basket = { path = "../medbrains-order-basket" }
+medbrains-onboarding = { path = "../medbrains-onboarding" }
 medbrains-ipd-post-discharge = { path = "../medbrains-ipd-post-discharge" }
 medbrains-client-errors = { path = "../medbrains-client-errors" }
 medbrains-vpn = { path = "../medbrains-vpn" }

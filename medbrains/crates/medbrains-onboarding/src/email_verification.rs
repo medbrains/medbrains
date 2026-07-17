@@ -6,11 +6,12 @@
 //! `users` update.
 
 use axum::{Extension, Json, extract::State};
+use axum::routing::{post};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use crate::{error::AppError, middleware::auth::Claims, state::AppState};
+use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 
 /// Best-effort public origin for verify links, from the forwarded host.
 fn verify_base_from_headers(headers: &axum::http::HeaderMap) -> String {
@@ -158,4 +159,17 @@ pub async fn resend(
     tx.commit().await?;
 
     Ok(Json(VerifyEmailResponse { verified: false }))
+}
+
+/// Email verification routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/auth/verify-email",
+            post(verify_email),
+        )
+        .route(
+            "/api/auth/resend-verification",
+            post(resend),
+        )
 }

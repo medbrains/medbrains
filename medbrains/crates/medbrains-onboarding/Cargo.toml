@@ -1,0 +1,27 @@
+[package]
+name = "medbrains-onboarding"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[dependencies]
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-db = { path = "../medbrains-db" }
+medbrains-outbox = { path = "../medbrains-outbox" }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+sqlx = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+argon2 = { workspace = true }
+rust_decimal = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+getrandom = { version = "0.3", features = ["std"] }
+axum-extra = { version = "0.10", features = ["cookie"] }
+
+[lints]
+workspace = true

@@ -1,3 +1,5 @@
+pub mod email_verification;
+
 use std::collections::HashMap;
 
 use argon2::{
@@ -5,6 +7,7 @@ use argon2::{
     password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
 };
 use axum::{Extension, Json, extract::State, response::IntoResponse};
+use axum::routing::{get,post};
 use axum_extra::extract::CookieJar;
 use chrono::Utc;
 use medbrains_core::onboarding::OnboardingProgress;
@@ -14,7 +17,7 @@ use uuid::Uuid;
 
 use sha2::{Digest, Sha256};
 
-use crate::{
+use medbrains_server_core::{
     error::AppError,
     middleware::{
         auth::{Claims, encode_jwt},
@@ -238,7 +241,7 @@ pub async fn init(
             || "https://localhost".to_owned(),
             |host| format!("https://{}", host.split(':').next().unwrap_or(host)),
         );
-    super::email_verification::issue(&mut tx, tenant_id, user_id, &body.admin_email, &verify_base)
+    email_verification::issue(&mut tx, tenant_id, user_id, &body.admin_email, &verify_base)
         .await?;
 
     // Create onboarding progress record
@@ -1389,7 +1392,7 @@ pub async fn get_edition(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    crate::middleware::authorization::require_permission(
+    medbrains_server_core::middleware::authorization::require_permission(
         &claims,
         medbrains_core::permissions::admin::settings::modules::MANAGE,
     )?;
@@ -1407,7 +1410,7 @@ pub async fn apply_edition(
     Extension(claims): Extension<Claims>,
     Json(body): Json<ApplyEditionRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    crate::middleware::authorization::require_permission(
+    medbrains_server_core::middleware::authorization::require_permission(
         &claims,
         medbrains_core::permissions::admin::settings::modules::MANAGE,
     )?;
@@ -1458,4 +1461,19 @@ pub async fn apply_edition(
         "enabled": enabled.len(),
         "disabled": disabled.len(),
     })))
+}
+
+/// Onboarding routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/onboarding/status", get(status))
+        .route("/api/onboarding/init", post(init))
+        .route(
+            "/api/onboarding/progress",
+            get(get_progress).put(update_progress),
+        )
+        .route("/api/onboarding/setup", post(setup))
+        .route("/api/onboarding/complete", post(complete))
+        .route("/api/setup/edition", get(get_edition))
+        .route("/api/setup/edition/apply", post(apply_edition))
 }
