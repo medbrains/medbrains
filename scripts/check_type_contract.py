@@ -81,6 +81,11 @@ SKIP_FIELDS_BY_TYPE = {
     "User": {"password_hash"},
 }
 
+# Server-managed fields the frontend never receives in a public contract —
+# set by the DB/trigger, scoped by RLS, or written server-side. A Rust struct
+# carrying them is not "drift" when the TS render interface omits them.
+GLOBAL_SKIP_FIELDS = {"created_at", "updated_at", "tenant_id"}
+
 
 # ── TypeScript interface extraction ──────────────────────────────────
 
@@ -287,7 +292,7 @@ def compare_types(
 ]:
     """
     Compare matched types between TS and Rust.
-    Returns (issues, matched_types, ts_only, rust_only).
+    Returns (issues, matched_types, ts_only, rust_only, collisions).
     """
     ts_names = set(ts_interfaces.keys())
     rust_names = set(rust_structs.keys())
@@ -333,6 +338,7 @@ def compare_types(
 
     # Compare fields for matched types
     issues: list[tuple[str, str, str, str]] = []
+    collisions: list[tuple[str, str, int, int]] = []
 
     for ts_name, rust_name in matched:
         ts_fields = ts_interfaces[ts_name]
@@ -341,9 +347,24 @@ def compare_types(
         ts_field_names = set(ts_fields.keys())
         rust_field_names = set(rust_fields.keys())
 
+        # Name-collision guard: a Rust struct and a same-named TS interface are
+        # only the SAME type when their field names substantially overlap. Print
+        # payloads and form/report types frequently share a name with an
+        # unrelated server struct (e.g. the Rust `TransfusionReactionPrintData`
+        # print payload vs the TS NACO-report interface of the same name — near
+        # zero shared field names). Comparing those pairs produces pure noise, so
+        # require >=50% of the smaller field set to overlap before flagging.
+        shared = ts_field_names & rust_field_names
+        smaller = min(len(ts_field_names), len(rust_field_names)) or 1
+        if len(shared) / smaller < 0.8:
+            collisions.append((ts_name, rust_name, len(shared), smaller))
+            continue
+
         # Fields in Rust but not TS (ERROR — frontend won't send them)
         for fname in sorted(rust_field_names - ts_field_names):
             if fname in SKIP_FIELDS_BY_TYPE.get(ts_name, set()):
+                continue
+            if fname in GLOBAL_SKIP_FIELDS:
                 continue
             rust_type, rust_opt, _ = rust_fields[fname]
             if rust_opt:
@@ -402,7 +423,7 @@ def compare_types(
                             "WARNING",
                         ))
 
-    return issues, matched, ts_only, rust_only
+    return issues, matched, ts_only, rust_only, collisions
 
 
 # ── Main ─────────────────────────────────────────────────────────────
@@ -434,7 +455,7 @@ def main():
     rust_structs = extract_all_rust_structs()
 
     # Compare
-    issues, matched, ts_only, rust_only = compare_types(ts_interfaces, rust_structs)
+    issues, matched, ts_only, rust_only, collisions = compare_types(ts_interfaces, rust_structs)
 
     # ── Output ───────────────────────────────────────────────────
 
