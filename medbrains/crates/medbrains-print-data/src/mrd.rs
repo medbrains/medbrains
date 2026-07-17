@@ -8,6 +8,7 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
+use axum::routing::get;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -21,11 +22,10 @@ use medbrains_core::print_data::{
     VitalsChartPrintData,
 };
 
-use crate::{
-    error::AppError,
-    middleware::{auth::Claims, authorization::require_permission},
-    state::AppState,
-};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 /// Per-admission access gate (ReBAC): the caller must be linked to the
 /// admission (its treating/ward department, attending, or an explicit grant) to
@@ -37,7 +37,7 @@ async fn require_admission_access(
     claims: &Claims,
     admission_id: Uuid,
 ) -> Result<(), AppError> {
-    let authz_ctx = crate::middleware::authorization::authz_context(claims);
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
     let allowed = state
         .authz
         .check(&authz_ctx, medbrains_authz::Relation::Viewer, "admission", admission_id)
@@ -1544,3 +1544,55 @@ pub async fn get_transfusion_requisition_print_data(
         requested_at: row.requested_at.format("%d-%b-%Y %H:%M").to_string(),
     }))
 }
+
+/// Print-data MRD routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/print-data/mrd/progress-note/{admission_id}",
+            get(get_progress_note_print_data),
+        )
+        .route(
+            "/api/print-data/mrd/nursing-assessment/{admission_id}",
+            get(get_nursing_assessment_print_data),
+        )
+        .route(
+            "/api/print-data/mrd/mar/{admission_id}",
+            get(get_mar_print_data),
+        )
+        .route(
+            "/api/print-data/mrd/vitals-chart/{admission_id}",
+            get(get_vitals_chart_print_data),
+        )
+        .route(
+            "/api/print-data/mrd/io-chart/{admission_id}",
+            get(get_io_chart_print_data),
+        )
+        .route(
+            "/api/print-data/mrd/discharge-checklist/{admission_id}",
+            get(get_discharge_checklist_print_data),
+        )
+        .route(
+            "/api/print-data/fluid-balance-chart/{admission_id}",
+            get(get_fluid_balance_chart_print_data),
+        )
+        .route(
+            "/api/print-data/pain-assessment/{admission_id}",
+            get(get_pain_assessment_print_data),
+        )
+        .route(
+            "/api/print-data/fall-risk-assessment/{admission_id}",
+            get(get_fall_risk_assessment_print_data),
+        )
+        .route(
+            "/api/print-data/pressure-ulcer-risk/{admission_id}",
+            get(get_pressure_ulcer_risk_print_data),
+        )
+        .route(
+            "/api/print-data/gcs-chart/{admission_id}",
+            get(get_gcs_chart_print_data),
+        )
+        .route(
+            "/api/print-data/transfusion-requisition/{request_id}",
+            get(get_transfusion_requisition_print_data),
+        )}

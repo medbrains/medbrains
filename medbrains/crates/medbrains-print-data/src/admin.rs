@@ -12,11 +12,8 @@
 //! - Work Order Form
 //! - Preventive Maintenance Checklist
 
-use axum::{
-    Router,
-    extract::{Path, State},
-    routing::get,
-};
+use axum::extract::{Path, State};
+use axum::routing::get;
 use medbrains_core::print_data::{
     DrugExpiryAlertPrintData, EquipmentCondemnationPrintData, ExpiryDrugItem, GrnItem,
     GrnPrintData, IndentFormPrintData, IndentItem, IssueItem, MaterialIssueVoucherPrintData,
@@ -27,48 +24,9 @@ use medbrains_core::print_data::{
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::{error::AppError, state::AppState};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::state::AppState;
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
-        .route(
-            "/print-data/indent-form/{indent_id}",
-            get(get_indent_form_print_data),
-        )
-        .route(
-            "/print-data/purchase-order/{po_id}",
-            get(get_purchase_order_print_data),
-        )
-        .route("/print-data/grn/{grn_id}", get(get_grn_print_data))
-        .route(
-            "/print-data/material-issue-voucher/{voucher_id}",
-            get(get_material_issue_voucher_print_data),
-        )
-        .route(
-            "/print-data/stock-transfer-note/{transfer_id}",
-            get(get_stock_transfer_note_print_data),
-        )
-        .route(
-            "/print-data/ndps-register/{period}",
-            get(get_ndps_register_print_data),
-        )
-        .route(
-            "/print-data/drug-expiry-alert/{store_id}",
-            get(get_drug_expiry_alert_print_data),
-        )
-        .route(
-            "/print-data/equipment-condemnation/{condemnation_id}",
-            get(get_equipment_condemnation_print_data),
-        )
-        .route(
-            "/print-data/work-order/{work_order_id}",
-            get(get_work_order_print_data),
-        )
-        .route(
-            "/print-data/pm-checklist/{pm_id}",
-            get(get_pm_checklist_print_data),
-        )
-}
 
 // ══════════════════════════════════════════════════════════
 // Indent Form
@@ -1595,3 +1553,47 @@ fn two_digit_to_words(n: i64, ones: &[&str], tens: &[&str]) -> String {
         }
     }
 }
+
+/// Print-data admin/materials routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/print-data/indent-form/{indent_id}",
+            get(get_indent_form_print_data),
+        )
+        .route(
+            "/api/print-data/purchase-order/{po_id}",
+            get(get_purchase_order_print_data),
+        )
+        .route(
+            "/api/print-data/grn/{grn_id}",
+            get(get_grn_print_data),
+        )
+        .route(
+            "/api/print-data/material-issue-voucher/{voucher_id}",
+            get(get_material_issue_voucher_print_data),
+        )
+        .route(
+            "/api/print-data/stock-transfer-note/{transfer_id}",
+            get(get_stock_transfer_note_print_data),
+        )
+        .route(
+            "/api/print-data/ndps-register/{period}",
+            get(get_ndps_register_print_data),
+        )
+        .route(
+            "/api/print-data/drug-expiry-alert/{store_id}",
+            get(get_drug_expiry_alert_print_data),
+        )
+        .route(
+            "/api/print-data/equipment-condemnation/{condemnation_id}",
+            get(get_equipment_condemnation_print_data),
+        )
+        .route(
+            "/api/print-data/work-order/{work_order_id}",
+            get(get_work_order_print_data),
+        )
+        .route(
+            "/api/print-data/pm-checklist/{pm_id}",
+            get(get_pm_checklist_print_data),
+        )}

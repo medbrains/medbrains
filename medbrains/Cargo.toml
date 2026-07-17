@@ -46,6 +46,7 @@ members = [
     "crates/medbrains-quality",
     "crates/medbrains-regulatory",
     "crates/medbrains-payment-gateway",
+    "crates/medbrains-print-data",
     "crates/medbrains-clinical-scores",
     "crates/medbrains-clinical-ops",
     "crates/medbrains-identity",

@@ -81,16 +81,13 @@ pub mod pharmacy_repeats;
 pub mod pharmacy_safety;
 pub mod print_data;
 pub mod print_data_academic;
-pub mod print_data_admin;
 pub mod print_data_billing;
 pub mod print_data_bme;
 pub mod print_data_clinical;
 pub mod print_data_consent;
 pub mod print_data_hr;
 pub mod print_data_medicolegal;
-pub mod print_data_mrd;
 pub mod print_data_quality;
-pub mod print_data_regulatory;
 pub mod print_data_surgical;
 pub mod reports;
 pub mod security;
@@ -2480,55 +2477,8 @@ pub fn build_router(state: AppState) -> Router {
             get(print_data_consent::get_teaching_consent_print_data),
         )
         // ── Print Data (MRD forms) ───────────────────────────────
-        .route(
-            "/api/print-data/mrd/progress-note/{admission_id}",
-            get(print_data_mrd::get_progress_note_print_data),
-        )
-        .route(
-            "/api/print-data/mrd/nursing-assessment/{admission_id}",
-            get(print_data_mrd::get_nursing_assessment_print_data),
-        )
-        .route(
-            "/api/print-data/mrd/mar/{admission_id}",
-            get(print_data_mrd::get_mar_print_data),
-        )
-        .route(
-            "/api/print-data/mrd/vitals-chart/{admission_id}",
-            get(print_data_mrd::get_vitals_chart_print_data),
-        )
-        .route(
-            "/api/print-data/mrd/io-chart/{admission_id}",
-            get(print_data_mrd::get_io_chart_print_data),
-        )
-        .route(
-            "/api/print-data/mrd/discharge-checklist/{admission_id}",
-            get(print_data_mrd::get_discharge_checklist_print_data),
-        )
+        .merge(medbrains_print_data::mrd::router())
         // ── Print Data (Phase 3: Clinical Charts) ───────────────
-        .route(
-            "/api/print-data/fluid-balance-chart/{admission_id}",
-            get(print_data_mrd::get_fluid_balance_chart_print_data),
-        )
-        .route(
-            "/api/print-data/pain-assessment/{admission_id}",
-            get(print_data_mrd::get_pain_assessment_print_data),
-        )
-        .route(
-            "/api/print-data/fall-risk-assessment/{admission_id}",
-            get(print_data_mrd::get_fall_risk_assessment_print_data),
-        )
-        .route(
-            "/api/print-data/pressure-ulcer-risk/{admission_id}",
-            get(print_data_mrd::get_pressure_ulcer_risk_print_data),
-        )
-        .route(
-            "/api/print-data/gcs-chart/{admission_id}",
-            get(print_data_mrd::get_gcs_chart_print_data),
-        )
-        .route(
-            "/api/print-data/transfusion-requisition/{request_id}",
-            get(print_data_mrd::get_transfusion_requisition_print_data),
-        )
         // ── Print Data (Phase 3: Surgical & OT) ─────────────────
         .route(
             "/api/print-data/case-sheet-cover/{admission_id}",
@@ -2627,95 +2577,9 @@ pub fn build_router(state: AppState) -> Router {
         )
         // Phase 4 billing prints already registered above (credit-note, package-bill, insurance-claim, tds-certificate)
         // ── Phase 4: Regulatory Prints ─────────────────────────────
-        .route(
-            "/api/print-data/nabh-quality-report/{period}",
-            get(print_data_regulatory::get_nabh_quality_report_print_data),
-        )
-        .route(
-            "/api/print-data/nmc-compliance-report/{period}",
-            get(print_data_regulatory::get_nmc_compliance_report_print_data),
-        )
-        .route(
-            "/api/print-data/nabl-quality-report/{period}",
-            get(print_data_regulatory::get_nabl_quality_report_print_data),
-        )
-        .route(
-            "/api/print-data/spcb-bmw-returns/{quarter}",
-            get(print_data_regulatory::get_spcb_bmw_returns_print_data),
-        )
-        .route(
-            "/api/print-data/peso-compliance/{year}",
-            get(print_data_regulatory::get_peso_compliance_print_data),
-        )
-        .route(
-            "/api/print-data/drug-license-report/{license_id}",
-            get(print_data_regulatory::get_drug_license_report_print_data),
-        )
-        .route(
-            "/api/print-data/pcpndt-report/{period}",
-            get(print_data_regulatory::get_pcpndt_report_print_data),
-        )
-        .route(
-            "/api/print-data/birth-register/{period}",
-            get(print_data_regulatory::get_birth_register_print_data),
-        )
-        .route(
-            "/api/print-data/death-register/{period}",
-            get(print_data_regulatory::get_death_register_print_data),
-        )
-        .route(
-            "/api/print-data/mlc-register-summary/{period}",
-            get(print_data_regulatory::get_mlc_register_summary_print_data),
-        )
-        .route(
-            "/api/print-data/aebas-attendance/{period}",
-            get(print_data_regulatory::get_aebas_attendance_print_data),
-        )
-        .route(
-            "/api/print-data/nmc-narf-assessment/{year}",
-            get(print_data_regulatory::get_nmc_narf_assessment_print_data),
-        )
+        .merge(medbrains_print_data::regulatory::router())
         // ── Phase 4: Admin & Procurement Prints ─────────────────────
-        .route(
-            "/api/print-data/indent-form/{indent_id}",
-            get(print_data_admin::get_indent_form_print_data),
-        )
-        .route(
-            "/api/print-data/purchase-order/{po_id}",
-            get(print_data_admin::get_purchase_order_print_data),
-        )
-        .route(
-            "/api/print-data/grn/{grn_id}",
-            get(print_data_admin::get_grn_print_data),
-        )
-        .route(
-            "/api/print-data/material-issue-voucher/{voucher_id}",
-            get(print_data_admin::get_material_issue_voucher_print_data),
-        )
-        .route(
-            "/api/print-data/stock-transfer-note/{transfer_id}",
-            get(print_data_admin::get_stock_transfer_note_print_data),
-        )
-        .route(
-            "/api/print-data/ndps-register/{period}",
-            get(print_data_admin::get_ndps_register_print_data),
-        )
-        .route(
-            "/api/print-data/drug-expiry-alert/{store_id}",
-            get(print_data_admin::get_drug_expiry_alert_print_data),
-        )
-        .route(
-            "/api/print-data/equipment-condemnation/{condemnation_id}",
-            get(print_data_admin::get_equipment_condemnation_print_data),
-        )
-        .route(
-            "/api/print-data/work-order/{work_order_id}",
-            get(print_data_admin::get_work_order_print_data),
-        )
-        .route(
-            "/api/print-data/pm-checklist/{pm_id}",
-            get(print_data_admin::get_pm_checklist_print_data),
-        )
+        .merge(medbrains_print_data::admin::router())
         // ══════════════════════════════════════════════════════════
         // PHASE 5: Admin/HR, BME, Blood Bank, OT, Clinical Forms
         // ══════════════════════════════════════════════════════════

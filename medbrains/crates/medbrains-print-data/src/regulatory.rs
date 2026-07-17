@@ -7,6 +7,7 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
+use axum::routing::get;
 
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
@@ -22,11 +23,10 @@ use medbrains_core::print_data::{
     SafetyInspection, SpcbBmwReturnsPrintData, TatMetric,
 };
 
-use crate::{
-    error::AppError,
-    middleware::{auth::Claims, authorization::require_permission},
-    state::AppState,
-};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 // ── NABH Quality Indicators Report ────────────────────────
 
@@ -1594,3 +1594,55 @@ pub async fn get_nmc_narf_assessment_print_data(
         hospital_logo_url: tenant.1,
     }))
 }
+
+/// Print-data regulatory/compliance routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/print-data/nabh-quality-report/{period}",
+            get(get_nabh_quality_report_print_data),
+        )
+        .route(
+            "/api/print-data/nmc-compliance-report/{period}",
+            get(get_nmc_compliance_report_print_data),
+        )
+        .route(
+            "/api/print-data/nabl-quality-report/{period}",
+            get(get_nabl_quality_report_print_data),
+        )
+        .route(
+            "/api/print-data/spcb-bmw-returns/{quarter}",
+            get(get_spcb_bmw_returns_print_data),
+        )
+        .route(
+            "/api/print-data/peso-compliance/{year}",
+            get(get_peso_compliance_print_data),
+        )
+        .route(
+            "/api/print-data/drug-license-report/{license_id}",
+            get(get_drug_license_report_print_data),
+        )
+        .route(
+            "/api/print-data/pcpndt-report/{period}",
+            get(get_pcpndt_report_print_data),
+        )
+        .route(
+            "/api/print-data/birth-register/{period}",
+            get(get_birth_register_print_data),
+        )
+        .route(
+            "/api/print-data/death-register/{period}",
+            get(get_death_register_print_data),
+        )
+        .route(
+            "/api/print-data/mlc-register-summary/{period}",
+            get(get_mlc_register_summary_print_data),
+        )
+        .route(
+            "/api/print-data/aebas-attendance/{period}",
+            get(get_aebas_attendance_print_data),
+        )
+        .route(
+            "/api/print-data/nmc-narf-assessment/{year}",
+            get(get_nmc_narf_assessment_print_data),
+        )}
