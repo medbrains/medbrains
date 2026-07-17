@@ -8,6 +8,7 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use axum::routing::get;
 use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
@@ -23,11 +24,10 @@ use medbrains_core::print_data::{
     TdsCertificatePrintData, TdsEntry,
 };
 
-use crate::{
-    error::AppError,
-    middleware::{auth::Claims, authorization::require_permission},
-    state::AppState,
-};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 // ── Helper: fetch hospital name from tenants table ───────
 
@@ -1473,7 +1473,7 @@ pub async fn get_insurance_preauth_print_data(
 
     let h_name = hospital_name(&mut tx, claims.tenant_id).await?;
 
-    let preauth_sigs = super::signed_documents::fetch_all_signatures_for_print(
+    let preauth_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "other",
@@ -1506,7 +1506,7 @@ pub async fn get_insurance_preauth_print_data(
         treating_doctor: row.treating_doctor,
         contact_number: row.contact_number,
         hospital_name: h_name,
-        signatures: super::signed_documents::to_print_signatures(preauth_sigs),
+        signatures: medbrains_server_core::signed_documents::to_print_signatures(preauth_sigs),
     }))
 }
 
@@ -1588,7 +1588,7 @@ pub async fn get_cashless_claim_print_data(
 
     let h_name = hospital_name(&mut tx, claims.tenant_id).await?;
 
-    let claim_sigs = super::signed_documents::fetch_all_signatures_for_print(
+    let claim_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "other",
@@ -1617,7 +1617,7 @@ pub async fn get_cashless_claim_print_data(
         claim_status: row.status,
         treating_doctor: row.treating_doctor,
         hospital_name: h_name,
-        signatures: super::signed_documents::to_print_signatures(claim_sigs),
+        signatures: medbrains_server_core::signed_documents::to_print_signatures(claim_sigs),
     }))
 }
 
@@ -2294,7 +2294,7 @@ pub async fn get_insurance_claim_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
-    let claim_sigs = super::signed_documents::fetch_all_signatures_for_print(
+    let claim_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "other",
@@ -2355,7 +2355,7 @@ pub async fn get_insurance_claim_print_data(
         hospital_address: tenant.2,
         hospital_empanelment_number: tenant.3,
         hospital_logo_url: tenant.1,
-        signatures: super::signed_documents::to_print_signatures(claim_sigs),
+        signatures: medbrains_server_core::signed_documents::to_print_signatures(claim_sigs),
     }))
 }
 
@@ -2502,4 +2502,73 @@ pub async fn get_tds_certificate_print_data(
 /// Alias for `number_to_words`
 fn amount_to_words(amount: f64) -> String {
     number_to_words(amount)
+}
+
+/// Billing print-data (GST invoice, receipt, consolidated bill, no-dues, cashless) routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/print-data/receipt/{payment_id}",
+            get(get_receipt_print_data),
+        )
+        .route(
+            "/api/print-data/estimate/{invoice_id}",
+            get(get_estimate_print_data),
+        )
+        .route(
+            "/api/print-data/credit-note/{id}",
+            get(get_credit_note_print_data),
+        )
+        .route(
+            "/api/print-data/tds-certificate/{id}",
+            get(get_tds_certificate_print_data),
+        )
+        .route(
+            "/api/print-data/gst-invoice/{invoice_id}",
+            get(get_gst_invoice_print_data),
+        )
+        .route(
+            "/api/print-data/opd-bill/{invoice_id}",
+            get(get_opd_bill_print_data),
+        )
+        .route(
+            "/api/print-data/ipd-interim-bill/{admission_id}",
+            get(get_ipd_interim_bill_print_data),
+        )
+        .route(
+            "/api/print-data/ipd-final-bill/{invoice_id}",
+            get(get_ipd_final_bill_print_data),
+        )
+        .route(
+            "/api/print-data/admission-consolidated-bill/{admission_id}",
+            get(get_admission_consolidated_bill_print_data),
+        )
+        .route(
+            "/api/print-data/advance-receipt/{payment_id}",
+            get(get_advance_receipt_print_data),
+        )
+        .route(
+            "/api/print-data/refund-receipt/{refund_id}",
+            get(get_refund_receipt_print_data),
+        )
+        .route(
+            "/api/print-data/insurance-preauth/{request_id}",
+            get(get_insurance_preauth_print_data),
+        )
+        .route(
+            "/api/print-data/cashless-claim/{claim_id}",
+            get(get_cashless_claim_print_data),
+        )
+        .route(
+            "/api/print-data/package-estimate/{estimate_id}",
+            get(get_package_estimate_print_data),
+        )
+        .route(
+            "/api/print-data/package-bill/{package_bill_id}",
+            get(get_package_bill_print_data),
+        )
+        .route(
+            "/api/print-data/insurance-claim/{claim_id}",
+            get(get_insurance_claim_print_data),
+        )
 }

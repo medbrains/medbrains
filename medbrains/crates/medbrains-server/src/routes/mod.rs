@@ -48,6 +48,9 @@ pub mod nhcx_onboarding;
 pub use medbrains_server_core::notifications;
 pub use medbrains_identity::sso;
 pub use medbrains_server_core::step_up;
+pub use medbrains_server_core::signed_documents;
+pub use medbrains_print_data::billing as print_data_billing;
+pub use medbrains_print_data::clinical as print_data_clinical;
 // order_basket reaches diet's order-creation helper via super::diet
 pub use medbrains_diet as diet;
 // opd/order_basket reach radiology order helpers via super::radiology; public viewer route too
@@ -81,9 +84,7 @@ pub mod pharmacy_repeats;
 pub mod pharmacy_safety;
 pub mod print_data;
 pub mod print_data_academic;
-pub mod print_data_billing;
 pub mod print_data_bme;
-pub mod print_data_clinical;
 pub mod print_data_consent;
 pub mod print_data_hr;
 pub mod print_data_medicolegal;
@@ -98,7 +99,7 @@ pub mod case_sheet_scan;
 pub mod vpn;
 pub mod ward_stock;
 pub mod sharing;
-pub mod signed_documents;
+
 pub mod specialty_interventional;
 pub mod specialty_other;
 pub mod tv;
@@ -2310,123 +2311,9 @@ pub fn build_router(state: AppState) -> Router {
             "/api/print-data/investigation-requisition/{order_id}",
             get(print_data::get_investigation_requisition_print_data),
         )
-        .route(
-            "/api/print-data/wristband/{admission_id}",
-            get(print_data_clinical::get_wristband_print_data),
-        )
-        .route(
-            "/api/print-data/opd-certificate/{certificate_id}",
-            get(print_data_clinical::get_opd_certificate_print_data),
-        )
-        .route(
-            "/api/print-data/opd-consent/{consent_id}",
-            get(print_data_clinical::get_opd_consent_print_data),
-        )
-        .route(
-            "/api/print-data/appointment-slip/{appointment_id}",
-            get(print_data_clinical::get_appointment_slip_print_data),
-        )
-        .route(
-            "/api/print-data/death-certificate/{admission_id}",
-            get(print_data_clinical::get_death_certificate_print_data),
-        )
-        .route(
-            "/api/print-data/discharge/{admission_id}",
-            get(print_data_clinical::get_discharge_print_data),
-        )
-        .route(
-            "/api/print-data/token-slip/{token_id}",
-            get(print_data_clinical::get_token_slip_print_data),
-        )
-        .route(
-            "/api/print-data/visitor-pass/{pass_id}",
-            get(print_data_clinical::get_visitor_pass_print_data),
-        )
-        .route(
-            "/api/print-data/treatment-chart/{admission_id}",
-            get(print_data_clinical::get_treatment_chart_print_data),
-        )
-        .route(
-            "/api/print-data/transfer-summary/{transfer_id}",
-            get(print_data_clinical::get_transfer_summary_print_data),
-        )
-        .route(
-            "/api/print-data/patient-education/{material_id}",
-            get(print_data_clinical::get_patient_education_print_data),
-        )
-        .route(
-            "/api/print-data/registration-card/{patient_id}",
-            get(print_data_clinical::get_registration_card_print_data),
-        )
-        .route(
-            "/api/print-data/infant-wristband/{newborn_id}",
-            get(print_data_clinical::get_infant_wristband_print_data),
-        )
+        .merge(medbrains_print_data::clinical::router())
         // ── Print Data (billing) ──────────────────────────────
-        .route(
-            "/api/print-data/receipt/{payment_id}",
-            get(print_data_billing::get_receipt_print_data),
-        )
-        .route(
-            "/api/print-data/estimate/{invoice_id}",
-            get(print_data_billing::get_estimate_print_data),
-        )
-        .route(
-            "/api/print-data/credit-note/{id}",
-            get(print_data_billing::get_credit_note_print_data),
-        )
-        .route(
-            "/api/print-data/tds-certificate/{id}",
-            get(print_data_billing::get_tds_certificate_print_data),
-        )
-        .route(
-            "/api/print-data/gst-invoice/{invoice_id}",
-            get(print_data_billing::get_gst_invoice_print_data),
-        )
-        .route(
-            "/api/print-data/opd-bill/{invoice_id}",
-            get(print_data_billing::get_opd_bill_print_data),
-        )
-        .route(
-            "/api/print-data/ipd-interim-bill/{admission_id}",
-            get(print_data_billing::get_ipd_interim_bill_print_data),
-        )
-        .route(
-            "/api/print-data/ipd-final-bill/{invoice_id}",
-            get(print_data_billing::get_ipd_final_bill_print_data),
-        )
-        .route(
-            "/api/print-data/admission-consolidated-bill/{admission_id}",
-            get(print_data_billing::get_admission_consolidated_bill_print_data),
-        )
-        .route(
-            "/api/print-data/advance-receipt/{payment_id}",
-            get(print_data_billing::get_advance_receipt_print_data),
-        )
-        .route(
-            "/api/print-data/refund-receipt/{refund_id}",
-            get(print_data_billing::get_refund_receipt_print_data),
-        )
-        .route(
-            "/api/print-data/insurance-preauth/{request_id}",
-            get(print_data_billing::get_insurance_preauth_print_data),
-        )
-        .route(
-            "/api/print-data/cashless-claim/{claim_id}",
-            get(print_data_billing::get_cashless_claim_print_data),
-        )
-        .route(
-            "/api/print-data/package-estimate/{estimate_id}",
-            get(print_data_billing::get_package_estimate_print_data),
-        )
-        .route(
-            "/api/print-data/package-bill/{package_bill_id}",
-            get(print_data_billing::get_package_bill_print_data),
-        )
-        .route(
-            "/api/print-data/insurance-claim/{claim_id}",
-            get(print_data_billing::get_insurance_claim_print_data),
-        )
+        .merge(medbrains_print_data::billing::router())
         // ── Print Data (consent forms) ───────────────────────────
         .route(
             "/api/print-data/consent/general/{admission_id}",
@@ -2559,22 +2446,6 @@ pub fn build_router(state: AppState) -> Router {
             get(print_data_quality::get_transfusion_reaction_print_data),
         )
         // ── Phase 4: Clinical Delivery Prints ─────────────────────
-        .route(
-            "/api/print-data/opd-prescription/{encounter_id}",
-            get(print_data_clinical::get_opd_prescription_print_data),
-        )
-        .route(
-            "/api/print-data/lab-report-full/{order_id}",
-            get(print_data_clinical::get_lab_report_full_print_data),
-        )
-        .route(
-            "/api/print-data/cumulative-lab-report/{patient_id}",
-            get(print_data_clinical::get_cumulative_lab_report_print_data),
-        )
-        .route(
-            "/api/print-data/radiology-report-full/{order_id}",
-            get(print_data_clinical::get_radiology_report_full_print_data),
-        )
         // Phase 4 billing prints already registered above (credit-note, package-bill, insurance-claim, tds-certificate)
         // ── Phase 4: Regulatory Prints ─────────────────────────────
         .merge(medbrains_print_data::regulatory::router())
@@ -2654,32 +2525,8 @@ pub fn build_router(state: AppState) -> Router {
             get(print_data_bme::get_fire_mock_drill_print_data),
         )
         // ── Phase 5: Blood Bank & OT Forms ────────────────────────
-        .route(
-            "/api/print-data/ot-register/{ot_id}/{date}",
-            get(print_data_clinical::get_ot_register_print_data),
-        )
-        .route(
-            "/api/print-data/blood-donor-form/{donor_id}",
-            get(print_data_clinical::get_blood_donor_form_print_data),
-        )
-        .route(
-            "/api/print-data/cross-match-requisition/{requisition_id}",
-            get(print_data_clinical::get_cross_match_requisition_print_data),
-        )
         // ── Phase 5: Clinical/Identity Forms ──────────────────────
         // appointment-slip already registered above
-        .route(
-            "/api/print-data/dpdp-consent/{consent_id}",
-            get(print_data_clinical::get_dpdp_consent_print_data),
-        )
-        .route(
-            "/api/print-data/video-consent/{video_consent_id}",
-            get(print_data_clinical::get_video_consent_print_data),
-        )
-        .route(
-            "/api/print-data/restraint-documentation/{restraint_id}",
-            get(print_data_clinical::get_restraint_documentation_print_data),
-        )
         // ══════════════════════════════════════════════════════════
         // PHASE 6: ACADEMIC/SPECIALTY FORMS & BRANDING
         // ══════════════════════════════════════════════════════════

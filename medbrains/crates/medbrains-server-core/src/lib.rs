@@ -22,4 +22,5 @@ pub mod step_up;
 pub mod authz_patient;
 pub mod tenant_config;
 pub mod signing;
+pub mod signed_documents;
 pub mod validation;

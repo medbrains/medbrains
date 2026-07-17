@@ -7,6 +7,7 @@ rust-version = "1.85"
 [dependencies]
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-core = { path = "../medbrains-core" }
+medbrains-workflow = { path = "../medbrains-workflow" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-authz = { path = "../medbrains-authz" }
 axum = { workspace = true }

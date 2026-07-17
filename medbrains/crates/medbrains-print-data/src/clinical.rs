@@ -4,6 +4,7 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use axum::routing::get;
 use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
@@ -21,11 +22,10 @@ use medbrains_core::print_data::{
     TreatmentChartPrintData, TrendValue, VisitorPassPrintData, WristbandPrintData,
 };
 
-use crate::{
-    error::AppError,
-    middleware::{auth::Claims, authorization::require_permission},
-    state::AppState,
-};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 // ── OPD certificate / consent print ledger ───────────────
 
@@ -532,7 +532,7 @@ pub async fn get_wristband_print_data(
     Query(query): Query<WristbandPrintQuery>,
 ) -> Result<Json<WristbandPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::wristband::PRINT)?;
-    crate::authz_patient::require_admission_access(&state, &claims, admission_id).await?;
+    medbrains_server_core::authz_patient::require_admission_access(&state, &claims, admission_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -732,7 +732,7 @@ pub async fn get_discharge_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<DischargeSummaryPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
-    crate::authz_patient::require_admission_access(&state, &claims, admission_id).await?;
+    medbrains_server_core::authz_patient::require_admission_access(&state, &claims, admission_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -771,7 +771,7 @@ pub async fn get_discharge_print_data(
     .await?;
 
     // Fetch signatures (primary + co-signers) for the discharge summary.
-    let sigs = super::signed_documents::fetch_all_signatures_for_print(
+    let sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "discharge_summary",
@@ -1090,7 +1090,7 @@ pub async fn get_treatment_chart_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<TreatmentChartPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
-    crate::authz_patient::require_admission_access(&state, &claims, admission_id).await?;
+    medbrains_server_core::authz_patient::require_admission_access(&state, &claims, admission_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -1190,7 +1190,7 @@ pub async fn get_treatment_chart_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
-    let chart_sigs = super::signed_documents::fetch_all_signatures_for_print(
+    let chart_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "other",
@@ -1217,7 +1217,7 @@ pub async fn get_treatment_chart_print_data(
         iv_fluids,
         stat_orders,
         treating_doctor: row.treating_doctor,
-        signatures: super::signed_documents::to_print_signatures(chart_sigs),
+        signatures: medbrains_server_core::signed_documents::to_print_signatures(chart_sigs),
     }))
 }
 
@@ -1345,7 +1345,7 @@ pub async fn get_transfer_summary_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
-    let transfer_sigs = super::signed_documents::fetch_all_signatures_for_print(
+    let transfer_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "discharge_summary",
@@ -1381,7 +1381,7 @@ pub async fn get_transfer_summary_print_data(
         receiving_doctor: row.receiving_doctor,
         transferring_nurse: row.transferring_nurse,
         receiving_nurse: row.receiving_nurse,
-        signatures: super::signed_documents::to_print_signatures(transfer_sigs),
+        signatures: medbrains_server_core::signed_documents::to_print_signatures(transfer_sigs),
     }))
 }
 
@@ -1492,7 +1492,7 @@ pub async fn get_registration_card_print_data(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<RegistrationCardPrintData>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
-    crate::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
+    medbrains_server_core::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1552,7 +1552,7 @@ pub async fn get_registration_card_print_data(
         }),
     )
     .with_patient(patient_id);
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
 
@@ -1713,7 +1713,7 @@ pub async fn get_opd_prescription_print_data(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<OpdPrescriptionPrintData>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
-    crate::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
+    medbrains_server_core::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -1800,7 +1800,7 @@ pub async fn get_opd_prescription_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
-    let sigs = super::signed_documents::fetch_all_signatures_for_print(
+    let sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "prescription",
@@ -2006,7 +2006,7 @@ pub async fn get_lab_report_full_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
-    let lab_sigs = super::signed_documents::fetch_all_signatures_for_print(
+    let lab_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "lab_report",
@@ -2109,7 +2109,7 @@ pub async fn get_cumulative_lab_report_print_data(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<CumulativeLabReportPrintData>, AppError> {
     require_permission(&claims, permissions::lab::reports::VIEW)?;
-    crate::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
+    medbrains_server_core::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2335,7 +2335,7 @@ pub async fn get_radiology_report_full_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
-    let rad_sigs = super::signed_documents::fetch_all_signatures_for_print(
+    let rad_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "radiology_report",
@@ -2457,7 +2457,7 @@ pub async fn get_death_certificate_print_data(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<DeathCertificatePrintData>, AppError> {
     require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
-    crate::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
+    medbrains_server_core::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -2537,7 +2537,7 @@ pub async fn get_death_certificate_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
-    let death_sigs = super::signed_documents::fetch_all_signatures_for_print(
+    let death_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "death_certificate",
@@ -3483,4 +3483,101 @@ pub async fn get_restraint_documentation_print_data(
         mhca_compliance_verified: restraint.mhca_compliance_verified,
         hospital_name: tenant.0,
     }))
+}
+
+/// Clinical print-data (discharge, wristband, ER, restraint, charts) routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/print-data/wristband/{admission_id}",
+            get(get_wristband_print_data),
+        )
+        .route(
+            "/api/print-data/opd-certificate/{certificate_id}",
+            get(get_opd_certificate_print_data),
+        )
+        .route(
+            "/api/print-data/opd-consent/{consent_id}",
+            get(get_opd_consent_print_data),
+        )
+        .route(
+            "/api/print-data/appointment-slip/{appointment_id}",
+            get(get_appointment_slip_print_data),
+        )
+        .route(
+            "/api/print-data/death-certificate/{admission_id}",
+            get(get_death_certificate_print_data),
+        )
+        .route(
+            "/api/print-data/discharge/{admission_id}",
+            get(get_discharge_print_data),
+        )
+        .route(
+            "/api/print-data/token-slip/{token_id}",
+            get(get_token_slip_print_data),
+        )
+        .route(
+            "/api/print-data/visitor-pass/{pass_id}",
+            get(get_visitor_pass_print_data),
+        )
+        .route(
+            "/api/print-data/treatment-chart/{admission_id}",
+            get(get_treatment_chart_print_data),
+        )
+        .route(
+            "/api/print-data/transfer-summary/{transfer_id}",
+            get(get_transfer_summary_print_data),
+        )
+        .route(
+            "/api/print-data/patient-education/{material_id}",
+            get(get_patient_education_print_data),
+        )
+        .route(
+            "/api/print-data/registration-card/{patient_id}",
+            get(get_registration_card_print_data),
+        )
+        .route(
+            "/api/print-data/infant-wristband/{newborn_id}",
+            get(get_infant_wristband_print_data),
+        )
+        .route(
+            "/api/print-data/opd-prescription/{encounter_id}",
+            get(get_opd_prescription_print_data),
+        )
+        .route(
+            "/api/print-data/lab-report-full/{order_id}",
+            get(get_lab_report_full_print_data),
+        )
+        .route(
+            "/api/print-data/cumulative-lab-report/{patient_id}",
+            get(get_cumulative_lab_report_print_data),
+        )
+        .route(
+            "/api/print-data/radiology-report-full/{order_id}",
+            get(get_radiology_report_full_print_data),
+        )
+        .route(
+            "/api/print-data/ot-register/{ot_id}/{date}",
+            get(get_ot_register_print_data),
+        )
+        .route(
+            "/api/print-data/blood-donor-form/{donor_id}",
+            get(get_blood_donor_form_print_data),
+        )
+        .route(
+            "/api/print-data/cross-match-requisition/{requisition_id}",
+            get(get_cross_match_requisition_print_data),
+        )
+        .route(
+            "/api/print-data/dpdp-consent/{consent_id}",
+            get(get_dpdp_consent_print_data),
+        )
+        .route(
+            "/api/print-data/video-consent/{video_consent_id}",
+            get(get_video_consent_print_data),
+        )
+        .route(
+            "/api/print-data/restraint-documentation/{restraint_id}",
+            get(get_restraint_documentation_print_data),
+        )
 }
