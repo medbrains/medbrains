@@ -17,10 +17,11 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use axum::routing::{get,post,patch};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Query types
@@ -852,7 +853,7 @@ pub async fn create_incident(
     if matches!(body.severity, IncidentSeverity::Sentinel)
         || body.incident_type.to_lowercase().contains("sentinel")
     {
-        crate::routes::nabh_evidence::mirror_sentinel_incident(
+        medbrains_server_core::nabh_evidence::mirror_sentinel_incident(
             &mut tx,
             claims.tenant_id,
             claims.sub,
@@ -861,7 +862,7 @@ pub async fn create_incident(
         .await?;
     }
     if body.incident_type.to_lowercase().contains("fall") {
-        crate::routes::nabh_evidence::mirror_fall_incident(
+        medbrains_server_core::nabh_evidence::mirror_fall_incident(
             &mut tx,
             claims.tenant_id,
             claims.sub,
@@ -889,7 +890,7 @@ pub async fn create_incident(
     if let Some(department_id) = row.department_id {
         event = event.with_department(department_id);
     }
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -2509,4 +2510,129 @@ pub async fn department_scorecard(
 
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+/// Quality management (indicators, audits, incidents, CAPA, scorecards) routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/quality/indicators",
+            get(list_indicators).post(create_indicator),
+        )
+        .route(
+            "/api/quality/indicator-values",
+            get(list_indicator_values).post(record_indicator_value),
+        )
+        .route(
+            "/api/quality/documents",
+            get(list_documents).post(create_document),
+        )
+        .route(
+            "/api/quality/documents/{id}",
+            get(get_document),
+        )
+        .route(
+            "/api/quality/documents/{id}/status",
+            patch(update_document_status),
+        )
+        .route(
+            "/api/quality/documents/{id}/acknowledge",
+            post(acknowledge_document),
+        )
+        .route(
+            "/api/quality/incidents",
+            get(list_incidents).post(create_incident),
+        )
+        .route(
+            "/api/quality/incidents/{id}",
+            get(get_incident).patch(update_incident),
+        )
+        .route(
+            "/api/quality/capa",
+            get(list_capa).post(create_capa),
+        )
+        .route(
+            "/api/quality/capa/{id}",
+            patch(update_capa),
+        )
+        .route(
+            "/api/quality/committees",
+            get(list_committees).post(create_committee),
+        )
+        .route(
+            "/api/quality/meetings",
+            get(list_meetings).post(create_meeting),
+        )
+        .route(
+            "/api/quality/meetings/{id}",
+            patch(update_meeting),
+        )
+        .route(
+            "/api/quality/action-items",
+            get(list_action_items).post(create_action_item),
+        )
+        .route(
+            "/api/quality/standards",
+            get(list_standards).post(create_standard),
+        )
+        .route(
+            "/api/quality/compliance",
+            get(list_compliance).post(update_compliance),
+        )
+        .route(
+            "/api/quality/audits",
+            get(list_audits).post(create_audit),
+        )
+        .route(
+            "/api/quality/audits/{id}",
+            get(get_audit).patch(update_audit),
+        )
+        .route(
+            "/api/quality/indicators/{id}/calculate",
+            post(calculate_indicator),
+        )
+        .route(
+            "/api/quality/documents/{id}/pending-acks",
+            get(list_pending_acks),
+        )
+        .route(
+            "/api/quality/committees/{id}/auto-schedule",
+            post(auto_schedule_meetings),
+        )
+        .route(
+            "/api/quality/accreditation/{body}/evidence",
+            get(compile_evidence),
+        )
+        .route(
+            "/api/quality/audits/schedule",
+            post(schedule_audits),
+        )
+        .route(
+            "/api/quality/audits/{id}/findings",
+            get(list_audit_findings).post(create_audit_finding),
+        )
+        .route(
+            "/api/quality/capas/overdue",
+            get(list_overdue_capas),
+        )
+        .route(
+            "/api/quality/committees/dashboard",
+            get(committee_dashboard),
+        )
+        .route(
+            "/api/quality/mortality-reviews",
+            post(create_mortality_review),
+        )
+        .route(
+            "/api/quality/incidents/sentinel",
+            get(list_sentinel_events),
+        )
+        .route(
+            "/api/quality/analytics/psi",
+            get(patient_safety_indicators),
+        )
+        .route(
+            "/api/quality/analytics/scorecard",
+            get(department_scorecard),
+        )
 }

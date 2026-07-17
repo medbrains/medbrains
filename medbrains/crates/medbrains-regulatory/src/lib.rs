@@ -17,10 +17,11 @@ use serde::Deserialize;
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use axum::routing::{get,post,put};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Query types
@@ -2029,4 +2030,109 @@ pub async fn nabl_document_tracking(
 
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+/// Regulatory & compliance (dashboard, licenses, NABH/NABL, incidents) routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/regulatory/dashboard",
+            get(dashboard),
+        )
+        .route(
+            "/api/regulatory/dashboard/department/{id}",
+            get(department_dashboard),
+        )
+        .route(
+            "/api/regulatory/dashboard/gaps",
+            get(dashboard_gaps),
+        )
+        .route(
+            "/api/regulatory/checklists",
+            get(list_checklists).post(create_checklist),
+        )
+        .route(
+            "/api/regulatory/checklists/{id}",
+            get(get_checklist).put(update_checklist),
+        )
+        .route(
+            "/api/regulatory/checklists/{id}/items",
+            post(batch_checklist_items),
+        )
+        .route(
+            "/api/regulatory/checklists/{checklist_id}/items/{item_id}",
+            put(update_checklist_item),
+        )
+        .route(
+            "/api/regulatory/adr-reports",
+            get(list_adr_reports).post(create_adr_report),
+        )
+        .route(
+            "/api/regulatory/adr-reports/{id}",
+            get(get_adr_report).put(update_adr_report),
+        )
+        .route(
+            "/api/regulatory/adr-reports/{id}/submit",
+            post(submit_adr_to_pvpi),
+        )
+        .route(
+            "/api/regulatory/materiovigilance",
+            get(list_mv_reports).post(create_mv_report),
+        )
+        .route(
+            "/api/regulatory/materiovigilance/{id}",
+            get(get_mv_report).put(update_mv_report),
+        )
+        .route(
+            "/api/regulatory/materiovigilance/{id}/submit",
+            post(submit_mv_to_cdsco),
+        )
+        .route(
+            "/api/regulatory/pcpndt-forms",
+            get(list_pcpndt_forms).post(create_pcpndt_form),
+        )
+        .route(
+            "/api/regulatory/pcpndt-forms/{id}",
+            get(get_pcpndt_form).put(update_pcpndt_form),
+        )
+        .route(
+            "/api/regulatory/pcpndt-forms/quarterly",
+            get(pcpndt_quarterly_summary),
+        )
+        .route(
+            "/api/regulatory/calendar",
+            get(list_calendar).post(create_calendar_event),
+        )
+        .route(
+            "/api/regulatory/calendar/{id}",
+            put(update_calendar_event),
+        )
+        .route(
+            "/api/regulatory/calendar/overdue",
+            get(overdue_calendar),
+        )
+        .route(
+            "/api/regulatory/checklists/{id}/auto-populate",
+            post(auto_populate_checklist),
+        )
+        .route(
+            "/api/regulatory/submissions",
+            get(list_submissions).post(create_submission),
+        )
+        .route(
+            "/api/regulatory/mock-surveys",
+            get(list_mock_surveys).post(create_mock_survey),
+        )
+        .route(
+            "/api/regulatory/staff-credentials",
+            get(staff_credentials),
+        )
+        .route(
+            "/api/regulatory/licenses/dashboard",
+            get(license_dashboard),
+        )
+        .route(
+            "/api/regulatory/nabl/documents",
+            get(nabl_document_tracking),
+        )
 }
