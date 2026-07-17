@@ -1,5 +1,5 @@
 import { Card, Group, Progress, Stack, Text } from "@mantine/core";
-import type { CensusWardRow } from "@medbrains/types";
+import type { CensusWardRow, SurgeonCaseloadEntry } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { Badge, Table } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
@@ -167,5 +167,126 @@ export function AlosReport({ from, to }: { from: string; to: string }) {
         )}
       </Table.Tbody>
     </Table>
+  );
+}
+
+export function DischargeStatsReport({ from, to }: { from: string; to: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["ipd-report-discharge-stats", from, to],
+    queryFn: () => ipdService.reportDischargeStats({ from, to }),
+    enabled: !!from && !!to,
+  });
+
+  if (!from || !to)
+    return (
+      <Text c="dimmed" size="sm">
+        Select a date range to view discharge statistics.
+      </Text>
+    );
+
+  const rows = (data ?? []) as Array<{ discharge_type: string; count: number }>;
+  const total = rows.reduce((sum, r) => sum + r.count, 0);
+
+  return (
+    <Stack>
+      {isLoading ? (
+        <Text c="dimmed">Loading...</Text>
+      ) : (
+        rows.map((r) => (
+          <Group
+            key={r.discharge_type}
+            justify="space-between"
+            p="xs"
+            style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 0 }}
+          >
+            <Group>
+              <Badge size="lg">{r.discharge_type}</Badge>
+              <Text size="sm">{r.count} discharges</Text>
+            </Group>
+            <Text size="sm" c="dimmed">
+              {total > 0 ? ((r.count / total) * 100).toFixed(1) : 0}%
+            </Text>
+          </Group>
+        ))
+      )}
+      {rows.length === 0 && (
+        <Text c="dimmed" size="sm">
+          No discharges in this period.
+        </Text>
+      )}
+    </Stack>
+  );
+}
+
+export function SurgeonCaseloadReport({ from, to }: { from: string; to: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["ot-surgeon-caseload", from, to],
+    queryFn: () => ipdService.getSurgeonCaseload({ from: from || undefined, to: to || undefined }),
+  });
+
+  const rows = (data ?? []) as SurgeonCaseloadEntry[];
+
+  return (
+    <Stack>
+      <Text fw={500}>Surgeon Caseload Analysis</Text>
+      {isLoading ? (
+        <Text c="dimmed">Loading...</Text>
+      ) : rows.length === 0 ? (
+        <Text c="dimmed" size="sm">
+          No OT case records in this period.
+        </Text>
+      ) : (
+        <Table striped highlightOnHover>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Surgeon</Table.Th>
+              <Table.Th>Total Cases</Table.Th>
+              <Table.Th>Avg Duration (min)</Table.Th>
+              <Table.Th>Complications</Table.Th>
+              <Table.Th>Cancellations</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {rows.map((r) => (
+              <Table.Tr key={r.surgeon_id}>
+                <Table.Td>
+                  <Text size="sm" fw={500}>
+                    {r.surgeon_name}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{r.total_cases}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">
+                    {r.avg_duration_minutes != null ? Math.round(r.avg_duration_minutes) : "—"}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  {r.complication_count > 0 ? (
+                    <Badge tone="danger" size="sm">
+                      {r.complication_count}
+                    </Badge>
+                  ) : (
+                    <Badge tone="success" size="sm">
+                      0
+                    </Badge>
+                  )}
+                </Table.Td>
+                <Table.Td>
+                  {r.cancellation_count > 0 ? (
+                    <Badge tone="warning" size="sm">
+                      {r.cancellation_count}
+                    </Badge>
+                  ) : (
+                    <Text size="sm">0</Text>
+                  )}
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      )}
+    </Stack>
   );
 }
