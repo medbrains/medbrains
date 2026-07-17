@@ -10,6 +10,7 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
+use axum::routing::{get,post};
 use chrono::{DateTime, Duration, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -18,7 +19,7 @@ use uuid::Uuid;
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::permissions;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError,
     middleware::{
         auth::Claims,
@@ -223,7 +224,7 @@ pub async fn update_discharge_step(
         .with_patient(admission.patient_id)
         .with_admission(admission_id)
         .with_encounter(admission.encounter_id);
-        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     }
 
     tx.commit().await?;
@@ -277,10 +278,10 @@ async fn autobag_discharge_meds(
         return Ok(());
     }
 
-    let items: Vec<crate::routes::pharmacy::OrderItemInput> = meds
+    let items: Vec<medbrains_pharmacy::OrderItemInput> = meds
         .into_iter()
         .filter_map(|m| {
-            Some(crate::routes::pharmacy::OrderItemInput {
+            Some(medbrains_pharmacy::OrderItemInput {
                 catalog_item_id: m.catalog_item_id,
                 drug_name: m.drug_name?,
                 quantity: m.quantity.unwrap_or(1),
@@ -292,7 +293,7 @@ async fn autobag_discharge_meds(
         return Ok(());
     }
 
-    let req = crate::routes::pharmacy::CreateOrderRequest {
+    let req = medbrains_pharmacy::CreateOrderRequest {
         prescription_id: None,
         patient_id: claims.tenant_id, // overridden below from admission
         encounter_id,
@@ -320,9 +321,9 @@ async fn autobag_discharge_meds(
         return Ok(());
     };
 
-    let req = crate::routes::pharmacy::CreateOrderRequest { patient_id, ..req };
+    let req = medbrains_pharmacy::CreateOrderRequest { patient_id, ..req };
 
-    let _ = crate::routes::pharmacy::create_order_in_tx(tx, claims, &req).await?;
+    let _ = medbrains_pharmacy::create_order_in_tx(tx, claims, &req).await?;
     Ok(())
 }
 
@@ -751,4 +752,39 @@ pub async fn submit_mortality_review(
     .await?;
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// ipd_post_discharge routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/ipd/admissions/{id}/discharge-workflow",
+            get(get_discharge_workflow),
+        )
+        .route(
+            "/api/ipd/admissions/{id}/discharge-workflow/step",
+            post(update_discharge_step),
+        )
+        .route(
+            "/api/ipd/admissions/{id}/dama",
+            get(get_dama)
+                .post(record_dama),
+        )
+        .route(
+            "/api/ipd/post-discharge",
+            get(list_post_discharge),
+        )
+        .route(
+            "/api/ipd/post-discharge/{id}/survey/send",
+            post(send_survey),
+        )
+        .route(
+            "/api/ipd/mortality-reviews",
+            get(list_mortality_reviews)
+                .post(create_mortality_review),
+        )
+        .route(
+            "/api/ipd/mortality-reviews/{id}/submit",
+            post(submit_mortality_review),
+        )
 }

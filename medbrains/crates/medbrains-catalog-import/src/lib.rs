@@ -9,15 +9,16 @@
 //! instead of duplicating.
 
 use axum::{Extension, Json, extract::State};
+use axum::routing::{post};
 use rust_decimal::Decimal;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError,
     middleware::auth::Claims,
     middleware::authorization::require_permission,
-    routes::setup::{CsvImportRequest, CsvImportResult},
     state::AppState,
 };
+use medbrains_setup::{CsvImportRequest, CsvImportResult};
 use medbrains_core::permissions;
 
 fn parse_decimal(value: &str) -> Option<Decimal> {
@@ -645,4 +646,33 @@ pub async fn import_insurance_providers(
         skipped,
         errors,
     }))
+}
+
+/// catalog_import routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/setup/services/import",
+            post(import_services),
+        )
+        .route(
+            "/api/setup/masters/insurance-providers/import",
+            post(import_insurance_providers),
+        )
+        .route(
+            "/api/opd/procedure-catalog/import",
+            post(import_procedure_catalog),
+        )
+        .route(
+            "/api/billing/charge-master/import",
+            post(import_charge_master),
+        )
+        .route(
+            "/api/lab/catalog/import",
+            post(import_lab_catalog),
+        )
+        .route(
+            "/api/pharmacy/catalog/import",
+            post(import_pharmacy_catalog),
+        )
 }

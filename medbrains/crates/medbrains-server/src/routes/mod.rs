@@ -9,7 +9,6 @@ pub mod appointments;
 pub mod audit;
 pub mod auth;
 pub mod billing;
-pub mod catalog_import;
 pub mod coverage;
 pub mod debug;
 pub mod device_pairing;
@@ -20,7 +19,6 @@ pub mod fhir;
 pub mod health;
 pub mod invitations;
 pub mod mail_provisioning;
-pub mod ipd_post_discharge;
 pub mod materials;
 pub mod mfa;
 pub use medbrains_server_core::nabh_evidence;
@@ -256,10 +254,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/setup/edition/apply", post(onboarding::apply_edition))
         // Setup — sequences
         // Setup — services
-        .route(
-            "/api/setup/services/import",
-            post(catalog_import::import_services),
-        )
+        .merge(medbrains_catalog_import::router())
         .merge(medbrains_infra_settings::router())
         .route(
             "/api/admin/mail/provision-domain",
@@ -285,10 +280,6 @@ pub fn build_router(state: AppState) -> Router {
         // Setup — print templates
         // Setup — clinical masters (religions, occupations, relations)
         // Setup — insurance providers
-        .route(
-            "/api/setup/masters/insurance-providers/import",
-            post(catalog_import::import_insurance_providers),
-        )
         // Setup — bulk / template / health / config
         // Patients
         .merge(medbrains_patients::router())
@@ -378,10 +369,6 @@ pub fn build_router(state: AppState) -> Router {
             "/api/opd/appointments/{id}/no-show",
             put(appointments::mark_appointment_no_show),
         )
-        .route(
-            "/api/opd/procedure-catalog/import",
-            post(catalog_import::import_procedure_catalog),
-        )
         .merge(medbrains_platform::router())
         .merge(medbrains_telehealth::router())
         // ── Billing ──────────────────────────────────────
@@ -425,10 +412,6 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/billing/charge-master",
             get(billing::list_charge_master).post(billing::create_charge_master),
-        )
-        .route(
-            "/api/billing/charge-master/import",
-            post(catalog_import::import_charge_master),
         )
         .route(
             "/api/billing/charge-master/{id}",
@@ -785,17 +768,9 @@ pub fn build_router(state: AppState) -> Router {
         )
         // ── Lab ──────────────────────────────────────────
         .merge(medbrains_lab::router())
-        .route(
-            "/api/lab/catalog/import",
-            post(catalog_import::import_lab_catalog),
-        )
         .merge(medbrains_radiology::router())
         // ── Pharmacy ────────────────────────────────────
         .merge(medbrains_pharmacy::router())
-        .route(
-            "/api/pharmacy/catalog/import",
-            post(catalog_import::import_pharmacy_catalog),
-        )
         .route(
             "/api/pharmacy/ward-stock",
             get(ward_stock::list_ward_stock),
@@ -1019,36 +994,7 @@ pub fn build_router(state: AppState) -> Router {
         // ── IPD Phase 2b: IP Types, Checklists, Reservations, Clinical Docs, etc. ──
         // ── IPD Phase 3a: Cross-module reads ────────────────
         // ── IPD post-discharge workflow (Track 1A.bis.4) ──
-        .route(
-            "/api/ipd/admissions/{id}/discharge-workflow",
-            get(ipd_post_discharge::get_discharge_workflow),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/discharge-workflow/step",
-            post(ipd_post_discharge::update_discharge_step),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/dama",
-            get(ipd_post_discharge::get_dama)
-                .post(ipd_post_discharge::record_dama),
-        )
-        .route(
-            "/api/ipd/post-discharge",
-            get(ipd_post_discharge::list_post_discharge),
-        )
-        .route(
-            "/api/ipd/post-discharge/{id}/survey/send",
-            post(ipd_post_discharge::send_survey),
-        )
-        .route(
-            "/api/ipd/mortality-reviews",
-            get(ipd_post_discharge::list_mortality_reviews)
-                .post(ipd_post_discharge::create_mortality_review),
-        )
-        .route(
-            "/api/ipd/mortality-reviews/{id}/submit",
-            post(ipd_post_discharge::submit_mortality_review),
-        )
+        .merge(medbrains_ipd_post_discharge::router())
         // ── NABH KPI rollup ───────────────────────────────
         .merge(medbrains_reports::nabh_indicators::router())
         // ── Operation Theatre ──────────────────────────────
