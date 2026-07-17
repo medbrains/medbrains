@@ -259,18 +259,18 @@ echo "Simulator URL: $SIMULATOR_ORIGIN"
 echo "Use Ctrl+C to stop all dev services."
 echo
 
-tail -n +1 -f "$log_dir/backend.log" | sed -u "s/^/[backend] /" &
+tail -n +1 -f "$log_dir/backend.log" | LC_ALL=C sed -u "s/^/[backend] /" &
 tail -n +1 -f "$log_dir/web.log" \
-  | sed -u \
+  | LC_ALL=C sed -u \
     -e "s#http://localhost:5173/#$ORIGIN/#g" \
     -e "s#http://127.0.0.1:5173/#$ORIGIN/#g" \
     -e "s#Network: use --host to expose#Proxy:   $ORIGIN#g" \
     -e "s/^/[web] /" &
 tail -n +1 -f "$log_dir/simulator.log" \
-  | sed -u \
+  | LC_ALL=C sed -u \
     -e "s#http://localhost:5180/#$SIMULATOR_ORIGIN/#g" \
     -e "s#http://127.0.0.1:5180/#$SIMULATOR_ORIGIN/#g" \
     -e "s#Network: use --host to expose#Proxy:   $SIMULATOR_ORIGIN#g" \
     -e "s/^/[simulator] /" &
-tail -n +1 -f "$log_dir/proxy.log" | sed -u "s/^/[proxy] /" &
+tail -n +1 -f "$log_dir/proxy.log" | LC_ALL=C sed -u "s/^/[proxy] /" &
 wait
