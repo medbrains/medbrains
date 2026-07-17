@@ -15,12 +15,13 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
+use axum::routing::{get};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError,
     middleware::auth::Claims,
     middleware::authorization::{require_any_permission, require_permission},
@@ -432,4 +433,29 @@ pub async fn update_nursing_shift_notes(
     .await?;
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// clinical_offline routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/clinical/handoff-entries/shifts/{shift_id}",
+            get(list_handoff_entries)
+                .post(create_handoff_entry),
+        )
+        .route(
+            "/api/clinical/triage-entries/visits/{visit_id}",
+            get(list_triage_entries)
+                .post(create_triage_entry),
+        )
+        .route(
+            "/api/clinical/patient-notes/{patient_id}",
+            get(get_patient_notes)
+                .put(update_patient_notes),
+        )
+        .route(
+            "/api/clinical/nursing-shift-notes/{shift_id}",
+            get(get_nursing_shift_notes)
+                .put(update_nursing_shift_notes),
+        )
 }

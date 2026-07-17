@@ -2,13 +2,14 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use axum::routing::{get,post,put};
 use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -512,4 +513,37 @@ pub async fn verify_settlement(
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// pharmacy_payments routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/pharmacy/payments",
+            get(list_payments).post(create_payment),
+        )
+        .route(
+            "/api/pharmacy/payments/{id}/reconcile",
+            put(reconcile_payment),
+        )
+        .route(
+            "/api/pharmacy/payments/auto-reconcile",
+            post(auto_reconcile_upi),
+        )
+        .route(
+            "/api/pharmacy/payments/day-reconciliation",
+            get(day_reconciliation),
+        )
+        .route(
+            "/api/pharmacy/settlements",
+            get(get_settlement),
+        )
+        .route(
+            "/api/pharmacy/settlements/{id}/close",
+            put(close_settlement),
+        )
+        .route(
+            "/api/pharmacy/settlements/{id}/verify",
+            put(verify_settlement),
+        )
 }

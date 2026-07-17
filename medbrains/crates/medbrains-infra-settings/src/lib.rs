@@ -3,16 +3,17 @@
 //! - Read-only node infra status: which secrets backend + deploy mode are
 //!   active (both are boot-time env decisions, not per-tenant editable).
 //! - Per-tenant AI provider config (`tenant_settings` category `ai`, key
-//!   `config`) consumed by [`crate::routes::ai`]. The API key itself is never
+//!   `config`) consumed by the AI config module. The API key itself is never
 //!   stored here or returned — only a reference to a key in the secret backend.
 
 use axum::{Extension, Json, extract::State};
+use axum::routing::{get,post};
 use medbrains_core::deploy_mode::DeployMode;
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -470,4 +471,30 @@ pub async fn send_email_test(
     .map_err(|e| AppError::Internal(format!("queue test email: {e}")))?;
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "status": "queued" })))
+}
+
+/// infra_settings routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/admin/infra-status",
+            get(get_infra_status),
+        )
+        .route(
+            "/api/admin/ai-settings",
+            get(get_ai_settings).put(update_ai_settings),
+        )
+        .route(
+            "/api/admin/email-settings",
+            get(get_email_settings).put(update_email_settings),
+        )
+        .route("/api/admin/email-log", get(get_email_log))
+        .route(
+            "/api/admin/email-test",
+            post(send_email_test),
+        )
+        .route(
+            "/api/admin/domain-status",
+            get(get_domain_status),
+        )
 }

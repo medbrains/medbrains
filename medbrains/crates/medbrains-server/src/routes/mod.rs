@@ -11,7 +11,6 @@ pub mod auth;
 pub mod billing;
 pub mod catalog_import;
 pub mod client_errors;
-pub mod clinical_offline;
 pub mod coverage;
 pub mod debug;
 pub mod device_pairing;
@@ -20,7 +19,6 @@ pub mod documents_render;
 pub mod email_verification;
 pub mod fhir;
 pub mod health;
-pub mod infra_settings;
 pub mod invitations;
 pub mod mail_provisioning;
 pub mod ipd_post_discharge;
@@ -67,8 +65,6 @@ pub mod patient_packages;
 pub mod payroll;
 pub mod pharmacy_cash_drawer;
 pub mod pharmacy_dispense_ops;
-pub mod pharmacy_free_dispensing;
-pub mod pharmacy_payments;
 pub mod pharmacy_petty_cash;
 pub mod pharmacy_repeats;
 pub mod sso_login;
@@ -273,27 +269,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/setup/services/import",
             post(catalog_import::import_services),
         )
-        .route(
-            "/api/admin/infra-status",
-            get(infra_settings::get_infra_status),
-        )
-        .route(
-            "/api/admin/ai-settings",
-            get(infra_settings::get_ai_settings).put(infra_settings::update_ai_settings),
-        )
-        .route(
-            "/api/admin/email-settings",
-            get(infra_settings::get_email_settings).put(infra_settings::update_email_settings),
-        )
-        .route("/api/admin/email-log", get(infra_settings::get_email_log))
-        .route(
-            "/api/admin/email-test",
-            post(infra_settings::send_email_test),
-        )
-        .route(
-            "/api/admin/domain-status",
-            get(infra_settings::get_domain_status),
-        )
+        .merge(medbrains_infra_settings::router())
         .route(
             "/api/admin/mail/provision-domain",
             post(mail_provisioning::provision_domain),
@@ -847,34 +823,7 @@ pub fn build_router(state: AppState) -> Router {
         // ── Pharmacy Safety ──────────────────────────────
         .merge(medbrains_pharmacy_safety::router())
         // ── Pharmacy Payments ────────────────────────────
-        .route(
-            "/api/pharmacy/payments",
-            get(pharmacy_payments::list_payments).post(pharmacy_payments::create_payment),
-        )
-        .route(
-            "/api/pharmacy/payments/{id}/reconcile",
-            put(pharmacy_payments::reconcile_payment),
-        )
-        .route(
-            "/api/pharmacy/payments/auto-reconcile",
-            post(pharmacy_payments::auto_reconcile_upi),
-        )
-        .route(
-            "/api/pharmacy/payments/day-reconciliation",
-            get(pharmacy_payments::day_reconciliation),
-        )
-        .route(
-            "/api/pharmacy/settlements",
-            get(pharmacy_payments::get_settlement),
-        )
-        .route(
-            "/api/pharmacy/settlements/{id}/close",
-            put(pharmacy_payments::close_settlement),
-        )
-        .route(
-            "/api/pharmacy/settlements/{id}/verify",
-            put(pharmacy_payments::verify_settlement),
-        )
+        .merge(medbrains_pharmacy_payments::router())
         // ── ABDM (Phase 11): HFR registration + gateway HIP relay ─
         .route(
             "/api/abdm/hfr",
@@ -947,26 +896,7 @@ pub fn build_router(state: AppState) -> Router {
         // Mirror endpoints for the four CRDT hooks. Same data the edge
         // node holds in Loro containers — surfaced here for tenants
         // running in REST mode.
-        .route(
-            "/api/clinical/handoff-entries/shifts/{shift_id}",
-            get(clinical_offline::list_handoff_entries)
-                .post(clinical_offline::create_handoff_entry),
-        )
-        .route(
-            "/api/clinical/triage-entries/visits/{visit_id}",
-            get(clinical_offline::list_triage_entries)
-                .post(clinical_offline::create_triage_entry),
-        )
-        .route(
-            "/api/clinical/patient-notes/{patient_id}",
-            get(clinical_offline::get_patient_notes)
-                .put(clinical_offline::update_patient_notes),
-        )
-        .route(
-            "/api/clinical/nursing-shift-notes/{shift_id}",
-            get(clinical_offline::get_nursing_shift_notes)
-                .put(clinical_offline::update_nursing_shift_notes),
-        )
+        .merge(medbrains_clinical_offline::router())
         // ── Pharmacy Improvements: Substitution + Counseling + Coverage
         .route(
             "/api/pharmacy/substitutions",
@@ -1008,29 +938,7 @@ pub fn build_router(state: AppState) -> Router {
                 .post(pharmacy_petty_cash::create_float_movement),
         )
         // ── Pharmacy Finance: Free Dispensing + Overrides + Suppliers + Margins
-        .route(
-            "/api/pharmacy/free-dispensings",
-            get(pharmacy_free_dispensing::list_free_dispensings)
-                .post(pharmacy_free_dispensing::approve_free_dispensing),
-        )
-        .route(
-            "/api/pharmacy/cashier-overrides",
-            get(pharmacy_free_dispensing::list_cashier_overrides)
-                .post(pharmacy_free_dispensing::create_cashier_override),
-        )
-        .route(
-            "/api/pharmacy/supplier-payments",
-            get(pharmacy_free_dispensing::list_supplier_payments)
-                .post(pharmacy_free_dispensing::create_supplier_payment),
-        )
-        .route(
-            "/api/pharmacy/supplier-payments/{id}/pay",
-            put(pharmacy_free_dispensing::pay_supplier),
-        )
-        .route(
-            "/api/pharmacy/drug-margins/daily",
-            get(pharmacy_free_dispensing::list_margins),
-        )
+        .merge(medbrains_pharmacy_free_dispensing::router())
         .merge(medbrains_indent::router())
         .merge(medbrains_materials::router())
         // ── Quality Management ──────────────────────────────

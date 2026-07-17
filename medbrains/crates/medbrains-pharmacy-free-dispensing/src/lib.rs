@@ -4,13 +4,14 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use axum::routing::{get,put};
 use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError,
     middleware::auth::Claims,
     middleware::authorization::{require_any_permission, require_permission},
@@ -472,4 +473,32 @@ pub async fn list_margins(
     .await?;
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+/// pharmacy_free_dispensing routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/pharmacy/free-dispensings",
+            get(list_free_dispensings)
+                .post(approve_free_dispensing),
+        )
+        .route(
+            "/api/pharmacy/cashier-overrides",
+            get(list_cashier_overrides)
+                .post(create_cashier_override),
+        )
+        .route(
+            "/api/pharmacy/supplier-payments",
+            get(list_supplier_payments)
+                .post(create_supplier_payment),
+        )
+        .route(
+            "/api/pharmacy/supplier-payments/{id}/pay",
+            put(pay_supplier),
+        )
+        .route(
+            "/api/pharmacy/drug-margins/daily",
+            get(list_margins),
+        )
 }
