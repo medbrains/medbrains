@@ -1,10 +1,11 @@
 use axum::{Extension, Json, extract::Path, extract::Query, extract::State};
+use axum::routing::{get,post,put};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::error::AppError;
-use crate::middleware::auth::Claims;
-use crate::state::AppState;
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::state::AppState;
 use medbrains_core::device::{
     self, BridgeAgentRow, BridgeHeartbeatRequest, BridgeRegisterRequest,
     CreateDeviceInstanceRequest, CreateRoutingRuleRequest, DeviceAdapterCatalogRow,
@@ -992,4 +993,30 @@ fn map_hl7_flag(flag: Option<&str>) -> &'static str {
         Some("LU") => "critical_low",
         _ => "normal",
     }
+}
+
+/// devices routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/devices/manufacturers", get(list_manufacturers))
+        .route("/api/devices/catalog", get(list_adapter_catalog))
+        .route("/api/devices/catalog/{adapter_code}", get(get_adapter))
+        .route("/api/devices/catalog/{adapter_code}/preview-config", get(preview_config))
+        .route("/api/devices/instances", get(list_device_instances).post(create_device_instance))
+        .route("/api/devices/instances/{id}", get(get_device_instance).put(update_device_instance).delete(decommission_device))
+        .route("/api/devices/instances/{id}/test", post(test_device_connection))
+        .route("/api/devices/instances/{id}/regenerate-config", post(regenerate_config))
+        .route("/api/devices/instances/{id}/messages", get(list_device_messages))
+        .route("/api/devices/instances/{id}/config-history", get(list_config_history))
+        .route("/api/devices/routing-rules", get(list_routing_rules).post(create_routing_rule))
+        .route("/api/devices/routing-rules/{id}", put(update_routing_rule).delete(delete_routing_rule))
+        .route("/api/devices/agents", get(list_bridge_agents))
+        .route("/api/device-ingest/{module}", post(ingest_device_data))
+}
+
+/// Bridge-agent registration routes (no JWT auth — uses API key).
+pub fn bridge_router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/bridge/register", post(register_bridge_agent))
+        .route("/api/bridge/heartbeat", post(bridge_heartbeat))
 }

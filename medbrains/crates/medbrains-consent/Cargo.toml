@@ -1,0 +1,20 @@
+[package]
+name = "medbrains-consent"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[dependencies]
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-db = { path = "../medbrains-db" }
+medbrains-authz = { path = "../medbrains-authz" }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+sqlx = { workspace = true }
+chrono = { workspace = true }
+
+[lints]
+workspace = true

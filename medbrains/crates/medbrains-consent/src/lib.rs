@@ -4,6 +4,7 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use axum::routing::{get,post};
 use chrono::Utc;
 use medbrains_core::consent::{
     ConsentAuditEntry, ConsentSignatureMetadata, ConsentTemplate, ConsentTemplateListItem,
@@ -12,7 +13,7 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -28,7 +29,7 @@ async fn require_patient_access(
     claims: &Claims,
     patient_id: Uuid,
 ) -> Result<(), AppError> {
-    let authz_ctx = crate::middleware::authorization::authz_context(claims);
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
     let allowed = state
         .authz
         .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", patient_id)
@@ -781,4 +782,47 @@ pub async fn delete_signature(
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "deleted": true })))
+}
+
+/// consent routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/consent/templates",
+            get(list_templates).post(create_template),
+        )
+        .route(
+            "/api/consent/templates/{id}",
+            get(get_template)
+                .put(update_template)
+                .delete(delete_template),
+        )
+        .route(
+            "/api/consent/audit",
+            get(list_audit),
+        )
+        .route(
+            "/api/consent/audit/patient/{patient_id}",
+            get(patient_audit),
+        )
+        .route(
+            "/api/consent/verify",
+            post(verify_consent),
+        )
+        .route(
+            "/api/consent/verify/patient/{patient_id}",
+            get(patient_summary),
+        )
+        .route(
+            "/api/consent/revoke",
+            post(revoke_consent),
+        )
+        .route(
+            "/api/consent/signatures",
+            get(list_signatures).post(create_signature),
+        )
+        .route(
+            "/api/consent/signatures/{id}",
+            get(get_signature).delete(delete_signature),
+        )
 }

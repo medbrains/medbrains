@@ -4,6 +4,7 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use axum::routing::{get,put};
 use medbrains_core::permissions;
 use medbrains_core::specialty::cath_lab::{
     CathDevice, CathHemodynamic, CathPostMonitoring, CathProcedure, CathStemiTimeline,
@@ -14,7 +15,7 @@ use medbrains_core::specialty::endoscopy::{
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -177,7 +178,7 @@ pub async fn list_cath_procedures(
     Query(params): Query<ListCathProceduresQuery>,
 ) -> Result<Json<Vec<CathProcedure>>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::procedures::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -206,7 +207,7 @@ pub async fn get_cath_procedure(
     Path(id): Path<Uuid>,
 ) -> Result<Json<CathProcedure>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::procedures::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -230,7 +231,7 @@ pub async fn create_cath_procedure(
         &claims,
         permissions::specialty::cath_lab::procedures::CREATE,
     )?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -271,7 +272,7 @@ pub async fn update_cath_procedure(
         &claims,
         permissions::specialty::cath_lab::procedures::CREATE,
     )?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -315,7 +316,7 @@ pub async fn list_hemodynamics(
     Path(procedure_id): Path<Uuid>,
 ) -> Result<Json<Vec<CathHemodynamic>>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::procedures::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -342,7 +343,7 @@ pub async fn create_hemodynamic(
         &claims,
         permissions::specialty::cath_lab::procedures::CREATE,
     )?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -378,7 +379,7 @@ pub async fn list_cath_devices(
     Path(procedure_id): Path<Uuid>,
 ) -> Result<Json<Vec<CathDevice>>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::devices::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -402,7 +403,7 @@ pub async fn create_cath_device(
     Json(body): Json<CreateCathDeviceRequest>,
 ) -> Result<Json<CathDevice>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::devices::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -442,7 +443,7 @@ pub async fn list_stemi_timeline(
     Path(procedure_id): Path<Uuid>,
 ) -> Result<Json<Vec<CathStemiTimeline>>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::stemi::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -466,7 +467,7 @@ pub async fn create_stemi_event(
     Json(body): Json<CreateStemiTimelineRequest>,
 ) -> Result<Json<CathStemiTimeline>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::stemi::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -521,7 +522,7 @@ pub async fn list_post_monitoring(
     Path(procedure_id): Path<Uuid>,
 ) -> Result<Json<Vec<CathPostMonitoring>>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::monitoring::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -548,7 +549,7 @@ pub async fn create_post_monitoring(
         &claims,
         permissions::specialty::cath_lab::monitoring::CREATE,
     )?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -587,7 +588,7 @@ pub async fn list_endoscopy_procedures(
     Query(params): Query<ListEndoscopyProceduresQuery>,
 ) -> Result<Json<Vec<EndoscopyProcedure>>, AppError> {
     require_permission(&claims, permissions::specialty::endoscopy::procedures::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "endoscopy",
@@ -621,7 +622,7 @@ pub async fn create_endoscopy_procedure(
         &claims,
         permissions::specialty::endoscopy::procedures::CREATE,
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "endoscopy",
@@ -663,7 +664,7 @@ pub async fn update_endoscopy_procedure(
         &claims,
         permissions::specialty::endoscopy::procedures::CREATE,
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "endoscopy",
@@ -709,7 +710,7 @@ pub async fn list_scopes(
     Query(params): Query<ListScopesQuery>,
 ) -> Result<Json<Vec<EndoscopyScope>>, AppError> {
     require_permission(&claims, permissions::specialty::endoscopy::scopes::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "endoscopy",
@@ -740,7 +741,7 @@ pub async fn create_scope(
     Json(body): Json<CreateScopeRequest>,
 ) -> Result<Json<EndoscopyScope>, AppError> {
     require_permission(&claims, permissions::specialty::endoscopy::scopes::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "endoscopy",
@@ -776,7 +777,7 @@ pub async fn update_scope(
     Json(body): Json<UpdateScopeRequest>,
 ) -> Result<Json<EndoscopyScope>, AppError> {
     require_permission(&claims, permissions::specialty::endoscopy::scopes::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "endoscopy",
@@ -812,7 +813,7 @@ pub async fn list_reprocessing(
         &claims,
         permissions::specialty::endoscopy::reprocessing::LIST,
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "endoscopy",
@@ -841,7 +842,7 @@ pub async fn create_reprocessing(
         &claims,
         permissions::specialty::endoscopy::reprocessing::MANAGE,
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "endoscopy",
@@ -898,7 +899,7 @@ pub async fn list_biopsy_specimens(
     Path(procedure_id): Path<Uuid>,
 ) -> Result<Json<Vec<EndoscopyBiopsySpecimen>>, AppError> {
     require_permission(&claims, permissions::specialty::endoscopy::procedures::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "endoscopy",
@@ -929,7 +930,7 @@ pub async fn create_biopsy_specimen(
         &claims,
         permissions::specialty::endoscopy::procedures::CREATE,
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "endoscopy",
@@ -961,4 +962,67 @@ pub async fn create_biopsy_specimen(
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// specialty_interventional routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/specialty/cath-lab/procedures",
+            get(list_cath_procedures)
+                .post(create_cath_procedure),
+        )
+        .route(
+            "/api/specialty/cath-lab/procedures/{id}",
+            get(get_cath_procedure)
+                .put(update_cath_procedure),
+        )
+        .route(
+            "/api/specialty/cath-lab/procedures/{procedure_id}/hemodynamics",
+            get(list_hemodynamics)
+                .post(create_hemodynamic),
+        )
+        .route(
+            "/api/specialty/cath-lab/procedures/{procedure_id}/devices",
+            get(list_cath_devices)
+                .post(create_cath_device),
+        )
+        .route(
+            "/api/specialty/cath-lab/procedures/{procedure_id}/stemi-timeline",
+            get(list_stemi_timeline)
+                .post(create_stemi_event),
+        )
+        .route(
+            "/api/specialty/cath-lab/procedures/{procedure_id}/post-monitoring",
+            get(list_post_monitoring)
+                .post(create_post_monitoring),
+        )
+        .route(
+            "/api/specialty/endoscopy/procedures",
+            get(list_endoscopy_procedures)
+                .post(create_endoscopy_procedure),
+        )
+        .route(
+            "/api/specialty/endoscopy/procedures/{id}",
+            put(update_endoscopy_procedure),
+        )
+        .route(
+            "/api/specialty/endoscopy/scopes",
+            get(list_scopes)
+                .post(create_scope),
+        )
+        .route(
+            "/api/specialty/endoscopy/scopes/{id}",
+            put(update_scope),
+        )
+        .route(
+            "/api/specialty/endoscopy/reprocessing",
+            get(list_reprocessing)
+                .post(create_reprocessing),
+        )
+        .route(
+            "/api/specialty/endoscopy/procedures/{procedure_id}/biopsies",
+            get(list_biopsy_specimens)
+                .post(create_biopsy_specimen),
+        )
 }

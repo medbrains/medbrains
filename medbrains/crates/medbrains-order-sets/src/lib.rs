@@ -4,6 +4,7 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use axum::routing::{get,post,put};
 use chrono::Utc;
 use medbrains_core::order_set::{
     OrderSetActivation, OrderSetActivationItem, OrderSetTemplate, OrderSetTemplateItem,
@@ -14,7 +15,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -1080,4 +1081,64 @@ pub async fn get_template_analytics(
 
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+/// order_sets routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/order-sets/templates",
+            get(list_templates).post(create_template),
+        )
+        .route(
+            "/api/order-sets/templates/{id}",
+            get(get_template)
+                .put(update_template)
+                .delete(delete_template),
+        )
+        .route(
+            "/api/order-sets/templates/{id}/items",
+            post(add_item),
+        )
+        .route(
+            "/api/order-sets/templates/{tid}/items/{iid}",
+            put(update_item)
+                .delete(delete_item),
+        )
+        .route(
+            "/api/order-sets/templates/{id}/new-version",
+            post(create_new_version),
+        )
+        .route(
+            "/api/order-sets/templates/{id}/approve",
+            put(approve_template),
+        )
+        .route(
+            "/api/order-sets/templates/{id}/versions",
+            get(list_versions),
+        )
+        .route(
+            "/api/order-sets/suggest",
+            get(suggest_templates),
+        )
+        .route(
+            "/api/order-sets/activate",
+            post(activate_order_set),
+        )
+        .route(
+            "/api/order-sets/activations",
+            get(list_activations),
+        )
+        .route(
+            "/api/order-sets/activations/{id}",
+            get(get_activation),
+        )
+        .route(
+            "/api/order-sets/analytics",
+            get(get_analytics),
+        )
+        .route(
+            "/api/order-sets/analytics/{template_id}",
+            get(get_template_analytics),
+        )
 }

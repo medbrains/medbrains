@@ -4,6 +4,7 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use axum::routing::{get,put};
 use chrono::Utc;
 use medbrains_core::communications::{
     CommClinicalMessage, CommComplaint, CommCriticalAlert, CommFeedbackSurvey, CommMessage,
@@ -14,7 +15,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -1027,4 +1028,73 @@ pub async fn get_feedback_stats(
         avg_cleanliness: row.avg_cleanliness.unwrap_or(0.0),
         would_recommend_pct,
     }))
+}
+
+/// communications routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/communications/templates",
+            get(list_templates).post(create_template),
+        )
+        .route(
+            "/api/communications/templates/{id}",
+            put(update_template),
+        )
+        .route(
+            "/api/communications/messages",
+            get(list_messages).post(create_message),
+        )
+        .route(
+            "/api/communications/messages/{id}",
+            get(get_message),
+        )
+        .route(
+            "/api/communications/messages/{id}/status",
+            put(update_message_status),
+        )
+        .route(
+            "/api/communications/clinical",
+            get(list_clinical_messages).post(create_clinical_message),
+        )
+        .route(
+            "/api/communications/clinical/{id}",
+            get(get_clinical_message),
+        )
+        .route(
+            "/api/communications/clinical/{id}/acknowledge",
+            put(acknowledge_clinical_message),
+        )
+        .route(
+            "/api/communications/alerts",
+            get(list_critical_alerts).post(create_critical_alert),
+        )
+        .route(
+            "/api/communications/alerts/{id}/acknowledge",
+            put(acknowledge_alert),
+        )
+        .route(
+            "/api/communications/alerts/{id}/resolve",
+            put(resolve_alert),
+        )
+        .route(
+            "/api/communications/complaints",
+            get(list_complaints).post(create_complaint),
+        )
+        .route(
+            "/api/communications/complaints/{id}",
+            put(update_complaint),
+        )
+        .route(
+            "/api/communications/complaints/{id}/resolve",
+            put(resolve_complaint),
+        )
+        .route(
+            "/api/communications/feedback",
+            get(list_feedback).post(create_feedback),
+        )
+        .route(
+            "/api/communications/feedback/stats",
+            get(get_feedback_stats),
+        )
 }

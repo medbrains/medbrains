@@ -13,12 +13,9 @@ pub mod catalog_import;
 pub mod client_errors;
 pub mod clinical_offline;
 pub mod cms;
-pub mod communications;
-pub mod consent;
 pub mod coverage;
 pub mod debug;
 pub mod device_pairing;
-pub mod devices;
 pub mod doctor_packages;
 pub mod documents_render;
 pub mod email_verification;
@@ -67,7 +64,6 @@ pub mod oauth;
 pub mod onboarding;
 pub mod orchestration;
 pub mod order_basket;
-pub mod order_sets;
 pub mod patient_packages;
 pub mod payroll;
 pub mod pharmacy_cash_drawer;
@@ -85,7 +81,6 @@ pub mod case_sheet_scan;
 pub mod ward_stock;
 pub mod sharing;
 
-pub mod specialty_interventional;
 pub mod upload;
 pub mod ws;
 
@@ -1286,113 +1281,13 @@ pub fn build_router(state: AppState) -> Router {
         // ── MRD (Medical Records Department) ────────────────────
         .merge(medbrains_mrd::router())
         // ── Consent Management ───────────────────────────────
-        .route(
-            "/api/consent/templates",
-            get(consent::list_templates).post(consent::create_template),
-        )
-        .route(
-            "/api/consent/templates/{id}",
-            get(consent::get_template)
-                .put(consent::update_template)
-                .delete(consent::delete_template),
-        )
-        .route(
-            "/api/consent/audit",
-            get(consent::list_audit),
-        )
-        .route(
-            "/api/consent/audit/patient/{patient_id}",
-            get(consent::patient_audit),
-        )
-        .route(
-            "/api/consent/verify",
-            post(consent::verify_consent),
-        )
-        .route(
-            "/api/consent/verify/patient/{patient_id}",
-            get(consent::patient_summary),
-        )
-        .route(
-            "/api/consent/revoke",
-            post(consent::revoke_consent),
-        )
-        .route(
-            "/api/consent/signatures",
-            get(consent::list_signatures).post(consent::create_signature),
-        )
-        .route(
-            "/api/consent/signatures/{id}",
-            get(consent::get_signature).delete(consent::delete_signature),
-        )
+        .merge(medbrains_consent::router())
         // ── Camp Management ───────────────────────────────────
         .merge(medbrains_camp::router())
         .merge(medbrains_ambulance::router())
         .merge(medbrains_care_mgmt::router())
         // ── Communication Hub ─────────────────────────────────
-        .route(
-            "/api/communications/templates",
-            get(communications::list_templates).post(communications::create_template),
-        )
-        .route(
-            "/api/communications/templates/{id}",
-            put(communications::update_template),
-        )
-        .route(
-            "/api/communications/messages",
-            get(communications::list_messages).post(communications::create_message),
-        )
-        .route(
-            "/api/communications/messages/{id}",
-            get(communications::get_message),
-        )
-        .route(
-            "/api/communications/messages/{id}/status",
-            put(communications::update_message_status),
-        )
-        .route(
-            "/api/communications/clinical",
-            get(communications::list_clinical_messages).post(communications::create_clinical_message),
-        )
-        .route(
-            "/api/communications/clinical/{id}",
-            get(communications::get_clinical_message),
-        )
-        .route(
-            "/api/communications/clinical/{id}/acknowledge",
-            put(communications::acknowledge_clinical_message),
-        )
-        .route(
-            "/api/communications/alerts",
-            get(communications::list_critical_alerts).post(communications::create_critical_alert),
-        )
-        .route(
-            "/api/communications/alerts/{id}/acknowledge",
-            put(communications::acknowledge_alert),
-        )
-        .route(
-            "/api/communications/alerts/{id}/resolve",
-            put(communications::resolve_alert),
-        )
-        .route(
-            "/api/communications/complaints",
-            get(communications::list_complaints).post(communications::create_complaint),
-        )
-        .route(
-            "/api/communications/complaints/{id}",
-            put(communications::update_complaint),
-        )
-        .route(
-            "/api/communications/complaints/{id}/resolve",
-            put(communications::resolve_complaint),
-        )
-        .route(
-            "/api/communications/feedback",
-            get(communications::list_feedback).post(communications::create_feedback),
-        )
-        .route(
-            "/api/communications/feedback/stats",
-            get(communications::get_feedback_stats),
-        )
+        .merge(medbrains_communications::router())
         .merge(medbrains_analytics::router())
         .merge(medbrains_facilities::router())
         // ── Security Department ──────────────────────────────────
@@ -1471,65 +1366,8 @@ pub fn build_router(state: AppState) -> Router {
         // ── Specialty Clinical: Oncology depth (staging + radiation) ──
         .merge(medbrains_specialty_other::router())
         // ── Specialty Clinical: Cath Lab ──
-        .route(
-            "/api/specialty/cath-lab/procedures",
-            get(specialty_interventional::list_cath_procedures)
-                .post(specialty_interventional::create_cath_procedure),
-        )
-        .route(
-            "/api/specialty/cath-lab/procedures/{id}",
-            get(specialty_interventional::get_cath_procedure)
-                .put(specialty_interventional::update_cath_procedure),
-        )
-        .route(
-            "/api/specialty/cath-lab/procedures/{procedure_id}/hemodynamics",
-            get(specialty_interventional::list_hemodynamics)
-                .post(specialty_interventional::create_hemodynamic),
-        )
-        .route(
-            "/api/specialty/cath-lab/procedures/{procedure_id}/devices",
-            get(specialty_interventional::list_cath_devices)
-                .post(specialty_interventional::create_cath_device),
-        )
-        .route(
-            "/api/specialty/cath-lab/procedures/{procedure_id}/stemi-timeline",
-            get(specialty_interventional::list_stemi_timeline)
-                .post(specialty_interventional::create_stemi_event),
-        )
-        .route(
-            "/api/specialty/cath-lab/procedures/{procedure_id}/post-monitoring",
-            get(specialty_interventional::list_post_monitoring)
-                .post(specialty_interventional::create_post_monitoring),
-        )
+        .merge(medbrains_specialty_interventional::router())
         // ── Specialty Clinical: Endoscopy ──
-        .route(
-            "/api/specialty/endoscopy/procedures",
-            get(specialty_interventional::list_endoscopy_procedures)
-                .post(specialty_interventional::create_endoscopy_procedure),
-        )
-        .route(
-            "/api/specialty/endoscopy/procedures/{id}",
-            put(specialty_interventional::update_endoscopy_procedure),
-        )
-        .route(
-            "/api/specialty/endoscopy/scopes",
-            get(specialty_interventional::list_scopes)
-                .post(specialty_interventional::create_scope),
-        )
-        .route(
-            "/api/specialty/endoscopy/scopes/{id}",
-            put(specialty_interventional::update_scope),
-        )
-        .route(
-            "/api/specialty/endoscopy/reprocessing",
-            get(specialty_interventional::list_reprocessing)
-                .post(specialty_interventional::create_reprocessing),
-        )
-        .route(
-            "/api/specialty/endoscopy/procedures/{procedure_id}/biopsies",
-            get(specialty_interventional::list_biopsy_specimens)
-                .post(specialty_interventional::create_biopsy_specimen),
-        )
         // ── Specialty Clinical: PMR / Audiology ──
         // ── Specialty Clinical: Palliative / Mortuary / Nuclear Medicine ──
         // ── Specialty Clinical: Other Specialties ──
@@ -1601,61 +1439,7 @@ pub fn build_router(state: AppState) -> Router {
             delete(coverage::delete_coverage),
         )
         // ── Order Sets ──────────────────────────────────────
-        .route(
-            "/api/order-sets/templates",
-            get(order_sets::list_templates).post(order_sets::create_template),
-        )
-        .route(
-            "/api/order-sets/templates/{id}",
-            get(order_sets::get_template)
-                .put(order_sets::update_template)
-                .delete(order_sets::delete_template),
-        )
-        .route(
-            "/api/order-sets/templates/{id}/items",
-            post(order_sets::add_item),
-        )
-        .route(
-            "/api/order-sets/templates/{tid}/items/{iid}",
-            put(order_sets::update_item)
-                .delete(order_sets::delete_item),
-        )
-        .route(
-            "/api/order-sets/templates/{id}/new-version",
-            post(order_sets::create_new_version),
-        )
-        .route(
-            "/api/order-sets/templates/{id}/approve",
-            put(order_sets::approve_template),
-        )
-        .route(
-            "/api/order-sets/templates/{id}/versions",
-            get(order_sets::list_versions),
-        )
-        .route(
-            "/api/order-sets/suggest",
-            get(order_sets::suggest_templates),
-        )
-        .route(
-            "/api/order-sets/activate",
-            post(order_sets::activate_order_set),
-        )
-        .route(
-            "/api/order-sets/activations",
-            get(order_sets::list_activations),
-        )
-        .route(
-            "/api/order-sets/activations/{id}",
-            get(order_sets::get_activation),
-        )
-        .route(
-            "/api/order-sets/analytics",
-            get(order_sets::get_analytics),
-        )
-        .route(
-            "/api/order-sets/analytics/{template_id}",
-            get(order_sets::get_template_analytics),
-        )
+        .merge(medbrains_order_sets::router())
         .merge(medbrains_community_health::router())
         .merge(medbrains_scheduling::router())
         // ── Clinical & Operational Analytics ────────────────────
@@ -1968,24 +1752,11 @@ pub fn build_router(state: AppState) -> Router {
         // ── IT Security: Incentive Configuration ─────────────────────
         // ── Device Integration ───────────────────────────────────────
         // Adapter catalog (global knowledge base)
-        .route("/api/devices/manufacturers", get(devices::list_manufacturers))
-        .route("/api/devices/catalog", get(devices::list_adapter_catalog))
-        .route("/api/devices/catalog/{adapter_code}", get(devices::get_adapter))
-        .route("/api/devices/catalog/{adapter_code}/preview-config", get(devices::preview_config))
+        .merge(medbrains_devices::router())
         // Device instances (per-tenant CRUD)
-        .route("/api/devices/instances", get(devices::list_device_instances).post(devices::create_device_instance))
-        .route("/api/devices/instances/{id}", get(devices::get_device_instance).put(devices::update_device_instance).delete(devices::decommission_device))
-        .route("/api/devices/instances/{id}/test", post(devices::test_device_connection))
-        .route("/api/devices/instances/{id}/regenerate-config", post(devices::regenerate_config))
-        .route("/api/devices/instances/{id}/messages", get(devices::list_device_messages))
-        .route("/api/devices/instances/{id}/config-history", get(devices::list_config_history))
         // Routing rules
-        .route("/api/devices/routing-rules", get(devices::list_routing_rules).post(devices::create_routing_rule))
-        .route("/api/devices/routing-rules/{id}", put(devices::update_routing_rule).delete(devices::delete_routing_rule))
         // Bridge agents
-        .route("/api/devices/agents", get(devices::list_bridge_agents))
         // Device data ingest (bridge agent calls)
-        .route("/api/device-ingest/{module}", post(devices::ingest_device_data))
         // Mobile/TV device pairing — admin mints a one-time QR token,
         // device exchanges for JWT + cert fingerprint
         .route(
@@ -2026,9 +1797,7 @@ pub fn build_router(state: AppState) -> Router {
         .layer(from_fn_with_state(state.clone(), client_ip_middleware));
 
     // ── Bridge Agent Registration (no JWT auth — uses API key) ──
-    let bridge_routes = Router::new()
-        .route("/api/bridge/register", post(devices::register_bridge_agent))
-        .route("/api/bridge/heartbeat", post(devices::bridge_heartbeat));
+    let bridge_routes = medbrains_devices::bridge_router();
 
     // ── Public endpoints (no auth) ──
     let public_booking = Router::new()

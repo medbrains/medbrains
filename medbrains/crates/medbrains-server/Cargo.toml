@@ -37,6 +37,11 @@ medbrains-quality = { path = "../medbrains-quality" }
 medbrains-regulatory = { path = "../medbrains-regulatory" }
 medbrains-payment-gateway = { path = "../medbrains-payment-gateway" }
 medbrains-print-data = { path = "../medbrains-print-data" }
+medbrains-order-sets = { path = "../medbrains-order-sets" }
+medbrains-communications = { path = "../medbrains-communications" }
+medbrains-devices = { path = "../medbrains-devices" }
+medbrains-specialty-interventional = { path = "../medbrains-specialty-interventional" }
+medbrains-consent = { path = "../medbrains-consent" }
 medbrains-vpn = { path = "../medbrains-vpn" }
 medbrains-hr = { path = "../medbrains-hr" }
 medbrains-setup = { path = "../medbrains-setup" }
