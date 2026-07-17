@@ -1,5 +1,6 @@
 #![allow(clippy::too_many_lines)]
 
+use axum::routing::{delete,get,post,put};
 use std::collections::HashMap;
 
 use axum::{
@@ -23,7 +24,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError,
     middleware::{
         auth::Claims,
@@ -45,8 +46,7 @@ use crate::{
 // ══════════════════════════════════════════════════════════
 pub(crate) use medbrains_server_services::billing::{
     AutoChargeInput, SeqResult, admission_id_for_encounter_in_tx, auto_charge,
-    generate_invoice_number, is_auto_billing_enabled, recalculate_invoice_totals,
-    reverse_auto_charge_for_source, reverse_invoice_item_by_id_in_tx,
+    generate_invoice_number, recalculate_invoice_totals, reverse_invoice_item_by_id_in_tx,
     verified_admission_id_for_invoice_in_tx,
 };
 
@@ -724,14 +724,14 @@ pub async fn create_invoice(
     if let Some(admission_id) = invoice.admission_id {
         event = event.with_admission(admission_id);
     }
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     // Auto-issue a billing-counter token (one per patient per day; gated by the
     // tenant's billing-token enablement).
-    crate::routes::tokens::issue_token_once_per_patient_day(
+    medbrains_tokens::issue_token_once_per_patient_day(
         &mut tx,
         claims.tenant_id,
-        crate::routes::tokens::IssueToken {
+        medbrains_tokens::IssueToken {
             module: "billing",
             scope: "global",
             scope_id: None,
@@ -763,7 +763,7 @@ pub async fn create_invoice(
         )
         .await;
 
-    let _ = crate::orchestration::lifecycle::emit_after_event(
+    let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
@@ -897,7 +897,7 @@ pub async fn update_invoice(
         if let Some(admission_id) = i.admission_id {
             event = event.with_admission(admission_id);
         }
-        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     }
 
     tx.commit().await?;
@@ -1182,13 +1182,13 @@ pub async fn issue_invoice(
         if let Some(admission_id) = i.admission_id {
             event = event.with_admission(admission_id);
         }
-        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     }
 
     tx.commit().await?;
 
     if let Some(ref i) = inv {
-        let _ = crate::orchestration::lifecycle::emit_after_event(
+        let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
             &state.db,
             claims.tenant_id,
             claims.sub,
@@ -1435,11 +1435,11 @@ pub async fn record_payment(
     } else {
         event
     };
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
 
-    let _ = crate::orchestration::lifecycle::emit_after_event(
+    let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
@@ -2252,8 +2252,8 @@ async fn generate_refund_number(
 pub async fn list_refunds(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Query(p): Query<crate::pagination::Pagination>,
-) -> Result<Json<crate::pagination::Paginated<Refund>>, AppError> {
+    Query(p): Query<medbrains_server_core::pagination::Pagination>,
+) -> Result<Json<medbrains_server_core::pagination::Paginated<Refund>>, AppError> {
     require_any_permission(&claims, BILLING_REFUND_LIST_PERMISSIONS)?;
 
     let mut tx = state.db.begin().await?;
@@ -2279,7 +2279,7 @@ pub async fn list_refunds(
         .into_iter()
         .map(|row| filter_refund_amounts(row, &restricted_fields))
         .collect();
-    Ok(Json(crate::pagination::Paginated::new(rows, total, &p)))
+    Ok(Json(medbrains_server_core::pagination::Paginated::new(rows, total, &p)))
 }
 
 pub async fn create_refund(
@@ -2434,8 +2434,8 @@ async fn generate_credit_note_number(
 pub async fn list_credit_notes(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Query(p): Query<crate::pagination::Pagination>,
-) -> Result<Json<crate::pagination::Paginated<CreditNote>>, AppError> {
+    Query(p): Query<medbrains_server_core::pagination::Pagination>,
+) -> Result<Json<medbrains_server_core::pagination::Paginated<CreditNote>>, AppError> {
     require_any_permission(
         &claims,
         &[
@@ -2469,7 +2469,7 @@ pub async fn list_credit_notes(
         .into_iter()
         .map(|row| filter_credit_note_amounts(row, &restricted_fields))
         .collect();
-    Ok(Json(crate::pagination::Paginated::new(rows, total, &p)))
+    Ok(Json(medbrains_server_core::pagination::Paginated::new(rows, total, &p)))
 }
 
 pub async fn create_credit_note(
@@ -5001,8 +5001,8 @@ async fn generate_write_off_number(
 pub async fn list_write_offs(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Query(p): Query<crate::pagination::Pagination>,
-) -> Result<Json<crate::pagination::Paginated<BadDebtWriteOff>>, AppError> {
+    Query(p): Query<medbrains_server_core::pagination::Pagination>,
+) -> Result<Json<medbrains_server_core::pagination::Paginated<BadDebtWriteOff>>, AppError> {
     require_any_permission(
         &claims,
         &[
@@ -5031,7 +5031,7 @@ pub async fn list_write_offs(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(crate::pagination::Paginated::new(rows, total, &p)))
+    Ok(Json(medbrains_server_core::pagination::Paginated::new(rows, total, &p)))
 }
 
 pub async fn create_write_off(
@@ -8846,4 +8846,361 @@ pub async fn insurance_receivables_aging(
     .await?;
 
     Ok(Json(rows))
+}
+
+/// Billing routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/billing/invoices",
+            get(list_invoices).post(create_invoice),
+        )
+        .route(
+            "/api/billing/invoices/interim",
+            post(create_interim_invoice),
+        )
+        .route(
+            "/api/billing/invoices/{id}",
+            get(get_invoice).put(update_invoice),
+        )
+        .route(
+            "/api/billing/invoices/{id}/items",
+            post(add_invoice_item),
+        )
+        .route(
+            "/api/billing/invoices/{id}/items/{iid}",
+            delete(remove_invoice_item),
+        )
+        .route(
+            "/api/billing/invoices/{id}/issue",
+            post(issue_invoice),
+        )
+        .route(
+            "/api/billing/invoices/{id}/cancel",
+            post(cancel_invoice),
+        )
+        .route(
+            "/api/billing/invoices/{id}/close-zero",
+            post(close_zero_invoice),
+        )
+        .route(
+            "/api/billing/invoices/{id}/payments",
+            get(list_payments).post(record_payment),
+        )
+        .route(
+            "/api/billing/charge-master",
+            get(list_charge_master).post(create_charge_master),
+        )
+        .route(
+            "/api/billing/charge-master/{id}",
+            put(update_charge_master)
+                .delete(delete_charge_master),
+        )
+        .route(
+            "/api/billing/packages",
+            get(list_packages).post(create_package),
+        )
+        .route(
+            "/api/billing/packages/{id}",
+            get(get_package)
+                .put(update_package)
+                .delete(delete_package),
+        )
+        .route(
+            "/api/billing/rate-plans",
+            get(list_rate_plans).post(create_rate_plan),
+        )
+        .route(
+            "/api/billing/rate-plans/{id}",
+            get(get_rate_plan)
+                .put(update_rate_plan)
+                .delete(delete_rate_plan),
+        )
+        .route(
+            "/api/billing/invoices/{id}/discounts",
+            get(list_discounts).post(add_discount),
+        )
+        .route(
+            "/api/billing/invoices/{id}/discounts/{did}",
+            delete(remove_discount),
+        )
+        .route(
+            "/api/billing/refunds",
+            get(list_refunds).post(create_refund),
+        )
+        .route(
+            "/api/billing/credit-notes",
+            get(list_credit_notes).post(create_credit_note),
+        )
+        .route(
+            "/api/billing/credit-notes/{id}/apply",
+            post(apply_credit_note),
+        )
+        .route(
+            "/api/billing/invoices/{id}/receipts",
+            get(list_receipts).post(generate_receipt),
+        )
+        .route(
+            "/api/billing/insurance-claims",
+            get(list_insurance_claims).post(create_insurance_claim),
+        )
+        .route(
+            "/api/billing/insurance-claims/{id}",
+            get(get_insurance_claim).put(update_insurance_claim),
+        )
+        .route(
+            "/api/billing/auto-charge",
+            post(trigger_auto_charge),
+        )
+        .route(
+            "/api/billing/advances",
+            get(list_advances).post(create_advance),
+        )
+        .route(
+            "/api/billing/advances/{id}/adjust",
+            post(adjust_advance),
+        )
+        .route(
+            "/api/billing/advances/{id}/refund",
+            post(refund_advance),
+        )
+        .route(
+            "/api/billing/corporates",
+            get(list_corporates).post(create_corporate),
+        )
+        .route(
+            "/api/billing/corporates/{id}",
+            get(get_corporate).put(update_corporate),
+        )
+        .route(
+            "/api/billing/corporates/{id}/enrollments",
+            get(list_enrollments).post(create_enrollment),
+        )
+        .route(
+            "/api/billing/corporates/{cid}/enrollments/{eid}",
+            delete(delete_enrollment),
+        )
+        .route(
+            "/api/billing/corporates/{id}/invoices",
+            get(list_corporate_invoices),
+        )
+        .route(
+            "/api/billing/reports/summary",
+            get(report_summary),
+        )
+        .route(
+            "/api/billing/reports/department-revenue",
+            get(report_department_revenue),
+        )
+        .route(
+            "/api/billing/reports/collection-efficiency",
+            get(report_collection_efficiency),
+        )
+        .route(
+            "/api/billing/reports/aging",
+            get(report_aging),
+        )
+        .route(
+            "/api/billing/reports/daily",
+            get(report_daily),
+        )
+        .route(
+            "/api/billing/reports/doctor-revenue",
+            get(report_doctor_revenue),
+        )
+        .route(
+            "/api/billing/reports/insurance-panel",
+            get(report_insurance_panel),
+        )
+        .route(
+            "/api/billing/reports/reconciliation",
+            get(report_reconciliation),
+        )
+        .route(
+            "/api/billing/day-closes",
+            get(list_day_closes).post(create_day_close),
+        )
+        .route(
+            "/api/billing/day-closes/{id}/verify",
+            post(verify_day_close),
+        )
+        .route(
+            "/api/billing/write-offs",
+            get(list_write_offs).post(create_write_off),
+        )
+        .route(
+            "/api/billing/write-offs/{id}/approve",
+            post(approve_write_off),
+        )
+        .route(
+            "/api/billing/tpa-rate-cards",
+            get(list_tpa_rate_cards).post(create_tpa_rate_card),
+        )
+        .route(
+            "/api/billing/tpa-rate-cards/{id}",
+            put(update_tpa_rate_card).delete(delete_tpa_rate_card),
+        )
+        .route(
+            "/api/billing/invoices/{id}/clone",
+            post(clone_invoice),
+        )
+        .route(
+            "/api/billing/audit-log",
+            get(list_audit_log),
+        )
+        .route(
+            "/api/billing/exchange-rates",
+            get(list_exchange_rates).post(create_exchange_rate),
+        )
+        .route(
+            "/api/billing/invoices/{id}/print-data",
+            get(get_invoice_print_data),
+        )
+        .route(
+            "/api/billing/threshold-check/{encounter_id}",
+            get(check_billing_threshold),
+        )
+        .route(
+            "/api/billing/scheme-rate",
+            get(get_scheme_rate_for_charge),
+        )
+        .route(
+            "/api/billing/credit-patients",
+            get(list_credit_patients).post(create_credit_patient),
+        )
+        .route(
+            "/api/billing/credit-patients/aging",
+            get(report_credit_aging),
+        )
+        .route(
+            "/api/billing/credit-patients/{id}",
+            put(update_credit_patient),
+        )
+        .route(
+            "/api/billing/invoices/{id}/dual-insurance",
+            get(get_dual_insurance_status)
+                .post(coordinate_dual_insurance),
+        )
+        .route(
+            "/api/billing/insurance-claims/{id}/reimbursement-docs",
+            post(generate_reimbursement_docs)
+                .put(update_reimbursement_docs),
+        )
+        .route(
+            "/api/billing/gl-accounts",
+            get(list_gl_accounts).post(create_gl_account),
+        )
+        .route(
+            "/api/billing/gl-accounts/{id}",
+            put(update_gl_account),
+        )
+        .route(
+            "/api/billing/journal-entries",
+            get(list_journal_entries).post(create_journal_entry),
+        )
+        .route(
+            "/api/billing/journal-entries/{id}",
+            get(get_journal_entry),
+        )
+        .route(
+            "/api/billing/journal-entries/{id}/post",
+            post(post_journal_entry),
+        )
+        .route(
+            "/api/billing/journal-entries/{id}/reverse",
+            post(reverse_journal_entry),
+        )
+        .route(
+            "/api/billing/bank-transactions",
+            get(list_bank_transactions),
+        )
+        .route(
+            "/api/billing/bank-transactions/import",
+            post(import_bank_transactions),
+        )
+        .route(
+            "/api/billing/bank-transactions/auto-reconcile",
+            post(auto_reconcile),
+        )
+        .route(
+            "/api/billing/bank-transactions/{id}/match",
+            post(match_bank_transaction),
+        )
+        .route(
+            "/api/billing/bank-transactions/auto-match",
+            post(auto_match_bank_transactions),
+        )
+        .route(
+            "/api/billing/insurance-receivables/aging",
+            get(insurance_receivables_aging),
+        )
+        .route(
+            "/api/billing/tds",
+            get(list_tds_deductions).post(create_tds_deduction),
+        )
+        .route(
+            "/api/billing/tds/{id}/deposit",
+            post(deposit_tds),
+        )
+        .route(
+            "/api/billing/tds/{id}/certificate",
+            post(issue_tds_certificate),
+        )
+        .route(
+            "/api/billing/gst-returns",
+            get(list_gstr_summaries),
+        )
+        .route(
+            "/api/billing/gst-returns/generate",
+            post(generate_gstr_summary),
+        )
+        .route(
+            "/api/billing/gst-returns/{id}/file",
+            post(file_gstr),
+        )
+        .route(
+            "/api/billing/reports/hsn-summary",
+            get(report_hsn_summary),
+        )
+        .route(
+            "/api/billing/reports/financial-mis",
+            get(report_financial_mis),
+        )
+        .route(
+            "/api/billing/reports/profit-loss",
+            get(report_profit_loss),
+        )
+        .route(
+            "/api/billing/erp/export",
+            post(export_to_erp),
+        )
+        .route(
+            "/api/billing/erp/exports",
+            get(list_erp_exports),
+        )
+        .route(
+            "/api/billing/copay/calculate",
+            post(copay_calculation),
+        )
+        .route(
+            "/api/billing/er-invoice",
+            post(er_fast_invoice),
+        )
+        .route(
+            "/api/billing/concessions",
+            get(list_concessions).post(create_concession),
+        )
+        .route(
+            "/api/billing/concessions/auto-rules",
+            get(get_auto_concession_rules)
+                .put(update_auto_concession_rules),
+        )
+        .route(
+            "/api/billing/concessions/{id}/approve",
+            put(approve_concession),
+        )
+        .route(
+            "/api/billing/concessions/{id}/reject",
+            put(reject_concession),
+        )
 }

@@ -390,7 +390,7 @@ pub async fn cancel_appointment(
 
             // Reverse the consultation auto-charge if one was posted
             // (source 'opd' keyed on the queue row). No-op when unbilled.
-            crate::routes::billing::reverse_auto_charge_for_source(
+            medbrains_server_services::billing::reverse_auto_charge_for_source(
                 &mut tx,
                 &claims.tenant_id,
                 "opd",

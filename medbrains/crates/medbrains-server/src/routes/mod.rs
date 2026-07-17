@@ -4,7 +4,6 @@ pub mod admin;
 pub mod admin_simulator;
 pub mod appointments;
 pub mod audit;
-pub mod billing;
 pub mod coverage;
 pub mod debug;
 pub mod health;
@@ -253,383 +252,32 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_platform::router())
         .merge(medbrains_telehealth::router())
         // ── Billing ──────────────────────────────────────
-        .route(
-            "/api/billing/invoices",
-            get(billing::list_invoices).post(billing::create_invoice),
-        )
+        .merge(medbrains_billing::router())
         // Interim MUST be before {id} to avoid matching "interim" as a UUID
-        .route(
-            "/api/billing/invoices/interim",
-            post(billing::create_interim_invoice),
-        )
-        .route(
-            "/api/billing/invoices/{id}",
-            get(billing::get_invoice).put(billing::update_invoice),
-        )
-        .route(
-            "/api/billing/invoices/{id}/items",
-            post(billing::add_invoice_item),
-        )
-        .route(
-            "/api/billing/invoices/{id}/items/{iid}",
-            delete(billing::remove_invoice_item),
-        )
-        .route(
-            "/api/billing/invoices/{id}/issue",
-            post(billing::issue_invoice),
-        )
-        .route(
-            "/api/billing/invoices/{id}/cancel",
-            post(billing::cancel_invoice),
-        )
-        .route(
-            "/api/billing/invoices/{id}/close-zero",
-            post(billing::close_zero_invoice),
-        )
-        .route(
-            "/api/billing/invoices/{id}/payments",
-            get(billing::list_payments).post(billing::record_payment),
-        )
-        .route(
-            "/api/billing/charge-master",
-            get(billing::list_charge_master).post(billing::create_charge_master),
-        )
-        .route(
-            "/api/billing/charge-master/{id}",
-            put(billing::update_charge_master)
-                .delete(billing::delete_charge_master),
-        )
-        .route(
-            "/api/billing/packages",
-            get(billing::list_packages).post(billing::create_package),
-        )
-        .route(
-            "/api/billing/packages/{id}",
-            get(billing::get_package)
-                .put(billing::update_package)
-                .delete(billing::delete_package),
-        )
-        .route(
-            "/api/billing/rate-plans",
-            get(billing::list_rate_plans).post(billing::create_rate_plan),
-        )
-        .route(
-            "/api/billing/rate-plans/{id}",
-            get(billing::get_rate_plan)
-                .put(billing::update_rate_plan)
-                .delete(billing::delete_rate_plan),
-        )
-        .route(
-            "/api/billing/invoices/{id}/discounts",
-            get(billing::list_discounts).post(billing::add_discount),
-        )
-        .route(
-            "/api/billing/invoices/{id}/discounts/{did}",
-            delete(billing::remove_discount),
-        )
-        .route(
-            "/api/billing/refunds",
-            get(billing::list_refunds).post(billing::create_refund),
-        )
-        .route(
-            "/api/billing/credit-notes",
-            get(billing::list_credit_notes).post(billing::create_credit_note),
-        )
-        .route(
-            "/api/billing/credit-notes/{id}/apply",
-            post(billing::apply_credit_note),
-        )
-        .route(
-            "/api/billing/invoices/{id}/receipts",
-            get(billing::list_receipts).post(billing::generate_receipt),
-        )
-        .route(
-            "/api/billing/insurance-claims",
-            get(billing::list_insurance_claims).post(billing::create_insurance_claim),
-        )
-        .route(
-            "/api/billing/insurance-claims/{id}",
-            get(billing::get_insurance_claim).put(billing::update_insurance_claim),
-        )
-        .route(
-            "/api/billing/auto-charge",
-            post(billing::trigger_auto_charge),
-        )
         // ── Billing Advances ─────────────────────────────
-        .route(
-            "/api/billing/advances",
-            get(billing::list_advances).post(billing::create_advance),
-        )
-        .route(
-            "/api/billing/advances/{id}/adjust",
-            post(billing::adjust_advance),
-        )
-        .route(
-            "/api/billing/advances/{id}/refund",
-            post(billing::refund_advance),
-        )
         // ── Billing Corporates ───────────────────────────
-        .route(
-            "/api/billing/corporates",
-            get(billing::list_corporates).post(billing::create_corporate),
-        )
-        .route(
-            "/api/billing/corporates/{id}",
-            get(billing::get_corporate).put(billing::update_corporate),
-        )
-        .route(
-            "/api/billing/corporates/{id}/enrollments",
-            get(billing::list_enrollments).post(billing::create_enrollment),
-        )
-        .route(
-            "/api/billing/corporates/{cid}/enrollments/{eid}",
-            delete(billing::delete_enrollment),
-        )
-        .route(
-            "/api/billing/corporates/{id}/invoices",
-            get(billing::list_corporate_invoices),
-        )
         // ── Billing Reports ──────────────────────────────
-        .route(
-            "/api/billing/reports/summary",
-            get(billing::report_summary),
-        )
-        .route(
-            "/api/billing/reports/department-revenue",
-            get(billing::report_department_revenue),
-        )
-        .route(
-            "/api/billing/reports/collection-efficiency",
-            get(billing::report_collection_efficiency),
-        )
-        .route(
-            "/api/billing/reports/aging",
-            get(billing::report_aging),
-        )
-        .route(
-            "/api/billing/reports/daily",
-            get(billing::report_daily),
-        )
-        .route(
-            "/api/billing/reports/doctor-revenue",
-            get(billing::report_doctor_revenue),
-        )
-        .route(
-            "/api/billing/reports/insurance-panel",
-            get(billing::report_insurance_panel),
-        )
-        .route(
-            "/api/billing/reports/reconciliation",
-            get(billing::report_reconciliation),
-        )
         // ── Billing Day Close ──────────────────────────────
-        .route(
-            "/api/billing/day-closes",
-            get(billing::list_day_closes).post(billing::create_day_close),
-        )
-        .route(
-            "/api/billing/day-closes/{id}/verify",
-            post(billing::verify_day_close),
-        )
         // ── Billing Write-Offs ─────────────────────────────
-        .route(
-            "/api/billing/write-offs",
-            get(billing::list_write_offs).post(billing::create_write_off),
-        )
-        .route(
-            "/api/billing/write-offs/{id}/approve",
-            post(billing::approve_write_off),
-        )
         // ── Billing TPA Rate Cards ─────────────────────────
-        .route(
-            "/api/billing/tpa-rate-cards",
-            get(billing::list_tpa_rate_cards).post(billing::create_tpa_rate_card),
-        )
-        .route(
-            "/api/billing/tpa-rate-cards/{id}",
-            put(billing::update_tpa_rate_card).delete(billing::delete_tpa_rate_card),
-        )
         // ── Billing Clone & Audit ──────────────────────────
-        .route(
-            "/api/billing/invoices/{id}/clone",
-            post(billing::clone_invoice),
-        )
-        .route(
-            "/api/billing/audit-log",
-            get(billing::list_audit_log),
-        )
         // ── Billing Phase 3 — Exchange Rates ─────────────
-        .route(
-            "/api/billing/exchange-rates",
-            get(billing::list_exchange_rates).post(billing::create_exchange_rate),
-        )
         // ── Billing Phase 3 — Invoice Print & Threshold ──
-        .route(
-            "/api/billing/invoices/{id}/print-data",
-            get(billing::get_invoice_print_data),
-        )
-        .route(
-            "/api/billing/threshold-check/{encounter_id}",
-            get(billing::check_billing_threshold),
-        )
-        .route(
-            "/api/billing/scheme-rate",
-            get(billing::get_scheme_rate_for_charge),
-        )
         // ── Billing Phase 3 — Credit Patients ────────────
-        .route(
-            "/api/billing/credit-patients",
-            get(billing::list_credit_patients).post(billing::create_credit_patient),
-        )
         // Static route MUST be before {id} to avoid "aging" matching as UUID
-        .route(
-            "/api/billing/credit-patients/aging",
-            get(billing::report_credit_aging),
-        )
-        .route(
-            "/api/billing/credit-patients/{id}",
-            put(billing::update_credit_patient),
-        )
         // ── Billing Phase 3 — Dual Insurance ─────────────
-        .route(
-            "/api/billing/invoices/{id}/dual-insurance",
-            get(billing::get_dual_insurance_status)
-                .post(billing::coordinate_dual_insurance),
-        )
-        .route(
-            "/api/billing/insurance-claims/{id}/reimbursement-docs",
-            post(billing::generate_reimbursement_docs)
-                .put(billing::update_reimbursement_docs),
-        )
         // ── Billing Phase 3 — GL Accounts ────────────────
-        .route(
-            "/api/billing/gl-accounts",
-            get(billing::list_gl_accounts).post(billing::create_gl_account),
-        )
-        .route(
-            "/api/billing/gl-accounts/{id}",
-            put(billing::update_gl_account),
-        )
         // ── Billing Phase 3 — Journal Entries ────────────
-        .route(
-            "/api/billing/journal-entries",
-            get(billing::list_journal_entries).post(billing::create_journal_entry),
-        )
-        .route(
-            "/api/billing/journal-entries/{id}",
-            get(billing::get_journal_entry),
-        )
-        .route(
-            "/api/billing/journal-entries/{id}/post",
-            post(billing::post_journal_entry),
-        )
-        .route(
-            "/api/billing/journal-entries/{id}/reverse",
-            post(billing::reverse_journal_entry),
-        )
         // ── Billing Phase 3 — Bank Reconciliation ────────
-        .route(
-            "/api/billing/bank-transactions",
-            get(billing::list_bank_transactions),
-        )
         // Static routes MUST be before {id}
-        .route(
-            "/api/billing/bank-transactions/import",
-            post(billing::import_bank_transactions),
-        )
-        .route(
-            "/api/billing/bank-transactions/auto-reconcile",
-            post(billing::auto_reconcile),
-        )
-        .route(
-            "/api/billing/bank-transactions/{id}/match",
-            post(billing::match_bank_transaction),
-        )
         // ── TPA reconciliation (priority #4) ─────────────
-        .route(
-            "/api/billing/bank-transactions/auto-match",
-            post(billing::auto_match_bank_transactions),
-        )
-        .route(
-            "/api/billing/insurance-receivables/aging",
-            get(billing::insurance_receivables_aging),
-        )
         // NHCX webhook history — read-only audit log of received callbacks
         // ── Billing Phase 3 — TDS ───────────────────────
-        .route(
-            "/api/billing/tds",
-            get(billing::list_tds_deductions).post(billing::create_tds_deduction),
-        )
-        .route(
-            "/api/billing/tds/{id}/deposit",
-            post(billing::deposit_tds),
-        )
-        .route(
-            "/api/billing/tds/{id}/certificate",
-            post(billing::issue_tds_certificate),
-        )
         // ── Billing Phase 3 — GST Returns ────────────────
-        .route(
-            "/api/billing/gst-returns",
-            get(billing::list_gstr_summaries),
-        )
         // Static route MUST be before {id}
-        .route(
-            "/api/billing/gst-returns/generate",
-            post(billing::generate_gstr_summary),
-        )
-        .route(
-            "/api/billing/gst-returns/{id}/file",
-            post(billing::file_gstr),
-        )
-        .route(
-            "/api/billing/reports/hsn-summary",
-            get(billing::report_hsn_summary),
-        )
         // ── Billing Phase 3 — Financial MIS & P&L ───────
-        .route(
-            "/api/billing/reports/financial-mis",
-            get(billing::report_financial_mis),
-        )
-        .route(
-            "/api/billing/reports/profit-loss",
-            get(billing::report_profit_loss),
-        )
         // ── Billing Phase 3 — ERP Export ─────────────────
-        .route(
-            "/api/billing/erp/export",
-            post(billing::export_to_erp),
-        )
-        .route(
-            "/api/billing/erp/exports",
-            get(billing::list_erp_exports),
-        )
-        .route(
-            "/api/billing/copay/calculate",
-            post(billing::copay_calculation),
-        )
-        .route(
-            "/api/billing/er-invoice",
-            post(billing::er_fast_invoice),
-        )
         // ── Billing Concessions ─────────────────────────
-        .route(
-            "/api/billing/concessions",
-            get(billing::list_concessions).post(billing::create_concession),
-        )
-        .route(
-            "/api/billing/concessions/auto-rules",
-            get(billing::get_auto_concession_rules)
-                .put(billing::update_auto_concession_rules),
-        )
-        .route(
-            "/api/billing/concessions/{id}/approve",
-            put(billing::approve_concession),
-        )
-        .route(
-            "/api/billing/concessions/{id}/reject",
-            put(billing::reject_concession),
-        )
         // ── Payment Gateway ─────────────────────────────
         .merge(medbrains_payment_gateway::router())
         // ── OAuth connect (common token module) ──────────

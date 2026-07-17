@@ -15,7 +15,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::error::AppError;
-use crate::routes::billing::{AutoChargeInput, auto_charge, is_auto_billing_enabled};
+use medbrains_server_services::billing::{AutoChargeInput, auto_charge, is_auto_billing_enabled};
 
 const PASS_INTERVAL_SECS: u64 = 3600;
 
