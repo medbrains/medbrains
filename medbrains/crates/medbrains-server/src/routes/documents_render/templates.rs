@@ -70,7 +70,7 @@ pub(crate) async fn build_context(
             serde_json::json!({ "receipt": data })
         }
         "prescription" => {
-            let Json(data) = crate::routes::print_data::get_prescription_print_data(
+            let Json(data) = medbrains_print_data::general::get_prescription_print_data(
                 State(state.clone()),
                 Extension(claims.clone()),
                 Path(source_id),
@@ -116,7 +116,7 @@ pub(crate) async fn build_context(
             serde_json::json!({ "cert": data })
         }
         "lab_report" => {
-            let Json(data) = crate::routes::print_data::get_lab_report_print_data(
+            let Json(data) = medbrains_print_data::general::get_lab_report_print_data(
                 State(state.clone()),
                 Extension(claims.clone()),
                 Path(source_id),

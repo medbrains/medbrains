@@ -8,6 +8,7 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
+use axum::routing::{get};
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -19,11 +20,10 @@ use medbrains_core::print_data::{
     PrescriptionPrintData, RadiologyReportPrintData,
 };
 
-use crate::{
-    error::AppError,
-    middleware::{auth::Claims, authorization::require_permission},
-    state::AppState,
-};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 // ── Prescription ─────────────────────────────────────────
 
@@ -924,4 +924,45 @@ pub async fn get_investigation_requisition_print_data(
         special_instructions: row.special_instructions,
         barcode_data,
     }))
+}
+
+/// Print-data general routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/print-data/prescription/{encounter_id}",
+            get(get_prescription_print_data),
+        )
+        .route(
+            "/api/print-data/lab-report/{order_id}",
+            get(get_lab_report_print_data),
+        )
+        .route(
+            "/api/print-data/radiology-report/{order_id}",
+            get(get_radiology_report_print_data),
+        )
+        .route(
+            "/api/print-data/patient-card/{patient_id}",
+            get(get_patient_card_print_data),
+        )
+        .route(
+            "/api/print-data/culture-sensitivity/{order_id}",
+            get(get_culture_sensitivity_print_data),
+        )
+        .route(
+            "/api/print-data/histopath-report/{order_id}",
+            get(get_histopath_report_print_data),
+        )
+        .route(
+            "/api/print-data/crossmatch-report/{request_id}",
+            get(get_crossmatch_report_print_data),
+        )
+        .route(
+            "/api/print-data/component-slip/{issue_id}",
+            get(get_component_slip_print_data),
+        )
+        .route(
+            "/api/print-data/investigation-requisition/{order_id}",
+            get(get_investigation_requisition_print_data),
+        )
 }

@@ -78,8 +78,6 @@ pub mod pharmacy_payments;
 pub mod pharmacy_petty_cash;
 pub mod pharmacy_repeats;
 pub mod pharmacy_safety;
-pub mod print_data;
-pub mod print_data_academic;
 pub mod security;
 pub mod sso_login;
 
@@ -1665,42 +1663,7 @@ pub fn build_router(state: AppState) -> Router {
         // ── Governed Reports Command Center ───────────────────
         .merge(medbrains_reports::reports::router())
         // ── Print Data (clinical) ─────────────────────────────
-        .route(
-            "/api/print-data/prescription/{encounter_id}",
-            get(print_data::get_prescription_print_data),
-        )
-        .route(
-            "/api/print-data/lab-report/{order_id}",
-            get(print_data::get_lab_report_print_data),
-        )
-        .route(
-            "/api/print-data/radiology-report/{order_id}",
-            get(print_data::get_radiology_report_print_data),
-        )
-        .route(
-            "/api/print-data/patient-card/{patient_id}",
-            get(print_data::get_patient_card_print_data),
-        )
-        .route(
-            "/api/print-data/culture-sensitivity/{order_id}",
-            get(print_data::get_culture_sensitivity_print_data),
-        )
-        .route(
-            "/api/print-data/histopath-report/{order_id}",
-            get(print_data::get_histopath_report_print_data),
-        )
-        .route(
-            "/api/print-data/crossmatch-report/{request_id}",
-            get(print_data::get_crossmatch_report_print_data),
-        )
-        .route(
-            "/api/print-data/component-slip/{issue_id}",
-            get(print_data::get_component_slip_print_data),
-        )
-        .route(
-            "/api/print-data/investigation-requisition/{order_id}",
-            get(print_data::get_investigation_requisition_print_data),
-        )
+        .merge(medbrains_print_data::general::router())
         .merge(medbrains_print_data::clinical::router())
         // ── Print Data (billing) ──────────────────────────────
         .merge(medbrains_print_data::billing::router())
@@ -1735,75 +1698,8 @@ pub fn build_router(state: AppState) -> Router {
         // PHASE 6: ACADEMIC/SPECIALTY FORMS & BRANDING
         // ══════════════════════════════════════════════════════════
         // -- Phase 6: Academic/Medical College Forms --
-        .route(
-            "/api/print-data/student-admission-form/{admission_id}",
-            get(print_data_academic::get_student_admission_form),
-        )
-        .route(
-            "/api/print-data/intern-rotation-schedule/{schedule_id}",
-            get(print_data_academic::get_intern_rotation_schedule),
-        )
-        .route(
-            "/api/print-data/pg-logbook-entry/{entry_id}",
-            get(print_data_academic::get_pg_logbook_entry),
-        )
-        .route(
-            "/api/print-data/internal-assessment-marks/{assessment_id}",
-            get(print_data_academic::get_internal_assessment_marks),
-        )
-        .route(
-            "/api/print-data/exam-hall-ticket/{ticket_id}",
-            get(print_data_academic::get_exam_hall_ticket),
-        )
-        .route(
-            "/api/print-data/osce-scoring-sheet/{exam_id}/{station_number}",
-            get(print_data_academic::get_osce_scoring_sheet),
-        )
-        .route(
-            "/api/print-data/simulation-debriefing/{session_id}",
-            get(print_data_academic::get_simulation_debriefing),
-        )
-        .route(
-            "/api/print-data/cme-certificate/{certificate_id}",
-            get(print_data_academic::get_cme_certificate),
-        )
-        .route(
-            "/api/print-data/iec-approval-certificate/{approval_id}",
-            get(print_data_academic::get_iec_approval_certificate),
-        )
-        .route(
-            "/api/print-data/research-proposal-form/{proposal_id}",
-            get(print_data_academic::get_research_proposal_form),
-        )
-        .route(
-            "/api/print-data/hostel-allotment-order/{order_id}",
-            get(print_data_academic::get_hostel_allotment_order),
-        )
-        .route(
-            "/api/print-data/anti-ragging-undertaking/{undertaking_id}",
-            get(print_data_academic::get_anti_ragging_undertaking),
-        )
-        .route(
-            "/api/print-data/disability-accommodation-plan/{plan_id}",
-            get(print_data_academic::get_disability_accommodation_plan),
-        )
-        .route(
-            "/api/print-data/internship-completion-certificate/{certificate_id}",
-            get(print_data_academic::get_internship_completion_certificate),
-        )
-        .route(
-            "/api/print-data/service-bond-agreement/{bond_id}",
-            get(print_data_academic::get_service_bond_agreement),
-        )
-        .route(
-            "/api/print-data/stipend-payment-advice/{advice_id}",
-            get(print_data_academic::get_stipend_payment_advice),
-        )
+        .merge(medbrains_print_data::academic::router())
         // -- Phase 6: Hospital Branding --
-        .route(
-            "/api/print-data/hospital-branding",
-            get(print_data_academic::get_hospital_branding),
-        )
         // ── Multi-Hospital Management ──────────────────────────────────
         .merge(medbrains_admin::router())
         // ── CMS & Blog ──────────────────────────────────────────────

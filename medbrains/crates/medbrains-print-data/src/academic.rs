@@ -23,10 +23,11 @@ use axum::{
     Json,
     extract::{Path, State},
 };
+use axum::routing::{get};
 use uuid::Uuid;
 
-use crate::error::AppError;
-use crate::state::AppState;
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::state::AppState;
 use medbrains_core::print_data::{
     AccommodationItem,
     AdmissionFeeDetails,
@@ -1072,4 +1073,77 @@ pub async fn get_hospital_branding(
     };
 
     Ok(Json(data))
+}
+
+/// Print-data academic routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/print-data/student-admission-form/{admission_id}",
+            get(get_student_admission_form),
+        )
+        .route(
+            "/api/print-data/intern-rotation-schedule/{schedule_id}",
+            get(get_intern_rotation_schedule),
+        )
+        .route(
+            "/api/print-data/pg-logbook-entry/{entry_id}",
+            get(get_pg_logbook_entry),
+        )
+        .route(
+            "/api/print-data/internal-assessment-marks/{assessment_id}",
+            get(get_internal_assessment_marks),
+        )
+        .route(
+            "/api/print-data/exam-hall-ticket/{ticket_id}",
+            get(get_exam_hall_ticket),
+        )
+        .route(
+            "/api/print-data/osce-scoring-sheet/{exam_id}/{station_number}",
+            get(get_osce_scoring_sheet),
+        )
+        .route(
+            "/api/print-data/simulation-debriefing/{session_id}",
+            get(get_simulation_debriefing),
+        )
+        .route(
+            "/api/print-data/cme-certificate/{certificate_id}",
+            get(get_cme_certificate),
+        )
+        .route(
+            "/api/print-data/iec-approval-certificate/{approval_id}",
+            get(get_iec_approval_certificate),
+        )
+        .route(
+            "/api/print-data/research-proposal-form/{proposal_id}",
+            get(get_research_proposal_form),
+        )
+        .route(
+            "/api/print-data/hostel-allotment-order/{order_id}",
+            get(get_hostel_allotment_order),
+        )
+        .route(
+            "/api/print-data/anti-ragging-undertaking/{undertaking_id}",
+            get(get_anti_ragging_undertaking),
+        )
+        .route(
+            "/api/print-data/disability-accommodation-plan/{plan_id}",
+            get(get_disability_accommodation_plan),
+        )
+        .route(
+            "/api/print-data/internship-completion-certificate/{certificate_id}",
+            get(get_internship_completion_certificate),
+        )
+        .route(
+            "/api/print-data/service-bond-agreement/{bond_id}",
+            get(get_service_bond_agreement),
+        )
+        .route(
+            "/api/print-data/stipend-payment-advice/{advice_id}",
+            get(get_stipend_payment_advice),
+        )
+        .route(
+            "/api/print-data/hospital-branding",
+            get(get_hospital_branding),
+        )
 }
