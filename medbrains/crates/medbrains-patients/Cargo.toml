@@ -1,0 +1,25 @@
+[package]
+name = "medbrains-patients"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[dependencies]
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-workflow = { path = "../medbrains-workflow" }
+medbrains-tokens = { path = "../medbrains-tokens" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-db = { path = "../medbrains-db" }
+medbrains-authz = { path = "../medbrains-authz" }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+rust_decimal = { workspace = true }
+sqlx = { workspace = true }
+sha2 = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

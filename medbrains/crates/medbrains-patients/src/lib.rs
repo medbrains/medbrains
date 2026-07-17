@@ -26,12 +26,13 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use crate::{
-    error::AppError,
-    middleware::{auth::Claims, authorization::require_permission, field_access},
-    state::AppState,
-    validation::{self, ValidationErrors},
-};
+use axum::routing::{get,post,put,delete,patch};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::middleware::field_access;
+use medbrains_server_core::state::AppState;
+use medbrains_server_core::validation::{self, ValidationErrors};
 
 const PATIENT_UHID_FIELD: &str = "patients.uhid";
 const PATIENT_FIRST_NAME_FIELD: &str = "patients.first_name";
@@ -698,7 +699,7 @@ struct SequenceResult {
     pad_width: i32,
 }
 
-pub(crate) async fn generate_uhid(
+pub async fn generate_uhid(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
 ) -> Result<String, AppError> {
@@ -1043,7 +1044,7 @@ pub async fn list_patients(
     // ── ReBAC filter — only show patients the caller has `view` on ─
     // Bypass roles (super_admin, hospital_admin) skip the lookup
     // entirely; they see every row in their tenant.
-    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
     let visible_ids: Option<Vec<Uuid>> = if authz_ctx.is_bypass {
         None
     } else {
@@ -1268,7 +1269,7 @@ pub async fn list_patients(
                 "result_count": total,
             }),
         );
-        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     }
 
     tx.commit().await?;
@@ -1559,14 +1560,14 @@ pub async fn create_patient(
         }),
     )
     .with_patient(patient.id);
-    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     // Auto-issue a registration token (skipped if the module is disabled).
     let patient_label = format!("{} {}", patient.first_name, patient.last_name);
-    crate::routes::tokens::issue_token_in_tx(
+    medbrains_tokens::issue_token_in_tx(
         &mut tx,
         claims.tenant_id,
-        crate::routes::tokens::IssueToken {
+        medbrains_tokens::IssueToken {
             module: "registration",
             scope: "global",
             scope_id: None,
@@ -1583,7 +1584,7 @@ pub async fn create_patient(
 
     tx.commit().await?;
 
-    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
     state
         .authz
         .write_tuple(
@@ -1615,7 +1616,7 @@ pub async fn create_patient(
     }
 
     // Emit orchestration event — patients.patient.registered
-    let _ = crate::orchestration::lifecycle::emit_after_event(
+    let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
@@ -1657,7 +1658,7 @@ pub async fn get_patient(
     .await?;
 
     // ── ReBAC pre-check — must hold `view` on the specific patient ──
-    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
     let allowed = state
         .authz
         .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", id)
@@ -1715,7 +1716,7 @@ pub async fn update_patient(
     require_permission(&claims, permissions::patients::UPDATE)?;
 
     // ── ReBAC pre-check — must hold `editor` on the specific patient ──
-    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
     let allowed = state
         .authz
         .check(&authz_ctx, medbrains_authz::Relation::Editor, "patient", id)
@@ -1903,7 +1904,7 @@ pub async fn update_patient(
             }),
         )
         .with_patient(patient.id);
-        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     }
 
     tx.commit().await?;
@@ -2469,12 +2470,12 @@ pub async fn delete_patient_contact(
 /// sufficient — the caller must hold a Viewer relation on THIS patient
 /// (deny-by-default PgAuthzBackend). Returns 404 (not 403) so existence isn't
 /// leaked. Every patient sub-resource read must call this, mirroring get_patient.
-pub(crate) async fn require_patient_viewer(
+pub async fn require_patient_viewer(
     state: &AppState,
     claims: &Claims,
     patient_id: Uuid,
 ) -> Result<(), AppError> {
-    let authz_ctx = crate::middleware::authorization::authz_context(claims);
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
     let allowed = state
         .authz
         .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", patient_id)
@@ -4250,7 +4251,7 @@ pub async fn get_patient_context(
     .await?;
 
     // ReBAC pre-check on the specific patient.
-    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
     let allowed = state
         .authz
         .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", id)
@@ -4667,4 +4668,157 @@ pub async fn get_clinical_timeline(
 
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+/// Patient master (registration, identifiers, addresses, allergies, consents, documents, masters) routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/patients",
+            get(list_patients).post(create_patient),
+        )
+        .route("/api/patients/match", post(match_patients))
+        .route("/api/patients/merge", post(merge_patients))
+        .route(
+            "/api/patients/unmerge/{id}",
+            post(unmerge_patient),
+        )
+        .route(
+            "/api/patients/{id}",
+            get(get_patient).put(update_patient),
+        )
+        .route(
+            "/api/patients/{id}/clinical-timeline",
+            get(get_clinical_timeline),
+        )
+        .route(
+            "/api/patients/{id}/context",
+            get(get_patient_context),
+        )
+        .route(
+            "/api/patients/{patient_id}/identifiers",
+            get(list_patient_identifiers)
+                .post(create_patient_identifier),
+        )
+        .route(
+            "/api/patients/{patient_id}/identifiers/{id}",
+            put(update_patient_identifier)
+                .delete(delete_patient_identifier),
+        )
+        .route(
+            "/api/patients/{patient_id}/addresses",
+            get(list_patient_addresses)
+                .post(create_patient_address),
+        )
+        .route(
+            "/api/patients/{patient_id}/addresses/{id}",
+            put(update_patient_address)
+                .delete(delete_patient_address),
+        )
+        .route(
+            "/api/patients/{patient_id}/contacts",
+            get(list_patient_contacts)
+                .post(create_patient_contact),
+        )
+        .route(
+            "/api/patients/{patient_id}/contacts/{id}",
+            put(update_patient_contact)
+                .delete(delete_patient_contact),
+        )
+        .route(
+            "/api/patients/{patient_id}/insurance",
+            get(list_patient_insurance)
+                .post(create_patient_insurance),
+        )
+        .route(
+            "/api/patients/{patient_id}/insurance/{id}",
+            put(update_patient_insurance)
+                .delete(delete_patient_insurance),
+        )
+        .route(
+            "/api/patients/allergen-catalog",
+            get(list_allergen_catalog),
+        )
+        .route(
+            "/api/patients/{patient_id}/allergies",
+            get(list_patient_allergies)
+                .post(create_patient_allergy),
+        )
+        .route(
+            "/api/patients/{patient_id}/allergies/{id}",
+            put(update_patient_allergy)
+                .delete(delete_patient_allergy),
+        )
+        .route(
+            "/api/patients/{patient_id}/consents",
+            get(list_patient_consents)
+                .post(create_patient_consent),
+        )
+        .route(
+            "/api/patients/{patient_id}/consents/{id}",
+            put(update_patient_consent)
+                .delete(delete_patient_consent),
+        )
+        .route(
+            "/api/patients/{patient_id}/family-links",
+            get(list_family_links)
+                .post(create_family_link),
+        )
+        .route(
+            "/api/patients/{patient_id}/family-links/{id}",
+            delete(delete_family_link),
+        )
+        .route(
+            "/api/patients/{patient_id}/documents",
+            get(list_patient_documents)
+                .post(create_patient_document),
+        )
+        .route(
+            "/api/patients/{patient_id}/access-log",
+            get(list_patient_access_log).post(record_patient_access),
+        )
+        .route(
+            "/api/patients/{patient_id}/documents/{id}",
+            delete(delete_patient_document),
+        )
+        .route(
+            "/api/patients/{patient_id}/photo",
+            patch(update_patient_photo),
+        )
+        .route(
+            "/api/patients/{patient_id}/merge-history",
+            get(list_merge_history),
+        )
+        .route(
+            "/api/patients/{patient_id}/visits",
+            get(list_patient_visits),
+        )
+        .route(
+            "/api/patients/{patient_id}/consultations",
+            get(list_patient_consultations),
+        )
+        .route(
+            "/api/patients/{patient_id}/lab-orders",
+            get(list_patient_lab_orders),
+        )
+        .route(
+            "/api/patients/{patient_id}/invoices",
+            get(list_patient_invoices),
+        )
+        .route(
+            "/api/patients/{patient_id}/appointments",
+            get(list_patient_appointments),
+        )
+        .route(
+            "/api/masters/religions",
+            get(list_religions),
+        )
+        .route(
+            "/api/masters/occupations",
+            get(list_occupations),
+        )
+        .route(
+            "/api/masters/relations",
+            get(list_relations),
+        )
 }

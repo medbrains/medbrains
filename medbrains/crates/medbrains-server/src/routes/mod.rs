@@ -60,6 +60,8 @@ pub use medbrains_lab as lab;
 pub use medbrains_pharmacy as pharmacy;
 // case_sheet_scan/mrd/appointments reach opd helpers via super::opd
 pub use medbrains_opd as opd;
+// ai/appointments reach patients helpers via super::patients
+pub use medbrains_patients as patients;
 // billing/lab/pharmacy/patients/appointments reach token helpers via crate::routes::tokens
 pub use medbrains_tokens as tokens;
 pub mod oauth;
@@ -69,7 +71,6 @@ pub mod order_basket;
 pub mod order_sets;
 pub mod ot;
 pub mod patient_packages;
-pub mod patients;
 pub mod payment_gateway;
 pub mod payroll;
 pub mod pharmacy_cash_drawer;
@@ -588,166 +589,19 @@ pub fn build_router(state: AppState) -> Router {
             post(setup::import_config),
         )
         // Patients
-        .route(
-            "/api/patients",
-            get(patients::list_patients).post(patients::create_patient),
-        )
-        .route("/api/patients/match", post(patients::match_patients))
-        .route("/api/patients/merge", post(patients::merge_patients))
-        .route(
-            "/api/patients/unmerge/{id}",
-            post(patients::unmerge_patient),
-        )
-        .route(
-            "/api/patients/{id}",
-            get(patients::get_patient).put(patients::update_patient),
-        )
-        .route(
-            "/api/patients/{id}/clinical-timeline",
-            get(patients::get_clinical_timeline),
-        )
-        .route(
-            "/api/patients/{id}/context",
-            get(patients::get_patient_context),
-        )
+        .merge(medbrains_patients::router())
         // Patient — identifiers
-        .route(
-            "/api/patients/{patient_id}/identifiers",
-            get(patients::list_patient_identifiers)
-                .post(patients::create_patient_identifier),
-        )
-        .route(
-            "/api/patients/{patient_id}/identifiers/{id}",
-            put(patients::update_patient_identifier)
-                .delete(patients::delete_patient_identifier),
-        )
         // Patient — addresses
-        .route(
-            "/api/patients/{patient_id}/addresses",
-            get(patients::list_patient_addresses)
-                .post(patients::create_patient_address),
-        )
-        .route(
-            "/api/patients/{patient_id}/addresses/{id}",
-            put(patients::update_patient_address)
-                .delete(patients::delete_patient_address),
-        )
         // Patient — contacts
-        .route(
-            "/api/patients/{patient_id}/contacts",
-            get(patients::list_patient_contacts)
-                .post(patients::create_patient_contact),
-        )
-        .route(
-            "/api/patients/{patient_id}/contacts/{id}",
-            put(patients::update_patient_contact)
-                .delete(patients::delete_patient_contact),
-        )
         // Patient — insurance
-        .route(
-            "/api/patients/{patient_id}/insurance",
-            get(patients::list_patient_insurance)
-                .post(patients::create_patient_insurance),
-        )
-        .route(
-            "/api/patients/{patient_id}/insurance/{id}",
-            put(patients::update_patient_insurance)
-                .delete(patients::delete_patient_insurance),
-        )
         // Patient — allergies
-        .route(
-            "/api/patients/allergen-catalog",
-            get(patients::list_allergen_catalog),
-        )
-        .route(
-            "/api/patients/{patient_id}/allergies",
-            get(patients::list_patient_allergies)
-                .post(patients::create_patient_allergy),
-        )
-        .route(
-            "/api/patients/{patient_id}/allergies/{id}",
-            put(patients::update_patient_allergy)
-                .delete(patients::delete_patient_allergy),
-        )
         // Patient — consents
-        .route(
-            "/api/patients/{patient_id}/consents",
-            get(patients::list_patient_consents)
-                .post(patients::create_patient_consent),
-        )
-        .route(
-            "/api/patients/{patient_id}/consents/{id}",
-            put(patients::update_patient_consent)
-                .delete(patients::delete_patient_consent),
-        )
         // Patient — family links
-        .route(
-            "/api/patients/{patient_id}/family-links",
-            get(patients::list_family_links)
-                .post(patients::create_family_link),
-        )
-        .route(
-            "/api/patients/{patient_id}/family-links/{id}",
-            delete(patients::delete_family_link),
-        )
         // Patient — documents
-        .route(
-            "/api/patients/{patient_id}/documents",
-            get(patients::list_patient_documents)
-                .post(patients::create_patient_document),
-        )
-        .route(
-            "/api/patients/{patient_id}/access-log",
-            get(patients::list_patient_access_log).post(patients::record_patient_access),
-        )
-        .route(
-            "/api/patients/{patient_id}/documents/{id}",
-            delete(patients::delete_patient_document),
-        )
         // Patient — photo
-        .route(
-            "/api/patients/{patient_id}/photo",
-            patch(patients::update_patient_photo),
-        )
         // Patient — merge history
-        .route(
-            "/api/patients/{patient_id}/merge-history",
-            get(patients::list_merge_history),
-        )
         // Patient visit history / timeline
-        .route(
-            "/api/patients/{patient_id}/visits",
-            get(patients::list_patient_visits),
-        )
-        .route(
-            "/api/patients/{patient_id}/consultations",
-            get(patients::list_patient_consultations),
-        )
-        .route(
-            "/api/patients/{patient_id}/lab-orders",
-            get(patients::list_patient_lab_orders),
-        )
-        .route(
-            "/api/patients/{patient_id}/invoices",
-            get(patients::list_patient_invoices),
-        )
-        .route(
-            "/api/patients/{patient_id}/appointments",
-            get(patients::list_patient_appointments),
-        )
         // Masters — religions, occupations, relations
-        .route(
-            "/api/masters/religions",
-            get(patients::list_religions),
-        )
-        .route(
-            "/api/masters/occupations",
-            get(patients::list_occupations),
-        )
-        .route(
-            "/api/masters/relations",
-            get(patients::list_relations),
-        )
         .merge(medbrains_tokens::router())
         // Notification centre — per-user in-app feed
         .route("/api/notifications", get(notifications::list_notifications))
