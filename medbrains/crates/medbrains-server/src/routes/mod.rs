@@ -5,7 +5,6 @@ pub mod vte;
 pub mod admin;
 pub mod admin_simulator;
 pub mod ai;
-pub mod analytics;
 pub mod appointments;
 pub mod audit;
 pub mod auth;
@@ -37,7 +36,6 @@ pub use medbrains_server_core::nabh_evidence;
 pub use medbrains_scheduling::scheduling;
 pub use medbrains_telehealth::cds;
 pub use medbrains_platform::ckb;
-pub mod nabh_indicators;
 pub mod news;
 pub mod nhcx_callback;
 pub mod nhcx_onboarding;
@@ -82,7 +80,6 @@ pub mod pharmacy_repeats;
 pub mod pharmacy_safety;
 pub mod print_data;
 pub mod print_data_academic;
-pub mod reports;
 pub mod security;
 pub mod sso_login;
 
@@ -1254,10 +1251,7 @@ pub fn build_router(state: AppState) -> Router {
             post(ipd_post_discharge::submit_mortality_review),
         )
         // ── NABH KPI rollup ───────────────────────────────
-        .route(
-            "/api/nabh/indicators",
-            get(nabh_indicators::get_indicators),
-        )
+        .merge(medbrains_reports::nabh_indicators::router())
         // ── Operation Theatre ──────────────────────────────
         .merge(medbrains_ot::router())
         .merge(medbrains_blood_bank::router())
@@ -1667,53 +1661,9 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_community_health::router())
         .merge(medbrains_scheduling::router())
         // ── Clinical & Operational Analytics ────────────────────
-        .route(
-            "/api/analytics/revenue/department",
-            get(analytics::dept_revenue),
-        )
-        .route(
-            "/api/analytics/revenue/doctor",
-            get(analytics::doctor_revenue),
-        )
-        .route(
-            "/api/analytics/ipd/census",
-            get(analytics::ipd_census),
-        )
-        .route(
-            "/api/analytics/lab/tat",
-            get(analytics::lab_tat),
-        )
-        .route(
-            "/api/analytics/pharmacy/sales",
-            get(analytics::pharmacy_sales),
-        )
-        .route(
-            "/api/analytics/ot/utilization",
-            get(analytics::ot_utilization),
-        )
-        .route(
-            "/api/analytics/er/volume",
-            get(analytics::er_volume),
-        )
-        .route(
-            "/api/analytics/clinical/indicators",
-            get(analytics::clinical_indicators),
-        )
-        .route(
-            "/api/analytics/opd/footfall",
-            get(analytics::opd_footfall),
-        )
-        .route(
-            "/api/analytics/bed/occupancy",
-            get(analytics::bed_occupancy),
-        )
-        .route(
-            "/api/analytics/export",
-            get(analytics::export_csv),
-        )
+        .merge(medbrains_reports::analytics::router())
         // ── Governed Reports Command Center ───────────────────
-        .route("/api/reports/catalog", get(reports::catalog))
-        .route("/api/reports/{id}/data", get(reports::data))
+        .merge(medbrains_reports::reports::router())
         // ── Print Data (clinical) ─────────────────────────────
         .route(
             "/api/print-data/prescription/{encounter_id}",

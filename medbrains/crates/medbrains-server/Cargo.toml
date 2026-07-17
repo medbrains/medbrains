@@ -44,6 +44,7 @@ medbrains-it-security = { path = "../medbrains-it-security" }
 medbrains-assets = { path = "../medbrains-assets" }
 medbrains-bme = { path = "../medbrains-bme" }
 medbrains-tv = { path = "../medbrains-tv" }
+medbrains-reports = { path = "../medbrains-reports" }
 medbrains-specialty-other = { path = "../medbrains-specialty-other" }
 medbrains-clinical-scores = { path = "../medbrains-clinical-scores" }
 medbrains-clinical-ops = { path = "../medbrains-clinical-ops" }

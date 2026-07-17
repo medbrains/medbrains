@@ -2,6 +2,7 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use axum::routing::{get};
 use medbrains_core::{
     analytics::DateRangeQuery,
     clinical_events::ClinicalEventName,
@@ -15,15 +16,13 @@ use medbrains_core::{
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::{
-    error::AppError,
-    middleware::{
-        auth::Claims,
-        authorization::{is_bypass_role, require_any_permission},
-    },
-    routes::{analytics, nabh_indicators, scheduling},
-    state::AppState,
-};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::{is_bypass_role, require_any_permission};
+use crate::analytics;
+use crate::nabh_indicators;
+use medbrains_scheduling::scheduling;
+use medbrains_server_core::state::AppState;
 
 const STANDARD_EXPORTS: &[ReportExportFormat] = &[
     ReportExportFormat::Pdf,
@@ -2399,4 +2398,11 @@ mod tests {
         assert!(metadata.event_payload_keys.is_empty());
         assert!(metadata.indicator_targets.is_empty());
     }
+}
+
+/// reports routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/reports/catalog", get(catalog))
+        .route("/api/reports/{id}/data", get(data))
 }

@@ -1,4 +1,5 @@
 // NABH KPI dashboard rollup.
+use axum::routing::{get};
 //
 // Pulls aggregates from the modules we already have data for (lab,
 // radiology, ipd, opd, emergency, pharmacy, post-discharge). Each
@@ -16,10 +17,10 @@ use sqlx::Postgres;
 
 use medbrains_core::permissions;
 
-use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 /// A single quality-indicator computation. The frontend uses
 /// `direction` to colour traffic-light tiles: 'higher_better' →
@@ -1291,4 +1292,13 @@ async fn scalar_minutes(
     scalar_f64(tx, sql, tenant_id)
         .await
         .map(|v| (v * 10.0).round() / 10.0)
+}
+
+/// nabh_indicators routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/nabh/indicators",
+            get(get_indicators),
+        )
 }

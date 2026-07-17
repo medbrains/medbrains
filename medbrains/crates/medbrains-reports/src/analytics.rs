@@ -4,6 +4,7 @@ use axum::{
     http::{HeaderMap, HeaderValue, header},
     response::IntoResponse,
 };
+use axum::routing::{get};
 use medbrains_core::analytics::{
     BedOccupancyRow, ClinicalIndicatorRow, DateRangeQuery, DeptRevenueRow, DoctorRevenueRow,
     ErVolumeRow, ExportQuery, IpdCensusRow, LabTatRow, OpdFootfallRow, OtUtilizationRow,
@@ -12,10 +13,10 @@ use medbrains_core::analytics::{
 use medbrains_core::permissions;
 use serde::Serialize;
 
-use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 fn default_range(params: &DateRangeQuery) -> (String, String) {
     let to = params
@@ -386,4 +387,53 @@ pub async fn export_csv(
         HeaderValue::from_static("attachment; filename=analytics_export.csv"),
     );
     Ok((headers, csv))
+}
+
+/// analytics routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/analytics/revenue/department",
+            get(dept_revenue),
+        )
+        .route(
+            "/api/analytics/revenue/doctor",
+            get(doctor_revenue),
+        )
+        .route(
+            "/api/analytics/ipd/census",
+            get(ipd_census),
+        )
+        .route(
+            "/api/analytics/lab/tat",
+            get(lab_tat),
+        )
+        .route(
+            "/api/analytics/pharmacy/sales",
+            get(pharmacy_sales),
+        )
+        .route(
+            "/api/analytics/ot/utilization",
+            get(ot_utilization),
+        )
+        .route(
+            "/api/analytics/er/volume",
+            get(er_volume),
+        )
+        .route(
+            "/api/analytics/clinical/indicators",
+            get(clinical_indicators),
+        )
+        .route(
+            "/api/analytics/opd/footfall",
+            get(opd_footfall),
+        )
+        .route(
+            "/api/analytics/bed/occupancy",
+            get(bed_occupancy),
+        )
+        .route(
+            "/api/analytics/export",
+            get(export_csv),
+        )
 }
