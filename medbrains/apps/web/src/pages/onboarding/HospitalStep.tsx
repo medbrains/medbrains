@@ -3,7 +3,7 @@ import { Select, Stack, TextInput } from "@mantine/core";
 import type { UpdateTenantInput } from "@medbrains/schemas";
 import { updateTenantSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, type Resolver, useForm } from "react-hook-form";
 import { Button } from "@/components/ui";
 import classes from "./onboarding.module.scss";
 
@@ -38,7 +38,7 @@ export function HospitalStep({ onNext, onBack }: Props) {
   const setHospitalDetails = useOnboardingStore((s) => s.setHospitalDetails);
 
   const form = useForm<UpdateTenantInput>({
-    resolver: zodResolver(updateTenantSchema),
+    resolver: zodResolver(updateTenantSchema) as Resolver<UpdateTenantInput>,
     defaultValues: {
       address_line1: stored?.address_line1 ?? "",
       address_line2: stored?.address_line2 ?? "",

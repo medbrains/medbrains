@@ -143,7 +143,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useMemo, useRef, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, type Resolver, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
@@ -2281,7 +2281,7 @@ function AssessmentsTab({ admissionId }: { admissionId: string }) {
     watch,
     formState: { errors },
   } = useForm<IpdClinicalAssessmentFormInput>({
-    resolver: zodResolver(ipdClinicalAssessmentFormSchema),
+    resolver: zodResolver(ipdClinicalAssessmentFormSchema) as Resolver<IpdClinicalAssessmentFormInput>,
     defaultValues: DEFAULT_IPD_CLINICAL_ASSESSMENT_VALUES,
   });
   const assessmentValues = watch();

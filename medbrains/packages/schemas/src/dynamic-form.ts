@@ -134,7 +134,7 @@ function buildBaseSchema(
       return z.string().uuid();
 
     case "json":
-      return z.record(z.unknown());
+      return z.record(z.string(), z.unknown());
 
     default:
       return z.string();

@@ -5,7 +5,7 @@ import { sequencesSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
 import type { AdditionalSequence } from "@medbrains/types";
 import { IconHash } from "@tabler/icons-react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, type Resolver, useForm } from "react-hook-form";
 import { Button } from "@/components/ui";
 import classes from "./onboarding.module.scss";
 
@@ -48,7 +48,7 @@ export function SequencesStep({ onNext, onBack }: Props) {
   const seqs = additionalSequences.length > 0 ? additionalSequences : additionalSequenceDefaults;
 
   const form = useForm<SequencesInput>({
-    resolver: zodResolver(sequencesSchema),
+    resolver: zodResolver(sequencesSchema) as Resolver<SequencesInput>,
     defaultValues: {
       uhid_prefix: stored?.uhid_prefix ?? "",
       uhid_pad_width: stored?.uhid_pad_width ?? 5,

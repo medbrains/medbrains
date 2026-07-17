@@ -6,7 +6,7 @@ import { useOnboardingStore } from "@medbrains/stores";
 import type { OnboardingFacility } from "@medbrains/types";
 import { IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, type Resolver, useForm } from "react-hook-form";
 import { Alert, Badge, Button, IconButton } from "@/components/ui";
 import classes from "./onboarding.module.scss";
 
@@ -50,7 +50,7 @@ export function FacilitiesStep({ onNext, onBack }: Props) {
   const removeFacility = useOnboardingStore((s) => s.removeFacility);
 
   const form = useForm<CreateFacilityInput>({
-    resolver: zodResolver(createFacilitySchema),
+    resolver: zodResolver(createFacilitySchema) as Resolver<CreateFacilityInput>,
     defaultValues: {
       code: "",
       name: "",

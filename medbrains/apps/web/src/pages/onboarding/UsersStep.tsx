@@ -15,7 +15,7 @@ import { useOnboardingStore } from "@medbrains/stores";
 import type { OnboardingDepartment, OnboardingRole, OnboardingUser } from "@medbrains/types";
 import { IconPlus, IconStethoscope, IconTrash, IconUpload, IconUser } from "@tabler/icons-react";
 import { useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, type Resolver, useForm } from "react-hook-form";
 import { CsvImportModal, SelectLabel } from "@/components";
 import { Badge, Button, IconButton } from "@/components/ui";
 import { onboardingService } from "@/services/onboarding.service";
@@ -53,7 +53,7 @@ export function UsersStep({ onNext, onBack }: Props) {
   const departments = useOnboardingStore((s) => s.departments);
 
   const form = useForm<CreateUserInput>({
-    resolver: zodResolver(createUserSchema),
+    resolver: zodResolver(createUserSchema) as Resolver<CreateUserInput>,
     defaultValues: {
       full_name: "",
       username: "",

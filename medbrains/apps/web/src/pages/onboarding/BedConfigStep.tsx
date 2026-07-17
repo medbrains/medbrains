@@ -6,7 +6,7 @@ import { useOnboardingStore } from "@medbrains/stores";
 import type { OnboardingBedType } from "@medbrains/types";
 import { IconBed, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, type Resolver, useForm } from "react-hook-form";
 import { Button, IconButton } from "@/components/ui";
 import classes from "./onboarding.module.scss";
 
@@ -31,7 +31,7 @@ export function BedConfigStep({ onNext, onBack }: Props) {
   const removeBedType = useOnboardingStore((s) => s.removeBedType);
 
   const form = useForm<CreateBedTypeInput>({
-    resolver: zodResolver(createBedTypeSchema),
+    resolver: zodResolver(createBedTypeSchema) as Resolver<CreateBedTypeInput>,
     defaultValues: {
       code: "",
       name: "",

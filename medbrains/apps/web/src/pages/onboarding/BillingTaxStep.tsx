@@ -20,7 +20,7 @@ import type {
 } from "@medbrains/types";
 import { IconCash, IconPercentage, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, type Resolver, useForm } from "react-hook-form";
 import { Badge, Button, IconButton } from "@/components/ui";
 import classes from "./onboarding.module.scss";
 
@@ -68,7 +68,7 @@ export function BillingTaxStep({ onNext, onBack }: Props) {
   const removePaymentMethod = useOnboardingStore((s) => s.removePaymentMethod);
 
   const taxForm = useForm<CreateTaxCategoryInput>({
-    resolver: zodResolver(createTaxCategorySchema),
+    resolver: zodResolver(createTaxCategorySchema) as Resolver<CreateTaxCategoryInput>,
     defaultValues: {
       code: "",
       name: "",

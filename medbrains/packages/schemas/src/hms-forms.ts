@@ -1239,7 +1239,7 @@ export function toVendorTypeFormValue(value: string | null): VendorTypeFormValue
 export function toSupplyCategoryFormValues(values: string[]): SupplyCategoryFormValue[] {
   return values
     .map((value) => supplyCategoryFormSchema.safeParse(value))
-    .filter((result): result is z.SafeParseSuccess<SupplyCategoryFormValue> => result.success)
+    .filter((result): result is z.ZodSafeParseSuccess<SupplyCategoryFormValue> => result.success)
     .map((result) => result.data);
 }
 
