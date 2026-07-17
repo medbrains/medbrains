@@ -6,13 +6,14 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
+use axum::routing::{get,post};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -317,4 +318,33 @@ pub async fn list_coverage_for_order(
     .await?;
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+/// pharmacy_dispense_ops routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/pharmacy/substitutions",
+            post(create_substitution),
+        )
+        .route(
+            "/api/pharmacy/substitutions/item/{item_id}",
+            get(list_substitutions_for_item),
+        )
+        .route(
+            "/api/pharmacy/counseling",
+            post(create_counseling),
+        )
+        .route(
+            "/api/pharmacy/counseling/order/{order_id}",
+            get(list_counseling_for_order),
+        )
+        .route(
+            "/api/pharmacy/coverage-checks",
+            post(create_coverage_check),
+        )
+        .route(
+            "/api/pharmacy/coverage-checks/order/{order_id}",
+            get(list_coverage_for_order),
+        )
 }

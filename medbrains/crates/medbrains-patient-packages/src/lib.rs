@@ -5,6 +5,7 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
+use axum::routing::{get,post};
 use chrono::{DateTime, Duration, Utc};
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
@@ -12,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -318,4 +319,25 @@ pub async fn refund(
         return Err(AppError::NotFound);
     }
     Ok(Json(json!({ "refunded": true })))
+}
+
+/// patient_packages routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/patient-packages/subscribe",
+            post(subscribe),
+        )
+        .route(
+            "/api/patient-packages/patient/{patient_id}",
+            get(list_for_patient),
+        )
+        .route(
+            "/api/patient-packages/{sub_id}/consume",
+            post(consume),
+        )
+        .route(
+            "/api/patient-packages/{sub_id}/refund",
+            post(refund),
+        )
 }

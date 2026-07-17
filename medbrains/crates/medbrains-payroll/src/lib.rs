@@ -2,6 +2,7 @@
 //! loss-of-pay (present-by-default; mark absences); India statutory heads (PF/ESI/PT) are
 //! computed at generation. Rates are the common statutory defaults — configurable later.
 
+use axum::routing::{get, post};
 use std::collections::HashMap;
 
 use axum::Json;
@@ -12,10 +13,10 @@ use rust_decimal::Decimal;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::error::AppError;
-use crate::middleware::auth::Claims;
-use crate::middleware::authorization::require_permission;
-use crate::state::AppState;
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 // Statutory defaults (India). PF 12% of basic capped at ₹1800 (₹15k ceiling); ESI 0.75%
 // of gross when gross ≤ ₹21k; PT a flat ₹200 above ₹15k earned. Configurable later.
@@ -429,4 +430,22 @@ mod tests {
         assert_eq!(c.paid_days, Decimal::from(24));
         assert_eq!(c.earned_gross, Decimal::from(40000));
     }
+}
+
+/// payroll routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/hr/payroll/structures",
+            get(list_salary_structures).post(upsert_salary_structure),
+        )
+        .route(
+            "/api/hr/payroll/runs",
+            get(list_payroll_runs).post(create_payroll_run),
+        )
+        .route(
+            "/api/hr/payroll/runs/{id}/finalize",
+            post(finalize_payroll_run),
+        )
+        .route("/api/hr/payroll/payslips", get(list_payslips))
 }

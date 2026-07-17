@@ -24,6 +24,7 @@ use axum::{
     extract::{Query, State},
     http::StatusCode,
 };
+use axum::routing::{get,post};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -31,10 +32,10 @@ use uuid::Uuid;
 
 use medbrains_core::permissions;
 
-use crate::error::AppError;
-use crate::middleware::auth::Claims;
-use crate::middleware::authorization::require_permission;
-use crate::state::AppState;
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct NhcxEnvelope {
@@ -348,4 +349,17 @@ fn claim_response_benefit(bundle: &Value) -> Option<f64> {
             None
         }
     })
+}
+
+/// nhcx_callback routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/integrations/nhcx/callback",
+            post(receive_callback),
+        )
+        .route(
+            "/api/integrations/nhcx/callbacks",
+            get(list_callbacks),
+        )
 }

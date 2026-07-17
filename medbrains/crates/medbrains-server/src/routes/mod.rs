@@ -9,7 +9,6 @@ pub mod audit;
 pub mod billing;
 pub mod coverage;
 pub mod debug;
-pub mod device_pairing;
 pub mod doctor_packages;
 pub mod documents_render;
 pub mod fhir;
@@ -24,7 +23,6 @@ pub use medbrains_scheduling::scheduling;
 pub use medbrains_telehealth::cds;
 pub use medbrains_platform::ckb;
 pub mod news;
-pub mod nhcx_callback;
 pub mod nhcx_onboarding;
 pub use medbrains_server_core::notifications;
 pub use medbrains_identity::sso;
@@ -52,10 +50,7 @@ pub use medbrains_setup as setup;
 pub use medbrains_tokens as tokens;
 pub mod oauth;
 pub mod orchestration;
-pub mod patient_packages;
-pub mod payroll;
 pub mod pharmacy_cash_drawer;
-pub mod pharmacy_dispense_ops;
 pub mod pharmacy_petty_cash;
 pub mod pharmacy_repeats;
 
@@ -110,12 +105,9 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_sso_login::router())
         // NHCX async-response webhook — gateway authenticates via JWS,
         // not bearer token, so this lives on the public router.
-        .route(
-            "/api/integrations/nhcx/callback",
-            post(nhcx_callback::receive_callback),
-        )
+        .merge(medbrains_nhcx_callback::router())
         // Device pairing — gated by short-lived one-time token, not JWT
-        .route("/api/device-pairing/pair", post(device_pairing::pair_device))
+        .merge(medbrains_device_pairing::router())
         // Onboarding — public endpoints
         .merge(medbrains_onboarding::router())
         // Geo — public read-only endpoints
@@ -627,10 +619,6 @@ pub fn build_router(state: AppState) -> Router {
             get(billing::insurance_receivables_aging),
         )
         // NHCX webhook history — read-only audit log of received callbacks
-        .route(
-            "/api/integrations/nhcx/callbacks",
-            get(nhcx_callback::list_callbacks),
-        )
         // ── Billing Phase 3 — TDS ───────────────────────
         .route(
             "/api/billing/tds",
@@ -817,30 +805,7 @@ pub fn build_router(state: AppState) -> Router {
         // running in REST mode.
         .merge(medbrains_clinical_offline::router())
         // ── Pharmacy Improvements: Substitution + Counseling + Coverage
-        .route(
-            "/api/pharmacy/substitutions",
-            post(pharmacy_dispense_ops::create_substitution),
-        )
-        .route(
-            "/api/pharmacy/substitutions/item/{item_id}",
-            get(pharmacy_dispense_ops::list_substitutions_for_item),
-        )
-        .route(
-            "/api/pharmacy/counseling",
-            post(pharmacy_dispense_ops::create_counseling),
-        )
-        .route(
-            "/api/pharmacy/counseling/order/{order_id}",
-            get(pharmacy_dispense_ops::list_counseling_for_order),
-        )
-        .route(
-            "/api/pharmacy/coverage-checks",
-            post(pharmacy_dispense_ops::create_coverage_check),
-        )
-        .route(
-            "/api/pharmacy/coverage-checks/order/{order_id}",
-            get(pharmacy_dispense_ops::list_coverage_for_order),
-        )
+        .merge(medbrains_pharmacy_dispense_ops::router())
         // ── Pharmacy Finance: Petty Cash + Float Movements ─
         .route(
             "/api/pharmacy/petty-cash",
@@ -953,19 +918,7 @@ pub fn build_router(state: AppState) -> Router {
         // ── HR & Staff Management ───────────────────────────
         .merge(medbrains_hr::router())
         // ── Payroll ──
-        .route(
-            "/api/hr/payroll/structures",
-            get(payroll::list_salary_structures).post(payroll::upsert_salary_structure),
-        )
-        .route(
-            "/api/hr/payroll/runs",
-            get(payroll::list_payroll_runs).post(payroll::create_payroll_run),
-        )
-        .route(
-            "/api/hr/payroll/runs/{id}/finalize",
-            post(payroll::finalize_payroll_run),
-        )
-        .route("/api/hr/payroll/payslips", get(payroll::list_payslips))
+        .merge(medbrains_payroll::router())
         // ── BME / CMMS ───────────────────────────────────────
         .merge(medbrains_bme::router())
         // ── Unified Assets & Stores ─────────────────────────
@@ -1020,22 +973,7 @@ pub fn build_router(state: AppState) -> Router {
             delete(doctor_packages::remove_inclusion),
         )
         // ── Patient Packages ────────────────────────────────
-        .route(
-            "/api/patient-packages/subscribe",
-            post(patient_packages::subscribe),
-        )
-        .route(
-            "/api/patient-packages/patient/{patient_id}",
-            get(patient_packages::list_for_patient),
-        )
-        .route(
-            "/api/patient-packages/{sub_id}/consume",
-            post(patient_packages::consume),
-        )
-        .route(
-            "/api/patient-packages/{sub_id}/refund",
-            post(patient_packages::refund),
-        )
+        .merge(medbrains_patient_packages::router())
         // ── Doctor Coverage (admin) ─────────────────────────
         .route(
             "/api/admin/coverage",
@@ -1222,18 +1160,6 @@ pub fn build_router(state: AppState) -> Router {
         // Device data ingest (bridge agent calls)
         // Mobile/TV device pairing — admin mints a one-time QR token,
         // device exchanges for JWT + cert fingerprint
-        .route(
-            "/api/admin/device-pairing-tokens",
-            post(device_pairing::mint_pairing_token),
-        )
-        .route(
-            "/api/admin/paired-devices",
-            get(device_pairing::list_paired_devices),
-        )
-        .route(
-            "/api/admin/paired-devices/{id}",
-            delete(device_pairing::revoke_paired_device),
-        )
         // S3 presigned upload / download URL endpoints
         .route("/api/upload/presign", post(upload::presign_upload))
         .route("/api/upload/download-url", get(upload::presign_download))

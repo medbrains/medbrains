@@ -29,15 +29,16 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
+use axum::routing::{get,post,delete};
 use chrono::{DateTime, Duration, Utc};
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use crate::error::AppError;
-use crate::middleware::auth::{Claims, encode_jwt};
-use crate::state::AppState;
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::{Claims, encode_jwt};
+use medbrains_server_core::state::AppState;
 
 const TOKEN_TTL_MINUTES: i64 = 5;
 const DEVICE_JWT_DAYS: i64 = 30;
@@ -429,4 +430,22 @@ fn sha256_hex(input: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(input);
     hex::encode(hasher.finalize())
+}
+
+/// device_pairing routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/device-pairing/pair", post(pair_device))
+        .route(
+            "/api/admin/device-pairing-tokens",
+            post(mint_pairing_token),
+        )
+        .route(
+            "/api/admin/paired-devices",
+            get(list_paired_devices),
+        )
+        .route(
+            "/api/admin/paired-devices/{id}",
+            delete(revoke_paired_device),
+        )
 }
