@@ -4,6 +4,7 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
+use axum::routing::get;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -15,11 +16,10 @@ use medbrains_core::print_data::{
     SurgicalTimeOut, TransfusionMonitoringEntry, TransfusionMonitoringPrintData, TransfusionVitals,
 };
 
-use crate::{
-    error::AppError,
-    middleware::{auth::Claims, authorization::require_permission},
-    state::AppState,
-};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 // ── Case Sheet Cover ─────────────────────────────────────
 
@@ -1079,4 +1079,37 @@ pub async fn get_transfusion_monitoring_print_data(
         action_taken: row.action_taken,
         completed_by: row.completed_by,
     }))
+}
+
+/// surgical print-data routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/print-data/case-sheet-cover/{admission_id}",
+            get(get_case_sheet_cover_print_data),
+        )
+        .route(
+            "/api/print-data/preop-assessment/{admission_id}",
+            get(get_preop_assessment_print_data),
+        )
+        .route(
+            "/api/print-data/surgical-safety-checklist/{surgery_id}",
+            get(get_surgical_safety_checklist_print_data),
+        )
+        .route(
+            "/api/print-data/anesthesia-record/{surgery_id}",
+            get(get_anesthesia_record_print_data),
+        )
+        .route(
+            "/api/print-data/operation-notes/{surgery_id}",
+            get(get_operation_notes_print_data),
+        )
+        .route(
+            "/api/print-data/postop-orders/{surgery_id}",
+            get(get_postop_orders_print_data),
+        )
+        .route(
+            "/api/print-data/transfusion-monitoring/{transfusion_id}",
+            get(get_transfusion_monitoring_print_data),
+        )
 }

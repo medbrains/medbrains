@@ -6,6 +6,7 @@ use axum::{
     Json,
     extract::{Path, State},
 };
+use axum::routing::get;
 use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -17,8 +18,8 @@ use medbrains_core::print_data::{
     TrainingCertificatePrintData, VisitorEntry, VisitorRegisterPrintData,
 };
 
-use crate::error::AppError;
-use crate::state::AppState;
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::state::AppState;
 
 // ── Employee ID Card ──────────────────────────────────────────────────────────
 
@@ -835,4 +836,37 @@ const fn days_in_month(year: i32, month: u32) -> u32 {
         }
         _ => 30,
     }
+}
+
+/// hr print-data routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/print-data/employee-id-card/{employee_id}",
+            get(get_employee_id_card_print_data),
+        )
+        .route(
+            "/api/print-data/duty-roster/{department_id}/{period}",
+            get(get_duty_roster_print_data),
+        )
+        .route(
+            "/api/print-data/leave-application/{leave_id}",
+            get(get_leave_application_print_data),
+        )
+        .route(
+            "/api/print-data/staff-attendance/{department_id}/{month}/{year}",
+            get(get_staff_attendance_print_data),
+        )
+        .route(
+            "/api/print-data/training-certificate/{training_id}",
+            get(get_training_certificate_print_data),
+        )
+        .route(
+            "/api/print-data/staff-credentials/{employee_id}",
+            get(get_staff_credentials_print_data),
+        )
+        .route(
+            "/api/print-data/visitor-register/{date}",
+            get(get_visitor_register_print_data),
+        )
 }

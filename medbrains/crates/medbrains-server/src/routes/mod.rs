@@ -84,12 +84,6 @@ pub mod pharmacy_repeats;
 pub mod pharmacy_safety;
 pub mod print_data;
 pub mod print_data_academic;
-pub mod print_data_bme;
-pub mod print_data_consent;
-pub mod print_data_hr;
-pub mod print_data_medicolegal;
-pub mod print_data_quality;
-pub mod print_data_surgical;
 pub mod reports;
 pub mod security;
 pub mod setup;
@@ -2315,136 +2309,16 @@ pub fn build_router(state: AppState) -> Router {
         // ── Print Data (billing) ──────────────────────────────
         .merge(medbrains_print_data::billing::router())
         // ── Print Data (consent forms) ───────────────────────────
-        .route(
-            "/api/print-data/consent/general/{admission_id}",
-            get(print_data_consent::get_general_consent_print_data),
-        )
-        .route(
-            "/api/print-data/consent/surgical/{booking_id}",
-            get(print_data_consent::get_surgical_consent_print_data),
-        )
-        .route(
-            "/api/print-data/consent/anesthesia/{booking_id}",
-            get(print_data_consent::get_anesthesia_consent_print_data),
-        )
-        .route(
-            "/api/print-data/consent/blood/{admission_id}",
-            get(print_data_consent::get_blood_consent_print_data),
-        )
-        .route(
-            "/api/print-data/consent/hiv/{patient_id}",
-            get(print_data_consent::get_hiv_consent_print_data),
-        )
-        .route(
-            "/api/print-data/consent/ama/{admission_id}",
-            get(print_data_consent::get_ama_consent_print_data),
-        )
-        .route(
-            "/api/print-data/consent/photo/{patient_id}",
-            get(print_data_consent::get_photo_consent_print_data),
-        )
-        .route(
-            "/api/print-data/consent/dnr/{admission_id}",
-            get(print_data_consent::get_dnr_consent_print_data),
-        )
-        .route(
-            "/api/print-data/consent/organ-donation/{patient_id}",
-            get(print_data_consent::get_organ_donation_consent_print_data),
-        )
-        .route(
-            "/api/print-data/consent/research/{enrollment_id}",
-            get(print_data_consent::get_research_consent_print_data),
-        )
-        .route(
-            "/api/print-data/consent/abdm/{patient_id}",
-            get(print_data_consent::get_abdm_consent_print_data),
-        )
-        .route(
-            "/api/print-data/consent/teaching/{admission_id}",
-            get(print_data_consent::get_teaching_consent_print_data),
-        )
+        .merge(medbrains_print_data::consent::router())
         // ── Print Data (MRD forms) ───────────────────────────────
         .merge(medbrains_print_data::mrd::router())
         // ── Print Data (Phase 3: Clinical Charts) ───────────────
         // ── Print Data (Phase 3: Surgical & OT) ─────────────────
-        .route(
-            "/api/print-data/case-sheet-cover/{admission_id}",
-            get(print_data_surgical::get_case_sheet_cover_print_data),
-        )
-        .route(
-            "/api/print-data/preop-assessment/{admission_id}",
-            get(print_data_surgical::get_preop_assessment_print_data),
-        )
-        .route(
-            "/api/print-data/surgical-safety-checklist/{surgery_id}",
-            get(print_data_surgical::get_surgical_safety_checklist_print_data),
-        )
-        .route(
-            "/api/print-data/anesthesia-record/{surgery_id}",
-            get(print_data_surgical::get_anesthesia_record_print_data),
-        )
-        .route(
-            "/api/print-data/operation-notes/{surgery_id}",
-            get(print_data_surgical::get_operation_notes_print_data),
-        )
-        .route(
-            "/api/print-data/postop-orders/{surgery_id}",
-            get(print_data_surgical::get_postop_orders_print_data),
-        )
-        .route(
-            "/api/print-data/transfusion-monitoring/{transfusion_id}",
-            get(print_data_surgical::get_transfusion_monitoring_print_data),
-        )
+        .merge(medbrains_print_data::surgical::router())
         // ── Print Data (Phase 3: Medico-Legal) ──────────────────
-        .route(
-            "/api/print-data/ama-form/{admission_id}",
-            get(print_data_medicolegal::get_ama_form_print_data),
-        )
-        .route(
-            "/api/print-data/mlc-register/{case_id}",
-            get(print_data_medicolegal::get_mlc_register_print_data),
-        )
-        .route(
-            "/api/print-data/mlc-police-intimation/{intimation_id}",
-            get(print_data_medicolegal::get_mlc_police_intimation_print_data),
-        )
-        .route(
-            "/api/print-data/wound-certificate/{case_id}",
-            get(print_data_medicolegal::get_wound_certificate_print_data),
-        )
-        .route(
-            "/api/print-data/age-estimation/{case_id}",
-            get(print_data_medicolegal::get_age_estimation_print_data),
-        )
-        .route(
-            "/api/print-data/death-declaration/{patient_id}",
-            get(print_data_medicolegal::get_death_declaration_print_data),
-        )
-        .route(
-            "/api/print-data/mlc-documentation/{case_id}",
-            get(print_data_medicolegal::get_mlc_documentation_print_data),
-        )
+        .merge(medbrains_print_data::medicolegal::router())
         // ── Print Data (Phase 3: Quality & Safety) ──────────────
-        .route(
-            "/api/print-data/incident-report/{incident_id}",
-            get(print_data_quality::get_incident_report_print_data),
-        )
-        .route(
-            "/api/print-data/rca-template/{incident_id}",
-            get(print_data_quality::get_rca_template_print_data),
-        )
-        .route(
-            "/api/print-data/capa-form/{capa_id}",
-            get(print_data_quality::get_capa_form_print_data),
-        )
-        .route(
-            "/api/print-data/adr-report/{report_id}",
-            get(print_data_quality::get_adr_report_print_data),
-        )
-        .route(
-            "/api/print-data/transfusion-reaction/{reaction_id}",
-            get(print_data_quality::get_transfusion_reaction_print_data),
-        )
+        .merge(medbrains_print_data::quality::router())
         // ── Phase 4: Clinical Delivery Prints ─────────────────────
         // Phase 4 billing prints already registered above (credit-note, package-bill, insurance-claim, tds-certificate)
         // ── Phase 4: Regulatory Prints ─────────────────────────────
@@ -2455,75 +2329,9 @@ pub fn build_router(state: AppState) -> Router {
         // PHASE 5: Admin/HR, BME, Blood Bank, OT, Clinical Forms
         // ══════════════════════════════════════════════════════════
         // ── Phase 5: Admin/HR Forms ───────────────────────────────
-        .route(
-            "/api/print-data/employee-id-card/{employee_id}",
-            get(print_data_hr::get_employee_id_card_print_data),
-        )
-        .route(
-            "/api/print-data/duty-roster/{department_id}/{period}",
-            get(print_data_hr::get_duty_roster_print_data),
-        )
-        .route(
-            "/api/print-data/leave-application/{leave_id}",
-            get(print_data_hr::get_leave_application_print_data),
-        )
-        .route(
-            "/api/print-data/staff-attendance/{department_id}/{month}/{year}",
-            get(print_data_hr::get_staff_attendance_print_data),
-        )
-        .route(
-            "/api/print-data/training-certificate/{training_id}",
-            get(print_data_hr::get_training_certificate_print_data),
-        )
-        .route(
-            "/api/print-data/staff-credentials/{employee_id}",
-            get(print_data_hr::get_staff_credentials_print_data),
-        )
-        .route(
-            "/api/print-data/visitor-register/{date}",
-            get(print_data_hr::get_visitor_register_print_data),
-        )
+        .merge(medbrains_print_data::hr::router())
         // ── Phase 5: BME/Engineering Forms ────────────────────────
-        .route(
-            "/api/print-data/amc-contract/{contract_id}",
-            get(print_data_bme::get_amc_contract_print_data),
-        )
-        .route(
-            "/api/print-data/calibration-certificate/{calibration_id}",
-            get(print_data_bme::get_calibration_certificate_print_data),
-        )
-        .route(
-            "/api/print-data/equipment-breakdown/{breakdown_id}",
-            get(print_data_bme::get_equipment_breakdown_print_data),
-        )
-        .route(
-            "/api/print-data/equipment-history/{equipment_id}",
-            get(print_data_bme::get_equipment_history_print_data),
-        )
-        .route(
-            "/api/print-data/mgps-log/{date}/{shift}",
-            get(print_data_bme::get_mgps_log_print_data),
-        )
-        .route(
-            "/api/print-data/water-quality/{test_id}",
-            get(print_data_bme::get_water_quality_print_data),
-        )
-        .route(
-            "/api/print-data/dg-ups-log/{equipment_id}/{date}",
-            get(print_data_bme::get_dg_ups_log_print_data),
-        )
-        .route(
-            "/api/print-data/fire-inspection/{inspection_id}",
-            get(print_data_bme::get_fire_inspection_print_data),
-        )
-        .route(
-            "/api/print-data/materiovigilance/{report_id}",
-            get(print_data_bme::get_materiovigilance_print_data),
-        )
-        .route(
-            "/api/print-data/fire-mock-drill/{drill_id}",
-            get(print_data_bme::get_fire_mock_drill_print_data),
-        )
+        .merge(medbrains_print_data::bme::router())
         // ── Phase 5: Blood Bank & OT Forms ────────────────────────
         // ── Phase 5: Clinical/Identity Forms ──────────────────────
         // appointment-slip already registered above

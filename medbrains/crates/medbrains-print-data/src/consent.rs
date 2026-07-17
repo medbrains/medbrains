@@ -8,6 +8,7 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
+use axum::routing::get;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -16,11 +17,10 @@ use medbrains_core::print_data::{
     ResearchConsentPrintData, TeachingConsentPrintData,
 };
 
-use crate::{
-    error::AppError,
-    middleware::{auth::Claims, authorization::require_permission},
-    state::AppState,
-};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 // ── Helper row types ─────────────────────────────────────
 
@@ -1088,4 +1088,57 @@ pub async fn get_teaching_consent_print_data(
         can_withdraw_anytime: true,
         language: "en".to_string(),
     }))
+}
+
+/// consent print-data routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/print-data/consent/general/{admission_id}",
+            get(get_general_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/surgical/{booking_id}",
+            get(get_surgical_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/anesthesia/{booking_id}",
+            get(get_anesthesia_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/blood/{admission_id}",
+            get(get_blood_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/hiv/{patient_id}",
+            get(get_hiv_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/ama/{admission_id}",
+            get(get_ama_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/photo/{patient_id}",
+            get(get_photo_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/dnr/{admission_id}",
+            get(get_dnr_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/organ-donation/{patient_id}",
+            get(get_organ_donation_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/research/{enrollment_id}",
+            get(get_research_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/abdm/{patient_id}",
+            get(get_abdm_consent_print_data),
+        )
+        .route(
+            "/api/print-data/consent/teaching/{admission_id}",
+            get(get_teaching_consent_print_data),
+        )
 }

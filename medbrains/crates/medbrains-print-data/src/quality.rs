@@ -4,6 +4,7 @@ use axum::{
     Extension, Json,
     extract::{Path, State},
 };
+use axum::routing::get;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -14,11 +15,10 @@ use medbrains_core::print_data::{
     TransfusionReactionPrintData, TransfusionVitals,
 };
 
-use crate::{
-    error::AppError,
-    middleware::{auth::Claims, authorization::require_permission},
-    state::AppState,
-};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 // ── Incident Report ──────────────────────────────────────
 
@@ -931,4 +931,29 @@ pub async fn get_transfusion_reaction_print_data(
         blood_bank_mo_name: row.blood_bank_mo_name,
         blood_bank_mo_remarks: row.blood_bank_mo_remarks,
     }))
+}
+
+/// quality print-data routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/print-data/incident-report/{incident_id}",
+            get(get_incident_report_print_data),
+        )
+        .route(
+            "/api/print-data/rca-template/{incident_id}",
+            get(get_rca_template_print_data),
+        )
+        .route(
+            "/api/print-data/capa-form/{capa_id}",
+            get(get_capa_form_print_data),
+        )
+        .route(
+            "/api/print-data/adr-report/{report_id}",
+            get(get_adr_report_print_data),
+        )
+        .route(
+            "/api/print-data/transfusion-reaction/{reaction_id}",
+            get(get_transfusion_reaction_print_data),
+        )
 }

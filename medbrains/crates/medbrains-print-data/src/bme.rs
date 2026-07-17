@@ -6,6 +6,7 @@ use axum::{
     Json,
     extract::{Path, State},
 };
+use axum::routing::get;
 use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -21,8 +22,8 @@ use medbrains_core::print_data::{
     MicrobiologicalResult, RunEvent, SprinklerCheck, WaterQualityTestPrintData, WaterTestParameter,
 };
 
-use crate::error::AppError;
-use crate::state::AppState;
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::state::AppState;
 
 // ── AMC Contract Summary ──────────────────────────────────────────────────────
 
@@ -1056,4 +1057,49 @@ async fn get_hospital_info(pool: &PgPool) -> Result<HospitalInfo, AppError> {
             .unwrap_or_else(|| "Hospital".to_string());
 
     Ok(HospitalInfo { name })
+}
+
+/// bme print-data routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/print-data/amc-contract/{contract_id}",
+            get(get_amc_contract_print_data),
+        )
+        .route(
+            "/api/print-data/calibration-certificate/{calibration_id}",
+            get(get_calibration_certificate_print_data),
+        )
+        .route(
+            "/api/print-data/equipment-breakdown/{breakdown_id}",
+            get(get_equipment_breakdown_print_data),
+        )
+        .route(
+            "/api/print-data/equipment-history/{equipment_id}",
+            get(get_equipment_history_print_data),
+        )
+        .route(
+            "/api/print-data/mgps-log/{date}/{shift}",
+            get(get_mgps_log_print_data),
+        )
+        .route(
+            "/api/print-data/water-quality/{test_id}",
+            get(get_water_quality_print_data),
+        )
+        .route(
+            "/api/print-data/dg-ups-log/{equipment_id}/{date}",
+            get(get_dg_ups_log_print_data),
+        )
+        .route(
+            "/api/print-data/fire-inspection/{inspection_id}",
+            get(get_fire_inspection_print_data),
+        )
+        .route(
+            "/api/print-data/materiovigilance/{report_id}",
+            get(get_materiovigilance_print_data),
+        )
+        .route(
+            "/api/print-data/fire-mock-drill/{drill_id}",
+            get(get_fire_mock_drill_print_data),
+        )
 }
