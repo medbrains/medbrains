@@ -1395,6 +1395,7 @@ pub async fn list_revocations(
 }
 
 /// auth routes.
+/// Public auth routes — no JWT/Claims required (mounted OUTSIDE the auth layer).
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/auth/login", post(login))
@@ -1407,6 +1408,12 @@ pub fn router() -> axum::Router<AppState> {
             post(confirm_password_reset),
         )
         .route("/api/auth/refresh", post(refresh_token))
+}
+
+/// Protected auth routes — require `Extension<Claims>` from `auth_middleware`,
+/// so they MUST be mounted inside the authenticated router.
+pub fn protected_router() -> axum::Router<AppState> {
+    axum::Router::new()
         .route("/api/auth/me", get(me))
         .route("/api/auth/logout", post(logout))
         .route("/api/auth/logout-all", post(logout_all))

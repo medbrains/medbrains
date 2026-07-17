@@ -110,7 +110,8 @@ pub fn build_router(state: AppState) -> Router {
 
     // Protected routes (auth required)
     let protected = Router::new()
-        // Auth
+        // Auth — me/logout/change-password/revocations need Extension<Claims>
+        .merge(medbrains_auth::protected_router())
         .merge(medbrains_client_errors::router())
         .route("/api/access/manifest", get(access::get_manifest))
         .merge(medbrains_app_manifest::router())
