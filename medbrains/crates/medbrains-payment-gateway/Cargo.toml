@@ -1,0 +1,25 @@
+[package]
+name = "medbrains-payment-gateway"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[dependencies]
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-workflow = { path = "../medbrains-workflow" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-db = { path = "../medbrains-db" }
+medbrains-outbox = { path = "../medbrains-outbox" }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+rust_decimal = { workspace = true }
+sqlx = { workspace = true }
+tracing = { workspace = true }
+reqwest = { workspace = true }
+sha2 = { workspace = true }
+base64 = { workspace = true }
+hmac = "0.12"
+hex = "0.4"

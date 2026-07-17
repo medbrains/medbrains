@@ -13,10 +13,11 @@ use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use uuid::Uuid;
 
-use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use axum::routing::{get,post,put};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -1155,7 +1156,7 @@ pub async fn verify_payment(
 
     tx.commit().await?;
 
-    let _ = crate::events::emit_event(
+    let _ = medbrains_workflow::events::emit_event(
         &state.db,
         claims.tenant_id,
         claims.sub,
@@ -1951,4 +1952,64 @@ fn mask_key_id(key_id: &str) -> String {
         return key_id.to_owned();
     }
     format!("{}...", &key_id[..12])
+}
+
+/// Payment gateway (orders, POS, refunds, exceptions, provider webhooks) authed routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/payments/create-order",
+            post(create_order),
+        )
+        .route("/api/payments/pos-sale", post(pos_sale))
+        .route(
+            "/api/payments/virtual-account",
+            post(create_virtual_account),
+        )
+        .route(
+            "/api/payments/verify",
+            post(verify_payment),
+        )
+        .route(
+            "/api/payments/{id}/status",
+            get(get_payment_status),
+        )
+        .route(
+            "/api/payments/upi-qr",
+            post(generate_upi_qr),
+        )
+        .route(
+            "/api/payments/refund",
+            post(initiate_refund),
+        )
+        .route(
+            "/api/payments/razorpay/status",
+            get(razorpay_status),
+        )
+        .route(
+            "/api/payments/providers",
+            get(list_payment_providers),
+        )
+        .route(
+            "/api/payments/terminals",
+            get(list_payment_terminals)
+                .post(create_payment_terminal),
+        )
+        .route(
+            "/api/payments/terminals/{id}",
+            put(update_payment_terminal)
+                .delete(delete_payment_terminal),
+        )
+        .route(
+            "/api/payments/recon-summary",
+            get(payment_recon_summary),
+        )
+        .route(
+            "/api/payments/exceptions",
+            get(list_payment_exceptions),
+        )
+        .route(
+            "/api/payments/exceptions/{id}",
+            put(resolve_payment_exception),
+        )
 }

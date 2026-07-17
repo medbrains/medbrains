@@ -35,6 +35,7 @@ medbrains-mrd = { path = "../medbrains-mrd" }
 medbrains-ot = { path = "../medbrains-ot" }
 medbrains-quality = { path = "../medbrains-quality" }
 medbrains-regulatory = { path = "../medbrains-regulatory" }
+medbrains-payment-gateway = { path = "../medbrains-payment-gateway" }
 medbrains-clinical-scores = { path = "../medbrains-clinical-scores" }
 medbrains-clinical-ops = { path = "../medbrains-clinical-ops" }
 medbrains-identity = { path = "../medbrains-identity" }

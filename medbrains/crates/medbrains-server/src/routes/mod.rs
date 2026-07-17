@@ -60,6 +60,8 @@ pub use medbrains_pharmacy as pharmacy;
 pub use medbrains_opd as opd;
 // ai/appointments reach patients helpers via super::patients
 pub use medbrains_patients as patients;
+// payment_gateway webhook routes stay in the no-auth public chain in mod.rs
+pub use medbrains_payment_gateway as payment_gateway;
 // billing/lab/pharmacy/patients/appointments reach token helpers via crate::routes::tokens
 pub use medbrains_tokens as tokens;
 pub mod oauth;
@@ -68,7 +70,6 @@ pub mod orchestration;
 pub mod order_basket;
 pub mod order_sets;
 pub mod patient_packages;
-pub mod payment_gateway;
 pub mod payroll;
 pub mod pharmacy_cash_drawer;
 pub mod pharmacy_dispense_ops;
@@ -1064,11 +1065,7 @@ pub fn build_router(state: AppState) -> Router {
             put(billing::reject_concession),
         )
         // ── Payment Gateway ─────────────────────────────
-        .route(
-            "/api/payments/create-order",
-            post(payment_gateway::create_order),
-        )
-        .route("/api/payments/pos-sale", post(payment_gateway::pos_sale))
+        .merge(medbrains_payment_gateway::router())
         // ── OAuth connect (common token module) ──────────
         .route("/api/oauth/providers", get(oauth::list_oauth_providers))
         .route(
@@ -1079,56 +1076,6 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/oauth/connections/{provider}",
             delete(oauth::oauth_disconnect),
-        )
-        .route(
-            "/api/payments/virtual-account",
-            post(payment_gateway::create_virtual_account),
-        )
-        .route(
-            "/api/payments/verify",
-            post(payment_gateway::verify_payment),
-        )
-        .route(
-            "/api/payments/{id}/status",
-            get(payment_gateway::get_payment_status),
-        )
-        .route(
-            "/api/payments/upi-qr",
-            post(payment_gateway::generate_upi_qr),
-        )
-        .route(
-            "/api/payments/refund",
-            post(payment_gateway::initiate_refund),
-        )
-        .route(
-            "/api/payments/razorpay/status",
-            get(payment_gateway::razorpay_status),
-        )
-        .route(
-            "/api/payments/providers",
-            get(payment_gateway::list_payment_providers),
-        )
-        .route(
-            "/api/payments/terminals",
-            get(payment_gateway::list_payment_terminals)
-                .post(payment_gateway::create_payment_terminal),
-        )
-        .route(
-            "/api/payments/terminals/{id}",
-            put(payment_gateway::update_payment_terminal)
-                .delete(payment_gateway::delete_payment_terminal),
-        )
-        .route(
-            "/api/payments/recon-summary",
-            get(payment_gateway::payment_recon_summary),
-        )
-        .route(
-            "/api/payments/exceptions",
-            get(payment_gateway::list_payment_exceptions),
-        )
-        .route(
-            "/api/payments/exceptions/{id}",
-            put(payment_gateway::resolve_payment_exception),
         )
         // ── Lab ──────────────────────────────────────────
         .merge(medbrains_lab::router())
