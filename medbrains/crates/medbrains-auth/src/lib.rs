@@ -6,6 +6,7 @@ use argon2::{
 };
 use axum::http::HeaderMap;
 use axum::{Extension, Json, extract::State, response::IntoResponse};
+use axum::routing::{get, post};
 use axum_extra::extract::CookieJar;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -13,7 +14,7 @@ use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError,
     middleware::{
         auth::{Claims, encode_jwt},
@@ -276,7 +277,7 @@ pub async fn login(
                 return Ok(Json(serde_json::json!({ "mfa_required": true })).into_response());
             }
             Some(code) => {
-                if !crate::routes::mfa::verify_mfa_code(&state.db, row.id, code).await? {
+                if !medbrains_mfa::verify_mfa_code(&state.db, row.id, code).await? {
                     record_failed_login(&state, row.id, row.tenant_id).await?;
                     return Err(AppError::Unauthorized);
                 }
@@ -795,7 +796,7 @@ pub async fn logout_all(
             return Err(AppError::Forbidden);
         }
         // Force-logging out another user is high-risk → require fresh re-auth.
-        crate::routes::step_up::require_step_up(&state, &jar, &claims)?;
+        medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
     }
 
     let mut tx = state.db.begin().await?;
@@ -838,7 +839,7 @@ pub async fn logout_all(
     // A full session cut-off must sever every channel: revoke the target's VPN
     // devices too (best-effort — a VPN/Headscale hiccup must not fail logout).
     if let Err(e) =
-        crate::routes::vpn::revoke_user_devices(&state, claims.tenant_id, target_user).await
+        medbrains_vpn::revoke_user_devices(&state, claims.tenant_id, target_user).await
     {
         tracing::warn!(error = %e, user = %target_user, "logout-all: VPN device revoke failed");
     }
@@ -924,7 +925,7 @@ pub async fn me(
             .fetch_one(&state.db)
             .await?;
     let mfa_enrollment_required = !mfa_enabled
-        && crate::routes::mfa::mfa_required_for_role(&state.db, row.tenant_id, &row.role).await?;
+        && medbrains_mfa::mfa_required_for_role(&state.db, row.tenant_id, &row.role).await?;
 
     Ok(Json(MeResponse {
         user: UserInfo {
@@ -958,8 +959,8 @@ pub async fn change_password(
     Extension(claims): Extension<Claims>,
     Json(body): Json<ChangePasswordRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let mut errors = crate::validation::ValidationErrors::new();
-    crate::validation::validate_password(&mut errors, "new_password", &body.new_password);
+    let mut errors = medbrains_server_core::validation::ValidationErrors::new();
+    medbrains_server_core::validation::validate_password(&mut errors, "new_password", &body.new_password);
     if errors.has_errors() {
         return Err(AppError::ValidationFailed(errors));
     }
@@ -1391,4 +1392,24 @@ pub async fn list_revocations(
         next_since,
         has_more,
     }))
+}
+
+/// auth routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/auth/login", post(login))
+        .route(
+            "/api/auth/password-reset/request",
+            post(request_password_reset),
+        )
+        .route(
+            "/api/auth/password-reset/confirm",
+            post(confirm_password_reset),
+        )
+        .route("/api/auth/refresh", post(refresh_token))
+        .route("/api/auth/me", get(me))
+        .route("/api/auth/logout", post(logout))
+        .route("/api/auth/logout-all", post(logout_all))
+        .route("/api/auth/change-password", post(change_password))
+        .route("/api/auth/revocations", get(list_revocations))
 }

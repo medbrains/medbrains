@@ -6,7 +6,6 @@ pub mod admin;
 pub mod admin_simulator;
 pub mod appointments;
 pub mod audit;
-pub mod auth;
 pub mod billing;
 pub mod coverage;
 pub mod debug;
@@ -18,7 +17,6 @@ pub mod health;
 pub mod invitations;
 pub mod mail_provisioning;
 pub mod materials;
-pub mod mfa;
 pub use medbrains_server_core::nabh_evidence;
 // scheduling routes moved to the medbrains-scheduling leaf; re-exported so
 // reports.rs (which reuses scheduling helpers) keeps resolving crate::routes::scheduling.
@@ -95,20 +93,12 @@ pub fn build_router(state: AppState) -> Router {
 
     // Rate-limited login route
     let login_route = Router::new()
-        .route("/api/auth/login", post(auth::login))
+        .merge(medbrains_auth::router())
         .layer(from_fn_with_state(login_limiter, rate_limit_middleware));
 
     // Password reset — public, shares the login limiter shape (per-IP)
     let reset_limiter = RateLimiter::new();
     let password_reset_routes = Router::new()
-        .route(
-            "/api/auth/password-reset/request",
-            post(auth::request_password_reset),
-        )
-        .route(
-            "/api/auth/password-reset/confirm",
-            post(auth::confirm_password_reset),
-        )
         .layer(from_fn_with_state(reset_limiter, rate_limit_middleware));
 
     // Public routes (no auth required)
@@ -116,7 +106,6 @@ pub fn build_router(state: AppState) -> Router {
         .merge(login_route)
         .merge(password_reset_routes)
         .route("/api/health", get(health::health_check))
-        .route("/api/auth/refresh", post(auth::refresh_token))
         // Enterprise SSO login flow — pre-auth (no JWT yet).
         .merge(medbrains_sso_login::router())
         // NHCX async-response webhook — gateway authenticates via JWS,
@@ -154,7 +143,6 @@ pub fn build_router(state: AppState) -> Router {
     // Protected routes (auth required)
     let protected = Router::new()
         // Auth
-        .route("/api/auth/me", get(auth::me))
         .merge(medbrains_client_errors::router())
         .route("/api/access/manifest", get(access::get_manifest))
         .route("/api/app/manifest", get(app_manifest::get_app_manifest))
@@ -179,15 +167,9 @@ pub fn build_router(state: AppState) -> Router {
         // ── Sharing API (manual per-resource grants) ─────────
         .merge(medbrains_sharing::router())
         .merge(medbrains_identity::router())
-        .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/step-up", post(step_up::step_up))
-        .route("/api/auth/logout-all", post(auth::logout_all))
-        .route("/api/auth/change-password", post(auth::change_password))
-        .route("/api/auth/mfa/enroll", post(mfa::enroll))
-        .route("/api/auth/mfa/activate", post(mfa::activate))
-        .route("/api/auth/mfa/disable", post(mfa::disable))
+        .merge(medbrains_mfa::router())
         // Phase A.1 — offline JWT revocation feed for mobile/TV/edge
-        .route("/api/auth/revocations", get(auth::list_revocations))
         // Onboarding progress
         // Setup — tenant
         // Setup — generic tenant settings

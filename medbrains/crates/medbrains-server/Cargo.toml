@@ -56,6 +56,8 @@ medbrains-sso-login = { path = "../medbrains-sso-login" }
 medbrains-order-basket = { path = "../medbrains-order-basket" }
 medbrains-onboarding = { path = "../medbrains-onboarding" }
 medbrains-ai = { path = "../medbrains-ai" }
+medbrains-mfa = { path = "../medbrains-mfa" }
+medbrains-auth = { path = "../medbrains-auth" }
 medbrains-ipd-post-discharge = { path = "../medbrains-ipd-post-discharge" }
 medbrains-client-errors = { path = "../medbrains-client-errors" }
 medbrains-vpn = { path = "../medbrains-vpn" }

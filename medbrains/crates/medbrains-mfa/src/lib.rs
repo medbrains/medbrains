@@ -12,12 +12,13 @@
 //! and the frontend blocks the app until enrollment completes.
 
 use axum::{Extension, Json, extract::State};
+use axum::routing::{post};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use totp_rs::{Algorithm, Secret, TOTP};
 use uuid::Uuid;
 
-use crate::{error::AppError, middleware::auth::Claims, state::AppState};
+use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 
 const RECOVERY_CODE_COUNT: usize = 8;
 
@@ -45,7 +46,7 @@ fn hash_recovery_code(code: &str) -> String {
 
 /// Verify a TOTP code or consume a recovery code for `user_id`.
 /// Returns Ok(false) when neither matches.
-pub(crate) async fn verify_mfa_code(
+pub async fn verify_mfa_code(
     db: &sqlx::PgPool,
     user_id: Uuid,
     code: &str,
@@ -86,7 +87,7 @@ pub(crate) async fn verify_mfa_code(
 }
 
 /// Is MFA mandated for this role by tenant policy?
-pub(crate) async fn mfa_required_for_role(
+pub async fn mfa_required_for_role(
     db: &sqlx::PgPool,
     tenant_id: Uuid,
     role: &str,
@@ -250,4 +251,12 @@ pub async fn disable(
     tx.commit().await?;
 
     Ok(Json(serde_json::json!({ "status": "ok" })))
+}
+
+/// mfa routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/auth/mfa/enroll", post(enroll))
+        .route("/api/auth/mfa/activate", post(activate))
+        .route("/api/auth/mfa/disable", post(disable))
 }
