@@ -13,6 +13,7 @@
 //! Read-only for now. Write (POST `Bundle` transaction) is a follow-up
 //! once we add ABDM/NHCX outbound and validation.
 
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Path, State},
@@ -29,10 +30,10 @@ use medbrains_fhir::r4::bundle::{Bundle, BundleEntry, BundleType};
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::error::AppError;
-use crate::middleware::auth::Claims;
-use crate::middleware::authorization::require_permission;
-use crate::state::AppState;
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 use medbrains_core::permissions;
 
 // ── Patient ───────────────────────────────────────────────────────
@@ -273,4 +274,13 @@ pub async fn metadata() -> impl IntoResponse {
 #[allow(dead_code)]
 fn _keep_observation_mapper(o: &ObservationView) {
     let _ = observation_to_fhir(o);
+}
+
+/// FHIR R4 read API routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/fhir/metadata", get(metadata))
+        .route("/api/fhir/Patient/{id}", get(read_patient))
+        .route("/api/fhir/Patient/{id}/$everything", get(patient_everything))
+        .route("/api/fhir/Encounter/{id}", get(read_encounter))
 }

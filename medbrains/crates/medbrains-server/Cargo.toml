@@ -61,6 +61,7 @@ medbrains-auth = { path = "../medbrains-auth" }
 medbrains-payroll = { path = "../medbrains-payroll" }
 medbrains-doctor-packages = { path = "../medbrains-doctor-packages" }
 medbrains-upload = { path = "../medbrains-upload" }
+medbrains-fhir-api = { path = "../medbrains-fhir-api" }
 medbrains-mail-provisioning = { path = "../medbrains-mail-provisioning" }
 medbrains-pharmacy-petty-cash = { path = "../medbrains-pharmacy-petty-cash" }
 medbrains-pharmacy-repeats = { path = "../medbrains-pharmacy-repeats" }

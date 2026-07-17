@@ -8,9 +8,7 @@ pub mod billing;
 pub mod coverage;
 pub mod debug;
 pub mod documents_render;
-pub mod fhir;
 pub mod health;
-pub mod materials;
 pub use medbrains_server_core::nabh_evidence;
 // scheduling routes moved to the medbrains-scheduling leaf; re-exported so
 // reports.rs (which reuses scheduling helpers) keeps resolving crate::routes::scheduling.
@@ -125,10 +123,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_vte::router())
         .merge(medbrains_setup::router())
         // ── FHIR R4 read API (ABDM HIE-CM HIP role + generic interop) ──
-        .route("/api/fhir/metadata", get(fhir::metadata))
-        .route("/api/fhir/Patient/{id}", get(fhir::read_patient))
-        .route("/api/fhir/Patient/{id}/$everything", get(fhir::patient_everything))
-        .route("/api/fhir/Encounter/{id}", get(fhir::read_encounter))
+        .merge(medbrains_fhir_api::router())
         .route("/api/debug/authz-probe", get(health::authz_probe))
         .route(
             "/api/debug/e2e/canonical-fixtures",
@@ -844,12 +839,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_bme::router())
         // ── Unified Assets & Stores ─────────────────────────
         .merge(medbrains_assets::router())
-        .route(
-            "/api/materials/requisitions",
-            get(materials::list_requisitions),
-        )
-        .route("/api/materials/inventory", get(materials::list_inventory))
-        .route("/api/materials/analytics", get(materials::materials_analytics))
+        .merge(medbrains_materials::ops::router())
         .merge(medbrains_lms::router())
         // ── MRD (Medical Records Department) ────────────────────
         .merge(medbrains_mrd::router())

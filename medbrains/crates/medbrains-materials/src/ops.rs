@@ -7,6 +7,7 @@
 //! domain's own endpoints (approve an indent, complete an asset movement);
 //! this is the single worklist that points at them.
 
+use axum::routing::get;
 use axum::{Extension, Json, extract::Query};
 use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
@@ -14,7 +15,7 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError,
     middleware::auth::Claims,
     middleware::authorization::require_any_permission,
@@ -281,4 +282,12 @@ pub async fn materials_analytics(
         open_requisitions: summary.open_requisitions,
         categories,
     }))
+}
+
+/// Materials operational routes (requisitions/inventory/analytics views).
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/materials/requisitions", get(list_requisitions))
+        .route("/api/materials/inventory", get(list_inventory))
+        .route("/api/materials/analytics", get(materials_analytics))
 }

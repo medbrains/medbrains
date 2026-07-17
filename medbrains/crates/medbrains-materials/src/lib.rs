@@ -5,6 +5,7 @@ use medbrains_server_core::state::AppState;
 
 pub mod housekeeping;
 pub mod procurement;
+pub mod ops;
 
 pub fn router() -> Router<AppState> {
     Router::new()
