@@ -38,6 +38,7 @@ members = [
     "crates/medbrains-pharmacy",
     "crates/medbrains-camp",
     "crates/medbrains-opd",
+    "crates/medbrains-ipd",
     "crates/medbrains-clinical-scores",
     "crates/medbrains-clinical-ops",
     "crates/medbrains-identity",

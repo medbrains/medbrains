@@ -28,6 +28,7 @@ medbrains-lab = { path = "../medbrains-lab" }
 medbrains-pharmacy = { path = "../medbrains-pharmacy" }
 medbrains-camp = { path = "../medbrains-camp" }
 medbrains-opd = { path = "../medbrains-opd" }
+medbrains-ipd = { path = "../medbrains-ipd" }
 medbrains-clinical-scores = { path = "../medbrains-clinical-scores" }
 medbrains-clinical-ops = { path = "../medbrains-clinical-ops" }
 medbrains-identity = { path = "../medbrains-identity" }

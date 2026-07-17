@@ -32,7 +32,6 @@ pub mod hr;
 pub mod infra_settings;
 pub mod invitations;
 pub mod mail_provisioning;
-pub mod ipd;
 pub mod ipd_post_discharge;
 pub mod it_security;
 pub mod materials;
@@ -1523,13 +1522,7 @@ pub fn build_router(state: AppState) -> Router {
             put(pharmacy_cash_drawer::close_drawer),
         )
         // ── Nurse Activities: MAR (canonical ipd_medication_administration) ──
-        .route("/api/nurse/mar/due-now", get(ipd::list_mar_due_now))
-        .route("/api/nurse/mar/{id}", put(ipd::update_mar_round))
-        .route("/api/nurse/mar/{id}/verify-barcode", post(ipd::verify_mar_barcode))
-        .route(
-            "/api/nurse/mar/patient/{patient_id}",
-            get(ipd::list_mar_for_patient),
-        )
+        .merge(medbrains_ipd::router())
         .merge(medbrains_nursing::router())
         // ── Clinical offline-mode REST adapters (Phase 7) ─────────────
         // Mirror endpoints for the four CRDT hooks. Same data the edge
@@ -1894,19 +1887,6 @@ pub fn build_router(state: AppState) -> Router {
         )
         // ── IPD Phase 2: Wards, Bed Dashboard, Reports, Templates ─
         // Registered BEFORE /api/ipd/admissions/{id} to avoid path collision
-        .route(
-            "/api/ipd/wards",
-            get(ipd::list_wards).post(ipd::create_ward),
-        )
-        .route(
-            "/api/ipd/wards/{id}",
-            get(ipd::get_ward).put(ipd::update_ward),
-        )
-        .route(
-            "/api/ipd/wards/{id}/beds",
-            get(ipd::list_ward_beds).post(ipd::assign_bed_to_ward),
-        )
-        .route("/api/ipd/wards/{id}/on-duty", get(ipd::ward_on_duty))
         .merge(medbrains_microsite::router())
         .merge(medbrains_specialty::router())
         .merge(medbrains_ancillary::router())
@@ -1936,284 +1916,10 @@ pub fn build_router(state: AppState) -> Router {
             "/api/case-sheets/scans/{id}/commit",
             post(case_sheet_scan::commit_scan),
         )
-        .route(
-            "/api/ipd/wards/{wid}/beds/{mid}",
-            delete(ipd::remove_bed_from_ward),
-        )
-        .route(
-            "/api/ipd/bed-dashboard",
-            get(ipd::bed_dashboard_summary),
-        )
-        .route(
-            "/api/ipd/bed-dashboard/beds",
-            get(ipd::bed_dashboard_beds),
-        )
-        .route(
-            "/api/ipd/bed-dashboard/beds/{bed_id}/status",
-            put(ipd::update_bed_status),
-        )
-        .route(
-            "/api/ipd/discharge-templates",
-            get(ipd::list_discharge_templates).post(ipd::create_discharge_template),
-        )
-        .route(
-            "/api/ipd/reports/census",
-            get(ipd::report_census),
-        )
-        .route(
-            "/api/ipd/reports/occupancy",
-            get(ipd::report_occupancy),
-        )
-        .route(
-            "/api/ipd/reports/alos",
-            get(ipd::report_alos),
-        )
-        .route(
-            "/api/ipd/reports/discharge-stats",
-            get(ipd::report_discharge_stats),
-        )
-        .route(
-            "/api/ipd/beds/available",
-            get(ipd::list_available_beds),
-        )
         // ── IPD Admissions ──────────────────────────────────
-        .route(
-            "/api/ipd/admissions",
-            get(ipd::list_admissions).post(ipd::create_admission),
-        )
-        .route(
-            "/api/ipd/admissions/{id}",
-            get(ipd::get_admission).put(ipd::update_admission),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/transfer",
-            put(ipd::transfer_bed).post(ipd::bed_transfer),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/discharge",
-            put(ipd::discharge_patient),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/tasks",
-            get(ipd::list_nursing_tasks).post(ipd::create_nursing_task),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/tasks/{tid}",
-            put(ipd::update_nursing_task),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/attenders",
-            get(ipd::list_attenders).post(ipd::create_attender),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/attenders/{aid}",
-            delete(ipd::delete_attender),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/discharge-summary",
-            get(ipd::get_discharge_summary)
-                .post(ipd::create_discharge_summary)
-                .put(ipd::update_discharge_summary),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/discharge-summary/finalize",
-            post(ipd::finalize_discharge_summary),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/no-dues-certificate",
-            get(ipd::get_no_dues_certificate).post(ipd::issue_no_dues_certificate),
-        )
         // ── IPD Clinical Expansion ─────────────────────────
-        .route(
-            "/api/ipd/admissions/{id}/progress-notes",
-            get(ipd::list_progress_notes).post(ipd::create_progress_note),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/progress-notes/{note_id}",
-            put(ipd::update_progress_note),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/assessments",
-            get(ipd::list_assessments).post(ipd::create_assessment),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/mar",
-            get(ipd::list_mar).post(ipd::create_mar),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/mar/{mar_id}",
-            put(ipd::update_mar),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/io",
-            get(ipd::list_intake_output).post(ipd::create_intake_output),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/io/balance",
-            get(ipd::get_io_balance),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/infusions",
-            get(ipd::list_infusions).post(ipd::create_infusion),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/infusions/{infusion_id}",
-            put(ipd::update_infusion),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/nursing-assessments",
-            get(ipd::list_nursing_assessments).post(ipd::create_nursing_assessment),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/nursing-assessments/{nid}",
-            put(ipd::update_nursing_assessment),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/care-plans",
-            get(ipd::list_care_plans).post(ipd::create_care_plan),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/care-plans/{cid}",
-            put(ipd::update_care_plan),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/handovers",
-            get(ipd::list_handovers).post(ipd::create_handover),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/handovers/{hid}/acknowledge",
-            put(ipd::acknowledge_handover),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/discharge-checklist",
-            get(ipd::list_discharge_checklist).post(ipd::init_discharge_checklist),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/discharge-checklist/{cid}",
-            put(ipd::update_discharge_checklist_item),
-        )
         // ── IPD Phase 2b: IP Types, Checklists, Reservations, Clinical Docs, etc. ──
-        .route(
-            "/api/ipd/ip-types",
-            get(ipd::list_ip_types).post(ipd::create_ip_type),
-        )
-        .route(
-            "/api/ipd/ip-types/{id}",
-            put(ipd::update_ip_type),
-        )
-        .route(
-            "/api/ipd/bed-reservations",
-            get(ipd::list_bed_reservations).post(ipd::create_bed_reservation),
-        )
-        .route(
-            "/api/ipd/bed-reservations/{id}/status",
-            put(ipd::update_reservation_status),
-        )
-        .route(
-            "/api/ipd/beds/{bed_id}/reservations",
-            get(ipd::list_bed_reservations_for_bed),
-        )
-        .route(
-            "/api/ipd/bed-turnaround",
-            get(ipd::list_bed_turnaround).post(ipd::create_bed_turnaround),
-        )
-        .route(
-            "/api/ipd/bed-turnaround/{id}/complete",
-            post(ipd::complete_bed_turnaround),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/checklist",
-            get(ipd::list_admission_checklist).post(ipd::create_admission_checklist_items),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/checklist/{item_id}",
-            put(ipd::toggle_checklist_item),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/clinical-docs",
-            get(ipd::list_clinical_docs).post(ipd::create_clinical_doc),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/clinical-docs/{doc_id}",
-            put(ipd::update_clinical_doc),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/clinical-docs/{doc_id}/resolve",
-            post(ipd::resolve_clinical_doc),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/restraint-checks/{doc_id}",
-            get(ipd::list_restraint_checks),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/restraint-checks",
-            post(ipd::create_restraint_check),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/transfers",
-            get(ipd::list_transfers).post(ipd::create_transfer),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/death-summary",
-            get(ipd::get_death_summary)
-                .post(ipd::create_death_summary)
-                .put(ipd::update_death_summary),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/birth-records",
-            get(ipd::list_birth_records).post(ipd::create_birth_record),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/birth-records/{rec_id}",
-            put(ipd::update_birth_record),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/discharge-tat",
-            get(ipd::get_discharge_tat)
-                .post(ipd::initiate_discharge_tat)
-                .put(ipd::update_discharge_tat),
-        )
         // ── IPD Phase 3a: Cross-module reads ────────────────
-        .route(
-            "/api/ipd/admissions/{id}/investigations",
-            get(ipd::get_investigations),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/estimated-cost",
-            get(ipd::get_estimated_cost),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/advances",
-            get(ipd::get_admission_advances),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/prior-auth",
-            get(ipd::get_admission_prior_auth),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/mlc",
-            get(ipd::get_admission_mlc).put(ipd::link_mlc),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/billing-summary",
-            get(ipd::get_billing_summary),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/print",
-            get(ipd::get_admission_print_data),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/diet-orders",
-            get(ipd::get_admission_diet_orders),
-        )
-        .route(
-            "/api/ipd/admissions/{id}/consents",
-            get(ipd::get_admission_consents),
-        )
-        .route(
-            "/api/ipd/discharges/expected",
-            get(ipd::expected_discharges),
-        )
         // ── IPD post-discharge workflow (Track 1A.bis.4) ──
         .route(
             "/api/ipd/admissions/{id}/discharge-workflow",
