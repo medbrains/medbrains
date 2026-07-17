@@ -6,6 +6,7 @@
 //! Requires the `vpn.enroll` permission; Headscale URL + API key come from the
 //! secret resolver (VPN is unconfigured → a clear 400, since it's opt-in).
 
+use axum::routing::{get, post};
 use axum::{
     Json,
     extract::{Path, State},
@@ -15,10 +16,10 @@ use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    error::AppError, middleware::auth::Claims,
-    middleware::authorization::require_permission, state::AppState,
-};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 const HEADSCALE_URL_KEY: &str = "MEDBRAINS_HEADSCALE_URL";
 const HEADSCALE_API_KEY: &str = "MEDBRAINS_HEADSCALE_API_KEY";
@@ -113,7 +114,7 @@ pub async fn enroll(
     require_permission(&claims, "vpn.enroll")?;
     // Enrolling a device grants it network access to the HIMS — high-risk, so
     // require a fresh re-auth (the client prompts + retries automatically).
-    crate::routes::step_up::require_step_up(&state, &jar, &claims)?;
+    medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
     let (url, api_key) = headscale_config(&state).await?;
     let (auth_key, expires_at) = mint_preauth_key(&url, &api_key, claims.tenant_id).await?;
 
@@ -253,4 +254,12 @@ pub async fn revoke_user_devices(
         }
     }
     Ok(())
+}
+
+/// VPN platform (device enroll/status/revoke) routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/vpn/enroll", post(enroll))
+        .route("/api/vpn/status", get(status))
+        .route("/api/vpn/devices/{id}/revoke", post(revoke))
 }

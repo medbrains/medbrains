@@ -65,6 +65,7 @@ pub use medbrains_opd as opd;
 pub use medbrains_patients as patients;
 // payment_gateway webhook routes stay in the no-auth public chain in mod.rs
 pub use medbrains_payment_gateway as payment_gateway;
+pub use medbrains_vpn as vpn;
 // billing/lab/pharmacy/patients/appointments reach token helpers via crate::routes::tokens
 pub use medbrains_tokens as tokens;
 pub mod oauth;
@@ -90,7 +91,6 @@ pub mod setup;
 pub mod sso_login;
 
 pub mod case_sheet_scan;
-pub mod vpn;
 pub mod ward_stock;
 pub mod sharing;
 
@@ -1413,9 +1413,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/ai/chat", post(ai::chat))
         .route("/api/ai/whispers", get(ai::whispers))
         // ── VPN platform — device enrollment (RFC-VPN-PLATFORM) ─
-        .route("/api/vpn/enroll", post(vpn::enroll))
-        .route("/api/vpn/status", get(vpn::status))
-        .route("/api/vpn/devices/{id}/revoke", post(vpn::revoke))
+        .merge(medbrains_vpn::router())
         .route("/api/ai/conversations", get(ai::list_conversations))
         .route(
             "/api/ai/conversations/{id}/messages",
