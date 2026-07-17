@@ -50,6 +50,8 @@ medbrains-pharmacy-payments = { path = "../medbrains-pharmacy-payments" }
 medbrains-pharmacy-free-dispensing = { path = "../medbrains-pharmacy-free-dispensing" }
 medbrains-clinical-offline = { path = "../medbrains-clinical-offline" }
 medbrains-infra-settings = { path = "../medbrains-infra-settings" }
+medbrains-sharing = { path = "../medbrains-sharing" }
+medbrains-client-errors = { path = "../medbrains-client-errors" }
 medbrains-vpn = { path = "../medbrains-vpn" }
 medbrains-hr = { path = "../medbrains-hr" }
 medbrains-setup = { path = "../medbrains-setup" }

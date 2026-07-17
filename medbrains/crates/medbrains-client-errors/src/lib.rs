@@ -1,9 +1,10 @@
 use axum::{Extension, Json};
+use axum::routing::{post};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use crate::{error::AppError, middleware::auth::Claims};
+use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 
 #[derive(Debug, Deserialize)]
 pub struct ClientErrorReportRequest {
@@ -380,4 +381,10 @@ fn build_fingerprint(
 
 fn truncate(value: &str, max_chars: usize) -> String {
     value.chars().take(max_chars).collect()
+}
+
+/// client_errors routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/client-errors/report", post(report_client_error))
 }

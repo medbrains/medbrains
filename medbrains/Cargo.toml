@@ -60,6 +60,8 @@ members = [
     "crates/medbrains-pharmacy-free-dispensing",
     "crates/medbrains-clinical-offline",
     "crates/medbrains-infra-settings",
+    "crates/medbrains-sharing",
+    "crates/medbrains-client-errors",
     "crates/medbrains-vpn",
     "crates/medbrains-hr",
     "crates/medbrains-setup",

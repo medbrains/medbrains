@@ -10,7 +10,6 @@ pub mod audit;
 pub mod auth;
 pub mod billing;
 pub mod catalog_import;
-pub mod client_errors;
 pub mod coverage;
 pub mod debug;
 pub mod device_pairing;
@@ -71,7 +70,6 @@ pub mod sso_login;
 
 pub mod case_sheet_scan;
 pub mod ward_stock;
-pub mod sharing;
 
 pub mod upload;
 pub mod ws;
@@ -180,7 +178,7 @@ pub fn build_router(state: AppState) -> Router {
             "/api/auth/resend-verification",
             post(email_verification::resend),
         )
-        .route("/api/client-errors/report", post(client_errors::report_client_error))
+        .merge(medbrains_client_errors::router())
         .route("/api/access/manifest", get(access::get_manifest))
         .route("/api/app/manifest", get(app_manifest::get_app_manifest))
         .merge(medbrains_clinical_scores::router())
@@ -202,14 +200,7 @@ pub fn build_router(state: AppState) -> Router {
             post(debug::seed_canonical_fixtures),
         )
         // ── Sharing API (manual per-resource grants) ─────────
-        .route("/api/sharing/subjects", get(sharing::list_subjects))
-        .route(
-            "/api/sharing/grants",
-            post(sharing::create_grant)
-                .delete(sharing::revoke_grant)
-                .get(sharing::list_grants),
-        )
-        .route("/api/sharing/granted-to-me", get(sharing::list_granted_to_me))
+        .merge(medbrains_sharing::router())
         .merge(medbrains_identity::router())
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/step-up", post(step_up::step_up))

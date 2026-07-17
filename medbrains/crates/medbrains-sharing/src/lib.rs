@@ -19,6 +19,7 @@
 //! need to log the relation_type / relation_expires_at fields.
 
 use axum::{Extension, Json, extract::State};
+use axum::routing::{get,post};
 use chrono::{DateTime, Utc};
 use medbrains_authz::{Relation, Subject};
 use medbrains_core::{
@@ -29,7 +30,7 @@ use medbrains_core::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError,
     middleware::{
         auth::Claims,
@@ -234,7 +235,7 @@ pub async fn create_grant(
             }),
         )
         .with_patient(body.object_id);
-        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
         tx.commit().await?;
     }
 
@@ -412,4 +413,17 @@ pub async fn list_granted_to_me(
     let _ = ROLE_POLICIES;
 
     Ok(Json(out))
+}
+
+/// sharing routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/sharing/subjects", get(list_subjects))
+        .route(
+            "/api/sharing/grants",
+            post(create_grant)
+                .delete(revoke_grant)
+                .get(list_grants),
+        )
+        .route("/api/sharing/granted-to-me", get(list_granted_to_me))
 }
