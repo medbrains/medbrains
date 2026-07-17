@@ -7,11 +7,9 @@ pub mod admin_simulator;
 pub mod ai;
 pub mod analytics;
 pub mod appointments;
-pub mod assets;
 pub mod audit;
 pub mod auth;
 pub mod billing;
-pub mod bme;
 pub mod catalog_import;
 pub mod client_errors;
 pub mod clinical_offline;
@@ -31,7 +29,6 @@ pub mod infra_settings;
 pub mod invitations;
 pub mod mail_provisioning;
 pub mod ipd_post_discharge;
-pub mod it_security;
 pub mod materials;
 pub mod mfa;
 pub use medbrains_server_core::nabh_evidence;
@@ -102,7 +99,7 @@ pub mod ws;
 use axum::{
     Router,
     middleware::{from_fn, from_fn_with_state},
-    routing::{delete, get, patch, post, put},
+    routing::{delete, get, post, put},
 };
 
 use crate::{
@@ -1286,114 +1283,15 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route("/api/hr/payroll/payslips", get(payroll::list_payslips))
         // ── BME / CMMS ───────────────────────────────────────
-        .route(
-            "/api/bme/equipment",
-            get(bme::list_equipment).post(bme::create_equipment),
-        )
-        .route(
-            "/api/bme/equipment/{id}",
-            get(bme::get_equipment).put(bme::update_equipment),
-        )
-        .route(
-            "/api/bme/pm-schedules",
-            get(bme::list_pm_schedules).post(bme::create_pm_schedule),
-        )
-        .route(
-            "/api/bme/pm-schedules/{id}",
-            put(bme::update_pm_schedule),
-        )
-        .route(
-            "/api/bme/work-orders",
-            get(bme::list_work_orders).post(bme::create_work_order),
-        )
-        .route(
-            "/api/bme/work-orders/{id}",
-            get(bme::get_work_order),
-        )
-        .route(
-            "/api/bme/work-orders/{id}/status",
-            put(bme::update_work_order_status),
-        )
-        .route(
-            "/api/bme/calibrations",
-            get(bme::list_calibrations).post(bme::create_calibration),
-        )
+        .merge(medbrains_bme::router())
         // ── Unified Assets & Stores ─────────────────────────
-        .route("/api/assets", get(assets::list_assets))
-        .route(
-            "/api/assets/categories",
-            get(assets::list_asset_categories).post(assets::create_asset_category),
-        )
-        .route(
-            "/api/assets/categories/{id}",
-            put(assets::update_asset_category),
-        )
-        .route(
-            "/api/assets/store-categories",
-            get(assets::list_store_categories).post(assets::create_store_category),
-        )
-        .route(
-            "/api/assets/store-categories/{id}",
-            put(assets::update_store_category),
-        )
-        .route(
-            "/api/assets/classifications",
-            post(assets::upsert_asset_classification),
-        )
+        .merge(medbrains_assets::router())
         .route(
             "/api/materials/requisitions",
             get(materials::list_requisitions),
         )
         .route("/api/materials/inventory", get(materials::list_inventory))
         .route("/api/materials/analytics", get(materials::materials_analytics))
-        .route(
-            "/api/assets/movements",
-            get(assets::list_asset_movements).post(assets::create_asset_movement),
-        )
-        .route(
-            "/api/assets/movements/{id}/complete",
-            put(assets::complete_asset_movement),
-        )
-        .route(
-            "/api/assets/movements/{id}/reject",
-            put(assets::reject_asset_movement),
-        )
-        .route(
-            "/api/bme/calibrations/{id}",
-            put(bme::update_calibration),
-        )
-        .route(
-            "/api/bme/contracts",
-            get(bme::list_contracts).post(bme::create_contract),
-        )
-        .route(
-            "/api/bme/contracts/{id}",
-            put(bme::update_contract),
-        )
-        .route(
-            "/api/bme/breakdowns",
-            get(bme::list_breakdowns).post(bme::create_breakdown),
-        )
-        .route(
-            "/api/bme/breakdowns/{id}/status",
-            put(bme::update_breakdown_status),
-        )
-        .route(
-            "/api/bme/vendor-evaluations",
-            get(bme::list_vendor_evaluations).post(bme::create_vendor_evaluation),
-        )
-        .route(
-            "/api/bme/stats",
-            get(bme::get_bme_stats),
-        )
-        .route(
-            "/api/bme/analytics/mtbf",
-            get(bme::get_mtbf_analytics),
-        )
-        .route(
-            "/api/bme/analytics/uptime",
-            get(bme::get_uptime_analytics),
-        )
         .merge(medbrains_lms::router())
         // ── MRD (Medical Records Department) ────────────────────
         .merge(medbrains_mrd::router())
@@ -1438,26 +1336,6 @@ pub fn build_router(state: AppState) -> Router {
         )
         // ── Camp Management ───────────────────────────────────
         .merge(medbrains_camp::router())
-        .route(
-            "/api/camp/camps/{camp_id}/asset-candidates",
-            get(assets::list_camp_asset_candidates),
-        )
-        .route(
-            "/api/camp/camps/{camp_id}/asset-reservations",
-            get(assets::list_camp_asset_reservations).post(assets::create_camp_asset_reservation),
-        )
-        .route(
-            "/api/camp/asset-reservations/{id}/issue",
-            put(assets::issue_camp_asset_reservation),
-        )
-        .route(
-            "/api/camp/asset-reservations/{id}/return",
-            put(assets::return_camp_asset_reservation),
-        )
-        .route(
-            "/api/camp/asset-reservations/{id}/cancel",
-            put(assets::cancel_camp_asset_reservation),
-        )
         .merge(medbrains_ambulance::router())
         .merge(medbrains_care_mgmt::router())
         // ── Communication Hub ─────────────────────────────────
@@ -2392,61 +2270,17 @@ pub fn build_router(state: AppState) -> Router {
             get(audit::entity_timeline),
         )
         // ── IT Security: Break-Glass ─────────────────────────────────
-        .route("/api/break-glass", post(it_security::start_break_glass).get(it_security::list_break_glass))
-        .route("/api/break-glass/{id}", get(it_security::get_break_glass))
-        .route("/api/break-glass/{id}/end", post(it_security::end_break_glass))
-        .route("/api/break-glass/{id}/review", post(it_security::review_break_glass))
+        .merge(medbrains_it_security::router())
         // ── IT Security: Clinical Access Monitor ─────────────────────
-        .route("/api/sensitive-patients", get(it_security::list_sensitive_patients).post(it_security::create_sensitive_patient))
-        .route("/api/sensitive-patients/{id}", delete(it_security::delete_sensitive_patient))
-        .route("/api/access-alerts", get(it_security::list_access_alerts))
-        .route("/api/access-alerts/{id}/acknowledge", post(it_security::acknowledge_access_alert))
         // ── IT Security: Stock Disposal ──────────────────────────────
-        .route("/api/disposals", get(it_security::list_disposals).post(it_security::create_disposal))
-        .route("/api/disposals/{id}", get(it_security::get_disposal))
-        .route("/api/disposals/{id}/items", get(it_security::get_disposal_items))
-        .route("/api/disposals/{id}/approve", post(it_security::approve_disposal))
-        .route("/api/disposals/{id}/execute", post(it_security::execute_disposal))
         // ── IT Security: TAT Tracking ────────────────────────────────
-        .route("/api/tat/benchmarks", get(it_security::list_tat_benchmarks).post(it_security::create_tat_benchmark))
-        .route("/api/tat/records", get(it_security::list_tat_records).post(it_security::start_tat_record))
-        .route("/api/tat/records/{id}/complete", post(it_security::complete_tat_record))
-        .route("/api/tat/dashboard", get(it_security::tat_dashboard))
         // ── IT Security: Data Migration ──────────────────────────────
-        .route("/api/migrations", get(it_security::list_migrations).post(it_security::create_migration))
-        .route("/api/migrations/{id}", get(it_security::get_migration))
-        .route("/api/migrations/{id}/cancel", post(it_security::cancel_migration))
         // ── IT Security: EOD Digest ──────────────────────────────────
-        .route("/api/digest/subscription", get(it_security::get_my_digest_subscription).post(it_security::upsert_digest_subscription))
-        .route("/api/digest/history", get(it_security::list_digest_history))
         // ── IT Security: Data Quality ────────────────────────────────
-        .route("/api/data-quality/rules", get(it_security::list_dq_rules).post(it_security::create_dq_rule))
-        .route("/api/data-quality/issues", get(it_security::list_dq_issues))
-        .route("/api/data-quality/issues/{id}/resolve", post(it_security::resolve_dq_issue))
-        .route("/api/data-quality/dashboard", get(it_security::dq_dashboard))
         // ── IT Security: CERT-In Compliance ──────────────────────────
-        .route("/api/security-incidents", get(it_security::list_security_incidents).post(it_security::create_security_incident))
-        .route("/api/security-incidents/{id}", get(it_security::get_security_incident).patch(it_security::update_security_incident))
-        .route("/api/security-incidents/{id}/cert-in", post(it_security::report_to_cert_in))
-        .route("/api/security-incidents/{id}/updates", get(it_security::get_incident_updates).post(it_security::add_incident_update))
-        .route("/api/vulnerabilities", get(it_security::list_vulnerabilities).post(it_security::create_vulnerability))
-        .route("/api/vulnerabilities/{id}", patch(it_security::update_vulnerability))
-        .route("/api/compliance-requirements", get(it_security::list_compliance_requirements))
-        .route("/api/compliance-requirements/{id}", patch(it_security::update_compliance_requirement))
         // ── IT Security: System Health & Monitoring ──────────────────
-        .route("/api/system-health", get(it_security::system_health_dashboard))
-        .route("/api/backups", get(it_security::list_backups))
         // ── IT Security: Onboarding Wizard ───────────────────────────
-        .route("/api/it-onboarding/progress", get(it_security::get_onboarding_progress).post(it_security::update_onboarding_progress))
-        .route("/api/it-onboarding/complete-step", post(it_security::complete_onboarding_step))
-        .route("/api/it-onboarding/complete", post(it_security::complete_onboarding))
         // ── IT Security: Incentive Configuration ─────────────────────
-        .route("/api/incentive-plans", get(it_security::list_incentive_plans).post(it_security::create_incentive_plan))
-        .route("/api/incentive-plans/{id}/rules", get(it_security::get_incentive_plan_rules).post(it_security::add_incentive_rule))
-        .route("/api/incentive-assignments", get(it_security::list_doctor_incentive_assignments).post(it_security::assign_incentive_plan))
-        .route("/api/incentive-calculations", get(it_security::list_incentive_calculations).post(it_security::calculate_incentive))
-        .route("/api/incentive-calculations/{id}/approve", post(it_security::approve_incentive))
-        .route("/api/incentive-calculations/{id}/paid", post(it_security::mark_incentive_paid))
         // ── Device Integration ───────────────────────────────────────
         // Adapter catalog (global knowledge base)
         .route("/api/devices/manufacturers", get(devices::list_manufacturers))

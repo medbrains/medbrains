@@ -4,6 +4,7 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use axum::routing::{get,put};
 use chrono::NaiveDate;
 use medbrains_core::bme::{
     BmeBreakdown, BmeCalibration, BmeContract, BmeEquipment, BmePmSchedule, BmeVendorEvaluation,
@@ -15,10 +16,10 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 async fn queue_bme_downtime_event(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -43,7 +44,7 @@ async fn queue_bme_downtime_event(
     if let Some(department_id) = row.department_id {
         event = event.with_department(department_id);
     }
-    crate::events::queue_clinical_event_in_tx(tx, &event)
+    medbrains_workflow::events::queue_clinical_event_in_tx(tx, &event)
         .await
         .map(|_| ())
 }
@@ -776,7 +777,7 @@ pub async fn create_work_order(
     .await?;
 
     if let Some(breakdown_id) = row.breakdown_id {
-        crate::routes::nabh_evidence::mirror_bme_breakdown(&mut tx, claims.tenant_id, breakdown_id)
+        medbrains_server_core::nabh_evidence::mirror_bme_breakdown(&mut tx, claims.tenant_id, breakdown_id)
             .await?;
     }
 
@@ -1221,7 +1222,7 @@ pub async fn create_breakdown(
     .fetch_one(&mut *tx)
     .await?;
 
-    crate::routes::nabh_evidence::mirror_bme_breakdown(&mut tx, claims.tenant_id, row.id).await?;
+    medbrains_server_core::nabh_evidence::mirror_bme_breakdown(&mut tx, claims.tenant_id, row.id).await?;
     queue_bme_downtime_event(&mut tx, &claims, &row).await?;
 
     tx.commit().await?;
@@ -1278,7 +1279,7 @@ pub async fn update_breakdown_status(
     .fetch_one(&mut *tx)
     .await?;
 
-    crate::routes::nabh_evidence::mirror_bme_breakdown(&mut tx, claims.tenant_id, row.id).await?;
+    medbrains_server_core::nabh_evidence::mirror_bme_breakdown(&mut tx, claims.tenant_id, row.id).await?;
     queue_bme_downtime_event(&mut tx, &claims, &row).await?;
 
     tx.commit().await?;
@@ -1512,4 +1513,77 @@ pub async fn get_uptime_analytics(
 
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+/// Biomedical engineering / CMMS routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/bme/equipment",
+            get(list_equipment).post(create_equipment),
+        )
+        .route(
+            "/api/bme/equipment/{id}",
+            get(get_equipment).put(update_equipment),
+        )
+        .route(
+            "/api/bme/pm-schedules",
+            get(list_pm_schedules).post(create_pm_schedule),
+        )
+        .route(
+            "/api/bme/pm-schedules/{id}",
+            put(update_pm_schedule),
+        )
+        .route(
+            "/api/bme/work-orders",
+            get(list_work_orders).post(create_work_order),
+        )
+        .route(
+            "/api/bme/work-orders/{id}",
+            get(get_work_order),
+        )
+        .route(
+            "/api/bme/work-orders/{id}/status",
+            put(update_work_order_status),
+        )
+        .route(
+            "/api/bme/calibrations",
+            get(list_calibrations).post(create_calibration),
+        )
+        .route(
+            "/api/bme/calibrations/{id}",
+            put(update_calibration),
+        )
+        .route(
+            "/api/bme/contracts",
+            get(list_contracts).post(create_contract),
+        )
+        .route(
+            "/api/bme/contracts/{id}",
+            put(update_contract),
+        )
+        .route(
+            "/api/bme/breakdowns",
+            get(list_breakdowns).post(create_breakdown),
+        )
+        .route(
+            "/api/bme/breakdowns/{id}/status",
+            put(update_breakdown_status),
+        )
+        .route(
+            "/api/bme/vendor-evaluations",
+            get(list_vendor_evaluations).post(create_vendor_evaluation),
+        )
+        .route(
+            "/api/bme/stats",
+            get(get_bme_stats),
+        )
+        .route(
+            "/api/bme/analytics/mtbf",
+            get(get_mtbf_analytics),
+        )
+        .route(
+            "/api/bme/analytics/uptime",
+            get(get_uptime_analytics),
+        )
 }

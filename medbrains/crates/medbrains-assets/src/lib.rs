@@ -2,18 +2,17 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use axum::routing::{get,post,put};
 use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{
-    error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::{require_any_permission, require_permission},
-    state::AppState,
-};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::{require_any_permission, require_permission};
+use medbrains_server_core::state::AppState;
 
 #[derive(Debug, Deserialize)]
 pub struct ListAssetsQuery {
@@ -1591,4 +1590,62 @@ pub async fn reject_asset_movement(
 
     tx.commit().await?;
     Ok(Json(row))
+}
+
+/// Asset management routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/assets", get(list_assets))
+        .route(
+            "/api/assets/categories",
+            get(list_asset_categories).post(create_asset_category),
+        )
+        .route(
+            "/api/assets/categories/{id}",
+            put(update_asset_category),
+        )
+        .route(
+            "/api/assets/store-categories",
+            get(list_store_categories).post(create_store_category),
+        )
+        .route(
+            "/api/assets/store-categories/{id}",
+            put(update_store_category),
+        )
+        .route(
+            "/api/assets/classifications",
+            post(upsert_asset_classification),
+        )
+        .route(
+            "/api/assets/movements",
+            get(list_asset_movements).post(create_asset_movement),
+        )
+        .route(
+            "/api/assets/movements/{id}/complete",
+            put(complete_asset_movement),
+        )
+        .route(
+            "/api/assets/movements/{id}/reject",
+            put(reject_asset_movement),
+        )
+        .route(
+            "/api/camp/camps/{camp_id}/asset-candidates",
+            get(list_camp_asset_candidates),
+        )
+        .route(
+            "/api/camp/camps/{camp_id}/asset-reservations",
+            get(list_camp_asset_reservations).post(create_camp_asset_reservation),
+        )
+        .route(
+            "/api/camp/asset-reservations/{id}/issue",
+            put(issue_camp_asset_reservation),
+        )
+        .route(
+            "/api/camp/asset-reservations/{id}/return",
+            put(return_camp_asset_reservation),
+        )
+        .route(
+            "/api/camp/asset-reservations/{id}/cancel",
+            put(cancel_camp_asset_reservation),
+        )
 }
