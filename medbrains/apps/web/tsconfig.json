@@ -6,11 +6,10 @@
     "declarationMap": false,
     "sourceMap": true,
     "noEmit": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
     "useDefineForClassFields": true,
     "allowImportingTsExtensions": true,
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
       "@medbrains/design-system": ["../../packages/design-system/src/index.ts"],
@@ -21,6 +20,8 @@
   "exclude": [
     "src/**/*.stories.ts",
     "src/**/*.stories.tsx",
-    "src/**/*.stories.mdx"
+    "src/**/*.stories.mdx",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
   ]
 }

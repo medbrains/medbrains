@@ -9,7 +9,6 @@
     "lib": ["ES2022", "DOM"],
     "jsx": "react-native",
     "types": ["react-native"],
-    "baseUrl": ".",
     "paths": {
       "@medbrains/types": ["../../packages/types/src"],
       "@medbrains/utils": ["../../packages/utils/src"],

@@ -9,7 +9,6 @@
     "lib": ["ES2022", "DOM"],
     "jsx": "react-native",
     "types": ["react-native"],
-    "baseUrl": ".",
     "paths": {
       "@medbrains/api": ["../../packages/api/src"],
       "@medbrains/mobile-shell": ["../../packages/mobile-shell/src"],

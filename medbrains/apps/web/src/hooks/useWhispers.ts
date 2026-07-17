@@ -1,6 +1,6 @@
 import { api } from "@medbrains/api";
 import { useEffectOnce } from "react-use";
-import { useAiAssistantStore } from "@/components/ai";
+import { useAiAssistantStore } from "@/components/ai/assistant-store";
 import {
   CODE_KINDS,
   useLiveActivityStore,
