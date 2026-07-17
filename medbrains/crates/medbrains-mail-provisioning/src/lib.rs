@@ -12,10 +12,11 @@
 //! `/api/dns/records/{domain}`); a Stalwart error is surfaced verbatim so a
 //! version/path mismatch is obvious rather than silent.
 
+use axum::routing::{post};
 use axum::{Extension, Json, extract::State};
 use serde::{Deserialize, Serialize};
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims,
     middleware::authorization::require_permission, state::AppState,
 };
@@ -229,3 +230,16 @@ fn parse_dns_records(value: &serde_json::Value) -> Vec<DnsRecord> {
         .collect()
 }
 
+
+/// mail_provisioning routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/admin/mail/provision-domain",
+            post(provision_domain),
+        )
+        .route(
+            "/api/admin/mail/mailboxes",
+            post(create_mailbox),
+        )
+}

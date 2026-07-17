@@ -4,6 +4,7 @@
 //!
 //! Per RFCs/sprints/SPRINT-pharmacy-improvements.md item #4.
 
+use axum::routing::{get};
 use axum::{
     Extension, Json,
     extract::{Path, State},
@@ -13,7 +14,7 @@ use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -209,4 +210,18 @@ pub async fn list_repeats_for_rx(
 
     tx.commit().await?;
     Ok(Json(rows))
+}
+
+/// pharmacy_repeats routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/pharmacy/prescriptions/{prescription_id}/repeat-eligibility",
+            get(check_eligibility),
+        )
+        .route(
+            "/api/pharmacy/prescriptions/{prescription_id}/repeats",
+            get(list_repeats_for_rx)
+                .post(dispense_repeat),
+        )
 }

@@ -7,6 +7,7 @@
 //! variant + location. A **user-login app** (mobile/desktop) passes its build's `variant` code →
 //! location from the user's primary department. Everything is tenant-scoped from the caller's JWT.
 
+use axum::routing::{get};
 use axum::{
     Extension, Json,
     extract::{Query, State},
@@ -14,7 +15,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{error::AppError, middleware::auth::Claims, state::AppState};
+use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 
 #[derive(Debug, Deserialize)]
 pub struct ManifestQuery {
@@ -182,4 +183,10 @@ pub async fn get_app_manifest(
         station: None,
         config: serde_json::json!({}),
     }))
+}
+
+/// app_manifest routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/app/manifest", get(get_app_manifest))
 }

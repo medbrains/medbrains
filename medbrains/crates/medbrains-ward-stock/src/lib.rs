@@ -2,16 +2,17 @@
 //! up to par (replenish, decrementing the pharmacy_catalog aggregate); nurses consume against
 //! ward stock. Powers the inpatient ward-stock workflow (hospital editions).
 
+use axum::routing::{get,post};
 use axum::Json;
 use axum::extract::{Extension, Query, State};
 use medbrains_core::permissions;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::error::AppError;
-use crate::middleware::auth::Claims;
-use crate::middleware::authorization::require_permission;
-use crate::state::AppState;
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 #[derive(Debug, serde::Serialize, sqlx::FromRow)]
 pub struct WardStockRow {
@@ -200,4 +201,22 @@ pub async fn consume_ward_stock(
     };
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "remaining": remaining })))
+}
+
+/// ward_stock routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/pharmacy/ward-stock",
+            get(list_ward_stock),
+        )
+        .route("/api/pharmacy/ward-stock/par", post(set_ward_par))
+        .route(
+            "/api/pharmacy/ward-stock/replenish",
+            post(replenish_ward),
+        )
+        .route(
+            "/api/pharmacy/ward-stock/consume",
+            post(consume_ward_stock),
+        )
 }

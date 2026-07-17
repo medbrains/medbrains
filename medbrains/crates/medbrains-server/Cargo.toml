@@ -60,6 +60,12 @@ medbrains-mfa = { path = "../medbrains-mfa" }
 medbrains-auth = { path = "../medbrains-auth" }
 medbrains-payroll = { path = "../medbrains-payroll" }
 medbrains-doctor-packages = { path = "../medbrains-doctor-packages" }
+medbrains-upload = { path = "../medbrains-upload" }
+medbrains-mail-provisioning = { path = "../medbrains-mail-provisioning" }
+medbrains-pharmacy-petty-cash = { path = "../medbrains-pharmacy-petty-cash" }
+medbrains-pharmacy-repeats = { path = "../medbrains-pharmacy-repeats" }
+medbrains-ward-stock = { path = "../medbrains-ward-stock" }
+medbrains-app-manifest = { path = "../medbrains-app-manifest" }
 medbrains-invitations = { path = "../medbrains-invitations" }
 medbrains-news = { path = "../medbrains-news" }
 medbrains-vte = { path = "../medbrains-vte" }

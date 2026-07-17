@@ -1,6 +1,5 @@
 pub mod abdm;
 pub mod access;
-pub mod app_manifest;
 pub mod admin;
 pub mod admin_simulator;
 pub mod appointments;
@@ -11,7 +10,6 @@ pub mod debug;
 pub mod documents_render;
 pub mod fhir;
 pub mod health;
-pub mod mail_provisioning;
 pub mod materials;
 pub use medbrains_server_core::nabh_evidence;
 // scheduling routes moved to the medbrains-scheduling leaf; re-exported so
@@ -46,13 +44,9 @@ pub use medbrains_setup as setup;
 pub use medbrains_tokens as tokens;
 pub mod oauth;
 pub mod orchestration;
-pub mod pharmacy_petty_cash;
-pub mod pharmacy_repeats;
 
 pub mod case_sheet_scan;
-pub mod ward_stock;
 
-pub mod upload;
 pub mod ws;
 
 use axum::{
@@ -125,7 +119,7 @@ pub fn build_router(state: AppState) -> Router {
         // Auth
         .merge(medbrains_client_errors::router())
         .route("/api/access/manifest", get(access::get_manifest))
-        .route("/api/app/manifest", get(app_manifest::get_app_manifest))
+        .merge(medbrains_app_manifest::router())
         .merge(medbrains_clinical_scores::router())
         .merge(medbrains_clinical_ops::router())
         .merge(medbrains_vte::router())
@@ -185,14 +179,7 @@ pub fn build_router(state: AppState) -> Router {
         // Setup — services
         .merge(medbrains_catalog_import::router())
         .merge(medbrains_infra_settings::router())
-        .route(
-            "/api/admin/mail/provision-domain",
-            post(mail_provisioning::provision_domain),
-        )
-        .route(
-            "/api/admin/mail/mailboxes",
-            post(mail_provisioning::create_mailbox),
-        )
+        .merge(medbrains_mail_provisioning::router())
         // Setup — bed types
         // Setup — tax categories
         // Setup — payment methods
@@ -691,19 +678,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_radiology::router())
         // ── Pharmacy ────────────────────────────────────
         .merge(medbrains_pharmacy::router())
-        .route(
-            "/api/pharmacy/ward-stock",
-            get(ward_stock::list_ward_stock),
-        )
-        .route("/api/pharmacy/ward-stock/par", post(ward_stock::set_ward_par))
-        .route(
-            "/api/pharmacy/ward-stock/replenish",
-            post(ward_stock::replenish_ward),
-        )
-        .route(
-            "/api/pharmacy/ward-stock/consume",
-            post(ward_stock::consume_ward_stock),
-        )
+        .merge(medbrains_ward_stock::router())
         // ── Pharmacy Finance (credit notes + store indents) ──
         .merge(medbrains_pharmacy_finance::router())
         // ── Pharmacy Safety ──────────────────────────────
@@ -752,15 +727,7 @@ pub fn build_router(state: AppState) -> Router {
             put(abdm::hip_relay::ack_callback),
         )
         // ── Pharmacy Improvements: Repeats ─────────────────
-        .route(
-            "/api/pharmacy/prescriptions/{prescription_id}/repeat-eligibility",
-            get(pharmacy_repeats::check_eligibility),
-        )
-        .route(
-            "/api/pharmacy/prescriptions/{prescription_id}/repeats",
-            get(pharmacy_repeats::list_repeats_for_rx)
-                .post(pharmacy_repeats::dispense_repeat),
-        )
+        .merge(medbrains_pharmacy_repeats::router())
         // ── Pharmacy Finance: Cash Drawer ──────────────────
         .merge(medbrains_pharmacy_cash_drawer::router())
         // ── Nurse Activities: MAR (canonical ipd_medication_administration) ──
@@ -774,20 +741,7 @@ pub fn build_router(state: AppState) -> Router {
         // ── Pharmacy Improvements: Substitution + Counseling + Coverage
         .merge(medbrains_pharmacy_dispense_ops::router())
         // ── Pharmacy Finance: Petty Cash + Float Movements ─
-        .route(
-            "/api/pharmacy/petty-cash",
-            get(pharmacy_petty_cash::list_petty_cash)
-                .post(pharmacy_petty_cash::create_petty_cash),
-        )
-        .route(
-            "/api/pharmacy/petty-cash/{id}/decide",
-            put(pharmacy_petty_cash::decide_petty_cash),
-        )
-        .route(
-            "/api/pharmacy/cash-float-movements",
-            get(pharmacy_petty_cash::list_float_movements)
-                .post(pharmacy_petty_cash::create_float_movement),
-        )
+        .merge(medbrains_pharmacy_petty_cash::router())
         // ── Pharmacy Finance: Free Dispensing + Overrides + Suppliers + Margins
         .merge(medbrains_pharmacy_free_dispensing::router())
         .merge(medbrains_indent::router())
@@ -1105,8 +1059,7 @@ pub fn build_router(state: AppState) -> Router {
         // Mobile/TV device pairing — admin mints a one-time QR token,
         // device exchanges for JWT + cert fingerprint
         // S3 presigned upload / download URL endpoints
-        .route("/api/upload/presign", post(upload::presign_upload))
-        .route("/api/upload/download-url", get(upload::presign_download))
+        .merge(medbrains_upload::router())
         // Sprint A.6 — system_state middleware short-circuits non-GET when
         // tenant is in read_only/degraded mode. Innermost so claims + path
         // are populated and 503 response carries no audit weight.

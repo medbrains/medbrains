@@ -9,6 +9,7 @@
 //! GET /api/upload/download-url?key= returns a presigned GET URL for reading
 //! back any object the caller has permission to access.
 
+use axum::routing::{get,post};
 use std::time::Duration;
 
 use axum::{
@@ -19,9 +20,9 @@ use chrono::{DateTime, Utc};
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 
-use crate::error::AppError;
-use crate::middleware::auth::Claims;
-use crate::state::AppState;
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::state::AppState;
 
 // ── Allowed upload categories ─────────────────────────────────────────────
 
@@ -111,7 +112,7 @@ pub async fn presign_upload(
     let expires_secs = body.expires_in.unwrap_or(900).clamp(60, 3600);
     let expires = Duration::from_secs(expires_secs);
 
-    let key = crate::s3_presign::S3PresignClient::make_key(
+    let key = medbrains_server_core::s3_presign::S3PresignClient::make_key(
         claims.tenant_id,
         &body.category,
         &body.filename,
@@ -213,4 +214,11 @@ fn upload_permission_for_category(category: &str) -> &'static str {
         "prescription" | "referral_letter" => permissions::opd::visit::UPDATE,
         _ => permissions::patients::UPDATE,
     }
+}
+
+/// upload routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/upload/presign", post(presign_upload))
+        .route("/api/upload/download-url", get(presign_download))
 }
