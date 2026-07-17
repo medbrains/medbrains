@@ -1,4 +1,4 @@
-.PHONY: help dev dev-fast dev-icd dev-backend dev-frontend dev-simulator-admin db db-stop db-reset db-icd \
+.PHONY: help dev dev-watch dev-fast dev-icd dev-backend dev-frontend dev-simulator-admin db db-stop db-reset db-icd \
        sim-hospital sim-hospital-batch sim-hospital-clean \
        local-https-cert dev-proxy dev-https \
        build build-backend build-frontend \
@@ -74,6 +74,9 @@ dev: local-https-cert icd-up ## Start everything with local HTTPS proxy and loca
 	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
 	@SPICEDB_SKIP_START=true SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret scripts/spicedb_local_schema.sh
 	@MEDBRAINS_LOG_PAYLOAD_SIZES=1 WHO_ICD_API_BASE_URL=$(ICD_API_LOCAL_BASE_URL) WHO_ICD_AUTH_MODE=none WHO_ICD_RELEASE_ID=$(WHO_ICD_RELEASE_ID) DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_DOMAIN=$(DEV_DESKTOP_HTTPS_DOMAIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN) DEV_SIMULATOR_HTTPS_DOMAIN=$(DEV_SIMULATOR_HTTPS_DOMAIN) DEV_SIMULATOR_HTTPS_ORIGIN=$(DEV_SIMULATOR_HTTPS_ORIGIN) DEV_ICD_HTTPS_DOMAIN=$(DEV_ICD_HTTPS_DOMAIN) DEV_ICD_HTTPS_ORIGIN=$(DEV_ICD_HTTPS_ORIGIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG) scripts/dev_https.sh
+
+dev-watch: ## Same as `make dev` but the BACKEND auto-rebuilds+restarts on save (cargo-watch; only the changed crate recompiles)
+	@DEV_BACKEND_WATCH=true $(MAKE) dev
 
 dev-fast: local-https-cert icd-up ## Start everything with HTTPS proxy and ICD-11, skip compile check
 	@docker compose up -d postgres spicedb gotenberg stalwart 2>/dev/null

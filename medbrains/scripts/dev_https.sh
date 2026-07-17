@@ -233,7 +233,16 @@ trap cleanup EXIT INT TERM
 echo "Starting backend, web, simulator, and Pingora. Open: $ORIGIN"
 echo
 
-"$BACKEND_BIN" >"$log_dir/backend.log" 2>&1 &
+# DEV_BACKEND_WATCH=true (via `make dev-watch`) runs the backend under
+# cargo-watch: any save under crates/ triggers an incremental rebuild + restart.
+# Thanks to the crate split only the changed crate + a server relink recompile.
+if [[ "${DEV_BACKEND_WATCH:-false}" == "true" ]] && command -v cargo-watch >/dev/null 2>&1; then
+  ( cd "$ROOT_DIR" && exec cargo watch --watch crates \
+      --exec 'run -p medbrains-server --bin medbrains-server' ) \
+    >"$log_dir/backend.log" 2>&1 &
+else
+  "$BACKEND_BIN" >"$log_dir/backend.log" 2>&1 &
+fi
 backend_pid="$!"
 pnpm dev:web >"$log_dir/web.log" 2>&1 &
 web_pid="$!"
