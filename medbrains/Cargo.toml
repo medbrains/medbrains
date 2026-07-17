@@ -53,6 +53,8 @@ members = [
     "crates/medbrains-it-security",
     "crates/medbrains-assets",
     "crates/medbrains-bme",
+    "crates/medbrains-tv",
+    "crates/medbrains-specialty-other",
     "crates/medbrains-clinical-scores",
     "crates/medbrains-clinical-ops",
     "crates/medbrains-identity",

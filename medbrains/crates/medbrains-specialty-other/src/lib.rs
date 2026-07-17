@@ -4,6 +4,7 @@ use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
+use axum::routing::{get,put};
 use medbrains_core::permissions;
 use medbrains_core::specialty::other::{
     CancerStaging, ChemoProtocol, DialysisSession, RadiationSession, SpecialtyRecord,
@@ -16,10 +17,10 @@ use medbrains_core::specialty::pmr::{AudiologyTest, PsychometricTest, RehabPlan,
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
-};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Query types — PMR
@@ -293,7 +294,7 @@ pub async fn list_rehab_plans(
     Query(params): Query<ListRehabPlansQuery>,
 ) -> Result<Json<Vec<RehabPlan>>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::plans::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -320,7 +321,7 @@ pub async fn create_rehab_plan(
     Json(body): Json<CreateRehabPlanRequest>,
 ) -> Result<Json<RehabPlan>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::plans::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -358,7 +359,7 @@ pub async fn list_rehab_sessions(
     Path(plan_id): Path<Uuid>,
 ) -> Result<Json<Vec<RehabSession>>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::sessions::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -382,7 +383,7 @@ pub async fn create_rehab_session(
     Json(body): Json<CreateRehabSessionRequest>,
 ) -> Result<Json<RehabSession>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::sessions::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -423,7 +424,7 @@ pub async fn list_audiology_tests(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<AudiologyTest>>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::audiology::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -445,7 +446,7 @@ pub async fn create_audiology_test(
     Json(body): Json<CreateAudiologyTestRequest>,
 ) -> Result<Json<AudiologyTest>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::audiology::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -484,7 +485,7 @@ pub async fn list_psychometric_tests(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<PsychometricTest>>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::psychometric::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -506,7 +507,7 @@ pub async fn create_psychometric_test(
     Json(body): Json<CreatePsychometricRequest>,
 ) -> Result<Json<PsychometricTest>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::psychometric::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
+    medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
         .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -543,7 +544,7 @@ pub async fn list_dnr_orders(
     Query(params): Query<ListDnrQuery>,
 ) -> Result<Json<Vec<DnrOrder>>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::dnr::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "palliative",
@@ -590,7 +591,7 @@ pub async fn create_dnr_order(
     Json(body): Json<CreateDnrRequest>,
 ) -> Result<Json<DnrOrder>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::dnr::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "palliative",
@@ -632,7 +633,7 @@ pub async fn revoke_dnr_order(
     Json(body): Json<RevokeDnrRequest>,
 ) -> Result<Json<DnrOrder>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::dnr::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "palliative",
@@ -664,7 +665,7 @@ pub async fn list_pain_assessments(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<PainAssessment>>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::pain::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "palliative",
@@ -690,7 +691,7 @@ pub async fn create_pain_assessment(
     Json(body): Json<CreatePainAssessmentRequest>,
 ) -> Result<Json<PainAssessment>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::pain::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "palliative",
@@ -735,7 +736,7 @@ pub async fn list_mortuary_records(
     Query(params): Query<ListMortuaryQuery>,
 ) -> Result<Json<Vec<MortuaryRecord>>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::mortuary::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "palliative",
@@ -769,7 +770,7 @@ pub async fn create_mortuary_record(
         &claims,
         permissions::specialty::palliative::mortuary::MANAGE,
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "palliative",
@@ -816,7 +817,7 @@ pub async fn update_mortuary_record(
         &claims,
         permissions::specialty::palliative::mortuary::MANAGE,
     )?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "palliative",
@@ -892,7 +893,7 @@ pub async fn list_nuclear_sources(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<NuclearMedSource>>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::nucmed::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "palliative",
@@ -918,7 +919,7 @@ pub async fn create_nuclear_source(
     Json(body): Json<CreateNuclearSourceRequest>,
 ) -> Result<Json<NuclearMedSource>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::nucmed::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "palliative",
@@ -955,7 +956,7 @@ pub async fn list_nuclear_administrations(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<NuclearMedAdministration>>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::nucmed::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "palliative",
@@ -996,7 +997,7 @@ pub async fn create_nuclear_administration(
     Json(body): Json<CreateNuclearAdminRequest>,
 ) -> Result<Json<NuclearMedAdministration>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::nucmed::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "palliative",
@@ -1052,7 +1053,7 @@ pub async fn list_specialty_templates(
     Query(params): Query<ListTemplatesQuery>,
 ) -> Result<Json<Vec<SpecialtyTemplate>>, AppError> {
     require_permission(&claims, permissions::specialty::other::templates::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "specialty_other",
@@ -1081,7 +1082,7 @@ pub async fn create_specialty_template(
     Json(body): Json<CreateTemplateRequest>,
 ) -> Result<Json<SpecialtyTemplate>, AppError> {
     require_permission(&claims, permissions::specialty::other::templates::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "specialty_other",
@@ -1114,7 +1115,7 @@ pub async fn list_specialty_records(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<SpecialtyRecord>>, AppError> {
     require_permission(&claims, permissions::specialty::other::records::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "specialty_other",
@@ -1140,7 +1141,7 @@ pub async fn create_specialty_record(
     Json(body): Json<CreateRecordRequest>,
 ) -> Result<Json<SpecialtyRecord>, AppError> {
     require_permission(&claims, permissions::specialty::other::records::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "specialty_other",
@@ -1178,7 +1179,7 @@ pub async fn list_dialysis_sessions(
     Query(params): Query<ListDialysisQuery>,
 ) -> Result<Json<Vec<DialysisSession>>, AppError> {
     require_permission(&claims, permissions::specialty::other::dialysis::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "specialty_other",
@@ -1207,7 +1208,7 @@ pub async fn create_dialysis_session(
     Json(body): Json<CreateDialysisRequest>,
 ) -> Result<Json<CreateDialysisResponse>, AppError> {
     require_permission(&claims, permissions::specialty::other::dialysis::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "specialty_other",
@@ -1240,10 +1241,10 @@ pub async fn create_dialysis_session(
 
     // Auto-charge the session (was a silent revenue leak). Master-priced by the "DIALYSIS"
     // charge code; unconfigured → a visible ₹0 line for the biller, never a missed charge.
-    super::billing::auto_charge(
+    medbrains_server_services::billing::auto_charge(
         &mut tx,
         &claims.tenant_id,
-        super::billing::AutoChargeInput {
+        medbrains_server_services::billing::AutoChargeInput {
             patient_id: body.patient_id,
             encounter_id: None,
             charge_code: "DIALYSIS".to_owned(),
@@ -1278,7 +1279,7 @@ pub async fn update_dialysis_session(
     Json(body): Json<UpdateDialysisRequest>,
 ) -> Result<Json<DialysisSession>, AppError> {
     require_permission(&claims, permissions::specialty::other::dialysis::MANAGE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "specialty_other",
@@ -1324,7 +1325,7 @@ pub async fn list_chemo_protocols(
     Query(params): Query<ListChemoQuery>,
 ) -> Result<Json<Vec<ChemoProtocol>>, AppError> {
     require_permission(&claims, permissions::specialty::other::records::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "specialty_other",
@@ -1355,7 +1356,7 @@ pub async fn create_chemo_protocol(
     Json(body): Json<CreateChemoRequest>,
 ) -> Result<Json<ChemoProtocol>, AppError> {
     require_permission(&claims, permissions::specialty::other::records::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "specialty_other",
@@ -1439,7 +1440,7 @@ pub async fn anthracycline_cumulative(
     Query(params): Query<AnthracyclineCumulativeQuery>,
 ) -> Result<Json<AnthracyclineCumulativeResult>, AppError> {
     require_permission(&claims, permissions::specialty::other::records::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "specialty_other",
@@ -1534,7 +1535,7 @@ pub async fn update_chemo_protocol(
     Json(body): Json<UpdateChemoRequest>,
 ) -> Result<Json<ChemoProtocol>, AppError> {
     require_permission(&claims, permissions::specialty::other::records::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "specialty_other",
@@ -1585,7 +1586,7 @@ pub async fn list_cancer_stagings(
     Query(q): Query<StagingQuery>,
 ) -> Result<Json<Vec<CancerStaging>>, AppError> {
     require_permission(&claims, permissions::specialty::other::oncology::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "specialty_other",
@@ -1626,7 +1627,7 @@ pub async fn create_cancer_staging(
     Json(body): Json<CreateStagingRequest>,
 ) -> Result<Json<CancerStaging>, AppError> {
     require_permission(&claims, permissions::specialty::other::oncology::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "specialty_other",
@@ -1664,7 +1665,7 @@ pub async fn list_radiation_sessions(
     Query(q): Query<StagingQuery>,
 ) -> Result<Json<Vec<RadiationSession>>, AppError> {
     require_permission(&claims, permissions::specialty::other::oncology::LIST)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "specialty_other",
@@ -1704,7 +1705,7 @@ pub async fn create_radiation_session(
     Json(body): Json<CreateRadiationRequest>,
 ) -> Result<Json<RadiationSession>, AppError> {
     require_permission(&claims, permissions::specialty::other::oncology::CREATE)?;
-    crate::middleware::entitlement::require_module_enabled(
+    medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
         "specialty_other",
@@ -1782,4 +1783,104 @@ mod nuclear_isolation_tests {
         assert!(!radionuclide_isolation_required("Tc-99m", 100.0));
         assert!(!radionuclide_isolation_required("Lu-177", 200.0));
     }
+}
+
+/// Specialty modules (oncology/nephrology/nuclear/DNR) routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/specialty/oncology/staging",
+            get(list_cancer_stagings)
+                .post(create_cancer_staging),
+        )
+        .route(
+            "/api/specialty/oncology/radiation",
+            get(list_radiation_sessions)
+                .post(create_radiation_session),
+        )
+        .route(
+            "/api/specialty/pmr/rehab-plans",
+            get(list_rehab_plans)
+                .post(create_rehab_plan),
+        )
+        .route(
+            "/api/specialty/pmr/rehab-plans/{plan_id}/sessions",
+            get(list_rehab_sessions)
+                .post(create_rehab_session),
+        )
+        .route(
+            "/api/specialty/pmr/audiology",
+            get(list_audiology_tests)
+                .post(create_audiology_test),
+        )
+        .route(
+            "/api/specialty/pmr/psychometric",
+            get(list_psychometric_tests)
+                .post(create_psychometric_test),
+        )
+        .route(
+            "/api/specialty/palliative/dnr",
+            get(list_dnr_orders)
+                .post(create_dnr_order),
+        )
+        .route(
+            "/api/specialty/palliative/dnr/{id}/revoke",
+            put(revoke_dnr_order),
+        )
+        .route(
+            "/api/specialty/palliative/pain",
+            get(list_pain_assessments)
+                .post(create_pain_assessment),
+        )
+        .route(
+            "/api/specialty/mortuary/records",
+            get(list_mortuary_records)
+                .post(create_mortuary_record),
+        )
+        .route(
+            "/api/specialty/mortuary/records/{id}",
+            put(update_mortuary_record),
+        )
+        .route(
+            "/api/specialty/nuclear-med/sources",
+            get(list_nuclear_sources)
+                .post(create_nuclear_source),
+        )
+        .route(
+            "/api/specialty/nuclear-med/administrations",
+            get(list_nuclear_administrations)
+                .post(create_nuclear_administration),
+        )
+        .route(
+            "/api/specialty/templates",
+            get(list_specialty_templates)
+                .post(create_specialty_template),
+        )
+        .route(
+            "/api/specialty/records",
+            get(list_specialty_records)
+                .post(create_specialty_record),
+        )
+        .route(
+            "/api/specialty/dialysis/sessions",
+            get(list_dialysis_sessions)
+                .post(create_dialysis_session),
+        )
+        .route(
+            "/api/specialty/dialysis/sessions/{id}",
+            put(update_dialysis_session),
+        )
+        .route(
+            "/api/specialty/chemo/protocols",
+            get(list_chemo_protocols)
+                .post(create_chemo_protocol),
+        )
+        .route(
+            "/api/specialty/chemo/protocols/{id}",
+            put(update_chemo_protocol),
+        )
+        .route(
+            "/api/specialty/chemo/anthracycline-cumulative",
+            get(anthracycline_cumulative),
+        )
 }

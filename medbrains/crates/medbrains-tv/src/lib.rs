@@ -11,19 +11,17 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
 };
+use axum::routing::{get,post};
 use chrono::{NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
-use crate::{
-    middleware::auth::Claims,
-    routes::ws::{
-        AnnouncementEvent, QueueBroadcaster, QueueEvent, QueueTokenInfo,
-        TOKEN_ONLY_QUEUE_PATIENT_NAME,
-    },
-    state::AppState,
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::queue_broadcast::{
+    AnnouncementEvent, QueueBroadcaster, QueueEvent, QueueTokenInfo, TOKEN_ONLY_QUEUE_PATIENT_NAME,
 };
+use medbrains_server_core::state::AppState;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -157,7 +155,7 @@ mod display_privacy_tests {
         BedWaitingSourceRow, bed_waiting_entry, protected_display_show_patient_name,
         public_token_board_display_type,
     };
-    use crate::routes::ws::TOKEN_ONLY_QUEUE_PATIENT_NAME;
+    use medbrains_server_core::queue_broadcast::TOKEN_ONLY_QUEUE_PATIENT_NAME;
 
     #[test]
     fn public_token_board_display_types_are_token_only() {
@@ -1998,4 +1996,75 @@ pub async fn get_queue_metrics(
         throughput_per_hour: tput as f32,
         estimated_wait_new_token: estimated,
     }))
+}
+
+/// TV displays / token boards routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/tv/displays",
+            get(list_displays).post(create_display),
+        )
+        .route(
+            "/api/tv/displays/{id}",
+            get(get_display)
+                .put(update_display)
+                .delete(delete_display),
+        )
+        .route(
+            "/api/tv/tokens",
+            get(list_tokens).post(create_token),
+        )
+        .route(
+            "/api/tv/tokens/{id}/call",
+            post(call_token),
+        )
+        .route(
+            "/api/tv/tokens/{id}/complete",
+            post(complete_token),
+        )
+        .route(
+            "/api/tv/tokens/{id}/no-show",
+            post(no_show_token),
+        )
+        .route(
+            "/api/tv/queue/{department_id}",
+            get(get_queue_state),
+        )
+        .route(
+            "/api/tv/announcements",
+            post(broadcast_announcement),
+        )
+        .route(
+            "/api/tv/queue/pharmacy",
+            get(get_pharmacy_queue),
+        )
+        .route(
+            "/api/tv/queue/lab",
+            get(get_lab_queue),
+        )
+        .route(
+            "/api/tv/queue/radiology/{modality}",
+            get(get_radiology_queue),
+        )
+        .route(
+            "/api/tv/queue/er",
+            get(get_er_queue),
+        )
+        .route(
+            "/api/tv/queue/billing",
+            get(get_billing_queue),
+        )
+        .route(
+            "/api/tv/queue/beds/{ward_type}",
+            get(get_bed_availability),
+        )
+        .route(
+            "/api/tv/queue/analytics/{department_id}",
+            get(get_queue_analytics),
+        )
+        .route(
+            "/api/tv/queue/metrics/{department_id}",
+            get(get_queue_metrics),
+        )
 }

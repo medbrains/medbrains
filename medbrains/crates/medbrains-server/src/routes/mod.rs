@@ -91,8 +91,6 @@ pub mod ward_stock;
 pub mod sharing;
 
 pub mod specialty_interventional;
-pub mod specialty_other;
-pub mod tv;
 pub mod upload;
 pub mod ws;
 
@@ -1479,16 +1477,7 @@ pub fn build_router(state: AppState) -> Router {
             get(security::get_debrief),
         )
         // ── Specialty Clinical: Oncology depth (staging + radiation) ──
-        .route(
-            "/api/specialty/oncology/staging",
-            get(specialty_other::list_cancer_stagings)
-                .post(specialty_other::create_cancer_staging),
-        )
-        .route(
-            "/api/specialty/oncology/radiation",
-            get(specialty_other::list_radiation_sessions)
-                .post(specialty_other::create_radiation_session),
-        )
+        .merge(medbrains_specialty_other::router())
         // ── Specialty Clinical: Cath Lab ──
         .route(
             "/api/specialty/cath-lab/procedures",
@@ -1550,93 +1539,8 @@ pub fn build_router(state: AppState) -> Router {
                 .post(specialty_interventional::create_biopsy_specimen),
         )
         // ── Specialty Clinical: PMR / Audiology ──
-        .route(
-            "/api/specialty/pmr/rehab-plans",
-            get(specialty_other::list_rehab_plans)
-                .post(specialty_other::create_rehab_plan),
-        )
-        .route(
-            "/api/specialty/pmr/rehab-plans/{plan_id}/sessions",
-            get(specialty_other::list_rehab_sessions)
-                .post(specialty_other::create_rehab_session),
-        )
-        .route(
-            "/api/specialty/pmr/audiology",
-            get(specialty_other::list_audiology_tests)
-                .post(specialty_other::create_audiology_test),
-        )
-        .route(
-            "/api/specialty/pmr/psychometric",
-            get(specialty_other::list_psychometric_tests)
-                .post(specialty_other::create_psychometric_test),
-        )
         // ── Specialty Clinical: Palliative / Mortuary / Nuclear Medicine ──
-        .route(
-            "/api/specialty/palliative/dnr",
-            get(specialty_other::list_dnr_orders)
-                .post(specialty_other::create_dnr_order),
-        )
-        .route(
-            "/api/specialty/palliative/dnr/{id}/revoke",
-            put(specialty_other::revoke_dnr_order),
-        )
-        .route(
-            "/api/specialty/palliative/pain",
-            get(specialty_other::list_pain_assessments)
-                .post(specialty_other::create_pain_assessment),
-        )
-        .route(
-            "/api/specialty/mortuary/records",
-            get(specialty_other::list_mortuary_records)
-                .post(specialty_other::create_mortuary_record),
-        )
-        .route(
-            "/api/specialty/mortuary/records/{id}",
-            put(specialty_other::update_mortuary_record),
-        )
-        .route(
-            "/api/specialty/nuclear-med/sources",
-            get(specialty_other::list_nuclear_sources)
-                .post(specialty_other::create_nuclear_source),
-        )
-        .route(
-            "/api/specialty/nuclear-med/administrations",
-            get(specialty_other::list_nuclear_administrations)
-                .post(specialty_other::create_nuclear_administration),
-        )
         // ── Specialty Clinical: Other Specialties ──
-        .route(
-            "/api/specialty/templates",
-            get(specialty_other::list_specialty_templates)
-                .post(specialty_other::create_specialty_template),
-        )
-        .route(
-            "/api/specialty/records",
-            get(specialty_other::list_specialty_records)
-                .post(specialty_other::create_specialty_record),
-        )
-        .route(
-            "/api/specialty/dialysis/sessions",
-            get(specialty_other::list_dialysis_sessions)
-                .post(specialty_other::create_dialysis_session),
-        )
-        .route(
-            "/api/specialty/dialysis/sessions/{id}",
-            put(specialty_other::update_dialysis_session),
-        )
-        .route(
-            "/api/specialty/chemo/protocols",
-            get(specialty_other::list_chemo_protocols)
-                .post(specialty_other::create_chemo_protocol),
-        )
-        .route(
-            "/api/specialty/chemo/protocols/{id}",
-            put(specialty_other::update_chemo_protocol),
-        )
-        .route(
-            "/api/specialty/chemo/anthracycline-cumulative",
-            get(specialty_other::anthracycline_cumulative),
-        )
         .merge(medbrains_documents::router())
         // ── Order Basket ────────────────────────────────────
         .route(
@@ -2111,73 +2015,8 @@ pub fn build_router(state: AppState) -> Router {
             get(cms::get_menu).put(cms::update_menu),
         )
         // ── TV Displays & Queue ──────────────────────────────────
-        .route(
-            "/api/tv/displays",
-            get(tv::list_displays).post(tv::create_display),
-        )
-        .route(
-            "/api/tv/displays/{id}",
-            get(tv::get_display)
-                .put(tv::update_display)
-                .delete(tv::delete_display),
-        )
-        .route(
-            "/api/tv/tokens",
-            get(tv::list_tokens).post(tv::create_token),
-        )
-        .route(
-            "/api/tv/tokens/{id}/call",
-            post(tv::call_token),
-        )
-        .route(
-            "/api/tv/tokens/{id}/complete",
-            post(tv::complete_token),
-        )
-        .route(
-            "/api/tv/tokens/{id}/no-show",
-            post(tv::no_show_token),
-        )
-        .route(
-            "/api/tv/queue/{department_id}",
-            get(tv::get_queue_state),
-        )
-        .route(
-            "/api/tv/announcements",
-            post(tv::broadcast_announcement),
-        )
+        .merge(medbrains_tv::router())
         // Specialty queue displays
-        .route(
-            "/api/tv/queue/pharmacy",
-            get(tv::get_pharmacy_queue),
-        )
-        .route(
-            "/api/tv/queue/lab",
-            get(tv::get_lab_queue),
-        )
-        .route(
-            "/api/tv/queue/radiology/{modality}",
-            get(tv::get_radiology_queue),
-        )
-        .route(
-            "/api/tv/queue/er",
-            get(tv::get_er_queue),
-        )
-        .route(
-            "/api/tv/queue/billing",
-            get(tv::get_billing_queue),
-        )
-        .route(
-            "/api/tv/queue/beds/{ward_type}",
-            get(tv::get_bed_availability),
-        )
-        .route(
-            "/api/tv/queue/analytics/{department_id}",
-            get(tv::get_queue_analytics),
-        )
-        .route(
-            "/api/tv/queue/metrics/{department_id}",
-            get(tv::get_queue_metrics),
-        )
         // ── Audit Trail ────────────────────────────────────────
         .route(
             "/api/audit/log",
