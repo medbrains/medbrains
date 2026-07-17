@@ -5,6 +5,7 @@
 //! `document_outputs`, return a presigned download URL. Tenant rows in
 //! `document_templates` override the built-in system templates.
 
+use axum::routing::{get,post,put};
 use axum::{
     Extension, Json,
     extract::{Path, State},
@@ -16,7 +17,7 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use crate::{
+use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
     state::AppState,
 };
@@ -513,4 +514,33 @@ pub async fn save_template(
     }
     tx.commit().await?;
     Ok(Json(serde_json::json!({ "status": "ok" })))
+}
+
+/// Document-render routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/documents/render",
+            post(render_document),
+        )
+        .route(
+            "/api/documents/{id}/download",
+            get(download_document),
+        )
+        .route(
+            "/api/documents/{id}/queue-print",
+            post(queue_print),
+        )
+        .route(
+            "/api/documents/render/templates/{code}/preview",
+            get(preview_template),
+        )
+        .route(
+            "/api/documents/render/templates",
+            get(list_templates),
+        )
+        .route(
+            "/api/documents/render/templates/{code}",
+            put(save_template),
+        )
 }

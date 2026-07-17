@@ -4,6 +4,7 @@
 //! draft back via `parse_result` (`parsed` / `failed`). The doctor review-and-commit UI (B3)
 //! takes it from there. Gated by `mrd.case_sheets.*`.
 
+use axum::routing::{get,post,put};
 use axum::extract::{Path, Query, State};
 use axum::{Extension, Json};
 use chrono::{DateTime, Utc};
@@ -12,10 +13,10 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::error::AppError;
-use crate::middleware::auth::Claims;
-use crate::middleware::authorization::require_permission;
-use crate::state::AppState;
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::state::AppState;
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct CaseSheetScan {
@@ -54,7 +55,7 @@ pub async fn create_scan(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Register-first lock (opt-in): no case-sheet scan until the OPD visit is registered.
-    super::opd::assert_patient_opd_registered(&mut tx, &claims.tenant_id, body.patient_id).await?;
+    medbrains_opd::assert_patient_opd_registered(&mut tx, &claims.tenant_id, body.patient_id).await?;
 
     let scan = sqlx::query_as::<_, CaseSheetScan>(
         "INSERT INTO case_sheet_scans \
@@ -88,7 +89,7 @@ pub async fn list_scans(
     // Patient-scoped list is a clinical read → gate on patient access. The
     // unscoped list is the MRD processing queue (operational, role-gated).
     if let Some(patient_id) = q.patient_id {
-        crate::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
+        medbrains_server_core::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -127,7 +128,7 @@ pub async fn get_scan(
     tx.commit().await?;
     // A scanned case sheet is patient clinical content — gate on patient access
     // (reachable via the patient's care team; RFC-ACCESS-RESOLUTION-GRAPH).
-    crate::authz_patient::require_patient_access(&state, &claims, scan.patient_id).await?;
+    medbrains_server_core::authz_patient::require_patient_access(&state, &claims, scan.patient_id).await?;
     Ok(Json(scan))
 }
 
@@ -291,4 +292,33 @@ pub async fn commit_scan(
     .await?;
     tx.commit().await?;
     Ok(Json(committed))
+}
+
+/// case_sheet_scan routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/case-sheets/scans",
+            get(list_scans).post(create_scan),
+        )
+        .route(
+            "/api/case-sheets/scans/{id}",
+            get(get_scan),
+        )
+        .route(
+            "/api/case-sheets/scans/{id}/submit",
+            post(submit_scan),
+        )
+        .route(
+            "/api/case-sheets/scans/{id}/parse-result",
+            post(parse_result),
+        )
+        .route(
+            "/api/case-sheets/scans/{id}/review",
+            put(save_review),
+        )
+        .route(
+            "/api/case-sheets/scans/{id}/commit",
+            post(commit_scan),
+        )
 }

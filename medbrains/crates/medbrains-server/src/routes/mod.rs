@@ -7,7 +7,6 @@ pub mod audit;
 pub mod billing;
 pub mod coverage;
 pub mod debug;
-pub mod documents_render;
 pub mod health;
 pub use medbrains_server_core::nabh_evidence;
 // scheduling routes moved to the medbrains-scheduling leaf; re-exported so
@@ -43,7 +42,6 @@ pub use medbrains_tokens as tokens;
 pub mod oauth;
 pub mod orchestration;
 
-pub mod case_sheet_scan;
 
 pub mod ws;
 
@@ -145,30 +143,7 @@ pub fn build_router(state: AppState) -> Router {
         // Setup — roles
         // Setup — users
         // Server-side document rendering (epic #267)
-        .route(
-            "/api/documents/render",
-            post(documents_render::render_document),
-        )
-        .route(
-            "/api/documents/{id}/download",
-            get(documents_render::download_document),
-        )
-        .route(
-            "/api/documents/{id}/queue-print",
-            post(documents_render::queue_print),
-        )
-        .route(
-            "/api/documents/render/templates/{code}/preview",
-            get(documents_render::preview_template),
-        )
-        .route(
-            "/api/documents/render/templates",
-            get(documents_render::list_templates),
-        )
-        .route(
-            "/api/documents/render/templates/{code}",
-            put(documents_render::save_template),
-        )
+        .merge(medbrains_documents_render::router())
         // Setup — modules
         // Setup — sequences
         // Setup — services
@@ -793,30 +768,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_ancillary::router())
         .merge(medbrains_home_health::router())
         // ── Case-sheet digitization (B2 ingestion) ──
-        .route(
-            "/api/case-sheets/scans",
-            get(case_sheet_scan::list_scans).post(case_sheet_scan::create_scan),
-        )
-        .route(
-            "/api/case-sheets/scans/{id}",
-            get(case_sheet_scan::get_scan),
-        )
-        .route(
-            "/api/case-sheets/scans/{id}/submit",
-            post(case_sheet_scan::submit_scan),
-        )
-        .route(
-            "/api/case-sheets/scans/{id}/parse-result",
-            post(case_sheet_scan::parse_result),
-        )
-        .route(
-            "/api/case-sheets/scans/{id}/review",
-            put(case_sheet_scan::save_review),
-        )
-        .route(
-            "/api/case-sheets/scans/{id}/commit",
-            post(case_sheet_scan::commit_scan),
-        )
+        .merge(medbrains_case_sheet_scan::router())
         // ── IPD Admissions ──────────────────────────────────
         // ── IPD Clinical Expansion ─────────────────────────
         // ── IPD Phase 2b: IP Types, Checklists, Reservations, Clinical Docs, etc. ──

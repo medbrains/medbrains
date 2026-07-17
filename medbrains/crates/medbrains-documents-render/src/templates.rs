@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 pub(crate) use medbrains_print::templates::{SYSTEM_TEMPLATES, SystemTemplate};
 
-use crate::{error::AppError, middleware::auth::Claims, state::AppState};
+use medbrains_server_core::{error::AppError, middleware::auth::Claims, state::AppState};
 
 async fn patient_id_for(
     state: &AppState,
@@ -49,7 +49,7 @@ pub(crate) async fn build_context(
 ) -> Result<(serde_json::Value, Option<Uuid>), AppError> {
     let context = match template_code {
         "invoice_gst" => {
-            let Json(data) = crate::routes::print_data_billing::get_gst_invoice_print_data(
+            let Json(data) = medbrains_print_data::billing::get_gst_invoice_print_data(
                 State(state.clone()),
                 Extension(claims.clone()),
                 Path(source_id),
@@ -58,11 +58,11 @@ pub(crate) async fn build_context(
             serde_json::json!({ "invoice": data })
         }
         "payment_receipt" => {
-            let Json(data) = crate::routes::print_data_billing::get_receipt_print_data(
+            let Json(data) = medbrains_print_data::billing::get_receipt_print_data(
                 State(state.clone()),
                 Extension(claims.clone()),
                 Path(source_id),
-                Query(crate::routes::print_data_billing::ReceiptPrintQuery {
+                Query(medbrains_print_data::billing::ReceiptPrintQuery {
                     reprint_reason: None,
                 }),
             )
@@ -79,7 +79,7 @@ pub(crate) async fn build_context(
             serde_json::json!({ "rx": data })
         }
         "discharge_summary" => {
-            let Json(data) = crate::routes::print_data_clinical::get_discharge_print_data(
+            let Json(data) = medbrains_print_data::clinical::get_discharge_print_data(
                 State(state.clone()),
                 Extension(claims.clone()),
                 Path(source_id),
@@ -88,7 +88,7 @@ pub(crate) async fn build_context(
             serde_json::json!({ "discharge": data })
         }
         "er_discharge_summary" => {
-            let Json(data) = crate::routes::print_data_clinical::get_er_discharge_print_data(
+            let Json(data) = medbrains_print_data::clinical::get_er_discharge_print_data(
                 State(state.clone()),
                 Extension(claims.clone()),
                 Path(source_id),
@@ -98,7 +98,7 @@ pub(crate) async fn build_context(
         }
         "ipd_consolidated_bill" => {
             let Json(data) =
-                crate::routes::print_data_billing::get_admission_consolidated_bill_print_data(
+                medbrains_print_data::billing::get_admission_consolidated_bill_print_data(
                     State(state.clone()),
                     Extension(claims.clone()),
                     Path(source_id),
@@ -107,7 +107,7 @@ pub(crate) async fn build_context(
             serde_json::json!({ "bill": data })
         }
         "no_dues_certificate" => {
-            let Json(data) = crate::routes::print_data_billing::get_no_dues_certificate_print_data(
+            let Json(data) = medbrains_print_data::billing::get_no_dues_certificate_print_data(
                 State(state.clone()),
                 Extension(claims.clone()),
                 Path(source_id),
@@ -173,11 +173,11 @@ pub(crate) async fn build_context(
             ));
         }
         "patient_wristband" => {
-            let Json(data) = crate::routes::print_data_clinical::get_wristband_print_data(
+            let Json(data) = medbrains_print_data::clinical::get_wristband_print_data(
                 State(state.clone()),
                 Extension(claims.clone()),
                 Path(source_id),
-                Query(crate::routes::print_data_clinical::WristbandPrintQuery {
+                Query(medbrains_print_data::clinical::WristbandPrintQuery {
                     reprint_reason: None,
                 }),
             )
@@ -195,7 +195,7 @@ pub(crate) async fn build_context(
             serde_json::json!({ "band": band })
         }
         "insurance_cashless_claim" => {
-            let Json(data) = crate::routes::print_data_billing::get_cashless_claim_print_data(
+            let Json(data) = medbrains_print_data::billing::get_cashless_claim_print_data(
                 State(state.clone()),
                 Extension(claims.clone()),
                 Path(source_id),

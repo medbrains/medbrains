@@ -72,6 +72,8 @@ members = [
     "crates/medbrains-doctor-packages",
     "crates/medbrains-upload",
     "crates/medbrains-fhir-api",
+    "crates/medbrains-case-sheet-scan",
+    "crates/medbrains-documents-render",
     "crates/medbrains-mail-provisioning",
     "crates/medbrains-pharmacy-petty-cash",
     "crates/medbrains-pharmacy-repeats",
