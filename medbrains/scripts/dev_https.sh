@@ -258,7 +258,12 @@ check_child_started "$backend_pid" "Backend" "$log_dir/backend.log"
 check_child_started "$web_pid" "Vite web" "$log_dir/web.log"
 check_child_started "$simulator_pid" "Vite simulator" "$log_dir/simulator.log"
 check_child_started "$proxy_pid" "Pingora" "$log_dir/proxy.log"
-wait_for_port 3000 "Backend" 15 "$backend_pid" "$log_dir/backend.log"
+# Under DEV_BACKEND_WATCH the backend runs via cargo-watch, whose first `cargo
+# run` compiles before binding — that can take minutes, so give it a long window
+# instead of the 15s used for the prebuilt-binary path.
+backend_port_timeout=15
+[[ "${DEV_BACKEND_WATCH:-false}" == "true" ]] && backend_port_timeout=900
+wait_for_port 3000 "Backend" "$backend_port_timeout" "$backend_pid" "$log_dir/backend.log"
 wait_for_port 5173 "Vite web" 15 "$web_pid" "$log_dir/web.log"
 wait_for_port 5180 "Vite simulator" 15 "$simulator_pid" "$log_dir/simulator.log"
 wait_for_port 443 "Pingora HTTPS proxy" 15 "$proxy_pid" "$log_dir/proxy.log"
