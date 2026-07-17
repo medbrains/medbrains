@@ -19,7 +19,6 @@ pub mod cms;
 pub mod communications;
 pub mod consent;
 pub mod coverage;
-pub mod dashboard;
 pub mod debug;
 pub mod device_pairing;
 pub mod devices;
@@ -622,44 +621,10 @@ pub fn build_router(state: AppState) -> Router {
             post(notifications::register_push_token),
         )
         // Dashboards — user-facing
-        .route("/api/dashboards", get(dashboard::list_dashboards))
-        .route("/api/dashboards/my", get(dashboard::get_my_dashboard))
-        .route(
-            "/api/dashboards/my/personalize",
-            post(dashboard::personalize_dashboard),
-        )
-        .route(
-            "/api/dashboards/my/widgets",
-            post(dashboard::my_add_widget),
-        )
-        .route(
-            "/api/dashboards/my/widgets/{wid}",
-            delete(dashboard::my_remove_widget),
-        )
-        .route(
-            "/api/dashboards/my/widgets/{wid}/visibility",
-            patch(dashboard::my_toggle_widget),
-        )
-        .route(
-            "/api/dashboards/{id}",
-            get(dashboard::get_dashboard),
-        )
+        .merge(medbrains_dashboard::router())
         // Widget templates — user-facing (permission/dept filtered)
-        .route(
-            "/api/widget-templates",
-            get(dashboard::list_widget_templates),
-        )
         // Dashboard — summary
-        .route("/api/dashboard/summary", get(dashboard::dashboard_summary))
         // Dashboard — widget data
-        .route(
-            "/api/dashboard/widget-data/batch",
-            post(dashboard::batch_widget_data),
-        )
-        .route(
-            "/api/dashboard/widget-data/{widget_id}",
-            get(dashboard::get_widget_data),
-        )
         // ── OPD + OPD Appointments ──────────────────────────
         .merge(medbrains_opd::router())
         .route(

@@ -14,15 +14,12 @@ use medbrains_core::form::FieldAccessLevel;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    error::AppError,
-    middleware::{
-        auth::Claims,
-        authorization::{is_bypass_role, require_permission},
-        field_access::resolve_restricted_fields,
-    },
-    state::AppState,
-};
+use axum::routing::{get,post,delete,patch};
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::{is_bypass_role, require_permission};
+use medbrains_server_core::middleware::field_access::resolve_restricted_fields;
+use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
 //  Department data filter resolution
@@ -2780,4 +2777,44 @@ mod variant_tests {
         assert_eq!(variant_match_score(Some(&m), "nurse", "u1", &[("g1".to_owned(), 5)]), None);
         assert_eq!(variant_match_score(None, "nurse", "u1", &[]), None);
     }
+}
+
+/// Dashboards + widget templates + widget data routes.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/dashboards", get(list_dashboards))
+        .route("/api/dashboards/my", get(get_my_dashboard))
+        .route(
+            "/api/dashboards/my/personalize",
+            post(personalize_dashboard),
+        )
+        .route(
+            "/api/dashboards/my/widgets",
+            post(my_add_widget),
+        )
+        .route(
+            "/api/dashboards/my/widgets/{wid}",
+            delete(my_remove_widget),
+        )
+        .route(
+            "/api/dashboards/my/widgets/{wid}/visibility",
+            patch(my_toggle_widget),
+        )
+        .route(
+            "/api/dashboards/{id}",
+            get(get_dashboard),
+        )
+        .route(
+            "/api/widget-templates",
+            get(list_widget_templates),
+        )
+        .route("/api/dashboard/summary", get(dashboard_summary))
+        .route(
+            "/api/dashboard/widget-data/batch",
+            post(batch_widget_data),
+        )
+        .route(
+            "/api/dashboard/widget-data/{widget_id}",
+            get(get_widget_data),
+        )
 }

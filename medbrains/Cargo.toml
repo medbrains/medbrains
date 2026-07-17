@@ -40,6 +40,7 @@ members = [
     "crates/medbrains-opd",
     "crates/medbrains-ipd",
     "crates/medbrains-patients",
+    "crates/medbrains-dashboard",
     "crates/medbrains-clinical-scores",
     "crates/medbrains-clinical-ops",
     "crates/medbrains-identity",
