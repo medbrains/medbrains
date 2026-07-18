@@ -84,8 +84,7 @@ import type {
   UpdateMassCasualtyEventRequest,
   UpdateMlcCaseRequest,
 } from "@medbrains/types";
-import { P, PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
-import { fieldAccessText } from "@medbrains/utils";
+import { P } from "@medbrains/types";
 import {
   IconAlertOctagon,
   IconAlertTriangle,
@@ -115,16 +114,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import {
-  DataTable,
-  FormModal,
-  OperationalSignal,
-  type OperationalSignalShape,
-  type OperationalSignalTone,
-  PageHeader,
-  TableValueBadge,
-  useProtectedFieldAccess,
-} from "@/components";
+import { DataTable, FormModal, OperationalSignal, PageHeader, TableValueBadge } from "@/components";
 import { BedSelect } from "@/components/BedSelect";
 import { PatientConsumablesPanel } from "@/components/Clinical";
 import { ClinicalEventProvider, useClinicalEmit } from "@/components/ClinicalEventProvider";
@@ -169,6 +159,25 @@ import {
   printCopyRouteLabel,
 } from "@/utils/printCopies";
 import { billingInvoiceWorkspaceRoute } from "./billing-workspace";
+import {
+  canEditSensitiveField,
+  canViewSensitiveField,
+  protectedEmergencyPatientIdentifier,
+  protectedEmergencyPatientName,
+  RestrictedValue,
+  renderSensitiveValue,
+  resuscitationLogColor,
+  resuscitationLogDetails,
+  triageInfo,
+  triageLabel,
+  triageShape,
+  triageTone,
+  useEmergencyPatientIdentityAccess,
+  visitStatusIcon,
+  visitStatusLabel,
+  visitStatusShape,
+  visitStatusTone,
+} from "./emergency/shared";
 import { TriageLogTab } from "./emergency/triage-log";
 import classes from "./emergency.module.scss";
 import { emergencyTabFromSearch, emergencyVisibleTab } from "./emergency-workspace";
@@ -185,55 +194,6 @@ const CRASH_CART_ITEMS = [
   { key: "oxygen_supply", label: "Oxygen supply connected and flowing" },
   { key: "monitor_leads", label: "Cardiac monitor leads and pads" },
 ];
-
-type EmergencyTranslate = ReturnType<typeof useTranslation>["t"];
-
-function humanizeWorkflowValue(value: string): string {
-  return value.replace(/_/g, " ");
-}
-
-function canViewSensitiveField(access: FieldAccessLevel) {
-  return access !== "hidden";
-}
-
-function canEditSensitiveField(access: FieldAccessLevel) {
-  return access === "edit";
-}
-
-function RestrictedValue() {
-  return (
-    <Text span c="dimmed" size="sm">
-      Restricted
-    </Text>
-  );
-}
-
-function renderSensitiveValue(access: FieldAccessLevel, value: string | null | undefined) {
-  return fieldAccessText(access, value);
-}
-
-function useEmergencyPatientIdentityAccess() {
-  return {
-    name: useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS),
-    uhid: useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY),
-  };
-}
-
-function protectedEmergencyPatientName(
-  patientName: string | null | undefined,
-  access: FieldAccessLevel,
-): string {
-  const displayValue = fieldAccessText(access, patientName, "name");
-  return displayValue === "—" ? "Patient" : displayValue;
-}
-
-function protectedEmergencyPatientIdentifier(
-  identifier: string | null | undefined,
-  access: FieldAccessLevel,
-): string {
-  const displayValue = fieldAccessText(access, identifier, "identifier");
-  return displayValue === "—" ? "No UHID" : displayValue;
-}
 
 function printHtmlElement(
   title: string,
@@ -475,168 +435,6 @@ function deriveEmergencyJourneyCompletedEvents(visit: ErVisit): readonly Clinica
 }
 
 // ── Triage helpers ────────────────────────────────────
-
-interface TriageInfo {
-  color: string;
-  label: string;
-  level: number;
-}
-
-function triageInfo(level: string | null): TriageInfo {
-  switch (level) {
-    case "immediate":
-      return { color: "danger", label: "RED - Immediate", level: 1 };
-    case "emergent":
-      return { color: "orange", label: "ORANGE - Emergent", level: 2 };
-    case "urgent":
-      return { color: "warning", label: "YELLOW - Urgent", level: 3 };
-    case "less_urgent":
-      return { color: "success", label: "GREEN - Delayed", level: 4 };
-    case "non_urgent":
-      return { color: "primary", label: "BLUE - Non-Urgent", level: 5 };
-    case "expectant":
-      return { color: "dark", label: "BLACK - Expectant", level: 6 };
-    default:
-      return { color: "slate", label: "Unassigned", level: 0 };
-  }
-}
-
-function triageLabel(t: EmergencyTranslate, level: string | null): string {
-  return t(`triage.${level ?? "unassigned"}`, { defaultValue: triageInfo(level).label });
-}
-
-function triageTone(level: string | null): OperationalSignalTone {
-  switch (level) {
-    case "immediate":
-    case "expectant":
-      return "risk";
-    case "emergent":
-      return "active";
-    case "urgent":
-    case null:
-      return "blocked";
-    case "less_urgent":
-    case "non_urgent":
-      return "ready";
-    default:
-      return "neutral";
-  }
-}
-
-function triageShape(level: string | null): OperationalSignalShape {
-  switch (level) {
-    case "immediate":
-    case "emergent":
-    case "urgent":
-    case "expectant":
-      return "diamond";
-    case null:
-      return "token";
-    default:
-      return "pill";
-  }
-}
-
-function visitStatusLabel(t: EmergencyTranslate, status: string): string {
-  return t(`visitStatus.${status}`, { defaultValue: humanizeWorkflowValue(status) });
-}
-
-function visitStatusTone(status: string): OperationalSignalTone {
-  switch (status) {
-    case "admitted":
-    case "discharged":
-    case "transferred":
-      return "ready";
-    case "in_treatment":
-    case "observation":
-    case "triaged":
-      return "active";
-    case "registered":
-      return "blocked";
-    case "lama":
-    case "deceased":
-      return "risk";
-    default:
-      return "neutral";
-  }
-}
-
-function visitStatusShape(status: string): OperationalSignalShape {
-  switch (status) {
-    case "admitted":
-      return "bed";
-    case "lama":
-    case "deceased":
-    case "in_treatment":
-      return "diamond";
-    case "registered":
-      return "token";
-    default:
-      return "pill";
-  }
-}
-
-function visitStatusIcon(status: string) {
-  switch (status) {
-    case "registered":
-      return IconFileText;
-    case "triaged":
-      return IconHeartbeat;
-    case "in_treatment":
-      return IconFirstAidKit;
-    case "observation":
-      return IconClock;
-    case "admitted":
-      return IconBuildingHospital;
-    case "discharged":
-      return IconCheck;
-    case "transferred":
-      return IconArrowLeft;
-    case "lama":
-    case "deceased":
-      return IconAlertTriangle;
-    default:
-      return undefined;
-  }
-}
-
-function resuscitationLogColor(logType: string): BadgeTone {
-  switch (logType) {
-    case "medication":
-      return "accent";
-    case "fluid":
-      return "info";
-    case "procedure":
-    case "airway":
-      return "warning";
-    case "cpr":
-    case "defibrillation":
-      return "danger";
-    case "vitals":
-      return "success";
-    default:
-      return "neutral";
-  }
-}
-
-function resuscitationLogDetails(log: ErResuscitationLog): string {
-  const parts = [
-    log.medication_name,
-    log.dose,
-    log.route,
-    log.fluid_name,
-    log.fluid_volume_ml !== null && log.fluid_volume_ml !== undefined
-      ? `${log.fluid_volume_ml} ml`
-      : null,
-    log.procedure_name,
-  ].filter((item): item is string => Boolean(item));
-
-  if (parts.length > 0) {
-    return parts.join(" · ");
-  }
-
-  return log.procedure_notes ?? log.notes ?? "---";
-}
 
 // ── Timer Hook ─────────────────────────────────────────
 
