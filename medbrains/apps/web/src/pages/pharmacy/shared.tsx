@@ -5,6 +5,8 @@ import { Text } from "@mantine/core";
 import type {
   PharmacyOrderFormInput,
   PharmacyOrderItemFormInput,
+  PharmacyPosReturnFormInput,
+  PharmacyPosSaleFormInput,
   PharmacyRxReviewFormInput,
 } from "@medbrains/schemas";
 import type {
@@ -12,6 +14,7 @@ import type {
   FieldAccessLevel,
   PharmacyOrderItem,
   PharmacyOrderItemInput,
+  PharmacyPosSaleItem,
   PharmacyReturnStatusType,
   PharmacyRxDetailItem,
   PharmacyRxReviewItemInput,
@@ -563,3 +566,33 @@ export const returnStatusLabels: Record<PharmacyReturnStatusType, string> = {
   destroyed: "Destroyed",
   rejected: "Rejected",
 };
+
+// ── POS counter: sale/return line accessors ──
+
+export type PharmacyPosSaleLine = PharmacyPosSaleFormInput["items"][number];
+export type PharmacyPosReturnLine = PharmacyPosReturnFormInput["items"][number];
+
+export function posSaleLineQuantity(item: PharmacyPosSaleLine) {
+  return formIntegerOrFallback(item.quantity, 1);
+}
+
+export function posSaleLinePrice(item: PharmacyPosSaleLine) {
+  return formNumberOrFallback(item.unit_price, 0);
+}
+
+export function posSaleItemReturnableQuantity(item: PharmacyPosSaleItem) {
+  return Math.max(0, Number(item.quantity ?? 0) - Number(item.cancelled_qty ?? 0));
+}
+
+export function posReturnLineQuantity(item: PharmacyPosReturnLine) {
+  return formIntegerOrFallback(item.return_qty, 0);
+}
+
+export function posReturnLinePrice(item: PharmacyPosReturnLine) {
+  return formNumberOrFallback(item.unit_price, 0);
+}
+
+export function posSalePayloadPatientId(payload: Record<string, unknown>) {
+  const patientId = payload.patient_id;
+  return typeof patientId === "string" ? patientId : "";
+}

@@ -72,6 +72,12 @@ import {
   canEditPharmacyField,
   canViewPharmacyField,
   PharmacyPatientCell,
+  posReturnLinePrice,
+  posReturnLineQuantity,
+  posSaleItemReturnableQuantity,
+  posSaleLinePrice,
+  posSaleLineQuantity,
+  posSalePayloadPatientId,
   renderPharmacySensitiveCurrency,
   renderPharmacySensitiveValue,
   sharedColorBadgeTone,
@@ -79,34 +85,6 @@ import {
 } from "./pharmacy/shared";
 import { StockTab } from "./pharmacy/stock";
 import { StoresTransfersTab } from "./pharmacy/stores-transfers";
-
-type PharmacyPosSaleLine = PharmacyPosSaleFormInput["items"][number];
-type PharmacyPosReturnLine = PharmacyPosReturnFormInput["items"][number];
-
-function posSaleLineQuantity(item: PharmacyPosSaleLine) {
-  return formIntegerOrFallback(item.quantity, 1);
-}
-
-function posSaleLinePrice(item: PharmacyPosSaleLine) {
-  return formNumberOrFallback(item.unit_price, 0);
-}
-
-function posSaleItemReturnableQuantity(item: PharmacyPosSaleItem) {
-  return Math.max(0, Number(item.quantity ?? 0) - Number(item.cancelled_qty ?? 0));
-}
-
-function posReturnLineQuantity(item: PharmacyPosReturnLine) {
-  return formIntegerOrFallback(item.return_qty, 0);
-}
-
-function posReturnLinePrice(item: PharmacyPosReturnLine) {
-  return formNumberOrFallback(item.unit_price, 0);
-}
-
-function posSalePayloadPatientId(payload: Record<string, unknown>) {
-  const patientId = payload.patient_id;
-  return typeof patientId === "string" ? patientId : "";
-}
 
 // Dropdown options for categorical fields - aligned with ATC classification
 const PHARMACY_PAGE_PERMISSIONS = [
