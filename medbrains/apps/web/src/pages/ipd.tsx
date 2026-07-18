@@ -1,7 +1,7 @@
 import { Box, Card, Checkbox, Drawer, Grid, Group, Select, SimpleGrid, Stack, Tabs, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
-import type { AdmissionDetailResponse, AdmissionPrintData, BedDashboardRow, BedDashboardSummary, BedTransferRequest, BedTransferResponse, ClinicalJourneyActionId, ClinicalJourneyContext, CreateWardRequest, DischargeType, InvestigationsResponse, IpdDischargeChecklist, IpdDischargeSummary, MrdCaseSheetPacket, PrescriptionWithItems, UpdateWardRequest, WardBedRow, WardListRow } from "@medbrains/types";
+import type { AdmissionDetailResponse, AdmissionPrintData, BedDashboardRow, BedDashboardSummary, BedTransferRequest, ClinicalJourneyActionId, ClinicalJourneyContext, CreateWardRequest, DischargeType, InvestigationsResponse, IpdDischargeChecklist, IpdDischargeSummary, MrdCaseSheetPacket, PrescriptionWithItems, UpdateWardRequest, WardBedRow, WardListRow } from "@medbrains/types";
 import { BED_BOARD_MUTABLE_STATUS_VALUES, BED_BOARD_STATUS_VALUES, bedBoardSignalLabel, bedBoardSignalLabelKey, bedBoardStatusLabel, bedBoardStatusLabelKey, bedBoardStatusSignal, journeyActionSignalLabel, P, PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import {
   IconAlertTriangle,
@@ -91,7 +91,7 @@ import { MarTab } from "./ipd/mar";
 import { MlcTab } from "./ipd/mlc";
 import { NursingTab } from "./ipd/nursing";
 import { ProgressNotesTab } from "./ipd/progress-notes";
-import { protectedIpdPatientIdentifier, protectedIpdPatientName } from "./ipd/shared";
+import { protectedIpdPatientIdentifier, protectedIpdPatientName, emitIpdBedMovementEvent } from "./ipd/shared";
 import { ReportsTab } from "./ipd/reports-tab";
 import { ConsentsTab } from "./ipd/consents";
 import { GenerateDischargeSummaryModal } from "./ipd/generate-discharge-summary-modal";
@@ -251,38 +251,6 @@ const DISCHARGE_TYPE_OPTIONS = [
 
 function normalizeDischargeType(value: string | null): DischargeType {
   return DISCHARGE_TYPE_OPTIONS.find((option) => option.value === value)?.value ?? "normal";
-}
-
-function emitIpdBedMovementEvent(
-  emit: ReturnType<typeof useClinicalEmit>,
-  response: BedTransferResponse,
-  patientId: string,
-  notes?: string,
-) {
-  if (response.from_bed_id) {
-    emit("bed.transferred", {
-      admission_id: response.admission_id,
-      from_bed_id: response.from_bed_id,
-      notes,
-      patient_id: patientId,
-      reason: response.reason,
-      source_record_id: response.transfer_id,
-      to_bed_id: response.to_bed_id,
-      transfer_id: response.transfer_id,
-      transfer_type: response.transfer_type,
-    });
-    return;
-  }
-
-  emit("bed.assigned", {
-    admission_id: response.admission_id,
-    bed_id: response.to_bed_id,
-    notes,
-    patient_id: patientId,
-    reason: response.reason,
-    source_record_id: response.transfer_id,
-    transfer_id: response.transfer_id,
-  });
 }
 
 function firstIpdWorkspaceTabForSection(section: (typeof IPD_WORKSPACE_SECTIONS)[number]) {
