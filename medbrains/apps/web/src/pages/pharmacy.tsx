@@ -1,21 +1,45 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { OtcSaleDrawer } from "./pharmacy/otc-sale-drawer";
-import { Card, Group, Loader, Modal, MultiSelect, NumberInput, SegmentedControl, Select, Stack, Tabs, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
+import {
+  Card,
+  Group,
+  Loader,
+  Modal,
+  MultiSelect,
+  NumberInput,
+  SegmentedControl,
+  Select,
+  Stack,
+  Tabs,
+  Text,
+  Textarea,
+  TextInput,
+  Tooltip,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type {
-  PharmacyOrderFormInput,
   PharmacyPosReturnFormInput,
   PharmacyPosSaleFormInput,
   PharmacyReturnRequestFormInput,
 } from "@medbrains/schemas";
 import {
-  pharmacyOrderFormSchema,
   pharmacyPosReturnFormSchema,
   pharmacyPosSaleFormSchema,
   pharmacyReturnRequestFormSchema,
 } from "@medbrains/schemas";
 import { useFieldAccess, useHasPermission } from "@medbrains/stores";
-import type { ClinicalJourneyContext, ComplianceSettings, CreatePharmacyOrderRequest, PharmacyOrder, PharmacyOrderDetailResponse, PharmacyOrderItem, PharmacyPosSale, PharmacyPosSaleItem, PharmacyReturn, PharmacyReturnStatusType, PrescriptionWithItems, TenantSettingsRow } from "@medbrains/types";
+import type {
+  ClinicalJourneyContext,
+  ComplianceSettings,
+  PharmacyOrder,
+  PharmacyOrderDetailResponse,
+  PharmacyOrderItem,
+  PharmacyPosSale,
+  PharmacyPosSaleItem,
+  PharmacyReturn,
+  PharmacyReturnStatusType,
+  PrescriptionWithItems,
+  TenantSettingsRow,
+} from "@medbrains/types";
 import { P, PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import {
@@ -62,13 +86,12 @@ import { PatientJourneyActions } from "@/components/Patient/PatientJourneyAction
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { CreditNotesTab } from "@/components/Pharmacy/CreditNotesTab";
 import { DispenseModal } from "@/components/Pharmacy/DispenseModal";
-import { MedicineOrderLineCard } from "@/components/Pharmacy/MedicineOrderLineCard";
 import { PharmacyDispensingView } from "@/components/Pharmacy/PharmacyDispensingView";
 import { PharmacyLabel } from "@/components/Pharmacy/PharmacyLabel";
 import { RepeatPanel } from "@/components/Pharmacy/RepeatPanel";
 import { StoreIndentsTab } from "@/components/Pharmacy/StoreIndentsTab";
 import { SubstituteModal } from "@/components/Pharmacy/SubstituteModal";
-import { Alert, Badge, Button, IconButton, SignatureHero, Table, toast } from "@/components/ui";
+import { Alert, Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   formIntegerOrFallback,
   formNumberOrFallback,
@@ -88,12 +111,23 @@ import { EditablePharmacyQuantity } from "./pharmacy/editable-quantity";
 import { FormularyCheckModal } from "./pharmacy/formulary-check-modal";
 import { NdpsRegisterTab } from "./pharmacy/ndps-register";
 import { NearExpiryHints } from "./pharmacy/near-expiry-hints";
+import { PharmacyOrderForm } from "./pharmacy/order-form";
+import { OtcSaleDrawer } from "./pharmacy/otc-sale-drawer";
 import { PrescriptionAuditTrail } from "./pharmacy/prescription-audit-trail";
 import { RxQueueTab } from "./pharmacy/rx-queue";
-import { canEditPharmacyField, canViewPharmacyField, draftTotals, ExpiryCell, newPharmacyOrderFormItem, PharmacyPatientCell, PharmacyPatientContext, pharmacyOrderDefaults, pharmacyOrderEventItems, pharmacyOrderLineFromForm, pharmacyOrderPayloadFromForm, renderPharmacySensitiveCurrency, renderPharmacySensitiveValue, sharedColorBadgeTone } from "./pharmacy/shared";
+import {
+  canEditPharmacyField,
+  canViewPharmacyField,
+  ExpiryCell,
+  PharmacyPatientCell,
+  PharmacyPatientContext,
+  pharmacyOrderEventItems,
+  renderPharmacySensitiveCurrency,
+  renderPharmacySensitiveValue,
+  sharedColorBadgeTone,
+} from "./pharmacy/shared";
 import { StockTab } from "./pharmacy/stock";
 import { StoresTransfersTab } from "./pharmacy/stores-transfers";
-import styles from "./pharmacy.module.scss";
 import { pharmacyOrderJourneyContext } from "./pharmacy-workspace";
 
 const statusColors: Record<string, string> = {
@@ -1680,204 +1714,6 @@ function CreatePharmacyReturnModal({
         </Stack>
       )}
     </Modal>
-  );
-}
-
-
-function PharmacyOrderForm({
-  initialPatientId,
-  canViewPatientRecord,
-  onCancel,
-  onSuccess,
-}: {
-  initialPatientId?: string;
-  canViewPatientRecord: boolean;
-  onCancel: () => void;
-  onSuccess: (detail: PharmacyOrderDetailResponse) => void;
-}) {
-  const queryClient = useQueryClient();
-  const emit = useClinicalEmit();
-  const canOverrideSafety = useHasPermission(P.PHARMACY.SAFETY_OVERRIDE);
-  const priceAccess = useFieldAccess("pharmacy.pricing.unit_price");
-  const {
-    control,
-    handleSubmit,
-    reset,
-    watch,
-    formState: { errors },
-  } = useForm<PharmacyOrderFormInput>({
-    resolver: zodResolver(pharmacyOrderFormSchema),
-    defaultValues: pharmacyOrderDefaults(initialPatientId),
-  });
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: "items",
-  });
-  const patientId = watch("patient_id");
-  const items = watch("items");
-
-  const createMutation = useMutation({
-    mutationFn: (data: CreatePharmacyOrderRequest) => pharmacyService.createPharmacyOrder(data),
-    onSuccess: (detail) => {
-      void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
-      void queryClient.invalidateQueries({ queryKey: ["pharmacy-order-detail", detail.order.id] });
-      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      void queryClient.invalidateQueries({
-        queryKey: ["patient-invoices", detail.order.patient_id],
-      });
-      toast.success("Pharmacy order placed and draft billing indent updated", {
-        title: "Order created",
-      });
-      emit("order.created", {
-        admission_id: detail.admission_id,
-        dispensing_type: detail.order.dispensing_type,
-        encounter_id: detail.order.encounter_id,
-        items: pharmacyOrderEventItems(detail.items),
-        order_id: detail.order.id,
-        order_type: "pharmacy",
-        patient_id: detail.order.patient_id,
-        prescription_id: detail.order.prescription_id,
-      });
-      reset(pharmacyOrderDefaults(initialPatientId));
-      onSuccess(detail);
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Failed to create order", {
-        title: "Order blocked",
-      });
-    },
-  });
-
-  const orderTotals = draftTotals(items.map(pharmacyOrderLineFromForm));
-  const createError =
-    createMutation.error instanceof Error ? createMutation.error.message : undefined;
-  const submitOrder = handleSubmit((values) => {
-    createMutation.mutate(pharmacyOrderPayloadFromForm(values));
-  });
-
-  return (
-    <Card withBorder>
-      <Stack component="form" onSubmit={submitOrder}>
-        <SignatureHero
-          compact
-          eyebrow="Pharmacy"
-          title="Medicine order"
-          subtitle="Pick drugs with safety + billing checks, then submit"
-          icon={<IconPill size={20} />}
-        />
-        <Controller
-          control={control}
-          name="patient_id"
-          render={({ field, fieldState }) => (
-            <PatientSearchSelect
-              value={field.value}
-              onChange={field.onChange}
-              required
-              error={fieldState.error?.message}
-            />
-          )}
-        />
-        <PharmacyPatientContext patientId={patientId} canViewPatientRecord={canViewPatientRecord} />
-        {createError && (
-          <Alert tone="danger" icon={<IconAlertTriangle size={16} />}>
-            {createError}
-          </Alert>
-        )}
-        <Controller
-          control={control}
-          name="notes"
-          render={({ field }) => (
-            <Textarea label="Notes" value={field.value} onChange={field.onChange} />
-          )}
-        />
-        {canOverrideSafety && (
-          <Controller
-            control={control}
-            name="safety_override_reason"
-            render={({ field }) => (
-              <Textarea
-                label="Medication safety override reason"
-                value={field.value}
-                onChange={field.onChange}
-                minRows={2}
-              />
-            )}
-          />
-        )}
-        <Stack gap="xs">
-          <Text fw={600} size="sm">
-            Medications
-          </Text>
-          {fields.map((field, idx) => (
-            <Controller
-              key={field.id}
-              control={control}
-              name={`items.${idx}`}
-              render={({ field: itemField, fieldState }) => (
-                <Stack gap={4}>
-                  <MedicineOrderLineCard
-                    value={pharmacyOrderLineFromForm(itemField.value)}
-                    index={idx}
-                    priceLabel="Unit price (ex-GST)"
-                    className={styles.medicationCard}
-                    removePermission={P.PHARMACY.DISPENSING_CREATE}
-                    onChange={(next) => {
-                      itemField.onChange({
-                        ...itemField.value,
-                        catalog_item_id: next.catalog_item_id ?? "",
-                        drug_name: next.drug_name,
-                        quantity: next.quantity,
-                        unit_price: next.unit_price,
-                        tax_percent: next.tax_percent ?? 0,
-                      });
-                    }}
-                    canRemove={fields.length > 1}
-                    onRemove={() => remove(idx)}
-                  />
-                  {fieldState.error && (
-                    <Text size="xs" c="danger">
-                      Complete medicine, quantity, and price before placing the order.
-                    </Text>
-                  )}
-                </Stack>
-              )}
-            />
-          ))}
-        </Stack>
-        {errors.items?.message && (
-          <Text size="xs" c="danger">
-            {errors.items.message}
-          </Text>
-        )}
-        <Group justify="space-between">
-          <Button
-            size="xs"
-            tone="secondary"
-            leftSection={<IconPlus size={14} />}
-            onClick={() => append(newPharmacyOrderFormItem())}
-          >
-            Add medicine
-          </Button>
-          <Stack gap={0} align="flex-end">
-            <Text size="xs" c="dimmed">
-              Subtotal {renderPharmacySensitiveCurrency(priceAccess, orderTotals.subtotal)} · GST{" "}
-              {renderPharmacySensitiveCurrency(priceAccess, orderTotals.tax)}
-            </Text>
-            <Text fw={700}>
-              Payable: {renderPharmacySensitiveCurrency(priceAccess, orderTotals.total)}
-            </Text>
-          </Stack>
-        </Group>
-        <Group justify="flex-end">
-          <Button tone="secondary" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button tone="primary" type="submit" loading={createMutation.isPending}>
-            Place Order
-          </Button>
-        </Group>
-      </Stack>
-    </Card>
   );
 }
 
