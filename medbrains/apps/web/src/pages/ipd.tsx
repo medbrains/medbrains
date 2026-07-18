@@ -1,4 +1,5 @@
 import { Box, Card, Checkbox, Drawer, Grid, Group, Select, SimpleGrid, Stack, Tabs, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
+import { TransferTab } from "./ipd/transfer";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { AdmissionDetailResponse, AdmissionPrintData, BedDashboardRow, BedDashboardSummary, BedTransferRequest, ClinicalJourneyActionId, ClinicalJourneyContext, CreateWardRequest, DischargeType, InvestigationsResponse, IpdDischargeChecklist, IpdDischargeSummary, MrdCaseSheetPacket, PrescriptionWithItems, UpdateWardRequest, WardBedRow, WardListRow } from "@medbrains/types";
@@ -1464,86 +1465,6 @@ function AdmissionDetail({
 // ── Overview (tasks) ───────────────────────────────────
 
 
-function TransferTab({
-  admissionId,
-  canManage,
-  patientId,
-  status,
-}: {
-  admissionId: string;
-  canManage: boolean;
-  patientId: string;
-  status: string;
-}) {
-  const { t } = useTranslation("ipd");
-  const queryClient = useQueryClient();
-  const [bedId, setBedId] = useState("");
-  const [notes, setNotes] = useState("");
-  const emit = useClinicalEmit();
-
-  const transferMutation = useMutation({
-    mutationFn: () =>
-      ipdService.bedTransfer(admissionId, {
-        notes: notes.trim(),
-        reason: notes.trim(),
-        to_bed_id: bedId,
-      }),
-    onSuccess: (response) => {
-      void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
-      void queryClient.invalidateQueries({ queryKey: ["admissions"] });
-      void queryClient.invalidateQueries({ queryKey: ["bed-dashboard"] });
-      void queryClient.invalidateQueries({ queryKey: ["ipd-transfers", admissionId] });
-      toast.success(t("notify.bedTransferRecorded"), { title: t("notify.transferred") });
-      emitIpdBedMovementEvent(emit, response, patientId, notes.trim());
-      setBedId("");
-      setNotes("");
-    },
-    onError: (e: Error) => toast.error(e.message, { title: "Transfer blocked" }),
-  });
-
-  if (status !== "admitted") {
-    return (
-      <Text c="dimmed" size="sm">
-        {t("transferIsOnlyAvailableForAdmittedPatients.")}
-      </Text>
-    );
-  }
-
-  return (
-    <Stack>
-      {canManage ? (
-        <>
-          <BedSelect
-            label={t("label.newBed")}
-            value={bedId}
-            onChange={(id) => setBedId(id)}
-            required
-          />
-          <Textarea
-            label={t("label.transferNotes")}
-            value={notes}
-            onChange={(e) => setNotes(e.currentTarget.value)}
-          />
-          <Button
-            tone="primary"
-            leftSection={<IconBed size={16} />}
-            onClick={() => transferMutation.mutate()}
-            loading={transferMutation.isPending}
-            disabled={!bedId || !notes.trim()}
-          >
-            {t("label.transferBed")}
-          </Button>
-        </>
-      ) : (
-        <Text c="dimmed" size="sm">
-          {t("youDoNotHavePermissionToTransferBeds.")}
-        </Text>
-      )}
-    </Stack>
-  );
-}
-
-// ── Discharge ──────────────────────────────────────────
 
 function DischargeTab({
   admissionId,
