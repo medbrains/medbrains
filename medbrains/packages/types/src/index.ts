@@ -1,35 +1,17 @@
 // Permissions
 
-export * from "./analytics-dashboards";
-export * from "./billing-print-phase2";
-export * from "./clinical-identity-forms";
-export * from "./command-center";
-export * from "./emergency-request";
-export * from "./field-mapping";
-export * from "./form-builder";
-export * from "./ipd-phase2";
-export * from "./lab-bloodbank-print-phase2";
-export * from "./maternity-obgyn";
-export * from "./mrd-form-print";
-export * from "./order-sets";
-export * from "./palliative-mortuary-nuclear";
-export * from "./phase3-clinical-charts-print";
-export * from "./phase3-medicolegal-print";
-export * from "./procurement-request";
-export * from "./psychiatry";
-export * from "./schema-registry";
-export * from "./screen-system";
-
-import type { DoseAlert, WeightDoseAlert } from "./clinical-knowledge-base";
-
 export * from "./admin-forms";
 export * from "./ambulance-fleet";
+export * from "./analytics-dashboards";
+export * from "./billing-print-phase2";
 export * from "./blood-bank-phase2";
 export * from "./bme-engineering";
 export * from "./care-view";
 export * from "./cath-lab";
 export * from "./chronic-care";
+export * from "./clinical-identity-forms";
 export * from "./clinical-knowledge-base";
+export * from "./command-center";
 export * from "./common";
 export * from "./communication-hub";
 export * from "./dashboard-widget-builder";
@@ -37,22 +19,38 @@ export * from "./device-integration";
 export * from "./documents-module";
 export * from "./emergency";
 export * from "./emergency-drug-kits";
+export * from "./emergency-request";
+export * from "./field-mapping";
+export * from "./form-builder";
 export * from "./form-master";
 export * from "./form-versioning";
 export * from "./housekeeping";
 export * from "./infection-control";
 export * from "./insurance-tpa";
 export * from "./ipd-clinical-expansion";
+export * from "./ipd-phase2";
 export * from "./ipd-post-discharge";
+export * from "./lab-bloodbank-print-phase2";
+export * from "./maternity-obgyn";
 export * from "./medication-timing";
 export * from "./mrd";
+export * from "./mrd-form-print";
+export * from "./order-sets";
 export * from "./org-structure";
+export * from "./palliative-mortuary-nuclear";
 export * from "./patient-registration";
 export * from "./pharmacy-phase2";
 export * from "./pharmacy-phase3";
+export * from "./phase3-clinical-charts-print";
+export * from "./phase3-medicolegal-print";
 export * from "./phase3-surgical-ot-print";
 export * from "./print-data";
+export * from "./procurement-request";
+export * from "./psychiatry";
 export * from "./regulatory-compliance";
+export * from "./schema-registry";
+export * from "./screen-layout-zone";
+export * from "./screen-system";
 
 import type { WorkingHours } from "./org-structure";
 
@@ -490,129 +488,6 @@ export interface OnboardingSetupRequest {
     secondary_color: string;
     logo_url?: string;
   };
-}
-
-// ── Screen Layout Zone Types ────────────────────────────────
-
-export type ScreenZoneType =
-  | "form"
-  | "data_table"
-  | "filter_bar"
-  | "detail_header"
-  | "tabs"
-  | "stepper"
-  | "calendar"
-  | "kanban"
-  | "widget_grid"
-  | "info_panel";
-
-export interface ScreenZone {
-  type: ScreenZoneType;
-  key: string;
-  label?: string;
-  config: Record<string, unknown>;
-}
-
-export interface ScreenAction {
-  key: string;
-  label: string;
-  icon?: string;
-  variant?: string;
-  action_type: string;
-  permission?: string;
-  route?: string;
-  confirm?: boolean;
-}
-
-export interface ScreenLayout {
-  header?: {
-    title: string;
-    subtitle?: string;
-    icon?: string;
-  };
-  breadcrumbs?: Array<{ label: string; path: string }>;
-  actions?: ScreenAction[];
-  zones: ScreenZone[];
-}
-
-// ══════════════════════════════════════════════════════════
-//  Clinical Decision Support
-// ══════════════════════════════════════════════════════════
-
-export interface DrugInteraction {
-  id: string;
-  tenant_id: string;
-  drug_a_name: string;
-  drug_b_name: string;
-  severity: "minor" | "moderate" | "major" | "contraindicated";
-  description: string;
-  mechanism: string | null;
-  management: string | null;
-  source: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface DrugInteractionAlert {
-  drug_a: string;
-  drug_b: string;
-  severity: string;
-  description: string;
-  management: string | null;
-}
-
-export interface AllergyConflict {
-  drug_name: string;
-  allergen_name: string;
-  allergy_type: string;
-  severity: string | null;
-  reaction: string | null;
-}
-
-export interface PregnancyAlert {
-  drug_name: string;
-  pregnancy_category: string;
-  severity: string;
-  description: string;
-}
-
-export interface DrugSafetyCheckResult {
-  interactions: DrugInteractionAlert[];
-  allergy_conflicts: AllergyConflict[];
-  dose_alerts: DoseAlert[];
-  weight_alerts: WeightDoseAlert[];
-  renal_alerts: RenalDoseAlert[];
-  hepatic_alerts: HepaticAlert[];
-  ingredient_alerts: IngredientAlert[];
-  pregnancy_alerts: PregnancyAlert[];
-  conclusion: ClinicalConclusion;
-}
-
-export interface ClinicalConclusion {
-  severity: "critical" | "warning" | "clear";
-  summary: string;
-  recommendation: string;
-  issue_count: number;
-}
-
-export interface RenalDoseAlert {
-  drug_name: string;
-  egfr: number;
-  threshold: number;
-  rule: string;
-}
-
-export interface HepaticAlert {
-  drug_name: string;
-  caution: string;
-}
-
-export interface IngredientAlert {
-  kind: "duplicate" | "incompatible";
-  label: string;
-  detail: string;
-  severity: string;
 }
 
 // ── Procurement Types ─────────────────────────────────────
