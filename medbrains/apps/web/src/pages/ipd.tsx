@@ -22,21 +22,18 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import type {
   IpdAdmissionFormInput,
-  IpdAttenderFormInput,
   IpdClinicalAssessmentFormInput,
   IpdNursingTaskFormInput,
   IpdProgressNoteFormInput,
 } from "@medbrains/schemas";
 import {
   ipdAdmissionFormSchema,
-  ipdAttenderFormSchema,
   ipdClinicalAssessmentFormSchema,
   ipdNursingTaskFormSchema,
   ipdProgressNoteFormSchema,
 } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
-  AdmissionAttender,
   AdmissionChecklist,
   AdmissionDetailResponse,
   AdmissionPrintData,
@@ -177,7 +174,6 @@ import {
   bradenRiskLevel,
   calculateBradenTotal,
   DEFAULT_IPD_ADMISSION_VALUES,
-  DEFAULT_IPD_ATTENDER_VALUES,
   DEFAULT_IPD_CLINICAL_ASSESSMENT_VALUES,
   DEFAULT_IPD_NURSING_TASK_VALUES,
   DEFAULT_IPD_PROGRESS_NOTE_VALUES,
@@ -185,7 +181,6 @@ import {
   IPD_ASSESSMENT_TYPE_OPTIONS,
   IPD_BRADEN_INJURY_ACQUIRED_OPTIONS,
   IPD_BRADEN_INJURY_STAGE_OPTIONS,
-  IPD_ID_PROOF_TYPE_OPTIONS,
   IPD_RISK_LEVEL_OPTIONS,
   ipdOptionalText,
   normalizeIpdAdmissionSource,
@@ -194,7 +189,6 @@ import {
   progressNoteTypeOptions,
   toCreateAdmissionRequest,
   toCreateAssessmentRequest,
-  toCreateAttenderRequest,
   toCreateProgressNoteRequest,
 } from "@/forms/ipd.form";
 import { useHashTabs } from "@/hooks/useHashTabs";
@@ -211,6 +205,7 @@ import {
   PRINT_COPY_PACKETS,
   printCopyRouteLabel,
 } from "@/utils/printCopies";
+import { AttendersTab } from "./ipd/attenders";
 import { BedTurnaroundView } from "./ipd/bed-turnaround";
 import { BirthRecordsTab } from "./ipd/birth-records";
 import { DeathSummaryTab } from "./ipd/death-summary";
@@ -218,6 +213,7 @@ import { DietTab } from "./ipd/diet";
 import { DischargeTatTab } from "./ipd/discharge-tat";
 import { ExpectedDischargesTab } from "./ipd/expected-discharges";
 import { InsurancePaTab } from "./ipd/insurance-pa";
+import { IoChartTab } from "./ipd/io-chart";
 import { MlcTab } from "./ipd/mlc";
 import {
   AlosReport,
@@ -227,7 +223,6 @@ import {
   SurgeonCaseloadReport,
 } from "./ipd/reports";
 import { protectedIpdPatientIdentifier, protectedIpdPatientName } from "./ipd/shared";
-import { IoChartTab } from "./ipd/io-chart";
 import { TransferLogTab } from "./ipd/transfer-log";
 import classes from "./ipd.module.scss";
 import {
@@ -2712,7 +2707,6 @@ function AdmissionPrescriptionsTab({
 
 // ── I/O Chart ──────────────────────────────────────────
 
-
 function NursingTab({ admissionId }: { admissionId: string }) {
   const { data: carePlans } = useQuery({
     queryKey: ["ipd-care-plans", admissionId],
@@ -2827,193 +2821,6 @@ function NursingTab({ admissionId }: { admissionId: string }) {
 }
 
 // ── Attenders ──────────────────────────────────────────
-
-function AttendersTab({ admissionId, canCreate }: { admissionId: string; canCreate: boolean }) {
-  const queryClient = useQueryClient();
-  const [formOpened, formHandlers] = useDisclosure(false);
-  const {
-    control,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<IpdAttenderFormInput>({
-    resolver: zodResolver(ipdAttenderFormSchema),
-    defaultValues: DEFAULT_IPD_ATTENDER_VALUES,
-  });
-
-  const { data: attenders = [] } = useQuery<AdmissionAttender[]>({
-    queryKey: ["ipd-attenders", admissionId],
-    queryFn: () => ipdService.listAttenders(admissionId),
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (values: IpdAttenderFormInput) =>
-      ipdService.createAttender(admissionId, toCreateAttenderRequest(values)),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["ipd-attenders", admissionId] });
-      formHandlers.close();
-      reset(DEFAULT_IPD_ATTENDER_VALUES);
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (attenderId: string) => ipdService.deleteAttender(admissionId, attenderId),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ["ipd-attenders", admissionId] }),
-  });
-
-  return (
-    <Stack>
-      {canCreate && (
-        <Button
-          tone="primary"
-          size="xs"
-          leftSection={<IconPlus size={14} />}
-          onClick={() => formHandlers.toggle()}
-        >
-          Add Attender
-        </Button>
-      )}
-      {formOpened && (
-        <Stack
-          component="form"
-          gap="xs"
-          onSubmit={handleSubmit((values) => createMutation.mutate(values))}
-        >
-          <Controller
-            control={control}
-            name="name"
-            render={({ field }) => (
-              <TextInput label="Name" required error={errors.name?.message} {...field} />
-            )}
-          />
-          <Controller
-            control={control}
-            name="relationship"
-            render={({ field }) => (
-              <TextInput
-                label="Relationship"
-                required
-                error={errors.relationship?.message}
-                {...field}
-              />
-            )}
-          />
-          <Group grow>
-            <Controller
-              control={control}
-              name="phone"
-              render={({ field }) => <TextInput label="Phone" {...field} />}
-            />
-            <Controller
-              control={control}
-              name="alt_phone"
-              render={({ field }) => <TextInput label="Alt Phone" {...field} />}
-            />
-          </Group>
-          <Controller
-            control={control}
-            name="address"
-            render={({ field }) => <Textarea label="Address" {...field} />}
-          />
-          <Group grow>
-            <Controller
-              control={control}
-              name="id_proof_type"
-              render={({ field }) => (
-                <Select
-                  label="ID Proof Type"
-                  data={IPD_ID_PROOF_TYPE_OPTIONS}
-                  value={field.value || null}
-                  onChange={(value) => field.onChange(value ?? "")}
-                  clearable
-                  searchable
-                />
-              )}
-            />
-            <Controller
-              control={control}
-              name="id_proof_number"
-              render={({ field }) => <TextInput label="ID Proof Number" {...field} />}
-            />
-          </Group>
-          <Controller
-            control={control}
-            name="is_primary"
-            render={({ field }) => (
-              <Checkbox
-                label="Primary attender"
-                checked={field.value}
-                onChange={(event) => field.onChange(event.currentTarget.checked)}
-              />
-            )}
-          />
-          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
-            Save
-          </Button>
-        </Stack>
-      )}
-      <Table striped>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Name</Table.Th>
-            <Table.Th>Relationship</Table.Th>
-            <Table.Th>Phone</Table.Th>
-            <Table.Th>Primary</Table.Th>
-            <Table.Th>Actions</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {attenders.map((a) => (
-            <Table.Tr key={a.id}>
-              <Table.Td>
-                <Text size="sm">{a.name}</Text>
-              </Table.Td>
-              <Table.Td>
-                <Text size="sm">{a.relationship}</Text>
-              </Table.Td>
-              <Table.Td>
-                <Text size="sm">{a.phone ?? "—"}</Text>
-              </Table.Td>
-              <Table.Td>
-                {a.is_primary && (
-                  <Badge size="xs" tone="primary">
-                    Primary
-                  </Badge>
-                )}
-              </Table.Td>
-              <Table.Td>
-                {canCreate && (
-                  <IconButton
-                    tone="danger"
-                    aria-label="Delete attender"
-                    onClick={() =>
-                      confirmDestructive({
-                        title: "Delete attender",
-                        message: `Remove attender "${a.name}" from this admission?`,
-                        confirmLabel: "Delete attender",
-                        onConfirm: () => deleteMutation.mutate(a.id),
-                      })
-                    }
-                  >
-                    <IconTrash size={14} />
-                  </IconButton>
-                )}
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-      {attenders.length === 0 && (
-        <Text c="dimmed" size="sm">
-          No attenders recorded yet.
-        </Text>
-      )}
-    </Stack>
-  );
-}
-
-// ── Discharge Summary ─────────────────────────────────
 
 function DischargeSummaryTab({
   admissionId,
