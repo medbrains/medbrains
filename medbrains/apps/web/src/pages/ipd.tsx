@@ -1,7 +1,7 @@
 import { Box, Card, Checkbox, Drawer, Grid, Group, Select, SimpleGrid, Stack, Tabs, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
-import type { AdmissionDetailResponse, AdmissionPrintData, AnesthesiaComplicationEntry, BedDashboardRow, BedDashboardSummary, BedTransferRequest, BedTransferResponse, ClinicalJourneyActionId, ClinicalJourneyContext, CreateWardRequest, DischargeType, InvestigationsResponse, IpdDischargeChecklist, IpdDischargeSummary, MrdCaseSheetPacket, PrescriptionWithItems, ProcedureConsent, UpdateWardRequest, WardBedRow, WardListRow } from "@medbrains/types";
+import type { AdmissionDetailResponse, AdmissionPrintData, AnesthesiaComplicationEntry, BedDashboardRow, BedDashboardSummary, BedTransferRequest, BedTransferResponse, ClinicalJourneyActionId, ClinicalJourneyContext, CreateWardRequest, DischargeType, InvestigationsResponse, IpdDischargeChecklist, IpdDischargeSummary, MrdCaseSheetPacket, PrescriptionWithItems, UpdateWardRequest, WardBedRow, WardListRow } from "@medbrains/types";
 import { BED_BOARD_MUTABLE_STATUS_VALUES, BED_BOARD_STATUS_VALUES, bedBoardSignalLabel, bedBoardSignalLabelKey, bedBoardStatusLabel, bedBoardStatusLabelKey, bedBoardStatusSignal, journeyActionSignalLabel, P, PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import {
   IconAlertTriangle,
@@ -99,6 +99,7 @@ import {
   SurgeonCaseloadReport,
 } from "./ipd/reports";
 import { protectedIpdPatientIdentifier, protectedIpdPatientName } from "./ipd/shared";
+import { ConsentsTab } from "./ipd/consents";
 import { GenerateDischargeSummaryModal } from "./ipd/generate-discharge-summary-modal";
 import { AdmissionsTab } from "./ipd/admissions";
 import { IpTypeConfigSection } from "./ipd/ip-type-config";
@@ -2422,75 +2423,6 @@ function ReportsTab() {
 //  IPD Phase 2b — Clinical Docs
 // ══════════════════════════════════════════════════════════
 
-function ConsentsTab({ admissionId }: { admissionId: string }) {
-  const { data, isLoading } = useQuery({
-    queryKey: ["ipd-consents", admissionId],
-    queryFn: () => ipdService.getAdmissionConsents(admissionId),
-  });
-
-  const rows = (data ?? []) as ProcedureConsent[];
-  const consentStatusColors: Record<string, BadgeTone> = {
-    pending: "warning",
-    signed: "success",
-    refused: "danger",
-    withdrawn: "warning",
-    expired: "neutral",
-  };
-
-  return (
-    <Stack>
-      <Text fw={600}>Procedure Consents</Text>
-      {isLoading ? (
-        <Text c="dimmed">Loading...</Text>
-      ) : rows.length > 0 ? (
-        <Table striped>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Procedure</Table.Th>
-              <Table.Th>Consent Type</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>Signed</Table.Th>
-              <Table.Th>Consented By</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {rows.map((c) => (
-              <Table.Tr key={c.id}>
-                <Table.Td>
-                  <Text size="sm" fw={500}>
-                    {c.procedure_name}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Badge size="sm">{c.consent_type}</Badge>
-                </Table.Td>
-                <Table.Td>
-                  <Badge tone={consentStatusColors[c.status] ?? "neutral"} size="sm">
-                    {c.status}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="xs">
-                    {c.signed_at ? new Date(c.signed_at).toLocaleDateString() : "—"}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="xs">{c.consented_by_name ?? "—"}</Text>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      ) : (
-        <Text size="sm" c="dimmed">
-          No procedure consents for this encounter.
-        </Text>
-      )}
-    </Stack>
-  );
-}
-
-// ── Admission Print ────────────────────────────────────
 
 const IPD_ADMISSION_PRINT_COPIES = PRINT_COPY_PACKETS.ipdAdmission;
 
