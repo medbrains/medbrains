@@ -1,7 +1,7 @@
-import { Box, Card, Checkbox, Drawer, Grid, Group, Modal, Select, SimpleGrid, Stack, Tabs, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
+import { Box, Card, Checkbox, Drawer, Grid, Group, Select, SimpleGrid, Stack, Tabs, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
-import type { AdmissionDetailResponse, AdmissionPrintData, AnesthesiaComplicationEntry, BedDashboardRow, BedDashboardSummary, BedTransferRequest, BedTransferResponse, ClinicalJourneyActionId, ClinicalJourneyContext, CreateWardRequest, DischargeSummary as DischargeSummaryGenerated, DischargeType, InvestigationsResponse, IpdDischargeChecklist, IpdDischargeSummary, MrdCaseSheetPacket, PrescriptionWithItems, ProcedureConsent, UpdateWardRequest, WardBedRow, WardListRow } from "@medbrains/types";
+import type { AdmissionDetailResponse, AdmissionPrintData, AnesthesiaComplicationEntry, BedDashboardRow, BedDashboardSummary, BedTransferRequest, BedTransferResponse, ClinicalJourneyActionId, ClinicalJourneyContext, CreateWardRequest, DischargeType, InvestigationsResponse, IpdDischargeChecklist, IpdDischargeSummary, MrdCaseSheetPacket, PrescriptionWithItems, ProcedureConsent, UpdateWardRequest, WardBedRow, WardListRow } from "@medbrains/types";
 import { BED_BOARD_MUTABLE_STATUS_VALUES, BED_BOARD_STATUS_VALUES, bedBoardSignalLabel, bedBoardSignalLabelKey, bedBoardStatusLabel, bedBoardStatusLabelKey, bedBoardStatusSignal, journeyActionSignalLabel, P, PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import {
   IconAlertTriangle,
@@ -99,6 +99,7 @@ import {
   SurgeonCaseloadReport,
 } from "./ipd/reports";
 import { protectedIpdPatientIdentifier, protectedIpdPatientName } from "./ipd/shared";
+import { GenerateDischargeSummaryModal } from "./ipd/generate-discharge-summary-modal";
 import { AdmissionsTab } from "./ipd/admissions";
 import { IpTypeConfigSection } from "./ipd/ip-type-config";
 import { OverviewTab } from "./ipd/overview";
@@ -2672,119 +2673,6 @@ function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
 //  Phase 3b — Death Summary Tab
 // ══════════════════════════════════════════════════════════
 
-function GenerateDischargeSummaryModal({
-  admissionId,
-  opened,
-  onClose,
-}: {
-  admissionId: string;
-  opened: boolean;
-  onClose: () => void;
-}) {
-  const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ["generated-discharge-summary", admissionId],
-    queryFn: () => ipdService.generateDischargeSummary(admissionId),
-    enabled: false,
-  });
-
-  const generateMutation = useMutation({
-    mutationFn: () => ipdService.generateDischargeSummary(admissionId),
-    onSuccess: () => {
-      refetch();
-      toast.success("Discharge summary generated", { title: "Generated" });
-    },
-    onError: () => {
-      toast.error("Failed to generate discharge summary", { title: "Error" });
-    },
-  });
-
-  const summary = data as DischargeSummaryGenerated | undefined;
-  const patientName = summary
-    ? protectedIpdPatientName(summary.patient_name, patientNameAccess)
-    : "Patient";
-
-  return (
-    <Modal opened={opened} onClose={onClose} title="Discharge Summary" size="lg">
-      <Stack>
-        {!summary && !isLoading && (
-          <Button
-            tone="primary"
-            onClick={() => generateMutation.mutate()}
-            loading={generateMutation.isPending}
-          >
-            Generate Discharge Summary
-          </Button>
-        )}
-        {(isLoading || generateMutation.isPending) && <Text c="dimmed">Generating...</Text>}
-        {summary && (
-          <Stack gap="sm">
-            <Group>
-              <Text fw={600}>Patient:</Text>
-              <Text>{patientName}</Text>
-            </Group>
-            <Group>
-              <Text fw={600}>Admission Date:</Text>
-              <Text>{new Date(summary.admission_date).toLocaleDateString()}</Text>
-            </Group>
-            {summary.discharge_date && (
-              <Group>
-                <Text fw={600}>Discharge Date:</Text>
-                <Text>{new Date(summary.discharge_date).toLocaleDateString()}</Text>
-              </Group>
-            )}
-            {summary.diagnoses.length > 0 && (
-              <Stack gap={2}>
-                <Text fw={600}>Diagnoses:</Text>
-                {summary.diagnoses.map((d) => (
-                  <Badge key={d} size="sm">
-                    {d}
-                  </Badge>
-                ))}
-              </Stack>
-            )}
-            {summary.procedures.length > 0 && (
-              <Stack gap={2}>
-                <Text fw={600}>Procedures:</Text>
-                {summary.procedures.map((p) => (
-                  <Badge key={p} tone="primary" size="sm">
-                    {p}
-                  </Badge>
-                ))}
-              </Stack>
-            )}
-            {summary.medications.length > 0 && (
-              <Stack gap={2}>
-                <Text fw={600}>Medications at Discharge:</Text>
-                {summary.medications.map((m) => (
-                  <Badge key={m} tone="success" size="sm">
-                    {m}
-                  </Badge>
-                ))}
-              </Stack>
-            )}
-            {summary.instructions && (
-              <Stack gap={2}>
-                <Text fw={600}>Instructions:</Text>
-                <Text size="sm">{summary.instructions}</Text>
-              </Stack>
-            )}
-            {summary.follow_up && (
-              <Stack gap={2}>
-                <Text fw={600}>Follow-up:</Text>
-                <Text size="sm">{summary.follow_up}</Text>
-              </Stack>
-            )}
-          </Stack>
-        )}
-      </Stack>
-    </Modal>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════
-// ── Bed Transfer Modal ────────────────────────────────────
-// ═══════════════════════════════════════════════════════════
 
 function BedTransferModal({
   admissionId,
