@@ -1,8 +1,9 @@
 import { Box, Card, Checkbox, Drawer, Grid, Group, Select, SimpleGrid, Stack, Tabs, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
+import { BedTransferModal } from "./ipd/bed-transfer-modal";
 import { TransferTab } from "./ipd/transfer";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
-import type { AdmissionDetailResponse, AdmissionPrintData, BedDashboardRow, BedDashboardSummary, BedTransferRequest, ClinicalJourneyActionId, ClinicalJourneyContext, CreateWardRequest, DischargeType, InvestigationsResponse, IpdDischargeChecklist, IpdDischargeSummary, MrdCaseSheetPacket, PrescriptionWithItems, UpdateWardRequest, WardBedRow, WardListRow } from "@medbrains/types";
+import type { AdmissionDetailResponse, AdmissionPrintData, BedDashboardRow, BedDashboardSummary, ClinicalJourneyActionId, ClinicalJourneyContext, CreateWardRequest, DischargeType, InvestigationsResponse, IpdDischargeChecklist, IpdDischargeSummary, MrdCaseSheetPacket, PrescriptionWithItems, UpdateWardRequest, WardBedRow, WardListRow } from "@medbrains/types";
 import { BED_BOARD_MUTABLE_STATUS_VALUES, BED_BOARD_STATUS_VALUES, bedBoardSignalLabel, bedBoardSignalLabelKey, bedBoardStatusLabel, bedBoardStatusLabelKey, bedBoardStatusSignal, journeyActionSignalLabel, P, PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import {
   IconAlertTriangle,
@@ -31,8 +32,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { ClinicalEventProvider, DataTable, DocumentActions, FormModal, OperationalSignal, type OperationalSignalShape, type OperationalSignalTone, PageHeader, useClinicalEmit, useProtectedFieldAccess } from "@/components";
-import { BedSelect } from "@/components/BedSelect";
+import { ClinicalEventProvider, DataTable, DocumentActions, OperationalSignal, type OperationalSignalShape, type OperationalSignalTone, PageHeader, useClinicalEmit, useProtectedFieldAccess } from "@/components";
 import { PatientConsumablesPanel } from "@/components/Clinical";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { DamaModal } from "@/components/Ipd/DamaModal";
@@ -92,7 +92,7 @@ import { MarTab } from "./ipd/mar";
 import { MlcTab } from "./ipd/mlc";
 import { NursingTab } from "./ipd/nursing";
 import { ProgressNotesTab } from "./ipd/progress-notes";
-import { protectedIpdPatientIdentifier, protectedIpdPatientName, emitIpdBedMovementEvent } from "./ipd/shared";
+import { protectedIpdPatientIdentifier, protectedIpdPatientName } from "./ipd/shared";
 import { ReportsTab } from "./ipd/reports-tab";
 import { ConsentsTab } from "./ipd/consents";
 import { GenerateDischargeSummaryModal } from "./ipd/generate-discharge-summary-modal";
@@ -2434,81 +2434,4 @@ function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
 // ══════════════════════════════════════════════════════════
 
 
-function BedTransferModal({
-  admissionId,
-  opened,
-  onClose,
-  patientId,
-}: {
-  admissionId: string;
-  opened: boolean;
-  onClose: () => void;
-  patientId: string;
-}) {
-  const { t } = useTranslation("ipd");
-  const queryClient = useQueryClient();
-  const emit = useClinicalEmit();
-  const [toBedId, setToBedId] = useState("");
-  const [reason, setReason] = useState("");
-  const [notes, setNotes] = useState("");
-
-  const transferMutation = useMutation({
-    mutationFn: (data: BedTransferRequest) => ipdService.bedTransfer(admissionId, data),
-    onSuccess: (response) => {
-      void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
-      void queryClient.invalidateQueries({ queryKey: ["admissions"] });
-      void queryClient.invalidateQueries({ queryKey: ["bed-dashboard"] });
-      void queryClient.invalidateQueries({ queryKey: ["ipd-transfers", admissionId] });
-      toast.success(t("notify.bedTransferCompleted"), { title: t("notify.transferred") });
-      emitIpdBedMovementEvent(emit, response, patientId, notes.trim());
-      onClose();
-      setToBedId("");
-      setReason("");
-      setNotes("");
-    },
-    onError: () => {
-      toast.error(t("notify.bedTransferFailed"), { title: t("notify.error") });
-    },
-  });
-
-  return (
-    <FormModal
-      opened={opened}
-      onClose={onClose}
-      title={t("title.bedTransfer")}
-      size="md"
-      onSubmit={(e) => {
-        e.preventDefault();
-        transferMutation.mutate({ to_bed_id: toBedId, reason, notes: notes || undefined });
-      }}
-      submitLabel={t("transfer")}
-      submitting={transferMutation.isPending}
-      submitDisabled={!toBedId.trim() || !reason.trim()}
-    >
-      <BedSelect
-        label={t("label.targetBed")}
-        value={toBedId}
-        onChange={(id) => setToBedId(id)}
-        required
-      />
-      <TextInput
-        label={t("label.reason")}
-        placeholder={t("placeholder.reasonForTransfer")}
-        value={reason}
-        onChange={(e) => setReason(e.currentTarget.value)}
-        required
-      />
-      <Textarea
-        label={t("label.notes")}
-        placeholder={t("placeholder.optionalTransferNotes")}
-        value={notes}
-        onChange={(e) => setNotes(e.currentTarget.value)}
-      />
-    </FormModal>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════
-// ── Expected Discharges Tab ───────────────────────────────
-// ═══════════════════════════════════════════════════════════
 
