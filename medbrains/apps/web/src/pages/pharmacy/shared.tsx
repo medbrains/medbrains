@@ -1,5 +1,6 @@
 // Shared pharmacy helpers — pure field-access masking + currency formatting used across many
 // tabs, extracted from pharmacy.tsx so tab components can be split into their own files.
+import { Text } from "@mantine/core";
 import type { FieldAccessLevel } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 
@@ -15,7 +16,10 @@ export function canEditPharmacyField(access: FieldAccessLevel) {
   return access === "edit";
 }
 
-export function renderPharmacySensitiveValue(access: FieldAccessLevel, value: string | null | undefined) {
+export function renderPharmacySensitiveValue(
+  access: FieldAccessLevel,
+  value: string | null | undefined,
+) {
   return fieldAccessText(access, value);
 }
 
@@ -52,4 +56,15 @@ export function renderPharmacySensitiveCurrency(
     return "\u2014";
   }
   return fieldAccessText(access, formatInr(Number(value)), "amount");
+}
+
+export function ExpiryCell({ date }: { date: string }) {
+  const days = Math.ceil((new Date(date).getTime() - Date.now()) / 86400000);
+  const color = days < 0 ? "danger" : days < 30 ? "danger" : days < 60 ? "orange" : undefined;
+  return (
+    <Text size="xs" c={color} fw={days < 60 ? 600 : 400}>
+      {date}
+      {days >= 0 ? ` (${days}d)` : " (expired)"}
+    </Text>
+  );
 }
