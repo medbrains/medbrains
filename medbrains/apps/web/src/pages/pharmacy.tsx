@@ -1,6 +1,4 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { FormularyCheckModal } from "./pharmacy/formulary-check-modal";
-import { PrescriptionAuditTrail } from "./pharmacy/prescription-audit-trail";
 import {
   Card,
   Drawer,
@@ -114,10 +112,8 @@ import {
   useClinicalEmit,
 } from "@/components";
 import { DrugSearchSelect } from "@/components/DrugSearchSelect";
-import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
-import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { CreditNotesTab } from "@/components/Pharmacy/CreditNotesTab";
 import { DispenseModal } from "@/components/Pharmacy/DispenseModal";
@@ -135,7 +131,6 @@ import {
   Alert,
   type AlertTone,
   Badge,
-  type BadgeTone,
   Button,
   IconButton,
   SignatureHero,
@@ -159,14 +154,19 @@ import { BatchLedgerView } from "./pharmacy/batch-ledger-view";
 import { PharmacyCatalogTab } from "./pharmacy/catalog";
 import { ConsumptionView } from "./pharmacy/consumption-view";
 import { DeadStockView } from "./pharmacy/dead-stock-view";
+import { FormularyCheckModal } from "./pharmacy/formulary-check-modal";
 import { NdpsRegisterTab } from "./pharmacy/ndps-register";
 import { NearExpiryView } from "./pharmacy/near-expiry-view";
+import { PrescriptionAuditTrail } from "./pharmacy/prescription-audit-trail";
 import {
   canEditPharmacyField,
   canViewPharmacyField,
   ExpiryCell,
+  PharmacyPatientCell,
+  PharmacyPatientContext,
   renderPharmacySensitiveCurrency,
   renderPharmacySensitiveValue,
+  sharedColorBadgeTone,
 } from "./pharmacy/shared";
 import { StockTab } from "./pharmacy/stock";
 import { TransfersView } from "./pharmacy/transfers-view";
@@ -183,26 +183,6 @@ const statusColors: Record<string, string> = {
   refunded: "indigo",
   returned: "orange",
 };
-
-const SHARED_COLOR_BADGE_TONES: Record<string, BadgeTone> = {
-  success: "success",
-  primary: "primary",
-  danger: "danger",
-  warning: "warning",
-  info: "info",
-  indigo: "accent",
-  orange: "warning",
-  yellow: "warning",
-  green: "success",
-  teal: "success",
-  blue: "info",
-  red: "danger",
-  gray: "neutral",
-};
-
-function sharedColorBadgeTone(color: string | undefined): BadgeTone {
-  return (color ? SHARED_COLOR_BADGE_TONES[color] : undefined) ?? "neutral";
-}
 
 const dispensingTypeLabels: Record<string, string> = {
   prescription: "Rx",
@@ -388,52 +368,6 @@ function normalizeReturnableItems(order: PatientOrderForReturnLookup): Returnabl
         item.quantity > 0 &&
         item.remainingQuantity > 0,
     );
-}
-
-function PharmacyRestrictedValue() {
-  return (
-    <Text span size="sm" c="dimmed">
-      Restricted
-    </Text>
-  );
-}
-
-function PharmacyPatientCell({
-  patientId,
-  canViewPatientRecord,
-}: {
-  patientId: string | null | undefined;
-  canViewPatientRecord: boolean;
-}) {
-  if (!patientId) {
-    return (
-      <Text span size="sm" c="dimmed">
-        Walk-in
-      </Text>
-    );
-  }
-  if (!canViewPatientRecord) {
-    return <PharmacyRestrictedValue />;
-  }
-  return <PatientNameCell patientId={patientId} showUhid={false} />;
-}
-
-function PharmacyPatientContext({
-  patientId,
-  canViewPatientRecord,
-}: {
-  patientId: string | null | undefined;
-  canViewPatientRecord: boolean;
-}) {
-  if (!patientId) return null;
-  if (!canViewPatientRecord) {
-    return (
-      <Alert tone="neutral" title="Patient context restricted">
-        Patient identity and demographics are hidden for this pharmacy role.
-      </Alert>
-    );
-  }
-  return <PatientContextBanner patientId={patientId} hideLoadingState />;
 }
 
 function posSaleLineQuantity(item: PharmacyPosSaleLine) {
@@ -2797,7 +2731,6 @@ function EditablePharmacyQuantity({
 
 // ── Prescription Audit Trail ──────────────────────────────
 
-
 function DrugInteractionModal({
   opened,
   onClose,
@@ -2884,7 +2817,6 @@ function DrugInteractionModal({
 }
 
 // ── Formulary Check Modal ─────────────────────────────────
-
 
 function BatchExpiryTab() {
   const [view, setView] = useState("batches");

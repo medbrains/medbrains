@@ -3,6 +3,9 @@
 import { Text } from "@mantine/core";
 import type { FieldAccessLevel } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
+import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PatientNameCell } from "@/components/PatientNameCell";
+import { Alert, type BadgeTone } from "@/components/ui";
 
 export function formatInr(value: number) {
   return `₹${Number.isFinite(value) ? value.toFixed(2) : "0.00"}`;
@@ -67,4 +70,70 @@ export function ExpiryCell({ date }: { date: string }) {
       {days >= 0 ? ` (${days}d)` : " (expired)"}
     </Text>
   );
+}
+
+export const SHARED_COLOR_BADGE_TONES: Record<string, BadgeTone> = {
+  success: "success",
+  primary: "primary",
+  danger: "danger",
+  warning: "warning",
+  info: "info",
+  indigo: "accent",
+  orange: "warning",
+  yellow: "warning",
+  green: "success",
+  teal: "success",
+  blue: "info",
+  red: "danger",
+  gray: "neutral",
+};
+
+export function sharedColorBadgeTone(color: string | undefined): BadgeTone {
+  return (color ? SHARED_COLOR_BADGE_TONES[color] : undefined) ?? "neutral";
+}
+
+export function PharmacyRestrictedValue() {
+  return (
+    <Text span size="sm" c="dimmed">
+      Restricted
+    </Text>
+  );
+}
+
+export function PharmacyPatientCell({
+  patientId,
+  canViewPatientRecord,
+}: {
+  patientId: string | null | undefined;
+  canViewPatientRecord: boolean;
+}) {
+  if (!patientId) {
+    return (
+      <Text span size="sm" c="dimmed">
+        Walk-in
+      </Text>
+    );
+  }
+  if (!canViewPatientRecord) {
+    return <PharmacyRestrictedValue />;
+  }
+  return <PatientNameCell patientId={patientId} showUhid={false} />;
+}
+
+export function PharmacyPatientContext({
+  patientId,
+  canViewPatientRecord,
+}: {
+  patientId: string | null | undefined;
+  canViewPatientRecord: boolean;
+}) {
+  if (!patientId) return null;
+  if (!canViewPatientRecord) {
+    return (
+      <Alert tone="neutral" title="Patient context restricted">
+        Patient identity and demographics are hidden for this pharmacy role.
+      </Alert>
+    );
+  }
+  return <PatientContextBanner patientId={patientId} hideLoadingState />;
 }
