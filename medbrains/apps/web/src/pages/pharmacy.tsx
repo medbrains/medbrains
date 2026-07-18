@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { AnalyticsTab } from "./pharmacy/analytics";
 import { StoresTransfersTab } from "./pharmacy/stores-transfers";
 import { NearExpiryHints } from "./pharmacy/near-expiry-hints";
 import {
@@ -139,10 +140,8 @@ import { confirmDestructive } from "@/lib/confirm-destructive";
 import { instructionsDisplayText } from "@/lib/medication-timing-utils";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { findAllergyConflicts } from "@/utils/allergyMatch";
-import { AbcVedView } from "./pharmacy/abc-ved-view";
 import { BatchLedgerView } from "./pharmacy/batch-ledger-view";
 import { PharmacyCatalogTab } from "./pharmacy/catalog";
-import { ConsumptionView } from "./pharmacy/consumption-view";
 import { DeadStockView } from "./pharmacy/dead-stock-view";
 import { DrugInteractionModal } from "./pharmacy/drug-interaction-modal";
 import { EditablePharmacyQuantity } from "./pharmacy/editable-quantity";
@@ -161,7 +160,6 @@ import {
   sharedColorBadgeTone,
 } from "./pharmacy/shared";
 import { StockTab } from "./pharmacy/stock";
-import { UtilizationView } from "./pharmacy/utilization-view";
 import styles from "./pharmacy.module.scss";
 import { pharmacyOrderJourneyContext } from "./pharmacy-workspace";
 
@@ -2702,26 +2700,6 @@ function BatchExpiryTab() {
 // report by drug_name (NearExpiryRow doesn't carry catalog_item_id).
 
 
-function AnalyticsTab() {
-  const [view, setView] = useState("consumption");
-
-  return (
-    <Stack>
-      <SegmentedControl
-        value={view}
-        onChange={setView}
-        data={[
-          { label: "Consumption", value: "consumption" },
-          { label: "ABC-VED", value: "abc-ved" },
-          { label: "Drug Utilization", value: "utilization" },
-        ]}
-      />
-      {view === "consumption" && <ConsumptionView />}
-      {view === "abc-ved" && <AbcVedView />}
-      {view === "utilization" && <UtilizationView />}
-    </Stack>
-  );
-}
 
 function RxQueueTab({
   canReview,
