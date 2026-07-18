@@ -1,8 +1,4 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { BatchExpiryTab } from "./pharmacy/batch-expiry";
-import { AnalyticsTab } from "./pharmacy/analytics";
-import { StoresTransfersTab } from "./pharmacy/stores-transfers";
-import { NearExpiryHints } from "./pharmacy/near-expiry-hints";
 import {
   Card,
   Drawer,
@@ -57,19 +53,7 @@ import type {
   RxQueueRow,
   TenantSettingsRow,
 } from "@medbrains/types";
-import {
-  P,
-  PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
-  pharmacyRxPriorityLabelKey,
-  pharmacyRxPrioritySignal,
-  pharmacyRxSourceLabelKey,
-  pharmacyRxSourceSignal,
-  pharmacyRxStatusLabelKey,
-  pharmacyRxStatusSignal,
-  pharmacyRxPriorityLabel as sharedPharmacyRxPriorityLabel,
-  pharmacyRxSourceLabel as sharedPharmacyRxSourceLabel,
-  pharmacyRxStatusLabel as sharedPharmacyRxStatusLabel,
-} from "@medbrains/types";
+import { P, PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import {
   IconAlertTriangle,
@@ -141,11 +125,14 @@ import { confirmDestructive } from "@/lib/confirm-destructive";
 import { instructionsDisplayText } from "@/lib/medication-timing-utils";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { findAllergyConflicts } from "@/utils/allergyMatch";
+import { AnalyticsTab } from "./pharmacy/analytics";
+import { BatchExpiryTab } from "./pharmacy/batch-expiry";
 import { PharmacyCatalogTab } from "./pharmacy/catalog";
 import { DrugInteractionModal } from "./pharmacy/drug-interaction-modal";
 import { EditablePharmacyQuantity } from "./pharmacy/editable-quantity";
 import { FormularyCheckModal } from "./pharmacy/formulary-check-modal";
 import { NdpsRegisterTab } from "./pharmacy/ndps-register";
+import { NearExpiryHints } from "./pharmacy/near-expiry-hints";
 import { PrescriptionAuditTrail } from "./pharmacy/prescription-audit-trail";
 import {
   canEditPharmacyField,
@@ -156,6 +143,27 @@ import {
   renderPharmacySensitiveCurrency,
   renderPharmacySensitiveValue,
   sharedColorBadgeTone,
+} from "./pharmacy/shared";
+import { StoresTransfersTab } from "./pharmacy/stores-transfers";
+
+type PharmacyRxReviewAction = PharmacyRxReviewFormInput["action"];
+
+import {
+  applyRxReviewItems,
+  DEFAULT_RX_REVIEW_FORM_VALUES,
+  rxHasPriceOverride,
+  rxPriorityLabel,
+  rxPriorityShape,
+  rxPriorityTone,
+  rxReviewInputFromItem,
+  rxReviewInputsFromForm,
+  rxSourceLabel,
+  rxSourceShape,
+  rxSourceTone,
+  rxStatusIcon,
+  rxStatusLabel,
+  rxStatusShape,
+  rxStatusTone,
 } from "./pharmacy/shared";
 import { StockTab } from "./pharmacy/stock";
 import styles from "./pharmacy.module.scss";
@@ -185,83 +193,6 @@ const PHARMACY_ORDER_STATUS_OPTIONS = [
   { value: "cancelled", label: "Cancelled" },
   { value: "returned", label: "Returned" },
 ] as const;
-
-type PharmacyTranslate = ReturnType<typeof useTranslation>["t"];
-
-function pharmacyRxTranslatedLabel(
-  t: PharmacyTranslate,
-  key: string | null,
-  fallback: string,
-): string {
-  return key ? t(key, { defaultValue: fallback }) : fallback;
-}
-
-function rxStatusLabel(t: PharmacyTranslate, status: string): string {
-  return pharmacyRxTranslatedLabel(
-    t,
-    pharmacyRxStatusLabelKey(status),
-    sharedPharmacyRxStatusLabel(status),
-  );
-}
-
-function rxStatusTone(status: string) {
-  return pharmacyRxStatusSignal(status).tone;
-}
-
-function rxStatusShape(status: string) {
-  return pharmacyRxStatusSignal(status).shape;
-}
-
-function rxStatusIcon(status: string) {
-  switch (status) {
-    case "approved":
-    case "dispensed":
-      return IconCheck;
-    case "pending_review":
-    case "on_hold":
-      return IconClock;
-    case "dispensing":
-    case "partially_dispensed":
-      return IconShoppingCart;
-    case "rejected":
-    case "cancelled":
-      return IconX;
-    default:
-      return undefined;
-  }
-}
-
-function rxPriorityLabel(t: PharmacyTranslate, priority: string): string {
-  return pharmacyRxTranslatedLabel(
-    t,
-    pharmacyRxPriorityLabelKey(priority),
-    sharedPharmacyRxPriorityLabel(priority),
-  );
-}
-
-function rxPriorityTone(priority: string) {
-  return pharmacyRxPrioritySignal(priority).tone;
-}
-
-function rxPriorityShape(priority: string) {
-  return pharmacyRxPrioritySignal(priority).shape;
-}
-
-function rxSourceLabel(t: PharmacyTranslate, source: string): string {
-  return pharmacyRxTranslatedLabel(
-    t,
-    pharmacyRxSourceLabelKey(source),
-    sharedPharmacyRxSourceLabel(source),
-  );
-}
-
-function rxSourceTone(source: string) {
-  return pharmacyRxSourceSignal(source).tone;
-}
-
-function rxSourceShape(source: string) {
-  return pharmacyRxSourceSignal(source).shape;
-}
 
 type DraftPharmacyOrderItem = PharmacyOrderItemInput & {
   row_id: string;
@@ -466,71 +397,6 @@ function pharmacyOrderPayloadFromForm(values: PharmacyOrderFormInput): CreatePha
     safety_override_reason: optionalFormText(values.safety_override_reason),
     items: draftPharmacyOrderItemsPayload(lines),
   };
-}
-
-function rxReviewInputFromItem(item: PharmacyRxDetailItem): PharmacyRxReviewItemInput {
-  return {
-    prescription_item_id: item.id,
-    catalog_item_id: item.catalog_item_id,
-    quantity: item.quantity,
-    unit_price: item.unit_price,
-  };
-}
-
-type PharmacyRxReviewAction = PharmacyRxReviewFormInput["action"];
-type PharmacyRxReviewFormItem = PharmacyRxReviewFormInput["items"][number];
-
-const DEFAULT_RX_REVIEW_FORM_VALUES: PharmacyRxReviewFormInput = {
-  action: "approved",
-  notes: "",
-  rejection_reason: "",
-  items: [],
-};
-
-function rxReviewInputFromForm(item: PharmacyRxReviewFormItem): PharmacyRxReviewItemInput {
-  return {
-    prescription_item_id: item.prescription_item_id,
-    catalog_item_id: item.catalog_item_id,
-    quantity: formIntegerOrFallback(item.quantity, 1),
-    unit_price: formNumberOrFallback(item.unit_price, 0),
-  };
-}
-
-function rxReviewInputsFromForm(items: PharmacyRxReviewFormInput["items"]) {
-  return items.map(rxReviewInputFromForm);
-}
-
-function applyRxReviewItems(
-  items: PharmacyRxDetailItem[],
-  reviewItems: PharmacyRxReviewItemInput[],
-) {
-  if (reviewItems.length === 0) return items;
-  return items.map((item) => {
-    const reviewed = reviewItems.find((line) => line.prescription_item_id === item.id);
-    if (!reviewed) return item;
-    const taxableAmount = reviewed.quantity * reviewed.unit_price;
-    const taxAmount = taxableAmount * (Number(item.tax_percent || 0) / 100);
-    return {
-      ...item,
-      quantity: reviewed.quantity,
-      unit_price: reviewed.unit_price,
-      taxable_amount: taxableAmount,
-      tax_amount: taxAmount,
-      line_total: taxableAmount + taxAmount,
-    };
-  });
-}
-
-function rxHasPriceOverride(
-  items: PharmacyRxDetailItem[],
-  reviewItems: PharmacyRxReviewItemInput[],
-) {
-  if (reviewItems.length === 0) return false;
-  return reviewItems.some((line) => {
-    const base = items.find((item) => item.id === line.prescription_item_id);
-    if (!base) return false;
-    return Math.abs(Number(line.unit_price) - Number(base.unit_price)) >= 0.01;
-  });
 }
 
 // Dropdown options for categorical fields - aligned with ATC classification
@@ -2671,9 +2537,6 @@ function PharmacyOrderDetail({
     </Stack>
   );
 }
-
-
-
 
 function RxQueueTab({
   canReview,
