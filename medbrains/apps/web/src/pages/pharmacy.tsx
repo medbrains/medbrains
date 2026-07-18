@@ -1,21 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Card,
-  Drawer,
-  Group,
-  Loader,
-  Modal,
-  MultiSelect,
-  NumberInput,
-  SegmentedControl,
-  Select,
-  Stack,
-  Tabs,
-  Text,
-  Textarea,
-  TextInput,
-  Tooltip,
-} from "@mantine/core";
+import { OtcSaleDrawer } from "./pharmacy/otc-sale-drawer";
+import { Card, Group, Loader, Modal, MultiSelect, NumberInput, SegmentedControl, Select, Stack, Tabs, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type {
   PharmacyOrderFormInput,
@@ -30,21 +15,7 @@ import {
   pharmacyReturnRequestFormSchema,
 } from "@medbrains/schemas";
 import { useFieldAccess, useHasPermission } from "@medbrains/stores";
-import type {
-  ClinicalJourneyContext,
-  ComplianceSettings,
-  CreateOtcSaleRequest,
-  CreatePharmacyOrderRequest,
-  PharmacyOrder,
-  PharmacyOrderDetailResponse,
-  PharmacyOrderItem,
-  PharmacyPosSale,
-  PharmacyPosSaleItem,
-  PharmacyReturn,
-  PharmacyReturnStatusType,
-  PrescriptionWithItems,
-  TenantSettingsRow,
-} from "@medbrains/types";
+import type { ClinicalJourneyContext, ComplianceSettings, CreatePharmacyOrderRequest, PharmacyOrder, PharmacyOrderDetailResponse, PharmacyOrderItem, PharmacyPosSale, PharmacyPosSaleItem, PharmacyReturn, PharmacyReturnStatusType, PrescriptionWithItems, TenantSettingsRow } from "@medbrains/types";
 import { P, PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import {
@@ -119,25 +90,7 @@ import { NdpsRegisterTab } from "./pharmacy/ndps-register";
 import { NearExpiryHints } from "./pharmacy/near-expiry-hints";
 import { PrescriptionAuditTrail } from "./pharmacy/prescription-audit-trail";
 import { RxQueueTab } from "./pharmacy/rx-queue";
-import {
-  canEditPharmacyField,
-  canViewPharmacyField,
-  type DraftPharmacyOrderItem,
-  draftPharmacyOrderItemsPayload,
-  draftTotals,
-  ExpiryCell,
-  newDraftPharmacyOrderItem,
-  newPharmacyOrderFormItem,
-  PharmacyPatientCell,
-  PharmacyPatientContext,
-  pharmacyOrderDefaults,
-  pharmacyOrderEventItems,
-  pharmacyOrderLineFromForm,
-  pharmacyOrderPayloadFromForm,
-  renderPharmacySensitiveCurrency,
-  renderPharmacySensitiveValue,
-  sharedColorBadgeTone,
-} from "./pharmacy/shared";
+import { canEditPharmacyField, canViewPharmacyField, draftTotals, ExpiryCell, newPharmacyOrderFormItem, PharmacyPatientCell, PharmacyPatientContext, pharmacyOrderDefaults, pharmacyOrderEventItems, pharmacyOrderLineFromForm, pharmacyOrderPayloadFromForm, renderPharmacySensitiveCurrency, renderPharmacySensitiveValue, sharedColorBadgeTone } from "./pharmacy/shared";
 import { StockTab } from "./pharmacy/stock";
 import { StoresTransfersTab } from "./pharmacy/stores-transfers";
 import styles from "./pharmacy.module.scss";
@@ -1730,76 +1683,6 @@ function CreatePharmacyReturnModal({
   );
 }
 
-function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<DraftPharmacyOrderItem[]>([newDraftPharmacyOrderItem()]);
-
-  const createMutation = useMutation({
-    mutationFn: (data: CreateOtcSaleRequest) => pharmacyService.createOtcSale(data),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
-      toast.success("Walk-in sale recorded", { title: "OTC Sale" });
-      onClose();
-      setNotes("");
-      setItems([newDraftPharmacyOrderItem()]);
-    },
-    onError: () => {
-      toast.error("Failed to record OTC sale", { title: "Error" });
-    },
-  });
-
-  return (
-    <Drawer opened={opened} onClose={onClose} title="OTC Walk-in Sale" position="right" size="xl">
-      <Stack>
-        <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
-        <Text fw={600} size="sm">
-          Items
-        </Text>
-        {items.map((item, idx) => (
-          <MedicineOrderLineCard
-            key={item.row_id}
-            value={item}
-            index={idx}
-            priceLabel="Price"
-            className={styles.medicationCard}
-            removePermission={P.PHARMACY.POS_CREATE}
-            onChange={(next) => {
-              const updated = [...items];
-              updated[idx] = { ...item, ...next };
-              setItems(updated);
-            }}
-            canRemove={items.length > 1}
-            onRemove={() => setItems(items.filter((_, i) => i !== idx))}
-          />
-        ))}
-        <Group>
-          <Button
-            size="xs"
-            tone="secondary"
-            leftSection={<IconPlus size={14} />}
-            onClick={() => setItems([...items, newDraftPharmacyOrderItem()])}
-          >
-            Add medicine
-          </Button>
-          <Button
-            size="xs"
-            tone="primary"
-            onClick={() =>
-              createMutation.mutate({
-                items: draftPharmacyOrderItemsPayload(items),
-                notes: notes || undefined,
-              })
-            }
-            loading={createMutation.isPending}
-          >
-            Record OTC Sale
-          </Button>
-        </Group>
-      </Stack>
-    </Drawer>
-  );
-}
 
 function PharmacyOrderForm({
   initialPatientId,
