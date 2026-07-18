@@ -1,21 +1,8 @@
 import { Box, Card, Checkbox, Drawer, Grid, Group, Modal, Select, SimpleGrid, Stack, Tabs, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
-import type { AdmissionDetailResponse, AdmissionPrintData, AdmissionRow, AnesthesiaComplicationEntry, BedDashboardRow, BedDashboardSummary, BedTransferRequest, BedTransferResponse, ClinicalJourneyActionId, ClinicalJourneyContext, CreateWardRequest, DischargeSummary as DischargeSummaryGenerated, DischargeType, InvestigationsResponse, IpdDischargeChecklist, IpdDischargeSummary, MrdCaseSheetPacket, PrescriptionWithItems, ProcedureConsent, UpdateWardRequest, WardBedRow, WardListRow } from "@medbrains/types";
-import {
-  BED_BOARD_MUTABLE_STATUS_VALUES,
-  BED_BOARD_STATUS_VALUES,
-  bedBoardSignalLabel,
-  bedBoardSignalLabelKey,
-  bedBoardStatusLabel,
-  bedBoardStatusLabelKey,
-  bedBoardStatusSignal,
-  journeyActionSignalLabel,
-  P,
-  PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
-  PATIENT_NAME_FIELD_ACCESS_KEYS,
-  PATIENT_UHID_FIELD_ACCESS_KEY,
-} from "@medbrains/types";
+import type { AdmissionDetailResponse, AdmissionPrintData, AnesthesiaComplicationEntry, BedDashboardRow, BedDashboardSummary, BedTransferRequest, BedTransferResponse, ClinicalJourneyActionId, ClinicalJourneyContext, CreateWardRequest, DischargeSummary as DischargeSummaryGenerated, DischargeType, InvestigationsResponse, IpdDischargeChecklist, IpdDischargeSummary, MrdCaseSheetPacket, PrescriptionWithItems, ProcedureConsent, UpdateWardRequest, WardBedRow, WardListRow } from "@medbrains/types";
+import { BED_BOARD_MUTABLE_STATUS_VALUES, BED_BOARD_STATUS_VALUES, bedBoardSignalLabel, bedBoardSignalLabelKey, bedBoardStatusLabel, bedBoardStatusLabelKey, bedBoardStatusSignal, journeyActionSignalLabel, P, PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconArrowRight,
@@ -43,20 +30,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import {
-  ClinicalEventProvider,
-  type Column,
-  DataTable,
-  DocumentActions,
-  FormModal,
-  OperationalSignal,
-  type OperationalSignalShape,
-  type OperationalSignalTone,
-  PageHeader,
-  StatusDot,
-  useClinicalEmit,
-  useProtectedFieldAccess,
-} from "@/components";
+import { ClinicalEventProvider, DataTable, DocumentActions, FormModal, OperationalSignal, type OperationalSignalShape, type OperationalSignalTone, PageHeader, useClinicalEmit, useProtectedFieldAccess } from "@/components";
 import { BedSelect } from "@/components/BedSelect";
 import { PatientConsumablesPanel } from "@/components/Clinical";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
@@ -86,7 +60,6 @@ import {
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { confirmDestructive } from "@/lib/confirm-destructive";
-import { statusColor } from "@/lib/status-colors";
 import { billingService } from "@/services/billing.service";
 import { ipdService } from "@/services/ipd.service";
 import { mrdService } from "@/services/mrd.service";
@@ -126,6 +99,7 @@ import {
   SurgeonCaseloadReport,
 } from "./ipd/reports";
 import { protectedIpdPatientIdentifier, protectedIpdPatientName } from "./ipd/shared";
+import { AdmissionsTab } from "./ipd/admissions";
 import { IpTypeConfigSection } from "./ipd/ip-type-config";
 import { OverviewTab } from "./ipd/overview";
 import { TransferLogTab } from "./ipd/transfer-log";
@@ -604,120 +578,6 @@ function IpdPageInner() {
 // ── Admissions Tab ───────────────────────────────────────
 // ═══════════════════════════════════════════════════════════
 
-function AdmissionsTab() {
-  const canCreate = useHasPermission(P.IPD.ADMISSIONS_CREATE);
-  const navigate = useNavigate();
-
-  const [page, setPage] = useState(1);
-  const [filterStatus, setFilterStatus] = useState<string | null>(null);
-
-  const params: Record<string, string> = { page: String(page), per_page: "20" };
-  if (filterStatus) params.status = filterStatus;
-
-  const { data, isLoading } = useQuery({
-    queryKey: ["admissions", params],
-    queryFn: () => ipdService.listAdmissions(params),
-  });
-
-  const columns = [
-    {
-      key: "patient_name",
-      label: "Patient",
-      fieldAccessKeys: PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
-      accessor: (row: AdmissionRow) => row.patient_name,
-      fieldKind: "name",
-      hiddenLabel: "Patient restricted",
-      render: (row: AdmissionRow) => (
-        <Stack gap={0}>
-          <Text size="sm" fw={500}>
-            {row.patient_name}
-          </Text>
-          <Text size="xs" c="dimmed">
-            {row.uhid}
-          </Text>
-        </Stack>
-      ),
-    },
-    {
-      key: "ward_name",
-      label: "Ward",
-      render: (row: AdmissionRow) => <Text size="sm">{row.ward_name ?? "—"}</Text>,
-    },
-    {
-      key: "status",
-      label: "Status",
-      render: (row: AdmissionRow) => (
-        <StatusDot color={statusColor(row.status) ?? "slate"} label={row.status} />
-      ),
-    },
-    {
-      key: "admitted_at",
-      label: "Admitted",
-      render: (row: AdmissionRow) => (
-        <Text size="sm">{new Date(row.admitted_at).toLocaleDateString()}</Text>
-      ),
-    },
-    {
-      key: "actions",
-      label: "Actions",
-      requiredPermissions: [P.IPD.ADMISSIONS_VIEW],
-      render: (row: AdmissionRow) => (
-        <Tooltip label="View details">
-          <IconButton
-            onClick={() => navigate(`/ipd/admissions/${row.id}`)}
-            aria-label={`Open admission ${row.id}`}
-          >
-            <IconEye size={16} />
-          </IconButton>
-        </Tooltip>
-      ),
-    },
-  ] satisfies Column<AdmissionRow>[];
-
-  return (
-    <>
-      <Group mb="md" justify="space-between">
-        <Select
-          placeholder="Status"
-          data={[
-            { value: "admitted", label: "Admitted" },
-            { value: "transferred", label: "Transferred" },
-            { value: "discharged", label: "Discharged" },
-            { value: "absconded", label: "Absconded" },
-            { value: "deceased", label: "Deceased" },
-          ]}
-          value={filterStatus}
-          onChange={setFilterStatus}
-          clearable
-          w={180}
-        />
-        {canCreate && (
-          <Button
-            tone="primary"
-            leftSection={<IconPlus size={16} />}
-            onClick={() => navigate("/ipd/new")}
-          >
-            New Admission
-          </Button>
-        )}
-      </Group>
-
-      <DataTable
-        columns={columns}
-        data={data?.admissions ?? []}
-        loading={isLoading}
-        page={page}
-        totalPages={data ? Math.ceil(data.total / data.per_page) : 1}
-        onPageChange={setPage}
-        rowKey={(row) => row.id}
-        virtualized="auto"
-        virtualizeAt={40}
-        virtualRowHeight={58}
-        tableMaxHeight="calc(100vh - 360px)"
-      />
-    </>
-  );
-}
 
 export function IpdNewAdmissionPage() {
   useRequirePermission(P.IPD.ADMISSIONS_CREATE);
