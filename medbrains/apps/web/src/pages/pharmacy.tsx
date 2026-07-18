@@ -114,11 +114,18 @@ import {
   canViewPharmacyField,
   dispensingTypeLabels,
   ExpiryCell,
+  isReturnFilterStatus,
+  isReturnWorkspaceMode,
+  normalizeReturnableItems,
   PharmacyPatientCell,
   PharmacyPatientContext,
   pharmacyOrderEventItems,
+  type ReturnFilterStatus,
+  type ReturnWorkspaceMode,
   renderPharmacySensitiveCurrency,
   renderPharmacySensitiveValue,
+  returnStatusColors,
+  returnStatusLabels,
   sharedColorBadgeTone,
   statusColors,
 } from "./pharmacy/shared";
@@ -128,86 +135,6 @@ import { pharmacyOrderJourneyContext } from "./pharmacy-workspace";
 
 type PharmacyPosSaleLine = PharmacyPosSaleFormInput["items"][number];
 type PharmacyPosReturnLine = PharmacyPosReturnFormInput["items"][number];
-
-type PatientOrderForReturnLookup = Awaited<
-  ReturnType<typeof pharmacyService.listPatientOrdersForReturn>
->[number];
-
-type ReturnableOrderItem = {
-  orderId: string;
-  orderDate: string;
-  orderStatus: string;
-  itemId: string;
-  drugName: string;
-  batchNumber: string | null;
-  quantity: number;
-  returnedQuantity: number;
-  remainingQuantity: number;
-};
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function parseJsonArray(value: string): unknown[] {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function unknownString(value: unknown) {
-  return typeof value === "string" ? value : "";
-}
-
-function unknownNullableString(value: unknown) {
-  const parsed = unknownString(value);
-  return parsed.length > 0 ? parsed : null;
-}
-
-function unknownNumber(value: unknown, fallback: number) {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return fallback;
-}
-
-function normalizeReturnableItems(order: PatientOrderForReturnLookup): ReturnableOrderItem[] {
-  const rawItems =
-    typeof order.items === "string"
-      ? parseJsonArray(order.items)
-      : Array.isArray(order.items)
-        ? order.items
-        : [];
-
-  return rawItems
-    .filter(isRecord)
-    .map((item) => ({
-      orderId: order.order_id,
-      orderDate: order.order_date,
-      orderStatus: order.status,
-      itemId: unknownString(item.item_id),
-      drugName: unknownString(item.drug_name),
-      batchNumber: unknownNullableString(item.batch_number),
-      quantity: unknownNumber(item.quantity, 0),
-      returnedQuantity: unknownNumber(item.returned_quantity, 0),
-      remainingQuantity: unknownNumber(
-        item.remaining_quantity,
-        unknownNumber(item.quantity, 0) - unknownNumber(item.returned_quantity, 0),
-      ),
-    }))
-    .filter(
-      (item) =>
-        item.itemId.length > 0 &&
-        item.drugName.length > 0 &&
-        item.quantity > 0 &&
-        item.remainingQuantity > 0,
-    );
-}
 
 function posSaleLineQuantity(item: PharmacyPosSaleLine) {
   return formIntegerOrFallback(item.quantity, 1);
@@ -697,27 +624,6 @@ function PharmacyPageInner() {
 //  Orders Tab (enhanced)
 // ══════════════════════════════════════════════════════════
 
-type ReturnWorkspaceMode = "medicine-returns" | "credit-notes";
-const returnWorkspaceModes: ReturnWorkspaceMode[] = ["medicine-returns", "credit-notes"];
-
-function isReturnWorkspaceMode(value: string): value is ReturnWorkspaceMode {
-  return returnWorkspaceModes.some((mode) => mode === value);
-}
-
-type ReturnFilterStatus = PharmacyReturnStatusType | "all";
-const returnFilterStatuses: ReturnFilterStatus[] = [
-  "all",
-  "requested",
-  "approved",
-  "returned_to_stock",
-  "destroyed",
-  "rejected",
-];
-
-function isReturnFilterStatus(value: string): value is ReturnFilterStatus {
-  return returnFilterStatuses.some((status) => status === value);
-}
-
 function PharmacyReturnsWorkspace({
   canViewQueue,
   canViewCreditNoteQueue,
@@ -780,22 +686,6 @@ function PharmacyReturnsWorkspace({
     </Stack>
   );
 }
-
-const returnStatusColors: Record<PharmacyReturnStatusType, string> = {
-  requested: "yellow",
-  approved: "blue",
-  returned_to_stock: "green",
-  destroyed: "red",
-  rejected: "gray",
-};
-
-const returnStatusLabels: Record<PharmacyReturnStatusType, string> = {
-  requested: "Requested",
-  approved: "Approved",
-  returned_to_stock: "Returned to stock",
-  destroyed: "Destroyed",
-  rejected: "Rejected",
-};
 
 function PharmacyReturnsTab({
   canViewQueue,

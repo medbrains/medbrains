@@ -12,6 +12,7 @@ import type {
   FieldAccessLevel,
   PharmacyOrderItem,
   PharmacyOrderItemInput,
+  PharmacyReturnStatusType,
   PharmacyRxDetailItem,
   PharmacyRxReviewItemInput,
 } from "@medbrains/types";
@@ -34,6 +35,7 @@ import {
   formNumberOrFallback,
   optionalFormText,
 } from "@/forms/pharmacy.form";
+import type { pharmacyService } from "@/services/pharmacy.service";
 
 type PharmacyTranslate = ReturnType<typeof useTranslation>["t"];
 
@@ -438,3 +440,126 @@ export const PHARMACY_ORDER_STATUS_OPTIONS = [
   { value: "cancelled", label: "Cancelled" },
   { value: "returned", label: "Returned" },
 ] as const;
+
+// ── Returns support: parse dispensed-order items into returnable rows ──
+
+export type PatientOrderForReturnLookup = Awaited<
+  ReturnType<typeof pharmacyService.listPatientOrdersForReturn>
+>[number];
+
+export type ReturnableOrderItem = {
+  orderId: string;
+  orderDate: string;
+  orderStatus: string;
+  itemId: string;
+  drugName: string;
+  batchNumber: string | null;
+  quantity: number;
+  returnedQuantity: number;
+  remainingQuantity: number;
+};
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function parseJsonArray(value: string): unknown[] {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function unknownString(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+export function unknownNullableString(value: unknown) {
+  const parsed = unknownString(value);
+  return parsed.length > 0 ? parsed : null;
+}
+
+export function unknownNumber(value: unknown, fallback: number) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+export function normalizeReturnableItems(
+  order: PatientOrderForReturnLookup,
+): ReturnableOrderItem[] {
+  const rawItems =
+    typeof order.items === "string"
+      ? parseJsonArray(order.items)
+      : Array.isArray(order.items)
+        ? order.items
+        : [];
+
+  return rawItems
+    .filter(isRecord)
+    .map((item) => ({
+      orderId: order.order_id,
+      orderDate: order.order_date,
+      orderStatus: order.status,
+      itemId: unknownString(item.item_id),
+      drugName: unknownString(item.drug_name),
+      batchNumber: unknownNullableString(item.batch_number),
+      quantity: unknownNumber(item.quantity, 0),
+      returnedQuantity: unknownNumber(item.returned_quantity, 0),
+      remainingQuantity: unknownNumber(
+        item.remaining_quantity,
+        unknownNumber(item.quantity, 0) - unknownNumber(item.returned_quantity, 0),
+      ),
+    }))
+    .filter(
+      (item) =>
+        item.itemId.length > 0 &&
+        item.drugName.length > 0 &&
+        item.quantity > 0 &&
+        item.remainingQuantity > 0,
+    );
+}
+
+// ── Returns display: workspace mode + filter status + badge maps ──
+
+export type ReturnWorkspaceMode = "medicine-returns" | "credit-notes";
+export const returnWorkspaceModes: ReturnWorkspaceMode[] = ["medicine-returns", "credit-notes"];
+
+export function isReturnWorkspaceMode(value: string): value is ReturnWorkspaceMode {
+  return returnWorkspaceModes.some((mode) => mode === value);
+}
+
+export type ReturnFilterStatus = PharmacyReturnStatusType | "all";
+export const returnFilterStatuses: ReturnFilterStatus[] = [
+  "all",
+  "requested",
+  "approved",
+  "returned_to_stock",
+  "destroyed",
+  "rejected",
+];
+
+export function isReturnFilterStatus(value: string): value is ReturnFilterStatus {
+  return returnFilterStatuses.some((status) => status === value);
+}
+
+export const returnStatusColors: Record<PharmacyReturnStatusType, string> = {
+  requested: "yellow",
+  approved: "blue",
+  returned_to_stock: "green",
+  destroyed: "red",
+  rejected: "gray",
+};
+
+export const returnStatusLabels: Record<PharmacyReturnStatusType, string> = {
+  requested: "Requested",
+  approved: "Approved",
+  returned_to_stock: "Returned to stock",
+  destroyed: "Destroyed",
+  rejected: "Rejected",
+};
