@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { NearExpiryHints } from "./pharmacy/near-expiry-hints";
 import {
   Card,
   Drawer,
@@ -2700,46 +2701,6 @@ function BatchExpiryTab() {
 // Surfaces the earliest-expiry batches for the drugs in this order so
 // dispensers can apply FEFO at a glance. Filters the global near-expiry
 // report by drug_name (NearExpiryRow doesn't carry catalog_item_id).
-function NearExpiryHints({ drugNames }: { drugNames: string[] }) {
-  const batchNumberAccess = useFieldAccess("pharmacy.batches.batch_number");
-  const nameSet = useMemo(() => new Set(drugNames.map((n) => n.toLowerCase())), [drugNames]);
-  const { data: rows = [] } = useQuery({
-    queryKey: ["pharmacy-near-expiry-hints"],
-    queryFn: () => pharmacyService.getNearExpiryReport({ days: "180" }),
-    enabled: drugNames.length > 0,
-  });
-  const relevant = rows.filter((r) => nameSet.has(r.drug_name.toLowerCase())).slice(0, 8);
-  if (relevant.length === 0) return null;
-  return (
-    <Stack gap={4}>
-      <Text size="xs" tt="uppercase" fw={700} c="dimmed">
-        FEFO suggestions — earliest-expiry batches in stock
-      </Text>
-      <Table withRowBorders={false}>
-        <Table.Tbody>
-          {relevant.map((r) => (
-            <Table.Tr key={`${r.drug_name}-${r.batch_number}`}>
-              <Table.Td>
-                <Text size="xs">{r.drug_name}</Text>
-              </Table.Td>
-              <Table.Td>
-                <Text size="xs" ff="monospace">
-                  Batch {renderPharmacySensitiveValue(batchNumberAccess, r.batch_number)}
-                </Text>
-              </Table.Td>
-              <Table.Td>
-                <ExpiryCell date={r.expiry_date} />
-              </Table.Td>
-              <Table.Td>
-                <Text size="xs">on-hand: {r.quantity_on_hand}</Text>
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    </Stack>
-  );
-}
 
 function StoresTransfersTab({
   canViewStores,
