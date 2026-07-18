@@ -3,6 +3,7 @@
 // into their own files without a cycle.
 
 import { Text } from "@mantine/core";
+import type { EmergencyResuscitationLogFormInput } from "@medbrains/schemas";
 import type { ErResuscitationLog, FieldAccessLevel } from "@medbrains/types";
 import { PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
@@ -231,3 +232,16 @@ export function resuscitationLogDetails(log: ErResuscitationLog): string {
 
   return log.procedure_notes ?? log.notes ?? "---";
 }
+
+export const emptyResuscitationLogForm: EmergencyResuscitationLogFormInput = {
+  er_visit_id: "",
+  log_type: "medication",
+  medication_name: "",
+  dose: "",
+  route: "",
+  fluid_name: "",
+  fluid_volume_ml: "",
+  procedure_name: "",
+  procedure_notes: "",
+  notes: "",
+};
