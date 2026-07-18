@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { BatchExpiryTab } from "./pharmacy/batch-expiry";
 import { AnalyticsTab } from "./pharmacy/analytics";
 import { StoresTransfersTab } from "./pharmacy/stores-transfers";
 import { NearExpiryHints } from "./pharmacy/near-expiry-hints";
@@ -140,14 +141,11 @@ import { confirmDestructive } from "@/lib/confirm-destructive";
 import { instructionsDisplayText } from "@/lib/medication-timing-utils";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { findAllergyConflicts } from "@/utils/allergyMatch";
-import { BatchLedgerView } from "./pharmacy/batch-ledger-view";
 import { PharmacyCatalogTab } from "./pharmacy/catalog";
-import { DeadStockView } from "./pharmacy/dead-stock-view";
 import { DrugInteractionModal } from "./pharmacy/drug-interaction-modal";
 import { EditablePharmacyQuantity } from "./pharmacy/editable-quantity";
 import { FormularyCheckModal } from "./pharmacy/formulary-check-modal";
 import { NdpsRegisterTab } from "./pharmacy/ndps-register";
-import { NearExpiryView } from "./pharmacy/near-expiry-view";
 import { PrescriptionAuditTrail } from "./pharmacy/prescription-audit-trail";
 import {
   canEditPharmacyField,
@@ -2674,30 +2672,6 @@ function PharmacyOrderDetail({
   );
 }
 
-function BatchExpiryTab() {
-  const [view, setView] = useState("batches");
-
-  return (
-    <Stack>
-      <SegmentedControl
-        value={view}
-        onChange={setView}
-        data={[
-          { label: "Batch Ledger", value: "batches" },
-          { label: "Near Expiry", value: "near-expiry" },
-          { label: "Dead Stock", value: "dead-stock" },
-        ]}
-      />
-      {view === "batches" && <BatchLedgerView />}
-      {view === "near-expiry" && <NearExpiryView />}
-      {view === "dead-stock" && <DeadStockView />}
-    </Stack>
-  );
-}
-
-// Surfaces the earliest-expiry batches for the drugs in this order so
-// dispensers can apply FEFO at a glance. Filters the global near-expiry
-// report by drug_name (NearExpiryRow doesn't carry catalog_item_id).
 
 
 
