@@ -66,7 +66,6 @@ import type {
   DischargeType,
   EstimatedCostResponse,
   ExpectedDischargeRow,
-  FieldAccessLevel,
   InvestigationsResponse,
   IpdBirthRecord,
   IpdCarePlan,
@@ -114,7 +113,6 @@ import {
   PATIENT_NAME_FIELD_ACCESS_KEYS,
   PATIENT_UHID_FIELD_ACCESS_KEY,
 } from "@medbrains/types";
-import { fieldAccessText } from "@medbrains/utils";
 import {
   IconAlertTriangle,
   IconArrowRight,
@@ -229,7 +227,14 @@ import {
   PRINT_COPY_PACKETS,
   printCopyRouteLabel,
 } from "@/utils/printCopies";
-import { AlosReport, CensusReport, DischargeStatsReport, OccupancyReport, SurgeonCaseloadReport } from "./ipd/reports";
+import {
+  AlosReport,
+  CensusReport,
+  DischargeStatsReport,
+  OccupancyReport,
+  SurgeonCaseloadReport,
+} from "./ipd/reports";
+import { protectedIpdPatientIdentifier, protectedIpdPatientName } from "./ipd/shared";
 import classes from "./ipd.module.scss";
 import {
   activeIpdInvoiceIdForJourney,
@@ -414,22 +419,6 @@ function emitIpdBedMovementEvent(
     source_record_id: response.transfer_id,
     transfer_id: response.transfer_id,
   });
-}
-
-function protectedIpdPatientName(
-  patientName: string | null | undefined,
-  access: FieldAccessLevel,
-): string {
-  const displayValue = fieldAccessText(access, patientName, "name");
-  return displayValue === "—" ? "Patient" : displayValue;
-}
-
-function protectedIpdPatientIdentifier(
-  identifier: string | null | undefined,
-  access: FieldAccessLevel,
-): string {
-  const displayValue = fieldAccessText(access, identifier, "identifier");
-  return displayValue === "—" ? "No UHID" : displayValue;
 }
 
 function firstIpdWorkspaceTabForSection(section: (typeof IPD_WORKSPACE_SECTIONS)[number]) {
@@ -4455,7 +4444,6 @@ function ReportsTab() {
   );
 }
 
-
 // ══════════════════════════════════════════════════════════
 //  IPD Phase 2b — Clinical Docs
 // ══════════════════════════════════════════════════════════
@@ -6810,7 +6798,6 @@ function BirthRecordsTab({
 // ══════════════════════════════════════════════════════════
 //  Phase 3b — OT Analytics Reports
 // ══════════════════════════════════════════════════════════
-
 
 // ═══════════════════════════════════════════════════════════
 // ── Generate Discharge Summary Modal ──────────────────────
