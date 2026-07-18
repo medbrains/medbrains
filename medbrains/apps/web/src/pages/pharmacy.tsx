@@ -49,7 +49,6 @@ import type {
   CreatePharmacyOrderRequest,
   DrugInteractionCheckRequest,
   DrugInteractionResult,
-  FieldAccessLevel,
   FormularyCheckResult,
   NdpsRegisterEntry,
   NearExpiryRow,
@@ -89,6 +88,7 @@ import {
   pharmacyRxStatusLabel as sharedPharmacyRxStatusLabel,
 } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
+import { canEditPharmacyField, canViewPharmacyField, renderPharmacySensitiveCurrency, renderPharmacySensitiveIdentifier, renderPharmacySensitiveNumber, renderPharmacySensitiveShortIdentifier, renderPharmacySensitiveValue } from "./pharmacy/shared";
 import {
   IconAlertTriangle,
   IconArrowLeft,
@@ -319,10 +319,6 @@ type PharmacyOrderPricingLine = Pick<
 type PharmacyPosSaleLine = PharmacyPosSaleFormInput["items"][number];
 type PharmacyPosReturnLine = PharmacyPosReturnFormInput["items"][number];
 
-function formatInr(value: number) {
-  return `₹${Number.isFinite(value) ? value.toFixed(2) : "0.00"}`;
-}
-
 type PatientOrderForReturnLookup = Awaited<
   ReturnType<typeof pharmacyService.listPatientOrdersForReturn>
 >[number];
@@ -403,14 +399,6 @@ function normalizeReturnableItems(order: PatientOrderForReturnLookup): Returnabl
     );
 }
 
-function canViewPharmacyField(access: FieldAccessLevel) {
-  return access !== "hidden";
-}
-
-function canEditPharmacyField(access: FieldAccessLevel) {
-  return access === "edit";
-}
-
 function PharmacyRestrictedValue() {
   return (
     <Text span size="sm" c="dimmed">
@@ -455,45 +443,6 @@ function PharmacyPatientContext({
     );
   }
   return <PatientContextBanner patientId={patientId} hideLoadingState />;
-}
-
-function renderPharmacySensitiveValue(access: FieldAccessLevel, value: string | null | undefined) {
-  return fieldAccessText(access, value);
-}
-
-function renderPharmacySensitiveIdentifier(
-  access: FieldAccessLevel,
-  value: string | null | undefined,
-) {
-  return fieldAccessText(access, value, "identifier");
-}
-
-function renderPharmacySensitiveShortIdentifier(
-  access: FieldAccessLevel,
-  value: string | null | undefined,
-) {
-  if (access === "edit" || access === "view") return value?.slice(0, 8) ?? "\u2014";
-  return renderPharmacySensitiveIdentifier(access, value);
-}
-
-function renderPharmacySensitiveNumber(
-  access: FieldAccessLevel,
-  value: string | number | null | undefined,
-) {
-  if (value === null || value === undefined || value === "") {
-    return "\u2014";
-  }
-  return fieldAccessText(access, String(value));
-}
-
-function renderPharmacySensitiveCurrency(
-  access: FieldAccessLevel,
-  value: string | number | null | undefined,
-) {
-  if (value === null || value === undefined || value === "") {
-    return "\u2014";
-  }
-  return fieldAccessText(access, formatInr(Number(value)), "amount");
 }
 
 function posSaleLineQuantity(item: PharmacyPosSaleLine) {
