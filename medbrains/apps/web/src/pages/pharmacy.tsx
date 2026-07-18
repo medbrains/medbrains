@@ -19,7 +19,6 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import type {
   PharmacyOrderFormInput,
-  PharmacyOrderItemFormInput,
   PharmacyPosReturnFormInput,
   PharmacyPosSaleFormInput,
   PharmacyReturnRequestFormInput,
@@ -39,7 +38,6 @@ import type {
   PharmacyOrder,
   PharmacyOrderDetailResponse,
   PharmacyOrderItem,
-  PharmacyOrderItemInput,
   PharmacyPosSale,
   PharmacyPosSaleItem,
   PharmacyReturn,
@@ -93,10 +91,7 @@ import { PatientJourneyActions } from "@/components/Patient/PatientJourneyAction
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { CreditNotesTab } from "@/components/Pharmacy/CreditNotesTab";
 import { DispenseModal } from "@/components/Pharmacy/DispenseModal";
-import {
-  MedicineOrderLineCard,
-  type MedicineOrderLineValue,
-} from "@/components/Pharmacy/MedicineOrderLineCard";
+import { MedicineOrderLineCard } from "@/components/Pharmacy/MedicineOrderLineCard";
 import { PharmacyDispensingView } from "@/components/Pharmacy/PharmacyDispensingView";
 import { PharmacyLabel } from "@/components/Pharmacy/PharmacyLabel";
 import { RepeatPanel } from "@/components/Pharmacy/RepeatPanel";
@@ -127,9 +122,18 @@ import { RxQueueTab } from "./pharmacy/rx-queue";
 import {
   canEditPharmacyField,
   canViewPharmacyField,
+  type DraftPharmacyOrderItem,
+  draftPharmacyOrderItemsPayload,
+  draftTotals,
   ExpiryCell,
+  newDraftPharmacyOrderItem,
+  newPharmacyOrderFormItem,
   PharmacyPatientCell,
   PharmacyPatientContext,
+  pharmacyOrderDefaults,
+  pharmacyOrderEventItems,
+  pharmacyOrderLineFromForm,
+  pharmacyOrderPayloadFromForm,
   renderPharmacySensitiveCurrency,
   renderPharmacySensitiveValue,
   sharedColorBadgeTone,
@@ -163,17 +167,6 @@ const PHARMACY_ORDER_STATUS_OPTIONS = [
   { value: "cancelled", label: "Cancelled" },
   { value: "returned", label: "Returned" },
 ] as const;
-
-type DraftPharmacyOrderItem = PharmacyOrderItemInput & {
-  row_id: string;
-  catalog_item_id?: string;
-  tax_percent?: number;
-};
-
-type PharmacyOrderPricingLine = Pick<
-  MedicineOrderLineValue,
-  "catalog_item_id" | "drug_name" | "quantity" | "unit_price" | "tax_percent"
->;
 
 type PharmacyPosSaleLine = PharmacyPosSaleFormInput["items"][number];
 type PharmacyPosReturnLine = PharmacyPosReturnFormInput["items"][number];
@@ -281,92 +274,6 @@ function posReturnLinePrice(item: PharmacyPosReturnLine) {
 function posSalePayloadPatientId(payload: Record<string, unknown>) {
   const patientId = payload.patient_id;
   return typeof patientId === "string" ? patientId : "";
-}
-
-function draftItemTaxAmount(item: PharmacyOrderPricingLine) {
-  return item.quantity * item.unit_price * ((item.tax_percent ?? 0) / 100);
-}
-
-function draftTotals(items: PharmacyOrderPricingLine[]) {
-  const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
-  const tax = items.reduce((sum, item) => sum + draftItemTaxAmount(item), 0);
-  return {
-    subtotal,
-    tax,
-    total: subtotal + tax,
-  };
-}
-
-function newPharmacyOrderFormItem(): PharmacyOrderItemFormInput {
-  return {
-    catalog_item_id: "",
-    drug_name: "",
-    quantity: 1,
-    unit_price: 0,
-    tax_percent: 0,
-  };
-}
-
-function pharmacyOrderDefaults(initialPatientId = ""): PharmacyOrderFormInput {
-  return {
-    patient_id: initialPatientId,
-    notes: "",
-    safety_override_reason: "",
-    items: [newPharmacyOrderFormItem()],
-  };
-}
-
-function newDraftPharmacyOrderItem(): DraftPharmacyOrderItem {
-  return {
-    row_id: crypto.randomUUID(),
-    drug_name: "",
-    quantity: 1,
-    unit_price: 0,
-    tax_percent: 0,
-  };
-}
-
-function pharmacyOrderLineFromForm(item: PharmacyOrderItemFormInput): MedicineOrderLineValue {
-  return {
-    catalog_item_id: optionalFormText(item.catalog_item_id ?? ""),
-    drug_name: item.drug_name,
-    quantity: formIntegerOrFallback(item.quantity, 1),
-    unit_price: formNumberOrFallback(item.unit_price, 0),
-    tax_percent: formNumberOrFallback(item.tax_percent, 0),
-  };
-}
-
-function draftPharmacyOrderItemsPayload(
-  items: PharmacyOrderPricingLine[],
-): PharmacyOrderItemInput[] {
-  return items.map(({ catalog_item_id, drug_name, quantity, unit_price }) => ({
-    catalog_item_id: optionalFormText(catalog_item_id ?? ""),
-    drug_name: drug_name.trim(),
-    quantity,
-    unit_price,
-  }));
-}
-
-function pharmacyOrderEventItems(items: PharmacyOrderItem[]) {
-  return items.map((item) => ({
-    batch_number: item.batch_number,
-    batch_stock_id: item.batch_stock_id,
-    catalog_item_id: item.catalog_item_id,
-    drug_name: item.drug_name,
-    expiry_date: item.expiry_date,
-    item_id: item.id,
-    quantity: item.quantity,
-  }));
-}
-
-function pharmacyOrderPayloadFromForm(values: PharmacyOrderFormInput): CreatePharmacyOrderRequest {
-  const lines = values.items.map(pharmacyOrderLineFromForm);
-  return {
-    patient_id: values.patient_id,
-    notes: optionalFormText(values.notes),
-    safety_override_reason: optionalFormText(values.safety_override_reason),
-    items: draftPharmacyOrderItemsPayload(lines),
-  };
 }
 
 // Dropdown options for categorical fields - aligned with ATC classification

@@ -1,9 +1,17 @@
 // Shared pharmacy helpers — pure field-access masking + currency formatting used across many
 // tabs, extracted from pharmacy.tsx so tab components can be split into their own files.
+
 import { Text } from "@mantine/core";
-import type { PharmacyRxReviewFormInput } from "@medbrains/schemas";
 import type {
+  PharmacyOrderFormInput,
+  PharmacyOrderItemFormInput,
+  PharmacyRxReviewFormInput,
+} from "@medbrains/schemas";
+import type {
+  CreatePharmacyOrderRequest,
   FieldAccessLevel,
+  PharmacyOrderItem,
+  PharmacyOrderItemInput,
   PharmacyRxDetailItem,
   PharmacyRxReviewItemInput,
 } from "@medbrains/types";
@@ -20,7 +28,12 @@ import {
 } from "@medbrains/types";
 import { IconCheck, IconClock, IconShoppingCart, IconX } from "@tabler/icons-react";
 import type { useTranslation } from "react-i18next";
-import { formIntegerOrFallback, formNumberOrFallback } from "@/forms/pharmacy.form";
+import type { MedicineOrderLineValue } from "@/components/Pharmacy/MedicineOrderLineCard";
+import {
+  formIntegerOrFallback,
+  formNumberOrFallback,
+  optionalFormText,
+} from "@/forms/pharmacy.form";
 
 type PharmacyTranslate = ReturnType<typeof useTranslation>["t"];
 
@@ -298,4 +311,105 @@ export function rxHasPriceOverride(
     if (!base) return false;
     return Math.abs(Number(line.unit_price) - Number(base.unit_price)) >= 0.01;
   });
+}
+
+export type DraftPharmacyOrderItem = PharmacyOrderItemInput & {
+  row_id: string;
+  catalog_item_id?: string;
+  tax_percent?: number;
+};
+
+export type PharmacyOrderPricingLine = Pick<
+  MedicineOrderLineValue,
+  "catalog_item_id" | "drug_name" | "quantity" | "unit_price" | "tax_percent"
+>;
+
+export function draftItemTaxAmount(item: PharmacyOrderPricingLine) {
+  return item.quantity * item.unit_price * ((item.tax_percent ?? 0) / 100);
+}
+
+export function draftTotals(items: PharmacyOrderPricingLine[]) {
+  const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+  const tax = items.reduce((sum, item) => sum + draftItemTaxAmount(item), 0);
+  return {
+    subtotal,
+    tax,
+    total: subtotal + tax,
+  };
+}
+
+export function newPharmacyOrderFormItem(): PharmacyOrderItemFormInput {
+  return {
+    catalog_item_id: "",
+    drug_name: "",
+    quantity: 1,
+    unit_price: 0,
+    tax_percent: 0,
+  };
+}
+
+export function pharmacyOrderDefaults(initialPatientId = ""): PharmacyOrderFormInput {
+  return {
+    patient_id: initialPatientId,
+    notes: "",
+    safety_override_reason: "",
+    items: [newPharmacyOrderFormItem()],
+  };
+}
+
+export function newDraftPharmacyOrderItem(): DraftPharmacyOrderItem {
+  return {
+    row_id: crypto.randomUUID(),
+    drug_name: "",
+    quantity: 1,
+    unit_price: 0,
+    tax_percent: 0,
+  };
+}
+
+export function pharmacyOrderLineFromForm(
+  item: PharmacyOrderItemFormInput,
+): MedicineOrderLineValue {
+  return {
+    catalog_item_id: optionalFormText(item.catalog_item_id ?? ""),
+    drug_name: item.drug_name,
+    quantity: formIntegerOrFallback(item.quantity, 1),
+    unit_price: formNumberOrFallback(item.unit_price, 0),
+    tax_percent: formNumberOrFallback(item.tax_percent, 0),
+  };
+}
+
+export function draftPharmacyOrderItemsPayload(
+  items: PharmacyOrderPricingLine[],
+): PharmacyOrderItemInput[] {
+  return items.map(({ catalog_item_id, drug_name, quantity, unit_price }) => ({
+    catalog_item_id: optionalFormText(catalog_item_id ?? ""),
+    drug_name: drug_name.trim(),
+    quantity,
+    unit_price,
+  }));
+}
+
+export function pharmacyOrderEventItems(items: PharmacyOrderItem[]) {
+  return items.map((item) => ({
+    batch_number: item.batch_number,
+    batch_stock_id: item.batch_stock_id,
+    catalog_item_id: item.catalog_item_id,
+    drug_name: item.drug_name,
+    expiry_date: item.expiry_date,
+    item_id: item.id,
+    quantity: item.quantity,
+  }));
+}
+
+export function pharmacyOrderPayloadFromForm(
+  values: PharmacyOrderFormInput,
+): CreatePharmacyOrderRequest {
+  const lines = values.items.map(pharmacyOrderLineFromForm);
+  return {
+    patient_id: values.patient_id,
+    notes: optionalFormText(values.notes),
+    safety_override_reason: optionalFormText(values.safety_override_reason),
+    items: draftPharmacyOrderItemsPayload(lines),
+  };
 }
