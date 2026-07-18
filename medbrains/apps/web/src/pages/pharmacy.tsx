@@ -5,7 +5,6 @@ import {
   Loader,
   Modal,
   NumberInput,
-  SegmentedControl,
   Select,
   Stack,
   Tabs,
@@ -47,7 +46,6 @@ import { useNavigate, useParams, useSearchParams } from "react-router";
 import { ClinicalEventProvider, DataTable, type DataTableFilter, PageHeader } from "@/components";
 import { DrugSearchSelect } from "@/components/DrugSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { CreditNotesTab } from "@/components/Pharmacy/CreditNotesTab";
 import { StoreIndentsTab } from "@/components/Pharmacy/StoreIndentsTab";
 import { Alert, Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import {
@@ -68,14 +66,12 @@ import { NdpsRegisterTab } from "./pharmacy/ndps-register";
 import { PharmacyOrderDetail } from "./pharmacy/order-detail";
 import { PharmacyOrderForm } from "./pharmacy/order-form";
 import { PharmacyOrdersTab } from "./pharmacy/orders";
-import { PharmacyReturnsTab } from "./pharmacy/returns";
+import { PharmacyReturnsWorkspace } from "./pharmacy/returns-workspace";
 import { RxQueueTab } from "./pharmacy/rx-queue";
 import {
   canEditPharmacyField,
   canViewPharmacyField,
-  isReturnWorkspaceMode,
   PharmacyPatientCell,
-  type ReturnWorkspaceMode,
   renderPharmacySensitiveCurrency,
   renderPharmacySensitiveValue,
   sharedColorBadgeTone,
@@ -574,69 +570,6 @@ function PharmacyPageInner() {
 // ══════════════════════════════════════════════════════════
 //  Orders Tab (enhanced)
 // ══════════════════════════════════════════════════════════
-
-function PharmacyReturnsWorkspace({
-  canViewQueue,
-  canViewCreditNoteQueue,
-  canRequest,
-  canApprove,
-  canVoidDispensing,
-  canRestock,
-  canDestroy,
-  canReject,
-  canSettleCreditNote,
-  canViewPatientRecord,
-}: {
-  canViewQueue: boolean;
-  canViewCreditNoteQueue: boolean;
-  canRequest: boolean;
-  canApprove: boolean;
-  canVoidDispensing: boolean;
-  canRestock: boolean;
-  canDestroy: boolean;
-  canReject: boolean;
-  canSettleCreditNote: boolean;
-  canViewPatientRecord: boolean;
-}) {
-  const [mode, setMode] = useState<ReturnWorkspaceMode>("medicine-returns");
-
-  return (
-    <Stack>
-      <SegmentedControl
-        size="xs"
-        value={mode}
-        onChange={(value) => {
-          if (isReturnWorkspaceMode(value)) setMode(value);
-        }}
-        data={[
-          { value: "medicine-returns", label: "Dispensed item returns" },
-          { value: "credit-notes", label: "Custom credit notes" },
-        ]}
-      />
-      {mode === "medicine-returns" ? (
-        <PharmacyReturnsTab
-          canViewQueue={canViewQueue}
-          canRequest={canRequest}
-          canApprove={canApprove}
-          canVoidDispensing={canVoidDispensing}
-          canRestock={canRestock}
-          canDestroy={canDestroy}
-          canReject={canReject}
-          canViewPatientRecord={canViewPatientRecord}
-        />
-      ) : (
-        <CreditNotesTab
-          canViewQueue={canViewCreditNoteQueue}
-          canCreate={canRequest}
-          canApprove={canApprove}
-          canSettle={canSettleCreditNote}
-          canCancel={canReject}
-          canViewPatientRecord={canViewPatientRecord}
-        />
-      )}
-    </Stack>
-  );
-}
 
 function PosCounterTab({
   canView,
