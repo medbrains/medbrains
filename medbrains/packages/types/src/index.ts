@@ -1,80 +1,18 @@
 // Permissions
-
-export * from "./additional-consent-print";
-export * from "./admin-forms";
-export * from "./ambulance-fleet";
-export * from "./analytics-dashboards";
-export * from "./billing-print-phase2";
-export * from "./blood-bank-phase2";
-export * from "./bloodbank-ot-forms";
-export * from "./bme-engineering";
-export * from "./care-view";
-export * from "./cath-lab";
-export * from "./chronic-care";
-export * from "./clinical-identity-forms";
-export * from "./clinical-knowledge-base";
-export * from "./command-center";
-export * from "./common";
-export * from "./communication-hub";
-export * from "./dashboard-widget-builder";
-export * from "./device-integration";
-export * from "./documents-module";
-export * from "./emergency";
-export * from "./emergency-drug-kits";
-export * from "./emergency-request";
-export * from "./endoscopy";
-export * from "./enterprise-sso";
-export * from "./field-mapping";
-export * from "./form-builder";
-export * from "./form-master";
-export * from "./form-versioning";
-export * from "./housekeeping";
-export * from "./infection-control";
-export * from "./insurance-tpa";
-export * from "./ipd-clinical-expansion";
-export * from "./ipd-phase2";
-export * from "./ipd-phase3a";
-export * from "./ipd-post-discharge";
-export * from "./lab-bloodbank-print-phase2";
-export * from "./maternity-obgyn";
-export * from "./medication-timing";
-export * from "./mrd";
-export * from "./mrd-form-print";
-export * from "./order-sets";
-export * from "./org-structure";
-export * from "./other-specialties";
-export * from "./palliative-mortuary-nuclear";
-export * from "./patient-registration";
-export * from "./pharmacy-credit-indents";
-export * from "./pharmacy-phase2";
-export * from "./pharmacy-phase3";
-export * from "./phase3-clinical-charts-print";
-export * from "./phase3-medicolegal-print";
-export * from "./phase3-surgical-ot-print";
-export * from "./pmr-audiology";
-export * from "./print-data";
-export * from "./procurement-request";
-export * from "./psychiatry";
-export * from "./regulatory-compliance";
-export * from "./schema-registry";
-export * from "./screen-layout-zone";
-export * from "./screen-system";
-
-import type { WorkingHours } from "./org-structure";
+import type {
+  AdditionalSequence,
+  OnboardingBedType,
+  OnboardingDepartment,
+  OnboardingFacility,
+  OnboardingLocation,
+  OnboardingPaymentMethod,
+  OnboardingRole,
+  OnboardingService,
+  OnboardingTaxCategory,
+  OnboardingUser,
+} from "./onboarding-store";
 
 export * from "./abdm-integration";
-
-export * from "./form-runtime";
-export * from "./setup-config";
-export * from "./tenant-facility";
-
-import type { FacilityType } from "./tenant-facility";
-
-export * from "./locale-units";
-export * from "./onboarding-masters";
-
-import type { ServiceType, TaxApplicability } from "./onboarding-masters";
-
 export type {
   AccessMatrixMaskingBehavior,
   AccessMatrixPlatform,
@@ -96,6 +34,10 @@ export {
   PATIENT_NAME_FIELD_ACCESS_KEYS,
   PATIENT_UHID_FIELD_ACCESS_KEY,
 } from "./access-matrix.js";
+export * from "./additional-consent-print";
+export * from "./admin-forms";
+export * from "./ambulance-fleet";
+export * from "./analytics-dashboards";
 export type {
   BedBoardSignalPhase,
   BedBoardSignalShape,
@@ -139,6 +81,18 @@ export {
   billingInvoiceStatusLabelKey,
   billingInvoiceStatusSignal,
 } from "./billing-invoice-signals.js";
+export * from "./billing-print-phase2";
+export * from "./blood-bank-phase2";
+export * from "./bloodbank-ot-forms";
+export * from "./bme-engineering";
+export * from "./care-view";
+export * from "./cath-lab";
+export * from "./chronic-care";
+export * from "./clinical-identity-forms";
+export * from "./clinical-knowledge-base";
+export * from "./command-center";
+export * from "./common";
+export * from "./communication-hub";
 export type {
   DashboardMobileIntent,
   DashboardMobileRoute,
@@ -149,6 +103,14 @@ export type {
   DashboardStatIntentId,
 } from "./dashboard-intents.js";
 export { buildDashboardReportPath, DASHBOARD_STAT_INTENTS } from "./dashboard-intents.js";
+export * from "./dashboard-widget-builder";
+export * from "./device-integration";
+export * from "./documents-module";
+export * from "./emergency";
+export * from "./emergency-drug-kits";
+export * from "./emergency-request";
+export * from "./endoscopy";
+export * from "./enterprise-sso";
 export type {
   ClinicalJourneyActionBlocker,
   ClinicalJourneyActionDefinition,
@@ -181,6 +143,30 @@ export {
   resolveClinicalJourneyActions,
   summarizeClinicalJourneyActions,
 } from "./event-actions.js";
+export * from "./field-mapping";
+export * from "./form-builder";
+export * from "./form-master";
+export * from "./form-runtime";
+export * from "./form-versioning";
+export * from "./housekeeping";
+export * from "./infection-control";
+export * from "./insurance-tpa";
+export * from "./ipd-clinical-expansion";
+export * from "./ipd-phase2";
+export * from "./ipd-phase3a";
+export * from "./ipd-post-discharge";
+export * from "./lab-bloodbank-print-phase2";
+export * from "./locale-units";
+export * from "./maternity-obgyn";
+export * from "./medication-timing";
+export * from "./mrd";
+export * from "./mrd-form-print";
+export * from "./onboarding-masters";
+export * from "./onboarding-store";
+export * from "./order-sets";
+export * from "./org-structure";
+export * from "./other-specialties";
+export * from "./palliative-mortuary-nuclear";
 export type {
   PatientContextSignal,
   PatientContextSignalKind,
@@ -235,6 +221,7 @@ export {
   patientJourneyMobileActionTarget,
 } from "./patient-journey-mobile-targets.js";
 export { patientJourneyActionRoute } from "./patient-journey-routes.js";
+export * from "./patient-registration";
 export type { PermissionDef, PermissionGroup } from "./permissions.js";
 export {
   buildPermissionTree,
@@ -243,6 +230,9 @@ export {
   PERMISSIONS,
   ROLE_TEMPLATES,
 } from "./permissions.js";
+export * from "./pharmacy-credit-indents";
+export * from "./pharmacy-phase2";
+export * from "./pharmacy-phase3";
 export type {
   PharmacyRxPriorityPhase,
   PharmacyRxSignal,
@@ -263,6 +253,19 @@ export {
   pharmacyRxStatusLabelKey,
   pharmacyRxStatusSignal,
 } from "./pharmacy-rx-signals.js";
+export * from "./phase3-clinical-charts-print";
+export * from "./phase3-medicolegal-print";
+export * from "./phase3-surgical-ot-print";
+export * from "./pmr-audiology";
+export * from "./print-data";
+export * from "./procurement-request";
+export * from "./psychiatry";
+export * from "./regulatory-compliance";
+export * from "./schema-registry";
+export * from "./screen-layout-zone";
+export * from "./screen-system";
+export * from "./setup-config";
+export * from "./tenant-facility";
 export type {
   BillingQueueLaneDefinition,
   BillingQueueLaneKey,
@@ -319,97 +322,6 @@ export {
   WORKFLOW_SIGNAL_SHAPES,
   workflowSignalShapeDefinition,
 } from "./workflow-signal-shapes.js";
-
-// ── Onboarding Store Types ──────────────────────────────
-
-export interface OnboardingFacility {
-  local_id: string;
-  code: string;
-  name: string;
-  facility_type: FacilityType;
-  parent_local_id?: string;
-  bed_count?: number;
-  shared_billing: boolean;
-  shared_pharmacy: boolean;
-  shared_lab: boolean;
-  shared_hr: boolean;
-}
-
-export interface OnboardingLocation {
-  local_id: string;
-  code: string;
-  name: string;
-  level: string;
-  parent_local_id?: string;
-}
-
-export interface OnboardingDepartment {
-  local_id: string;
-  code: string;
-  name: string;
-  department_type: string;
-  parent_local_id?: string;
-  working_hours?: WorkingHours;
-}
-
-export interface OnboardingUser {
-  local_id: string;
-  full_name: string;
-  username: string;
-  email: string;
-  password: string;
-  role: string;
-  specialization?: string;
-  medical_registration_number?: string;
-  qualification?: string;
-  consultation_fee?: number;
-  department_local_ids?: string[];
-}
-
-export interface OnboardingRole {
-  local_id: string;
-  code: string;
-  name: string;
-  description?: string;
-}
-
-export interface OnboardingService {
-  local_id: string;
-  code: string;
-  name: string;
-  service_type: ServiceType;
-  description?: string;
-}
-
-export interface OnboardingBedType {
-  local_id: string;
-  code: string;
-  name: string;
-  daily_rate: number;
-  description?: string;
-}
-
-export interface OnboardingTaxCategory {
-  local_id: string;
-  code: string;
-  name: string;
-  rate_percent: number;
-  applicability: TaxApplicability;
-  description?: string;
-}
-
-export interface OnboardingPaymentMethod {
-  local_id: string;
-  code: string;
-  name: string;
-  is_default: boolean;
-}
-
-export interface AdditionalSequence {
-  seq_type: string;
-  prefix: string;
-  pad_width: number;
-}
 
 // ── Print Template Types ────────────────────────────────
 
