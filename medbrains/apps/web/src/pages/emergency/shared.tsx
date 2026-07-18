@@ -245,3 +245,27 @@ export const emptyResuscitationLogForm: EmergencyResuscitationLogFormInput = {
   procedure_notes: "",
   notes: "",
 };
+
+export function mlcDocumentText(content: Record<string, unknown>, key: string) {
+  const value = content[key];
+  return typeof value === "string" && value.trim().length > 0 ? value : "---";
+}
+
+export function mlcDocumentSensitiveText(
+  access: FieldAccessLevel,
+  content: Record<string, unknown>,
+  key: string,
+) {
+  return renderSensitiveValue(access, mlcDocumentText(content, key));
+}
+
+export function mlcDocumentSensitiveBoolean(
+  access: FieldAccessLevel,
+  content: Record<string, unknown>,
+  key: string,
+) {
+  if (access !== "edit" && access !== "view") {
+    return renderSensitiveValue(access, "Sensitive value");
+  }
+  return content[key] === true ? "Yes" : "No";
+}

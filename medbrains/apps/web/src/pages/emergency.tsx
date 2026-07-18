@@ -60,7 +60,6 @@ import type {
   CreateResuscitationLogRequest,
   ErResuscitationLog,
   ErVisit,
-  FieldAccessLevel,
   MlcCase,
   MlcDocument,
   MlcDocumentationPrintData,
@@ -145,6 +144,9 @@ import {
   canEditSensitiveField,
   canViewSensitiveField,
   emptyResuscitationLogForm,
+  mlcDocumentSensitiveBoolean,
+  mlcDocumentSensitiveText,
+  mlcDocumentText,
   protectedEmergencyPatientIdentifier,
   protectedEmergencyPatientName,
   RestrictedValue,
@@ -199,30 +201,6 @@ function printHtmlElement(
     </html>
   `);
   popup.document.close();
-}
-
-function mlcDocumentText(content: Record<string, unknown>, key: string) {
-  const value = content[key];
-  return typeof value === "string" && value.trim().length > 0 ? value : "---";
-}
-
-function mlcDocumentSensitiveText(
-  access: FieldAccessLevel,
-  content: Record<string, unknown>,
-  key: string,
-) {
-  return renderSensitiveValue(access, mlcDocumentText(content, key));
-}
-
-function mlcDocumentSensitiveBoolean(
-  access: FieldAccessLevel,
-  content: Record<string, unknown>,
-  key: string,
-) {
-  if (access !== "edit" && access !== "view") {
-    return renderSensitiveValue(access, "Sensitive value");
-  }
-  return content[key] === true ? "Yes" : "No";
 }
 
 const emptyErVisitForm: ErVisitFormInput = {
