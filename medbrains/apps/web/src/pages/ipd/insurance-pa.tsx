@@ -1,0 +1,79 @@
+// IPD InsurancePaTab — split from ipd.tsx (pure move).
+
+import { Badge, Table } from "@/components/ui";
+import type { BadgeTone } from "@/components/ui";
+import { ipdService } from "@/services/ipd.service";
+import { Stack, Text } from "@mantine/core";
+import type { PriorAuthRequestRow } from "@medbrains/types";
+import { useQuery } from "@tanstack/react-query";
+
+export function InsurancePaTab({ admissionId }: { admissionId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["ipd-prior-auth", admissionId],
+    queryFn: () => ipdService.getAdmissionPriorAuth(admissionId),
+  });
+
+  const paStatusColors: Record<string, BadgeTone> = {
+    draft: "neutral",
+    submitted: "primary",
+    approved: "success",
+    partially_approved: "warning",
+    denied: "danger",
+    cancelled: "neutral",
+    expired: "warning",
+  };
+
+  const rows = data ?? [];
+
+  return (
+    <Stack>
+      <Text fw={600}>Prior Authorization Requests</Text>
+      {isLoading ? (
+        <Text c="dimmed">Loading...</Text>
+      ) : rows.length > 0 ? (
+        <Table striped>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>PA Number</Table.Th>
+              <Table.Th>Service</Table.Th>
+              <Table.Th>Status</Table.Th>
+              <Table.Th>Urgency</Table.Th>
+              <Table.Th>Submitted</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {rows.map((pa: PriorAuthRequestRow) => (
+              <Table.Tr key={pa.id}>
+                <Table.Td>
+                  <Text size="sm" fw={500}>
+                    {pa.pa_number}
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{pa.service_type}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Badge tone={paStatusColors[pa.status] ?? "neutral"} size="sm">
+                    {pa.status}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Badge size="sm">{pa.urgency}</Badge>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="xs">
+                    {pa.submitted_at ? new Date(pa.submitted_at).toLocaleDateString() : "—"}
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      ) : (
+        <Text size="sm" c="dimmed">
+          No prior authorization requests for this admission.
+        </Text>
+      )}
+    </Stack>
+  );
+}
