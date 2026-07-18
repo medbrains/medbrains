@@ -413,3 +413,28 @@ export function pharmacyOrderPayloadFromForm(
     items: draftPharmacyOrderItemsPayload(lines),
   };
 }
+
+export const statusColors: Record<string, string> = {
+  completed: "success",
+  ordered: "primary",
+  dispensed: "success",
+  cancelled: "danger",
+  partially_cancelled: "warning",
+  refunded: "indigo",
+  returned: "orange",
+};
+
+export const dispensingTypeLabels: Record<string, string> = {
+  prescription: "Rx",
+  otc: "OTC",
+  discharge: "Discharge",
+  package: "Package",
+  emergency: "Emergency",
+};
+
+export const PHARMACY_ORDER_STATUS_OPTIONS = [
+  { value: "ordered", label: "Ordered" },
+  { value: "dispensed", label: "Dispensed" },
+  { value: "cancelled", label: "Cancelled" },
+  { value: "returned", label: "Returned" },
+] as const;

@@ -118,42 +118,20 @@ import { RxQueueTab } from "./pharmacy/rx-queue";
 import {
   canEditPharmacyField,
   canViewPharmacyField,
+  dispensingTypeLabels,
   ExpiryCell,
+  PHARMACY_ORDER_STATUS_OPTIONS,
   PharmacyPatientCell,
   PharmacyPatientContext,
   pharmacyOrderEventItems,
   renderPharmacySensitiveCurrency,
   renderPharmacySensitiveValue,
   sharedColorBadgeTone,
+  statusColors,
 } from "./pharmacy/shared";
 import { StockTab } from "./pharmacy/stock";
 import { StoresTransfersTab } from "./pharmacy/stores-transfers";
 import { pharmacyOrderJourneyContext } from "./pharmacy-workspace";
-
-const statusColors: Record<string, string> = {
-  completed: "success",
-  ordered: "primary",
-  dispensed: "success",
-  cancelled: "danger",
-  partially_cancelled: "warning",
-  refunded: "indigo",
-  returned: "orange",
-};
-
-const dispensingTypeLabels: Record<string, string> = {
-  prescription: "Rx",
-  otc: "OTC",
-  discharge: "Discharge",
-  package: "Package",
-  emergency: "Emergency",
-};
-
-const PHARMACY_ORDER_STATUS_OPTIONS = [
-  { value: "ordered", label: "Ordered" },
-  { value: "dispensed", label: "Dispensed" },
-  { value: "cancelled", label: "Cancelled" },
-  { value: "returned", label: "Returned" },
-] as const;
 
 type PharmacyPosSaleLine = PharmacyPosSaleFormInput["items"][number];
 type PharmacyPosReturnLine = PharmacyPosReturnFormInput["items"][number];
