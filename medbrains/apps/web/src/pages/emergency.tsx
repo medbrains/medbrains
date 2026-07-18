@@ -169,6 +169,7 @@ import {
   printCopyRouteLabel,
 } from "@/utils/printCopies";
 import { billingInvoiceWorkspaceRoute } from "./billing-workspace";
+import { TriageLogTab } from "./emergency/triage-log";
 import classes from "./emergency.module.scss";
 import { emergencyTabFromSearch, emergencyVisibleTab } from "./emergency-workspace";
 
@@ -1346,55 +1347,6 @@ export function EmergencyVisitDetailPage() {
 // CRDT-backed triage log: append-only ESI entries that survive a
 // WAN outage. Picks a visit from the live ER queue; the panel
 // below switches REST↔CRDT based on TenantConfigProvider.
-
-function TriageLogTab({
-  canAppend,
-  canViewVisits,
-}: {
-  canAppend: boolean;
-  canViewVisits: boolean;
-}) {
-  const [visitId, setVisitId] = useState<string | null>(null);
-  const { data: visits = [] } = useQuery({
-    queryKey: ["er-visits"],
-    queryFn: () => emergencyService.listErVisits(),
-    enabled: canViewVisits,
-  });
-
-  const options = (visits as ErVisit[]).map((v) => ({
-    value: v.id,
-    label: `${v.visit_number} — ${v.chief_complaint ?? "No complaint"}`,
-  }));
-
-  return (
-    <Stack>
-      {canViewVisits ? (
-        <Select
-          placeholder="Select an ER visit…"
-          data={options}
-          value={visitId}
-          onChange={setVisitId}
-          searchable
-          clearable
-          maxDropdownHeight={300}
-        />
-      ) : (
-        <Alert tone="warning" icon={<IconAlertTriangle size={16} />}>
-          Triage review needs ER visit selector access so entries can be linked to a live visit.
-        </Alert>
-      )}
-      {visitId ? (
-        <TriagePanel visitId={visitId} canAppend={canAppend} />
-      ) : (
-        <Text size="sm" c="dimmed">
-          Pick a visit to record or review triage entries.
-        </Text>
-      )}
-    </Stack>
-  );
-}
-
-// ── Resuscitation Tab ──────────────────────────────────
 
 function ResuscitationTab({
   canView,
