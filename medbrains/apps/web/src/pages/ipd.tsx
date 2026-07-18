@@ -37,7 +37,6 @@ import type {
   CreateClinicalDocRequest,
   CreateDischargeSummaryRequest,
   CreateNursingTaskRequest,
-  CreatePrescriptionRequest,
   CreateRestraintCheckRequest,
   CreateWardRequest,
   DischargeSummary as DischargeSummaryGenerated,
@@ -51,14 +50,12 @@ import type {
   IpTypeConfiguration,
   MrdCaseSheetPacket,
   NursingTask,
-  PatientAllergy,
   PrescriptionWithItems,
   ProcedureConsent,
   Receipt,
   RestraintCheckStatus,
   RestraintMonitoringLog,
   UpdateDischargeSummaryRequest,
-  UpdatePrescriptionRequest,
   UpdateWardRequest,
   WardBedRow,
   WardListRow,
@@ -115,7 +112,6 @@ import {
   type OperationalSignalShape,
   type OperationalSignalTone,
   PageHeader,
-  PrescriptionViews,
   StatusDot,
   useClinicalEmit,
   useProtectedFieldAccess,
@@ -150,7 +146,6 @@ import {
   toast,
 } from "@/components/ui";
 import { WardSelect } from "@/components/WardSelect";
-import { RxSuiteWriter } from "@/features/prescription/RxSuiteWriter";
 import {
   DEFAULT_IPD_ADMISSION_VALUES,
   DEFAULT_IPD_NURSING_TASK_VALUES,
@@ -174,6 +169,7 @@ import {
   PRINT_COPY_PACKETS,
   printCopyRouteLabel,
 } from "@/utils/printCopies";
+import { AdmissionPrescriptionsTab } from "./ipd/admission-prescriptions";
 import { AssessmentsTab } from "./ipd/assessments";
 import { AttendersTab } from "./ipd/attenders";
 import { BedTurnaroundView } from "./ipd/bed-turnaround";
@@ -186,6 +182,7 @@ import { ExpectedDischargesTab } from "./ipd/expected-discharges";
 import { InsurancePaTab } from "./ipd/insurance-pa";
 import { InvestigationsTab } from "./ipd/investigations";
 import { IoChartTab } from "./ipd/io-chart";
+import { MarTab } from "./ipd/mar";
 import { MlcTab } from "./ipd/mlc";
 import { NursingTab } from "./ipd/nursing";
 import { ProgressNotesTab } from "./ipd/progress-notes";
@@ -197,7 +194,6 @@ import {
   SurgeonCaseloadReport,
 } from "./ipd/reports";
 import { protectedIpdPatientIdentifier, protectedIpdPatientName } from "./ipd/shared";
-import { MarTab } from "./ipd/mar";
 import { TransferLogTab } from "./ipd/transfer-log";
 import classes from "./ipd.module.scss";
 import {
@@ -2037,90 +2033,6 @@ function OverviewTab({
 }
 
 // ── Progress Notes ─────────────────────────────────────
-
-
-function AdmissionPrescriptionsTab({
-  encounterId,
-  patientId,
-}: {
-  encounterId: string;
-  patientId: string;
-}) {
-  const queryClient = useQueryClient();
-  const canWrite = useHasPermission(P.OPD.VISIT_UPDATE);
-  const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
-  const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
-  const { data: prescriptions = [] } = useQuery<PrescriptionWithItems[]>({
-    queryKey: ["encounter-prescriptions", encounterId],
-    queryFn: () => ipdService.listPrescriptions(encounterId),
-  });
-
-  const { data: patient } = useQuery({
-    queryKey: ["patient-detail", patientId],
-    queryFn: () => ipdService.getPatient(patientId),
-  });
-
-  const { data: allergies = [] } = useQuery<PatientAllergy[]>({
-    queryKey: ["patient-allergies", patientId],
-    queryFn: () => ipdService.listPatientAllergies(patientId),
-  });
-  const allergyNames = allergies.filter((a) => a.is_active).map((a) => a.allergen_name);
-
-  const invalidate = () =>
-    void queryClient.invalidateQueries({ queryKey: ["encounter-prescriptions", encounterId] });
-  const createMutation = useMutation({
-    mutationFn: (data: CreatePrescriptionRequest) =>
-      ipdService.createPrescription(encounterId, data),
-    onSuccess: invalidate,
-    onError: (e: Error) => toast.error(e.message, { title: "Prescription blocked" }),
-  });
-  const updateMutation = useMutation({
-    mutationFn: ({
-      prescriptionId,
-      data,
-    }: {
-      prescriptionId: string;
-      data: UpdatePrescriptionRequest;
-    }) => ipdService.updatePrescription(prescriptionId, data),
-    onSuccess: invalidate,
-    onError: (e: Error) => toast.error(e.message, { title: "Prescription blocked" }),
-  });
-
-  const fullName = patient
-    ? `${patient.first_name} ${patient.middle_name ?? ""} ${patient.last_name}`.trim()
-    : patientId.slice(0, 8);
-  const uhid = patient?.uhid ?? patientId.slice(0, 8);
-  const patientName = protectedIpdPatientName(fullName, patientNameAccess);
-  const patientUhid = protectedIpdPatientIdentifier(uhid, uhidAccess);
-
-  return (
-    <Stack gap="md">
-      <RxSuiteWriter
-        encounterId={encounterId}
-        patientId={patientId}
-        prescriptions={prescriptions}
-        canUpdate={canWrite}
-        onSave={(data) => createMutation.mutate(data)}
-        onUpdate={(prescriptionId, data) => updateMutation.mutate({ prescriptionId, data })}
-        isSaving={createMutation.isPending}
-        isUpdating={updateMutation.isPending}
-        patientName={patientName}
-        uhid={patientUhid}
-        allergies={allergyNames}
-      />
-      {prescriptions.length > 0 && (
-        <PrescriptionViews
-          prescriptions={prescriptions}
-          patientName={patientName}
-          uhid={patientUhid}
-          allergies={allergyNames}
-        />
-      )}
-    </Stack>
-  );
-}
-
-// ── I/O Chart ──────────────────────────────────────────
 
 function DischargeSummaryTab({
   admissionId,
