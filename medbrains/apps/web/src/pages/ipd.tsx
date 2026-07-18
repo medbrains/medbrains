@@ -1,4 +1,3 @@
-import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Box,
   Card,
@@ -18,36 +17,8 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import type { IpdNursingTaskFormInput } from "@medbrains/schemas";
-import { ipdNursingTaskFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type {
-  AdmissionDetailResponse,
-  AdmissionPrintData,
-  AdmissionRow,
-  AnesthesiaComplicationEntry,
-  BedDashboardRow,
-  BedDashboardSummary,
-  BedTransferRequest,
-  BedTransferResponse,
-  ClinicalJourneyActionId,
-  ClinicalJourneyContext,
-  CreateNursingTaskRequest,
-  CreateWardRequest,
-  DischargeSummary as DischargeSummaryGenerated,
-  DischargeType,
-  InvestigationsResponse,
-  IpdDischargeChecklist,
-  IpdDischargeSummary,
-  IpTypeConfiguration,
-  MrdCaseSheetPacket,
-  NursingTask,
-  PrescriptionWithItems,
-  ProcedureConsent,
-  UpdateWardRequest,
-  WardBedRow,
-  WardListRow,
-} from "@medbrains/types";
+import type { AdmissionDetailResponse, AdmissionPrintData, AdmissionRow, AnesthesiaComplicationEntry, BedDashboardRow, BedDashboardSummary, BedTransferRequest, BedTransferResponse, ClinicalJourneyActionId, ClinicalJourneyContext, CreateWardRequest, DischargeSummary as DischargeSummaryGenerated, DischargeType, InvestigationsResponse, IpdDischargeChecklist, IpdDischargeSummary, IpTypeConfiguration, MrdCaseSheetPacket, PrescriptionWithItems, ProcedureConsent, UpdateWardRequest, WardBedRow, WardListRow } from "@medbrains/types";
 import {
   BED_BOARD_MUTABLE_STATUS_VALUES,
   BED_BOARD_STATUS_VALUES,
@@ -87,7 +58,6 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useMemo, useRef, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
@@ -107,7 +77,6 @@ import {
 import { BedSelect } from "@/components/BedSelect";
 import { PatientConsumablesPanel } from "@/components/Clinical";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
-import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { DamaModal } from "@/components/Ipd/DamaModal";
 import { DischargeWorkflowWizard } from "@/components/Ipd/DischargeWorkflowWizard";
 import { MarkDeathModal } from "@/components/Ipd/MarkDeathModal";
@@ -131,11 +100,6 @@ import {
   Table,
   toast,
 } from "@/components/ui";
-import {
-  DEFAULT_IPD_NURSING_TASK_VALUES,
-  ipdOptionalText,
-  nursingTaskTypeOptions,
-} from "@/forms/ipd.form";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { confirmDestructive } from "@/lib/confirm-destructive";
@@ -179,6 +143,7 @@ import {
   SurgeonCaseloadReport,
 } from "./ipd/reports";
 import { protectedIpdPatientIdentifier, protectedIpdPatientName } from "./ipd/shared";
+import { OverviewTab } from "./ipd/overview";
 import { TransferLogTab } from "./ipd/transfer-log";
 import classes from "./ipd.module.scss";
 import {
@@ -1690,138 +1655,6 @@ function AdmissionDetail({
 
 // ── Overview (tasks) ───────────────────────────────────
 
-function OverviewTab({
-  admissionId,
-  tasks,
-  canCreate,
-}: {
-  admissionId: string;
-  tasks: NursingTask[];
-  canCreate: boolean;
-}) {
-  const queryClient = useQueryClient();
-  const [formOpened, formHandlers] = useDisclosure(false);
-  const {
-    control,
-    register,
-    reset,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<IpdNursingTaskFormInput>({
-    resolver: zodResolver(ipdNursingTaskFormSchema),
-    defaultValues: DEFAULT_IPD_NURSING_TASK_VALUES,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (data: CreateNursingTaskRequest) => ipdService.createNursingTask(admissionId, data),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
-      formHandlers.close();
-      reset(DEFAULT_IPD_NURSING_TASK_VALUES);
-    },
-  });
-
-  const toggleMutation = useMutation({
-    mutationFn: ({ taskId, completed }: { taskId: string; completed: boolean }) =>
-      ipdService.updateNursingTask(admissionId, taskId, { is_completed: completed }),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] }),
-  });
-
-  const handleCreateTask = (values: IpdNursingTaskFormInput) => {
-    createMutation.mutate({
-      task_type: values.task_type,
-      description: values.description.trim(),
-      assigned_to: ipdOptionalText(values.assigned_to),
-      notes: ipdOptionalText(values.notes),
-    });
-  };
-
-  return (
-    <Stack>
-      {canCreate && (
-        <Group>
-          <Button
-            tone="primary"
-            size="xs"
-            leftSection={<IconPlus size={14} />}
-            onClick={formHandlers.toggle}
-          >
-            Add Task
-          </Button>
-        </Group>
-      )}
-      {formOpened && (
-        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateTask)}>
-          <Controller
-            control={control}
-            name="task_type"
-            render={({ field }) => (
-              <Select
-                label="Task Type"
-                required
-                data={nursingTaskTypeOptions}
-                value={field.value}
-                onChange={(value) => field.onChange(value ?? "vitals")}
-                error={errors.task_type?.message}
-                searchable
-              />
-            )}
-          />
-          <TextInput
-            label="Description"
-            required
-            error={errors.description?.message}
-            {...register("description")}
-          />
-          <Controller
-            control={control}
-            name="assigned_to"
-            render={({ field }) => (
-              <EmployeeSearchSelect
-                label="Assigned to"
-                value={field.value}
-                onChange={field.onChange}
-                error={errors.assigned_to?.message}
-              />
-            )}
-          />
-          <TextInput label="Notes" error={errors.notes?.message} {...register("notes")} />
-          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
-            Save Task
-          </Button>
-        </Stack>
-      )}
-      <DataTable
-        columns={[
-          {
-            key: "done",
-            label: "Done",
-            render: (t: NursingTask) => (
-              <Checkbox
-                checked={t.is_completed}
-                onChange={() => toggleMutation.mutate({ taskId: t.id, completed: !t.is_completed })}
-                disabled={!canCreate}
-              />
-            ),
-          },
-          { key: "task_type", label: "Type", render: (t: NursingTask) => t.task_type },
-          { key: "description", label: "Description", render: (t: NursingTask) => t.description },
-          {
-            key: "due",
-            label: "Due",
-            render: (t: NursingTask) => (t.due_at ? new Date(t.due_at).toLocaleString() : "—"),
-          },
-          { key: "notes", label: "Notes", render: (t: NursingTask) => t.notes ?? "—" },
-        ]}
-        data={tasks}
-        rowKey={(t) => t.id}
-      />
-    </Stack>
-  );
-}
-
-// ── Progress Notes ─────────────────────────────────────
 
 function TransferTab({
   admissionId,
