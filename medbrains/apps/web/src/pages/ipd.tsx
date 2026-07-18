@@ -1,10 +1,47 @@
-import { Box, Card, Checkbox, Drawer, Grid, Group, Select, SimpleGrid, Stack, Tabs, Text, Textarea, TextInput, Tooltip } from "@mantine/core";
-import { BedTransferModal } from "./ipd/bed-transfer-modal";
-import { TransferTab } from "./ipd/transfer";
+import {
+  Box,
+  Card,
+  Checkbox,
+  Drawer,
+  Grid,
+  Group,
+  Select,
+  SimpleGrid,
+  Stack,
+  Tabs,
+  Text,
+  Textarea,
+  TextInput,
+  Tooltip,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
-import type { AdmissionDetailResponse, AdmissionPrintData, BedDashboardRow, BedDashboardSummary, ClinicalJourneyActionId, ClinicalJourneyContext, CreateWardRequest, DischargeType, InvestigationsResponse, IpdDischargeChecklist, IpdDischargeSummary, MrdCaseSheetPacket, PrescriptionWithItems, UpdateWardRequest, WardBedRow, WardListRow } from "@medbrains/types";
-import { BED_BOARD_MUTABLE_STATUS_VALUES, BED_BOARD_STATUS_VALUES, bedBoardSignalLabel, bedBoardSignalLabelKey, bedBoardStatusLabel, bedBoardStatusLabelKey, bedBoardStatusSignal, journeyActionSignalLabel, P, PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
+import type {
+  AdmissionDetailResponse,
+  AdmissionPrintData,
+  BedDashboardRow,
+  BedDashboardSummary,
+  ClinicalJourneyActionId,
+  ClinicalJourneyContext,
+  CreateWardRequest,
+  DischargeType,
+  InvestigationsResponse,
+  IpdDischargeChecklist,
+  IpdDischargeSummary,
+  MrdCaseSheetPacket,
+  PrescriptionWithItems,
+  UpdateWardRequest,
+  WardBedRow,
+  WardListRow,
+} from "@medbrains/types";
+import {
+  BED_BOARD_MUTABLE_STATUS_VALUES,
+  BED_BOARD_STATUS_VALUES,
+  journeyActionSignalLabel,
+  P,
+  PATIENT_NAME_FIELD_ACCESS_KEYS,
+  PATIENT_UHID_FIELD_ACCESS_KEY,
+} from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconArrowRight,
@@ -13,7 +50,6 @@ import {
   IconBuildingHospital,
   IconCalendarTime,
   IconChartBar,
-  IconCheck,
   IconClipboardList,
   IconCross,
   IconDoor,
@@ -32,7 +68,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { ClinicalEventProvider, DataTable, DocumentActions, OperationalSignal, type OperationalSignalShape, type OperationalSignalTone, PageHeader, useClinicalEmit, useProtectedFieldAccess } from "@/components";
+import {
+  ClinicalEventProvider,
+  DataTable,
+  DocumentActions,
+  OperationalSignal,
+  PageHeader,
+  useClinicalEmit,
+  useProtectedFieldAccess,
+} from "@/components";
 import { PatientConsumablesPanel } from "@/components/Clinical";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { DamaModal } from "@/components/Ipd/DamaModal";
@@ -48,16 +92,7 @@ import {
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
-import {
-  Alert,
-  Badge,
-  type BadgeTone,
-  Button,
-  type ButtonTone,
-  IconButton,
-  Table,
-  toast,
-} from "@/components/ui";
+import { Alert, Badge, Button, type ButtonTone, IconButton, Table, toast } from "@/components/ui";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { confirmDestructive } from "@/lib/confirm-destructive";
@@ -75,6 +110,7 @@ import { AdmissionForm } from "./ipd/admission-form";
 import { AdmissionPrescriptionsTab } from "./ipd/admission-prescriptions";
 import { AssessmentsTab } from "./ipd/assessments";
 import { AttendersTab } from "./ipd/attenders";
+import { BedTransferModal } from "./ipd/bed-transfer-modal";
 import { BedTurnaroundView } from "./ipd/bed-turnaround";
 import { BillingTab } from "./ipd/billing";
 import { BirthRecordsTab } from "./ipd/birth-records";
@@ -93,12 +129,25 @@ import { MlcTab } from "./ipd/mlc";
 import { NursingTab } from "./ipd/nursing";
 import { ProgressNotesTab } from "./ipd/progress-notes";
 import { protectedIpdPatientIdentifier, protectedIpdPatientName } from "./ipd/shared";
-import { ReportsTab } from "./ipd/reports-tab";
+import { TransferTab } from "./ipd/transfer";
+
+type IpdTranslate = ReturnType<typeof useTranslation>["t"];
+
+import { AdmissionsTab } from "./ipd/admissions";
 import { ConsentsTab } from "./ipd/consents";
 import { GenerateDischargeSummaryModal } from "./ipd/generate-discharge-summary-modal";
-import { AdmissionsTab } from "./ipd/admissions";
 import { IpTypeConfigSection } from "./ipd/ip-type-config";
 import { OverviewTab } from "./ipd/overview";
+import { ReportsTab } from "./ipd/reports-tab";
+import {
+  bedDashboardSignalLabel,
+  bedDashboardStatusIcon,
+  bedDashboardStatusLabel,
+  bedDashboardStatusShape,
+  bedDashboardStatusTone,
+  bedStatusBadgeTones,
+  bedStatusColors,
+} from "./ipd/shared";
 import { TransferLogTab } from "./ipd/transfer-log";
 import classes from "./ipd.module.scss";
 import {
@@ -120,81 +169,6 @@ import {
   summarizeIpdActionRailSections,
   summarizeIpdWorkspaceTabReadiness,
 } from "./ipd-workspace";
-
-const bedStatusColors: Record<string, string> = {
-  vacant_clean: "success",
-  vacant_dirty: "warning",
-  occupied: "primary",
-  occupied_transfer_pending: "orange",
-  reserved: "orange",
-  maintenance: "slate",
-  blocked: "danger",
-};
-
-const bedStatusBadgeTones: Record<string, BadgeTone> = {
-  vacant_clean: "success",
-  vacant_dirty: "warning",
-  occupied: "primary",
-  occupied_transfer_pending: "warning",
-  reserved: "warning",
-  maintenance: "neutral",
-  blocked: "danger",
-};
-
-type IpdTranslate = ReturnType<typeof useTranslation>["t"];
-
-function translatedBedDashboardLabel(
-  t: IpdTranslate,
-  key: string | null,
-  fallback: string,
-): string {
-  return key ? t(key, { defaultValue: fallback }) : fallback;
-}
-
-function bedDashboardStatusLabel(t: IpdTranslate, status: string): string {
-  return translatedBedDashboardLabel(
-    t,
-    bedBoardStatusLabelKey(status),
-    bedBoardStatusLabel(status),
-  );
-}
-
-function bedDashboardSignalLabel(t: IpdTranslate, status: string): string {
-  return translatedBedDashboardLabel(
-    t,
-    bedBoardSignalLabelKey(status),
-    bedBoardSignalLabel(status),
-  );
-}
-
-function bedDashboardStatusTone(status: string): OperationalSignalTone {
-  return bedBoardStatusSignal(status).tone;
-}
-
-function bedDashboardStatusShape(status: string): OperationalSignalShape {
-  return bedBoardStatusSignal(status).shape;
-}
-
-function bedDashboardStatusIcon(status: string) {
-  switch (status) {
-    case "vacant_clean":
-      return IconCheck;
-    case "vacant_dirty":
-      return IconDoor;
-    case "occupied":
-      return IconBed;
-    case "occupied_transfer_pending":
-      return IconArrowRight;
-    case "reserved":
-      return IconCalendarTime;
-    case "maintenance":
-      return IconAlertTriangle;
-    case "blocked":
-      return IconUserOff;
-    default:
-      return undefined;
-  }
-}
 
 const IPD_WORKSPACE_TABS = [
   { value: "overview", label: "Overview", section: "Command" },
@@ -542,7 +516,6 @@ function IpdPageInner() {
 // ═══════════════════════════════════════════════════════════
 // ── Admissions Tab ───────────────────────────────────────
 // ═══════════════════════════════════════════════════════════
-
 
 export function IpdNewAdmissionPage() {
   useRequirePermission(P.IPD.ADMISSIONS_CREATE);
@@ -1464,8 +1437,6 @@ function AdmissionDetail({
 
 // ── Overview (tasks) ───────────────────────────────────
 
-
-
 function DischargeTab({
   admissionId,
   canDischarge,
@@ -1969,7 +1940,6 @@ function WardBedsPanel({ wardId, canManage }: { wardId: string; canManage: boole
 // ── IP Type Configuration Section ────────────────────────
 // ═══════════════════════════════════════════════════════════
 
-
 function BedDashboardTab() {
   const { t } = useTranslation("ipd");
   const canManageBeds = useHasPermission(P.IPD.BEDS_MANAGE);
@@ -2250,8 +2220,6 @@ function BedDashboardTab() {
 // ── Reports Tab ──────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════
 
-
-
 const IPD_ADMISSION_PRINT_COPIES = PRINT_COPY_PACKETS.ipdAdmission;
 
 function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
@@ -2432,6 +2400,3 @@ function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
 // ══════════════════════════════════════════════════════════
 //  Phase 3b — Death Summary Tab
 // ══════════════════════════════════════════════════════════
-
-
-
