@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { StoresTransfersTab } from "./pharmacy/stores-transfers";
 import { NearExpiryHints } from "./pharmacy/near-expiry-hints";
 import {
   Card,
@@ -122,7 +123,6 @@ import {
 } from "@/components/Pharmacy/MedicineOrderLineCard";
 import { PharmacyDispensingView } from "@/components/Pharmacy/PharmacyDispensingView";
 import { PharmacyLabel } from "@/components/Pharmacy/PharmacyLabel";
-import { PharmacyRegistry } from "@/components/Pharmacy/PharmacyRegistry";
 import { RepeatPanel } from "@/components/Pharmacy/RepeatPanel";
 import { StoreIndentsTab } from "@/components/Pharmacy/StoreIndentsTab";
 import { SubstituteModal } from "@/components/Pharmacy/SubstituteModal";
@@ -161,7 +161,6 @@ import {
   sharedColorBadgeTone,
 } from "./pharmacy/shared";
 import { StockTab } from "./pharmacy/stock";
-import { TransfersView } from "./pharmacy/transfers-view";
 import { UtilizationView } from "./pharmacy/utilization-view";
 import styles from "./pharmacy.module.scss";
 import { pharmacyOrderJourneyContext } from "./pharmacy-workspace";
@@ -2702,47 +2701,6 @@ function BatchExpiryTab() {
 // dispensers can apply FEFO at a glance. Filters the global near-expiry
 // report by drug_name (NearExpiryRow doesn't carry catalog_item_id).
 
-function StoresTransfersTab({
-  canViewStores,
-  canManageStores,
-}: {
-  canViewStores: boolean;
-  canManageStores: boolean;
-}) {
-  const [view, setView] = useState("locations");
-
-  return (
-    <Stack>
-      <SegmentedControl
-        value={view}
-        onChange={setView}
-        data={[
-          { label: "Pharmacy Locations", value: "locations" },
-          { label: "Transfers", value: "transfers" },
-        ]}
-      />
-      {view === "locations" && (
-        <PharmacyLocationsView canViewStores={canViewStores || canManageStores} />
-      )}
-      {view === "transfers" && (
-        <TransfersView
-          canViewStores={canViewStores || canManageStores}
-          canManage={canManageStores}
-        />
-      )}
-    </Stack>
-  );
-}
-
-function PharmacyLocationsView({ canViewStores }: { canViewStores: boolean }) {
-  return canViewStores ? (
-    <PharmacyRegistry />
-  ) : (
-    <Alert tone="warning">
-      Pharmacy locations require `pharmacy.stores.list` or `pharmacy.stores.manage`.
-    </Alert>
-  );
-}
 
 function AnalyticsTab() {
   const [view, setView] = useState("consumption");
