@@ -1,5 +1,4 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ConsumptionView } from "./pharmacy/consumption-view";
 import {
   Card,
   Drawer,
@@ -48,7 +47,6 @@ import type {
   DrugInteractionResult,
   FormularyCheckResult,
   NearExpiryRow,
-  PharmacyAbcVedRow,
   PharmacyBatch,
   PharmacyCatalog,
   PharmacyDeadStockRow,
@@ -173,6 +171,8 @@ import { confirmDestructive } from "@/lib/confirm-destructive";
 import { instructionsDisplayText } from "@/lib/medication-timing-utils";
 import { pharmacyService } from "@/services/pharmacy.service";
 import { findAllergyConflicts } from "@/utils/allergyMatch";
+import { AbcVedView } from "./pharmacy/abc-ved-view";
+import { ConsumptionView } from "./pharmacy/consumption-view";
 import { NdpsRegisterTab } from "./pharmacy/ndps-register";
 import {
   canEditPharmacyField,
@@ -4942,75 +4942,6 @@ function AnalyticsTab() {
       {view === "abc-ved" && <AbcVedView />}
       {view === "utilization" && <UtilizationView />}
     </Stack>
-  );
-}
-
-
-function AbcVedView() {
-  const valueAccess = useFieldAccess("pharmacy.analytics.value");
-  const { data: rows = [], isLoading } = useQuery({
-    queryKey: ["pharmacy-abc-ved"],
-    queryFn: () => pharmacyService.getPharmacyAbcVed(),
-  });
-
-  const abcColors: Record<string, BadgeTone> = { A: "danger", B: "warning", C: "success" };
-  const vedColors: Record<string, BadgeTone> = { V: "danger", E: "warning", D: "success" };
-
-  const columns = [
-    {
-      key: "drug_name",
-      label: "Drug",
-      sortable: true,
-      searchable: true,
-      accessor: (row: PharmacyAbcVedRow) => row.drug_name,
-      render: (row: PharmacyAbcVedRow) => <Text size="sm">{row.drug_name}</Text>,
-    },
-    {
-      key: "annual_value",
-      label: "Annual Value",
-      sortable: true,
-      sortValue: (row: PharmacyAbcVedRow) => Number(row.annual_value),
-      accessor: (row: PharmacyAbcVedRow) => Number(row.annual_value),
-      render: (row: PharmacyAbcVedRow) => (
-        <Text size="sm">{renderPharmacySensitiveCurrency(valueAccess, row.annual_value)}</Text>
-      ),
-    },
-    {
-      key: "abc_class",
-      label: "ABC",
-      sortable: true,
-      accessor: (row: PharmacyAbcVedRow) => row.abc_class,
-      render: (row: PharmacyAbcVedRow) => (
-        <Badge size="xs" tone={abcColors[row.abc_class] ?? "neutral"}>
-          {row.abc_class}
-        </Badge>
-      ),
-    },
-    {
-      key: "ved_class",
-      label: "VED",
-      render: (row: PharmacyAbcVedRow) =>
-        row.ved_class ? (
-          <Badge size="xs" tone={vedColors[row.ved_class] ?? "neutral"}>
-            {row.ved_class}
-          </Badge>
-        ) : (
-          <Text size="sm">{"\u2014"}</Text>
-        ),
-    },
-  ];
-
-  return (
-    <DataTable
-      columns={columns}
-      data={rows}
-      loading={isLoading}
-      rowKey={(row) => row.drug_name}
-      searchable
-      searchPlaceholder="Search ABC-VED"
-      exportable
-      exportFileName="pharmacy-abc-ved"
-    />
   );
 }
 
