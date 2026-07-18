@@ -1,5 +1,4 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { DrugInteractionModal } from "./pharmacy/drug-interaction-modal";
 import {
   Card,
   Drawer,
@@ -126,15 +125,7 @@ import { PharmacyRegistry } from "@/components/Pharmacy/PharmacyRegistry";
 import { RepeatPanel } from "@/components/Pharmacy/RepeatPanel";
 import { StoreIndentsTab } from "@/components/Pharmacy/StoreIndentsTab";
 import { SubstituteModal } from "@/components/Pharmacy/SubstituteModal";
-import {
-  Alert,
-  Badge,
-  Button,
-  IconButton,
-  SignatureHero,
-  Table,
-  toast,
-} from "@/components/ui";
+import { Alert, Badge, Button, IconButton, SignatureHero, Table, toast } from "@/components/ui";
 import {
   formIntegerOrFallback,
   formNumberOrFallback,
@@ -152,6 +143,8 @@ import { BatchLedgerView } from "./pharmacy/batch-ledger-view";
 import { PharmacyCatalogTab } from "./pharmacy/catalog";
 import { ConsumptionView } from "./pharmacy/consumption-view";
 import { DeadStockView } from "./pharmacy/dead-stock-view";
+import { DrugInteractionModal } from "./pharmacy/drug-interaction-modal";
+import { EditablePharmacyQuantity } from "./pharmacy/editable-quantity";
 import { FormularyCheckModal } from "./pharmacy/formulary-check-modal";
 import { NdpsRegisterTab } from "./pharmacy/ndps-register";
 import { NearExpiryView } from "./pharmacy/near-expiry-view";
@@ -2682,53 +2675,6 @@ function PharmacyOrderDetail({
     </Stack>
   );
 }
-
-function EditablePharmacyQuantity({
-  item,
-  isSaving,
-  onSave,
-}: {
-  item: PharmacyOrderDetailResponse["items"][number];
-  isSaving: boolean;
-  onSave: (quantity: number) => void;
-}) {
-  const [quantity, setQuantity] = useState(item.quantity);
-  const canSave = Number.isInteger(quantity) && quantity > 0 && quantity !== item.quantity;
-
-  return (
-    <Group gap={4} wrap="nowrap">
-      <NumberInput
-        value={quantity}
-        min={1}
-        step={1}
-        allowDecimal={false}
-        clampBehavior="strict"
-        hideControls
-        size="xs"
-        w={72}
-        onChange={(value) => {
-          const next = typeof value === "number" ? value : Number.parseInt(value || "0", 10);
-          setQuantity(Number.isFinite(next) ? next : 0);
-        }}
-      />
-      <Tooltip label="Save quantity">
-        <IconButton
-          size="sm"
-          tone="primary"
-          disabled={!canSave || isSaving}
-          loading={isSaving && canSave}
-          onClick={() => onSave(quantity)}
-          aria-label={`Save ${item.drug_name} quantity`}
-        >
-          <IconDeviceFloppy size={14} />
-        </IconButton>
-      </Tooltip>
-    </Group>
-  );
-}
-
-// ── Prescription Audit Trail ──────────────────────────────
-
 
 function BatchExpiryTab() {
   const [view, setView] = useState("batches");
