@@ -30,3 +30,12 @@ export const colorToBadgeTone = (color: string | null | undefined): BadgeTone =>
       return "neutral";
   }
 };
+
+export const indentTypeLabels: Record<string, string> = {
+  general: "General",
+  pharmacy: "Pharmacy",
+  lab: "Lab",
+  surgical: "Surgical",
+  housekeeping: "Housekeeping",
+  emergency: "Emergency",
+};
