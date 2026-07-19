@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { confirmDestructive } from "@/lib/confirm";
+import { CollectionCentersSection } from "./lab/collection-centers";
 import { CytologySection } from "./lab/cytology";
 import { HistopathSection } from "./lab/histopath";
 import { MolecularSection } from "./lab/molecular";
@@ -31,7 +32,6 @@ import type {
   LabB2bRateFormInput,
   LabCalibrationFormInput,
   LabCatalogFormInput,
-  LabCollectionCenterFormInput,
   LabEqasResultFormInput,
   LabHomeCollectionFormInput,
   LabOutsourcedOrderFormInput,
@@ -44,7 +44,6 @@ import {
   labB2bRateFormSchema,
   labCalibrationFormSchema,
   labCatalogFormSchema,
-  labCollectionCenterFormSchema,
   labEqasResultFormSchema,
   labHomeCollectionFormSchema,
   labOutsourcedOrderFormSchema,
@@ -59,7 +58,6 @@ import type {
   CreateB2bClientRequest,
   CreateB2bRateRequest,
   CreateCalibrationRequest,
-  CreateCollectionCenterRequest,
   CreateEqasResultRequest,
   CreateHomeCollectionRequest,
   CreateLabCatalogRequest,
@@ -72,7 +70,6 @@ import type {
   LabB2bClient,
   LabB2bRate,
   LabCalibration,
-  LabCollectionCenter,
   LabCriticalAlert,
   LabEqasResult,
   LabHomeCollection,
@@ -139,7 +136,6 @@ import {
 } from "@/components/ui";
 import {
   labB2bClientTypeOptions,
-  labCollectionCenterTypeOptions,
   labEqasEvaluationOptions,
   labMethodOptions,
   labNumberOrFallback,
@@ -3244,173 +3240,6 @@ function HomeCollectionsSection() {
         loading={isLoading}
         rowKey={(row) => row.id}
       />
-    </Stack>
-  );
-}
-
-function CollectionCentersSection() {
-  const { t } = useTranslation("lab");
-  const canManage = useHasPermission(P.LAB.SAMPLES_MANAGE);
-  const queryClient = useQueryClient();
-  const [formOpen, formHandlers] = useDisclosure(false);
-  const centerDefaults: LabCollectionCenterFormInput = {
-    code: "",
-    name: "",
-    center_type: "hospital",
-    address: "",
-    city: "",
-    phone: "",
-    contact_person: "",
-    notes: "",
-  };
-  const {
-    control,
-    register,
-    reset,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LabCollectionCenterFormInput>({
-    resolver: zodResolver(labCollectionCenterFormSchema),
-    defaultValues: centerDefaults,
-  });
-
-  const { data: centers = [], isLoading } = useQuery({
-    queryKey: ["lab-collection-centers"],
-    queryFn: () => labService.listCollectionCenters(),
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (data: CreateCollectionCenterRequest) => labService.createCollectionCenter(data),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["lab-collection-centers"] });
-      formHandlers.close();
-      reset(centerDefaults);
-    },
-  });
-
-  const handleCreateCollectionCenter = (values: LabCollectionCenterFormInput) => {
-    createMutation.mutate({
-      code: values.code.trim(),
-      name: values.name.trim(),
-      center_type: values.center_type,
-      address: labOptionalText(values.address),
-      city: labOptionalText(values.city),
-      phone: labOptionalText(values.phone),
-      contact_person: labOptionalText(values.contact_person),
-      notes: labOptionalText(values.notes),
-    });
-  };
-
-  const columns = [
-    {
-      key: "code",
-      label: "Code",
-      render: (row: LabCollectionCenter) => <Text fw={500}>{row.code}</Text>,
-    },
-    {
-      key: "name",
-      label: "Name",
-      render: (row: LabCollectionCenter) => <Text size="sm">{row.name}</Text>,
-    },
-    {
-      key: "center_type",
-      label: "Type",
-      render: (row: LabCollectionCenter) => <Badge size="sm">{row.center_type}</Badge>,
-    },
-    {
-      key: "city",
-      label: "City",
-      render: (row: LabCollectionCenter) => <Text size="sm">{row.city ?? "—"}</Text>,
-    },
-    {
-      key: "contact_person",
-      label: "Contact",
-      render: (row: LabCollectionCenter) => <Text size="sm">{row.contact_person ?? "—"}</Text>,
-    },
-    {
-      key: "is_active",
-      label: "Active",
-      render: (row: LabCollectionCenter) =>
-        row.is_active ? (
-          <IconCheck size={14} color="success" />
-        ) : (
-          <IconX size={14} color="danger" />
-        ),
-    },
-  ];
-
-  return (
-    <Stack>
-      {canManage && (
-        <Group>
-          <Button
-            tone="primary"
-            size="xs"
-            leftSection={<IconPlus size={14} />}
-            onClick={() => {
-              formHandlers.toggle();
-              if (formOpen) reset(centerDefaults);
-            }}
-          >
-            {t("addCenter")}
-          </Button>
-        </Group>
-      )}
-      {formOpen && (
-        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateCollectionCenter)}>
-          <Group grow>
-            <TextInput
-              label={t("label.code")}
-              required
-              error={errors.code?.message}
-              {...register("code")}
-            />
-            <TextInput
-              label={t("label.name")}
-              required
-              error={errors.name?.message}
-              {...register("name")}
-            />
-            <Controller
-              control={control}
-              name="center_type"
-              render={({ field }) => (
-                <Select
-                  label={t("label.type")}
-                  required
-                  data={labCollectionCenterTypeOptions}
-                  value={field.value}
-                  onChange={(value) => field.onChange(value ?? "hospital")}
-                  error={errors.center_type?.message}
-                />
-              )}
-            />
-          </Group>
-          <Group grow>
-            <TextInput label={t("label.city")} error={errors.city?.message} {...register("city")} />
-            <TextInput
-              label={t("label.phone")}
-              error={errors.phone?.message}
-              {...register("phone")}
-            />
-            <TextInput
-              label={t("label.contactPerson")}
-              error={errors.contact_person?.message}
-              {...register("contact_person")}
-            />
-          </Group>
-          <Textarea
-            label={t("label.address")}
-            error={errors.address?.message}
-            {...register("address")}
-          />
-          <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
-          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
-            Save
-          </Button>
-        </Stack>
-      )}
-      <DataTable columns={columns} data={centers} loading={isLoading} rowKey={(row) => row.id} />
     </Stack>
   );
 }
