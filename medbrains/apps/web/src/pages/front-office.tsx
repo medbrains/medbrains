@@ -1,5 +1,6 @@
 import { EnquiryDeskTab } from "./front-office/enquiry-desk-tab";
 import { QueueConfigTab } from "./front-office/queue-config-tab";
+import { QueueMetricsTab } from "./front-office/queue-metrics-tab";
 import { VisitorAnalyticsTab } from "./front-office/visitor-analytics-tab";
 import { VisitorManagementTab } from "./front-office/visitor-management-tab";
 import "@mantine/charts/styles.css";
@@ -11,7 +12,6 @@ import type {
   ClinicalJourneyActionDefinition,
   ClinicalJourneyActionId,
   ErTriageToken,
-  QueueMetrics,
   QueueStatsResponse,
   TokenBoardReadinessItem,
   TokenBoardReadinessTone,
@@ -60,8 +60,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { CSSProperties, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
-import { DataTable, PageHeader } from "@/components";
-import type { Column } from "@/components/DataTable";
+import { PageHeader } from "@/components";
 import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -1531,61 +1530,3 @@ function lastUpdatedLabel(value: number) {
 // ══════════════════════════════════════════════════════════
 //  Tab 4 — Visitor Management
 // ══════════════════════════════════════════════════════════
-
-function QueueMetricsTab() {
-  const { data: metrics = [], isLoading } = useQuery<QueueMetrics[]>({
-    queryKey: ["front-office", "queue-metrics"],
-    queryFn: () => frontOfficeService.queueMetrics(),
-  });
-
-  const cols: Column<QueueMetrics>[] = [
-    {
-      key: "department",
-      label: "Department",
-      render: (r) => (
-        <Text size="sm" fw={500}>
-          {r.department}
-        </Text>
-      ),
-    },
-    {
-      key: "current_waiting",
-      label: "Currently Waiting",
-      render: (r) => (
-        <Badge
-          tone={r.current_waiting > 10 ? "danger" : r.current_waiting > 5 ? "warning" : "success"}
-        >
-          {r.current_waiting}
-        </Badge>
-      ),
-    },
-    {
-      key: "avg_wait_minutes",
-      label: "Avg Wait (min)",
-      render: (r) => <Text size="sm">{Math.round(r.avg_wait_minutes)}</Text>,
-    },
-    {
-      key: "longest_wait_minutes",
-      label: "Longest Wait (min)",
-      render: (r) => (
-        <Text size="sm" c={r.longest_wait_minutes > 30 ? "danger" : undefined}>
-          {Math.round(r.longest_wait_minutes)}
-        </Text>
-      ),
-    },
-    {
-      key: "throughput_per_hour",
-      label: "Throughput/hr",
-      render: (r) => <Text size="sm">{r.throughput_per_hour.toFixed(1)}</Text>,
-    },
-  ];
-
-  return (
-    <Stack gap="md">
-      <Text size="sm" c="dimmed">
-        Real-time queue performance metrics by department
-      </Text>
-      <DataTable columns={cols} data={metrics} loading={isLoading} rowKey={(r) => r.department} />
-    </Stack>
-  );
-}
