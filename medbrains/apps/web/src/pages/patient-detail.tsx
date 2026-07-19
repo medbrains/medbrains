@@ -45,7 +45,6 @@ import type {
   PatientAppointmentRow,
   PatientDocument,
   PatientInvoiceRow,
-  PatientLabOrderRow,
   PatientMergeHistory,
   PrescriptionHistoryItem,
   RegistrationCardPrintData,
@@ -122,6 +121,7 @@ import { patientDetailService } from "@/services/patientDetail.service";
 import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "@/utils/printCopies";
 import { AllergiesTab } from "./patient-detail/allergies-tab";
 import { ImagingTab } from "./patient-detail/imaging-tab";
+import { LabOrdersTab } from "./patient-detail/lab-orders-tab";
 import { OverviewTab } from "./patient-detail/overview-tab";
 import { age, escapeHtml, formatDate, formatMoney } from "./patient-detail/shared";
 import { VisitsTab } from "./patient-detail/visits-tab";
@@ -138,15 +138,6 @@ import {
 } from "./patient-detail-workspace";
 
 // ── Helpers ────────────────────────────────────────────────
-
-const LAB_STATUS_COLORS: Record<string, BadgeTone> = {
-  ordered: "primary",
-  sample_collected: "info",
-  processing: "warning",
-  completed: "success",
-  verified: "success",
-  cancelled: "danger",
-};
 
 const PATIENT_CARD_PRINT_COPIES = PRINT_COPY_PACKETS.patientCard;
 const ACTIVE_ER_VISIT_STATUSES = new Set<ErVisit["status"]>([
@@ -225,81 +216,6 @@ function PrescriptionsTab({ patient }: { patient: Patient }) {
 }
 
 // ── Lab Orders Tab ─────────────────────────────────────────
-
-function LabOrdersTab({ patientId }: { patientId: string }) {
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ["patient-lab-orders", patientId],
-    queryFn: () => patientDetailService.listPatientLabOrders(patientId),
-  });
-
-  if (isLoading) return <Loader size="sm" />;
-
-  if (!orders || orders.length === 0) {
-    return (
-      <Text c="dimmed" ta="center" py="xl">
-        No lab orders found.
-      </Text>
-    );
-  }
-
-  return (
-    <Table striped highlightOnHover>
-      <Table.Thead>
-        <Table.Tr>
-          <Table.Th>Test</Table.Th>
-          <Table.Th>Status</Table.Th>
-          <Table.Th>Priority</Table.Th>
-          <Table.Th>Ordered By</Table.Th>
-          <Table.Th>Results</Table.Th>
-          <Table.Th>Ordered</Table.Th>
-          <Table.Th>Updated</Table.Th>
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>
-        {orders.map((o: PatientLabOrderRow) => (
-          <Table.Tr key={o.id}>
-            <Table.Td>
-              <Text size="sm" fw={500}>
-                {o.test_name ?? "-"}
-              </Text>
-            </Table.Td>
-            <Table.Td>
-              <Badge tone={LAB_STATUS_COLORS[o.status] ?? "neutral"} size="sm">
-                {o.status.replace(/_/g, " ")}
-              </Badge>
-            </Table.Td>
-            <Table.Td>
-              <Badge
-                tone={
-                  o.priority === "stat" ? "danger" : o.priority === "urgent" ? "warning" : "neutral"
-                }
-                size="sm"
-              >
-                {o.priority}
-              </Badge>
-            </Table.Td>
-            <Table.Td>
-              <Text size="sm">{o.ordered_by_name ?? "-"}</Text>
-            </Table.Td>
-            <Table.Td>
-              <Text size="sm" ta="center">
-                {o.result_count ?? 0}
-              </Text>
-            </Table.Td>
-            <Table.Td>
-              <Text size="sm">{formatDate(o.created_at)}</Text>
-            </Table.Td>
-            <Table.Td>
-              <Text size="sm">{formatDate(o.updated_at)}</Text>
-            </Table.Td>
-          </Table.Tr>
-        ))}
-      </Table.Tbody>
-    </Table>
-  );
-}
-
-// ── Imaging Tab ────────────────────────────────────────────
 
 function BillingTab({ patientId }: { patientId: string }) {
   const [printingInvoiceId, setPrintingInvoiceId] = useState<string | null>(null);
