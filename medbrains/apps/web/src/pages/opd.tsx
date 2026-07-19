@@ -76,6 +76,8 @@ import {
   appointmentStatusTone,
   appointmentTypeLabel,
   appointmentVisitType,
+  formatQueueToken,
+  protectedOpdQueueIdentity,
   queueStatusIcon,
   queueStatusLabel,
   queueStatusShape,
@@ -389,10 +391,6 @@ function formatPatientName(patient: Patient): string {
   return `${patient.first_name} ${patient.last_name}`.trim() || patient.uhid;
 }
 
-function formatQueueToken(tokenNumber: number): string {
-  return `T${String(tokenNumber).padStart(3, "0")}`;
-}
-
 function protectedPatientName(
   patientName: string | null | undefined,
   access: FieldAccessLevel,
@@ -407,21 +405,6 @@ function protectedPatientIdentifier(
 ): string {
   const displayValue = fieldAccessText(access, identifier, "identifier");
   return displayValue === "—" ? "No UHID" : displayValue;
-}
-
-function protectedOpdQueueIdentity(
-  entry: QueueEntry,
-  access: { name: FieldAccessLevel; uhid: FieldAccessLevel },
-  fallback: { patient: string; uhid: string } = { patient: "Patient", uhid: "No UHID" },
-): { name: string; token: string; uhid: string } {
-  const name = fieldAccessText(access.name, entry.patient_name, "name");
-  const uhid = fieldAccessText(access.uhid, entry.uhid, "identifier");
-
-  return {
-    name: name === "—" ? fallback.patient : name,
-    token: formatQueueToken(entry.token_number),
-    uhid: uhid === "—" ? fallback.uhid : uhid,
-  };
 }
 
 const OPD_QUEUE_STATUS_ONLY_PERMISSIONS: OpdQueueRowActionPermissions = {

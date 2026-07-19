@@ -2,7 +2,8 @@
 // (label/tone/shape/icon) extracted from opd.tsx so queue cells and the appointments
 // panel can be split into their own files without a cycle.
 
-import type { AppointmentWithPatient } from "@medbrains/types";
+import type { AppointmentWithPatient, FieldAccessLevel, QueueEntry } from "@medbrains/types";
+import { fieldAccessText } from "@medbrains/utils";
 import { IconCheck, IconClock, IconPhone, IconStethoscope, IconUserOff } from "@tabler/icons-react";
 import type { useTranslation } from "react-i18next";
 import type { OperationalSignalShape, OperationalSignalTone } from "@/components";
@@ -163,4 +164,23 @@ export function appointmentSlotLabel(
   const start = appointment.slot_start ?? appointment.appointment_slot_start;
   const end = appointment.slot_end ?? appointment.appointment_slot_end;
   return start && end ? `${start} - ${end}` : (appointment.appointment_date ?? noSlotLabel);
+}
+
+export function formatQueueToken(tokenNumber: number): string {
+  return `T${String(tokenNumber).padStart(3, "0")}`;
+}
+
+export function protectedOpdQueueIdentity(
+  entry: QueueEntry,
+  access: { name: FieldAccessLevel; uhid: FieldAccessLevel },
+  fallback: { patient: string; uhid: string } = { patient: "Patient", uhid: "No UHID" },
+): { name: string; token: string; uhid: string } {
+  const name = fieldAccessText(access.name, entry.patient_name, "name");
+  const uhid = fieldAccessText(access.uhid, entry.uhid, "identifier");
+
+  return {
+    name: name === "—" ? fallback.patient : name,
+    token: formatQueueToken(entry.token_number),
+    uhid: uhid === "—" ? fallback.uhid : uhid,
+  };
 }
