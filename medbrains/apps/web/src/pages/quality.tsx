@@ -85,74 +85,23 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
-import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
+import { Alert, Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
-import { statusColor } from "@/lib/status-colors";
 import { qualityService } from "@/services/quality.service";
+import {
+  auditStatusColors,
+  capaStatusColors,
+  docStatusColors,
+  incidentStatusColors,
+  statusColorTone,
+} from "./quality/shared";
 import classes from "./quality.module.scss";
 
 // ── Color Maps ──────────────────────────────────────────
-
-const incidentStatusColors: Record<string, BadgeTone> = {
-  reported: "neutral",
-  acknowledged: "primary",
-  investigating: "primary",
-  rca_complete: "accent",
-  capa_assigned: "warning",
-  capa_in_progress: "success",
-  closed: "success",
-  reopened: "danger",
-};
-
-const docStatusColors: Record<string, BadgeTone> = {
-  draft: "neutral",
-  under_review: "primary",
-  approved: "success",
-  released: "success",
-  revised: "warning",
-  obsolete: "danger",
-};
-
-const capaStatusColors: Record<string, BadgeTone> = {
-  open: "neutral",
-  in_progress: "primary",
-  completed: "success",
-  verified: "success",
-  overdue: "danger",
-};
-
-const auditStatusColors: Record<string, BadgeTone> = {
-  planned: "neutral",
-  in_progress: "primary",
-  completed: "success",
-  cancelled: "danger",
-};
-
-function statusColorTone(v: string): BadgeTone {
-  const c = statusColor(v);
-  const m: Record<string, BadgeTone> = {
-    success: "success",
-    danger: "danger",
-    warning: "warning",
-    primary: "primary",
-    info: "info",
-    slate: "neutral",
-    gray: "neutral",
-    teal: "success",
-    green: "success",
-    red: "danger",
-    yellow: "warning",
-    orange: "warning",
-    blue: "info",
-    violet: "accent",
-    cinnabar: "accent",
-  };
-  return (c ? m[c] : undefined) ?? "neutral";
-}
 
 // Dropdown options for categorical fields
 const INDICATOR_CATEGORIES = [
