@@ -1,24 +1,9 @@
-import { zodResolver } from "@hookform/resolvers/zod";
+import { EnquiryDeskTab } from "./front-office/enquiry-desk-tab";
 import { QueueConfigTab } from "./front-office/queue-config-tab";
 import { VisitorManagementTab } from "./front-office/visitor-management-tab";
 import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
-import {
-  Box,
-  Card,
-  Drawer,
-  Group,
-  Select,
-  SimpleGrid,
-  Stack,
-  Tabs,
-  Text,
-  Textarea,
-  TextInput,
-  Tooltip,
-} from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
+import { Box, Card, Group, SimpleGrid, Stack, Tabs, Text, TextInput, Tooltip } from "@mantine/core";
 import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type {
   BillingQueueToken,
@@ -26,7 +11,6 @@ import type {
   ClinicalJourneyActionDefinition,
   ClinicalJourneyActionId,
   ErTriageToken,
-  FrontOfficeEnquiryLog,
   QueueMetrics,
   QueueStatsResponse,
   TokenBoardReadinessItem,
@@ -60,7 +44,6 @@ import {
   IconBed,
   IconBuildingStore,
   IconChartBar,
-  IconCheck,
   IconDeviceTv,
   IconDoorEnter,
   IconGauge,
@@ -68,28 +51,19 @@ import {
   IconPackage,
   IconPhone,
   IconPill,
-  IconPlus,
   IconReceipt,
   IconSettings,
   IconStethoscope,
   IconUserPlus,
   IconUsers,
 } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { type CSSProperties, type ReactNode, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
-import { DataTable, PageHeader, TableValueBadge } from "@/components";
+import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
-import {
-  DEFAULT_ENQUIRY_FORM_VALUES,
-  ENQUIRY_TYPE_OPTIONS,
-  type FrontOfficeEnquiryFormInput,
-  frontOfficeEnquiryFormSchema,
-  toCreateEnquiryRequest,
-} from "@/forms/front-office.form";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import {
@@ -152,7 +126,6 @@ interface FrontOfficeTabConfig {
   label: string;
   icon: ReactNode;
 }
-
 
 const OPD_BOARD = TOKEN_BOARD_SURFACES.opd;
 const LAB_BOARD = TOKEN_BOARD_SURFACES.lab;
@@ -1558,171 +1531,6 @@ function lastUpdatedLabel(value: number) {
 
 // ══════════════════════════════════════════════════════════
 //  Tab 4 — Visitor Management
-// ══════════════════════════════════════════════════════════
-
-function EnquiryDeskTab({ canCreate, canManage }: { canCreate: boolean; canManage: boolean }) {
-  const qc = useQueryClient();
-  const [drawer, drawerHandlers] = useDisclosure(false);
-
-  const enquiryForm = useForm<FrontOfficeEnquiryFormInput>({
-    resolver: zodResolver(frontOfficeEnquiryFormSchema),
-    defaultValues: DEFAULT_ENQUIRY_FORM_VALUES,
-  });
-
-  const { data: enquiries, isLoading } = useQuery<FrontOfficeEnquiryLog[]>({
-    queryKey: ["front-office", "enquiries"],
-    queryFn: () => frontOfficeService.listEnquiries(),
-  });
-
-  const createEnquiry = useMutation({
-    mutationFn: (data: FrontOfficeEnquiryFormInput) =>
-      frontOfficeService.createEnquiry(toCreateEnquiryRequest(data)),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["front-office", "enquiries"] });
-      drawerHandlers.close();
-      notifications.show({ message: "Enquiry logged", color: "success" });
-      enquiryForm.reset(DEFAULT_ENQUIRY_FORM_VALUES);
-    },
-  });
-
-  const resolveEnquiry = useMutation({
-    mutationFn: (id: string) => frontOfficeService.resolveEnquiry(id),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["front-office", "enquiries"] });
-      notifications.show({ message: "Enquiry resolved", color: "success" });
-    },
-  });
-
-  const columns = [
-    {
-      key: "caller_name",
-      label: "Caller",
-      render: (r: FrontOfficeEnquiryLog) => r.caller_name ?? "—",
-    },
-    {
-      key: "caller_phone",
-      label: "Phone",
-      render: (r: FrontOfficeEnquiryLog) => r.caller_phone ?? "—",
-    },
-    {
-      key: "enquiry_type",
-      label: "Type",
-      render: (r: FrontOfficeEnquiryLog) => (
-        <TableValueBadge value={r.enquiry_type} kind="source" />
-      ),
-    },
-    {
-      key: "response_text",
-      label: "Response",
-      render: (r: FrontOfficeEnquiryLog) => r.response_text ?? "—",
-    },
-    {
-      key: "resolved",
-      label: "Resolved",
-      render: (r: FrontOfficeEnquiryLog) =>
-        r.resolved ? (
-          <TableValueBadge value="completed" label="Yes" color="success" variant="filled" />
-        ) : (
-          <TableValueBadge value="pending" label="No" color="orange" variant="filled" />
-        ),
-    },
-    {
-      key: "created_at",
-      label: "Time",
-      render: (r: FrontOfficeEnquiryLog) => new Date(r.created_at).toLocaleString(),
-    },
-    {
-      key: "actions",
-      label: "",
-      render: (r: FrontOfficeEnquiryLog) =>
-        !r.resolved && canManage ? (
-          <Tooltip label="Mark Resolved">
-            <IconButton
-              tone="success"
-              onClick={() => resolveEnquiry.mutate(r.id)}
-              aria-label="Mark Resolved"
-            >
-              <IconCheck size={16} />
-            </IconButton>
-          </Tooltip>
-        ) : null,
-    },
-  ];
-
-  return (
-    <Stack gap="md">
-      <Group justify="space-between">
-        <Text fw={600}>Enquiry Log</Text>
-        {canCreate && (
-          <Button
-            tone="primary"
-            size="xs"
-            leftSection={<IconPlus size={14} />}
-            onClick={drawerHandlers.open}
-          >
-            Log Enquiry
-          </Button>
-        )}
-      </Group>
-      <DataTable
-        columns={columns}
-        data={enquiries ?? []}
-        loading={isLoading}
-        rowKey={(r: FrontOfficeEnquiryLog) => r.id}
-      />
-
-      <Drawer
-        opened={drawer}
-        onClose={drawerHandlers.close}
-        title="Log Enquiry"
-        position="right"
-        size="xl"
-      >
-        <Stack
-          component="form"
-          gap="sm"
-          onSubmit={enquiryForm.handleSubmit((values) => createEnquiry.mutate(values))}
-        >
-          <TextInput
-            label="Caller Name"
-            error={enquiryForm.formState.errors.caller_name?.message}
-            {...enquiryForm.register("caller_name")}
-          />
-          <TextInput
-            label="Caller Phone"
-            error={enquiryForm.formState.errors.caller_phone?.message}
-            {...enquiryForm.register("caller_phone")}
-          />
-          <Controller
-            control={enquiryForm.control}
-            name="enquiry_type"
-            render={({ field, fieldState }) => (
-              <Select
-                label="Enquiry Type"
-                data={ENQUIRY_TYPE_OPTIONS}
-                value={field.value}
-                onChange={field.onChange}
-                error={fieldState.error?.message}
-              />
-            )}
-          />
-          <Textarea
-            label="Response"
-            error={enquiryForm.formState.errors.response_text?.message}
-            rows={3}
-            {...enquiryForm.register("response_text")}
-          />
-          <Button tone="primary" type="submit" loading={createEnquiry.isPending}>
-            Log Enquiry
-          </Button>
-        </Stack>
-      </Drawer>
-    </Stack>
-  );
-}
-
-// ══════════════════════════════════════════════════════════
-//  Tab 5 — Visitor Analytics
 // ══════════════════════════════════════════════════════════
 
 function VisitorAnalyticsTab() {
