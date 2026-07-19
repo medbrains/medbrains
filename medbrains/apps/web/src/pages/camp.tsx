@@ -77,7 +77,6 @@ import {
   IconCalendarCheck,
   IconChartBar,
   IconCheck,
-  IconClock,
   IconDownload,
   IconFirstAidKit,
   IconPencil,
@@ -99,9 +98,6 @@ import {
   ClinicalEventProvider,
   DataTable,
   DoctorSearchSelect,
-  OperationalSignal,
-  type OperationalSignalShape,
-  type OperationalSignalTone,
   PageHeader,
   useClinicalEmit,
   useProtectedFieldAccess,
@@ -127,6 +123,15 @@ import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { EncounterDetail } from "@/pages/opd";
 import { campService } from "@/services/camp.service";
 import { lookupsService } from "@/services/lookups.service";
+import type { CampTranslate } from "./camp/shared";
+import {
+  CampRegistrationSignals,
+  campRegistrationOptionLabel,
+  campWorkflowLabel,
+  protectedCampParticipantName,
+  protectedCampPhone,
+  StatCard,
+} from "./camp/shared";
 import classes from "./camp.module.scss";
 import {
   CAMP_LANDING_TAB_VALUES,
@@ -153,115 +158,6 @@ const FOLLOWUP_STATUS_COLORS: Record<string, BadgeTone> = {
   missed: "danger",
   cancelled: "neutral",
 };
-
-type CampTranslate = ReturnType<typeof useTranslation>["t"];
-
-function campWorkflowLabel(value: string): string {
-  return value.replace(/_/g, " ");
-}
-
-function campRegistrationStatusLabel(t: CampTranslate, status: string): string {
-  return t(`registrationStatus.${status}`, { defaultValue: campWorkflowLabel(status) });
-}
-
-function campRegistrationStatusTone(status: string): OperationalSignalTone {
-  switch (status) {
-    case "converted":
-      return "ready";
-    case "screened":
-    case "referred":
-      return "active";
-    case "registered":
-      return "blocked";
-    case "no_show":
-      return "risk";
-    default:
-      return "neutral";
-  }
-}
-
-function campRegistrationStatusShape(status: string): OperationalSignalShape {
-  switch (status) {
-    case "registered":
-      return "token";
-    case "screened":
-    case "referred":
-    case "no_show":
-      return "diamond";
-    default:
-      return "pill";
-  }
-}
-
-function campRegistrationStatusIcon(status: string) {
-  switch (status) {
-    case "registered":
-      return IconUsers;
-    case "screened":
-      return IconStethoscope;
-    case "referred":
-      return IconTransferIn;
-    case "converted":
-      return IconCheck;
-    case "no_show":
-      return IconX;
-    default:
-      return undefined;
-  }
-}
-
-function campClinicalRouteReady(registration: CampRegistration): boolean {
-  return Boolean(registration.clinical_department_id);
-}
-
-function CampRegistrationSignals({
-  registration,
-  size = "xs",
-}: {
-  registration: CampRegistration;
-  size?: "xs" | "sm";
-}) {
-  const { t } = useTranslation("camp");
-  const routeReady = campClinicalRouteReady(registration);
-
-  return (
-    <Group gap={4} wrap="wrap">
-      <OperationalSignal
-        icon={campRegistrationStatusIcon(registration.status)}
-        label={campRegistrationStatusLabel(t, registration.status)}
-        shape={campRegistrationStatusShape(registration.status)}
-        size={size}
-        tone={campRegistrationStatusTone(registration.status)}
-      />
-      {registration.patient_id && (
-        <OperationalSignal
-          icon={IconUsers}
-          label={t("signals.patientLinked")}
-          shape="token"
-          size={size}
-          tone="ready"
-        />
-      )}
-      {routeReady ? (
-        <OperationalSignal
-          icon={IconArrowRight}
-          label={t("signals.opdReady")}
-          shape="diamond"
-          size={size}
-          tone="active"
-        />
-      ) : (
-        <OperationalSignal
-          icon={IconClock}
-          label={t("signals.routeNeeded")}
-          shape="token"
-          size={size}
-          tone="blocked"
-        />
-      )}
-    </Group>
-  );
-}
 
 const TEAM_ROLES = [
   { value: "coordinator", label: "Coordinator" },
@@ -309,19 +205,6 @@ const campClinicalRoutePath = (campId: string, registrationId: string, patientId
     patientId,
   )}#screenings`;
 
-function protectedCampParticipantName(
-  personName: string | null | undefined,
-  access: FieldAccessLevel,
-): string {
-  const displayValue = fieldAccessText(access, personName, "name");
-  return displayValue === "—" ? "Participant" : displayValue;
-}
-
-function protectedCampPhone(phone: string | null | undefined, access: FieldAccessLevel): string {
-  const displayValue = fieldAccessText(access, phone, "phone");
-  return displayValue === "—" ? "No phone" : displayValue;
-}
-
 function protectedPatientName(
   patientName: string | null | undefined,
   access: FieldAccessLevel,
@@ -336,20 +219,6 @@ function protectedPatientIdentifier(
 ): string {
   const displayValue = fieldAccessText(access, identifier, "identifier");
   return displayValue === "—" ? "No UHID" : displayValue;
-}
-
-function campRegistrationOptionLabel(
-  registration: CampRegistration,
-  access: { name: FieldAccessLevel; phone: FieldAccessLevel },
-): string {
-  return [
-    registration.registration_number,
-    protectedCampParticipantName(registration.person_name, access.name),
-    registration.status,
-    registration.phone ? protectedCampPhone(registration.phone, access.phone) : undefined,
-  ]
-    .filter(Boolean)
-    .join(" - ");
 }
 
 function CampPatientActionBar({
@@ -1941,20 +1810,6 @@ function CampDetail({ camp }: { camp: Camp }) {
         </Stack>
       </Drawer>
     </Stack>
-  );
-}
-
-function StatCard({ label, value, prefix }: { label: string; value: number; prefix?: string }) {
-  return (
-    <Card withBorder p="sm">
-      <Text size="xs" c="dimmed">
-        {label}
-      </Text>
-      <Text size="lg" fw={700}>
-        {prefix}
-        {value}
-      </Text>
-    </Card>
   );
 }
 
