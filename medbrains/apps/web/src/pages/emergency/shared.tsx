@@ -2,12 +2,13 @@
 // resuscitation display utilities extracted from emergency.tsx so tab components can be split
 // into their own files without a cycle.
 
-import { Text } from "@mantine/core";
+import { Group, Stack, Text } from "@mantine/core";
 import type { EmergencyResuscitationLogFormInput } from "@medbrains/schemas";
-import type { ErResuscitationLog, FieldAccessLevel } from "@medbrains/types";
+import type { ErResuscitationLog, ErVisit, FieldAccessLevel } from "@medbrains/types";
 import { PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import {
+  IconAlertOctagon,
   IconAlertTriangle,
   IconArrowLeft,
   IconBuildingHospital,
@@ -15,11 +16,12 @@ import {
   IconClock,
   IconFileText,
   IconFirstAidKit,
+  IconGavel,
   IconHeartbeat,
 } from "@tabler/icons-react";
-import type { useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next";
 import type { OperationalSignalShape, OperationalSignalTone } from "@/components";
-import { useProtectedFieldAccess } from "@/components";
+import { OperationalSignal, useProtectedFieldAccess } from "@/components";
 import type { BadgeTone } from "@/components/ui";
 
 export type EmergencyTranslate = ReturnType<typeof useTranslation>["t"];
@@ -269,3 +271,85 @@ export function mlcDocumentSensitiveBoolean(
   }
   return content[key] === true ? "Yes" : "No";
 }
+
+export function VisitSummaryValue({ label, value }: { label: string; value: string }) {
+  return (
+    <Stack gap={0}>
+      <Text size="xs" c="dimmed">
+        {label}
+      </Text>
+      <Text size="sm" fw={600}>
+        {value}
+      </Text>
+    </Stack>
+  );
+}
+
+export function EmergencyVisitSignals({
+  size = "xs",
+  visit,
+}: {
+  size?: "xs" | "sm";
+  visit: ErVisit;
+}) {
+  const { t } = useTranslation("emergency");
+  const info = triageInfo(visit.triage_level);
+
+  return (
+    <Group gap={4} wrap="wrap">
+      <OperationalSignal
+        icon={visitStatusIcon(visit.status)}
+        label={visitStatusLabel(t, visit.status)}
+        shape={visitStatusShape(visit.status)}
+        size={size}
+        tone={visitStatusTone(visit.status)}
+      />
+      <OperationalSignal
+        icon={IconHeartbeat}
+        label={triageLabel(t, visit.triage_level)}
+        shape={triageShape(visit.triage_level)}
+        size={size}
+        tone={triageTone(visit.triage_level)}
+        value={info.level > 0 ? String(info.level) : undefined}
+      />
+      {visit.is_mlc && (
+        <OperationalSignal
+          icon={IconGavel}
+          label={t("signals.mlc")}
+          shape="diamond"
+          size={size}
+          tone="risk"
+        />
+      )}
+      {visit.is_brought_dead && (
+        <OperationalSignal
+          icon={IconAlertOctagon}
+          label={t("signals.broughtDead")}
+          shape="diamond"
+          size={size}
+          tone="risk"
+        />
+      )}
+      {visit.bay_number && (
+        <OperationalSignal
+          label={t("signals.bay")}
+          shape="token"
+          size={size}
+          tone="active"
+          value={visit.bay_number}
+        />
+      )}
+      {visit.admission_id && (
+        <OperationalSignal
+          icon={IconBuildingHospital}
+          label={t("signals.ipdAdmission")}
+          shape="bed"
+          size={size}
+          tone="ready"
+        />
+      )}
+    </Group>
+  );
+}
+
+// ── Main Page ──────────────────────────────────────────

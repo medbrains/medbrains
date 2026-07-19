@@ -23,7 +23,6 @@ import type {
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
-  IconAlertOctagon,
   IconAlertTriangle,
   IconArrowLeft,
   IconBed,
@@ -41,7 +40,7 @@ import { useEffect, useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { FormModal, OperationalSignal, PageHeader } from "@/components";
+import { FormModal, PageHeader } from "@/components";
 import { BedSelect } from "@/components/BedSelect";
 import { PatientConsumablesPanel } from "@/components/Clinical";
 import { ClinicalEventProvider, useClinicalEmit } from "@/components/ClinicalEventProvider";
@@ -65,16 +64,7 @@ import { MlcTab } from "./emergency/mlc";
 import { MlcCaseDetail } from "./emergency/mlc-case-detail";
 import { ResuscitationTab } from "./emergency/resuscitation";
 import { ResuscitationVisitPanel } from "./emergency/resuscitation-visit-panel";
-import {
-  triageInfo,
-  triageLabel,
-  triageShape,
-  triageTone,
-  visitStatusIcon,
-  visitStatusLabel,
-  visitStatusShape,
-  visitStatusTone,
-} from "./emergency/shared";
+import { EmergencyVisitSignals, VisitSummaryValue } from "./emergency/shared";
 import { TriageLogTab } from "./emergency/triage-log";
 import { EmergencyVisitForm } from "./emergency/visit-form";
 import { VisitsTab } from "./emergency/visits";
@@ -133,69 +123,6 @@ function deriveEmergencyJourneyCompletedEvents(visit: ErVisit): readonly Clinica
 // ── Triage helpers ────────────────────────────────────
 
 // ── Timer Hook ─────────────────────────────────────────
-
-function EmergencyVisitSignals({ size = "xs", visit }: { size?: "xs" | "sm"; visit: ErVisit }) {
-  const { t } = useTranslation("emergency");
-  const info = triageInfo(visit.triage_level);
-
-  return (
-    <Group gap={4} wrap="wrap">
-      <OperationalSignal
-        icon={visitStatusIcon(visit.status)}
-        label={visitStatusLabel(t, visit.status)}
-        shape={visitStatusShape(visit.status)}
-        size={size}
-        tone={visitStatusTone(visit.status)}
-      />
-      <OperationalSignal
-        icon={IconHeartbeat}
-        label={triageLabel(t, visit.triage_level)}
-        shape={triageShape(visit.triage_level)}
-        size={size}
-        tone={triageTone(visit.triage_level)}
-        value={info.level > 0 ? String(info.level) : undefined}
-      />
-      {visit.is_mlc && (
-        <OperationalSignal
-          icon={IconGavel}
-          label={t("signals.mlc")}
-          shape="diamond"
-          size={size}
-          tone="risk"
-        />
-      )}
-      {visit.is_brought_dead && (
-        <OperationalSignal
-          icon={IconAlertOctagon}
-          label={t("signals.broughtDead")}
-          shape="diamond"
-          size={size}
-          tone="risk"
-        />
-      )}
-      {visit.bay_number && (
-        <OperationalSignal
-          label={t("signals.bay")}
-          shape="token"
-          size={size}
-          tone="active"
-          value={visit.bay_number}
-        />
-      )}
-      {visit.admission_id && (
-        <OperationalSignal
-          icon={IconBuildingHospital}
-          label={t("signals.ipdAdmission")}
-          shape="bed"
-          size={size}
-          tone="ready"
-        />
-      )}
-    </Group>
-  );
-}
-
-// ── Main Page ──────────────────────────────────────────
 
 export function EmergencyPage() {
   useRequirePermission(EMERGENCY_PAGE_PERMISSIONS);
@@ -1065,18 +992,5 @@ function EmergencyVisitContextRail({
         )}
       </Stack>
     </Box>
-  );
-}
-
-function VisitSummaryValue({ label, value }: { label: string; value: string }) {
-  return (
-    <Stack gap={0}>
-      <Text size="xs" c="dimmed">
-        {label}
-      </Text>
-      <Text size="sm" fw={600}>
-        {value}
-      </Text>
-    </Stack>
   );
 }
