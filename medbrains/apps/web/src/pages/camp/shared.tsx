@@ -17,6 +17,7 @@ import {
 import { useTranslation } from "react-i18next";
 import type { OperationalSignalShape, OperationalSignalTone } from "@/components";
 import { OperationalSignal } from "@/components";
+import type { BadgeTone } from "@/components/ui";
 
 export type CampTranslate = ReturnType<typeof useTranslation>["t"];
 
@@ -178,3 +179,12 @@ export function StatCard({
     </Card>
   );
 }
+
+export const CAMP_STATUS_COLORS: Record<string, BadgeTone> = {
+  planned: "neutral",
+  approved: "primary",
+  setup: "primary",
+  active: "success",
+  completed: "success",
+  cancelled: "danger",
+};
