@@ -1,4 +1,5 @@
 import { confirmDestructive } from "@/lib/confirm";
+import { AddOnTestSection } from "./lab/add-on-test";
 import { B2bClientsSection } from "./lab/b2b-clients";
 import { B2bRatesSection } from "./lab/b2b-rates";
 import { CalibrationsSection } from "./lab/calibrations";
@@ -1246,43 +1247,6 @@ function LabOrderDetail({
     </Stack>
   );
 }
-
-function AddOnTestSection({
-  onAddOn,
-  isPending,
-}: {
-  onAddOn: (testId: string) => void;
-  isPending: boolean;
-}) {
-  const [testId, setTestId] = useState("");
-  return (
-    <Group mt="sm">
-      <TextInput
-        size="xs"
-        placeholder="Test ID for add-on"
-        value={testId}
-        onChange={(e) => setTestId(e.currentTarget.value)}
-        w={250}
-      />
-      <Button
-        tone="secondary"
-        size="xs"
-        disabled={!testId}
-        loading={isPending}
-        onClick={() => {
-          onAddOn(testId);
-          setTestId("");
-        }}
-      >
-        Add-on Test
-      </Button>
-    </Group>
-  );
-}
-
-// ══════════════════════════════════════════════════════════
-//  Test Catalog Tab (enhanced with Phase 2 fields)
-// ══════════════════════════════════════════════════════════
 
 function PhlebotomyTab() {
   const { t } = useTranslation("lab");
