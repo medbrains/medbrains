@@ -28,7 +28,6 @@ import type {
   ErVisit,
   MedicationTimelineEvent,
   Patient,
-  PatientAllergy,
   PatientInvoiceRow,
   PatientMergeHistory,
   PrescriptionHistoryItem,
@@ -65,7 +64,6 @@ import { type ReactNode, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { AskAiButton } from "@/components/ai";
-import { PrescriptionViews } from "@/components/Clinical";
 import { ClinicalEventProvider, useClinicalEmit } from "@/components/ClinicalEventProvider";
 import { NotesPanel } from "@/components/crdt/NotesPanel";
 import {
@@ -102,6 +100,7 @@ import { DetailFamilyLinksTab } from "./patient-detail/family-links-tab";
 import { ImagingTab } from "./patient-detail/imaging-tab";
 import { LabOrdersTab } from "./patient-detail/lab-orders-tab";
 import { OverviewTab } from "./patient-detail/overview-tab";
+import { PrescriptionsTab } from "./patient-detail/prescriptions-tab";
 import { age, escapeHtml, formatDate } from "./patient-detail/shared";
 import { VisitsTab } from "./patient-detail/visits-tab";
 import classes from "./patient-detail.module.scss";
@@ -127,47 +126,6 @@ const ACTIVE_ER_VISIT_STATUSES = new Set<ErVisit["status"]>([
 ]);
 
 // ── Overview Tab ───────────────────────────────────────────
-
-function PrescriptionsTab({ patient }: { patient: Patient }) {
-  const { data: history = [], isLoading } = useQuery<PrescriptionHistoryItem[]>({
-    queryKey: ["patient-prescriptions", patient.id],
-    queryFn: () => patientDetailService.listPatientPrescriptions(patient.id),
-  });
-
-  const { data: allergies } = useQuery({
-    queryKey: ["patient-allergies", patient.id],
-    queryFn: () => patientDetailService.listPatientAllergies(patient.id),
-  });
-
-  if (isLoading) return <Loader size="sm" />;
-
-  const items = history;
-
-  if (items.length === 0) {
-    return (
-      <Text c="dimmed" ta="center" py="xl">
-        No prescriptions found.
-      </Text>
-    );
-  }
-
-  const allergyNames = (allergies ?? []).map((a: PatientAllergy) => a.allergen_name);
-  const fullName = `${patient.first_name} ${patient.middle_name ?? ""} ${patient.last_name}`.trim();
-  const patientAge = age(patient.date_of_birth);
-
-  return (
-    <PrescriptionViews
-      prescriptions={items}
-      patientName={fullName}
-      uhid={patient.uhid}
-      patientAge={patientAge}
-      allergies={allergyNames}
-      doctorName={items[0]?.doctor_name ?? undefined}
-    />
-  );
-}
-
-// ── Lab Orders Tab ─────────────────────────────────────────
 
 function MergeTab({ patient }: { patient: Patient }) {
   const canUpdate = useHasPermission(P.PATIENTS.UPDATE);
