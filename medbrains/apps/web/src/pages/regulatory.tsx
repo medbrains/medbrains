@@ -39,7 +39,6 @@ import type {
   QualityAccreditationCompliance,
   QualityAccreditationStandard,
   RegulatorySubmission,
-  StaffCredentialSummary,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
@@ -65,7 +64,8 @@ import { regulatoryService } from "@/services/regulatory.service";
 import { MockSurveysTab } from "./regulatory/mock-surveys-tab";
 import { NablDocumentsTab } from "./regulatory/nabl-documents-tab";
 import { PcpndtTab } from "./regulatory/pcpndt-tab";
-import { checklistStatusColors, statusColorTone } from "./regulatory/shared";
+import { checklistStatusColors } from "./regulatory/shared";
+import { StaffCredentialsTab } from "./regulatory/staff-credentials-tab";
 
 const severityColors: Record<string, BadgeTone> = {
   mild: "primary",
@@ -2196,96 +2196,6 @@ function SubmissionsTab() {
 
 // ══════════════════════════════════════════════════════════
 //  Mock Surveys Tab
-// ══════════════════════════════════════════════════════════
-
-function StaffCredentialsTab() {
-  const { data: credentials = [], isLoading } = useQuery({
-    queryKey: ["regulatory-staff-credentials"],
-    queryFn: () => regulatoryService.staffCredentials(),
-  });
-
-  return (
-    <Stack gap="md">
-      <PageHeader
-        title="Staff Credentials"
-        subtitle="Track professional credentials and expiry dates"
-      />
-
-      <DataTable
-        data={credentials}
-        rowKey={(r) => `${r.employee_id}-${r.credential_type}`}
-        loading={isLoading}
-        columns={[
-          {
-            key: "employee_name",
-            label: "Staff Name",
-            render: (r: StaffCredentialSummary) => (
-              <Text size="sm" fw={500}>
-                {r.employee_name}
-              </Text>
-            ),
-          },
-          {
-            key: "credential_type",
-            label: "Credential",
-            render: (r: StaffCredentialSummary) => (
-              <Badge tone="neutral">{r.credential_type}</Badge>
-            ),
-          },
-          {
-            key: "expiry_date",
-            label: "Expiry Date",
-            render: (r: StaffCredentialSummary) =>
-              r.expiry_date ? (
-                <Text size="sm">{r.expiry_date.slice(0, 10)}</Text>
-              ) : (
-                <Text size="sm" c="dimmed">
-                  N/A
-                </Text>
-              ),
-          },
-          {
-            key: "days_until_expiry",
-            label: "Days Until Expiry",
-            render: (r: StaffCredentialSummary) => {
-              if (r.days_until_expiry == null)
-                return (
-                  <Text size="sm" c="dimmed">
-                    N/A
-                  </Text>
-                );
-              const color: BadgeTone =
-                r.days_until_expiry < 0
-                  ? "danger"
-                  : r.days_until_expiry < 30
-                    ? "danger"
-                    : r.days_until_expiry < 90
-                      ? "warning"
-                      : "success";
-              return (
-                <Badge tone={color}>
-                  {r.days_until_expiry < 0
-                    ? `${Math.abs(r.days_until_expiry)}d expired`
-                    : `${r.days_until_expiry}d`}
-                </Badge>
-              );
-            },
-          },
-          {
-            key: "status",
-            label: "Status",
-            render: (r: StaffCredentialSummary) => (
-              <Badge tone={statusColorTone(r.status)}>{r.status.replace(/_/g, " ")}</Badge>
-            ),
-          },
-        ]}
-      />
-    </Stack>
-  );
-}
-
-// ══════════════════════════════════════════════════════════
-//  License Dashboard Tab
 // ══════════════════════════════════════════════════════════
 
 function LicenseDashboardTab() {
