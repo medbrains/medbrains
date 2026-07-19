@@ -28,7 +28,6 @@ import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { StationHandoffPanel } from "@/components/Handoff/StationHandoffPanel";
 import { OtImplantRegisterPanel } from "@/components/Ot/OtImplantRegisterPanel";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
-import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Alert, Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import {
@@ -50,34 +49,7 @@ import { PostopTab } from "./ot/postop-tab";
 import { PreferencesTab } from "./ot/preferences-tab";
 import { PreopTab } from "./ot/preop-tab";
 import { RoomsTab } from "./ot/rooms-tab";
-
-const bookingStatusColors: Record<string, string> = {
-  requested: "warning",
-  confirmed: "primary",
-  in_progress: "success",
-  completed: "teal",
-  cancelled: "danger",
-  postponed: "orange",
-};
-
-function OtRestrictedValue() {
-  return (
-    <Text span size="sm" c="dimmed">
-      Restricted
-    </Text>
-  );
-}
-
-function OtPatientCell({
-  patientId,
-  canViewPatientRecord,
-}: {
-  patientId: string;
-  canViewPatientRecord: boolean;
-}) {
-  if (!canViewPatientRecord) return <OtRestrictedValue />;
-  return <PatientNameCell patientId={patientId} showUhid={false} />;
-}
+import { bookingStatusColors, OtPatientCell } from "./ot/shared";
 
 export function OtPage() {
   useRequirePermission([
