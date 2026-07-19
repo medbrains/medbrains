@@ -2,9 +2,6 @@ import { B2bClientsSection } from "./lab/b2b-clients";
 import { B2bRatesSection } from "./lab/b2b-rates";
 import { LabCatalogTab } from "./lab/catalog";
 import { CreateLabOrderDrawer } from "./lab/create-order-drawer";
-import { CytologySection } from "./lab/cytology";
-import { HistopathSection } from "./lab/histopath";
-import { MolecularSection } from "./lab/molecular";
 import { LabOrderDetail } from "./lab/order-detail";
 import { OrderStatusPipeline } from "./lab/order-status-pipeline";
 import { OutsourcedTab } from "./lab/outsourced";
@@ -13,6 +10,7 @@ import { PhlebotomyTab } from "./lab/phlebotomy";
 import { QcComplianceTab } from "./lab/qc-compliance";
 import { SampleManagementTab } from "./lab/sample-management";
 import { printLabReportPacket, statusColors } from "./lab/shared";
+import { SpecializedReportsTab } from "./lab/specialized-reports";
 import "@mantine/charts/styles.css";
 import { Divider, Drawer, Group, Select, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
@@ -351,30 +349,6 @@ function LabPageInner() {
         )}
       </Drawer>
     </div>
-  );
-}
-
-function SpecializedReportsTab() {
-  const [subTab, setSubTab] = useState("histopath");
-  return (
-    <Stack>
-      <Tabs value={subTab} onChange={(v) => setSubTab(v ?? "histopath")}>
-        <Tabs.List mb="sm">
-          <Tabs.Tab value="histopath">Histopathology</Tabs.Tab>
-          <Tabs.Tab value="cytology">Cytology</Tabs.Tab>
-          <Tabs.Tab value="molecular">Molecular / PCR</Tabs.Tab>
-        </Tabs.List>
-        <Tabs.Panel value="histopath">
-          <HistopathSection />
-        </Tabs.Panel>
-        <Tabs.Panel value="cytology">
-          <CytologySection />
-        </Tabs.Panel>
-        <Tabs.Panel value="molecular">
-          <MolecularSection />
-        </Tabs.Panel>
-      </Tabs>
-    </Stack>
   );
 }
 
