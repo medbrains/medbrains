@@ -1,5 +1,6 @@
 import { EnquiryDeskTab } from "./front-office/enquiry-desk-tab";
 import { QueueConfigTab } from "./front-office/queue-config-tab";
+import { QueueDashboardTab } from "./front-office/queue-dashboard-tab";
 import { QueueMetricsTab } from "./front-office/queue-metrics-tab";
 import { VisitorAnalyticsTab } from "./front-office/visitor-analytics-tab";
 import { VisitorManagementTab } from "./front-office/visitor-management-tab";
@@ -12,7 +13,6 @@ import type {
   ClinicalJourneyActionDefinition,
   ClinicalJourneyActionId,
   ErTriageToken,
-  QueueStatsResponse,
   TokenBoardReadinessItem,
   TokenBoardReadinessTone,
   TokenBoardStatusSignal,
@@ -56,7 +56,6 @@ import {
   IconUserPlus,
   IconUsers,
 } from "@tabler/icons-react";
-import { useQuery } from "@tanstack/react-query";
 import type { CSSProperties, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
@@ -72,7 +71,6 @@ import {
   useFrontOfficePharmacyTokenBoardQuery,
   useFrontOfficeRadiologyTokenBoardQuery,
 } from "@/services/frontOffice.queries";
-import { frontOfficeService } from "@/services/frontOffice.service";
 import {
   billingDisplayToken,
   type DisplayToken,
@@ -720,58 +718,6 @@ function PatientFlowHub({
 
 // ══════════════════════════════════════════════════════════
 //  Tab 2 — Queue Dashboard
-// ══════════════════════════════════════════════════════════
-
-function QueueDashboardTab() {
-  const { data: stats, isLoading } = useQuery<QueueStatsResponse[]>({
-    queryKey: ["front-office", "queue-stats"],
-    queryFn: () => frontOfficeService.getQueueStats(),
-  });
-
-  return (
-    <Stack gap="md">
-      <Text size="sm" c="dimmed">
-        Real-time queue statistics across departments (today)
-      </Text>
-      {isLoading && <Text size="sm">Loading...</Text>}
-      <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
-        {stats?.map((s) => (
-          <Card key={s.department_id ?? "all"} withBorder padding="md">
-            <Text fw={600} size="sm">
-              {s.department_id ?? "All Departments"}
-            </Text>
-            <Group mt="xs" gap="lg">
-              <div>
-                <Text size="xl" fw={700} c="primary">
-                  {s.waiting_count}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  Waiting
-                </Text>
-              </div>
-              <div>
-                <Text size="xl" fw={700} c="orange">
-                  {s.avg_wait_minutes != null ? `${Math.round(s.avg_wait_minutes)} min` : "—"}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  Avg Wait
-                </Text>
-              </div>
-            </Group>
-          </Card>
-        ))}
-        {stats?.length === 0 && (
-          <Text size="sm" c="dimmed">
-            No queue data for today
-          </Text>
-        )}
-      </SimpleGrid>
-    </Stack>
-  );
-}
-
-// ══════════════════════════════════════════════════════════
-//  Tab 3 — Token Boards
 // ══════════════════════════════════════════════════════════
 
 const TOKEN_BOARD_LIMIT = 8;
