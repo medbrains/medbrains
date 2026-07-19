@@ -47,7 +47,6 @@ import type {
   PatientInvoiceRow,
   PatientLabOrderRow,
   PatientMergeHistory,
-  PatientVisitRow,
   PrescriptionHistoryItem,
   RadiologyDicomStudy,
   RegistrationCardPrintData,
@@ -89,8 +88,6 @@ import { AskAiButton } from "@/components/ai";
 import { PrescriptionViews } from "@/components/Clinical";
 import { ClinicalEventProvider, useClinicalEmit } from "@/components/ClinicalEventProvider";
 import { NotesPanel } from "@/components/crdt/NotesPanel";
-import type { Column } from "@/components/DataTable";
-import { DataTable } from "@/components/DataTable";
 import {
   type OrderBasketTab,
   OrderBasketWorkspace,
@@ -127,6 +124,7 @@ import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "@/utils
 import { AllergiesTab } from "./patient-detail/allergies-tab";
 import { OverviewTab } from "./patient-detail/overview-tab";
 import { age, escapeHtml, formatDate, formatMoney } from "./patient-detail/shared";
+import { VisitsTab } from "./patient-detail/visits-tab";
 import classes from "./patient-detail.module.scss";
 import {
   isPatientDetailTabValue,
@@ -140,13 +138,6 @@ import {
 } from "./patient-detail-workspace";
 
 // ── Helpers ────────────────────────────────────────────────
-
-const STATUS_COLORS: Record<string, BadgeTone> = {
-  open: "primary",
-  in_progress: "warning",
-  completed: "success",
-  cancelled: "danger",
-};
 
 const LAB_STATUS_COLORS: Record<string, BadgeTone> = {
   ordered: "primary",
@@ -193,99 +184,6 @@ function formatTime(time: string): string {
 }
 
 // ── Overview Tab ───────────────────────────────────────────
-
-const VISIT_COLUMNS: Column<PatientVisitRow>[] = [
-  {
-    key: "date",
-    label: "Date",
-    sortable: true,
-    sortValue: (v) => v.encounter_date,
-    render: (v) => (
-      <Text size="sm" fw={500}>
-        {formatDate(v.encounter_date)}
-      </Text>
-    ),
-  },
-  {
-    key: "type",
-    label: "Type",
-    render: (v) => (
-      <Badge size="sm" tt="uppercase">
-        {v.encounter_type}
-      </Badge>
-    ),
-  },
-  { key: "doctor", label: "Doctor", render: (v) => <Text size="sm">{v.doctor_name ?? "-"}</Text> },
-  {
-    key: "department",
-    label: "Department",
-    render: (v) => <Text size="sm">{v.department_name ?? "-"}</Text>,
-  },
-  {
-    key: "chief",
-    label: "Chief Complaint",
-    render: (v) => (
-      <Text size="sm" lineClamp={1}>
-        {v.chief_complaint ?? "-"}
-      </Text>
-    ),
-  },
-  {
-    key: "dx",
-    label: "Dx",
-    render: (v) => (
-      <Text size="sm" ta="center">
-        {v.diagnosis_count ?? 0}
-      </Text>
-    ),
-  },
-  {
-    key: "rx",
-    label: "Rx",
-    render: (v) => (
-      <Text size="sm" ta="center">
-        {v.prescription_count ?? 0}
-      </Text>
-    ),
-  },
-  {
-    key: "lab",
-    label: "Lab",
-    render: (v) => (
-      <Text size="sm" ta="center">
-        {v.lab_order_count ?? 0}
-      </Text>
-    ),
-  },
-  {
-    key: "status",
-    label: "Status",
-    render: (v) => (
-      <Badge tone={STATUS_COLORS[v.status] ?? "neutral"} size="sm">
-        {v.status.replace(/_/g, " ")}
-      </Badge>
-    ),
-  },
-];
-
-function VisitsTab({ patientId }: { patientId: string }) {
-  const { data: visits, isLoading } = useQuery({
-    queryKey: ["patient-visits", patientId],
-    queryFn: () => patientDetailService.listPatientVisits(patientId),
-  });
-
-  return (
-    <DataTable
-      columns={VISIT_COLUMNS}
-      data={visits ?? []}
-      loading={isLoading}
-      rowKey={(v) => v.id}
-      emptyTitle="No visit history found."
-    />
-  );
-}
-
-// ── Prescriptions Tab ────────────────────────────────────────
 
 function PrescriptionsTab({ patient }: { patient: Patient }) {
   const { data: history = [], isLoading } = useQuery<PrescriptionHistoryItem[]>({
