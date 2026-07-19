@@ -1,41 +1,27 @@
 import { B2bClientsSection } from "./lab/b2b-clients";
 import { B2bRatesSection } from "./lab/b2b-rates";
-import { CalibrationsSection } from "./lab/calibrations";
 import { LabCatalogTab } from "./lab/catalog";
 import { CollectionCentersSection } from "./lab/collection-centers";
 import { CreateLabOrderDrawer } from "./lab/create-order-drawer";
 import { CytologySection } from "./lab/cytology";
-import { EqasSection } from "./lab/eqas";
 import { HistopathSection } from "./lab/histopath";
 import { HomeCollectionsSection } from "./lab/home-collections";
 import { MolecularSection } from "./lab/molecular";
-import { NablDocumentsSection } from "./lab/nabl-documents";
 import { LabOrderDetail } from "./lab/order-detail";
 import { OrderStatusPipeline } from "./lab/order-status-pipeline";
 import { OutsourcedTab } from "./lab/outsourced";
 import { LabPanelsTab } from "./lab/panels";
 import { PhlebotomyTab } from "./lab/phlebotomy";
-import { ProficiencyTestingSection } from "./lab/proficiency-testing";
-import { QcResultsSection } from "./lab/qc-results";
-import { ReagentConsumptionSection } from "./lab/reagent-consumption";
-import { ReagentLotsSection } from "./lab/reagent-lots";
+import { QcComplianceTab } from "./lab/qc-compliance";
 import { SampleArchiveSection } from "./lab/sample-archive";
 import { printLabReportPacket, statusColors } from "./lab/shared";
-import { TatAnalyticsSection } from "./lab/tat-analytics";
 import "@mantine/charts/styles.css";
 import { Divider, Drawer, Group, Select, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { LabCriticalAlert, LabOrder } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import {
-  IconAlertTriangle,
-  IconClock,
-  IconEye,
-  IconFlask,
-  IconPlus,
-  IconPrinter,
-} from "@tabler/icons-react";
+import { IconAlertTriangle, IconEye, IconFlask, IconPlus, IconPrinter } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -367,53 +353,6 @@ function LabPageInner() {
         )}
       </Drawer>
     </div>
-  );
-}
-
-function QcComplianceTab() {
-  const [subTab, setSubTab] = useState("reagent-lots");
-  return (
-    <Stack>
-      <Tabs value={subTab} onChange={(v) => setSubTab(v ?? "reagent-lots")}>
-        <Tabs.List mb="sm">
-          <Tabs.Tab value="reagent-lots">Reagent Lots</Tabs.Tab>
-          <Tabs.Tab value="qc-results">QC Results</Tabs.Tab>
-          <Tabs.Tab value="calibrations">Calibrations</Tabs.Tab>
-          <Tabs.Tab value="eqas">EQAS</Tabs.Tab>
-          <Tabs.Tab value="proficiency">Proficiency Testing</Tabs.Tab>
-          <Tabs.Tab value="nabl">NABL Documents</Tabs.Tab>
-          <Tabs.Tab value="consumption">Reagent Consumption</Tabs.Tab>
-          <Tabs.Tab value="tat-analytics" leftSection={<IconClock size={14} />}>
-            TAT Analytics
-          </Tabs.Tab>
-        </Tabs.List>
-
-        <Tabs.Panel value="reagent-lots">
-          <ReagentLotsSection />
-        </Tabs.Panel>
-        <Tabs.Panel value="qc-results">
-          <QcResultsSection />
-        </Tabs.Panel>
-        <Tabs.Panel value="calibrations">
-          <CalibrationsSection />
-        </Tabs.Panel>
-        <Tabs.Panel value="eqas">
-          <EqasSection />
-        </Tabs.Panel>
-        <Tabs.Panel value="proficiency">
-          <ProficiencyTestingSection />
-        </Tabs.Panel>
-        <Tabs.Panel value="nabl">
-          <NablDocumentsSection />
-        </Tabs.Panel>
-        <Tabs.Panel value="consumption">
-          <ReagentConsumptionSection />
-        </Tabs.Panel>
-        <Tabs.Panel value="tat-analytics">
-          <TatAnalyticsSection />
-        </Tabs.Panel>
-      </Tabs>
-    </Stack>
   );
 }
 
