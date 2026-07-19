@@ -24,3 +24,11 @@ export function statusColorTone(v: string): BadgeTone {
   };
   return (c ? m[c] : undefined) ?? "neutral";
 }
+
+export const checklistStatusColors: Record<string, BadgeTone> = {
+  not_started: "neutral",
+  in_progress: "primary",
+  compliant: "success",
+  non_compliant: "danger",
+  not_applicable: "neutral",
+};

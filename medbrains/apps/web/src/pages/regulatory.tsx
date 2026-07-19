@@ -62,9 +62,10 @@ import { DataTable, PageHeader } from "@/components";
 import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { regulatoryService } from "@/services/regulatory.service";
+import { MockSurveysTab } from "./regulatory/mock-surveys-tab";
 import { NablDocumentsTab } from "./regulatory/nabl-documents-tab";
 import { PcpndtTab } from "./regulatory/pcpndt-tab";
-import { statusColorTone } from "./regulatory/shared";
+import { checklistStatusColors, statusColorTone } from "./regulatory/shared";
 
 const severityColors: Record<string, BadgeTone> = {
   mild: "primary",
@@ -79,14 +80,6 @@ const eventStatusColors: Record<string, BadgeTone> = {
   under_review: "warning",
   closed: "success",
   withdrawn: "neutral",
-};
-
-const checklistStatusColors: Record<string, BadgeTone> = {
-  not_started: "neutral",
-  in_progress: "primary",
-  compliant: "success",
-  non_compliant: "danger",
-  not_applicable: "neutral",
 };
 
 const calendarStatusColors: Record<string, BadgeTone> = {
@@ -2203,194 +2196,6 @@ function SubmissionsTab() {
 
 // ══════════════════════════════════════════════════════════
 //  Mock Surveys Tab
-// ══════════════════════════════════════════════════════════
-
-function MockSurveysTab() {
-  const canManage = useHasPermission(P.REGULATORY.CHECKLISTS_CREATE);
-  const qc = useQueryClient();
-  const [opened, { open, close }] = useDisclosure(false);
-
-  const { data: surveys = [], isLoading } = useQuery({
-    queryKey: ["regulatory-mock-surveys"],
-    queryFn: () => regulatoryService.listMockSurveys(),
-  });
-
-  const [form, setForm] = useState<CreateChecklistRequest>({
-    accreditation_body: "nabh",
-    standard_code: "",
-    name: "",
-    assessment_period_start: "",
-    assessment_period_end: "",
-  });
-
-  const createMut = useMutation({
-    mutationFn: (data: CreateChecklistRequest) => regulatoryService.createMockSurvey(data),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["regulatory-mock-surveys"] });
-      toast.success("", { title: "Mock survey created" });
-      close();
-    },
-  });
-
-  return (
-    <Stack gap="md">
-      <PageHeader
-        title="Mock Surveys"
-        subtitle="Simulate accreditation surveys for readiness assessment"
-        actions={
-          canManage ? (
-            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={open}>
-              New Mock Survey
-            </Button>
-          ) : undefined
-        }
-      />
-
-      <DataTable
-        data={surveys}
-        rowKey={(r) => r.id}
-        loading={isLoading}
-        columns={[
-          {
-            key: "name",
-            label: "Name",
-            render: (r: ComplianceChecklist) => (
-              <Text size="sm" fw={500}>
-                {r.name}
-              </Text>
-            ),
-          },
-          {
-            key: "accreditation_body",
-            label: "Body",
-            render: (r: ComplianceChecklist) => (
-              <Badge tone="neutral" size="sm" tt="uppercase">
-                {r.accreditation_body}
-              </Badge>
-            ),
-          },
-          {
-            key: "standard_code",
-            label: "Standard",
-            render: (r: ComplianceChecklist) => <Text size="sm">{r.standard_code}</Text>,
-          },
-          {
-            key: "overall_status",
-            label: "Status",
-            render: (r: ComplianceChecklist) => (
-              <Badge tone={checklistStatusColors[r.overall_status]}>
-                {r.overall_status.replace(/_/g, " ")}
-              </Badge>
-            ),
-          },
-          {
-            key: "compliance_score",
-            label: "Score",
-            render: (r: ComplianceChecklist) =>
-              r.compliance_score != null ? (
-                <Badge
-                  tone={
-                    r.compliance_score >= 80
-                      ? "success"
-                      : r.compliance_score >= 60
-                        ? "warning"
-                        : "danger"
-                  }
-                >
-                  {r.compliance_score}%
-                </Badge>
-              ) : (
-                <Text size="sm" c="dimmed">
-                  -
-                </Text>
-              ),
-          },
-          {
-            key: "items",
-            label: "Items",
-            render: (r: ComplianceChecklist) => (
-              <Text size="sm">
-                {r.compliant_items}/{r.total_items}
-              </Text>
-            ),
-          },
-          {
-            key: "period",
-            label: "Period",
-            render: (r: ComplianceChecklist) => (
-              <Text size="sm">
-                {r.assessment_period_start} — {r.assessment_period_end}
-              </Text>
-            ),
-          },
-        ]}
-      />
-
-      <Drawer opened={opened} onClose={close} title="New Mock Survey" position="right" size="xl">
-        <Stack gap="sm">
-          <TextInput
-            label="Name"
-            required
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
-          />
-          <Select
-            label="Accreditation Body"
-            required
-            value={form.accreditation_body}
-            onChange={(v) => setForm({ ...form, accreditation_body: v ?? "nabh" })}
-            data={[
-              { value: "nabh", label: "NABH" },
-              { value: "nmc", label: "NMC" },
-              { value: "nabl", label: "NABL" },
-              { value: "jci", label: "JCI" },
-              { value: "abdm", label: "ABDM" },
-              { value: "other", label: "Other" },
-            ]}
-          />
-          <TextInput
-            label="Standard Code"
-            required
-            value={form.standard_code}
-            onChange={(e) => setForm({ ...form, standard_code: e.currentTarget.value })}
-          />
-          <DateInput
-            label="Assessment Start"
-            required
-            value={form.assessment_period_start ? new Date(form.assessment_period_start) : null}
-            onChange={(d) =>
-              setForm({
-                ...form,
-                assessment_period_start: d ? new Date(d).toISOString().slice(0, 10) : "",
-              })
-            }
-          />
-          <DateInput
-            label="Assessment End"
-            required
-            value={form.assessment_period_end ? new Date(form.assessment_period_end) : null}
-            onChange={(d) =>
-              setForm({
-                ...form,
-                assessment_period_end: d ? new Date(d).toISOString().slice(0, 10) : "",
-              })
-            }
-          />
-          <Button
-            tone="primary"
-            onClick={() => createMut.mutate(form)}
-            loading={createMut.isPending}
-          >
-            Create Mock Survey
-          </Button>
-        </Stack>
-      </Drawer>
-    </Stack>
-  );
-}
-
-// ══════════════════════════════════════════════════════════
-//  Staff Credentials Tab
 // ══════════════════════════════════════════════════════════
 
 function StaffCredentialsTab() {
