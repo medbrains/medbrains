@@ -32,7 +32,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { type ComponentType, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { PageHeader } from "@/components";
 import { NabhIndicatorMatrix } from "@/components/Reports/NabhIndicatorMatrix";
@@ -41,63 +41,18 @@ import { ReportDetailPanel } from "@/components/Reports/ReportDetailPanel";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { reportsService } from "@/services/reports.service";
+import type {
+  ReportDataById,
+  ReportDefinition,
+  ReportExport,
+  ReportFamily,
+  ReportLoadingState,
+  ReportPriority,
+  ReportReadiness,
+  ReportRuntimeData,
+  VisualKind,
+} from "./reports/types";
 import styles from "./reports.module.scss";
-
-type ReportPriority = "P1" | "P2" | "P3";
-type ReportReadiness =
-  | "live_api"
-  | "query_buildable"
-  | "derived_view"
-  | "predictive"
-  | "capture_needed";
-type ReportExport = "PDF" | "Excel" | "CSV" | "PNG";
-type ExportMode = "standard" | "governed";
-type VisualKind =
-  | "command"
-  | "line"
-  | "heatmap"
-  | "boxplot"
-  | "funnel"
-  | "sankey"
-  | "map"
-  | "graph"
-  | "radar"
-  | "gauge"
-  | "treemap"
-  | "matrix"
-  | "body"
-  | "forecast";
-
-interface ReportDefinition {
-  id: string;
-  title: string;
-  purpose: string;
-  sourceTables: string[];
-  sourceEvents?: string[];
-  eventPayloadKeys?: string[];
-  indicatorTargets?: string[];
-  permissions: string[];
-  priority: ReportPriority;
-  readiness: ReportReadiness;
-  chartTypes: string[];
-  echartsTemplate?: EChartsTemplate;
-  visualKind: VisualKind;
-  refresh: string;
-  exports: ReportExport[];
-  exportMode: ExportMode;
-  drilldowns: string[];
-  dataEndpoint?: string | null;
-}
-
-interface ReportFamily {
-  id: string;
-  title: string;
-  eyebrow: string;
-  description: string;
-  icon: ComponentType<{ size?: number; stroke?: number }>;
-  accent: string;
-  reports: ReportDefinition[];
-}
 
 const REPORT_PRIORITY_FILTERS = ["all", "P1", "P2", "P3"] as const;
 const REPORT_READINESS_FILTERS = [
@@ -128,36 +83,6 @@ function reportPriorityFilter(value: string | null): ReportPriority | "all" {
 function reportReadinessFilter(value: string | null): ReportReadiness | "all" {
   return isReportReadinessFilter(value) ? value : "all";
 }
-
-interface ReportRuntimeData {
-  opdFootfall: Array<{
-    date: string;
-    visit_count: number;
-    new_patients: number;
-    follow_ups: number;
-  }>;
-  bedOccupancy: Array<{
-    ward_name: string;
-    occupied: number;
-    vacant: number;
-    occupancy_pct: number;
-  }>;
-  noShows: Array<{
-    doctor_id?: string;
-    department_id?: string;
-    total_appointments: number;
-    noshow_count: number;
-    noshow_rate?: number;
-  }>;
-}
-
-interface ReportLoadingState {
-  opdFootfall: boolean;
-  bedOccupancy: boolean;
-  noShows: boolean;
-}
-
-type ReportDataById = Record<string, ReportDataResponse<unknown>>;
 
 const STANDARD_EXPORTS: ReportExport[] = ["PDF", "Excel", "CSV", "PNG"];
 const GOVERNED_EXPORTS: ReportExport[] = ["PDF", "PNG", "Excel", "CSV"];
