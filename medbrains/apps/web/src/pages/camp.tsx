@@ -29,7 +29,13 @@ import { CampsTab } from "./camp/camps-tab";
 import { FollowupsTab } from "./camp/followups-tab";
 import { RegistrationsTab } from "./camp/registrations-tab";
 import { ScreeningsTab } from "./camp/screenings-tab";
-import { CAMP_STATUS_COLORS, CampRegistrationSignals } from "./camp/shared";
+import {
+  CAMP_STATUS_COLORS,
+  CampRegistrationSignals,
+  campClinicalRoutePath,
+  campLandingPath,
+  campWorkPath,
+} from "./camp/shared";
 import classes from "./camp.module.scss";
 import {
   CAMP_LANDING_TAB_VALUES,
@@ -40,19 +46,6 @@ import {
 } from "./camp-workspace";
 
 // ── Constants ──────────────────────────────────────────
-
-const patientContextQuery = (patientId: string) =>
-  patientId ? `?patient_id=${encodeURIComponent(patientId)}` : "";
-
-const campLandingPath = (patientId: string) => `/camp${patientContextQuery(patientId)}#camps`;
-
-const campWorkPath = (campId: string, patientId: string, tab: CampWorkTabValue = "registrations") =>
-  `/camp/${campId}/work${patientContextQuery(patientId)}#${tab}`;
-
-const campClinicalRoutePath = (campId: string, registrationId: string, patientId: string) =>
-  `/camp/${campId}/work/registrations/${registrationId}/clinical-route${patientContextQuery(
-    patientId,
-  )}#screenings`;
 
 function CampPatientActionBar({
   activeCampId,

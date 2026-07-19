@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import type { OperationalSignalShape, OperationalSignalTone } from "@/components";
 import { OperationalSignal } from "@/components";
 import type { BadgeTone } from "@/components/ui";
+import type { CampWorkTabValue } from "../camp-workspace";
 
 export type CampTranslate = ReturnType<typeof useTranslation>["t"];
 
@@ -188,3 +189,20 @@ export const CAMP_STATUS_COLORS: Record<string, BadgeTone> = {
   completed: "success",
   cancelled: "danger",
 };
+
+export const patientContextQuery = (patientId: string) =>
+  patientId ? `?patient_id=${encodeURIComponent(patientId)}` : "";
+
+export const campLandingPath = (patientId: string) =>
+  `/camp${patientContextQuery(patientId)}#camps`;
+
+export const campWorkPath = (
+  campId: string,
+  patientId: string,
+  tab: CampWorkTabValue = "registrations",
+) => `/camp/${campId}/work${patientContextQuery(patientId)}#${tab}`;
+
+export const campClinicalRoutePath = (campId: string, registrationId: string, patientId: string) =>
+  `/camp/${campId}/work/registrations/${registrationId}/clinical-route${patientContextQuery(
+    patientId,
+  )}#screenings`;
