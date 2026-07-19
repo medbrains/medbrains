@@ -35,3 +35,11 @@ export const optionalText = (value?: string | null) => {
   const trimmed = value?.trim() ?? "";
   return trimmed.length > 0 ? trimmed : undefined;
 };
+
+export const formNumber = (value: string | number | undefined | null) => {
+  if (value == null || (typeof value === "string" && value.trim().length === 0)) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+export const requiredFormNumber = (value: string | number) => Number(value);
