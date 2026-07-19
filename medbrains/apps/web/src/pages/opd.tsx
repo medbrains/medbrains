@@ -24,7 +24,6 @@ import type {
   BookAppointmentGroupRequest,
   Camp,
   Consultation,
-  CreateDiagnosisRequest,
   CreateEncounterResponse,
   CreateVitalRequest,
   DepartmentRow,
@@ -37,7 +36,6 @@ import type {
   PharmacyDispatchStatus as PharmacyDispatchStatusRow,
   PrescriptionWithItems,
   QueueEntry,
-  UpdateDiagnosisRequest,
   Vital,
 } from "@medbrains/types";
 import {
@@ -92,7 +90,6 @@ import {
   type Column,
   DataTable,
   type DataTableFilter,
-  DiagnosisPanel,
   DoctorSearchSelect,
   OperationalSignal,
   type OperationalSignalShape,
@@ -130,6 +127,7 @@ import { ipdService } from "@/services/ipd.service";
 import { mrdService } from "@/services/mrd.service";
 import { opdService } from "@/services/opd.service";
 import { ConsultationTab } from "./opd/consultation";
+import { DiagnosesTab } from "./opd/diagnoses";
 import { HistoryTab, PhysicalExamTab, ROSTab } from "./opd/documentation-tabs";
 import { FollowUpTab } from "./opd/follow-up";
 import { InvestigationsTab } from "./opd/investigations";
@@ -2318,77 +2316,6 @@ function PharmacyDispatchTab({ encounterId }: { encounterId: string }) {
 }
 
 // ── Vitals ───────────────────────────────────────────────
-
-function DiagnosesTab({
-  encounterId,
-  patientId,
-  canUpdate,
-}: {
-  encounterId: string;
-  patientId: string;
-  canUpdate: boolean;
-}) {
-  const queryClient = useQueryClient();
-
-  const { data: diagnoses = [] } = useQuery<Diagnosis[]>({
-    queryKey: ["diagnoses", encounterId],
-    queryFn: () => opdService.listDiagnoses(encounterId),
-  });
-
-  const { data: patientDiagnoses = [] } = useQuery<PatientDiagnosisRow[]>({
-    queryKey: ["patient-diagnoses", patientId],
-    queryFn: () => opdService.listPatientDiagnoses(patientId),
-    staleTime: 120_000,
-  });
-
-  const invalidateDiagnosisQueries = () => {
-    void queryClient.invalidateQueries({ queryKey: ["diagnoses", encounterId] });
-    void queryClient.invalidateQueries({ queryKey: ["patient-diagnoses", patientId] });
-  };
-
-  const createMutation = useMutation({
-    mutationFn: (data: CreateDiagnosisRequest) => opdService.createDiagnosis(encounterId, data),
-    onSuccess: invalidateDiagnosisQueries,
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({
-      diagnosisEncounterId,
-      diagnosisId,
-      data,
-    }: {
-      diagnosisEncounterId: string;
-      diagnosisId: string;
-      data: UpdateDiagnosisRequest;
-    }) => opdService.updateDiagnosis(diagnosisEncounterId, diagnosisId, data),
-    onSuccess: invalidateDiagnosisQueries,
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => opdService.deleteDiagnosis(encounterId, id),
-    onSuccess: invalidateDiagnosisQueries,
-  });
-
-  return (
-    <DiagnosisPanel
-      encounterId={encounterId}
-      diagnoses={diagnoses}
-      patientDiagnoses={patientDiagnoses}
-      canCreate={canUpdate}
-      canUpdate={canUpdate}
-      canDelete={canUpdate}
-      onAdd={(data) => createMutation.mutate(data)}
-      onUpdate={(diagnosisEncounterId, diagnosisId, data) =>
-        updateMutation.mutate({ diagnosisEncounterId, diagnosisId, data })
-      }
-      onDelete={(id) => deleteMutation.mutate(id)}
-      isAdding={createMutation.isPending}
-      isUpdating={updateMutation.isPending}
-    />
-  );
-}
-
-// ── Investigations ───────────────────────────────────────
 
 function AdmitToIpdButton({
   encounterId,
