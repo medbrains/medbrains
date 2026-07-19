@@ -10,14 +10,13 @@ import {
   TextInput,
   Tooltip,
 } from "@mantine/core";
-import { DatePickerInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import type { OtBookingFormInput, OtUtilizationFilterFormInput } from "@medbrains/schemas";
 import { otBookingFormSchema, otUtilizationFilterFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type { OtBooking, OtRoom, RoomUtilization } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconCalendar, IconChartBar, IconEye, IconPlus, IconScissors } from "@tabler/icons-react";
+import { IconChartBar, IconEye, IconPlus, IconScissors } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
@@ -49,6 +48,7 @@ import { PostopTab } from "./ot/postop-tab";
 import { PreferencesTab } from "./ot/preferences-tab";
 import { PreopTab } from "./ot/preop-tab";
 import { RoomsTab } from "./ot/rooms-tab";
+import { ScheduleTab } from "./ot/schedule-tab";
 import { bookingStatusColors, OtPatientCell } from "./ot/shared";
 
 export function OtPage() {
@@ -158,116 +158,6 @@ export function OtPage() {
 }
 
 // ── Schedule Tab ───────────────────────────────────────
-
-function ScheduleTab() {
-  const [date, setDate] = useState<string | null>(new Date().toISOString().slice(0, 10));
-  const [roomId, setRoomId] = useState<string | null>(null);
-  const canViewPatientRecord = useHasPermission(P.PATIENTS.VIEW);
-
-  const { data: rooms } = useQuery({
-    queryKey: ["ot-rooms"],
-    queryFn: () => otService.listOtRooms(),
-  });
-
-  const dateStr = date ?? undefined;
-  const params: Record<string, string> = {};
-  if (dateStr) params.date = dateStr;
-  if (roomId) params.room_id = roomId;
-
-  const { data, isLoading } = useQuery({
-    queryKey: ["ot-schedule", dateStr, roomId],
-    queryFn: () => otService.getOtSchedule(params),
-    enabled: !!dateStr,
-  });
-
-  const roomOptions = (rooms ?? []).map((r: OtRoom) => ({ value: r.id, label: r.name }));
-
-  return (
-    <Stack>
-      <Group>
-        <DatePickerInput
-          label="Date"
-          value={date}
-          onChange={setDate}
-          leftSection={<IconCalendar size={16} />}
-          w={200}
-        />
-        <Select
-          label="OT Room"
-          placeholder="All rooms"
-          data={roomOptions}
-          value={roomId}
-          onChange={setRoomId}
-          clearable
-          w={200}
-        />
-      </Group>
-      <DataTable
-        columns={[
-          {
-            key: "time",
-            label: "Time",
-            render: (b: OtBooking) => (
-              <Text size="sm">
-                {new Date(b.scheduled_start).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </Text>
-            ),
-          },
-          {
-            key: "procedure",
-            label: "Procedure",
-            render: (b: OtBooking) => (
-              <Text size="sm" fw={500}>
-                {b.procedure_name}
-              </Text>
-            ),
-          },
-          {
-            key: "patient",
-            label: "Patient",
-            render: (b: OtBooking) => (
-              <OtPatientCell patientId={b.patient_id} canViewPatientRecord={canViewPatientRecord} />
-            ),
-          },
-          {
-            key: "priority",
-            label: "Priority",
-            render: (b: OtBooking) => (
-              <Badge
-                size="sm"
-                tone={
-                  b.priority === "emergency"
-                    ? "danger"
-                    : b.priority === "urgent"
-                      ? "warning"
-                      : "neutral"
-                }
-              >
-                {b.priority}
-              </Badge>
-            ),
-          },
-          {
-            key: "status",
-            label: "Status",
-            render: (b: OtBooking) => (
-              <StatusDot color={bookingStatusColors[b.status] ?? "slate"} label={b.status} />
-            ),
-          },
-        ]}
-        data={data ?? []}
-        loading={isLoading}
-        rowKey={(b) => b.id}
-        emptyTitle="No bookings for this date"
-      />
-    </Stack>
-  );
-}
-
-// ── Bookings Tab ───────────────────────────────────────
 
 function BookingsTab({ canCreate, canList }: { canCreate: boolean; canList: boolean }) {
   const [page, setPage] = useState(1);
