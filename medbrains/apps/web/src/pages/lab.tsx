@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { confirmDestructive } from "@/lib/confirm";
+import { B2bClientsSection } from "./lab/b2b-clients";
 import { CalibrationsSection } from "./lab/calibrations";
 import { CollectionCentersSection } from "./lab/collection-centers";
 import { CytologySection } from "./lab/cytology";
@@ -28,7 +29,6 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type {
-  LabB2bClientFormInput,
   LabB2bRateFormInput,
   LabCatalogFormInput,
   LabEqasResultFormInput,
@@ -39,7 +39,6 @@ import type {
   LabSampleArchiveFormInput,
 } from "@medbrains/schemas";
 import {
-  labB2bClientFormSchema,
   labB2bRateFormSchema,
   labCatalogFormSchema,
   labEqasResultFormSchema,
@@ -53,7 +52,6 @@ import { useHasPermission } from "@medbrains/stores";
 import type {
   AmendResultRequest,
   AutoValidateResult,
-  CreateB2bClientRequest,
   CreateB2bRateRequest,
   CreateEqasResultRequest,
   CreateHomeCollectionRequest,
@@ -131,7 +129,6 @@ import {
   toast,
 } from "@/components/ui";
 import {
-  labB2bClientTypeOptions,
   labEqasEvaluationOptions,
   labMethodOptions,
   labNumberOrFallback,
@@ -3698,220 +3695,6 @@ function B2bTab() {
           <B2bRatesSection />
         </Tabs.Panel>
       </Tabs>
-    </Stack>
-  );
-}
-
-function B2bClientsSection() {
-  const { t } = useTranslation("lab");
-  const canManage = useHasPermission(P.LAB.B2B_MANAGE);
-  const queryClient = useQueryClient();
-  const [formOpen, formHandlers] = useDisclosure(false);
-  const b2bClientDefaults: LabB2bClientFormInput = {
-    code: "",
-    name: "",
-    client_type: "",
-    address: "",
-    city: "",
-    phone: "",
-    email: "",
-    contact_person: "",
-    credit_limit: "",
-    payment_terms_days: 30,
-  };
-  const {
-    control,
-    register,
-    reset,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LabB2bClientFormInput>({
-    resolver: zodResolver(labB2bClientFormSchema),
-    defaultValues: b2bClientDefaults,
-  });
-
-  const { data: clients = [], isLoading } = useQuery({
-    queryKey: ["lab-b2b-clients"],
-    queryFn: () => labService.listB2bClients(),
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (data: CreateB2bClientRequest) => labService.createB2bClient(data),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["lab-b2b-clients"] });
-      formHandlers.close();
-      reset(b2bClientDefaults);
-    },
-  });
-
-  const handleCreateB2bClient = (values: LabB2bClientFormInput) => {
-    createMutation.mutate({
-      code: values.code.trim(),
-      name: values.name.trim(),
-      client_type: labOptionalText(values.client_type),
-      address: labOptionalText(values.address),
-      city: labOptionalText(values.city),
-      phone: labOptionalText(values.phone),
-      email: labOptionalText(values.email),
-      contact_person: labOptionalText(values.contact_person),
-      credit_limit: labOptionalNumber(values.credit_limit),
-      payment_terms_days: labOptionalInteger(values.payment_terms_days),
-    });
-  };
-
-  const columns = [
-    { key: "code", label: "Code", render: (row: LabB2bClient) => <Text fw={500}>{row.code}</Text> },
-    {
-      key: "name",
-      label: "Name",
-      render: (row: LabB2bClient) => <Text size="sm">{row.name}</Text>,
-    },
-    {
-      key: "client_type",
-      label: "Type",
-      render: (row: LabB2bClient) => <Text size="sm">{row.client_type ?? "—"}</Text>,
-    },
-    {
-      key: "city",
-      label: "City",
-      render: (row: LabB2bClient) => <Text size="sm">{row.city ?? "—"}</Text>,
-    },
-    {
-      key: "contact_person",
-      label: "Contact",
-      render: (row: LabB2bClient) => <Text size="sm">{row.contact_person ?? "—"}</Text>,
-    },
-    {
-      key: "credit_limit",
-      label: "Credit Limit",
-      render: (row: LabB2bClient) => (
-        <Text size="sm">{row.credit_limit != null ? `₹${row.credit_limit}` : "—"}</Text>
-      ),
-    },
-    {
-      key: "payment_terms_days",
-      label: "Terms",
-      render: (row: LabB2bClient) => <Text size="sm">{row.payment_terms_days} days</Text>,
-    },
-    {
-      key: "is_active",
-      label: "Active",
-      render: (row: LabB2bClient) =>
-        row.is_active ? (
-          <IconCheck size={14} color="success" />
-        ) : (
-          <IconX size={14} color="danger" />
-        ),
-    },
-  ];
-
-  return (
-    <Stack>
-      {canManage && (
-        <Group>
-          <Button
-            tone="primary"
-            size="xs"
-            leftSection={<IconPlus size={14} />}
-            onClick={() => {
-              formHandlers.toggle();
-              if (formOpen) reset(b2bClientDefaults);
-            }}
-          >
-            {t("addClient")}
-          </Button>
-        </Group>
-      )}
-      {formOpen && (
-        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateB2bClient)}>
-          <Group grow>
-            <TextInput
-              label={t("label.code")}
-              required
-              error={errors.code?.message}
-              {...register("code")}
-            />
-            <TextInput
-              label={t("label.name")}
-              required
-              error={errors.name?.message}
-              {...register("name")}
-            />
-            <Controller
-              control={control}
-              name="client_type"
-              render={({ field }) => (
-                <Select
-                  label={t("label.type")}
-                  data={labB2bClientTypeOptions}
-                  placeholder={t("placeholder.selectType")}
-                  value={field.value || null}
-                  onChange={(value) => field.onChange(value ?? "")}
-                  error={errors.client_type?.message}
-                  clearable
-                  searchable
-                />
-              )}
-            />
-          </Group>
-          <Textarea
-            label={t("label.address")}
-            error={errors.address?.message}
-            {...register("address")}
-          />
-          <Group grow>
-            <TextInput label={t("label.city")} error={errors.city?.message} {...register("city")} />
-            <TextInput
-              label={t("label.phone")}
-              error={errors.phone?.message}
-              {...register("phone")}
-            />
-            <TextInput
-              label={t("label.email")}
-              error={errors.email?.message}
-              {...register("email")}
-            />
-            <TextInput
-              label={t("label.contactPerson")}
-              error={errors.contact_person?.message}
-              {...register("contact_person")}
-            />
-          </Group>
-          <Group grow>
-            <Controller
-              control={control}
-              name="credit_limit"
-              render={({ field }) => (
-                <NumberInput
-                  label={t("label.creditLimit")}
-                  min={0}
-                  decimalScale={2}
-                  value={field.value}
-                  onChange={field.onChange}
-                  error={errors.credit_limit?.message}
-                />
-              )}
-            />
-            <Controller
-              control={control}
-              name="payment_terms_days"
-              render={({ field }) => (
-                <NumberInput
-                  label={t("label.paymentTerms(days)")}
-                  min={0}
-                  value={field.value}
-                  onChange={field.onChange}
-                  error={errors.payment_terms_days?.message}
-                />
-              )}
-            />
-          </Group>
-          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
-            Save
-          </Button>
-        </Stack>
-      )}
-      <DataTable columns={columns} data={clients} loading={isLoading} rowKey={(row) => row.id} />
     </Stack>
   );
 }
