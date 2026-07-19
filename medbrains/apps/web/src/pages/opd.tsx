@@ -32,7 +32,6 @@ import {
   IconArrowRight,
   IconCalendarStats,
   IconCheck,
-  IconClock,
   IconEye,
   IconHeartbeat,
   IconPhone,
@@ -55,8 +54,6 @@ import {
   type DataTableFilter,
   DoctorSearchSelect,
   OperationalSignal,
-  type OperationalSignalShape,
-  type OperationalSignalTone,
   PageHeader,
   useClinicalEmit,
   useProtectedFieldAccess,
@@ -65,12 +62,28 @@ import {
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { Alert, Badge, Button, IconButton, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
-import { todayDateString } from "@/lib/date-utils";
 import { opdService } from "@/services/opd.service";
 import { EncounterDetail } from "./opd/encounter-detail";
 
 export { EncounterDetail } from "./opd/encounter-detail";
 
+import type { OpdTranslate } from "./opd/shared";
+import {
+  appointmentSlotLabel,
+  appointmentStatusLabel,
+  appointmentStatusShape,
+  appointmentStatusTone,
+  appointmentTypeLabel,
+  appointmentVisitType,
+  queueStatusIcon,
+  queueStatusLabel,
+  queueStatusShape,
+  queueStatusTone,
+  queueVisitTypeLabel,
+  queueVisitTypeShape,
+  queueVisitTypeTone,
+  todayIsoDate,
+} from "./opd/shared";
 import { OpdVisitForm } from "./opd/visit-form";
 import { FollowupComplianceTab, ReferralTrackingTab, WaitTimeBadge } from "./opd/workflow-tabs";
 import {
@@ -79,161 +92,6 @@ import {
   type ResolvedOpdQueueRowAction,
   resolveOpdQueueRowActions,
 } from "./opd-queue-actions";
-
-type OpdTranslate = ReturnType<typeof useTranslation>["t"];
-
-function humanizeWorkflowValue(value: string): string {
-  return value.replace(/_/g, " ");
-}
-
-function queueStatusLabel(t: OpdTranslate, status: string): string {
-  return t(`queueStatus.${status}`, { defaultValue: humanizeWorkflowValue(status) });
-}
-
-function queueStatusTone(status: string): OperationalSignalTone {
-  switch (status) {
-    case "completed":
-      return "ready";
-    case "no_show":
-      return "risk";
-    case "called":
-    case "in_consultation":
-      return "active";
-    case "waiting":
-      return "blocked";
-    default:
-      return "neutral";
-  }
-}
-
-function queueStatusShape(status: string): OperationalSignalShape {
-  switch (status) {
-    case "called":
-    case "in_consultation":
-    case "no_show":
-      return "diamond";
-    case "waiting":
-      return "token";
-    default:
-      return "pill";
-  }
-}
-
-function queueStatusIcon(status: string) {
-  switch (status) {
-    case "waiting":
-      return IconClock;
-    case "called":
-      return IconPhone;
-    case "in_consultation":
-      return IconStethoscope;
-    case "completed":
-      return IconCheck;
-    case "no_show":
-      return IconUserOff;
-    default:
-      return undefined;
-  }
-}
-
-function appointmentStatusLabel(t: OpdTranslate, status: string): string {
-  return t(`appointmentStatus.${status}`, { defaultValue: humanizeWorkflowValue(status) });
-}
-
-function appointmentStatusTone(status: string): OperationalSignalTone {
-  switch (status) {
-    case "completed":
-      return "ready";
-    case "cancelled":
-    case "no_show":
-      return "risk";
-    case "checked_in":
-    case "in_consultation":
-      return "active";
-    case "scheduled":
-    case "confirmed":
-      return "blocked";
-    default:
-      return "neutral";
-  }
-}
-
-function appointmentStatusShape(status: string): OperationalSignalShape {
-  switch (status) {
-    case "checked_in":
-    case "in_consultation":
-    case "cancelled":
-    case "no_show":
-      return "diamond";
-    case "scheduled":
-    case "confirmed":
-      return "token";
-    default:
-      return "pill";
-  }
-}
-
-function appointmentTypeLabel(t: OpdTranslate, appointmentType: string): string {
-  return t(`appointmentType.${appointmentType}`, {
-    defaultValue: humanizeWorkflowValue(appointmentType),
-  });
-}
-
-function queueVisitTypeLabel(t: OpdTranslate, visitType: string): string {
-  return t(`queueVisitType.${visitType}`, { defaultValue: humanizeWorkflowValue(visitType) });
-}
-
-function queueVisitTypeTone(visitType: string): OperationalSignalTone {
-  switch (visitType) {
-    case "emergency":
-      return "risk";
-    case "camp":
-    case "referral":
-      return "active";
-    case "booked":
-    case "follow_up":
-      return "blocked";
-    default:
-      return "neutral";
-  }
-}
-
-function queueVisitTypeShape(visitType: string): OperationalSignalShape {
-  switch (visitType) {
-    case "emergency":
-    case "referral":
-      return "diamond";
-    case "booked":
-    case "follow_up":
-    case "camp":
-      return "token";
-    default:
-      return "pill";
-  }
-}
-
-function todayIsoDate(): string {
-  return todayDateString();
-}
-
-function appointmentVisitType(appointmentType: AppointmentWithPatient["appointment_type"]): string {
-  return appointmentType === "follow_up" ? "follow_up" : "booked";
-}
-
-function appointmentSlotLabel(
-  appointment: {
-    appointment_date?: string | null;
-    slot_start?: string | null;
-    slot_end?: string | null;
-    appointment_slot_start?: string | null;
-    appointment_slot_end?: string | null;
-  },
-  noSlotLabel = "No slot",
-): string {
-  const start = appointment.slot_start ?? appointment.appointment_slot_start;
-  const end = appointment.slot_end ?? appointment.appointment_slot_end;
-  return start && end ? `${start} - ${end}` : (appointment.appointment_date ?? noSlotLabel);
-}
 
 function queueEntryEventPayload(row: QueueEntry) {
   return {
