@@ -56,8 +56,8 @@ import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
-import { statusColor } from "@/lib/status-colors";
 import { hrService } from "@/services/hr.service";
+import { statusBadgeTone } from "./hr/shared";
 
 // ── Status colors ────────────────────────────────────────────
 
@@ -71,36 +71,6 @@ const leaveStatusColors: Record<string, BadgeTone> = {
 };
 
 // Local map: shared `statusColor` returns Mantine color names; convert to BadgeTone at Badge call sites.
-const STATUS_TONE: Record<string, BadgeTone> = {
-  neutral: "neutral",
-  gray: "neutral",
-  slate: "neutral",
-  dark: "neutral",
-  primary: "primary",
-  indigo: "primary",
-  success: "success",
-  green: "success",
-  teal: "success",
-  lime: "success",
-  warning: "warning",
-  yellow: "warning",
-  orange: "warning",
-  danger: "danger",
-  red: "danger",
-  info: "info",
-  blue: "info",
-  cyan: "info",
-  accent: "accent",
-  violet: "accent",
-  grape: "accent",
-  pink: "accent",
-  rose: "accent",
-};
-
-function statusBadgeTone(status: string | null | undefined): BadgeTone {
-  return STATUS_TONE[statusColor(status)] ?? "neutral";
-}
-
 // Roles an HR admin may provision via the employee form (admin roles excluded on purpose).
 const PROVISION_ROLE_OPTIONS = [
   "doctor",
