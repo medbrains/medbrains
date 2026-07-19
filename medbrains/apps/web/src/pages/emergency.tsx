@@ -5,7 +5,6 @@ import {
   Divider,
   Grid,
   Group,
-  NumberInput,
   Paper,
   Select,
   SimpleGrid,
@@ -17,10 +16,8 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
-  type EmergencyResuscitationLogFormInput,
   type ErAdmitFormInput,
   type ErVisitFormInput,
-  emergencyResuscitationLogFormSchema,
   erAdmitFormSchema,
   erVisitFormSchema,
 } from "@medbrains/schemas";
@@ -30,8 +27,6 @@ import type {
   ClinicalEventName,
   ClinicalJourneyContext,
   CreateErVisitRequest,
-  CreateResuscitationLogRequest,
-  ErResuscitationLog,
   ErVisit,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -54,7 +49,7 @@ import { useEffect, useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { DataTable, FormModal, OperationalSignal, PageHeader } from "@/components";
+import { FormModal, OperationalSignal, PageHeader } from "@/components";
 import { BedSelect } from "@/components/BedSelect";
 import { PatientConsumablesPanel } from "@/components/Clinical";
 import { ClinicalEventProvider, useClinicalEmit } from "@/components/ClinicalEventProvider";
@@ -67,13 +62,8 @@ import { PatientContextBanner } from "@/components/Patient/PatientContextBanner"
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Badge, Button, toast } from "@/components/ui";
-import {
-  emergencyArrivalModeOptions,
-  emergencyOptionalInteger,
-  emergencyOptionalText,
-  emergencyResuscitationLogTypeOptions,
-} from "@/forms/emergency.form";
+import { Alert, Button, toast } from "@/components/ui";
+import { emergencyArrivalModeOptions, emergencyOptionalText } from "@/forms/emergency.form";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { billingService } from "@/services/billing.service";
 import { emergencyService } from "@/services/emergency.service";
@@ -83,10 +73,8 @@ import { MassCasualtyTab } from "./emergency/mass-casualty";
 import { MlcTab } from "./emergency/mlc";
 import { MlcCaseDetail } from "./emergency/mlc-case-detail";
 import { ResuscitationTab } from "./emergency/resuscitation";
+import { ResuscitationVisitPanel } from "./emergency/resuscitation-visit-panel";
 import {
-  emptyResuscitationLogForm,
-  resuscitationLogColor,
-  resuscitationLogDetails,
   triageInfo,
   triageLabel,
   triageShape,
@@ -1259,251 +1247,5 @@ function VisitSummaryValue({ label, value }: { label: string; value: string }) {
         {value}
       </Text>
     </Stack>
-  );
-}
-
-function ResuscitationVisitPanel({
-  visitId,
-  canView,
-  canCreate,
-}: {
-  visitId: string;
-  canView: boolean;
-  canCreate: boolean;
-}) {
-  const qc = useQueryClient();
-  const {
-    control,
-    handleSubmit,
-    reset,
-    watch,
-    formState: { errors },
-  } = useForm<EmergencyResuscitationLogFormInput>({
-    resolver: zodResolver(emergencyResuscitationLogFormSchema),
-    defaultValues: { ...emptyResuscitationLogForm, er_visit_id: visitId },
-  });
-  const selectedLogType = watch("log_type");
-  const { data: logs = [], isLoading } = useQuery({
-    queryKey: ["er-resuscitation-logs", visitId],
-    queryFn: () => emergencyService.listResuscitationLogs(visitId),
-    enabled: canView,
-  });
-  const mutation = useMutation({
-    mutationFn: (data: CreateResuscitationLogRequest) =>
-      emergencyService.createResuscitationLog(visitId, data),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["er-resuscitation-logs", visitId] });
-      reset({ ...emptyResuscitationLogForm, er_visit_id: visitId });
-      toast.success("The ER resuscitation log has been updated.", {
-        title: "Resuscitation entry saved",
-      });
-    },
-  });
-
-  const submitResuscitationLog = (values: EmergencyResuscitationLogFormInput) => {
-    if (!canCreate) return;
-    mutation.mutate({
-      log_type: values.log_type,
-      medication_name: emergencyOptionalText(values.medication_name),
-      dose: emergencyOptionalText(values.dose),
-      route: emergencyOptionalText(values.route),
-      fluid_name: emergencyOptionalText(values.fluid_name),
-      fluid_volume_ml: emergencyOptionalInteger(values.fluid_volume_ml),
-      procedure_name: emergencyOptionalText(values.procedure_name),
-      procedure_notes: emergencyOptionalText(values.procedure_notes),
-      notes: emergencyOptionalText(values.notes),
-    });
-  };
-
-  const columns = [
-    {
-      key: "timestamp",
-      label: "Time",
-      render: (row: ErResuscitationLog) => (
-        <Text size="sm">{new Date(row.timestamp).toLocaleString()}</Text>
-      ),
-    },
-    {
-      key: "log_type",
-      label: "Type",
-      render: (row: ErResuscitationLog) => (
-        <Badge tone={resuscitationLogColor(row.log_type)}>{row.log_type.replace(/_/g, " ")}</Badge>
-      ),
-    },
-    {
-      key: "details",
-      label: "Details",
-      render: (row: ErResuscitationLog) => <Text size="sm">{resuscitationLogDetails(row)}</Text>,
-    },
-    {
-      key: "notes",
-      label: "Notes",
-      render: (row: ErResuscitationLog) => (
-        <Text size="sm" c={row.notes ? undefined : "dimmed"}>
-          {row.notes ?? "---"}
-        </Text>
-      ),
-    },
-  ];
-
-  return (
-    <Card withBorder>
-      <Stack>
-        <Group gap="xs">
-          <IconFirstAidKit size={18} />
-          <Text fw={700}>Resuscitation</Text>
-        </Group>
-        {canCreate && (
-          <Paper
-            component="form"
-            withBorder
-            radius="md"
-            p="md"
-            onSubmit={handleSubmit(submitResuscitationLog)}
-          >
-            <Stack>
-              <Controller
-                name="log_type"
-                control={control}
-                render={({ field }) => (
-                  <Select
-                    label="Entry type"
-                    data={emergencyResuscitationLogTypeOptions}
-                    value={field.value}
-                    onChange={(value) => field.onChange(value ?? "medication")}
-                    error={errors.log_type?.message}
-                  />
-                )}
-              />
-              {selectedLogType === "medication" && (
-                <SimpleGrid cols={{ base: 1, sm: 3 }}>
-                  <Controller
-                    name="medication_name"
-                    control={control}
-                    render={({ field }) => (
-                      <TextInput
-                        label="Medication"
-                        required
-                        error={errors.medication_name?.message}
-                        {...field}
-                      />
-                    )}
-                  />
-                  <Controller
-                    name="dose"
-                    control={control}
-                    render={({ field }) => (
-                      <TextInput label="Dose" required error={errors.dose?.message} {...field} />
-                    )}
-                  />
-                  <Controller
-                    name="route"
-                    control={control}
-                    render={({ field }) => (
-                      <TextInput label="Route" required error={errors.route?.message} {...field} />
-                    )}
-                  />
-                </SimpleGrid>
-              )}
-              {selectedLogType === "fluid" && (
-                <SimpleGrid cols={{ base: 1, sm: 3 }}>
-                  <Controller
-                    name="fluid_name"
-                    control={control}
-                    render={({ field }) => (
-                      <TextInput
-                        label="Fluid"
-                        required
-                        error={errors.fluid_name?.message}
-                        {...field}
-                      />
-                    )}
-                  />
-                  <Controller
-                    name="fluid_volume_ml"
-                    control={control}
-                    render={({ field }) => (
-                      <NumberInput
-                        label="Volume ml"
-                        required
-                        min={1}
-                        step={50}
-                        value={field.value}
-                        onChange={field.onChange}
-                        error={errors.fluid_volume_ml?.message}
-                      />
-                    )}
-                  />
-                  <Controller
-                    name="route"
-                    control={control}
-                    render={({ field }) => (
-                      <TextInput label="Route" required error={errors.route?.message} {...field} />
-                    )}
-                  />
-                </SimpleGrid>
-              )}
-              {["procedure", "airway", "cpr", "defibrillation"].includes(selectedLogType) && (
-                <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                  <Controller
-                    name="procedure_name"
-                    control={control}
-                    render={({ field }) => (
-                      <TextInput
-                        label="Procedure/action"
-                        required
-                        error={errors.procedure_name?.message}
-                        {...field}
-                      />
-                    )}
-                  />
-                  <Controller
-                    name="procedure_notes"
-                    control={control}
-                    render={({ field }) => (
-                      <Textarea
-                        label="Procedure notes"
-                        error={errors.procedure_notes?.message}
-                        {...field}
-                      />
-                    )}
-                  />
-                </SimpleGrid>
-              )}
-              <Controller
-                name="notes"
-                control={control}
-                render={({ field }) => (
-                  <Textarea
-                    label="Clinical notes"
-                    minRows={2}
-                    error={errors.notes?.message}
-                    {...field}
-                  />
-                )}
-              />
-              <Group justify="flex-end">
-                <Button
-                  tone="primary"
-                  type="submit"
-                  leftSection={<IconPlus size={16} />}
-                  loading={mutation.isPending}
-                >
-                  Save Entry
-                </Button>
-              </Group>
-            </Stack>
-          </Paper>
-        )}
-        {canView ? (
-          <DataTable columns={columns} data={logs} loading={isLoading} rowKey={(row) => row.id} />
-        ) : (
-          <Text size="sm" c="dimmed">
-            This role can create resuscitation entries, but the resuscitation log list is
-            restricted.
-          </Text>
-        )}
-      </Stack>
-    </Card>
   );
 }
