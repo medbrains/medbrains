@@ -1,11 +1,9 @@
 import { B2bClientsSection } from "./lab/b2b-clients";
 import { B2bRatesSection } from "./lab/b2b-rates";
 import { LabCatalogTab } from "./lab/catalog";
-import { CollectionCentersSection } from "./lab/collection-centers";
 import { CreateLabOrderDrawer } from "./lab/create-order-drawer";
 import { CytologySection } from "./lab/cytology";
 import { HistopathSection } from "./lab/histopath";
-import { HomeCollectionsSection } from "./lab/home-collections";
 import { MolecularSection } from "./lab/molecular";
 import { LabOrderDetail } from "./lab/order-detail";
 import { OrderStatusPipeline } from "./lab/order-status-pipeline";
@@ -13,7 +11,7 @@ import { OutsourcedTab } from "./lab/outsourced";
 import { LabPanelsTab } from "./lab/panels";
 import { PhlebotomyTab } from "./lab/phlebotomy";
 import { QcComplianceTab } from "./lab/qc-compliance";
-import { SampleArchiveSection } from "./lab/sample-archive";
+import { SampleManagementTab } from "./lab/sample-management";
 import { printLabReportPacket, statusColors } from "./lab/shared";
 import "@mantine/charts/styles.css";
 import { Divider, Drawer, Group, Select, Stack, Tabs, Text, Tooltip } from "@mantine/core";
@@ -353,30 +351,6 @@ function LabPageInner() {
         )}
       </Drawer>
     </div>
-  );
-}
-
-function SampleManagementTab() {
-  const [subTab, setSubTab] = useState("home-collections");
-  return (
-    <Stack>
-      <Tabs value={subTab} onChange={(v) => setSubTab(v ?? "home-collections")}>
-        <Tabs.List mb="sm">
-          <Tabs.Tab value="home-collections">Home Collections</Tabs.Tab>
-          <Tabs.Tab value="collection-centers">Collection Centers</Tabs.Tab>
-          <Tabs.Tab value="sample-archive">Sample Archive</Tabs.Tab>
-        </Tabs.List>
-        <Tabs.Panel value="home-collections">
-          <HomeCollectionsSection />
-        </Tabs.Panel>
-        <Tabs.Panel value="collection-centers">
-          <CollectionCentersSection />
-        </Tabs.Panel>
-        <Tabs.Panel value="sample-archive">
-          <SampleArchiveSection />
-        </Tabs.Panel>
-      </Tabs>
-    </Stack>
   );
 }
 
