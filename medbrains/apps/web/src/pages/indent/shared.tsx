@@ -39,3 +39,30 @@ export const indentTypeLabels: Record<string, string> = {
   housekeeping: "Housekeeping",
   emergency: "Emergency",
 };
+
+export function statusToStep(status: string): number {
+  const map: Record<string, number> = {
+    draft: 0,
+    submitted: 1,
+    approved: 2,
+    partially_approved: 2,
+    rejected: 2,
+    issued: 3,
+    partially_issued: 3,
+    closed: 4,
+    cancelled: 4,
+  };
+  return map[status] ?? 0;
+}
+
+export const statusColors: Record<string, string> = {
+  draft: "slate",
+  submitted: "primary",
+  approved: "success",
+  partially_approved: "teal",
+  rejected: "danger",
+  issued: "violet",
+  partially_issued: "primary",
+  closed: "dark",
+  cancelled: "danger",
+};
