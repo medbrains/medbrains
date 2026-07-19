@@ -11,15 +11,15 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import type { OtBookingFormInput, OtUtilizationFilterFormInput } from "@medbrains/schemas";
-import { otBookingFormSchema, otUtilizationFilterFormSchema } from "@medbrains/schemas";
+import type { OtBookingFormInput } from "@medbrains/schemas";
+import { otBookingFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type { OtBooking, OtRoom, RoomUtilization } from "@medbrains/types";
+import type { OtBooking, OtRoom } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconChartBar, IconEye, IconPlus, IconScissors } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Controller, useForm, useWatch } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { useSearchParams } from "react-router";
 import { DataTable, PageHeader, StatusDot } from "@/components";
 import { PatientConsumablesPanel } from "@/components/Clinical";
@@ -28,14 +28,12 @@ import { StationHandoffPanel } from "@/components/Handoff/StationHandoffPanel";
 import { OtImplantRegisterPanel } from "@/components/Ot/OtImplantRegisterPanel";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Badge, Button, IconButton, Table, toast } from "@/components/ui";
+import { Alert, Badge, Button, IconButton, toast } from "@/components/ui";
 import {
   DEFAULT_OT_BOOKING_FORM_VALUES,
-  DEFAULT_OT_UTILIZATION_FILTER_FORM_VALUES,
   normalizeOtCasePriority,
   OT_CASE_PRIORITY_OPTIONS,
   toCreateOtBookingRequest,
-  toOtUtilizationParams,
 } from "@/forms/ot.form";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { otService } from "@/services/ot.service";
@@ -47,6 +45,7 @@ import { OverviewTab } from "./ot/overview-tab";
 import { PostopTab } from "./ot/postop-tab";
 import { PreferencesTab } from "./ot/preferences-tab";
 import { PreopTab } from "./ot/preop-tab";
+import { OtReportsTab } from "./ot/reports-tab";
 import { RoomsTab } from "./ot/rooms-tab";
 import { ScheduleTab } from "./ot/schedule-tab";
 import { bookingStatusColors, OtPatientCell } from "./ot/shared";
@@ -616,91 +615,3 @@ function ConsumablesSubTab({ booking }: { booking: OtBooking }) {
 // ══════════════════════════════════════════════════════════
 //  OT Phase 2b — Reports Tab (Utilization)
 // ══════════════════════════════════════════════════════════
-
-function OtReportsTab() {
-  const {
-    control,
-    formState: { errors },
-  } = useForm<OtUtilizationFilterFormInput>({
-    resolver: zodResolver(otUtilizationFilterFormSchema),
-    defaultValues: DEFAULT_OT_UTILIZATION_FILTER_FORM_VALUES,
-    mode: "onChange",
-  });
-  const watchedFilters = useWatch({ control });
-  const filterValues: OtUtilizationFilterFormInput = {
-    from: watchedFilters.from ?? "",
-    to: watchedFilters.to ?? "",
-  };
-  const utilizationParams = toOtUtilizationParams(filterValues);
-
-  const { data: rows = [], isLoading } = useQuery<RoomUtilization[]>({
-    queryKey: ["ot-utilization", utilizationParams?.from ?? "", utilizationParams?.to ?? ""],
-    queryFn: () => otService.otUtilization(utilizationParams),
-    enabled: !errors.to,
-  });
-
-  return (
-    <Stack>
-      <Text fw={500} size="lg">
-        OT Utilization Report
-      </Text>
-      <Group>
-        <Controller
-          control={control}
-          name="from"
-          render={({ field }) => (
-            <TextInput label="From" type="date" error={errors.from?.message} w={180} {...field} />
-          )}
-        />
-        <Controller
-          control={control}
-          name="to"
-          render={({ field }) => (
-            <TextInput label="To" type="date" error={errors.to?.message} w={180} {...field} />
-          )}
-        />
-      </Group>
-
-      {isLoading ? (
-        <Text c="dimmed">Loading...</Text>
-      ) : rows.length === 0 ? (
-        <Text c="dimmed" size="sm">
-          No data for the selected period.
-        </Text>
-      ) : (
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Room</Table.Th>
-              <Table.Th>Total Bookings</Table.Th>
-              <Table.Th>Total Surgery (min)</Table.Th>
-              <Table.Th>Avg Turnaround (min)</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {rows.map((r) => (
-              <Table.Tr key={r.room_id}>
-                <Table.Td>
-                  <Text size="sm" fw={500}>
-                    {r.room_name}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm">{r.total_bookings}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm">{r.total_surgery_minutes ?? "—"}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm">
-                    {r.avg_turnaround_minutes != null ? r.avg_turnaround_minutes.toFixed(1) : "—"}
-                  </Text>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      )}
-    </Stack>
-  );
-}
