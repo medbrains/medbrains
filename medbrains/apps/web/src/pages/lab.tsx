@@ -1,5 +1,4 @@
-import { B2bClientsSection } from "./lab/b2b-clients";
-import { B2bRatesSection } from "./lab/b2b-rates";
+import { B2bTab } from "./lab/b2b";
 import { LabCatalogTab } from "./lab/catalog";
 import { CreateLabOrderDrawer } from "./lab/create-order-drawer";
 import { LabOrderDetail } from "./lab/order-detail";
@@ -349,25 +348,5 @@ function LabPageInner() {
         )}
       </Drawer>
     </div>
-  );
-}
-
-function B2bTab() {
-  const [subTab, setSubTab] = useState("clients");
-  return (
-    <Stack>
-      <Tabs value={subTab} onChange={(v) => setSubTab(v ?? "clients")}>
-        <Tabs.List mb="sm">
-          <Tabs.Tab value="clients">Clients</Tabs.Tab>
-          <Tabs.Tab value="rates">Rate Management</Tabs.Tab>
-        </Tabs.List>
-        <Tabs.Panel value="clients">
-          <B2bClientsSection />
-        </Tabs.Panel>
-        <Tabs.Panel value="rates">
-          <B2bRatesSection />
-        </Tabs.Panel>
-      </Tabs>
-    </Stack>
   );
 }
