@@ -67,8 +67,8 @@ import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
-import { statusColor } from "@/lib/status-colors";
 import { regulatoryService } from "@/services/regulatory.service";
+import { statusColorTone } from "./regulatory/shared";
 
 const severityColors: Record<string, BadgeTone> = {
   mild: "primary",
@@ -99,28 +99,6 @@ const calendarStatusColors: Record<string, BadgeTone> = {
   completed: "success",
   cancelled: "neutral",
 };
-
-function statusColorTone(v: string): BadgeTone {
-  const c = statusColor(v);
-  const m: Record<string, BadgeTone> = {
-    success: "success",
-    danger: "danger",
-    warning: "warning",
-    primary: "primary",
-    info: "info",
-    slate: "neutral",
-    gray: "neutral",
-    teal: "success",
-    green: "success",
-    red: "danger",
-    yellow: "warning",
-    orange: "warning",
-    blue: "info",
-    violet: "accent",
-    cinnabar: "accent",
-  };
-  return (c ? m[c] : undefined) ?? "neutral";
-}
 
 export function RegulatoryPage() {
   useRequirePermission(P.REGULATORY.DASHBOARD_VIEW);
