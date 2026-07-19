@@ -6,7 +6,6 @@ import {
   Menu,
   Modal,
   Select,
-  SimpleGrid,
   Stack,
   Switch,
   Tabs,
@@ -16,8 +15,8 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDebouncedValue, useDisclosure } from "@mantine/hooks";
-import type { OpdLabOrderFormInput, OpdQueueVisitFormInput } from "@medbrains/schemas";
-import { opdLabOrderFormSchema, opdQueueVisitFormSchema } from "@medbrains/schemas";
+import type { OpdQueueVisitFormInput } from "@medbrains/schemas";
+import { opdQueueVisitFormSchema } from "@medbrains/schemas";
 import { useAuthStore, useHasPermission } from "@medbrains/stores";
 import type {
   AdmitFromOpdRequest,
@@ -30,20 +29,14 @@ import type {
   CreateVitalRequest,
   DepartmentRow,
   Diagnosis,
-  DuplicateOrderInfo,
   FieldAccessLevel,
-  LabOrder,
-  LabOrderListResponse,
-  LabResult,
   LabTestCatalog,
   Patient,
   PatientAllergy,
   PatientDiagnosisRow,
-  PatientLabOrderRow,
   PharmacyDispatchStatus as PharmacyDispatchStatusRow,
   PrescriptionWithItems,
   QueueEntry,
-  RadiologyDicomStudy,
   UpdateDiagnosisRequest,
   Vital,
 } from "@medbrains/types";
@@ -88,7 +81,6 @@ import {
   IconTrash,
   IconUserOff,
   IconUsers,
-  IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -124,20 +116,15 @@ import {
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientContextSummary } from "@/components/Patient/PatientContextSummary";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
-import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import {
-  DEFAULT_OPD_LAB_ORDER_FORM_VALUES,
   DEFAULT_OPD_QUEUE_VISIT_FORM_VALUES,
-  OPD_LAB_PRIORITY_OPTIONS,
   OPD_VISIT_TYPE_OPTIONS,
   toCreateEncounterRequest,
-  toCreateLabOrderRequest,
 } from "@/forms/opd.form";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
-import { confirmDestructive } from "@/lib/confirm";
 import { toDateString, todayDateString } from "@/lib/date-utils";
-import { statusColor } from "@/lib/status-colors";
 import { campService } from "@/services/camp.service";
 import { ipdService } from "@/services/ipd.service";
 import { mrdService } from "@/services/mrd.service";
@@ -145,6 +132,7 @@ import { opdService } from "@/services/opd.service";
 import { ConsultationTab } from "./opd/consultation";
 import { HistoryTab, PhysicalExamTab, ROSTab } from "./opd/documentation-tabs";
 import { FollowUpTab } from "./opd/follow-up";
+import { InvestigationsTab } from "./opd/investigations";
 import { PrescriptionsTab } from "./opd/prescriptions";
 import { VitalsTab } from "./opd/vitals";
 import {
@@ -2401,545 +2389,6 @@ function DiagnosesTab({
 }
 
 // ── Investigations ───────────────────────────────────────
-
-const LAB_STATUS_COLORS: Record<string, BadgeTone> = {
-  ordered: "primary",
-  sample_collected: "info",
-  processing: "warning",
-  completed: "success",
-  verified: "success",
-  cancelled: "danger",
-};
-
-const LAB_RESULT_FLAG_COLORS: Record<string, BadgeTone> = {
-  normal: "success",
-  low: "warning",
-  high: "warning",
-  critical_low: "danger",
-  critical_high: "danger",
-  abnormal: "warning",
-};
-
-const STATUS_COLOR_TO_BADGE_TONE: Record<string, BadgeTone> = {
-  slate: "neutral",
-  gray: "neutral",
-  green: "success",
-  teal: "success",
-  success: "success",
-  yellow: "warning",
-  orange: "warning",
-  warning: "warning",
-  red: "danger",
-  danger: "danger",
-  blue: "info",
-  info: "info",
-  primary: "primary",
-  violet: "accent",
-  grape: "accent",
-};
-
-function priorityBadgeTone(color: string | null | undefined): BadgeTone {
-  return (color ? STATUS_COLOR_TO_BADGE_TONE[color] : undefined) ?? "neutral";
-}
-
-function InvestigationsTab({
-  encounterId,
-  patientId,
-  canUpdate,
-}: {
-  encounterId: string;
-  patientId: string;
-  canUpdate: boolean;
-}) {
-  const emit = useClinicalEmit();
-  const queryClient = useQueryClient();
-  const [formOpened, formHandlers] = useDisclosure(false);
-  const [labDupeWarning, setLabDupeWarning] = useState<DuplicateOrderInfo[]>([]);
-  const [selectedLabReportId, setSelectedLabReportId] = useState<string | null>(null);
-  const {
-    control,
-    handleSubmit,
-    reset,
-    watch,
-    formState: { errors },
-  } = useForm<OpdLabOrderFormInput>({
-    resolver: zodResolver(opdLabOrderFormSchema),
-    defaultValues: DEFAULT_OPD_LAB_ORDER_FORM_VALUES,
-    mode: "onTouched",
-  });
-  const selectedTestId = watch("test_id");
-
-  const { data: catalog = [] } = useQuery<LabTestCatalog[]>({
-    queryKey: ["lab-catalog"],
-    queryFn: () => opdService.listLabCatalog(),
-  });
-
-  const { data: ordersResponse } = useQuery<LabOrderListResponse>({
-    queryKey: ["lab-orders", encounterId],
-    queryFn: () => opdService.listLabOrders({ encounter_id: encounterId }),
-  });
-  const orders = ordersResponse?.orders ?? [];
-
-  const { data: patientLabOrders = [] } = useQuery<PatientLabOrderRow[]>({
-    queryKey: ["patient-lab-orders", patientId],
-    queryFn: () => opdService.listPatientLabOrders(patientId),
-  });
-
-  const { data: imagingStudies = [] } = useQuery<RadiologyDicomStudy[]>({
-    queryKey: ["patient-dicom-studies", patientId],
-    queryFn: () => opdService.getPriorRadiologyDicomStudies(patientId),
-  });
-
-  const { data: selectedLabReport, isLoading: selectedLabReportLoading } = useQuery({
-    queryKey: ["lab-order-detail", selectedLabReportId],
-    queryFn: () => opdService.getLabOrder(selectedLabReportId ?? ""),
-    enabled: selectedLabReportId !== null,
-  });
-
-  const recentLabReports = patientLabOrders
-    .filter((order) => (order.result_count ?? 0) > 0 || order.status === "verified")
-    .slice(0, 5);
-
-  const recentImagingStudies = imagingStudies.slice(0, 5);
-
-  const testOptions = catalog
-    .filter((test) => test.is_active)
-    .map((test) => ({
-      value: test.id,
-      label: `${test.code} — ${test.name}${test.sample_type ? ` (${test.sample_type})` : ""}`,
-    }));
-
-  const createMutation = useMutation({
-    mutationFn: opdService.createLabOrder,
-    onSuccess: (result) => {
-      void queryClient.invalidateQueries({ queryKey: ["lab-orders", encounterId] });
-      toast.success("Lab order placed successfully", { title: "Investigation ordered" });
-      emit("order.created", {
-        encounter_id: result.encounter_id,
-        order_id: result.id,
-        order_type: "lab",
-        patient_id: result.patient_id,
-        priority: result.priority,
-        test_id: result.test_id,
-      });
-      reset(DEFAULT_OPD_LAB_ORDER_FORM_VALUES);
-      setLabDupeWarning([]);
-      formHandlers.close();
-    },
-    onError: () => {
-      toast.error("Failed to place lab order", { title: "Error" });
-    },
-  });
-
-  const cancelMutation = useMutation({
-    mutationFn: (id: string) => opdService.cancelLabOrder(id),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["lab-orders", encounterId] });
-      toast.warning("Lab order has been cancelled", { title: "Order cancelled" });
-    },
-  });
-
-  const handleOrder = handleSubmit((values) => {
-    createMutation.mutate(toCreateLabOrderRequest(values, patientId, encounterId));
-  });
-
-  const getTestName = (testId: string) => {
-    const test = catalog.find((t: LabTestCatalog) => t.id === testId);
-    return test ? `${test.code} — ${test.name}` : testId;
-  };
-
-  return (
-    <Stack>
-      {canUpdate && (
-        <Group>
-          <Button
-            tone="primary"
-            size="xs"
-            leftSection={<IconPlus size={14} />}
-            onClick={formHandlers.open}
-          >
-            Order Investigation
-          </Button>
-        </Group>
-      )}
-
-      <Modal opened={formOpened} onClose={formHandlers.close} title="Order Investigation" size="lg">
-        <Card padding="sm" radius="md" withBorder style={{ border: "none", boxShadow: "none" }}>
-          <Stack gap="xs">
-            <Controller
-              control={control}
-              name="test_id"
-              render={({ field }) => (
-                <Select
-                  label="Lab Test"
-                  placeholder="Search tests..."
-                  data={testOptions}
-                  value={field.value}
-                  onChange={async (testId) => {
-                    field.onChange(testId);
-                    setLabDupeWarning([]);
-                    if (testId) {
-                      try {
-                        const dupes = await opdService.checkDuplicateOrders({
-                          patient_id: patientId,
-                          test_id: testId,
-                        });
-                        if (dupes.length > 0) setLabDupeWarning(dupes);
-                      } catch {
-                        /* ignore */
-                      }
-                    }
-                  }}
-                  searchable
-                  nothingFoundMessage="No tests found"
-                  error={errors.test_id?.message}
-                  required
-                />
-              )}
-            />
-            {labDupeWarning.length > 0 && (
-              <Alert
-                icon={<IconAlertTriangle size={14} />}
-                tone="warning"
-                title="Duplicate Warning"
-              >
-                <Text size="xs">
-                  This test was already ordered {labDupeWarning.length} time(s) in the last 24
-                  hours. ({labDupeWarning.map((d) => d.status).join(", ")})
-                </Text>
-              </Alert>
-            )}
-            <Group gap="xs" grow>
-              <Controller
-                control={control}
-                name="priority"
-                render={({ field }) => (
-                  <Select
-                    label="Priority"
-                    data={OPD_LAB_PRIORITY_OPTIONS}
-                    value={field.value}
-                    onChange={field.onChange}
-                    error={errors.priority?.message}
-                  />
-                )}
-              />
-            </Group>
-            <Controller
-              control={control}
-              name="notes"
-              render={({ field }) => (
-                <Textarea
-                  label="Clinical Notes"
-                  placeholder="Reason for investigation, clinical context..."
-                  value={field.value}
-                  onChange={field.onChange}
-                  autosize
-                  minRows={2}
-                  maxRows={4}
-                />
-              )}
-            />
-            <Group justify="flex-end" gap="xs">
-              <Button
-                tone="ghost"
-                size="sm"
-                onClick={() => {
-                  formHandlers.close();
-                  reset(DEFAULT_OPD_LAB_ORDER_FORM_VALUES);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                tone="primary"
-                size="sm"
-                leftSection={<IconFlask size={14} />}
-                onClick={handleOrder}
-                loading={createMutation.isPending}
-                disabled={!selectedTestId}
-              >
-                Place Order
-              </Button>
-            </Group>
-          </Stack>
-        </Card>
-      </Modal>
-
-      <Stack gap="sm">
-        <Group justify="space-between" align="center">
-          <div>
-            <Text fw={600}>Reports & Imaging</Text>
-            <Text size="xs" c="dimmed">
-              Doctor view for completed lab reports and X-ray/CT/MRI prior imaging.
-            </Text>
-          </div>
-          <Badge tone="primary">Patient history</Badge>
-        </Group>
-
-        <SimpleGrid cols={{ base: 1, lg: 2 }}>
-          <Card padding="xs" radius="md" withBorder>
-            <Stack gap="xs">
-              <Group justify="space-between">
-                <Text size="sm" fw={600}>
-                  Lab Reports
-                </Text>
-                <Badge size="xs" tone="info">
-                  {recentLabReports.length}
-                </Badge>
-              </Group>
-              {recentLabReports.length > 0 ? (
-                <Table striped highlightOnHover>
-                  <Table.Tbody>
-                    {recentLabReports.map((report) => (
-                      <Table.Tr key={report.id}>
-                        <Table.Td>
-                          <Text size="sm" fw={500}>
-                            {report.test_name ?? "Lab test"}
-                          </Text>
-                          <Text size="xs" c="dimmed">
-                            {new Date(report.updated_at).toLocaleString()} ·{" "}
-                            {report.result_count ?? 0} result(s)
-                          </Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <Badge size="xs" tone={LAB_STATUS_COLORS[report.status] ?? "neutral"}>
-                            {report.status.replace(/_/g, " ")}
-                          </Badge>
-                        </Table.Td>
-                        <Table.Td>
-                          <Button
-                            tone="secondary"
-                            size="xs"
-                            leftSection={<IconEye size={14} />}
-                            onClick={() => setSelectedLabReportId(report.id)}
-                          >
-                            View
-                          </Button>
-                        </Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              ) : (
-                <Text size="sm" c="dimmed">
-                  No completed lab reports yet.
-                </Text>
-              )}
-            </Stack>
-          </Card>
-
-          <Card padding="xs" radius="md" withBorder>
-            <Stack gap="xs">
-              <Group justify="space-between">
-                <Text size="sm" fw={600}>
-                  Imaging
-                </Text>
-                <Badge size="xs" tone="accent">
-                  {recentImagingStudies.length}
-                </Badge>
-              </Group>
-              {recentImagingStudies.length > 0 ? (
-                <Table striped highlightOnHover>
-                  <Table.Tbody>
-                    {recentImagingStudies.map((study) => (
-                      <Table.Tr key={study.id}>
-                        <Table.Td>
-                          <Group gap="xs">
-                            <Badge size="xs">{study.modality}</Badge>
-                            <div>
-                              <Text size="sm" fw={500}>
-                                {study.study_description ?? "Imaging study"}
-                              </Text>
-                              <Text size="xs" c="dimmed">
-                                {study.study_date
-                                  ? new Date(study.study_date).toLocaleDateString()
-                                  : "No date"}{" "}
-                                · {study.series_count} series / {study.instance_count} images
-                              </Text>
-                            </div>
-                          </Group>
-                        </Table.Td>
-                        <Table.Td>
-                          <Group gap="xs" wrap="nowrap" justify="flex-end">
-                            {study.viewer_url ? (
-                              <Button
-                                tone="secondary"
-                                component="a"
-                                href={study.viewer_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                size="xs"
-                                leftSection={<IconEye size={14} />}
-                              >
-                                Viewer
-                              </Button>
-                            ) : null}
-                            {study.pacs_url ? (
-                              <Button
-                                tone="ghost"
-                                component="a"
-                                href={study.pacs_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                size="xs"
-                              >
-                                DICOM
-                              </Button>
-                            ) : null}
-                          </Group>
-                        </Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              ) : (
-                <Text size="sm" c="dimmed">
-                  No X-ray, CT, MRI or ultrasound studies linked yet.
-                </Text>
-              )}
-            </Stack>
-          </Card>
-        </SimpleGrid>
-      </Stack>
-
-      {orders.length > 0 && (
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Test</Table.Th>
-              <Table.Th>Priority</Table.Th>
-              <Table.Th>Status</Table.Th>
-              <Table.Th>Ordered</Table.Th>
-              <Table.Th w={40} />
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {orders.map((order: LabOrder) => (
-              <Table.Tr key={order.id}>
-                <Table.Td>
-                  <Text size="sm" fw={500}>
-                    {getTestName(order.test_id)}
-                  </Text>
-                  {order.notes && (
-                    <Text size="xs" c="dimmed">
-                      {order.notes}
-                    </Text>
-                  )}
-                </Table.Td>
-                <Table.Td>
-                  <Badge size="xs" tone={priorityBadgeTone(statusColor(order.priority))}>
-                    {order.priority.toUpperCase()}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  <Badge size="xs" tone={LAB_STATUS_COLORS[order.status] ?? "neutral"}>
-                    {order.status.replace(/_/g, " ")}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="xs" c="dimmed">
-                    {new Date(order.created_at).toLocaleString()}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  {canUpdate &&
-                    (order.status === "ordered" || order.status === "sample_collected") && (
-                      <Tooltip label="Cancel order">
-                        <IconButton
-                          tone="danger"
-                          size="xs"
-                          onClick={() =>
-                            confirmDestructive({
-                              title: "Cancel order",
-                              message: "Cancel this order? This cannot be undone.",
-                              confirmLabel: "Cancel order",
-                              cancelLabel: "Keep",
-                              onConfirm: () => cancelMutation.mutate(order.id),
-                            })
-                          }
-                          loading={cancelMutation.isPending}
-                          aria-label="Cancel order"
-                        >
-                          <IconX size={12} />
-                        </IconButton>
-                      </Tooltip>
-                    )}
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      )}
-
-      {!formOpened && orders.length === 0 && (
-        <Text size="sm" c="dimmed" ta="center" py="md">
-          No investigations ordered yet.
-        </Text>
-      )}
-
-      <Modal
-        opened={selectedLabReportId !== null}
-        onClose={() => setSelectedLabReportId(null)}
-        title="Lab Report"
-        size="lg"
-      >
-        {selectedLabReportLoading ? (
-          <Loader size="sm" />
-        ) : selectedLabReport?.results.length ? (
-          <Table striped highlightOnHover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Parameter</Table.Th>
-                <Table.Th>Result</Table.Th>
-                <Table.Th>Range</Table.Th>
-                <Table.Th>Flag</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {selectedLabReport.results.map((result: LabResult) => (
-                <Table.Tr key={result.id}>
-                  <Table.Td>
-                    <Text size="sm" fw={500}>
-                      {result.parameter_name}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm">
-                      {result.value}
-                      {result.unit ? ` ${result.unit}` : ""}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm" c="dimmed">
-                      {result.normal_range ?? "—"}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    {result.flag ? (
-                      <Badge size="xs" tone={LAB_RESULT_FLAG_COLORS[result.flag] ?? "neutral"}>
-                        {result.flag.replace(/_/g, " ")}
-                      </Badge>
-                    ) : (
-                      <Text size="sm" c="dimmed">
-                        —
-                      </Text>
-                    )}
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        ) : (
-          <Text size="sm" c="dimmed">
-            No structured result values are available for this report.
-          </Text>
-        )}
-      </Modal>
-    </Stack>
-  );
-}
-
-// ── Follow-up Scheduling ─────────────────────────────────
 
 function AdmitToIpdButton({
   encounterId,
