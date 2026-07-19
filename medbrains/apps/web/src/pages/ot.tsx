@@ -14,13 +14,11 @@ import { DatePickerInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import type {
   OtBookingFormInput,
-  OtRoomFormInput,
   OtSurgeonPreferenceFormInput,
   OtUtilizationFilterFormInput,
 } from "@medbrains/schemas";
 import {
   otBookingFormSchema,
-  otRoomFormSchema,
   otSurgeonPreferenceFormSchema,
   otUtilizationFilterFormSchema,
 } from "@medbrains/schemas";
@@ -43,13 +41,11 @@ import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Alert, Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import {
   DEFAULT_OT_BOOKING_FORM_VALUES,
-  DEFAULT_OT_ROOM_FORM_VALUES,
   DEFAULT_OT_SURGEON_PREFERENCE_FORM_VALUES,
   DEFAULT_OT_UTILIZATION_FILTER_FORM_VALUES,
   normalizeOtCasePriority,
   OT_CASE_PRIORITY_OPTIONS,
   toCreateOtBookingRequest,
-  toCreateOtRoomRequest,
   toCreateSurgeonPreferenceRequest,
   toOtUtilizationParams,
 } from "@/forms/ot.form";
@@ -62,6 +58,7 @@ import { PostopHandoffCard, PreopHandoffCard } from "./ot/handoff-cards";
 import { OverviewTab } from "./ot/overview-tab";
 import { PostopTab } from "./ot/postop-tab";
 import { PreopTab } from "./ot/preop-tab";
+import { RoomsTab } from "./ot/rooms-tab";
 
 const bookingStatusColors: Record<string, string> = {
   requested: "warning",
@@ -741,115 +738,6 @@ function BookingDetail({ bookingId }: { bookingId: string }) {
 // ── Pre-Op Sub-Tab ────────────────────────────────────
 
 // ── Case Record Sub-Tab ───────────────────────────────
-
-function RoomsTab({ canManage }: { canManage: boolean }) {
-  const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
-
-  const { data = [], isLoading } = useQuery<OtRoom[]>({
-    queryKey: ["ot-rooms"],
-    queryFn: () => otService.listOtRooms(),
-  });
-
-  const roomStatusColors: Record<string, string> = {
-    available: "success",
-    in_use: "primary",
-    cleaning: "warning",
-    maintenance: "orange",
-    reserved: "violet",
-  };
-
-  const columns = [
-    {
-      key: "name",
-      label: "Room",
-      render: (r: OtRoom) => (
-        <Stack gap={0}>
-          <Text size="sm" fw={500}>
-            {r.name}
-          </Text>
-          <Text size="xs" c="dimmed">
-            {r.code}
-          </Text>
-        </Stack>
-      ),
-    },
-    {
-      key: "status",
-      label: "Status",
-      render: (r: OtRoom) => (
-        <StatusDot color={roomStatusColors[r.status] ?? "slate"} label={r.status} />
-      ),
-    },
-    {
-      key: "is_active",
-      label: "Active",
-      render: (r: OtRoom) => (
-        <Badge tone={r.is_active ? "success" : "neutral"}>{r.is_active ? "Yes" : "No"}</Badge>
-      ),
-    },
-  ];
-
-  return (
-    <Stack>
-      {canManage && (
-        <Group>
-          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
-            Add Room
-          </Button>
-        </Group>
-      )}
-      <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
-      <CreateRoomDrawer opened={createOpened} onClose={closeCreate} />
-    </Stack>
-  );
-}
-
-function CreateRoomDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const {
-    control,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<OtRoomFormInput>({
-    resolver: zodResolver(otRoomFormSchema),
-    defaultValues: DEFAULT_OT_ROOM_FORM_VALUES,
-  });
-
-  const mutation = useMutation({
-    mutationFn: (values: OtRoomFormInput) => otService.createOtRoom(toCreateOtRoomRequest(values)),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["ot-rooms"] });
-      toast.success("OT room created", { title: "Created" });
-      onClose();
-      reset(DEFAULT_OT_ROOM_FORM_VALUES);
-    },
-  });
-
-  return (
-    <Drawer opened={opened} onClose={onClose} title="New OT Room" position="right" size="sm">
-      <Stack component="form" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
-        <Controller
-          control={control}
-          name="name"
-          render={({ field }) => (
-            <TextInput label="Room Name" required error={errors.name?.message} {...field} />
-          )}
-        />
-        <Controller
-          control={control}
-          name="code"
-          render={({ field }) => (
-            <TextInput label="Code" required error={errors.code?.message} {...field} />
-          )}
-        />
-        <Button tone="primary" type="submit" loading={mutation.isPending}>
-          Create
-        </Button>
-      </Stack>
-    </Drawer>
-  );
-}
 
 // ── Preferences Tab ────────────────────────────────────
 
