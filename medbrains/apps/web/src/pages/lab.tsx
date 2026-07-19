@@ -3,6 +3,7 @@ import { B2bRatesSection } from "./lab/b2b-rates";
 import { CalibrationsSection } from "./lab/calibrations";
 import { LabCatalogTab } from "./lab/catalog";
 import { CollectionCentersSection } from "./lab/collection-centers";
+import { CreateLabOrderDrawer } from "./lab/create-order-drawer";
 import { CytologySection } from "./lab/cytology";
 import { EqasSection } from "./lab/eqas";
 import { HistopathSection } from "./lab/histopath";
@@ -18,7 +19,7 @@ import { QcResultsSection } from "./lab/qc-results";
 import { ReagentConsumptionSection } from "./lab/reagent-consumption";
 import { ReagentLotsSection } from "./lab/reagent-lots";
 import { SampleArchiveSection } from "./lab/sample-archive";
-import { printLabReportPacket, statusColors, toLabPriority } from "./lab/shared";
+import { printLabReportPacket, statusColors } from "./lab/shared";
 import { TatAnalyticsSection } from "./lab/tat-analytics";
 import "@mantine/charts/styles.css";
 import {
@@ -31,18 +32,11 @@ import {
   Stack,
   Tabs,
   Text,
-  TextInput,
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
-import type {
-  CreateLabOrderRequest,
-  LabCriticalAlert,
-  LabOrder,
-  LabPriority,
-} from "@medbrains/types";
+import type { LabCriticalAlert, LabOrder } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
@@ -52,21 +46,11 @@ import {
   IconPlus,
   IconPrinter,
 } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  ClinicalEventProvider,
-  DataTable,
-  PageHeader,
-  StatusDot,
-  useClinicalEmit,
-} from "@/components";
-import { EncounterSelect } from "@/components/EncounterSelect";
-import { LabTestSearchSelect } from "@/components/LabTestSearchSelect";
-import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { ClinicalEventProvider, DataTable, PageHeader, StatusDot } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
-import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Alert, Badge, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
@@ -447,95 +431,6 @@ function OrderStatusPipeline({
         </Card>
       ))}
     </SimpleGrid>
-  );
-}
-
-function CreateLabOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
-  const { t } = useTranslation("lab");
-
-  const emit = useClinicalEmit();
-  const queryClient = useQueryClient();
-  const [patientId, setPatientId] = useState("");
-  const [testId, setTestId] = useState("");
-  const [encounterId, setEncounterId] = useState("");
-  const [priority, setPriority] = useState<LabPriority>("routine");
-  const [clinicalNotes, setClinicalNotes] = useState("");
-
-  const createMutation = useMutation({
-    mutationFn: (data: CreateLabOrderRequest) => labService.createLabOrder(data),
-    onSuccess: (result, variables) => {
-      void queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
-      notifications.show({ title: "Order created", message: "Lab order placed", color: "success" });
-      emit("order.created", {
-        encounter_id: result.encounter_id,
-        order_id: result.id,
-        order_type: "lab",
-        patient_id: result.patient_id,
-        priority: result.priority,
-        test_id: result.test_id,
-        source_test_id: variables.test_id,
-      });
-      onClose();
-      setPatientId("");
-      setTestId("");
-      setEncounterId("");
-      setPriority("routine");
-      setClinicalNotes("");
-    },
-    onError: () => {
-      notifications.show({ title: "Error", message: "Failed to create order", color: "danger" });
-    },
-  });
-
-  return (
-    <Drawer
-      opened={opened}
-      onClose={onClose}
-      title={t("title.newLabOrder")}
-      position="right"
-      size="xl"
-    >
-      <Stack>
-        <PatientSearchSelect value={patientId} onChange={setPatientId} required />
-        <PatientContextBanner patientId={patientId} hideLoadingState />
-        <LabTestSearchSelect value={testId} onChange={(id) => setTestId(id)} required />
-        <EncounterSelect
-          value={encounterId}
-          onChange={(id) => setEncounterId(id)}
-          patientId={patientId || undefined}
-        />
-        <Select
-          label={t("label.priority")}
-          data={[
-            { value: "routine", label: "Routine" },
-            { value: "urgent", label: "Urgent" },
-            { value: "stat", label: "STAT" },
-          ]}
-          value={priority}
-          onChange={(value) => setPriority(toLabPriority(value))}
-        />
-        <TextInput
-          label={t("label.clinicalNotes")}
-          value={clinicalNotes}
-          onChange={(e) => setClinicalNotes(e.currentTarget.value)}
-        />
-        <Button
-          tone="primary"
-          onClick={() =>
-            createMutation.mutate({
-              patient_id: patientId,
-              test_id: testId,
-              encounter_id: encounterId || undefined,
-              priority,
-              notes: clinicalNotes || undefined,
-            })
-          }
-          loading={createMutation.isPending}
-        >
-          Place Order
-        </Button>
-      </Stack>
-    </Drawer>
   );
 }
 
