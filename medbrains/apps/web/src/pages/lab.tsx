@@ -12,16 +12,12 @@ import { NablDocumentsSection } from "./lab/nabl-documents";
 import { LabOrderDetail } from "./lab/order-detail";
 import { OutsourcedTab } from "./lab/outsourced";
 import { LabPanelsTab } from "./lab/panels";
+import { PhlebotomyTab } from "./lab/phlebotomy";
 import { ProficiencyTestingSection } from "./lab/proficiency-testing";
 import { QcResultsSection } from "./lab/qc-results";
 import { ReagentLotsSection } from "./lab/reagent-lots";
 import { SampleArchiveSection } from "./lab/sample-archive";
-import {
-  phlebotomyStatusColors,
-  printLabReportPacket,
-  statusColors,
-  toLabPriority,
-} from "./lab/shared";
+import { printLabReportPacket, statusColors, toLabPriority } from "./lab/shared";
 import "@mantine/charts/styles.css";
 import {
   Card,
@@ -43,7 +39,6 @@ import type {
   CreateLabOrderRequest,
   LabCriticalAlert,
   LabOrder,
-  LabPhlebotomyQueueItem,
   LabPriority,
   LabTatAnalyticsRow,
   ReagentConsumptionRow,
@@ -543,115 +538,6 @@ function CreateLabOrderDrawer({ opened, onClose }: { opened: boolean; onClose: (
     </Drawer>
   );
 }
-
-function PhlebotomyTab() {
-  const { t } = useTranslation("lab");
-  const canManage = useHasPermission(P.LAB.PHLEBOTOMY_MANAGE);
-  const queryClient = useQueryClient();
-
-  const { data: queue = [], isLoading } = useQuery({
-    queryKey: ["lab-phlebotomy-queue"],
-    queryFn: () => labService.listPhlebotomyQueue(),
-    refetchInterval: 15_000,
-  });
-
-  const statusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      labService.updatePhlebotomyStatus(id, {
-        status: status as "in_progress" | "completed" | "skipped" | "waiting",
-      }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["lab-phlebotomy-queue"] }),
-  });
-
-  const columns = [
-    {
-      key: "patient_id",
-      label: "Patient",
-      render: (row: LabPhlebotomyQueueItem) => (
-        <PatientNameCell patientId={row.patient_id} showUhid={false} />
-      ),
-    },
-    {
-      key: "order_id",
-      label: "Order",
-      render: (row: LabPhlebotomyQueueItem) => <Text size="sm">{row.order_id.slice(0, 8)}...</Text>,
-    },
-    {
-      key: "priority",
-      label: "Priority",
-      render: (row: LabPhlebotomyQueueItem) => (
-        <StatusDot color={statusColor(row.priority) ?? "slate"} label={row.priority} />
-      ),
-    },
-    {
-      key: "status",
-      label: "Status",
-      render: (row: LabPhlebotomyQueueItem) => (
-        <Badge tone={phlebotomyStatusColors[row.status] ?? "neutral"} size="sm">
-          {row.status.replace(/_/g, " ")}
-        </Badge>
-      ),
-    },
-    {
-      key: "queued_at",
-      label: "Queued",
-      render: (row: LabPhlebotomyQueueItem) => (
-        <Text size="sm">{new Date(row.queued_at).toLocaleTimeString()}</Text>
-      ),
-    },
-    {
-      key: "actions",
-      label: "Actions",
-      render: (row: LabPhlebotomyQueueItem) =>
-        canManage ? (
-          <Group gap="xs">
-            {row.status === "waiting" && (
-              <Button
-                tone="secondary"
-                size="xs"
-                onClick={() => statusMutation.mutate({ id: row.id, status: "in_progress" })}
-              >
-                Start
-              </Button>
-            )}
-            {row.status === "in_progress" && (
-              <Button
-                tone="secondary"
-                size="xs"
-                onClick={() => statusMutation.mutate({ id: row.id, status: "completed" })}
-              >
-                Complete
-              </Button>
-            )}
-            {(row.status === "waiting" || row.status === "in_progress") && (
-              <Button
-                tone="secondary"
-                size="xs"
-                onClick={() => statusMutation.mutate({ id: row.id, status: "skipped" })}
-              >
-                Skip
-              </Button>
-            )}
-          </Group>
-        ) : (
-          <Text size="sm" c="dimmed">
-            —
-          </Text>
-        ),
-    },
-  ];
-
-  return (
-    <Stack>
-      <Text fw={600}>{t("phlebotomyCollectionQueue")}</Text>
-      <DataTable columns={columns} data={queue} loading={isLoading} rowKey={(row) => row.id} />
-    </Stack>
-  );
-}
-
-// ══════════════════════════════════════════════════════════
-//  QC & Compliance Tab (NEW)
-// ══════════════════════════════════════════════════════════
 
 function QcComplianceTab() {
   const [subTab, setSubTab] = useState("reagent-lots");
