@@ -1,7 +1,7 @@
 import { Card, Group, Stack, Text } from "@mantine/core";
 import { api } from "@medbrains/api";
 import { P, type SimulatorProfile, type SimulatorRun } from "@medbrains/types";
-import { IconFlask, IconTrash } from "@tabler/icons-react";
+import { IconFlask, IconListDetails, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components";
@@ -16,6 +16,8 @@ import {
 } from "@/components/ui";
 import { toast } from "@/components/ui/toast";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { SimulatorAgentRunner } from "./SimulatorAgentRunner";
+import { SimulatorRunFindingsDrawer } from "./SimulatorRunFindingsDrawer";
 
 /** A realistic OPD-heavy demo profile — all output is flagged is_dummy. */
 function demoProfile(patients: number): SimulatorProfile {
@@ -51,6 +53,7 @@ export function SimulatorPage() {
   useRequirePermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
   const queryClient = useQueryClient();
   const [count, setCount] = useState<number | string>(10);
+  const [detailRunId, setDetailRunId] = useState<string | null>(null);
 
   const { data: runs = [] } = useQuery({
     queryKey: ["simulator-runs"],
@@ -122,6 +125,8 @@ export function SimulatorPage() {
         </Group>
       </Card>
 
+      <SimulatorAgentRunner />
+
       <Card withBorder padding="lg">
         <Text fw={600} mb="sm">
           Recent runs
@@ -153,15 +158,24 @@ export function SimulatorPage() {
                   <Table.Td>{run.summary.lab_count ?? 0}</Table.Td>
                   <Table.Td>{run.summary.prescription_count ?? 0}</Table.Td>
                   <Table.Td>
-                    <IconButton
-                      tone="danger"
-                      aria-label="Purge this run's demo data"
-                      onClick={() => purge.mutate(run.id)}
-                      loading={purge.isPending}
-                      disabled={run.status === "running"}
-                    >
-                      <IconTrash size={16} />
-                    </IconButton>
+                    <Group gap="xs" wrap="nowrap" justify="flex-end">
+                      <IconButton
+                        tone="default"
+                        aria-label="View this run's findings and steps"
+                        onClick={() => setDetailRunId(run.id)}
+                      >
+                        <IconListDetails size={16} />
+                      </IconButton>
+                      <IconButton
+                        tone="danger"
+                        aria-label="Purge this run's demo data"
+                        onClick={() => purge.mutate(run.id)}
+                        loading={purge.isPending}
+                        disabled={run.status === "running"}
+                      >
+                        <IconTrash size={16} />
+                      </IconButton>
+                    </Group>
                   </Table.Td>
                 </Table.Tr>
               ))
@@ -177,6 +191,8 @@ export function SimulatorPage() {
           </Table.Tbody>
         </Table>
       </Card>
+
+      <SimulatorRunFindingsDrawer runId={detailRunId} onClose={() => setDetailRunId(null)} />
     </Stack>
   );
 }

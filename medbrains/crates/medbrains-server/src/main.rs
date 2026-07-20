@@ -391,6 +391,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // moved into the router.
     medbrains_server::services::notification_listener::spawn(db_pool.clone(), state.notifications.clone());
 
+    // Clone state for the simulator scheduler before `state` is moved into
+    // the router below — the scheduler needs AppState (AI config) to run
+    // agent simulations.
+    let scheduler_state = state.clone();
+
     // Build router with all routes + static file fallback
     let app: Router = routes::build_router(state)
         .fallback_service(spa_fallback)
@@ -469,7 +474,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if std::env::var("MEDBRAINS_DISABLE_SIMULATOR_SCHEDULER").as_deref() == Ok("true") {
         tracing::warn!("MEDBRAINS_DISABLE_SIMULATOR_SCHEDULER=true — scheduler NOT spawned");
     } else {
-        medbrains_server::services::simulator::scheduler::spawn(db_pool.clone());
+        medbrains_server::services::simulator::scheduler::spawn(scheduler_state);
     }
 
     // Room-rent auto-billing — hourly idempotent pass posting one

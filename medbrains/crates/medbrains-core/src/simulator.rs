@@ -89,6 +89,10 @@ pub struct Profile {
     /// rejects it. Reject deletes the synthetic rows recorded in
     /// `simulator_run_steps`.
     pub approval_mode: ApprovalMode,
+    /// LLM-agent mode. When `agent.enabled`, the run fans out Claude agents
+    /// that authenticate as real roles and drive the live API instead of the
+    /// scripted in-tx engine. Absent / disabled = the classic scripted run.
+    pub agent: AgentProfile,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -115,8 +119,93 @@ impl Default for Profile {
             volumes: VolumeOverrides::default(),
             natural_flow: NaturalFlowPolicy::default(),
             approval_mode: ApprovalMode::default(),
+            agent: AgentProfile::default(),
         }
     }
+}
+
+// ── LLM-agent mode ───────────────────────────────────────────────────
+// Factor-matrix config for the agent simulator. Each enabled axis becomes
+// a dimension the fan-out varies over; the LLM decides the rest at runtime.
+// `#[serde(default)]` so schedules saved before agent mode existed still load.
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AgentProfile {
+    pub enabled: bool,
+    /// Role codes to fan out over (e.g. "nurse", "pharmacist"). Each agent
+    /// logs in as that role's seeded demo user.
+    pub roles: Vec<String>,
+    /// Department ids to scope agents to. Empty = the demo user's own scope.
+    pub departments: Vec<Uuid>,
+    /// Locale codes (e.g. "en", "hi") the agent runs the API in.
+    pub locales: Vec<String>,
+    /// Free-text goals the agent pursues (e.g. "register a walk-in with fever").
+    pub goals: Vec<String>,
+    /// Agents per factor cell.
+    pub fleet_size: u32,
+    /// 0.0–1.0: how often an agent deliberately fumbles (finds error paths).
+    pub chaos: f32,
+    /// Self-improving loop bound: max generations before stopping.
+    pub generations_cap: u32,
+    /// Model override; falls back to the tenant / env AI config.
+    pub model: Option<String>,
+    /// Autonomous census-paced mode: the scheduler drives runs at the volume a
+    /// real hospital of this size would have *right now* (hour-of-day curve ×
+    /// season/holiday × how much the sim has already produced today) — no cron,
+    /// no human trigger. See `services::simulator::pacer`.
+    pub auto_census: bool,
+    /// Hospital size baseline for the pacer: expected OPD footfall per day.
+    pub hospital_daily_opd: u32,
+    /// Run the adversarial verifier over subjective findings (default true).
+    /// Costs one extra LLM call per unverified finding — disable to save spend.
+    pub verify: bool,
+    /// Also sweep every read-only list endpoint (per role) to find 5xx server
+    /// errors across ALL modules — cheap (no LLM), heavy on HTTP. Off by default.
+    pub sweep: bool,
+}
+
+impl Default for AgentProfile {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            roles: Vec::new(),
+            departments: Vec::new(),
+            locales: Vec::new(),
+            goals: Vec::new(),
+            fleet_size: 1,
+            chaos: 0.15,
+            generations_cap: 1,
+            model: None,
+            auto_census: false,
+            hospital_daily_opd: 200,
+            verify: true,
+            sweep: false,
+        }
+    }
+}
+
+/// A free-text finding an agent reported during a run — the payoff of agent
+/// mode. Persisted in `simulator_run_findings`; `cell` is the factor
+/// combination it came from (role/department/locale/persona/goal).
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct SimulatorRunFinding {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub run_id: Uuid,
+    pub cell: serde_json::Value,
+    pub kind: String,
+    pub severity: String,
+    pub message: String,
+    /// Adversarial verdict: unverified | confirmed | plausible | rejected.
+    #[serde(default = "default_verdict")]
+    pub verdict: String,
+    pub step_ref: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+}
+
+fn default_verdict() -> String {
+    "unverified".to_owned()
 }
 
 // ── Natural-flow adaptation ──────────────────────────────────────────

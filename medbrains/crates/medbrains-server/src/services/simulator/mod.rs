@@ -9,10 +9,15 @@
 //! pass extracts proper in-tx helpers from `routes::opd`, `routes::ipd`,
 //! `routes::emergency` and switches the engine over to call them.
 
+pub mod agent;
+pub mod agent_tools;
 pub mod calendar;
 pub mod fixtures;
+pub mod pacer;
 pub mod scheduler;
 pub mod seasonality;
+pub mod sweep_endpoints;
+pub mod verifier;
 
 use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::simulator::{Profile, RunSummary};

@@ -12,7 +12,7 @@ use axum::{
     http::StatusCode,
 };
 use medbrains_core::simulator::{
-    Profile, RunSummary, SimulatorRun, SimulatorRunStep, SimulatorSchedule,
+    Profile, RunSummary, SimulatorRun, SimulatorRunFinding, SimulatorRunStep, SimulatorSchedule,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -216,15 +216,47 @@ pub async fn run_now(
     )
     .await?;
 
-    // Detach the engine so the HTTP client gets a run_id immediately.
-    let pool = state.db.clone();
+    // Detach the engine so the HTTP client gets a run_id immediately. Agent
+    // mode drives the live API and needs the full AppState (AI config); the
+    // scripted engine only needs the pool.
     let tenant_id = claims.tenant_id;
     let claims_clone = claims.clone();
-    tokio::spawn(async move {
-        execute_run(&pool, &claims_clone, tenant_id, run_id, profile).await;
-    });
+    if profile.agent.enabled {
+        let state_clone = state.clone();
+        tokio::spawn(async move {
+            execute_agent_run(&state_clone, &claims_clone, tenant_id, run_id, profile).await;
+        });
+    } else {
+        let pool = state.db.clone();
+        tokio::spawn(async move {
+            execute_run(&pool, &claims_clone, tenant_id, run_id, profile).await;
+        });
+    }
 
     Ok((StatusCode::ACCEPTED, Json(RunNowResponse { run_id })))
+}
+
+/// Run the LLM-agent simulator: fan out agents across the factor matrix, then
+/// persist steps + findings. The run always finalizes `succeeded` — individual
+/// failures the agents hit are recorded as steps/findings, not run errors.
+async fn execute_agent_run(
+    state: &AppState,
+    claims: &Claims,
+    tenant_id: Uuid,
+    run_id: Uuid,
+    profile: Profile,
+) {
+    let approval = match profile.approval_mode {
+        medbrains_core::simulator::ApprovalMode::Auto => "auto_committed",
+        medbrains_core::simulator::ApprovalMode::Manual => "pending_approval",
+    };
+    let (summary, steps, findings) = engine::agent::run_agent(state, claims, &profile.agent).await;
+    let _ = engine::persist_steps(&state.db, tenant_id, run_id, &steps).await;
+    let _ = engine::agent::persist_findings(&state.db, tenant_id, run_id, &findings).await;
+    let _ = engine::finalize_run_with_approval(
+        &state.db, tenant_id, run_id, "succeeded", &summary, None, approval,
+    )
+    .await;
 }
 
 async fn execute_run(
@@ -535,6 +567,8 @@ pub async fn list_runs(
 pub struct RunDetailResponse {
     pub run: SimulatorRun,
     pub steps: Vec<SimulatorRunStep>,
+    /// Free-text findings from agent runs (empty for scripted runs).
+    pub findings: Vec<SimulatorRunFinding>,
 }
 
 pub async fn get_run(
@@ -557,8 +591,13 @@ pub async fn get_run(
     .bind(id)
     .fetch_all(&mut *tx)
     .await?;
+    let findings: Vec<SimulatorRunFinding> = sqlx::query_as(
+        "SELECT * FROM simulator_run_findings \
+         WHERE run_id = $1 ORDER BY created_at ASC LIMIT 5000",
+    )
+    .bind(id)
+    .fetch_all(&mut *tx)
+    .await?;
     tx.commit().await?;
-    // suppress unused json! warning — kept for compactness across future fields
-    let _ = json!({});
-    Ok(Json(RunDetailResponse { run, steps }))
+    Ok(Json(RunDetailResponse { run, steps, findings }))
 }
