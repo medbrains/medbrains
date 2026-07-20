@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { confirmDestructive } from "@/lib/confirm";
 import { ConflictsTab } from "./scheduling/conflicts-tab";
+import { PredictionsTab } from "./scheduling/predictions-tab";
 import { DAY_NAMES, formatDate, formatPercent, truncateId } from "./scheduling/shared";
 import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
@@ -40,7 +41,6 @@ import type {
   CreateOverbookingRuleRequest,
   CreateRecurringRequest,
   CreateWaitlistRequest,
-  NoshowPredictionScore,
   NoshowRateRow,
   SchedulingOverbookingRule,
   SchedulingWaitlistEntry,
@@ -84,12 +84,6 @@ import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { schedulingService } from "@/services/scheduling.service";
 
 // ── Constants ──────────────────────────────────────────
-
-const RISK_LEVEL_COLORS: Record<string, BadgeTone> = {
-  low: "success",
-  medium: "warning",
-  high: "danger",
-};
 
 const PRIORITY_COLORS: Record<string, BadgeTone> = {
   low: "neutral",
@@ -217,148 +211,6 @@ export function SchedulingPage() {
 
 // ══════════════════════════════════════════════════════════
 //  Tab 1 — No-Show Predictions
-// ══════════════════════════════════════════════════════════
-
-function PredictionsTab({ canScore }: { canScore: boolean }) {
-  const qc = useQueryClient();
-  const [riskFilter, setRiskFilter] = useState<string | null>(null);
-
-  const { data: predictions = [], isLoading } = useQuery({
-    queryKey: ["scheduling-predictions", riskFilter],
-    queryFn: () =>
-      schedulingService.listPredictions({
-        risk_level: riskFilter ?? undefined,
-      }),
-  });
-
-  const scoreBatchMut = useMutation({
-    mutationFn: () => schedulingService.scoreBatch({ appointment_ids: [] }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["scheduling-predictions"] });
-      toast.success("Today's appointments have been scored", { title: "Batch Scoring Complete" });
-    },
-    onError: () => {
-      toast.error("Failed to score appointments", { title: "Scoring Failed" });
-    },
-  });
-
-  const scoreOneMut = useMutation({
-    mutationFn: (appointmentId: string) =>
-      schedulingService.scoreAppointment({ appointment_id: appointmentId }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["scheduling-predictions"] });
-      toast.success("Appointment prediction scored", { title: "Scored" });
-    },
-  });
-
-  const columns: Column<NoshowPredictionScore>[] = [
-    {
-      key: "appointment_id",
-      label: "Appointment",
-      render: (r) => (
-        <Text size="sm" ff="monospace">
-          {truncateId(r.appointment_id)}
-        </Text>
-      ),
-    },
-    {
-      key: "patient_id",
-      label: "Patient",
-      render: (r) => (
-        <Text size="sm" ff="monospace">
-          {truncateId(r.patient_id)}
-        </Text>
-      ),
-    },
-    {
-      key: "predicted_noshow_probability",
-      label: "No-Show Probability",
-      render: (r) => (
-        <Text size="sm" fw={600}>
-          {formatPercent(r.predicted_noshow_probability)}
-        </Text>
-      ),
-    },
-    {
-      key: "risk_level",
-      label: "Risk Level",
-      render: (r) => (
-        <Badge tone={RISK_LEVEL_COLORS[r.risk_level] ?? "neutral"} size="sm">
-          {r.risk_level}
-        </Badge>
-      ),
-    },
-    {
-      key: "model_version",
-      label: "Model",
-      render: (r) => <Text size="sm">{r.model_version}</Text>,
-    },
-    {
-      key: "scored_at",
-      label: "Scored At",
-      render: (r) => <Text size="sm">{formatDate(r.scored_at)}</Text>,
-    },
-    ...(canScore
-      ? [
-          {
-            key: "actions",
-            label: "Actions",
-            render: (r: NoshowPredictionScore) => (
-              <IconButton
-                tone="primary"
-                size="sm"
-                onClick={() => scoreOneMut.mutate(r.appointment_id)}
-                loading={scoreOneMut.isPending}
-                aria-label="Score appointment"
-              >
-                <IconPlayerPlay size={14} />
-              </IconButton>
-            ),
-          },
-        ]
-      : []),
-  ];
-
-  return (
-    <Stack gap="md">
-      <Group justify="space-between">
-        <Select
-          placeholder="Filter by risk level"
-          data={[
-            { value: "low", label: "Low" },
-            { value: "medium", label: "Medium" },
-            { value: "high", label: "High" },
-          ]}
-          value={riskFilter}
-          onChange={setRiskFilter}
-          clearable
-          w={200}
-        />
-        {canScore && (
-          <Button
-            tone="primary"
-            leftSection={<IconBrain size={16} />}
-            onClick={() => scoreBatchMut.mutate()}
-            loading={scoreBatchMut.isPending}
-          >
-            Score Today's Appointments
-          </Button>
-        )}
-      </Group>
-      <DataTable<NoshowPredictionScore>
-        columns={columns}
-        data={predictions}
-        loading={isLoading}
-        rowKey={(r) => r.id}
-        emptyTitle="No predictions"
-        emptyDescription="Score appointments to see no-show predictions"
-      />
-    </Stack>
-  );
-}
-
-// ══════════════════════════════════════════════════════════
-//  Tab 2 — Waitlist
 // ══════════════════════════════════════════════════════════
 
 function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFill: boolean }) {
