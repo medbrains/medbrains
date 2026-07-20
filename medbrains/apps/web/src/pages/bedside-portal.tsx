@@ -28,14 +28,7 @@ import type {
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
-  IconArrowsMove,
-  IconBath,
-  IconBed,
-  IconBell,
   IconDots,
-  IconFlask,
-  IconGlass,
-  IconHeartRateMonitor,
   IconMoodSmile,
   IconPill,
   IconStethoscope,
@@ -45,31 +38,16 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
-import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { PageHeader } from "@/components/PageHeader";
 import { DataTable } from "@/components";
+import { PageHeader } from "@/components/PageHeader";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { bedsideService } from "@/services/bedside.service";
+import { LabResultsSection } from "./bedside-portal/lab-results-section";
+import { compactContextId, REQUEST_TYPE_CONFIG } from "./bedside-portal/shared";
 
 // ── Helpers ──
-
-const REQUEST_TYPE_CONFIG: Record<
-  BedsideRequestType,
-  { label: string; icon: React.ReactNode; color: string }
-> = {
-  nurse_call: { label: "Nurse Call", icon: <IconBell size={28} />, color: "red" },
-  pain_management: {
-    label: "Pain Help",
-    icon: <IconHeartRateMonitor size={28} />,
-    color: "orange",
-  },
-  bathroom_assist: { label: "Bathroom", icon: <IconBath size={28} />, color: "blue" },
-  water_food: { label: "Water / Food", icon: <IconGlass size={28} />, color: "cyan" },
-  blanket_pillow: { label: "Blanket / Pillow", icon: <IconBed size={28} />, color: "violet" },
-  position_change: { label: "Reposition", icon: <IconArrowsMove size={28} />, color: "teal" },
-  other: { label: "Other", icon: <IconDots size={28} />, color: "gray" },
-};
 
 const BEDSIDE_PAGE_PERMISSIONS = [
   P.BEDSIDE.VIEW,
@@ -125,10 +103,6 @@ const SCHEDULE_BADGE_TONES: Record<string, BadgeTone> = {
 
 function scheduleBadgeTone(eventType: string): BadgeTone {
   return SCHEDULE_BADGE_TONES[scheduleColor(eventType)] ?? "neutral";
-}
-
-function compactContextId(value: string) {
-  return value ? value.slice(0, 8) : "";
 }
 
 function IpdBedsideContextStrip({
@@ -708,47 +682,6 @@ export function BedsidePortalPage() {
 }
 
 // ── Sub-components ──
-
-function LabResultsSection({ admissionId }: { admissionId: string }) {
-  const labQ = useQuery({
-    queryKey: ["bedside", "lab-results", admissionId],
-    queryFn: () => bedsideService.getBedsideLabResults(admissionId),
-    enabled: admissionId.length > 0,
-  });
-
-  if (labQ.isLoading) return <Loader size="sm" />;
-  if (!labQ.data || labQ.data.length === 0)
-    return (
-      <Text c="dimmed" size="sm">
-        No lab results available.
-      </Text>
-    );
-
-  return (
-    <Stack gap="xs">
-      {labQ.data.map((r) => (
-        <Group key={r.id} justify="space-between">
-          <Group gap="xs">
-            <IconFlask size={16} color="var(--mantine-color-violet-6)" />
-            <Text size="sm" fw={500}>
-              {r.test_name ?? "Test"}
-            </Text>
-          </Group>
-          <Group gap="xs">
-            <Text size="sm" fw={700} c={r.is_abnormal ? "red" : undefined}>
-              {r.result_value ?? "-"} {r.unit ?? ""}
-            </Text>
-            {r.reference_range && (
-              <Text size="xs" c="dimmed">
-                ({r.reference_range})
-              </Text>
-            )}
-          </Group>
-        </Group>
-      ))}
-    </Stack>
-  );
-}
 
 function DietOrderSection({
   orders,
