@@ -3,14 +3,13 @@ import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AdmissionDetailResponse,
-  ClinicalJourneyActionId,
   ClinicalJourneyContext,
   InvestigationsResponse,
   IpdDischargeSummary,
   MrdCaseSheetPacket,
   PrescriptionWithItems,
 } from "@medbrains/types";
-import { journeyActionSignalLabel, P } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconArrowRight,
@@ -30,7 +29,7 @@ import {
   IconUserOff,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useMemo } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
@@ -54,15 +53,30 @@ import {
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
-import { Alert, Badge, Button, type ButtonTone, toast } from "@/components/ui";
+import { Alert, Badge, Button, toast } from "@/components/ui";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { billingService } from "@/services/billing.service";
 import { ipdService } from "@/services/ipd.service";
 import { mrdService } from "@/services/mrd.service";
 import { pharmacyService } from "@/services/pharmacy.service";
+import {
+  ActionRailActionButton,
+  ActionRailSectionHeading,
+  actionRailReadinessBadge,
+  actionRailSectionLabel,
+  firstIpdWorkspaceTabForSection,
+  IPD_ACTION_RAIL_LOCAL_ACTION_IDS,
+  IPD_WORKSPACE_SECTIONS,
+  IPD_WORKSPACE_TAB_VALUES,
+  IPD_WORKSPACE_TABS,
+  ipdWorkspaceSectionLabel,
+  ipdWorkspaceTabLabel,
+  workspaceReadinessBlockedReason,
+} from "./ipd/action-rail";
 import { AdmissionForm } from "./ipd/admission-form";
 import { AdmissionPrescriptionsTab } from "./ipd/admission-prescriptions";
+import { AdmissionsTab } from "./ipd/admissions";
 import { AssessmentsTab } from "./ipd/assessments";
 import { AttendersTab } from "./ipd/attenders";
 import { BedDashboardTab } from "./ipd/bed-dashboard";
@@ -71,31 +85,27 @@ import { BillingTab } from "./ipd/billing";
 import { BirthRecordsTab } from "./ipd/birth-records";
 import { ChecklistTab } from "./ipd/checklist";
 import { ClinicalDocsTab } from "./ipd/clinical-docs";
+import { ConsentsTab } from "./ipd/consents";
 import { DeathSummaryTab } from "./ipd/death-summary";
 import { DietTab } from "./ipd/diet";
 import { DischargeSummaryTab } from "./ipd/discharge-summary";
 import { DischargeTab } from "./ipd/discharge-tab";
 import { DischargeTatTab } from "./ipd/discharge-tat";
 import { ExpectedDischargesTab } from "./ipd/expected-discharges";
+import { GenerateDischargeSummaryModal } from "./ipd/generate-discharge-summary-modal";
 import { InsurancePaTab } from "./ipd/insurance-pa";
 import { InvestigationsTab } from "./ipd/investigations";
 import { IoChartTab } from "./ipd/io-chart";
 import { MarTab } from "./ipd/mar";
 import { MlcTab } from "./ipd/mlc";
 import { NursingTab } from "./ipd/nursing";
+import { OverviewTab } from "./ipd/overview";
 import { PrintAdmissionButton } from "./ipd/print-admission-button";
 import { ProgressNotesTab } from "./ipd/progress-notes";
-import { TransferTab } from "./ipd/transfer";
-import { WardsTab } from "./ipd/wards";
-
-type IpdTranslate = ReturnType<typeof useTranslation>["t"];
-
-import { AdmissionsTab } from "./ipd/admissions";
-import { ConsentsTab } from "./ipd/consents";
-import { GenerateDischargeSummaryModal } from "./ipd/generate-discharge-summary-modal";
-import { OverviewTab } from "./ipd/overview";
 import { ReportsTab } from "./ipd/reports-tab";
+import { TransferTab } from "./ipd/transfer";
 import { TransferLogTab } from "./ipd/transfer-log";
+import { WardsTab } from "./ipd/wards";
 import classes from "./ipd.module.scss";
 import {
   activeIpdInvoiceIdForJourney,
@@ -103,255 +113,18 @@ import {
   activeIpdPharmacyRxQueueIdForJourney,
   deriveIpdJourneyCompletedEvents,
   type IpdActionRailSection,
-  type IpdActionRailSectionSummary,
-  type IpdWorkspaceTabReadinessSummary,
   ipdActionRailAction,
   ipdActionRailSectionsForTab,
   ipdAdmissionOrderBasketRoute,
   ipdAdmissionWorkspaceTabRoute,
   ipdOrderBasketTabFromSearchParams,
   ipdWorkspaceTabForOrderBasket,
-  type ResolvedIpdActionRailAction,
   resolveIpdActionRailActions,
   summarizeIpdActionRailSections,
   summarizeIpdWorkspaceTabReadiness,
 } from "./ipd-workspace";
 
-const IPD_WORKSPACE_TABS = [
-  { value: "overview", label: "Overview", section: "Command" },
-  { value: "notes", label: "Progress Notes", section: "Command" },
-  { value: "assessments", label: "Clinical", section: "Command" },
-  { value: "mar", label: "MAR", section: "Command" },
-  { value: "prescriptions", label: "Prescriptions", section: "Command" },
-  { value: "io", label: "I/O Chart", section: "Command" },
-  { value: "infusions", label: "Infusions", section: "Command" },
-  { value: "nursing", label: "Nursing", section: "Command" },
-  { value: "attenders", label: "Attenders", section: "Care Context" },
-  { value: "clinical-docs", label: "Clinical Docs", section: "Care Context" },
-  { value: "checklist", label: "Checklist", section: "Care Context" },
-  { value: "transfer", label: "Transfer", section: "Care Context" },
-  { value: "investigations", label: "Investigations", section: "Care Context" },
-  { value: "consumables", label: "Consumables", section: "Care Context" },
-  { value: "billing-tab", label: "Billing", section: "Finance & Admin" },
-  { value: "insurance-pa", label: "Insurance/PA", section: "Finance & Admin" },
-  { value: "mlc-tab", label: "MLC", section: "Finance & Admin" },
-  { value: "diet-tab", label: "Diet", section: "Finance & Admin" },
-  { value: "consents-tab", label: "Consents", section: "Finance & Admin" },
-  { value: "death-summary", label: "Death Summary", section: "Finance & Admin" },
-  { value: "birth-records", label: "Birth Records", section: "Finance & Admin" },
-  { value: "discharge-summary", label: "Discharge Summary", section: "Discharge" },
-  { value: "discharge", label: "Discharge", section: "Discharge" },
-  { value: "discharge-tat", label: "Discharge TAT", section: "Discharge" },
-] as const;
-
-const IPD_WORKSPACE_TAB_VALUES = IPD_WORKSPACE_TABS.map((tab) => tab.value);
-const IPD_WORKSPACE_SECTIONS = ["Command", "Care Context", "Finance & Admin", "Discharge"] as const;
 const IPD_LANDING_DEFAULT_TAB = "admissions";
-
-const IPD_ACTION_RAIL_LOCAL_ACTION_IDS = [
-  "patient.edit",
-  "patient.share",
-  "patient.print_card",
-  "opd.open_visit",
-  "orders.medication",
-  "orders.lab",
-  "orders.radiology",
-  "ipd.open_admission",
-  "ipd.admit",
-  "emergency.open_visit",
-  "mrd.open_case_sheet",
-] satisfies ClinicalJourneyActionId[];
-
-function firstIpdWorkspaceTabForSection(section: (typeof IPD_WORKSPACE_SECTIONS)[number]) {
-  return IPD_WORKSPACE_TABS.find((tab) => tab.section === section)?.value ?? "overview";
-}
-
-function ipdWorkspaceSectionLabel(t: IpdTranslate, section: string): string {
-  return t(`workspace.sections.${section}`, { defaultValue: section });
-}
-
-function ipdWorkspaceTabLabel(t: IpdTranslate, tab: (typeof IPD_WORKSPACE_TABS)[number]): string {
-  return t(`workspace.tabs.${tab.value}`, { defaultValue: tab.label });
-}
-
-function actionRailSectionLabel(t: IpdTranslate, section: IpdActionRailSection): string {
-  return t(`actionRail.sections.${section}`, { defaultValue: section });
-}
-
-function actionRailActionLabel(t: IpdTranslate, action: ResolvedIpdActionRailAction): string {
-  return t(`actionRail.actions.${action.id}`, { defaultValue: action.label });
-}
-
-function actionRailDisabledReason(
-  t: IpdTranslate,
-  action: ResolvedIpdActionRailAction,
-): string | null {
-  if (!action.disabledReasonKey || !action.disabledReasonText) {
-    return null;
-  }
-
-  return t(action.disabledReasonKey, {
-    ...action.disabledReasonValues,
-    action: actionRailActionLabel(t, action),
-    defaultValue: action.disabledReasonText,
-  });
-}
-
-function actionRailStatusLabel(t: IpdTranslate, action: ResolvedIpdActionRailAction): string {
-  if (action.signal.phase === "blocked_by_state") {
-    return journeyActionSignalLabel(t, "blocked_by_context");
-  }
-
-  return journeyActionSignalLabel(t, action.signal.phase);
-}
-
-function workspaceReadinessBlockedReason(
-  t: IpdTranslate,
-  readiness: IpdWorkspaceTabReadinessSummary | undefined,
-  actions: readonly ResolvedIpdActionRailAction[],
-): string | null {
-  if (!readiness?.primaryBlockedReason) {
-    return null;
-  }
-
-  const blockedAction = actions.find(
-    (action) =>
-      readiness.actionSections.includes(action.section) &&
-      !action.enabled &&
-      action.disabledReasonText === readiness.primaryBlockedReason,
-  );
-
-  return blockedAction
-    ? actionRailDisabledReason(t, blockedAction)
-    : readiness.primaryBlockedReason;
-}
-
-function actionRailReadinessLabel(
-  summary: Pick<IpdActionRailSectionSummary, "enabledActions" | "totalActions"> | undefined,
-  t: ReturnType<typeof useTranslation>["t"],
-) {
-  if (!summary || summary.totalActions === 0) {
-    return null;
-  }
-
-  return t("actionRail.readySummary", {
-    enabled: summary.enabledActions,
-    total: summary.totalActions,
-  });
-}
-
-function actionRailReadinessBadge(
-  summary:
-    | Pick<IpdActionRailSectionSummary, "blockedActions" | "enabledActions" | "totalActions">
-    | undefined,
-  t: ReturnType<typeof useTranslation>["t"],
-) {
-  const readiness = actionRailReadinessLabel(summary, t);
-  if (!readiness) {
-    return null;
-  }
-
-  return (
-    <OperationalSignal
-      label={readiness}
-      shape={summary?.blockedActions ? "diamond" : "pill"}
-      size="xs"
-      tone={summary?.blockedActions ? "blocked" : "ready"}
-    />
-  );
-}
-
-function ActionRailActionButton({
-  action,
-  children,
-  color,
-  leftSection,
-  loading,
-  onClick,
-  variant = "light",
-}: {
-  action: ResolvedIpdActionRailAction;
-  children?: ReactNode;
-  color?: string;
-  leftSection?: ReactNode;
-  loading?: boolean;
-  onClick: () => void;
-  variant?: "filled" | "light" | "subtle";
-}) {
-  const { t } = useTranslation("ipd");
-  const disabledReason = actionRailDisabledReason(t, action);
-  const statusLabel = actionRailStatusLabel(t, action);
-  const tooltipLabel = disabledReason ?? actionRailActionLabel(t, action);
-  const isDanger = color === "danger";
-  const tone: ButtonTone =
-    variant === "subtle"
-      ? "ghost"
-      : variant === "filled"
-        ? isDanger
-          ? "danger"
-          : "primary"
-        : isDanger
-          ? "subtle-danger"
-          : "secondary";
-
-  return (
-    <Stack gap={3}>
-      <Tooltip label={tooltipLabel}>
-        <span className={classes.actionRailButtonTarget}>
-          <Button
-            tone={tone}
-            size="xs"
-            leftSection={leftSection}
-            disabled={!action.enabled}
-            loading={loading}
-            onClick={onClick}
-            fullWidth
-          >
-            {children ?? actionRailActionLabel(t, action)}
-          </Button>
-        </span>
-      </Tooltip>
-      <Group gap={4} wrap="nowrap">
-        <OperationalSignal
-          label={statusLabel}
-          shape={action.signal.shape}
-          size="xs"
-          tone={action.signal.tone}
-        />
-        {!action.enabled && disabledReason && (
-          <Text size="10px" c="dimmed" lineClamp={2}>
-            {disabledReason}
-          </Text>
-        )}
-      </Group>
-    </Stack>
-  );
-}
-
-function ActionRailSectionHeading({
-  summary,
-  title,
-}: {
-  summary: IpdActionRailSectionSummary | undefined;
-  title: string;
-}) {
-  const { t } = useTranslation("ipd");
-  const readiness = actionRailReadinessLabel(summary, t);
-
-  return (
-    <Group justify="space-between" gap="xs" align="center" wrap="nowrap">
-      <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-        {title}
-      </Text>
-      <Group gap={4} wrap="nowrap">
-        {summary?.focused && (
-          <OperationalSignal label={t("actionRail.focus")} shape="token" size="xs" tone="active" />
-        )}
-        {readiness && actionRailReadinessBadge(summary, t)}
-      </Group>
-    </Group>
-  );
-}
 
 export function IpdPage() {
   useRequirePermission(P.IPD.ADMISSIONS_LIST);
