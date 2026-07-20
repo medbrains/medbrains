@@ -1370,6 +1370,22 @@ pub async fn create_admission(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    // A patient recorded as deceased must never be admitted — re-admitting a dead patient
+    // is a data-integrity and medico-legal error (correct the death record instead).
+    if sqlx::query_scalar::<_, bool>(
+        "SELECT is_deceased FROM patients WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(body.patient_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .unwrap_or(false)
+    {
+        return Err(AppError::Conflict(
+            "Patient is recorded as deceased and cannot be admitted.".to_owned(),
+        ));
+    }
+
     // A patient can physically occupy only one bed at a time. Block a second active
     // admission so bed census, billing, and order routing can't fork across duplicate
     // records for the same patient.

@@ -734,6 +734,22 @@ pub async fn create_encounter(
     // create_certificate / create_referral / create_consent.
     ensure_opd_patient_context_in_tx(&mut tx, &claims.tenant_id, body.patient_id, None).await?;
 
+    // A patient recorded as deceased must not start a new OPD visit (data-integrity /
+    // medico-legal). Correct the death record if this was recorded in error.
+    if sqlx::query_scalar::<_, bool>(
+        "SELECT is_deceased FROM patients WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(body.patient_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .unwrap_or(false)
+    {
+        return Err(AppError::Conflict(
+            "Patient is recorded as deceased and cannot start a new OPD visit.".to_owned(),
+        ));
+    }
+
     // An admitted (active IPD) patient cannot start a fresh OPD visit. Admitting
     // FROM an OPD encounter is a different endpoint (`admit_from_opd`) and stays allowed.
     let active_admission: Option<Uuid> = sqlx::query_scalar(
