@@ -30,7 +30,6 @@ import { useSearchParams } from "react-router";
 import { PageHeader, VitalsRecorder } from "@/components";
 import { HandoffPanel } from "@/components/crdt/HandoffPanel";
 import { NursingNotesPanel } from "@/components/crdt/NursingNotesPanel";
-import { EncounterSelect } from "@/components/EncounterSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { Alert, Badge, type BadgeTone, Button, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -40,7 +39,7 @@ import { CodeBlueTab } from "./nurse-activities/code-blue-tab";
 import { EquipmentTab } from "./nurse-activities/equipment-tab";
 import { MarTab } from "./nurse-activities/mar-tab";
 import { NurseRxTab } from "./nurse-activities/nurse-rx-tab";
-import { compactId } from "./nurse-activities/shared";
+import { compactId, EncounterContextField } from "./nurse-activities/shared";
 
 interface IoEntryRow {
   id: string;
@@ -166,52 +165,6 @@ function toNumber(value: string | number, fallback = 0): number {
 
 function encounterLocked(initialEncounterId: string): boolean {
   return initialEncounterId.length > 0;
-}
-
-function EncounterContextField({
-  value,
-  onChange,
-  locked,
-  patientId,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  locked: boolean;
-  patientId?: string;
-}) {
-  if (locked) {
-    return (
-      <Card withBorder padding="sm">
-        <Text size="xs" c="dimmed">
-          Linked encounter
-        </Text>
-        <Text size="sm" fw={700}>
-          {compactId(value)}
-        </Text>
-      </Card>
-    );
-  }
-
-  if (patientId) {
-    return (
-      <EncounterSelect
-        label="Encounter"
-        value={value}
-        patientId={patientId}
-        onChange={(encounterId) => onChange(encounterId)}
-      />
-    );
-  }
-
-  return (
-    <TextInput
-      label="Encounter ID"
-      value={value}
-      onChange={(event) => onChange(event.currentTarget.value)}
-      w={400}
-      placeholder="Open from IPD to auto-link"
-    />
-  );
 }
 
 type ClinicalStatusTone = "good" | "low" | "high" | "critical" | "neutral";
