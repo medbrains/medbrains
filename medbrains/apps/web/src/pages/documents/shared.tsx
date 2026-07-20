@@ -1,6 +1,11 @@
 // Documents shared helpers — split from documents.tsx (pure move).
 
-import { documentPrintFormatValues } from "@medbrains/schemas";
+import {
+  documentPrintFormatValues,
+  logicalPrinterProfileValues,
+  printCopyModeValues,
+  printerConnectionTypeValues,
+} from "@medbrains/schemas";
 
 export const TEMPLATE_CATEGORIES: { value: string; label: string }[] = [
   { value: "prescription", label: "Prescription" },
@@ -50,3 +55,79 @@ export const PRINT_FORMATS = documentPrintFormatValues.map((value) => ({
   value,
   label: PRINT_FORMAT_LABELS[value],
 }));
+
+const CONNECTION_TYPE_LABELS: Record<(typeof printerConnectionTypeValues)[number], string> = {
+  network: "Network / IP",
+  usb: "USB",
+  agent: "Local print agent",
+  browser: "Browser dialog",
+};
+
+const LOGICAL_PRINTER_PROFILE_LABELS: Record<(typeof logicalPrinterProfileValues)[number], string> =
+  {
+    "registration-a4": "Registration A4",
+    "patient-card": "Patient card",
+    "opd-token-thermal": "OPD token thermal",
+    "opd-a4": "OPD A4 summary",
+    "opd-summary": "OPD visit summary",
+    "opd-certificate-a4": "OPD certificate A4",
+    "consent-a4": "Consent form A4",
+    "ipd-a4": "IPD A4 case sheet",
+    "ipd-discharge-a4": "IPD discharge A4",
+    "wristband-label": "Wristband label",
+    "emergency-a4": "Emergency A4",
+    "mlc-secure-printer": "MLC secure printer",
+    "camp-token-thermal": "Camp token thermal",
+    "camp-a4": "Camp A4",
+    "pharmacy-receipt-80mm": "Pharmacy receipt 80mm",
+    "pharmacy-drug-label": "Pharmacy drug label",
+    "lab-report-a4": "Lab report A4",
+    "radiology-report-a4": "Radiology report A4",
+    "billing-receipt-80mm": "Billing receipt 80mm",
+    "billing-a4": "Billing A4",
+    "mrd-a4": "MRD A4",
+    "mrd-record-room": "MRD record room",
+  };
+
+const PRINT_COPY_MODE_LABELS: Record<(typeof printCopyModeValues)[number], string> = {
+  customer: "Customer copy",
+  office: "Office copy",
+  clinical: "Clinical copy",
+  mrd: "MRD copy",
+  lab: "Lab copy",
+  pharmacy: "Pharmacy copy",
+  police: "Police copy",
+  duplicate: "Duplicate/reprint",
+};
+
+export const CONNECTION_TYPES = printerConnectionTypeValues.map((value) => ({
+  value,
+  label: CONNECTION_TYPE_LABELS[value],
+}));
+
+export const LOGICAL_PRINTER_PROFILES = logicalPrinterProfileValues.map((value) => ({
+  value,
+  label: LOGICAL_PRINTER_PROFILE_LABELS[value],
+}));
+
+export const PRINT_COPY_MODES = printCopyModeValues.map((value) => ({
+  value,
+  label: PRINT_COPY_MODE_LABELS[value],
+}));
+
+export function capabilityString(
+  capabilities: Record<string, unknown> | null | undefined,
+  key: "copy_modes" | "profile_code",
+) {
+  const value = capabilities?.[key];
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
+  return typeof value === "string" ? [value] : [];
+}
+
+export function optionLabel(
+  options: { value: string; label: string }[],
+  value: string | null | undefined,
+) {
+  if (!value) return "—";
+  return options.find((option) => option.value === value)?.label ?? value;
+}
