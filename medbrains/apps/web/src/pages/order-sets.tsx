@@ -5,7 +5,6 @@ import {
   Group,
   NumberInput,
   Select,
-  SimpleGrid,
   Stack,
   Switch,
   Tabs,
@@ -44,7 +43,7 @@ import { DataTable, PageHeader } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, Button, IconButton } from "@/components/ui";
 import {
   orderSetContextOptions,
   orderSetItemTypeOptions,
@@ -54,32 +53,11 @@ import {
 } from "@/forms/order-sets.form";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { confirmDestructive } from "@/lib/confirm";
-import { statusColor } from "@/lib/status-colors";
 import { orderSetsService } from "@/services/order-sets.service";
+import { AnalyticsTab } from "./order-sets/analytics-tab";
+import { statusColorTone } from "./order-sets/shared";
 
 // ── Constants ──────────────────────────────────────────
-
-function statusColorTone(v: string): BadgeTone {
-  const c = statusColor(v);
-  const m: Record<string, BadgeTone> = {
-    success: "success",
-    danger: "danger",
-    warning: "warning",
-    primary: "primary",
-    info: "info",
-    slate: "neutral",
-    gray: "neutral",
-    teal: "success",
-    green: "success",
-    red: "danger",
-    yellow: "warning",
-    orange: "warning",
-    blue: "info",
-    violet: "accent",
-    cinnabar: "accent",
-  };
-  return (c ? m[c] : undefined) ?? "neutral";
-}
 
 const emptyTemplateForm: OrderSetTemplateFormInput = {
   name: "",
@@ -1027,43 +1005,5 @@ function ActivationsTab() {
         )}
       </Drawer>
     </>
-  );
-}
-
-// ══════════════════════════════════════════════════════════
-//  Tab 4: Analytics
-// ══════════════════════════════════════════════════════════
-
-function AnalyticsTab() {
-  const { data: summary } = useQuery({
-    queryKey: ["order-set-analytics"],
-    queryFn: () => orderSetsService.getOrderSetAnalytics(),
-  });
-
-  return (
-    <Stack>
-      <SimpleGrid cols={{ base: 1, sm: 2, md: 4 }}>
-        <StatCard label="Active Templates" value={summary?.total_templates ?? 0} />
-        <StatCard label="Total Activations" value={summary?.total_activations ?? 0} />
-        <StatCard label="Unique Doctors" value={summary?.unique_doctors ?? 0} />
-        <StatCard
-          label="Avg Completion Rate"
-          value={`${Number(summary?.avg_completion_rate ?? 0).toFixed(1)}%`}
-        />
-      </SimpleGrid>
-    </Stack>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <Card withBorder p="md">
-      <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
-        {label}
-      </Text>
-      <Text size="xl" fw={700} mt={4}>
-        {value}
-      </Text>
-    </Card>
   );
 }
