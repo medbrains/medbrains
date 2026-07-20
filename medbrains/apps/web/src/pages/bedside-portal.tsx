@@ -17,7 +17,6 @@ import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   BedsideDailyScheduleItem,
-  BedsideDietOrderItem,
   BedsideEducationVideoRow,
   BedsideMedicationItem,
   BedsideNurseRequestRow,
@@ -44,6 +43,7 @@ import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { bedsideService } from "@/services/bedside.service";
+import { DietOrderSection } from "./bedside-portal/diet-order-section";
 import { LabResultsSection } from "./bedside-portal/lab-results-section";
 import { compactContextId, REQUEST_TYPE_CONFIG } from "./bedside-portal/shared";
 
@@ -682,47 +682,6 @@ export function BedsidePortalPage() {
 }
 
 // ── Sub-components ──
-
-function DietOrderSection({
-  orders,
-  loading,
-}: {
-  orders: BedsideDietOrderItem[];
-  loading: boolean;
-}) {
-  return (
-    <Card shadow="sm" padding="lg" radius="md" withBorder>
-      <Title order={4} mb="md">
-        Diet & Meals
-      </Title>
-      {loading && <Loader size="sm" />}
-      {!loading && orders.length === 0 && (
-        <Text c="dimmed" size="sm">
-          No active diet order.
-        </Text>
-      )}
-      <Stack gap="xs">
-        {orders.map((order) => (
-          <Card key={order.id} padding="sm" radius="sm" withBorder>
-            <Group justify="space-between" align="flex-start">
-              <Stack gap={2}>
-                <Text size="sm" fw={600}>
-                  {order.diet_type ?? "Diet order"}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  {[order.meal_type, order.instructions].filter(Boolean).join(" | ") || "—"}
-                </Text>
-              </Stack>
-              <Badge tone="neutral" variant="light">
-                {order.status ?? "active"}
-              </Badge>
-            </Group>
-          </Card>
-        ))}
-      </Stack>
-    </Card>
-  );
-}
 
 function BedsideOperationsPanel({
   admissionId,
