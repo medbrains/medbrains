@@ -742,8 +742,11 @@ pub async fn create_transfusion(
         DateTime<Utc>,
         String,
     ) = sqlx::query_as(
+        // FOR UPDATE serializes concurrent transfusions of the SAME unit: the row stays locked
+        // until this tx commits (marking it 'transfused'), so a racing transfusion then reads
+        // 'transfused' and is rejected by the status gate — no duplicate records / double-consume.
         "SELECT blood_group::text, expiry_at, status::text FROM blood_components \
-         WHERE id = $1 AND tenant_id = $2",
+         WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
     )
     .bind(body.component_id)
     .bind(claims.tenant_id)
