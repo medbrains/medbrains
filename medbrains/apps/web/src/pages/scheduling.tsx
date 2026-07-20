@@ -1,5 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { confirmDestructive } from "@/lib/confirm";
+import { ConflictsTab } from "./scheduling/conflicts-tab";
+import { DAY_NAMES, formatDate, formatPercent, truncateId } from "./scheduling/shared";
 import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
 import {
@@ -40,7 +42,6 @@ import type {
   CreateWaitlistRequest,
   NoshowPredictionScore,
   NoshowRateRow,
-  SchedulingConflict,
   SchedulingOverbookingRule,
   SchedulingWaitlistEntry,
   UpdateOverbookingRuleRequest,
@@ -64,11 +65,11 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { DataTable, PageHeader } from "@/components";
+import type { Column } from "@/components/DataTable";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { DataTable, PageHeader } from "@/components";
-import type { Column } from "@/components/DataTable";
 import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import {
   schedulingInteger,
@@ -83,8 +84,6 @@ import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { schedulingService } from "@/services/scheduling.service";
 
 // ── Constants ──────────────────────────────────────────
-
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 const RISK_LEVEL_COLORS: Record<string, BadgeTone> = {
   low: "success",
@@ -145,19 +144,6 @@ const emptyBlockForm: SchedulingBlockFormInput = {
 };
 
 // ── Helpers ────────────────────────────────────────────
-
-function truncateId(id: string): string {
-  return id.length > 8 ? id.slice(0, 8) : id;
-}
-
-function formatDate(dateStr?: string): string {
-  if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleDateString();
-}
-
-function formatPercent(value: number): string {
-  return `${(value * 100).toFixed(1)}%`;
-}
 
 // ── Page ───────────────────────────────────────────────
 
@@ -1035,81 +1021,6 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
 
 // ══════════════════════════════════════════════════════════
 //  Tab — Conflicts
-// ══════════════════════════════════════════════════════════
-
-function ConflictsTab() {
-  const { data: conflicts = [], isLoading } = useQuery({
-    queryKey: ["scheduling-conflicts"],
-    queryFn: () => schedulingService.schedulingConflicts(),
-  });
-
-  const columns: Column<SchedulingConflict>[] = [
-    {
-      key: "resource_name",
-      label: "Resource",
-      render: (r) => (
-        <Text size="sm" fw={500}>
-          {r.resource_name}
-        </Text>
-      ),
-    },
-    {
-      key: "resource_id",
-      label: "Resource ID",
-      render: (r) => (
-        <Text size="sm" ff="monospace">
-          {truncateId(r.resource_id)}
-        </Text>
-      ),
-    },
-    {
-      key: "slot_a",
-      label: "Slot A",
-      render: (r) => (
-        <Text size="sm" ff="monospace">
-          {truncateId(r.slot_a_id)}
-        </Text>
-      ),
-    },
-    {
-      key: "slot_b",
-      label: "Slot B",
-      render: (r) => (
-        <Text size="sm" ff="monospace">
-          {truncateId(r.slot_b_id)}
-        </Text>
-      ),
-    },
-    {
-      key: "overlap",
-      label: "Overlap Window",
-      render: (r) => (
-        <Text size="sm">
-          {new Date(r.overlap_start).toLocaleString()} — {new Date(r.overlap_end).toLocaleString()}
-        </Text>
-      ),
-    },
-  ];
-
-  return (
-    <Stack gap="md">
-      <Text fw={600} size="lg">
-        Schedule Conflicts
-      </Text>
-      <DataTable<SchedulingConflict>
-        columns={columns}
-        data={conflicts}
-        loading={isLoading}
-        rowKey={(r) => `${r.slot_a_id}-${r.slot_b_id}`}
-        emptyTitle="No conflicts detected"
-        emptyDescription="All schedule slots are conflict-free"
-      />
-    </Stack>
-  );
-}
-
-// ══════════════════════════════════════════════════════════
-//  Tab — Recurring Appointments & Block Scheduling
 // ══════════════════════════════════════════════════════════
 
 function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
