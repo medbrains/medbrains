@@ -12,3 +12,8 @@ export function fmtDate(d: string | null | undefined): string {
   if (!d) return "-";
   return new Date(d).toLocaleString();
 }
+
+export function fmtShortDate(d: string | null | undefined): string {
+  if (!d) return "-";
+  return new Date(d).toLocaleDateString();
+}
