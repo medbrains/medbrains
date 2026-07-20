@@ -144,6 +144,23 @@ pub async fn book_appointment(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // A patient recorded as deceased must not have a new appointment booked — scheduling
+    // future care for the deceased is a data-integrity / medico-legal error. Correct the
+    // death record if this was recorded in error.
+    if sqlx::query_scalar::<_, bool>(
+        "SELECT is_deceased FROM patients WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(body.patient_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .unwrap_or(false)
+    {
+        return Err(AppError::Conflict(
+            "Patient is recorded as deceased; a new appointment cannot be booked.".into(),
+        ));
+    }
+
     let appointment_type = body.appointment_type.unwrap_or(AppointmentType::NewVisit);
 
     // Slot-capacity gate. Two reasons we may skip it:
