@@ -1370,6 +1370,30 @@ pub async fn create_admission(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    // A patient can physically occupy only one bed at a time. Block a second active
+    // admission so bed census, billing, and order routing can't fork across duplicate
+    // records for the same patient.
+    // ponytail: this SELECT guard catches the realistic case (double-click / sequential
+    // re-admit). A partial unique index on (tenant_id, patient_id) WHERE status IN
+    // ('admitted','transferred') would also close the concurrent-request race — add once
+    // existing data is confirmed free of duplicate active admissions.
+    if let Some(existing_id) = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM admissions \
+         WHERE tenant_id = $1 AND patient_id = $2 \
+           AND status IN ('admitted'::admission_status, 'transferred'::admission_status) \
+         LIMIT 1",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.patient_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    {
+        return Err(AppError::Conflict(format!(
+            "Patient already has an active admission ({existing_id}). Discharge or transfer \
+             the current admission before admitting the patient again."
+        )));
+    }
+
     let today = medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
     let doctor_id = body.doctor_id.unwrap_or(claims.sub);
     let is_dummy = body.is_dummy.unwrap_or(false) && is_bypass_role(&claims);
