@@ -17,12 +17,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { AssetCategoryFormInput, StoreCategoryFormInput } from "@medbrains/schemas";
-import {
-  assetCategoryFormSchema,
-  assetDomainValues,
-  storeCategoryFormSchema,
-  storeDomainValues,
-} from "@medbrains/schemas";
+import { assetCategoryFormSchema, storeCategoryFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type { AssetCategory, StoreCategory, UnifiedAsset } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -51,108 +46,17 @@ import type { Column } from "@/components/DataTable";
 import { Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { assetsService } from "@/services/assets.service";
-
-const assetDomainOptions = assetDomainValues.map((value) => ({
-  value,
-  label: domainLabel(value),
-}));
-
-const storeDomainOptions = storeDomainValues.map((value) => ({
-  value,
-  label: domainLabel(value),
-}));
-
-const assetCategoryDefaults: AssetCategoryFormInput = {
-  code: "",
-  name: "",
-  parent_id: "",
-  asset_domain: "general",
-  description: "",
-  regulatory_class: "",
-  default_pm_frequency: "",
-  default_calibration_frequency: "",
-  requires_pm: false,
-  requires_calibration: false,
-  is_camp_eligible: false,
-  is_active: true,
-  sort_order: 0,
-};
-
-const storeCategoryDefaults: StoreCategoryFormInput = {
-  code: "",
-  name: "",
-  parent_id: "",
-  store_domain: "general",
-  description: "",
-  requires_batch_tracking: false,
-  requires_expiry_tracking: false,
-  requires_temperature_log: false,
-  requires_license_tracking: false,
-  is_camp_source: false,
-  is_active: true,
-  sort_order: 0,
-};
-
-function domainLabel(value: string) {
-  return value
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function formNumber(value: unknown) {
-  if (typeof value === "number") return value;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function nullableTrimmed(value: string) {
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function validAssetDomain(value: string): AssetCategoryFormInput["asset_domain"] {
-  return assetDomainValues.find((domain) => domain === value) ?? "general";
-}
-
-function validStoreDomain(value: string): StoreCategoryFormInput["store_domain"] {
-  return storeDomainValues.find((domain) => domain === value) ?? "general";
-}
-
-function assetCategoryToForm(category: AssetCategory): AssetCategoryFormInput {
-  return {
-    code: category.code,
-    name: category.name,
-    parent_id: category.parent_id ?? "",
-    asset_domain: validAssetDomain(category.asset_domain),
-    description: category.description ?? "",
-    regulatory_class: category.regulatory_class ?? "",
-    default_pm_frequency: category.default_pm_frequency ?? "",
-    default_calibration_frequency: category.default_calibration_frequency ?? "",
-    requires_pm: category.requires_pm,
-    requires_calibration: category.requires_calibration,
-    is_camp_eligible: category.is_camp_eligible,
-    is_active: category.is_active,
-    sort_order: category.sort_order,
-  };
-}
-
-function storeCategoryToForm(category: StoreCategory): StoreCategoryFormInput {
-  return {
-    code: category.code,
-    name: category.name,
-    parent_id: category.parent_id ?? "",
-    store_domain: validStoreDomain(category.store_domain),
-    description: category.description ?? "",
-    requires_batch_tracking: category.requires_batch_tracking,
-    requires_expiry_tracking: category.requires_expiry_tracking,
-    requires_temperature_log: category.requires_temperature_log,
-    requires_license_tracking: category.requires_license_tracking,
-    is_camp_source: category.is_camp_source,
-    is_active: category.is_active,
-    sort_order: category.sort_order,
-  };
-}
+import {
+  assetCategoryDefaults,
+  assetCategoryToForm,
+  assetDomainOptions,
+  domainLabel,
+  formNumber,
+  nullableTrimmed,
+  storeCategoryDefaults,
+  storeCategoryToForm,
+  storeDomainOptions,
+} from "./assets/helpers";
 
 export function AssetsPage() {
   useRequirePermission(P.ASSETS.LIST);
