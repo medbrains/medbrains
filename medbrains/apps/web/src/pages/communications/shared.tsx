@@ -8,3 +8,9 @@ export function optionalText(value: string | null | undefined) {
 export function requiredText(value: string | null | undefined) {
   return optionalText(value) ?? null;
 }
+
+export function numberValue(value: number | string) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
