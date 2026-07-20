@@ -2186,6 +2186,41 @@ pub async fn admit_from_er(
         ));
     }
 
+    // ER admission is a second admission front door — apply the same patient-integrity
+    // guards as the direct IPD create_admission path. A patient can occupy only one bed,
+    // so block a second active admission (e.g. a stale ER visit after a direct admit).
+    if let Some(existing) = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM admissions \
+         WHERE tenant_id = $1 AND patient_id = $2 \
+           AND status IN ('admitted'::admission_status, 'transferred'::admission_status) \
+         LIMIT 1",
+    )
+    .bind(claims.tenant_id)
+    .bind(visit.patient_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    {
+        return Err(AppError::Conflict(format!(
+            "Patient already has an active admission ({existing}); discharge or transfer it \
+             before admitting from the ER."
+        )));
+    }
+
+    // A patient recorded as deceased must never be admitted.
+    if sqlx::query_scalar::<_, bool>(
+        "SELECT is_deceased FROM patients WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(visit.patient_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .unwrap_or(false)
+    {
+        return Err(AppError::Conflict(
+            "Patient is recorded as deceased and cannot be admitted.".to_owned(),
+        ));
+    }
+
     let doctor_exists = sqlx::query_scalar::<_, bool>(
         "SELECT EXISTS( \
            SELECT 1 FROM users \
