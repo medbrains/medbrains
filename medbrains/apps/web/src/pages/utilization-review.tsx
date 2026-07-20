@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { StatusTrackingTab } from "./utilization-review/status-tracking-tab";
 import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
 import {
@@ -21,10 +22,8 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import {
   type UrCommunicationFormInput,
-  type UrStatusConversionFormInput,
   type UtilizationReviewFormInput,
   urCommunicationFormSchema,
-  urStatusConversionFormSchema,
   utilizationReviewFormSchema,
 } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
@@ -32,7 +31,6 @@ import type {
   LosComparisonRow,
   UrAnalyticsSummary,
   UrPayerCommunication,
-  UrStatusConversion,
   UtilizationReview,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -53,46 +51,16 @@ import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Badge, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
-import { statusColor } from "@/lib/status-colors";
 import {
   type CreateUrCommunicationInput,
-  type CreateUrConversionInput,
   type CreateUrReviewInput,
   utilizationReviewService,
 } from "@/services/utilizationReview.service";
+import { optionalTrimmed, reviewTypeColors, statusColorTone } from "./utilization-review/shared";
 
 // ── Color maps ─────────────────────────────────────────
-
-const reviewTypeColors: Record<string, BadgeTone> = {
-  pre_admission: "primary",
-  admission: "success",
-  continued_stay: "warning",
-  retrospective: "neutral",
-};
-
-function statusColorTone(v: string): BadgeTone {
-  const c = statusColor(v);
-  const m: Record<string, BadgeTone> = {
-    success: "success",
-    danger: "danger",
-    warning: "warning",
-    primary: "primary",
-    info: "info",
-    slate: "neutral",
-    gray: "neutral",
-    teal: "success",
-    green: "success",
-    red: "danger",
-    yellow: "warning",
-    orange: "warning",
-    blue: "info",
-    violet: "accent",
-    cinnabar: "accent",
-  };
-  return (c ? m[c] : undefined) ?? "neutral";
-}
 
 type ReviewViewMode = "list" | "timeline";
 
@@ -116,20 +84,8 @@ const EMPTY_COMMUNICATION_FORM: UrCommunicationFormInput = {
   summary: "",
 };
 
-const EMPTY_CONVERSION_FORM: UrStatusConversionFormInput = {
-  admission_id: "",
-  from_status: "observation",
-  to_status: "inpatient",
-  reason: "",
-};
-
 function parseReviewViewMode(value: string): ReviewViewMode {
   return value === "timeline" ? "timeline" : "list";
-}
-
-function optionalTrimmed(value: string): string | undefined {
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 function optionalFormInteger(value: string | number): number | undefined {
@@ -165,15 +121,6 @@ function formToCommunicationPayload(form: UrCommunicationFormInput): CreateUrCom
     payer_name: form.payer_name.trim(),
     reference_number: optionalTrimmed(form.reference_number),
     summary: optionalTrimmed(form.summary),
-  };
-}
-
-function formToConversionPayload(form: UrStatusConversionFormInput): CreateUrConversionInput {
-  return {
-    admission_id: form.admission_id.trim(),
-    from_status: form.from_status,
-    to_status: form.to_status,
-    reason: optionalTrimmed(form.reason),
   };
 }
 
@@ -1054,181 +1001,3 @@ function PayerLogTab() {
 // ═══════════════════════════════════════════════════════
 //  Tab 4 — Status Tracking
 // ═══════════════════════════════════════════════════════
-
-function StatusTrackingTab() {
-  const qc = useQueryClient();
-  const canCreate = useHasPermission(P.UR.CONVERSIONS_CREATE);
-  const [opened, { open, close }] = useDisclosure(false);
-  const {
-    control,
-    formState: { errors },
-    handleSubmit,
-    register,
-    reset,
-  } = useForm<UrStatusConversionFormInput>({
-    resolver: zodResolver(urStatusConversionFormSchema),
-    defaultValues: EMPTY_CONVERSION_FORM,
-  });
-
-  const { data = [], isLoading } = useQuery({
-    queryKey: ["ur-conversions"],
-    queryFn: () => utilizationReviewService.listConversions(),
-  });
-
-  const createMut = useMutation({
-    mutationFn: (d: CreateUrConversionInput) => utilizationReviewService.createConversion(d),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["ur-conversions"] });
-      notifications.show({
-        title: "Conversion Created",
-        message: "Status conversion recorded",
-        color: "success",
-      });
-      reset(EMPTY_CONVERSION_FORM);
-      close();
-    },
-    onError: () =>
-      notifications.show({
-        title: "Error",
-        message: "Failed to create conversion",
-        color: "danger",
-      }),
-  });
-
-  const columns: Column<UrStatusConversion>[] = [
-    {
-      key: "admission_id",
-      label: "Admission ID",
-      render: (r) => <Text size="sm">{r.admission_id.slice(0, 8)}...</Text>,
-    },
-    {
-      key: "from_status",
-      label: "From Status",
-      render: (r) => (
-        <Badge tone="neutral" variant="outline">
-          {r.from_status}
-        </Badge>
-      ),
-    },
-    {
-      key: "to_status",
-      label: "To Status",
-      render: (r) => (
-        <Badge tone="primary" variant="outline">
-          {r.to_status}
-        </Badge>
-      ),
-    },
-    {
-      key: "conversion_date",
-      label: "Conversion Date",
-      render: (r) => <Text size="sm">{new Date(r.conversion_date).toLocaleDateString()}</Text>,
-    },
-    {
-      key: "reason",
-      label: "Reason",
-      render: (r) => (
-        <Text size="sm" lineClamp={1}>
-          {r.reason ?? "—"}
-        </Text>
-      ),
-    },
-  ];
-
-  const openCreateConversion = () => {
-    reset(EMPTY_CONVERSION_FORM);
-    open();
-  };
-
-  const submitConversion = handleSubmit((values) => {
-    createMut.mutate(formToConversionPayload(values));
-  });
-
-  return (
-    <Stack gap="md">
-      <PageHeader
-        title="Status Tracking"
-        subtitle="Observation to inpatient status conversions"
-        actions={
-          canCreate ? (
-            <Button
-              tone="primary"
-              leftSection={<IconPlus size={16} />}
-              onClick={openCreateConversion}
-            >
-              New Conversion
-            </Button>
-          ) : undefined
-        }
-      />
-
-      <DataTable<UrStatusConversion>
-        data={data}
-        loading={isLoading}
-        rowKey={(r) => r.id}
-        columns={columns}
-      />
-
-      <Drawer
-        opened={opened}
-        onClose={close}
-        title="Create Status Conversion"
-        position="right"
-        size="xl"
-      >
-        <Stack component="form" gap="sm" onSubmit={submitConversion}>
-          <TextInput
-            label="Admission ID"
-            required
-            error={errors.admission_id?.message}
-            {...register("admission_id")}
-          />
-          <Controller
-            name="from_status"
-            control={control}
-            render={({ field }) => (
-              <Select
-                label="From Status"
-                required
-                data={[
-                  { value: "observation", label: "Observation" },
-                  { value: "inpatient", label: "Inpatient" },
-                ]}
-                value={field.value}
-                onChange={field.onChange}
-                error={errors.from_status?.message}
-              />
-            )}
-          />
-          <Controller
-            name="to_status"
-            control={control}
-            render={({ field }) => (
-              <Select
-                label="To Status"
-                required
-                data={[
-                  { value: "observation", label: "Observation" },
-                  { value: "inpatient", label: "Inpatient" },
-                ]}
-                value={field.value}
-                onChange={field.onChange}
-                error={errors.to_status?.message}
-              />
-            )}
-          />
-          <Textarea
-            label="Reason"
-            autosize
-            minRows={3}
-            error={errors.reason?.message}
-            {...register("reason")}
-          />
-          <Button tone="primary" loading={createMut.isPending} type="submit">
-            Create Conversion
-          </Button>
-        </Stack>
-      </Drawer>
-    </Stack>
-  );
-}
