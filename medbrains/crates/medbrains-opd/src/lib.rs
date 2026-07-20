@@ -5576,6 +5576,39 @@ pub async fn admit_from_opd(
         ));
     }
 
+    // Admitting from OPD is a third admission front door — apply the same patient-integrity
+    // guards as create_admission (ipd) and admit_from_er (emergency). Block a second active
+    // admission (a patient can occupy only one bed) and never admit a deceased patient.
+    if let Some(existing) = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM admissions \
+         WHERE tenant_id = $1 AND patient_id = $2 \
+           AND status IN ('admitted'::admission_status, 'transferred'::admission_status) \
+         LIMIT 1",
+    )
+    .bind(claims.tenant_id)
+    .bind(opd_encounter.patient_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    {
+        return Err(AppError::Conflict(format!(
+            "Patient already has an active admission ({existing}); discharge or transfer it \
+             before admitting from OPD."
+        )));
+    }
+    if sqlx::query_scalar::<_, bool>(
+        "SELECT is_deceased FROM patients WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(opd_encounter.patient_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .unwrap_or(false)
+    {
+        return Err(AppError::Conflict(
+            "Patient is recorded as deceased and cannot be admitted.".to_owned(),
+        ));
+    }
+
     let doctor_id = body.doctor_id.unwrap_or(claims.sub);
     let today = medbrains_server_core::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
     let ipd_attributes = serde_json::json!({
