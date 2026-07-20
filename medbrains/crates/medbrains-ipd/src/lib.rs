@@ -2055,6 +2055,22 @@ pub async fn discharge_patient(
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
+    // A deceased discharge is the point the patient is declared dead in the system.
+    // Reflect it on the patient master so every module (appointments, orders, reports)
+    // sees the patient as deceased — not just the buried admission record. COALESCE keeps
+    // a precise deceased_date already set by a death summary; otherwise stamp discharge time.
+    if matches!(dt, DischargeType::Deceased) {
+        sqlx::query(
+            "UPDATE patients SET is_deceased = true, \
+               deceased_date = COALESCE(deceased_date, NOW()) \
+             WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(admission.patient_id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+
     sqlx::query(
         "UPDATE encounters SET status = 'completed'::encounter_status \
          WHERE id = $1 AND tenant_id = $2",
@@ -6508,6 +6524,21 @@ pub async fn create_death_summary(
     .bind(&body.witness_name)
     .bind(&body.notes)
     .fetch_one(&mut *tx)
+    .await?;
+
+    // The death summary carries the authoritative date/time of death — mark the patient
+    // deceased on the master record with that precise timestamp so downstream modules and
+    // reports reflect the death, overriding any rougher discharge-time stamp.
+    sqlx::query(
+        "UPDATE patients SET is_deceased = true, \
+           deceased_date = ($3::date + COALESCE($4::time, '00:00'::time))::timestamptz \
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(patient_id)
+    .bind(claims.tenant_id)
+    .bind(body.date_of_death)
+    .bind(body.time_of_death)
+    .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;
