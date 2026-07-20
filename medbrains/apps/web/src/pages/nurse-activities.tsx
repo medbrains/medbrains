@@ -31,7 +31,6 @@ import { PageHeader, VitalsRecorder } from "@/components";
 import { HandoffPanel } from "@/components/crdt/HandoffPanel";
 import { NursingNotesPanel } from "@/components/crdt/NursingNotesPanel";
 import { EncounterSelect } from "@/components/EncounterSelect";
-import { MedicationRound } from "@/components/Nurse/MedicationRound";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { Alert, Badge, type BadgeTone, Button, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -39,6 +38,7 @@ import { adminAccessService } from "@/services/adminAccess.service";
 import { nurseActivitiesService } from "@/services/nurseActivities.service";
 import { CodeBlueTab } from "./nurse-activities/code-blue-tab";
 import { EquipmentTab } from "./nurse-activities/equipment-tab";
+import { MarTab } from "./nurse-activities/mar-tab";
 import { NurseRxTab } from "./nurse-activities/nurse-rx-tab";
 import { compactId } from "./nurse-activities/shared";
 
@@ -625,12 +625,6 @@ function dailyShiftId(): string {
 }
 
 // ── MAR Tab ─────────────────────────────────────────────────────────
-
-function MarTab({ patientId }: { patientId: string }) {
-  return <MedicationRound patientId={patientId || undefined} />;
-}
-
-// ── I/O Tab ─────────────────────────────────────────────────────────
 
 function IoTab({
   initialEncounterId,
