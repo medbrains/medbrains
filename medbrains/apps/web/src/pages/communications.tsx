@@ -5,7 +5,6 @@ import {
   Select,
   SimpleGrid,
   Stack,
-  Switch,
   Tabs,
   Text,
   Textarea,
@@ -17,13 +16,10 @@ import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CommChannel,
-  CommClinicalMessageRow,
-  CommClinicalPriority,
   CommCriticalAlertRow,
   CommMessageRow,
   CommTemplateRow,
   CommTemplateType,
-  CreateCommClinicalRequest,
   CreateCommMessageRequest,
   CreateCommTemplateRequest,
 } from "@medbrains/types";
@@ -44,14 +40,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { communicationsService } from "@/services/communications.service";
+import { ClinicalTab } from "./communications/clinical-tab";
 import { ComplaintsTab } from "./communications/complaints-tab";
 import { DltTab } from "./communications/dlt-tab";
 import { FeedbackTab } from "./communications/feedback-tab";
-import { optionalText, requiredText } from "./communications/shared";
+import { optionalText, PRIORITY_COLORS, requiredText } from "./communications/shared";
 
 const CHANNEL_COLORS: Record<string, BadgeTone> = {
   sms: "info",
@@ -67,12 +63,6 @@ const MSG_STATUS_COLORS: Record<string, BadgeTone> = {
   delivered: "success",
   failed: "danger",
   read: "success",
-};
-const PRIORITY_COLORS: Record<string, BadgeTone> = {
-  routine: "info",
-  urgent: "warning",
-  critical: "danger",
-  stat: "danger",
 };
 const ALERT_STATUS_COLORS: Record<string, BadgeTone> = {
   triggered: "danger",
@@ -90,15 +80,6 @@ type MessageForm = {
   body: string;
 };
 
-type ClinicalMessageForm = {
-  recipient_id: string | null;
-  message_type: string | null;
-  priority: string | null;
-  subject: string;
-  body: string;
-  is_urgent: boolean;
-};
-
 type TemplateForm = {
   template_name: string;
   template_code: string;
@@ -114,15 +95,6 @@ const emptyMessageForm: MessageForm = {
   recipient_contact: "",
   subject: "",
   body: "",
-};
-
-const emptyClinicalMessageForm: ClinicalMessageForm = {
-  recipient_id: null,
-  message_type: null,
-  priority: null,
-  subject: "",
-  body: "",
-  is_urgent: false,
 };
 
 const emptyTemplateForm: TemplateForm = {
@@ -146,13 +118,6 @@ function commChannel(value: string | null | undefined): CommChannel | null {
     return value;
   }
   return null;
-}
-
-function clinicalPriority(value: string | null | undefined): CommClinicalPriority | undefined {
-  if (value === "routine" || value === "urgent" || value === "critical" || value === "stat") {
-    return value;
-  }
-  return undefined;
 }
 
 function templateType(value: string | null | undefined): CommTemplateType | null {
@@ -182,21 +147,6 @@ function messagePayload(form: MessageForm): CreateCommMessageRequest | null {
     body,
     recipient_name: optionalText(form.recipient_name),
     subject: optionalText(form.subject),
-  };
-}
-
-function clinicalPayload(form: ClinicalMessageForm): CreateCommClinicalRequest | null {
-  const recipient_id = requiredText(form.recipient_id);
-  const message_type = requiredText(form.message_type);
-  const body = requiredText(form.body);
-  if (!recipient_id || !message_type || !body) return null;
-  return {
-    recipient_id,
-    message_type,
-    body,
-    priority: clinicalPriority(form.priority),
-    subject: optionalText(form.subject),
-    is_urgent: form.is_urgent,
   };
 }
 
@@ -380,178 +330,6 @@ function MessagesTab() {
 }
 
 // ── Clinical Tab ────────────────────────────────────────
-function ClinicalTab() {
-  const qc = useQueryClient();
-  const canCreate = useHasPermission(P.COMMUNICATIONS.CLINICAL_CREATE);
-  const canAck = useHasPermission(P.COMMUNICATIONS.CLINICAL_ACKNOWLEDGE);
-  const [opened, { open, close }] = useDisclosure(false);
-  const [priorityFilter, setPriorityFilter] = useState<string | null>(null);
-  const [form, setForm] = useState<ClinicalMessageForm>(emptyClinicalMessageForm);
-
-  const { data = [], isLoading } = useQuery({
-    queryKey: ["comm-clinical", priorityFilter],
-    queryFn: () =>
-      communicationsService.listClinicalMessages({ priority: priorityFilter ?? undefined }),
-  });
-
-  const createMut = useMutation({
-    mutationFn: (d: CreateCommClinicalRequest) => communicationsService.createClinicalMessage(d),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["comm-clinical"] });
-      close();
-      notifications.show({ title: "Sent", message: "Clinical message sent", color: "green" });
-    },
-  });
-
-  const ackMut = useMutation({
-    mutationFn: (id: string) => communicationsService.acknowledgeClinicalMessage(id),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["comm-clinical"] });
-      notifications.show({ title: "Acknowledged", message: "Message acknowledged", color: "blue" });
-    },
-  });
-
-  const cols: Column<CommClinicalMessageRow>[] = [
-    {
-      key: "message_code",
-      label: "Code",
-      render: (r) => (
-        <Text fw={600} size="sm">
-          {r.message_code}
-        </Text>
-      ),
-    },
-    {
-      key: "priority",
-      label: "Priority",
-      render: (r) => (
-        <Badge size="sm" tone={PRIORITY_COLORS[r.priority] ?? "neutral"}>
-          {r.priority}
-        </Badge>
-      ),
-    },
-    {
-      key: "message_type",
-      label: "Type",
-      render: (r) => <Badge size="sm">{r.message_type.replace(/_/g, " ")}</Badge>,
-    },
-    { key: "subject", label: "Subject", render: (r) => <Text size="sm">{r.subject ?? "—"}</Text> },
-    {
-      key: "body",
-      label: "Body",
-      render: (r) => (
-        <Text size="sm" lineClamp={1}>
-          {r.body}
-        </Text>
-      ),
-    },
-    {
-      key: "is_read",
-      label: "Read",
-      render: (r) => (
-        <Badge size="xs" tone={r.is_read ? "success" : "neutral"}>
-          {r.is_read ? "Yes" : "No"}
-        </Badge>
-      ),
-    },
-    {
-      key: "actions",
-      label: "",
-      render: (r) =>
-        !r.acknowledged_at && canAck ? (
-          <IconButton
-            tone="primary"
-            size="sm"
-            onClick={() => ackMut.mutate(r.id)}
-            aria-label="Confirm"
-          >
-            <IconCheck size={14} />
-          </IconButton>
-        ) : null,
-    },
-  ];
-
-  return (
-    <>
-      <Group justify="space-between" mb="md">
-        <Select
-          placeholder="Priority"
-          clearable
-          value={priorityFilter}
-          onChange={setPriorityFilter}
-          data={Object.keys(PRIORITY_COLORS)}
-          w={140}
-        />
-        {canCreate && (
-          <Button
-            tone="primary"
-            leftSection={<IconPlus size={16} />}
-            onClick={() => {
-              setForm(emptyClinicalMessageForm);
-              open();
-            }}
-          >
-            New Message
-          </Button>
-        )}
-      </Group>
-      <DataTable columns={cols} data={data} loading={isLoading} rowKey={(r) => r.id} />
-      <Drawer opened={opened} onClose={close} title="Clinical Message" position="right" size="xl">
-        <Stack>
-          <EmployeeSearchSelect
-            label="Recipient"
-            value={form.recipient_id ?? ""}
-            onChange={(id) => setForm({ ...form, recipient_id: id })}
-            required
-          />
-          <Select
-            label="Type"
-            required
-            data={["general", "sbar_handover", "referral", "discharge_comm", "intercom_code"]}
-            value={form.message_type ?? null}
-            onChange={(v) => setForm({ ...form, message_type: v })}
-          />
-          <Select
-            label="Priority"
-            data={Object.keys(PRIORITY_COLORS)}
-            value={form.priority ?? null}
-            onChange={(v) => setForm({ ...form, priority: v })}
-          />
-          <TextInput
-            label="Subject"
-            value={form.subject ?? ""}
-            onChange={(e) => setForm({ ...form, subject: e.currentTarget.value })}
-          />
-          <Textarea
-            label="Body"
-            required
-            minRows={3}
-            value={form.body ?? ""}
-            onChange={(e) => setForm({ ...form, body: e.currentTarget.value })}
-          />
-          <Switch
-            label="Urgent"
-            checked={form.is_urgent ?? false}
-            onChange={(e) => setForm({ ...form, is_urgent: e.currentTarget.checked })}
-          />
-          <Button
-            tone="primary"
-            onClick={() => {
-              const payload = clinicalPayload(form);
-              if (!payload) return;
-              createMut.mutate(payload);
-            }}
-            loading={createMut.isPending}
-          >
-            Send
-          </Button>
-        </Stack>
-      </Drawer>
-    </>
-  );
-}
-
-// ── Alerts Tab ──────────────────────────────────────────
 function AlertsTab() {
   const qc = useQueryClient();
   const canManage = useHasPermission(P.COMMUNICATIONS.ALERTS_MANAGE);
