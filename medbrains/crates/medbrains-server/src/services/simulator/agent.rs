@@ -37,7 +37,6 @@ const MAX_CELLS: usize = 25;
 const MAX_FLEET: u32 = 10;
 const MAX_GENERATIONS: u32 = 5;
 const DEFAULT_BASE: &str = "http://127.0.0.1:3000";
-const DEFAULT_GOAL: &str = "Register a walk-in patient with a fever and route them to a doctor.";
 
 /// A finding to persist (`simulator_run_findings`).
 #[derive(Debug)]
@@ -310,16 +309,46 @@ fn observe(cells: &[Cell], acc: &RunAcc) {
 }
 
 /// Cross-product the factors into cells, capped and clamped.
+/// Realistic, permission-appropriate goals per role, used when a schedule
+/// specifies no explicit goals — so each role exercises flows it can actually
+/// perform (positive path) instead of burning turns on cross-role permission
+/// walls. Explicit `profile.goals` (e.g. deliberate negative/cross-role probes)
+/// always override this.
+fn role_goals(role: &str) -> Vec<String> {
+    let goals: &[&str] = match role {
+        "receptionist" | "front_office_staff" => {
+            &["Register a new walk-in patient, then book them an OPD appointment."]
+        }
+        "doctor" => &[
+            "Open an OPD encounter for a patient, record a diagnosis, and prescribe a medication.",
+            "Open an OPD encounter and order a lab test for the patient.",
+        ],
+        "nurse" => &["Find a patient's encounter and record a full set of vitals."],
+        "pharmacist" => &["Make a pharmacy POS sale of a catalogue item for a patient."],
+        "lab_technician" | "radiology_tech" => {
+            &["Review the patient and order lists you can access; report anything broken."]
+        }
+        _ => &[
+            "Explore every list you can access; report anything that errors, is blocked, or is untranslated.",
+        ],
+    };
+    goals.iter().map(|s| (*s).to_owned()).collect()
+}
+
+/// Explicit schedule goals if set, else role-appropriate defaults.
+fn goals_for_role(profile: &AgentProfile, role: &str) -> Vec<String> {
+    if profile.goals.is_empty() {
+        role_goals(role)
+    } else {
+        profile.goals.clone()
+    }
+}
+
 fn build_cells(profile: &AgentProfile) -> (Vec<Cell>, bool) {
     let locales = if profile.locales.is_empty() {
         vec!["en".to_owned()]
     } else {
         profile.locales.clone()
-    };
-    let goals = if profile.goals.is_empty() {
-        vec![DEFAULT_GOAL.to_owned()]
-    } else {
-        profile.goals.clone()
     };
     let departments: Vec<Option<Uuid>> = if profile.departments.is_empty() {
         vec![None]
@@ -332,6 +361,7 @@ fn build_cells(profile: &AgentProfile) -> (Vec<Cell>, bool) {
     let mut cells = Vec::new();
     let mut truncated = false;
     'outer: for role in &profile.roles {
+        let goals = goals_for_role(profile, role);
         for dept in &departments {
             for locale in &locales {
                 for goal in &goals {
@@ -363,11 +393,6 @@ fn sampled_cells(profile: &AgentProfile, count: u32, rng: &mut StdRng) -> Vec<Ce
     } else {
         profile.locales.clone()
     };
-    let goals = if profile.goals.is_empty() {
-        vec![DEFAULT_GOAL.to_owned()]
-    } else {
-        profile.goals.clone()
-    };
     let departments: Vec<Option<Uuid>> = if profile.departments.is_empty() {
         vec![None]
     } else {
@@ -377,14 +402,15 @@ fn sampled_cells(profile: &AgentProfile, count: u32, rng: &mut StdRng) -> Vec<Ce
     let wanted = (count as usize).min(MAX_CELLS);
     let mut cells = Vec::with_capacity(wanted);
     for _ in 0..wanted {
-        let (Some(role), Some(dept), Some(locale), Some(goal)) = (
+        let (Some(role), Some(dept), Some(locale)) = (
             profile.roles.choose(rng),
             departments.choose(rng),
             locales.choose(rng),
-            goals.choose(rng),
         ) else {
             break;
         };
+        let goals = goals_for_role(profile, role);
+        let Some(goal) = goals.choose(rng) else { break };
         cells.push(Cell {
             role: role.clone(),
             department: *dept,
@@ -895,7 +921,17 @@ pub async fn persist_findings(
 
 #[cfg(test)]
 mod tests {
-    use super::{categorize, sanitize_kind, sanitize_severity};
+    use super::{categorize, role_goals, sanitize_kind, sanitize_severity};
+
+    #[test]
+    fn role_goals_are_role_specific() {
+        // A nurse gets a vitals goal, not the receptionist's registration one.
+        assert!(role_goals("nurse")[0].to_lowercase().contains("vitals"));
+        assert!(role_goals("receptionist")[0].to_lowercase().contains("register"));
+        assert!(role_goals("doctor").iter().any(|g| g.to_lowercase().contains("encounter")));
+        // An unknown role still gets a safe explore-only goal (non-empty).
+        assert!(!role_goals("security_guard").is_empty());
+    }
 
     #[test]
     fn categorize_by_status() {
