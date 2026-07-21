@@ -107,3 +107,86 @@ pub async fn choose_action(
     };
     Ok(Some(ToolCall { name, arguments }))
 }
+
+/// Ask the model for a few realistic, role-appropriate test goals, given the
+/// role and the tool catalog it may use.
+///
+/// A plain completion (no tools) — robust on weak models — returning a parsed
+/// line-list. Errors bubble up so the caller can fall back to a static set.
+pub async fn generate_goals(
+    state: &AppState,
+    tenant_id: &Uuid,
+    role: &str,
+    tool_catalog: &str,
+) -> Result<Vec<String>, AppError> {
+    let system = "You design end-to-end test goals for a hospital management system. A goal is \
+                  one concrete task a real staff member of the given role would accomplish using \
+                  ONLY the listed tools, within their own permissions. One sentence each.";
+    let user = format!(
+        "Role: {role}.\nAvailable tools:\n{tool_catalog}\n\n\
+         List 3 realistic, varied goals this role would pursue using only these tools. \
+         One goal per line. No numbering, no preamble."
+    );
+    let text = complete_text(state, tenant_id, system, &user).await?;
+    // gpt-oss may prefix a <reasoning>…</reasoning> block; keep what follows.
+    let cleaned = text
+        .rfind("</reasoning>")
+        .map_or(text.as_str(), |i| &text[i + "</reasoning>".len()..]);
+    let goals: Vec<String> = cleaned
+        .lines()
+        .map(|l| l.trim().trim_start_matches(['-', '*', '•', '·', ' ']).trim().to_owned())
+        .filter(|l| l.len() >= 12)
+        .take(3)
+        .collect();
+    Ok(goals)
+}
+
+/// A plain chat completion (no tools) returning the assistant's text.
+async fn complete_text(
+    state: &AppState,
+    tenant_id: &Uuid,
+    system: &str,
+    user: &str,
+) -> Result<String, AppError> {
+    let cfg = llm::resolve_config(state, tenant_id).await?;
+    let base = llm::openai_compat_base_url(&cfg.provider).ok_or_else(|| {
+        AppError::BadRequest(format!(
+            "simulator goal generation needs an OpenAI-compatible provider; '{}' is not",
+            cfg.provider
+        ))
+    })?;
+    let url = format!("{base}/chat/completions");
+    let body = json!({
+        "model": cfg.model,
+        "messages": [
+            { "role": "system", "content": system },
+            { "role": "user", "content": user },
+        ],
+        "max_tokens": 400,
+    });
+    let resp = reqwest::Client::new()
+        .post(&url)
+        .bearer_auth(&cfg.api_key)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| AppError::BadRequest(format!("AI request failed: {e}")))?;
+    let status = resp.status();
+    let payload: Value = resp
+        .json()
+        .await
+        .map_err(|e| AppError::BadRequest(format!("AI response parse failed: {e}")))?;
+    if !status.is_success() {
+        let msg = payload
+            .get("message")
+            .or_else(|| payload.pointer("/error/message"))
+            .and_then(Value::as_str)
+            .unwrap_or("unknown error");
+        return Err(AppError::BadRequest(format!("AI call failed ({status}): {msg}")));
+    }
+    Ok(payload
+        .pointer("/choices/0/message/content")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned())
+}

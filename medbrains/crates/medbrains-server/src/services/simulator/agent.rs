@@ -13,6 +13,8 @@
 //! Scope (MVP): single generation, one cell run each. The self-improving loop
 //! (re-weight → prime → promote across generations) is Phase 2.
 
+use std::collections::HashMap;
+
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::seq::IndexedRandom;
@@ -87,13 +89,14 @@ pub async fn run_agent(
         return empty_with_finding("Agent run has no roles configured — nothing to fan out.");
     }
     let generations = profile.generations_cap.clamp(1, MAX_GENERATIONS);
+    let goals_map = resolve_goals(state, &claims.tenant_id, profile).await;
     let mut all_steps: Vec<StepRecord> = Vec::new();
     let mut all_findings: Vec<FindingRecord> = Vec::new();
     let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
 
     for generation in 1..=generations {
         let context = prime_context(&all_findings);
-        let (cells, truncated) = build_cells(profile);
+        let (cells, truncated) = build_cells(profile, &goals_map);
         // Sweep is exhaustive + role-keyed — run it once, on generation 1 only.
         let sweep_roles: &[String] = if profile.sweep && generation == 1 {
             &profile.roles
@@ -161,7 +164,8 @@ pub async fn run_agent_sampled(
         return empty_with_finding("Census pacer has no roles configured — nothing to run.");
     }
     let mut rng = StdRng::from_os_rng();
-    let cells = sampled_cells(profile, count, &mut rng);
+    let goals_map = resolve_goals(state, &claims.tenant_id, profile).await;
+    let cells = sampled_cells(profile, count, &mut rng, &goals_map);
     // Census pacing fires every tick — never run the full endpoint sweep here,
     // or a single day would issue 310×roles GETs per 30s. Sweep is manual/cron only.
     // Single generation per tick (the pacer's continuous running is its own loop).
@@ -335,16 +339,48 @@ fn role_goals(role: &str) -> Vec<String> {
     goals.iter().map(|s| (*s).to_owned()).collect()
 }
 
-/// Explicit schedule goals if set, else role-appropriate defaults.
-fn goals_for_role(profile: &AgentProfile, role: &str) -> Vec<String> {
-    if profile.goals.is_empty() {
-        role_goals(role)
-    } else {
-        profile.goals.clone()
+/// Resolve the goal set per role for this run: explicit `profile.goals` win;
+/// otherwise the LLM generates role-appropriate goals from the role + the tool
+/// catalog (variety/coverage — "AI randomness"), falling back to the static
+/// [`role_goals`] map when generation is unavailable or errors.
+async fn resolve_goals(
+    state: &AppState,
+    tenant_id: &Uuid,
+    profile: &AgentProfile,
+) -> HashMap<String, Vec<String>> {
+    let mut map: HashMap<String, Vec<String>> = HashMap::new();
+    if !profile.goals.is_empty() {
+        for role in &profile.roles {
+            map.entry(role.clone()).or_insert_with(|| profile.goals.clone());
+        }
+        return map;
     }
+    let catalog = catalog_text();
+    for role in &profile.roles {
+        if map.contains_key(role) {
+            continue;
+        }
+        let (goals, source) = decision::generate_goals(state, tenant_id, role, &catalog)
+            .await
+            .ok()
+            .filter(|g| !g.is_empty())
+            .map_or_else(|| (role_goals(role), "fallback"), |g| (g, "llm"));
+        tracing::info!(role, source, goals = ?goals, "simulator resolved goals");
+        map.insert(role.clone(), goals);
+    }
+    map
 }
 
-fn build_cells(profile: &AgentProfile) -> (Vec<Cell>, bool) {
+/// The resolved goals for a role, falling back to the static map if the run's
+/// goal resolution somehow missed it.
+fn cell_goals(goals_map: &HashMap<String, Vec<String>>, role: &str) -> Vec<String> {
+    goals_map.get(role).cloned().unwrap_or_else(|| role_goals(role))
+}
+
+fn build_cells(
+    profile: &AgentProfile,
+    goals_map: &HashMap<String, Vec<String>>,
+) -> (Vec<Cell>, bool) {
     let locales = if profile.locales.is_empty() {
         vec!["en".to_owned()]
     } else {
@@ -361,7 +397,7 @@ fn build_cells(profile: &AgentProfile) -> (Vec<Cell>, bool) {
     let mut cells = Vec::new();
     let mut truncated = false;
     'outer: for role in &profile.roles {
-        let goals = goals_for_role(profile, role);
+        let goals = cell_goals(goals_map, role);
         for dept in &departments {
             for locale in &locales {
                 for goal in &goals {
@@ -387,7 +423,12 @@ fn build_cells(profile: &AgentProfile) -> (Vec<Cell>, bool) {
 
 /// Draw `count` random cells from the factor pool — one per expected patient,
 /// used by the census pacer. Capped at `MAX_CELLS` as a per-tick runaway guard.
-fn sampled_cells(profile: &AgentProfile, count: u32, rng: &mut StdRng) -> Vec<Cell> {
+fn sampled_cells(
+    profile: &AgentProfile,
+    count: u32,
+    rng: &mut StdRng,
+    goals_map: &HashMap<String, Vec<String>>,
+) -> Vec<Cell> {
     let locales = if profile.locales.is_empty() {
         vec!["en".to_owned()]
     } else {
@@ -409,7 +450,7 @@ fn sampled_cells(profile: &AgentProfile, count: u32, rng: &mut StdRng) -> Vec<Ce
         ) else {
             break;
         };
-        let goals = goals_for_role(profile, role);
+        let goals = cell_goals(goals_map, role);
         let Some(goal) = goals.choose(rng) else { break };
         cells.push(Cell {
             role: role.clone(),
