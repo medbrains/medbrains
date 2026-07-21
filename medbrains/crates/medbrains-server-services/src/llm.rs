@@ -122,13 +122,29 @@ where
     T: schemars::JsonSchema + DeserializeOwned + Serialize + Send + Sync + 'static,
 {
     use rig::client::CompletionClient as _;
-    use rig::providers::anthropic;
+    use rig::providers::{anthropic, openrouter};
 
     let cfg = resolve_config(state, tenant_id).await?;
 
+    // `extractor::<T>()` is a CompletionClient trait method, so the extraction loop is
+    // identical across providers — only the client construction differs. The provider is
+    // resolved from tenant config / AI_PROVIDER env (openrouter when OPENROUTER_API_KEY is
+    // set, else anthropic), so callers stay provider-agnostic.
     match cfg.provider.as_str() {
         "anthropic" => {
             let client = anthropic::Client::new(&cfg.api_key)
+                .map_err(|e| AppError::BadRequest(format!("Failed to create AI client: {e}")))?;
+            let extractor = client
+                .extractor::<T>(cfg.model.as_str())
+                .preamble(preamble)
+                .build();
+            extractor
+                .extract(prompt)
+                .await
+                .map_err(|e| AppError::BadRequest(format!("AI generation failed: {e}")))
+        }
+        "openrouter" => {
+            let client = openrouter::Client::new(&cfg.api_key)
                 .map_err(|e| AppError::BadRequest(format!("Failed to create AI client: {e}")))?;
             let extractor = client
                 .extractor::<T>(cfg.model.as_str())
