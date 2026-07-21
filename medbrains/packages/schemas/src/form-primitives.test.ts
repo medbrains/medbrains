@@ -35,7 +35,7 @@ describe("numberFromFormValue", () => {
     expect(numberFromFormValue("abc", 7)).toBe(7);
     expect(numberFromFormValue("12abc", 7)).toBe(7);
   });
-  it("EDGE: an empty/whitespace string coerces to 0 (Number(\"\")===0), not the fallback", () => {
+  it('EDGE: an empty/whitespace string coerces to 0 (Number("")===0), not the fallback', () => {
     // Documented quirk — the fallback only kicks in for non-numeric input, so a
     // cleared numeric field becomes 0, not the default. Callers relying on the
     // fallback for empty fields should use optionalNumberFromFormValue instead.
