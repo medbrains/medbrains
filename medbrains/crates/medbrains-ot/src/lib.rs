@@ -819,6 +819,35 @@ pub async fn update_booking_status(
                 )));
             }
         }
+
+        // IPSG-4 safe surgery: a signed informed-consent must be on file before the case can
+        // start. The pre-op handoff and WHO checklist do not by themselves confirm consent, and
+        // the consent_obtained flag is only verified when it is explicitly set — so gate the
+        // start directly on a signed procedure_consents record (same source of truth as
+        // update_booking's consent verification).
+        let patient_id = sqlx::query_scalar::<_, Uuid>(
+            "SELECT patient_id FROM ot_bookings WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+        let has_signed_consent = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS (SELECT 1 FROM procedure_consents \
+             WHERE tenant_id = $1 AND patient_id = $2 AND status = 'signed')",
+        )
+        .bind(claims.tenant_id)
+        .bind(patient_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !has_signed_consent {
+            return Err(AppError::BadRequest(
+                "A signed informed-consent record must be on file before starting surgery \
+                 (IPSG-4). Capture the surgical consent first."
+                    .to_owned(),
+            ));
+        }
     }
 
     // Sign-out must be completed before a case can be marked completed.
