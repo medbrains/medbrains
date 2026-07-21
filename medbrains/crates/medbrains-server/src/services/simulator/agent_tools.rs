@@ -215,6 +215,110 @@ pub fn catalog_text() -> String {
         .join("\n")
 }
 
+/// A function tool offered to the model for native function-calling.
+#[derive(Debug)]
+pub struct ToolDef {
+    pub name: String,
+    pub description: String,
+    /// JSON Schema (object) for the tool's arguments.
+    pub parameters: Value,
+}
+
+fn canon_to_json_type(canon: &str) -> &'static str {
+    match canon {
+        "number" => "number",
+        "bool" => "boolean",
+        "array" => "array",
+        "object" | "map" | "json" => "object",
+        _ => "string", // string, datetime, or unknown
+    }
+}
+
+/// Extract `{placeholder}` names from a path template (e.g. `{encounter_id}`).
+fn path_placeholders(path: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut rest = path;
+    while let Some(start) = rest.find('{') {
+        let Some(rel_end) = rest[start..].find('}') else { break };
+        let end = start + rel_end;
+        out.push(rest[start + 1..end].to_owned());
+        rest = &rest[end + 1..];
+    }
+    out
+}
+
+/// The path-placeholder names for a tool, so the host can split the model's flat
+/// argument object into path params vs body.
+pub fn tool_path_params(name: &str) -> Vec<String> {
+    find_tool(name).map(|t| path_placeholders(t.path)).unwrap_or_default()
+}
+
+/// Build one endpoint tool's argument schema: path placeholders (required
+/// strings) + body fields (typed, required per the contract). `additionalProperties`
+/// is false so the schema itself forbids invented fields.
+fn tool_parameters(spec: &ToolSpec) -> Value {
+    let mut props = serde_json::Map::new();
+    let mut required: Vec<Value> = Vec::new();
+    for ph in path_placeholders(spec.path) {
+        props.insert(ph.clone(), json!({ "type": "string" }));
+        required.push(Value::String(ph));
+    }
+    if let Some(shape) = shapes().get(spec.name) {
+        for f in &shape.fields {
+            props.insert(f.name.clone(), json!({ "type": canon_to_json_type(&f.field_type) }));
+            if f.required {
+                required.push(Value::String(f.name.clone()));
+            }
+        }
+    }
+    json!({
+        "type": "object",
+        "properties": Value::Object(props),
+        "required": required,
+        "additionalProperties": false,
+    })
+}
+
+/// The full tool list offered to the model: control tools + one per endpoint,
+/// each carrying its contract-exact typed argument schema.
+pub fn build_tool_defs() -> Vec<ToolDef> {
+    let mut defs = vec![
+        ToolDef {
+            name: "finish".to_owned(),
+            description: "Call when the goal is achieved or clearly impossible.".to_owned(),
+            parameters: json!({
+                "type": "object",
+                "properties": { "reason": { "type": "string" } },
+                "additionalProperties": false,
+            }),
+        },
+        ToolDef {
+            name: "report_finding".to_owned(),
+            description: "Report a bug, confusing UX, permission problem, or untranslated text you hit."
+                .to_owned(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "kind": { "type": "string",
+                        "enum": ["usability","permission","locale","error","workflow","discovery","logic"] },
+                    "severity": { "type": "string", "enum": ["low","medium","high","critical"] },
+                    "message": { "type": "string" }
+                },
+                "required": ["kind","severity","message"],
+                "additionalProperties": false,
+            }),
+        },
+    ];
+    for spec in TOOLS {
+        defs.push(ToolDef {
+            name: spec.name.to_owned(),
+            description: spec.about.to_owned(),
+            parameters: tool_parameters(spec),
+        });
+    }
+    defs
+}
+
 /// Drop any body key the model invented that isn't in the tool's contract.
 ///
 /// Reports the dropped names. A no-op when the tool has no known shape (the

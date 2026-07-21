@@ -108,6 +108,27 @@ pub async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConf
     })
 }
 
+/// The OpenAI-compatible chat-completions base URL for a provider, or `None`
+/// for providers that don't speak the OpenAI wire format natively (anthropic).
+///
+/// Callers that need raw function-calling (e.g. the simulator's native tool
+/// loop) resolve the base here and POST `{base}/chat/completions` themselves.
+#[must_use]
+pub fn openai_compat_base_url(provider: &str) -> Option<String> {
+    match provider {
+        "openrouter" => Some("https://openrouter.ai/api/v1".to_owned()),
+        "bedrock" => {
+            let region = std::env::var("AWS_REGION")
+                .or_else(|_| std::env::var("BEDROCK_REGION"))
+                .unwrap_or_else(|_| "us-east-1".to_owned());
+            Some(std::env::var("BEDROCK_BASE_URL").unwrap_or_else(|_| {
+                format!("https://bedrock-runtime.{region}.amazonaws.com/openai/v1")
+            }))
+        }
+        _ => None,
+    }
+}
+
 /// Run a structured extraction with the tenant's configured AI provider.
 ///
 /// `T` is the schema the model must return; it is extracted type-safely via
@@ -162,12 +183,8 @@ where
             // when pointed at the Bedrock base URL with the ABSK bearer key. (Anthropic
             // Claude on Bedrock is Marketplace-payment-gated on this account, so gpt-oss
             // is the usable Bedrock family.)
-            let region = std::env::var("AWS_REGION")
-                .or_else(|_| std::env::var("BEDROCK_REGION"))
-                .unwrap_or_else(|_| "us-east-1".to_owned());
-            let base_url = std::env::var("BEDROCK_BASE_URL").unwrap_or_else(|_| {
-                format!("https://bedrock-runtime.{region}.amazonaws.com/openai/v1")
-            });
+            let base_url = openai_compat_base_url("bedrock")
+                .unwrap_or_else(|| "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1".to_owned());
             let client = openai::CompletionsClient::builder()
                 .api_key(&cfg.api_key)
                 .base_url(&base_url)

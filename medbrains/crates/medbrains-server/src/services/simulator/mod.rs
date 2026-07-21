@@ -12,6 +12,7 @@
 pub mod agent;
 pub mod agent_tools;
 pub mod calendar;
+pub mod decision;
 pub mod fixtures;
 pub mod pacer;
 pub mod scheduler;

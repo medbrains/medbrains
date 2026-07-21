@@ -1,14 +1,14 @@
 //! LLM-driven simulator engine.
 //!
-//! Fans out Claude agents across a factor matrix (role × department × locale ×
-//! goal × fleet). Each agent logs in as that role's seeded demo user and drives
-//! the LIVE public API — the same endpoints a real user hits — so it exercises
-//! the real auth + route + permission stack. The loop is host-controlled: each
-//! turn `llm::extract` returns the next `AgentDecision` from the world-state we
-//! feed it, the host executes it as one authenticated HTTP call, maps
-//! failures/permission-denials/agent-reported confusion to `FindingRecord`s, and
-//! feeds the result back. Reusing the proven `extract` helper avoids a bespoke
-//! tool-calling loop; the ceiling is one model round-trip per action.
+//! Fans out agents across a factor matrix (role × department × locale × goal ×
+//! fleet). Each agent logs in as that role's demo user (provisioned on demand)
+//! and drives the LIVE public API — the same endpoints a real user hits — so it
+//! exercises the real auth + route + permission stack. The loop is
+//! host-controlled: each turn [`decision::choose_action`] does native
+//! function-calling (each endpoint is a typed tool from `tool_shapes.json`, so
+//! the model can only fill contract fields), the host executes the chosen call
+//! as one authenticated HTTP request, maps failures/permission-denials/
+//! agent-reported confusion to `FindingRecord`s, and feeds the result back.
 //!
 //! Scope (MVP): single generation, one cell run each. The self-improving loop
 //! (re-weight → prime → promote across generations) is Phase 2.
@@ -16,20 +16,19 @@
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::seq::IndexedRandom;
-use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use medbrains_core::simulator::{AgentProfile, RunSummary};
 use medbrains_server_core::state::AppState;
-use medbrains_server_services::llm;
 
 use super::agent_tools::{
-    HttpOutcome, SimClient, catalog_text, find_tool, render_path, sanitize_body, truncate,
+    HttpOutcome, SimClient, build_tool_defs, catalog_text, find_tool, render_path, sanitize_body,
+    tool_path_params, truncate,
 };
 use super::sweep_endpoints::SWEEP_ENDPOINTS;
-use super::{StepRecord, verifier};
+use super::{StepRecord, decision, verifier};
 use crate::error::AppError;
 use crate::middleware::auth::Claims;
 
@@ -39,34 +38,6 @@ const MAX_FLEET: u32 = 10;
 const MAX_GENERATIONS: u32 = 5;
 const DEFAULT_BASE: &str = "http://127.0.0.1:3000";
 const DEFAULT_GOAL: &str = "Register a walk-in patient with a fever and route them to a doctor.";
-
-/// One action the model chose for this turn.
-#[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
-struct AgentDecision {
-    /// Short rationale in the persona's voice.
-    reasoning: String,
-    /// Tool name to call, or "done" / "give_up".
-    tool: String,
-    /// Path params, e.g. {"encounter_id": "..."}.
-    #[serde(default)]
-    path_params: Value,
-    /// JSON body for POST tools.
-    #[serde(default)]
-    body: Value,
-    /// True when the goal is met or clearly impossible.
-    #[serde(default)]
-    done: bool,
-    /// Optional finding the agent wants recorded this turn.
-    #[serde(default)]
-    finding: Option<DecisionFinding>,
-}
-
-#[derive(Debug, Deserialize, Serialize, schemars::JsonSchema)]
-struct DecisionFinding {
-    kind: String,
-    severity: String,
-    message: String,
-}
 
 /// A finding to persist (`simulator_run_findings`).
 #[derive(Debug)]
@@ -488,6 +459,7 @@ async fn run_cell(ctx: &CellCtx<'_>, cell: &Cell, acc: &mut RunAcc) {
     };
 
     let preamble = build_preamble(cell, ctx.context);
+    let tools = build_tool_defs();
     let mut history: Vec<Value> = Vec::new();
     let mut turn = 0u32;
     while turn < STEP_BUDGET {
@@ -495,15 +467,26 @@ async fn run_cell(ctx: &CellCtx<'_>, cell: &Cell, acc: &mut RunAcc) {
         let prompt = json!({
             "goal": cell.goal,
             "recent_actions": history,
-            "instruction": "Choose the next tool. Discover ids with list_* before creating. \
-                Set done=true when the goal is met or clearly impossible. Attach a finding whenever \
-                something is confusing, blocked, permission-denied, untranslated, or wrong."
+            "instruction": "Call exactly ONE tool. Use the list_* tools to discover ids before \
+                creating. Call `finish` when the goal is met or clearly impossible. Call \
+                `report_finding` whenever something is confusing, blocked, permission-denied, \
+                untranslated, or wrong."
         })
         .to_string();
 
-        let decision: AgentDecision =
-            match llm::extract(ctx.state, &ctx.tenant_id, &preamble, &prompt).await {
-                Ok(d) => d,
+        let call =
+            match decision::choose_action(ctx.state, &ctx.tenant_id, &preamble, &prompt, &tools).await {
+                Ok(Some(c)) => c,
+                Ok(None) => {
+                    acc.findings.push(finding(
+                        &cell_json,
+                        "discovery",
+                        "low",
+                        "Agent returned no tool call — stopping the cell.".to_owned(),
+                        None,
+                    ));
+                    break;
+                }
                 Err(err) => {
                     acc.findings.push(confirmed(finding(
                         &cell_json,
@@ -516,34 +499,52 @@ async fn run_cell(ctx: &CellCtx<'_>, cell: &Cell, acc: &mut RunAcc) {
                 }
             };
 
-        if let Some(f) = &decision.finding {
-            acc.findings.push(finding(
-                &cell_json,
-                sanitize_kind(&f.kind),
-                sanitize_severity(&f.severity),
-                f.message.clone(),
-                None,
-            ));
-        }
-        if decision.done || decision.tool == "done" || decision.tool == "give_up" {
+        if call.name == "finish" || call.name == "give_up" {
             break;
         }
+        if call.name == "report_finding" {
+            let message = call.arguments.get("message").and_then(Value::as_str).unwrap_or("");
+            if !message.is_empty() {
+                let kind = call.arguments.get("kind").and_then(Value::as_str).unwrap_or("workflow");
+                let severity =
+                    call.arguments.get("severity").and_then(Value::as_str).unwrap_or("info");
+                acc.findings.push(finding(
+                    &cell_json,
+                    sanitize_kind(kind),
+                    sanitize_severity(severity),
+                    message.to_owned(),
+                    None,
+                ));
+            }
+            history.push(json!({ "tool": "report_finding", "ok": true }));
+            continue;
+        }
 
-        let Some(spec) = find_tool(&decision.tool) else {
+        let Some(spec) = find_tool(&call.name) else {
             acc.findings.push(finding(
                 &cell_json,
                 "discovery",
                 "low",
-                format!("Agent tried an unknown tool '{}'.", decision.tool),
+                format!("Agent tried an unknown tool '{}'.", call.name),
                 None,
             ));
-            history.push(json!({ "tool": decision.tool, "error": "unknown tool" }));
+            history.push(json!({ "tool": call.name, "error": "unknown tool" }));
             continue;
         };
 
-        let mut body = decision.body.clone();
-        // Strip any field the model invented that isn't in the endpoint's real
-        // contract, so a hallucinated property never reaches the live API.
+        // Split the model's flat argument object into path params + body.
+        let mut args = call.arguments;
+        let mut path_params = serde_json::Map::new();
+        if let Some(obj) = args.as_object_mut() {
+            for pname in tool_path_params(spec.name) {
+                if let Some(v) = obj.remove(&pname) {
+                    path_params.insert(pname, v);
+                }
+            }
+        }
+        let mut body = args;
+        // Belt-and-suspenders: the schema already forbids extra fields, but strip
+        // any the model slipped in so a hallucinated property never hits the API.
         let dropped = sanitize_body(spec.name, &mut body);
         if !dropped.is_empty() {
             acc.findings.push(finding(
@@ -562,7 +563,7 @@ async fn run_cell(ctx: &CellCtx<'_>, cell: &Cell, acc: &mut RunAcc) {
         if spec.method == "POST" {
             inject_dummy(&mut body);
         }
-        let path = render_path(spec.path, &decision.path_params);
+        let path = render_path(spec.path, &Value::Object(path_params));
         let outcome = client.call(spec.method, &path, &body).await;
         record_outcome(acc, &cell_json, spec.name, &outcome);
         history.push(json!({
@@ -620,12 +621,13 @@ fn build_preamble(cell: &Cell, context: &str) -> String {
         "You are a synthetic hospital user for end-to-end testing.\n\
          Role: {role}. Locale: {locale}. You are logged in as this role and may act ONLY within its permissions.\n\
          Goal: {goal}.{chaos_note}\n\n\
-         Tools (call ONE per turn):\n{catalog}\n\n\
-         Put path ids in path_params and the JSON payload in body; the host adds is_dummy automatically. \
-         Discover ids with the list_* tools before creating. Set done=true when the goal is achieved or \
-         clearly impossible. Whenever something blocks you, is confusing, is untranslated for your locale, \
-         or denies a permission you did not expect, attach a finding \
-         (kind: usability|permission|locale|error|workflow|discovery).",
+         You are given function tools — call exactly ONE per turn with its typed arguments \
+         (path ids and body fields are combined into one flat argument object). The available \
+         tools and their exact fields:\n{catalog}\n\n\
+         Discover ids with the list_* tools before creating. Call `finish` when the goal is \
+         achieved or clearly impossible. Whenever something blocks you, is confusing, is \
+         untranslated for your locale, or denies a permission you did not expect, call \
+         `report_finding`.",
         role = cell.role,
         locale = cell.locale,
         goal = cell.goal,
