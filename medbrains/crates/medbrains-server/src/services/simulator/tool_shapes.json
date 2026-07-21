@@ -1,0 +1,972 @@
+{
+  "_generated_by": "scripts/fetch_api_shape.py --emit-sim",
+  "tools": {
+    "list_patients": {
+      "method": "GET",
+      "path": "/api/patients?per_page=50",
+      "request_type": null,
+      "fields": []
+    },
+    "list_doctors": {
+      "method": "GET",
+      "path": "/api/admin/doctors?per_page=50",
+      "request_type": null,
+      "fields": []
+    },
+    "list_departments": {
+      "method": "GET",
+      "path": "/api/admin/departments",
+      "request_type": null,
+      "fields": []
+    },
+    "create_opd_encounter": {
+      "method": "POST",
+      "path": "/api/opd/encounters",
+      "request_type": "CreateEncounterRequest",
+      "fields": [
+        {
+          "name": "appointment_id",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "camp_id",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "department_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "doctor_id",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "patient_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "visit_type",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    "add_vitals": {
+      "method": "POST",
+      "path": "/api/opd/encounters/{encounter_id}/vitals",
+      "request_type": "CreateVitalRequest",
+      "fields": [
+        {
+          "name": "diastolic_bp",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "height_cm",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "pulse",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "respiratory_rate",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "spo2",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "systolic_bp",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "temperature",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "weight_kg",
+          "type": "number",
+          "required": false
+        }
+      ]
+    },
+    "add_diagnosis": {
+      "method": "POST",
+      "path": "/api/opd/encounters/{encounter_id}/diagnoses",
+      "request_type": "CreateDiagnosisRequest",
+      "fields": [
+        {
+          "name": "certainty",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "icd_code",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "icd_display",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "icd_provider_mode",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "icd_source_url",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "icd_source_version",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "icd_system",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "is_primary",
+          "type": "bool",
+          "required": false
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "onset_date",
+          "type": "datetime",
+          "required": false
+        },
+        {
+          "name": "resolved_date",
+          "type": "datetime",
+          "required": false
+        },
+        {
+          "name": "severity",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "snomed_code",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "snomed_display",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    "add_prescription": {
+      "method": "POST",
+      "path": "/api/opd/encounters/{encounter_id}/prescriptions",
+      "request_type": "CreatePrescriptionRequest",
+      "fields": [
+        {
+          "name": "allergy_override_reason",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "credential_override_reason",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "dose_override_reason",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "duplicate_override_reason",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "interaction_override_reason",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "items",
+          "type": "array",
+          "required": true
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "order_mode",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "ordering_doctor_id",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "read_back_confirmed",
+          "type": "bool",
+          "required": false
+        }
+      ]
+    },
+    "order_lab": {
+      "method": "POST",
+      "path": "/api/lab/orders",
+      "request_type": "CreateLabOrderRequest",
+      "fields": [
+        {
+          "name": "encounter_id",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "patient_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "priority",
+          "type": "object",
+          "required": false
+        },
+        {
+          "name": "test_id",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    "order_radiology": {
+      "method": "POST",
+      "path": "/api/radiology/orders",
+      "request_type": "CreateRadiologyOrderRequest",
+      "fields": [
+        {
+          "name": "allergy_flagged",
+          "type": "bool",
+          "required": false
+        },
+        {
+          "name": "body_part",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "clinical_indication",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "contrast_required",
+          "type": "bool",
+          "required": false
+        },
+        {
+          "name": "encounter_id",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "modality_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "patient_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "pregnancy_checked",
+          "type": "bool",
+          "required": false
+        },
+        {
+          "name": "priority",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "scheduled_at",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    "admit_ipd": {
+      "method": "POST",
+      "path": "/api/ipd/admissions",
+      "request_type": "CreateAdmissionRequest",
+      "fields": [
+        {
+          "name": "admission_height_cm",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "admission_source",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "admission_weight_kg",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "bed_id",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "department_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "doctor_id",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "expected_discharge_date",
+          "type": "datetime",
+          "required": false
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "patient_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "referral_doctor",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "referral_from",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "referral_notes",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "ward_id",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    "create_er_visit": {
+      "method": "POST",
+      "path": "/api/emergency/visits",
+      "request_type": "CreateErVisitRequest",
+      "fields": [
+        {
+          "name": "arrival_mode",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "bay_number",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "chief_complaint",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "is_brought_dead",
+          "type": "bool",
+          "required": false
+        },
+        {
+          "name": "is_mlc",
+          "type": "bool",
+          "required": false
+        },
+        {
+          "name": "mass_casualty_event_id",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "patient_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "vitals",
+          "type": "map",
+          "required": false
+        }
+      ]
+    },
+    "triage_er": {
+      "method": "POST",
+      "path": "/api/emergency/visits/{visit_id}/triage",
+      "request_type": "CreateTriageRequest",
+      "fields": [
+        {
+          "name": "allergies",
+          "type": "json",
+          "required": false
+        },
+        {
+          "name": "blood_pressure_diastolic",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "blood_pressure_systolic",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "chief_complaint",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "disability_assessment",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "gcs_eye",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "gcs_motor",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "gcs_score",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "gcs_verbal",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "is_pregnant",
+          "type": "bool",
+          "required": false
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "pain_score",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "presenting_symptoms",
+          "type": "json",
+          "required": false
+        },
+        {
+          "name": "pulse_rate",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "respiratory_rate",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "score",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "spo2",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "triage_level",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "triage_system",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    "admit_er": {
+      "method": "POST",
+      "path": "/api/emergency/visits/{visit_id}/admit",
+      "request_type": "AdmitFromErRequest",
+      "fields": [
+        {
+          "name": "admission_notes",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "admitting_doctor_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "bed_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "ward_id",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    "register_patient": {
+      "method": "POST",
+      "path": "/api/patients",
+      "request_type": "CreatePatientRequest",
+      "fields": [
+        {
+          "name": "aadhaar_number",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "abha_address",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "abha_number",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "address",
+          "type": "json",
+          "required": false
+        },
+        {
+          "name": "attributes",
+          "type": "json",
+          "required": false
+        },
+        {
+          "name": "blood_group",
+          "type": "object",
+          "required": false
+        },
+        {
+          "name": "camp_id",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "camp_name",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "category",
+          "type": "object",
+          "required": false
+        },
+        {
+          "name": "clinical_unit",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "consultant_id",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "consultant_name",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "date_of_birth",
+          "type": "datetime",
+          "required": false
+        },
+        {
+          "name": "department_id",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "department_name",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "father_name",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "financial_class",
+          "type": "object",
+          "required": false
+        },
+        {
+          "name": "first_name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "gender",
+          "type": "object",
+          "required": true
+        },
+        {
+          "name": "guardian_name",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "guardian_relation",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "icd10_code",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "icd11_code",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "icd11_display",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "icd11_provider_mode",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "icd11_source_url",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "icd11_source_version",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "initial_diagnosis_text",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "is_dob_estimated",
+          "type": "bool",
+          "required": false
+        },
+        {
+          "name": "is_medico_legal",
+          "type": "bool",
+          "required": false
+        },
+        {
+          "name": "is_unknown_patient",
+          "type": "bool",
+          "required": false
+        },
+        {
+          "name": "is_vip",
+          "type": "bool",
+          "required": false
+        },
+        {
+          "name": "last_name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "marital_status",
+          "type": "object",
+          "required": false
+        },
+        {
+          "name": "middle_name",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "mlc_number",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "nationality_id",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "occupation",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "phone",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "phone_secondary",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "preferred_language",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "prefix",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "referred_by_facility",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "referred_by_name",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "referred_by_phone",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "registration_source",
+          "type": "object",
+          "required": false
+        },
+        {
+          "name": "registration_type",
+          "type": "object",
+          "required": false
+        },
+        {
+          "name": "religion",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "suffix",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    "book_appointment": {
+      "method": "POST",
+      "path": "/api/opd/appointments",
+      "request_type": "BookAppointmentRequest",
+      "fields": [
+        {
+          "name": "appointment_date",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "name": "appointment_type",
+          "type": "object",
+          "required": false
+        },
+        {
+          "name": "department_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "doctor_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "patient_id",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "recurrence_count",
+          "type": "number",
+          "required": false
+        },
+        {
+          "name": "recurrence_pattern",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "slot_end",
+          "type": "datetime",
+          "required": true
+        },
+        {
+          "name": "slot_start",
+          "type": "datetime",
+          "required": true
+        }
+      ]
+    },
+    "list_drugs": {
+      "method": "GET",
+      "path": "/api/pharmacy/catalog",
+      "request_type": null,
+      "fields": []
+    },
+    "pharmacy_sale": {
+      "method": "POST",
+      "path": "/api/pharmacy/pos/sales",
+      "request_type": null,
+      "fields": []
+    },
+    "create_invoice": {
+      "method": "POST",
+      "path": "/api/billing/invoices",
+      "request_type": "CreateInvoiceRequest",
+      "fields": [
+        {
+          "name": "admission_id",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "encounter_id",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "is_er_deferred",
+          "type": "bool",
+          "required": false
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "patient_id",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    "list_wards": {
+      "method": "GET",
+      "path": "/api/ipd/wards",
+      "request_type": null,
+      "fields": []
+    }
+  }
+}

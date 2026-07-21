@@ -184,8 +184,12 @@ def _client_index() -> list[dict]:
         # request type = the type of a `data:`/`body:` arg, if any
         dm = re.search(r"\b(?:data|body|payload)\s*:\s*([A-Za-z_]\w*)", args)
         req_type = dm.group(1) if dm else None
-        # HTTP method lives in the options object right after the path
-        tail = src[m.end(): m.end() + 200]
+        # HTTP method lives in this call's options object. Bound the scan to the
+        # current method — the next `=>` belongs to the following method — so a
+        # GET with no options doesn't borrow the next method's `method: "POST"`.
+        rest = src[m.end():]
+        nxt = rest.find("=>")
+        tail = rest[: nxt if nxt != -1 else 200]
         hm = http_rx.search(tail)
         http = hm.group(1) if hm else "GET"
         path = re.sub(r"\$\{[^}]*\}", "{param}", raw_path).split("?")[0].rstrip("/")
@@ -201,10 +205,12 @@ def resolve_endpoint(method: str, path: str) -> dict | None:
     norm = re.sub(r"\$\{[^}]*\}|\{[^}]*\}", "{param}", path).split("?")[0].rstrip("/")
     if not norm.startswith("/api"):
         norm = ("/api" + norm) if norm.startswith("/") else norm
-    for e in _client_index():
-        if e["method"] == method and e["path"] == norm:
-            return e
-    return None
+    matches = [e for e in _client_index() if e["method"] == method and e["path"] == norm]
+    if not matches:
+        return None
+    # Prefer a match that actually carries a request type (a bodyless overload
+    # of the same path may also match).
+    return next((e for e in matches if e["request_type"]), matches[0])
 
 
 # ── Merge + cross-check ──────────────────────────────────────────────
@@ -240,6 +246,52 @@ def merge_shape(type_name: str) -> dict:
     }
 
 
+AGENT_TOOLS = (REPO_ROOT / "medbrains" / "crates" / "medbrains-server"
+               / "src" / "services" / "simulator" / "agent_tools.rs")
+
+
+def _parse_sim_tools() -> list[dict]:
+    """Parse the sim's ToolSpec catalog → [{name, method, path}]."""
+    try:
+        src = AGENT_TOOLS.read_text()
+    except OSError:
+        return []
+    rx = re.compile(
+        r'ToolSpec\s*\{\s*name:\s*"([^"]+)",\s*method:\s*"([^"]+)",\s*path:\s*"([^"]+)"',
+        re.MULTILINE,
+    )
+    return [{"name": n, "method": mth, "path": p} for n, mth, p in rx.findall(src)]
+
+
+def emit_sim_shapes() -> dict:
+    """Build the compact per-tool shape map the Rust sim embeds via include_str!.
+
+    Keyed by tool name → {method, path, request_type, fields:[{name,type,required}]}.
+    GET pickers (no body) and unresolved endpoints carry empty fields.
+    """
+    tools = {}
+    for t in _parse_sim_tools():
+        entry = {"method": t["method"], "path": t["path"],
+                 "request_type": None, "fields": []}
+        if t["method"] in ("POST", "PUT", "PATCH"):
+            ep = resolve_endpoint(t["method"], t["path"])
+            rtype = ep["request_type"] if ep else None
+            # Ignore inline TS generics (Record/Partial/…) and any name that
+            # isn't a real struct/interface — leave fields empty so the sim
+            # falls back to the tool's hand-written hint.
+            if rtype and rtype not in ("Record", "Partial", "Pick", "Omit", "Array"):
+                shape = merge_shape(rtype)
+                if shape["found"]:
+                    entry["request_type"] = rtype
+                    entry["fields"] = [
+                        {"name": f["name"], "type": f["type"], "required": f["required"]}
+                        for f in shape["fields"]
+                        if f["name"] != "is_dummy"  # host-injected, not the LLM's job
+                    ]
+        tools[t["name"]] = entry
+    return {"_generated_by": "scripts/fetch_api_shape.py --emit-sim", "tools": tools}
+
+
 def _self_test() -> int:
     """Smoke-check the parsers against stable, known types. Fails loudly."""
     shape = merge_shape("CreateEncounterRequest")
@@ -264,6 +316,8 @@ def main() -> int:
     g.add_argument("--type", help="Request/response type name, e.g. CreateEncounterRequest")
     g.add_argument("--endpoint", help='Endpoint, e.g. "POST /opd/encounters"')
     g.add_argument("--list-endpoints", action="store_true", help="Dump the client endpoint index")
+    g.add_argument("--emit-sim", metavar="OUT",
+                   help="Write the sim tool-shape map (compact JSON) for include_str! embedding")
     g.add_argument("--self-test", action="store_true", help="Run parser smoke-checks")
     ap.add_argument("--json", action="store_true", help="Machine-readable JSON output")
     args = ap.parse_args()
@@ -273,6 +327,13 @@ def main() -> int:
 
     if args.list_endpoints:
         print(json.dumps(_client_index(), indent=2))
+        return 0
+
+    if args.emit_sim:
+        payload = emit_sim_shapes()
+        Path(args.emit_sim).write_text(json.dumps(payload, indent=2) + "\n")
+        resolved = sum(1 for t in payload["tools"].values() if t["fields"])
+        print(f"wrote {args.emit_sim}: {len(payload['tools'])} tools, {resolved} with field shapes")
         return 0
 
     type_name = args.type

@@ -9,7 +9,11 @@
 //! the body and every call uses `Authorization: Bearer` (skips CSRF), exactly
 //! as `scripts/simulators/day-run.mjs` does.
 
+use std::collections::HashMap;
+use std::sync::OnceLock;
+
 use reqwest::Client;
+use serde::Deserialize;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
@@ -147,13 +151,94 @@ pub fn find_tool(name: &str) -> Option<&'static ToolSpec> {
     TOOLS.iter().find(|t| t.name == name)
 }
 
+// ── Contract-exact field shapes (anti-hallucination) ─────────────────
+//
+// `tool_shapes.json` is generated offline from the real request structs (Rust)
+// / TS types by `scripts/fetch_api_shape.py --emit-sim` and embedded at compile
+// time. It gives every write tool its exact field list, so we can show the model
+// the real contract and strip any field it invents that isn't in it. Regenerate
+// with `make sim-tool-shapes` after changing the catalog or a request struct.
+
+#[derive(Debug, Deserialize)]
+struct ToolShapeFile {
+    tools: HashMap<String, ToolShape>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ToolShape {
+    fields: Vec<ToolField>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ToolField {
+    name: String,
+    #[serde(rename = "type")]
+    field_type: String,
+    required: bool,
+}
+
+fn shapes() -> &'static HashMap<String, ToolShape> {
+    static SHAPES: OnceLock<HashMap<String, ToolShape>> = OnceLock::new();
+    SHAPES.get_or_init(|| {
+        serde_json::from_str::<ToolShapeFile>(include_str!("tool_shapes.json"))
+            .map(|f| f.tools)
+            .unwrap_or_default()
+    })
+}
+
 /// Render a compact catalog listing for the model preamble.
+///
+/// When a tool has a known contract shape, list its exact fields (`*` = required)
+/// so the model fills real fields instead of inventing them; otherwise fall back
+/// to the hand-written hint.
 pub fn catalog_text() -> String {
+    let shapes = shapes();
     TOOLS
         .iter()
-        .map(|t| format!("- {} ({}): {}", t.name, t.method, t.about))
+        .map(|t| {
+            shapes.get(t.name).filter(|s| !s.fields.is_empty()).map_or_else(
+                || format!("- {} ({}): {}", t.name, t.method, t.about),
+                |shape| {
+                    let fields = shape
+                        .fields
+                        .iter()
+                        .map(|f| {
+                            format!("{}{}: {}", f.name, if f.required { "*" } else { "" }, f.field_type)
+                        })
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!("- {} ({}): {} body fields: {{{fields}}} (*=required)", t.name, t.method, t.about)
+                },
+            )
+        })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// Drop any body key the model invented that isn't in the tool's contract.
+///
+/// Reports the dropped names. A no-op when the tool has no known shape (the
+/// contract stays permissive rather than blocking an unknown tool). Prevents
+/// "delusional properties" from ever reaching the live endpoint.
+pub fn sanitize_body(tool_name: &str, body: &mut Value) -> Vec<String> {
+    let Some(shape) = shapes().get(tool_name).filter(|s| !s.fields.is_empty()) else {
+        return Vec::new();
+    };
+    let Some(obj) = body.as_object_mut() else {
+        return Vec::new();
+    };
+    let allowed: std::collections::HashSet<&str> =
+        shape.fields.iter().map(|f| f.name.as_str()).collect();
+    // `is_dummy` is host-injected downstream, so it is always allowed through.
+    let dropped: Vec<String> = obj
+        .keys()
+        .filter(|k| k.as_str() != "is_dummy" && !allowed.contains(k.as_str()))
+        .cloned()
+        .collect();
+    for key in &dropped {
+        obj.remove(key);
+    }
+    dropped
 }
 
 /// Fill `{key}` placeholders in a path template from a string-valued object.
@@ -266,7 +351,7 @@ pub fn truncate(text: &str, max: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{catalog_text, extract_id, find_tool, render_path, truncate};
+    use super::{catalog_text, extract_id, find_tool, render_path, sanitize_body, truncate};
     use serde_json::json;
 
     #[test]
@@ -300,5 +385,36 @@ mod tests {
         assert!(find_tool("register_patient").is_some());
         assert!(find_tool("does_not_exist").is_none());
         assert!(catalog_text().contains("create_opd_encounter"));
+    }
+
+    #[test]
+    fn catalog_lists_contract_fields() {
+        // The embedded shapes give create_opd_encounter its real required fields.
+        let text = catalog_text();
+        assert!(text.contains("patient_id*"), "required field should be starred: {text}");
+        assert!(text.contains("body fields:"));
+    }
+
+    #[test]
+    fn sanitize_body_drops_invented_fields() {
+        let mut body = json!({
+            "patient_id": "p1",
+            "department_id": "d1",
+            "totally_made_up": "x",   // not in CreateEncounterRequest
+        });
+        let dropped = sanitize_body("create_opd_encounter", &mut body);
+        assert_eq!(dropped, vec!["totally_made_up".to_owned()]);
+        let obj = body.as_object().unwrap();
+        assert!(obj.contains_key("patient_id"));
+        assert!(!obj.contains_key("totally_made_up"));
+    }
+
+    #[test]
+    fn sanitize_body_noop_without_shape() {
+        // A GET picker / unknown tool has no shape → body passes through untouched.
+        let mut body = json!({ "anything": 1 });
+        assert!(sanitize_body("list_patients", &mut body).is_empty());
+        assert!(sanitize_body("nonexistent_tool", &mut body).is_empty());
+        assert!(body.as_object().unwrap().contains_key("anything"));
     }
 }

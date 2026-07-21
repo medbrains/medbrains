@@ -434,6 +434,9 @@ generate-smoke: ## Regenerate smoke test files from API contract
 generate-e2e: ## Regenerate E2E skeleton files
 	python3 ../scripts/generate_e2e_skeletons.py
 
+sim-tool-shapes: ## Regenerate the simulator's contract-exact tool shapes (embedded via include_str!)
+	python3 ../scripts/fetch_api_shape.py --emit-sim crates/medbrains-server/src/services/simulator/tool_shapes.json
+
 # ── Layered E2E Suite (per the comprehensive E2E plan) ────
 
 e2e-smoke-generate: ## Regenerate Layer 1 API smoke specs from routes/mod.rs

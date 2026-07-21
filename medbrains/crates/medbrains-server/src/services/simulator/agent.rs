@@ -25,7 +25,9 @@ use medbrains_core::simulator::{AgentProfile, RunSummary};
 use medbrains_server_core::state::AppState;
 use medbrains_server_services::llm;
 
-use super::agent_tools::{HttpOutcome, SimClient, catalog_text, find_tool, render_path, truncate};
+use super::agent_tools::{
+    HttpOutcome, SimClient, catalog_text, find_tool, render_path, sanitize_body, truncate,
+};
 use super::sweep_endpoints::SWEEP_ENDPOINTS;
 use super::{StepRecord, verifier};
 use crate::error::AppError;
@@ -540,6 +542,23 @@ async fn run_cell(ctx: &CellCtx<'_>, cell: &Cell, acc: &mut RunAcc) {
         };
 
         let mut body = decision.body.clone();
+        // Strip any field the model invented that isn't in the endpoint's real
+        // contract, so a hallucinated property never reaches the live API.
+        let dropped = sanitize_body(spec.name, &mut body);
+        if !dropped.is_empty() {
+            acc.findings.push(finding(
+                &cell_json,
+                "logic",
+                "low",
+                format!(
+                    "Agent invented {} field(s) not in {}'s contract: {} (dropped before the call).",
+                    dropped.len(),
+                    spec.name,
+                    dropped.join(", ")
+                ),
+                None,
+            ));
+        }
         if spec.method == "POST" {
             inject_dummy(&mut body);
         }
