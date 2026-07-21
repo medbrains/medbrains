@@ -67,6 +67,7 @@ pub async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConf
     };
     let default_model = match provider.as_str() {
         "openrouter" => "openai/gpt-4o-mini",
+        "bedrock" => "openai.gpt-oss-120b-1:0",
         "ollama" => "llama3.2",
         _ => DEFAULT_MODEL,
     };
@@ -85,10 +86,10 @@ pub async fn resolve_config(state: &AppState, tenant_id: &Uuid) -> Result<AiConf
                 AppError::BadRequest(format!("AI key secret '{secret}' unavailable: {e}"))
             })?,
             None => {
-                let env_var = if provider == "openrouter" {
-                    "OPENROUTER_API_KEY"
-                } else {
-                    "ANTHROPIC_API_KEY"
+                let env_var = match provider.as_str() {
+                    "openrouter" => "OPENROUTER_API_KEY",
+                    "bedrock" => "BEDROCK_API_KEY",
+                    _ => "ANTHROPIC_API_KEY",
                 };
                 std::env::var(env_var).map_err(|_| {
                     AppError::BadRequest(format!(
@@ -122,7 +123,7 @@ where
     T: schemars::JsonSchema + DeserializeOwned + Serialize + Send + Sync + 'static,
 {
     use rig::client::CompletionClient as _;
-    use rig::providers::{anthropic, openrouter};
+    use rig::providers::{anthropic, openai, openrouter};
 
     let cfg = resolve_config(state, tenant_id).await?;
 
@@ -145,6 +146,32 @@ where
         }
         "openrouter" => {
             let client = openrouter::Client::new(&cfg.api_key)
+                .map_err(|e| AppError::BadRequest(format!("Failed to create AI client: {e}")))?;
+            let extractor = client
+                .extractor::<T>(cfg.model.as_str())
+                .preamble(preamble)
+                .build();
+            extractor
+                .extract(prompt)
+                .await
+                .map_err(|e| AppError::BadRequest(format!("AI generation failed: {e}")))
+        }
+        "bedrock" => {
+            // Bedrock's OpenAI-compatible endpoint speaks Chat Completions, and the
+            // gpt-oss models there support tool-calling, so rig's OpenAI extractor works
+            // when pointed at the Bedrock base URL with the ABSK bearer key. (Anthropic
+            // Claude on Bedrock is Marketplace-payment-gated on this account, so gpt-oss
+            // is the usable Bedrock family.)
+            let region = std::env::var("AWS_REGION")
+                .or_else(|_| std::env::var("BEDROCK_REGION"))
+                .unwrap_or_else(|_| "us-east-1".to_owned());
+            let base_url = std::env::var("BEDROCK_BASE_URL").unwrap_or_else(|_| {
+                format!("https://bedrock-runtime.{region}.amazonaws.com/openai/v1")
+            });
+            let client = openai::CompletionsClient::builder()
+                .api_key(&cfg.api_key)
+                .base_url(&base_url)
+                .build()
                 .map_err(|e| AppError::BadRequest(format!("Failed to create AI client: {e}")))?;
             let extractor = client
                 .extractor::<T>(cfg.model.as_str())

@@ -254,9 +254,18 @@ async fn run_sweep(
     acc: &mut RunAcc,
 ) {
     for role in roles {
-        let Ok(Some(username)) = find_demo_username(state, tenant_id, role).await else {
+        let Ok(Some((username, provisioned))) = ensure_demo_user(state, tenant_id, role).await
+        else {
             continue;
         };
+        if provisioned {
+            acc.steps.push(StepRecord {
+                step_type: "provision_actor",
+                target_id: None,
+                success: true,
+                error: None,
+            });
+        }
         let password = if role == "doctor" {
             "doctor123"
         } else {
@@ -418,15 +427,27 @@ fn sampled_cells(profile: &AgentProfile, count: u32, rng: &mut StdRng) -> Vec<Ce
 async fn run_cell(ctx: &CellCtx<'_>, cell: &Cell, acc: &mut RunAcc) {
     let cell_json = cell_json(cell);
 
-    let username = match find_demo_username(ctx.state, &ctx.tenant_id, &cell.role).await {
-        Ok(Some(u)) => u,
+    let username = match ensure_demo_user(ctx.state, &ctx.tenant_id, &cell.role).await {
+        Ok(Some((u, provisioned))) => {
+            if provisioned {
+                // Record self-service actor setup as an observable step
+                // ("created the actor, assigned a department").
+                acc.steps.push(StepRecord {
+                    step_type: "provision_actor",
+                    target_id: None,
+                    success: true,
+                    error: None,
+                });
+            }
+            u
+        }
         Ok(None) => {
             acc.findings.push(confirmed(finding(
                 &cell_json,
                 "workflow",
                 "high",
                 format!(
-                    "No demo user seeded for role '{}' — cannot exercise it. Seed demo data (MEDBRAINS_SEED_DEMO_DATA=true).",
+                    "Role '{}' is not a valid user_role — cannot provision or exercise it.",
                     cell.role
                 ),
                 None,
@@ -702,9 +723,13 @@ async fn find_demo_username(
 ) -> Result<Option<String>, AppError> {
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, tenant_id).await?;
+    // `role` is a `user_role` enum column; compare on its text form so an
+    // arbitrary profile role string (or an unseeded role) yields a clean `None`
+    // + "no demo user seeded" message rather than an `operator does not exist:
+    // user_role = text` DB error (or an invalid-enum cast error).
     let username = sqlx::query_scalar::<_, String>(
         "SELECT username FROM users \
-         WHERE role = $1 AND email LIKE '%@medbrains.localhost' \
+         WHERE role::text = $1 AND email LIKE '%@medbrains.localhost' \
          ORDER BY created_at LIMIT 1",
     )
     .bind(role)
@@ -712,6 +737,106 @@ async fn find_demo_username(
     .await?;
     tx.commit().await?;
     Ok(username)
+}
+
+/// Resolve a login actor for `role`, provisioning one if the tenant has none.
+///
+/// An AI simulator shouldn't stall because demo data wasn't pre-seeded: if no
+/// `@medbrains.localhost` user exists for the role, we create `sim_<role>`
+/// assigned to a department — like real onboarding — so every role can be
+/// exercised end-to-end. Returns the username to log in as (password
+/// `doctor123` for doctor, `test123` otherwise, matching the seed + both call
+/// sites), or `None` when `role` is not a valid `user_role` (can't provision).
+///
+/// The bool in the tuple is `true` when the actor was freshly provisioned this
+/// call (so callers can record it as an observable step), `false` when reused.
+async fn ensure_demo_user(
+    state: &AppState,
+    tenant_id: &Uuid,
+    role: &str,
+) -> Result<Option<(String, bool)>, AppError> {
+    if let Some(username) = find_demo_username(state, tenant_id, role).await? {
+        return Ok(Some((username, false)));
+    }
+    Ok(provision_demo_user(state, tenant_id, role)
+        .await?
+        .map(|username| (username, true)))
+}
+
+/// Idempotently create `sim_<role>` and assign it a department, mirroring the
+/// demo seed (`medbrains-seed/src/demo_patients.rs`). Returns `None` if `role`
+/// is not a real `user_role` label (the `WHERE EXISTS` enum guard inserts
+/// nothing, so an arbitrary profile role degrades cleanly instead of aborting
+/// the transaction on a bad enum cast).
+async fn provision_demo_user(
+    state: &AppState,
+    tenant_id: &Uuid,
+    role: &str,
+) -> Result<Option<String>, AppError> {
+    use argon2::password_hash::{SaltString, rand_core::OsRng};
+    use argon2::{Argon2, PasswordHasher};
+
+    let password = if role == "doctor" { "doctor123" } else { "test123" };
+    let salt = SaltString::generate(&mut OsRng);
+    let hash = Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|e| AppError::Internal(format!("password hash failed: {e}")))?
+        .to_string();
+
+    let username = format!("sim_{role}");
+    let email = format!("{username}@medbrains.localhost");
+    let full_name = format!("Simulator {role}");
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, tenant_id).await?;
+
+    // Simulator actors get a home department, like real staff (scope is RLS-keyed
+    // to `department_ids`). Any active department for the tenant will do.
+    let dept: Option<Uuid> = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM departments \
+         WHERE is_active = true AND deleted_at IS NULL \
+         ORDER BY created_at LIMIT 1",
+    )
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    // Insert (or reuse on a concurrent race) the actor. The `WHERE EXISTS`
+    // pg_enum guard makes an invalid role a no-op → clean `None`. `department_ids`
+    // is NOT NULL DEFAULT '{}', so wrap the dept into a single-element array.
+    let inserted: Option<String> = sqlx::query_scalar::<_, String>(
+        "INSERT INTO users \
+           (tenant_id, username, email, password_hash, full_name, role, \
+            department_id, department_ids, is_active, must_change_password, email_verified) \
+         SELECT $1, $2, $3, $4, $5, $6::user_role, $7, \
+                CASE WHEN $7::uuid IS NULL THEN '{}'::uuid[] ELSE ARRAY[$7::uuid] END, \
+                true, false, true \
+         WHERE EXISTS ( \
+             SELECT 1 FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid \
+             WHERE t.typname = 'user_role' AND e.enumlabel = $6 \
+         ) \
+         ON CONFLICT (tenant_id, username) DO UPDATE SET username = EXCLUDED.username \
+         RETURNING username",
+    )
+    .bind(tenant_id)
+    .bind(&username)
+    .bind(&email)
+    .bind(&hash)
+    .bind(&full_name)
+    .bind(role)
+    .bind(dept)
+    .fetch_optional(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    match &inserted {
+        Some(u) => {
+            tracing::info!(role, username = %u, ?dept, "simulator provisioned demo actor");
+        }
+        None => {
+            tracing::warn!(role, "simulator cannot provision actor: not a valid user_role");
+        }
+    }
+    Ok(inserted)
 }
 
 /// Persist agent findings for a run (parallels `persist_steps`).
