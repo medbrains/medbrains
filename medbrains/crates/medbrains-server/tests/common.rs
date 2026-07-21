@@ -23,6 +23,9 @@ use medbrains_server::{
 pub struct TestApp {
     pub addr: SocketAddr,
     pub client: Client,
+    /// The same pool the server uses — for tests that need to set up state
+    /// (e.g. mark a patient deceased) that no public endpoint exposes.
+    pub db: sqlx::PgPool,
 }
 
 impl TestApp {
@@ -73,6 +76,23 @@ impl TestApp {
             .send()
             .await
             .expect("request failed")
+    }
+
+    /// Mark a patient deceased directly in the DB — no public endpoint sets this
+    /// (death flows through IPD discharge / death summary), so tests that need
+    /// to exercise the deceased-patient guards set it here. Tenant context is
+    /// set so RLS permits the update.
+    pub async fn mark_patient_deceased(&self, patient_id: uuid::Uuid, tenant_id: uuid::Uuid) {
+        let mut tx = self.db.begin().await.expect("begin tx");
+        medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id)
+            .await
+            .expect("tenant ctx");
+        sqlx::query("UPDATE patients SET is_deceased = true, deceased_date = NOW() WHERE id = $1")
+            .bind(patient_id)
+            .execute(&mut *tx)
+            .await
+            .expect("mark deceased");
+        tx.commit().await.expect("commit");
     }
 }
 
@@ -173,5 +193,5 @@ pub async fn spawn_app() -> TestApp {
         .build()
         .expect("client");
 
-    TestApp { addr, client }
+    TestApp { addr, client, db }
 }
