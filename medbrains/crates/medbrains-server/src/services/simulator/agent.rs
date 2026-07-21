@@ -93,6 +93,9 @@ pub async fn run_agent(
     let mut all_steps: Vec<StepRecord> = Vec::new();
     let mut all_findings: Vec<FindingRecord> = Vec::new();
     let mut seen: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    // Graded outcome totals accumulate across generations (they can't be rebuilt
+    // from steps, which don't carry the HTTP status).
+    let (mut passed, mut rejected, mut server_errors) = (0u32, 0u32, 0u32);
 
     for generation in 1..=generations {
         let context = prime_context(&all_findings);
@@ -103,8 +106,11 @@ pub async fn run_agent(
         } else {
             &[]
         };
-        let (_, steps, findings) =
+        let (gen_summary, steps, findings) =
             drive(state, claims, cells, truncated, profile.verify, sweep_roles, &context).await;
+        passed += gen_summary.passed;
+        rejected += gen_summary.rejected;
+        server_errors += gen_summary.server_errors;
         all_steps.extend(steps);
         let mut new_findings = 0u32;
         for f in findings {
@@ -123,6 +129,9 @@ pub async fn run_agent(
     for step in &all_steps {
         bump_summary(&mut summary, step.step_type, step.success);
     }
+    summary.passed = passed;
+    summary.rejected = rejected;
+    summary.server_errors = server_errors;
     (summary, all_steps, all_findings)
 }
 
@@ -645,6 +654,20 @@ async fn run_cell(ctx: &CellCtx<'_>, cell: &Cell, acc: &mut RunAcc) {
     }
 }
 
+/// Classify a live tool-call HTTP status into the run's graded scoreboard:
+/// 2xx → `passed`, 4xx → `rejected` (the system correctly refused — expected,
+/// not a defect), 5xx or transport failure (status 0) → `server_errors` (a real
+/// defect).
+fn grade_status(summary: &mut RunSummary, status: u16) {
+    if (200..300).contains(&status) {
+        summary.passed += 1;
+    } else if status >= 500 || status == 0 {
+        summary.server_errors += 1;
+    } else if status >= 400 {
+        summary.rejected += 1;
+    }
+}
+
 /// Record a tool call as a step + summary bump + auto-finding on failure.
 fn record_outcome(acc: &mut RunAcc, cell_json: &Value, tool: &'static str, outcome: &HttpOutcome) {
     acc.steps.push(StepRecord {
@@ -658,6 +681,7 @@ fn record_outcome(acc: &mut RunAcc, cell_json: &Value, tool: &'static str, outco
         },
     });
     bump_summary(&mut acc.summary, tool, outcome.success);
+    grade_status(&mut acc.summary, outcome.status);
     if !outcome.success {
         let (kind, severity) = categorize(outcome.status);
         acc.findings.push(confirmed(finding(
@@ -962,7 +986,18 @@ pub async fn persist_findings(
 
 #[cfg(test)]
 mod tests {
-    use super::{categorize, role_goals, sanitize_kind, sanitize_severity};
+    use super::{RunSummary, categorize, grade_status, role_goals, sanitize_kind, sanitize_severity};
+
+    #[test]
+    fn grade_status_splits_rejected_from_server_error() {
+        let mut s = RunSummary::default();
+        for code in [200, 201, 403, 404, 422, 500, 503, 0] {
+            grade_status(&mut s, code);
+        }
+        assert_eq!(s.passed, 2, "2xx");
+        assert_eq!(s.rejected, 3, "4xx = correctly refused, not a defect");
+        assert_eq!(s.server_errors, 3, "5xx + transport(0) = real defects");
+    }
 
     #[test]
     fn role_goals_are_role_specific() {

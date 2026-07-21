@@ -371,6 +371,7 @@ impl Default for TriageMix {
 // ── Run summary aggregates ───────────────────────────────────────────
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct RunSummary {
     pub opd_count: u32,
     pub er_count: u32,
@@ -384,4 +385,11 @@ pub struct RunSummary {
     pub triage_count: u32,
     pub er_admit_count: u32,
     pub errors: u32,
+    // Graded outcome of each live tool call, so a run's health is legible:
+    // `passed` = 2xx, `rejected` = 4xx (the system correctly refused — expected,
+    // not a defect), `server_errors` = 5xx / transport failure (a real defect).
+    // `errors` stays the total of the latter two for backward compatibility.
+    pub passed: u32,
+    pub rejected: u32,
+    pub server_errors: u32,
 }
