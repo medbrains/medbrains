@@ -1842,6 +1842,14 @@ pub async fn amend_result(
 ) -> Result<Json<LabResultAmendment>, AppError> {
     require_permission(&claims, permissions::lab::results::AMEND)?;
 
+    // NABL/CAP: every amendment to a reported diagnostic value must carry a documented
+    // reason — a lab result cannot be silently changed.
+    if body.reason.trim().is_empty() {
+        return Err(AppError::BadRequest(
+            "A reason is required to amend a lab result.".to_owned(),
+        ));
+    }
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1856,6 +1864,15 @@ pub async fn amend_result(
 
     if order.is_report_locked {
         return Err(AppError::Conflict("Report is locked".to_owned()));
+    }
+
+    // A cancelled order's results are void and must not be amended — mirrors the guard on
+    // result entry (add_results). A verified result IS the expected amendment target, so it
+    // stays allowed.
+    if matches!(order.status, medbrains_core::lab::LabOrderStatus::Cancelled) {
+        return Err(AppError::Conflict(
+            "This lab order is cancelled — its results are void and cannot be amended.".to_owned(),
+        ));
     }
 
     // Get original result
