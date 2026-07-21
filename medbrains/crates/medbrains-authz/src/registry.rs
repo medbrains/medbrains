@@ -81,6 +81,21 @@ pub static ENTITIES: &[EntityShareSpec] = &[
         inherits_from: Some("encounter"),
         bypass_only: false,
     },
+    // IPD admissions link the admitting ward/department via a raw `ward_member`
+    // grant (see medbrains-ipd `create_admission`). Without this entry that grant
+    // fails `UnknownObjectType` and every admission 500s.
+    EntityShareSpec {
+        object_type: "admission",
+        allowed_relations: &[
+            Relation::Owner,
+            Relation::Editor,
+            Relation::Viewer,
+            Relation::AttendingPhysician,
+            Relation::Nurse,
+        ],
+        inherits_from: Some("encounter"),
+        bypass_only: false,
+    },
     EntityShareSpec {
         object_type: "dashboard",
         allowed_relations: &[Relation::Owner, Relation::Editor, Relation::Viewer],
@@ -120,5 +135,14 @@ mod tests {
     fn encounter_inherits_from_patient() {
         let e = lookup("encounter").unwrap();
         assert_eq!(e.inherits_from, Some("patient"));
+    }
+
+    #[test]
+    fn admission_is_registered() {
+        // Regression: create_admission grants a raw ward_member tuple on this
+        // object_type; if it's unregistered, every admission 500s.
+        let a = lookup("admission").expect("admission must be registered");
+        assert_eq!(a.inherits_from, Some("encounter"));
+        assert!(!a.bypass_only);
     }
 }

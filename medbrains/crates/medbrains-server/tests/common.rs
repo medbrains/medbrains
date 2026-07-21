@@ -14,7 +14,7 @@ use tokio::net::TcpListener;
 
 use medbrains_server::{
     middleware::system_state::SystemStateCache,
-    routes, seed,
+    routes,
     state::{AppState, CookieConfig},
 };
 
@@ -95,7 +95,7 @@ pub async fn spawn_app() -> TestApp {
     medbrains_db::pool::run_migrations(&db)
         .await
         .expect("migrations failed");
-    seed::run_seed(&db).await.expect("seed failed");
+    medbrains_seed::run_seed(&db).await.expect("seed failed");
 
     // Generate ephemeral Ed25519 keypair for JWT (same as config.rs)
     let mut seed = [0u8; 32];
@@ -143,6 +143,7 @@ pub async fn spawn_app() -> TestApp {
             cors_origin: "https://medbrains.localhost".to_owned(),
         },
         queue_broadcaster: routes::ws::QueueBroadcaster::new(),
+        notifications: medbrains_server::services::notification_hub::NotificationHub::new(),
         trusted_proxies: Arc::new(vec![]),
         system_state_cache: SystemStateCache::new(),
         outbox: outbox_registry,
