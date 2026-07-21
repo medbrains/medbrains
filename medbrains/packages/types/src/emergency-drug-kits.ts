@@ -677,6 +677,39 @@ export interface SimulatorProfile {
   volumes?: SimulatorProfileVolumes;
   natural_flow?: SimulatorProfileNaturalFlow;
   approval_mode?: "auto" | "manual";
+  // LLM-agent mode — optional so scripted schedules load unchanged.
+  agent?: SimulatorAgentProfile;
+}
+
+/** Factor-matrix config for the LLM-driven agent simulator. */
+export interface SimulatorAgentProfile {
+  enabled: boolean;
+  /** Role codes to fan out over; each agent logs in as that role's demo user. */
+  roles: string[];
+  /** Department ids to scope agents to (empty = the demo user's own scope). */
+  departments: string[];
+  /** Locale codes the agent drives the API in (empty = ["en"]). */
+  locales: string[];
+  /** Free-text goals the agent pursues. */
+  goals: string[];
+  /** Agents per factor cell. */
+  fleet_size: number;
+  /** 0.0–1.0: how often an agent deliberately fumbles to find error paths. */
+  chaos: number;
+  /** Self-improving loop bound (Phase 2). */
+  generations_cap: number;
+  /** Model override; falls back to tenant/env AI config. */
+  model?: string | null;
+  /** Autonomous census-paced mode: the scheduler drives runs at real-hospital
+   *  volume (hour-of-day × season × today's census) — no cron, no human. */
+  auto_census: boolean;
+  /** Hospital size baseline for the pacer: expected OPD footfall per day. */
+  hospital_daily_opd: number;
+  /** Run the adversarial verifier over subjective findings (default true). */
+  verify: boolean;
+  /** Also sweep every read-only endpoint (per role) for 5xx errors — all
+   *  modules, no LLM cost. */
+  sweep: boolean;
 }
 
 export interface SimulatorSchedule {
@@ -742,6 +775,11 @@ export interface SimulatorRunSummary {
   triage_count?: number;
   er_admit_count?: number;
   errors?: number;
+  // Graded tool-call outcomes: passed = 2xx, rejected = 4xx (system correctly
+  // refused — not a defect), server_errors = 5xx/transport (the real defect).
+  passed?: number;
+  rejected?: number;
+  server_errors?: number;
 }
 
 export interface SimulatorRunStep {
@@ -755,9 +793,27 @@ export interface SimulatorRunStep {
   created_at: string;
 }
 
+/** A free-text finding an agent reported during a run (agent mode only). */
+export interface SimulatorRunFinding {
+  id: string;
+  tenant_id: string;
+  run_id: string;
+  /** The factor cell it came from (role/department/locale/goal). */
+  cell: Record<string, unknown>;
+  kind: "usability" | "permission" | "locale" | "error" | "workflow" | "discovery" | "logic";
+  severity: "info" | "low" | "medium" | "high" | "critical";
+  message: string;
+  /** Adversarial verifier verdict on subjective findings. */
+  verdict: "unverified" | "confirmed" | "plausible" | "rejected";
+  step_ref?: string | null;
+  created_at: string;
+}
+
 export interface SimulatorRunDetail {
   run: SimulatorRun;
   steps: SimulatorRunStep[];
+  /** Findings from agent runs (empty for scripted runs). */
+  findings: SimulatorRunFinding[];
 }
 
 export interface CreateSimulatorScheduleRequest {
