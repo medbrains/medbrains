@@ -6536,6 +6536,38 @@ pub async fn create_pos_sale(
         )));
     }
 
+    // A POS / OTC walk-in sale carries no prescription, NDPS register entry, or witnessed
+    // dual-lock, so it must never hand out a controlled substance or a Schedule X (NDPS
+    // narcotic/psychotropic) drug — those are dispensed only through the prescription path
+    // (dispense_order), which records the register and enforces the dual-lock. D&C Act 1940 /
+    // NDPS Act 1985. (The main dispense path's enforce_schedule_compliance covers Rx dispensing;
+    // this closes the parallel POS front door.)
+    let catalog_ids: Vec<Uuid> = body.items.iter().filter_map(|i| i.catalog_item_id).collect();
+    if !catalog_ids.is_empty() {
+        let blocked_id: Option<Uuid> = sqlx::query_scalar(
+            "SELECT id FROM pharmacy_catalog \
+             WHERE tenant_id = $1 AND id = ANY($2) \
+               AND (is_controlled = true OR drug_schedule IN ('X', 'NDPS')) \
+             LIMIT 1",
+        )
+        .bind(claims.tenant_id)
+        .bind(&catalog_ids)
+        .fetch_optional(&mut *tx)
+        .await?;
+        if let Some(bid) = blocked_id {
+            let drug = body
+                .items
+                .iter()
+                .find(|i| i.catalog_item_id == Some(bid))
+                .map_or("This item", |i| i.drug_name.as_str());
+            return Err(AppError::BadRequest(format!(
+                "'{drug}' is a controlled / Schedule X drug and cannot be sold over the counter — \
+                 dispense it against a prescription so the NDPS register and witnessed dual-lock \
+                 are recorded."
+            )));
+        }
+    }
+
     // Generate sale number
     let sale_num = format!(
         "PH-SALE-{}",
