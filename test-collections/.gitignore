@@ -1,0 +1,3 @@
+# Generated collections (multi-MB, derived) — run `make collections` to produce.
+openapi.json
+postman_collection.json
