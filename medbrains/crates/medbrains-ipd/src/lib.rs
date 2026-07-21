@@ -2800,6 +2800,135 @@ pub async fn create_mar(
 //  PUT /api/ipd/admissions/{id}/mar/{mar_id}
 // ══════════════════════════════════════════════════════════
 
+/// Apply a MAR dose status transition with the full IPSG.3 medication-safety gate, shared by
+/// BOTH MAR update endpoints so neither can bypass the checks: an already-administered dose is
+/// immutable; a high-alert `given` requires an independent second-nurse witness (different, real,
+/// active) AND a server-side BCMA barcode verification; hold/refuse/miss require a reason;
+/// `barcode_verified` is server-authoritative (never client-set). `admission_id` optionally scopes
+/// the dose to a specific admission (the admission-nested endpoint) — `None` matches by id alone.
+async fn administer_mar_dose_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    actor_sub: Uuid,
+    mar_id: Uuid,
+    admission_id: Option<Uuid>,
+    body: &UpdateMarRequest,
+) -> Result<IpdMedicationAdministration, AppError> {
+    let status: MarStatus = serde_json::from_value(serde_json::Value::String(body.status.clone()))
+        .map_err(|_| AppError::BadRequest(format!("Invalid MAR status '{}'", body.status)))?;
+
+    let existing = sqlx::query_as::<_, IpdMedicationAdministration>(
+        "SELECT * FROM ipd_medication_administration \
+         WHERE id = $1 AND tenant_id = $2 AND ($3::uuid IS NULL OR admission_id = $3) \
+         FOR UPDATE",
+    )
+    .bind(mar_id)
+    .bind(tenant_id)
+    .bind(admission_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    // A dose already recorded as administered is immutable: re-marking it either double-documents
+    // the administration (reads as a double dose) or silently overwrites who/when it was given.
+    if matches!(existing.status, MarStatus::Given | MarStatus::SelfAdministered) {
+        return Err(AppError::Conflict(
+            "This dose is already recorded as administered and cannot be changed.".to_owned(),
+        ));
+    }
+
+    match status {
+        MarStatus::Given => {
+            if existing.is_high_alert {
+                let witness = body.witnessed_by.ok_or_else(|| {
+                    AppError::BadRequest(
+                        "A second-nurse witness is required to administer a high-alert drug."
+                            .to_owned(),
+                    )
+                })?;
+                if witness == actor_sub {
+                    return Err(AppError::BadRequest(
+                        "The witness must be a different nurse from the administering nurse."
+                            .to_owned(),
+                    ));
+                }
+                let witness_is_active = sqlx::query_scalar::<_, bool>(
+                    "SELECT EXISTS( \
+                         SELECT 1 FROM users \
+                         WHERE id = $1 AND tenant_id = $2 AND is_active = true \
+                     )",
+                )
+                .bind(witness)
+                .bind(tenant_id)
+                .fetch_one(&mut **tx)
+                .await?;
+                if !witness_is_active {
+                    return Err(AppError::BadRequest(
+                        "The witness must be an active staff user for this tenant.".to_owned(),
+                    ));
+                }
+                if !existing.barcode_verified {
+                    return Err(AppError::BadRequest(
+                        "Scan the patient wristband and the drug barcode to verify the 5 rights \
+                         before administering a high-alert drug."
+                            .to_owned(),
+                    ));
+                }
+            }
+        }
+        MarStatus::Held if body.hold_reason.as_deref().unwrap_or("").trim().is_empty() => {
+            return Err(AppError::BadRequest("A reason is required to hold a dose.".to_owned()));
+        }
+        MarStatus::Refused if body.refused_reason.as_deref().unwrap_or("").trim().is_empty() => {
+            return Err(AppError::BadRequest("A reason is required to record a refusal.".to_owned()));
+        }
+        MarStatus::Missed if body.missed_reason.as_deref().unwrap_or("").trim().is_empty() => {
+            return Err(AppError::BadRequest("A reason is required to record a missed dose.".to_owned()));
+        }
+        _ => {}
+    }
+
+    let administered_by = matches!(status, MarStatus::Given | MarStatus::SelfAdministered)
+        .then_some(actor_sub);
+
+    let row = sqlx::query_as::<_, IpdMedicationAdministration>(
+        "UPDATE ipd_medication_administration SET \
+           status = $3::mar_status, \
+           administered_at = CASE WHEN $3::mar_status IN ('given','self_administered') \
+                                  THEN COALESCE($4, now()) ELSE administered_at END, \
+           administered_by = COALESCE($5, administered_by), \
+           witnessed_by = COALESCE($6, witnessed_by), \
+           barcode_verified = COALESCE($7, barcode_verified), \
+           hold_reason = COALESCE($8, hold_reason), \
+           refused_reason = COALESCE($9, refused_reason), \
+           missed_reason = COALESCE($10, missed_reason), \
+           notes = COALESCE($11, notes), \
+           updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 \
+         RETURNING *",
+    )
+    .bind(mar_id)
+    .bind(tenant_id)
+    .bind(&body.status)
+    .bind(body.administered_at)
+    .bind(administered_by)
+    .bind(body.witnessed_by)
+    // barcode_verified is server-authoritative (set only by verify_mar_barcode); never client-set.
+    .bind(None::<bool>)
+    .bind(&body.hold_reason)
+    .bind(&body.refused_reason)
+    .bind(&body.missed_reason)
+    .bind(&body.notes)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    if matches!(status, MarStatus::Held | MarStatus::Refused | MarStatus::Missed) {
+        notify_prescriber_dose_not_given_in_tx(tx, &tenant_id, &row, &body.status).await?;
+    }
+
+    Ok(row)
+}
+
 pub async fn update_mar(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2812,42 +2941,9 @@ pub async fn update_mar(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let status: MarStatus = serde_json::from_value(serde_json::Value::String(body.status.clone()))
-        .map_err(|_| AppError::BadRequest(format!("Invalid MAR status '{}'", body.status)))?;
-
-    let administered_by = if status == MarStatus::Given {
-        Some(claims.sub)
-    } else {
-        None
-    };
-
-    let row = sqlx::query_as::<_, IpdMedicationAdministration>(
-        "UPDATE ipd_medication_administration SET \
-           status = $4::mar_status, \
-           administered_at = COALESCE($5, administered_at), \
-           administered_by = COALESCE($6, administered_by), \
-           witnessed_by = COALESCE($7, witnessed_by), \
-           barcode_verified = COALESCE($8, barcode_verified), \
-           hold_reason = COALESCE($9, hold_reason), \
-           refused_reason = COALESCE($10, refused_reason), \
-           notes = COALESCE($11, notes) \
-         WHERE id = $1 AND admission_id = $2 AND tenant_id = $3 \
-         RETURNING *",
-    )
-    .bind(mar_id)
-    .bind(id)
-    .bind(claims.tenant_id)
-    .bind(&body.status)
-    .bind(body.administered_at)
-    .bind(administered_by)
-    .bind(body.witnessed_by)
-    .bind(body.barcode_verified)
-    .bind(&body.hold_reason)
-    .bind(&body.refused_reason)
-    .bind(&body.notes)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or_else(|| AppError::NotFound)?;
+    let row =
+        administer_mar_dose_in_tx(&mut tx, claims.tenant_id, claims.sub, mar_id, Some(id), &body)
+            .await?;
 
     tx.commit().await?;
 
@@ -2966,128 +3062,11 @@ pub async fn update_mar_round(
         &[permissions::ipd::mar::UPDATE, permissions::nurse::mar::ADMINISTER],
     )?;
 
-    let status: MarStatus = serde_json::from_value(serde_json::Value::String(body.status.clone()))
-        .map_err(|_| AppError::BadRequest(format!("Invalid MAR status '{}'", body.status)))?;
-
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids).await?;
 
-    let existing = sqlx::query_as::<_, IpdMedicationAdministration>(
-        "SELECT * FROM ipd_medication_administration \
-         WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
-    )
-    .bind(mar_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
-
-    // A dose already recorded as administered is immutable: re-marking it either double-documents
-    // the administration (reads as a double dose) or silently overwrites who/when it was given.
-    // A held/refused/missed dose can still be corrected (e.g. the patient later accepts it).
-    if matches!(existing.status, MarStatus::Given | MarStatus::SelfAdministered) {
-        return Err(AppError::Conflict(
-            "This dose is already recorded as administered and cannot be changed.".to_owned(),
-        ));
-    }
-
-    // Safety rules.
-    match status {
-        MarStatus::Given => {
-            if existing.is_high_alert {
-                let witness = body.witnessed_by.ok_or_else(|| {
-                    AppError::BadRequest(
-                        "A second-nurse witness is required to administer a high-alert drug."
-                            .to_owned(),
-                    )
-                })?;
-                if witness == claims.sub {
-                    return Err(AppError::BadRequest(
-                        "The witness must be a different nurse from the administering nurse."
-                            .to_owned(),
-                    ));
-                }
-                // The witness is a client-supplied id; verify it names a real, active staff user in
-                // this tenant so the IPSG.3 independent double-check can't be satisfied with a
-                // fabricated, deactivated, or cross-tenant id.
-                let witness_is_active = sqlx::query_scalar::<_, bool>(
-                    "SELECT EXISTS( \
-                         SELECT 1 FROM users \
-                         WHERE id = $1 AND tenant_id = $2 AND is_active = true \
-                     )",
-                )
-                .bind(witness)
-                .bind(claims.tenant_id)
-                .fetch_one(&mut *tx)
-                .await?;
-                if !witness_is_active {
-                    return Err(AppError::BadRequest(
-                        "The witness must be an active staff user for this tenant.".to_owned(),
-                    ));
-                }
-                // BCMA: a high-alert drug must be barcode-verified (right patient + right drug)
-                // server-side before it can be given. `barcode_verified` is set only by the
-                // verify-barcode endpoint, never by the client.
-                if !existing.barcode_verified {
-                    return Err(AppError::BadRequest(
-                        "Scan the patient wristband and the drug barcode to verify the 5 rights \
-                         before administering a high-alert drug."
-                            .to_owned(),
-                    ));
-                }
-            }
-        }
-        MarStatus::Held if body.hold_reason.as_deref().unwrap_or("").trim().is_empty() => {
-            return Err(AppError::BadRequest("A reason is required to hold a dose.".to_owned()));
-        }
-        MarStatus::Refused if body.refused_reason.as_deref().unwrap_or("").trim().is_empty() => {
-            return Err(AppError::BadRequest("A reason is required to record a refusal.".to_owned()));
-        }
-        MarStatus::Missed if body.missed_reason.as_deref().unwrap_or("").trim().is_empty() => {
-            return Err(AppError::BadRequest("A reason is required to record a missed dose.".to_owned()));
-        }
-        _ => {}
-    }
-
-    let administered_by = matches!(status, MarStatus::Given | MarStatus::SelfAdministered)
-        .then_some(claims.sub);
-
-    let row = sqlx::query_as::<_, IpdMedicationAdministration>(
-        "UPDATE ipd_medication_administration SET \
-           status = $3::mar_status, \
-           administered_at = CASE WHEN $3::mar_status IN ('given','self_administered') \
-                                  THEN COALESCE($4, now()) ELSE administered_at END, \
-           administered_by = COALESCE($5, administered_by), \
-           witnessed_by = COALESCE($6, witnessed_by), \
-           barcode_verified = COALESCE($7, barcode_verified), \
-           hold_reason = COALESCE($8, hold_reason), \
-           refused_reason = COALESCE($9, refused_reason), \
-           missed_reason = COALESCE($10, missed_reason), \
-           notes = COALESCE($11, notes), \
-           updated_at = now() \
-         WHERE id = $1 AND tenant_id = $2 \
-         RETURNING *",
-    )
-    .bind(mar_id)
-    .bind(claims.tenant_id)
-    .bind(&body.status)
-    .bind(body.administered_at)
-    .bind(administered_by)
-    .bind(body.witnessed_by)
-    // barcode_verified is server-authoritative (set only by verify_mar_barcode); never client-set.
-    .bind(None::<bool>)
-    .bind(&body.hold_reason)
-    .bind(&body.refused_reason)
-    .bind(&body.missed_reason)
-    .bind(&body.notes)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // Notify the prescriber when a dose is not given.
-    if matches!(status, MarStatus::Held | MarStatus::Refused | MarStatus::Missed) {
-        notify_prescriber_dose_not_given_in_tx(&mut tx, &claims.tenant_id, &row, &body.status)
-            .await?;
-    }
+    let row =
+        administer_mar_dose_in_tx(&mut tx, claims.tenant_id, claims.sub, mar_id, None, &body).await?;
 
     tx.commit().await?;
     Ok(Json(row))
