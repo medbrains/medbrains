@@ -114,6 +114,25 @@ pub static ENTITIES: &[EntityShareSpec] = &[
         inherits_from: None,
         bypass_only: false,
     },
+    // Organisational membership containers — routes write raw `member` tuples
+    // (`department:{id}#member@user`, `access_group:{id}#member@user`) to record
+    // a user's department/group membership (see medbrains-setup `create_user`,
+    // medbrains-ipd `dept_member` grants). Without these entries every such grant
+    // fails `UnknownObjectType`; create_user swallows it best-effort, so the
+    // membership tuple is silently never written (broken ReBAC), and other call
+    // sites 500 (cf. the `admission` fix).
+    EntityShareSpec {
+        object_type: "department",
+        allowed_relations: &[Relation::Owner, Relation::Editor, Relation::Viewer],
+        inherits_from: None,
+        bypass_only: false,
+    },
+    EntityShareSpec {
+        object_type: "access_group",
+        allowed_relations: &[Relation::Owner, Relation::Editor, Relation::Viewer],
+        inherits_from: None,
+        bypass_only: false,
+    },
 ];
 
 #[cfg(test)]
@@ -144,5 +163,25 @@ mod tests {
         let a = lookup("admission").expect("admission must be registered");
         assert_eq!(a.inherits_from, Some("encounter"));
         assert!(!a.bypass_only);
+    }
+
+    #[test]
+    fn membership_container_types_are_registered() {
+        // create_user / dept_member grants write `member` tuples on these; if
+        // unregistered the grant fails and the membership is silently never set.
+        for t in ["department", "access_group"] {
+            let spec = lookup(t).unwrap_or_else(|| panic!("{t} must be registered"));
+            assert!(!spec.bypass_only, "{t} must allow explicit grants");
+        }
+    }
+
+    /// Every object_type any `grant_raw(...)` caller uses must be registered,
+    /// or the grant fails at runtime (500 or a silently-swallowed membership).
+    /// The known set as of this test — extend when a new grant site lands.
+    #[test]
+    fn all_granted_object_types_are_registered() {
+        for t in ["patient", "encounter", "admission", "department", "access_group"] {
+            assert!(lookup(t).is_some(), "grant_raw object_type {t} not registered");
+        }
     }
 }
