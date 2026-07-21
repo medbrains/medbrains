@@ -133,6 +133,31 @@ pub static ENTITIES: &[EntityShareSpec] = &[
         inherits_from: None,
         bypass_only: false,
     },
+    // Object-level ReBAC `check(...)` targets in the radiology / pharmacy / billing
+    // detail routes. Unregistered, `check()` returns UnknownObjectType which the
+    // routes mask with `.unwrap_or(false)` — silently denying every non-bypass
+    // role and making any share grant fail. Register them so the checks/grants
+    // work. The clinical orders inherit `encounter` like their sibling `lab_order`
+    // (encounter-viewer cascades to the order); `invoice` is a standalone billing
+    // entity.
+    EntityShareSpec {
+        object_type: "radiology_order",
+        allowed_relations: &[Relation::Owner, Relation::Editor, Relation::Viewer],
+        inherits_from: Some("encounter"),
+        bypass_only: false,
+    },
+    EntityShareSpec {
+        object_type: "pharmacy_order",
+        allowed_relations: &[Relation::Owner, Relation::Editor, Relation::Viewer],
+        inherits_from: Some("encounter"),
+        bypass_only: false,
+    },
+    EntityShareSpec {
+        object_type: "invoice",
+        allowed_relations: &[Relation::Owner, Relation::Editor, Relation::Viewer],
+        inherits_from: None,
+        bypass_only: false,
+    },
 ];
 
 #[cfg(test)]
@@ -182,6 +207,16 @@ mod tests {
     fn all_granted_object_types_are_registered() {
         for t in ["patient", "encounter", "admission", "department", "access_group"] {
             assert!(lookup(t).is_some(), "grant_raw object_type {t} not registered");
+        }
+    }
+
+    /// Every object_type used in an authz `check(...)` must be registered too, or
+    /// the check errors (masked by `unwrap_or(false)`) and silently denies every
+    /// non-bypass role. Extend when a new object-level check lands.
+    #[test]
+    fn all_checked_object_types_are_registered() {
+        for t in ["invoice", "radiology_order", "pharmacy_order", "lab_order"] {
+            assert!(lookup(t).is_some(), "checked object_type {t} not registered");
         }
     }
 }
