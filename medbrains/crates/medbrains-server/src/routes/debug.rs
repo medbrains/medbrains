@@ -7,6 +7,7 @@ use crate::{
     state::AppState,
 };
 
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn seed_canonical_fixtures(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

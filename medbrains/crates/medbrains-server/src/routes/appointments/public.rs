@@ -348,6 +348,9 @@ fn hash_booking_otp(otp: &str) -> String {
 /// POST /api/public/appointments/otp — request a booking OTP by phone.
 /// Always answers 200 (no phone-number enumeration); delivery rides the
 /// outbox → Twilio handler.
+// Public (unauthenticated) endpoint: the tenant is resolved from the request
+// body inside the handler, so the span field is recorded once it is known.
+#[tracing::instrument(skip_all, fields(tenant_id = tracing::field::Empty))]
 pub async fn request_public_booking_otp(
     State(state): State<AppState>,
     Json(body): Json<super::PublicBookingOtpRequest>,
@@ -371,6 +374,7 @@ pub async fn request_public_booking_otp(
     else {
         return Ok(ack);
     };
+    tracing::Span::current().record("tenant_id", tracing::field::display(tenant_id));
 
     let mut buf = [0u8; 4];
     getrandom::fill(&mut buf)

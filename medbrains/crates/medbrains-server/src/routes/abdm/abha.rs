@@ -65,6 +65,7 @@ where
     pub response: T,
 }
 
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn status(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -90,6 +91,7 @@ pub async fn status(
     }))
 }
 
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn create_session(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -113,6 +115,7 @@ pub async fn create_session(
     Ok(Json(provider_response(environment, response)))
 }
 
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn public_certificate(
     State(_state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -128,6 +131,7 @@ pub async fn public_certificate(
     Ok(Json(provider_response(environment, response)))
 }
 
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn request_login_otp(
     State(_state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -143,6 +147,7 @@ pub async fn request_login_otp(
     Ok(Json(provider_response(environment, response)))
 }
 
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn verify_login_otp(
     State(_state): State<AppState>,
     Extension(claims): Extension<Claims>,

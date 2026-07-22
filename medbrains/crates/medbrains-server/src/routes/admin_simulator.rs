@@ -51,6 +51,7 @@ pub struct UpdateScheduleRequest {
     pub enabled: Option<bool>,
 }
 
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn list_schedules(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -69,6 +70,7 @@ pub async fn list_schedules(
     Ok(Json(rows))
 }
 
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn create_schedule(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -101,6 +103,7 @@ pub async fn create_schedule(
     Ok((StatusCode::CREATED, Json(row)))
 }
 
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn get_schedule(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -121,6 +124,7 @@ pub async fn get_schedule(
     Ok(Json(row))
 }
 
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn update_schedule(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -158,6 +162,7 @@ pub async fn update_schedule(
     Ok(Json(row))
 }
 
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn delete_schedule(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -186,6 +191,7 @@ pub struct RunNowResponse {
     pub run_id: Uuid,
 }
 
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn run_now(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -313,6 +319,7 @@ async fn execute_run(
 
 // ── Approve / Reject pending runs ───────────────────────────────────
 
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn approve_run(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -337,6 +344,7 @@ pub async fn approve_run(
     Ok(Json(json!({ "approved": true, "run_id": run_id })))
 }
 
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn reject_run(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -416,6 +424,7 @@ pub struct PreviewResponse {
     pub effective_er_count: u32,
 }
 
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn preview(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -529,6 +538,7 @@ pub struct ListRunsQuery {
     pub limit: Option<i64>,
 }
 
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn list_runs(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -571,6 +581,7 @@ pub struct RunDetailResponse {
     pub findings: Vec<SimulatorRunFinding>,
 }
 
+#[tracing::instrument(skip_all, fields(tenant_id = %claims.tenant_id))]
 pub async fn get_run(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
