@@ -532,7 +532,14 @@ pub enum TransferType {
 #[sqlx(type_name = "death_cert_form_type", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum DeathCertFormType {
+    // The statutory MCCD forms. rename_all would encode these "form4"/"form4a"
+    // — heck's to_snake_case does not break before a digit — while the enum
+    // holds 'form_4'/'form_4a'.
+    #[sqlx(rename = "form_4")]
+    #[serde(rename = "form_4")]
     Form4,
+    #[sqlx(rename = "form_4a")]
+    #[serde(rename = "form_4a")]
     Form4a,
 }
 

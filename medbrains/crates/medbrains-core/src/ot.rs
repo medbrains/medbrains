@@ -40,11 +40,25 @@ pub enum AnesthesiaType {
 #[sqlx(type_name = "asa_classification", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum AsaClassification {
+    // rename_all runs heck's to_snake_case, which does not break before a
+    // digit — Asa1 would encode "asa1" while the enum holds 'asa_1'.
+    #[sqlx(rename = "asa_1")]
+    #[serde(rename = "asa_1")]
     Asa1,
+    #[sqlx(rename = "asa_2")]
+    #[serde(rename = "asa_2")]
     Asa2,
+    #[sqlx(rename = "asa_3")]
+    #[serde(rename = "asa_3")]
     Asa3,
+    #[sqlx(rename = "asa_4")]
+    #[serde(rename = "asa_4")]
     Asa4,
+    #[sqlx(rename = "asa_5")]
+    #[serde(rename = "asa_5")]
     Asa5,
+    #[sqlx(rename = "asa_6")]
+    #[serde(rename = "asa_6")]
     Asa6,
 }
 

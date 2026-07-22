@@ -8,22 +8,16 @@ not, the mismatch is invisible until a request actually carries that variant,
 and then Postgres raises 22P02 — the same class of runtime failure #4492 fixed
 the status mapping for.
 
-Four enums currently break that promise. None is reachable today: all four are
-either never bound to a query, or shadowed by a correct sibling.
+One enum still breaks it, and it is unreachable: queue.rs::QueuePriority has
+Pediatric and Emergency, which queue_priority does not define at all
+('emergency_referral' is the real value). Nothing imports that module —
+front_office.rs::QueuePriority is the type bound to queue_priority_rules, and
+it matches. The module is dead code carrying a mapping that would fail.
 
-    asa_classification    Asa1 encodes "asa1", the enum has 'asa_1'
-                          (AsaClassification is never used)
-    death_cert_form_type  Form4 encodes "form4", the enum has 'form_4'
-                          (DeathCertFormType is never used)
-    print_format          Thermal80mm encodes "thermal80mm", the enum has
-                          'thermal_80mm' (bound as a string via
-                          documents.rs::print_format_label, which maps
-                          correctly by hand — the derive is never used)
-    queue_priority        queue.rs::QueuePriority has Pediatric and Emergency,
-                          the enum has neither ('emergency_referral' is the
-                          real value). Unused — front_office.rs::QueuePriority
-                          is the one bound to queue_priority_rules, and it
-                          matches.
+Three others were live and are fixed in #4538: asa_classification,
+death_cert_form_type and print_format each encoded a digit-bearing variant
+without the underscore Postgres expects, breaking both the DB decode and the
+JSON contract. They now carry explicit renames.
 
 `rename_all = "snake_case"` runs heck's to_snake_case, which does not break
 before a digit: `Asa1` becomes "asa1", not "asa_1". That is where all three
@@ -49,9 +43,6 @@ CRATES = REPO_ROOT / "medbrains" / "crates"
 # Every one is currently unreachable; see the module docstring. Removing an
 # entry — because it was fixed or deleted — is always welcome; a new one fails.
 RECORDED_MISMATCHES = {
-    "asa_classification": {"asa1", "asa2", "asa3", "asa4", "asa5", "asa6"},
-    "death_cert_form_type": {"form4", "form4a"},
-    "print_format": {"thermal80mm", "thermal58mm", "label50x25mm"},
     "queue_priority": {"pediatric", "emergency"},
 }
 

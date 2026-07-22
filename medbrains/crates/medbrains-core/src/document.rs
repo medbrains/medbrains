@@ -71,8 +71,14 @@ pub enum PrintFormat {
     A4Landscape,
     A5Portrait,
     A5Landscape,
+    #[sqlx(rename = "thermal_80mm")]
+    #[serde(rename = "thermal_80mm")]
     Thermal80mm,
+    #[sqlx(rename = "thermal_58mm")]
+    #[serde(rename = "thermal_58mm")]
     Thermal58mm,
+    #[sqlx(rename = "label_50x25mm")]
+    #[serde(rename = "label_50x25mm")]
     Label50x25mm,
     Wristband,
     Custom,
