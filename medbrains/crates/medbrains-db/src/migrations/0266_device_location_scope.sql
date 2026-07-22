@@ -1,3 +1,7 @@
+-- Migration: 0266_device_location_scope.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters paired_devices and device_pairing_tokens, already tenant-policied.
 -- Multi-app device targeting: the location axis. A paired device already carries form-factor
 -- (app_variant, e.g. 'TV-Ward') + user (issued_to_user_id); this adds WHICH location it serves so
 -- one app codebase can run many location-scoped instances (the Reception TV vs the Ward-3B TV).

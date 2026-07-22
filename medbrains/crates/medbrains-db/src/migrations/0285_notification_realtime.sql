@@ -1,3 +1,7 @@
+-- Migration: 0285_notification_realtime.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Adds a pg_notify trigger on notifications, already tenant-policied.
 -- Real-time notification delivery (RFC-NOTIFICATION-SYSTEM).
 --
 -- An AFTER INSERT trigger fires pg_notify on the `notification_created` channel.

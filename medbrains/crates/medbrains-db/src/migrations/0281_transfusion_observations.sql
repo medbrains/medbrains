@@ -1,3 +1,6 @@
+-- Migration: 0281_transfusion_observations.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Bedside transfusion monitoring (AABB / NABH hemovigilance). Acute haemolytic and severe febrile
 -- reactions declare themselves in the first minutes of a transfusion, so the patient's vitals must be
 -- observed at baseline, at 15 minutes, periodically during, and at completion. The transfusion record

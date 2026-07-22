@@ -1,3 +1,6 @@
+-- Migration: 0270_vte_risk_assessment.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- VTE (venous thromboembolism) risk assessment — a leading cause of PREVENTABLE inpatient death and
 -- a core NABH/JCI safety measure. Uses the Padua Prediction Score for medical inpatients: score >= 4
 -- is high risk and warrants pharmacological thromboprophylaxis unless a bleeding risk contraindicates

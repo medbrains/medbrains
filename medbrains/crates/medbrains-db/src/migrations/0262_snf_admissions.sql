@@ -1,3 +1,6 @@
+-- Migration: 0262_snf_admissions.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Skilled Nursing Facility (SNF) admission from discharge (ticket #2960): admits a patient to the
 -- SNF — most often on hospital discharge — carrying over the care plan and level of care. Tenant RLS.
 

@@ -1,3 +1,7 @@
+-- Migration: 0274_ot_count_discrepancy.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters ot_case_records, already tenant-policied.
 -- Surgical count safety (AORN / NABH retained-surgical-item prevention). A surgical case may not be
 -- closed with an incorrect or unverified sponge / instrument count — a retained item is a "never event".
 -- The final counts are already recorded on the case record; this adds a documented reconciliation-action

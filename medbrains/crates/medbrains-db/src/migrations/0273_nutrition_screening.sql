@@ -1,3 +1,6 @@
+-- Migration: 0273_nutrition_screening.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- MUST (Malnutrition Universal Screening Tool) nutritional screening. NABH requires every inpatient to
 -- be screened for malnutrition risk at admission (within 24h), because malnutrition worsens outcomes,
 -- delays healing and is easily missed. MUST sums three steps — BMI, unplanned weight loss, and an

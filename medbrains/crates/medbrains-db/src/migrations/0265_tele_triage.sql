@@ -1,3 +1,6 @@
+-- Migration: 0265_tele_triage.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Tele-triage (innovation): a structured pre-consultation intake for a tele-consult that a
 -- deterministic, explainable engine grades into an acuity band with red-flags + a recommended
 -- timeframe. Transparent (reasoning captured), not a black-box model — clinician-safe decision

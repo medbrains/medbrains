@@ -1,3 +1,6 @@
+-- Migration: 0286_device_push_tokens.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Expo push tokens (RFC-NOTIFICATION-SYSTEM, P4).
 --
 -- One row per (user, device) push registration. The mobile apps register their

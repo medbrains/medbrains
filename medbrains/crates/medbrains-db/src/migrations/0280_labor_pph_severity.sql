@@ -1,3 +1,7 @@
+-- Migration: 0280_labor_pph_severity.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters labor_records, already tenant-policied.
 -- Postpartum haemorrhage (PPH) classification — the leading cause of maternal death. Primary PPH is
 -- blood loss >= 500 mL after a vaginal birth or >= 1000 mL after caesarean; "severe" PPH is >= 1000 mL
 -- (vaginal) / >= 1500 mL (caesarean) and mandates activation of the massive-haemorrhage protocol.

@@ -1,3 +1,6 @@
+-- Migration: 0261_microsite_config.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Micro-site configuration (tickets #2955 SEO, #2956 custom domain, #2959 chat widget).
 -- Per-page SEO metadata, mapped custom domains, and the site-level chat/WhatsApp widget settings.
 -- Tenant RLS. (Actual DNS mapping + the embedded widget are ops/frontend; this stores the config.)

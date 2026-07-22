@@ -1,3 +1,6 @@
+-- Migration: 0264_tele_chat_messages.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Telemedicine chat fallback (ticket #2948): text messages within a tele-consultation for when
 -- video isn't possible (poor connectivity) or as an adjunct to the call. Tenant RLS.
 

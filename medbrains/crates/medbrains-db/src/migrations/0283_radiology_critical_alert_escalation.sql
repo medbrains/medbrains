@@ -1,3 +1,7 @@
+-- Migration: 0283_radiology_critical_alert_escalation.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters radiology_critical_alerts, already tenant-policied.
 -- Radiology critical-finding escalation (NABH critical-results reporting), mirroring the lab loop
 -- (0148_critical_alert_escalation). A critical imaging finding (pneumothorax, intracranial bleed,
 -- ectopic) that the ordering physician never acknowledges is as dangerous as an unacknowledged

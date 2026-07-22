@@ -1,3 +1,6 @@
+-- Migration: 0267_stations.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Stations master: a first-class place a device/app instance sits — a nurse station, an OPD
 -- counter, a ward console, a kiosk point, a reception desk. Department-scoped. Devices bind to a
 -- station (paired_devices.station_id) so the boot manifest resolves the concrete station, not just

@@ -1,3 +1,6 @@
+-- Migration: 0272_medication_reconciliation.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Medication reconciliation (IPSG.6 / NABH MOM). At every care transition — admission, transfer,
 -- discharge — the patient's existing medications must be compared against current orders so nothing is
 -- unintentionally omitted, duplicated or continued when it should stop. The safety rule: a

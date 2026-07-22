@@ -1,3 +1,7 @@
+-- Migration: 0277_newborn_id_band.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters newborn_records, already tenant-policied.
 -- Newborn identity safety (NABH / infant-abduction & mismatch prevention). Every newborn must be
 -- unambiguously linked to its mother and carry a matching ID band, and that link must be verifiable at
 -- the bedside before feeding, handover and discharge. Today newborn_records.mother_id is never set on

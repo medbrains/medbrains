@@ -1,3 +1,7 @@
+-- Migration: 0275_anesthesia_fasting_override.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters ot_anesthesia_records, already tenant-policied.
 -- Pre-anaesthesia fasting (NPO) safety. Inducing anaesthesia on a non-fasted patient risks pulmonary
 -- aspiration of gastric contents (Mendelson's syndrome) — a preventable anaesthetic death. Elective
 -- induction should not proceed unless pre-operative fasting is confirmed on the pre-op assessment; the

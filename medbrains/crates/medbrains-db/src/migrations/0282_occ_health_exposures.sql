@@ -1,3 +1,6 @@
+-- Migration: 0282_occ_health_exposures.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Occupational blood & body-fluid / sharps exposure reporting (NABH HR, BMW Rules 2016, national
 -- needlestick-injury guidelines). A needlestick or mucocutaneous exposure to a source patient's blood
 -- is a time-critical staff-safety event: HIV post-exposure prophylaxis (PEP) is most effective within

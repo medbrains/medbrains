@@ -1,3 +1,6 @@
+-- Migration: 0284_indwelling_devices.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Per-patient invasive/indwelling device register with daily necessity review (CDC/NABH
 -- CAUTI·CLABSI·VAP prevention bundles). infection_device_days already counts device-days in
 -- aggregate for computing HAI RATES, but the actual PREVENTION intervention is per-patient: every

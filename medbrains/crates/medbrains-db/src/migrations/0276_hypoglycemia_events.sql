@@ -1,3 +1,6 @@
+-- Migration: 0276_hypoglycemia_events.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Inpatient hypoglycaemia management (ADA / NABH endocrinology safety). Hypoglycaemia (blood glucose
 -- < 70 mg/dL) is the most common serious harm from insulin/sulfonylureas and, untreated, causes
 -- seizures, coma and death. The protocol: classify severity, treat (15-20 g oral carbohydrate if

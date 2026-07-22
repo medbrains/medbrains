@@ -1,3 +1,7 @@
+-- Migration: 0279_chemo_anthracycline_dose.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters chemo_protocols, already tenant-policied.
 -- Anthracycline cumulative-dose safety (chemotherapy). Anthracyclines (doxorubicin, epirubicin,
 -- daunorubicin, idarubicin) are dose-limited by cardiotoxicity: exceeding a lifetime cumulative dose
 -- (e.g. doxorubicin ~450 mg/m²) sharply raises the risk of irreversible heart failure. Every cycle's

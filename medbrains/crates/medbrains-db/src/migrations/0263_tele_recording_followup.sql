@@ -1,3 +1,7 @@
+-- Migration: 0263_tele_recording_followup.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters tele_consultations, already tenant-policied.
 -- Telemedicine: recording consent + optional recording (ticket #2946) and follow-up linkage
 -- (ticket #2947). Additive columns on tele_consultations — existing SELECT */RETURNING * handlers
 -- ignore them, so no struct changes needed there.

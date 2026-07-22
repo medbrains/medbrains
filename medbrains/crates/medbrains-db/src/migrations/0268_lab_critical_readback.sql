@@ -1,3 +1,7 @@
+-- Migration: 0268_lab_critical_readback.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters lab_critical_alerts, already tenant-policied.
 -- NABL closed-loop critical-value reporting: capture the read-back when a clinician acknowledges a
 -- critical (panic) lab result. The acknowledger must re-state the value; the server verifies it
 -- matches the reported result before the alert is acknowledged, so a mis-heard value is caught.

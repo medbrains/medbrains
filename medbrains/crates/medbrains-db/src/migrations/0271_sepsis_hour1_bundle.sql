@@ -1,3 +1,6 @@
+-- Migration: 0271_sepsis_hour1_bundle.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Surviving Sepsis Campaign "Hour-1 bundle" tracker. Sepsis is a time-critical emergency: the five
 -- bundle elements must be delivered within one hour of sepsis recognition, and every hour of delay in
 -- antibiotics raises mortality. NABH tracks Hour-1-bundle compliance (KPI NABH_DEPT_10) but there was

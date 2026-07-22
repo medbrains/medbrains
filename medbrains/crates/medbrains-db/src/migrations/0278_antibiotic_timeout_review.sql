@@ -1,3 +1,7 @@
+-- Migration: 0278_antibiotic_timeout_review.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters antibiotic_stewardship_requests, already tenant-policied.
 -- Antimicrobial stewardship 48-72h "antibiotic time-out" (AMS / NABH). After ~48-72h of empiric
 -- antibiotics — once cultures and sensitivities return — the team must review and document a decision:
 -- continue, de-escalate to a narrower agent, stop, switch IV to oral, or change. This day-3 review is a
