@@ -532,7 +532,7 @@ pub async fn list_sensitive_patients(
          s.sensitivity_type, s.reason, s.alert_on_access, s.created_at
          FROM sensitive_patients s
          JOIN patients p ON p.id = s.patient_id
-         ORDER BY s.created_at DESC",
+         ORDER BY s.created_at DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
