@@ -61,23 +61,33 @@ export function formatTime(date: string | Date | null | undefined): string {
   return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
-/** Calculate age from DOB string */
+/**
+ * Whole months elapsed between two dates, not counting a month until its
+ * day-of-month has come round.
+ */
+function completedMonths(birth: Date, now: Date): number {
+  const months = (now.getFullYear() - birth.getFullYear()) * 12 + now.getMonth() - birth.getMonth();
+  return now.getDate() < birth.getDate() ? months - 1 : months;
+}
+
+/**
+ * Calculate age from DOB string.
+ *
+ * Age is completed years, so the birthday has to have come round: on
+ * 2026-07-22 a child born 2020-12-25 is 5, not 6. Subtracting the calendar
+ * years alone overstates the age of anyone whose birthday falls later in the
+ * year, which for paediatric dosing bands is the difference between two
+ * different doses.
+ */
 export function calculateAge(dob: string | null | undefined): string {
   if (!dob) return "—";
   const birth = parseDateOnly(dob) ?? new Date(dob);
   if (Number.isNaN(birth.getTime())) return "—";
   const now = new Date();
-  const years = now.getFullYear() - birth.getFullYear();
-  if (years < 1) {
-    const months =
-      (now.getFullYear() - birth.getFullYear()) * 12 + now.getMonth() - birth.getMonth();
-    return `${months}mo`;
-  }
-  if (years < 3) {
-    const months =
-      (now.getFullYear() - birth.getFullYear()) * 12 + now.getMonth() - birth.getMonth();
-    return `${Math.floor(months / 12)}y ${months % 12}mo`;
-  }
+  const months = completedMonths(birth, now);
+  const years = Math.floor(months / 12);
+  if (years < 1) return `${Math.max(months, 0)}mo`;
+  if (years < 3) return `${years}y ${months % 12}mo`;
   return `${years}y`;
 }
 
