@@ -826,3 +826,54 @@ pub fn router() -> axum::Router<AppState> {
             get(get_signature).delete(delete_signature),
         )
 }
+
+#[cfg(test)]
+mod consent_template_enforcement_tests {
+    /// A consent template can declare that a procedure needs a witness, needs
+    /// the doctor's signature, must be read aloud, or expires after so many
+    /// days. Today those columns are written and read back, and nothing else
+    /// consults them — `create_signature` inserts whatever the client sends
+    /// without loading the template at all.
+    ///
+    /// This test pins that gap rather than asserting the behaviour is right.
+    /// It scans this module's own source and fails the moment a flag starts
+    /// being used outside a SQL column list, which is what enforcement would
+    /// look like. Whoever implements it should delete the flag from the list
+    /// below, and the test then guards the enforcement instead.
+    ///
+    /// Resolving a template from a signature means going through
+    /// `consent_source`/`consent_id`, which is polymorphic, so this needs a
+    /// database to work through and is left as an owner decision.
+    #[test]
+    fn declared_template_safety_flags_are_still_unenforced() {
+        const SRC: &str = include_str!("lib.rs");
+        const UNENFORCED: &[&str] = &[
+            "requires_witness",
+            "requires_doctor",
+            "is_read_aloud_required",
+            "validity_days",
+        ];
+
+        for flag in UNENFORCED {
+            let used_outside_sql = SRC
+                .lines()
+                .filter(|line| line.contains(flag))
+                .any(|line| {
+                    let l = line.trim();
+                    // Struct fields, binds and SQL column lists are storage,
+                    // not enforcement. Anything else reads the flag to decide.
+                    !(l.starts_with("pub ")
+                        || l.starts_with("//")
+                        || l.contains(".bind(")
+                        || l.contains("COALESCE")
+                        || l.contains(',')
+                        || l.contains('"'))
+                });
+            assert!(
+                !used_outside_sql,
+                "{flag} now appears outside a SQL column list — if it is being enforced, \
+                 remove it from UNENFORCED and assert the enforcement instead"
+            );
+        }
+    }
+}
