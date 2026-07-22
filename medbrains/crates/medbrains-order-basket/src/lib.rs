@@ -709,8 +709,7 @@ pub async fn carry_forward(
         .bind(claims.tenant_id)
         .bind(prev_id)
         .fetch_all(&mut *tx)
-        .await
-        .unwrap_or_default();
+        .await?;
 
         for (id, drug_id, drug_name, dose, frequency, route, duration, unit_price, created_at) in
             drugs
@@ -747,8 +746,7 @@ pub async fn carry_forward(
         .bind(claims.tenant_id)
         .bind(prev_id)
         .fetch_all(&mut *tx)
-        .await
-        .unwrap_or_default();
+        .await?;
 
         for (id, test_id, name, priority, created_at) in labs {
             out.push(CarryForwardItem {
@@ -777,8 +775,7 @@ pub async fn carry_forward(
         .bind(claims.tenant_id)
         .bind(prev_id)
         .fetch_all(&mut *tx)
-        .await
-        .unwrap_or_default();
+        .await?;
 
         for (id, modality_id, name, body_part, created_at) in rads {
             out.push(CarryForwardItem {
