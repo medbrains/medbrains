@@ -1,3 +1,7 @@
+-- Migration: 0156_log_growth_controls.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Retention and partition controls on existing tenant-policied log tables.
 -- Log/event growth controls (audit P1 #164).
 --
 -- Strategy decision (documented here because it is the crux of the

@@ -1,3 +1,6 @@
+-- Migration: 0159_tokens.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- ============================================================
 -- MedBrains schema — module: tokens (unified multi-module queue/token system)
 -- One token stream model for every module + scope (department / room /

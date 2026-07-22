@@ -1,3 +1,6 @@
+-- Migration: 0158_notifications.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- ============================================================
 -- MedBrains schema — module: notifications (in-app notification centre)
 -- Per-user, tenant-scoped notification feed with read/unread state.

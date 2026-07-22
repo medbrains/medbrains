@@ -1,3 +1,6 @@
+-- Migration: 0162_device_catalog_seed.sql
+-- RLS-Posture: not-applicable
+-- Seed data only; creates no table and changes no policy.
 -- Seed the device adapter catalog (Device Knowledge Base) with ~28 common
 -- Indian-hospital medical devices and their real protocol defaults, so device
 -- onboarding has something to look up. Global reference data; idempotent on

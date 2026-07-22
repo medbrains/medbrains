@@ -1,3 +1,7 @@
+-- Migration: 0157_day_close_counter_shift.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters existing tenant-policied day-close tables.
 -- Day-close v2 (audit #291): per-counter, per-shift cash tally with a
 -- denomination breakdown and card/UPI settlement reconciliation.
 --

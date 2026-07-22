@@ -1,3 +1,7 @@
+-- Migration: 0154_claims_status_reconcile.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters and backfills existing tenant-policied claim tables.
 -- Reconcile insurance_claims.status drift (#280) and separate the
 -- NHCX gateway transport status from the claim lifecycle.
 ALTER TABLE public.insurance_claims

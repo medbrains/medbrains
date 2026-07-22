@@ -1,3 +1,7 @@
+-- Migration: 0151_pharmacy_catalog_code_unique.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Deactivates duplicates and indexes pharmacy_catalog, already tenant-policied.
 -- Bulk formulary import needs an idempotent upsert target (audit P1
 -- onboarding blocker). Older duplicate codes are deactivated (never
 -- deleted — dispense history may reference them), then active rows get

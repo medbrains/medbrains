@@ -1,3 +1,6 @@
+-- Migration: 0163_geo_seed.sql
+-- RLS-Posture: not-applicable
+-- Seed data only; creates no table and changes no policy.
 -- Seed geographic reference data (countries + Indian states/UTs). The geo
 -- backend (/api/geo/countries, /states, …) and the onboarding address forms
 -- exist, but the geo_* tables were empty so the dropdowns returned nothing.

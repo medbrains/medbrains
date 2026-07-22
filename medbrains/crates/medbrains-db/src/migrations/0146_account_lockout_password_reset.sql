@@ -1,3 +1,6 @@
+-- Migration: 0146_account_lockout_password_reset.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Account lockout + self-service password reset (audit P0 #6/#7).
 -- phone: needed for SMS OTP delivery (also used by on-call alert routing later).
 

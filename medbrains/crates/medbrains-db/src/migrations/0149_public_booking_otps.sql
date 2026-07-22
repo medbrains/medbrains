@@ -1,3 +1,6 @@
+-- Migration: 0149_public_booking_otps.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Phone verification for public appointment booking (audit P1):
 -- name+phone matching alone can book into the wrong patient record.
 CREATE TABLE public.public_booking_otps (

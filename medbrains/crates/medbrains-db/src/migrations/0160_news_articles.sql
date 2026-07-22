@@ -1,3 +1,6 @@
+-- Migration: 0160_news_articles.sql
+-- RLS-Posture: catalog
+-- news_feed_articles is global public content: no tenant_id, read via the pool.
 -- External medical news, ingested by the newspaper4k worker from public feeds.
 -- Distinct from `news_articles` (0141, tenant-scoped internal advisories): this
 -- is GLOBAL public content (no tenant_id / RLS), queried via the pool directly

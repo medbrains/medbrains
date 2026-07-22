@@ -1,3 +1,7 @@
+-- Migration: 0155_jsonb_gin_indexes.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- GIN indexes only, on existing tenant-policied tables.
 -- Selective GIN indexes on JSONB columns that are actually filtered
 -- with containment / key-exists operators (audit P1 #162). Only
 -- columns with a real WHERE-clause operator are indexed; scalar

@@ -1,3 +1,7 @@
+-- Migration: 0153_status_check_constraints.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- CHECK constraints only, on existing tenant-policied tables.
 -- CHECK constraints on free-text status columns (audit P1 #163) —
 -- ONLY where every code write site was exhaustively verified against
 -- the TypeScript contract. NOT VALID: existing rows are not scanned

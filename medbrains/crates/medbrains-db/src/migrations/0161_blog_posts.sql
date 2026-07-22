@@ -1,3 +1,6 @@
+-- Migration: 0161_blog_posts.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Hospital blog — tenant-authored posts shown in Health Pulse alongside the
 -- ingested news feed. Tenant-scoped with RLS (transaction-scoped app.tenant_id).
 

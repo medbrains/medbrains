@@ -1,3 +1,7 @@
+-- Migration: 0145_rls_backfill.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Applies the tenant policy to tables created without it; adds no tables.
 -- RLS backfill (audit P0 #8): tenant tables created without row-level
 -- security. Uses the idempotent helpers from 0001_core.sql.
 --

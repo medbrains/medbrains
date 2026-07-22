@@ -1,3 +1,7 @@
+-- Migration: 0152_index_backfill.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Indexes only, on existing tenant-policied tables.
 -- Index backfill (audit P1 #161), generated from live catalog
 -- introspection: every join-bearing FK column (patient_id,
 -- encounter_id, tenant_id, ...) that had no index with it as the

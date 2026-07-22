@@ -1,3 +1,6 @@
+-- Migration: 0164_payment_terminals.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- ============================================================
 -- MedBrains schema — module: payment_terminals
 -- Per-billing-place registry of payment devices. A hospital runs several

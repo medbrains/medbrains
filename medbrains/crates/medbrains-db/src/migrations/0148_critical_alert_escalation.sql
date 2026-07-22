@@ -1,3 +1,7 @@
+-- Migration: 0148_critical_alert_escalation.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters and indexes lab_critical_alerts, already tenant-policied.
 -- Critical-value escalation tracking (audit P0 #16 / NABH critical
 -- value reporting): unacknowledged alerts escalate after a window.
 ALTER TABLE public.lab_critical_alerts
