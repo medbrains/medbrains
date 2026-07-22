@@ -18,12 +18,25 @@ Ok(()) and the handler answers 2xx. Every write in that transaction is gone.
 
 So an error tolerated *inside* a transaction is not tolerated at all. The
 statement it was attached to is not the thing that gets dropped — everything
-is, and the caller is told it succeeded. `let _ =` on a statement executed
-against a transaction handle achieves the opposite of the fire-and-forget it
-reads as.
+is, and the caller is told it succeeded. Discarding the Result of a statement
+run against a transaction handle achieves the opposite of the fire-and-forget
+it reads as.
 
-The convention is already near-universal: 696 in-transaction executes
-propagate with `?`, 25 do not. This records those 25 and fails on a 26th.
+A SELECT aborts the transaction exactly as an INSERT does, so this covers all
+five ways sqlx runs a statement — fetch_all, fetch_one, fetch_optional,
+fetch_scalar and execute — and every way the Result gets dropped: a bare `;`,
+`.unwrap_or_default()`, `.unwrap_or(..)`, `.ok()`, or `if let Err(..) {`.
+
+The convention is already near-universal: 4364 in-transaction statements
+propagate with `?` and 79 do not. Those 79 split by consequence:
+
+    23  in a function that also writes — a discarded error there can roll the
+        writes back silently, incl. patient_packages::consume (a paid package
+        entitlement), order_basket::sign_basket, pharmacy::check_patient_allergies
+        and billing's log_billing_audit
+    56  in read-only functions — report and dashboard assembly, where a
+        rollback loses no writes and the consequence is partial or empty data
+        rendered as if complete
 
 The one worth naming is medbrains-billing's `log_billing_audit`, commented
 "append-only, fire-and-forget" and called from nine money movements — invoice
@@ -32,7 +45,7 @@ created and approved, day closed, journal entry posted. If that INSERT ever
 fails, the payment it was recording disappears with it and the cashier is told
 it went through.
 
-None of the 25 are reachable today as far as this can be checked statically —
+None of the 79 are reachable today as far as this can be checked statically —
 the four tables mark_source_signed writes to all have the columns (0121), and
 every Rust AuditAction variant exists in the audit_action enum (0001, a
 superset). They are traps rather than live defects: one migration adding a NOT
@@ -55,10 +68,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CRATES = REPO_ROOT / "medbrains" / "crates"
 BASELINE = REPO_ROOT / "scripts" / ".tx_error_discard_baseline.json"
 
-# An execute against a transaction handle, plus whatever decides the Result's
-# fate. `?` propagates; a bare `;`, `.ok()` or an `if let Err(..) {` does not.
-EXECUTE = re.compile(
-    r"execute\(&mut \*{1,2}tx\)\s*\n?\s*\.await(\s*\?|\s*;|\s*\.ok\(\)|\s*\{)",
+# Any statement run against a transaction handle, plus whatever decides the
+# Result's fate. `?` propagates; everything else drops it.
+STATEMENT = re.compile(
+    r"\.(?:fetch_all|fetch_one|fetch_optional|fetch_scalar|execute)"
+    r"\(&mut \*{1,2}tx\)\s*\n?\s*\.await"
+    r"(\s*\?|\s*;|\s*\.unwrap_or_default\(\)|\s*\.unwrap_or\(|\s*\.ok\(\)|\s*\{)",
     re.M,
 )
 
@@ -70,7 +85,7 @@ def scan() -> tuple[list[str], int]:
         if "/tests/" in str(path):
             continue
         text = path.read_text(encoding="utf-8", errors="ignore")
-        for match in EXECUTE.finditer(text):
+        for match in STATEMENT.finditer(text):
             if match.group(1).strip().startswith("?"):
                 propagated += 1
             else:
@@ -87,11 +102,11 @@ def main() -> int:
     discarded, propagated = scan()
 
     if propagated == 0:
-        print("ERROR: no propagating executes found — the pattern broke", file=sys.stderr)
+        print("ERROR: no propagating statements found — the pattern broke", file=sys.stderr)
         return 2
 
     print(
-        f"in-transaction executes: {propagated + len(discarded)} "
+        f"in-transaction statements: {propagated + len(discarded)} "
         f"({propagated} propagate with ?, {len(discarded)} discard)"
     )
 
