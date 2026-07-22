@@ -35,7 +35,7 @@ pub(crate) async fn issue_queue_token(
     department_id: uuid::Uuid,
     patient_id: uuid::Uuid,
 ) -> Result<String, crate::error::AppError> {
-    let token_seq: i32 = sqlx::query_scalar(
+    let token_seq: i32 = sqlx::query_scalar(  // allow-raw-sql: helper runs on the caller's tenant-scoped transaction
         "SELECT COALESCE(MAX(token_seq), 0) + 1 FROM queue_tokens \
          WHERE department_id = $1 AND token_date = CURRENT_DATE",
     )
@@ -44,7 +44,7 @@ pub(crate) async fn issue_queue_token(
     .await?;
     let token_number = format!("T-{token_seq:03}");
 
-    sqlx::query(
+    sqlx::query(  // allow-raw-sql: helper runs on the caller's tenant-scoped transaction
         "INSERT INTO queue_tokens \
          (tenant_id, department_id, patient_id, token_date, token_seq, token_number, status) \
          VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, 'waiting')",

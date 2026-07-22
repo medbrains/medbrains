@@ -59,7 +59,7 @@ pub async fn list_schedules(
     require_admin(&claims)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let rows: Vec<SimulatorSchedule> = sqlx::query_as(
+    let rows: Vec<SimulatorSchedule> = sqlx::query_as(  // allow-raw-sql: simulator admin tables; handler sets tenant context, RLS scopes the query
         "SELECT * FROM simulator_schedules \
          WHERE deleted_at IS NULL \
          ORDER BY created_at DESC LIMIT 5000",
@@ -84,7 +84,7 @@ pub async fn create_schedule(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let row: SimulatorSchedule = sqlx::query_as(
+    let row: SimulatorSchedule = sqlx::query_as(  // allow-raw-sql: simulator admin tables; handler sets tenant context, RLS scopes the query
         "INSERT INTO simulator_schedules \
          (tenant_id, name, description, cron_expr, profile, enabled, created_by) \
          VALUES ($1, $2, $3, $4, $5, COALESCE($6, true), $7) \
@@ -112,7 +112,7 @@ pub async fn get_schedule(
     require_admin(&claims)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let row: SimulatorSchedule = sqlx::query_as(
+    let row: SimulatorSchedule = sqlx::query_as(  // allow-raw-sql: simulator admin tables; handler sets tenant context, RLS scopes the query
         "SELECT * FROM simulator_schedules \
          WHERE id = $1 AND deleted_at IS NULL",
     )
@@ -138,7 +138,7 @@ pub async fn update_schedule(
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let row: SimulatorSchedule = sqlx::query_as(
+    let row: SimulatorSchedule = sqlx::query_as(  // allow-raw-sql: simulator admin tables; handler sets tenant context, RLS scopes the query
         "UPDATE simulator_schedules SET \
             name = COALESCE($1, name), \
             description = COALESCE($2, description), \
@@ -171,7 +171,7 @@ pub async fn delete_schedule(
     require_admin(&claims)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let rows = sqlx::query(
+    let rows = sqlx::query(  // allow-raw-sql: simulator admin tables; handler sets tenant context, RLS scopes the query
         "UPDATE simulator_schedules SET deleted_at = NOW() WHERE id = $1 AND deleted_at IS NULL",
     )
     .bind(id)
@@ -203,7 +203,7 @@ pub async fn run_now(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let schedule: SimulatorSchedule =
-        sqlx::query_as("SELECT * FROM simulator_schedules WHERE id = $1 AND deleted_at IS NULL")
+        sqlx::query_as("SELECT * FROM simulator_schedules WHERE id = $1 AND deleted_at IS NULL")  // allow-raw-sql: simulator admin tables; handler sets tenant context, RLS scopes the query
             .bind(schedule_id)
             .fetch_optional(&mut *tx)
             .await?
@@ -292,7 +292,7 @@ async fn execute_run(
             // Bump last_run_at on the schedule (best-effort).
             if let Ok(mut tx) = pool.begin().await {
                 let _ = medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await;
-                let _ = sqlx::query(
+                let _ = sqlx::query(  // allow-raw-sql: simulator admin tables; handler sets tenant context, RLS scopes the query
                     "UPDATE simulator_schedules SET last_run_at = NOW() \
                      WHERE id = (SELECT schedule_id FROM simulator_runs WHERE id = $1)",
                 )
@@ -328,7 +328,7 @@ pub async fn approve_run(
     require_admin(&claims)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let res = sqlx::query(
+    let res = sqlx::query(  // allow-raw-sql: simulator admin tables; handler sets tenant context, RLS scopes the query
         "UPDATE simulator_runs SET approval_status = 'approved' \
          WHERE id = $1 AND approval_status = 'pending_approval'",
     )
@@ -357,7 +357,7 @@ pub async fn reject_run(
     // Walk run steps and DELETE each target row by step_type. We only
     // delete rows that are still flagged is_dummy = true, defensive
     // against any approval-status drift.
-    let steps: Vec<(String, Option<Uuid>)> = sqlx::query_as(
+    let steps: Vec<(String, Option<Uuid>)> = sqlx::query_as(  // allow-raw-sql: simulator admin tables; handler sets tenant context, RLS scopes the query
         "SELECT step_type, target_id FROM simulator_run_steps \
          WHERE run_id = $1 AND target_id IS NOT NULL",
     )
@@ -380,12 +380,12 @@ pub async fn reject_run(
         };
         if let Some(t) = table {
             let sql = format!("DELETE FROM {t} WHERE id = $1 AND is_dummy = true");
-            let r = sqlx::query(&sql).bind(id).execute(&mut *tx).await?;
+            let r = sqlx::query(&sql).bind(id).execute(&mut *tx).await?;  // allow-raw-sql: simulator admin tables; handler sets tenant context, RLS scopes the query
             deleted += r.rows_affected() as i64;
         }
     }
 
-    sqlx::query(
+    sqlx::query(  // allow-raw-sql: simulator admin tables; handler sets tenant context, RLS scopes the query
         "UPDATE simulator_runs SET approval_status = 'rejected' \
          WHERE id = $1 AND approval_status = 'pending_approval'",
     )
@@ -549,7 +549,7 @@ pub async fn list_runs(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows: Vec<SimulatorRun> = if let Some(sid) = q.schedule_id {
-        sqlx::query_as(
+        sqlx::query_as(  // allow-raw-sql: simulator admin tables; handler sets tenant context, RLS scopes the query
             "SELECT * FROM simulator_runs \
              WHERE schedule_id = $1 \
              ORDER BY started_at DESC \
@@ -560,7 +560,7 @@ pub async fn list_runs(
         .fetch_all(&mut *tx)
         .await?
     } else {
-        sqlx::query_as(
+        sqlx::query_as(  // allow-raw-sql: simulator admin tables; handler sets tenant context, RLS scopes the query
             "SELECT * FROM simulator_runs \
              ORDER BY started_at DESC \
              LIMIT $1",
@@ -590,19 +590,19 @@ pub async fn get_run(
     require_admin(&claims)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let run: SimulatorRun = sqlx::query_as("SELECT * FROM simulator_runs WHERE id = $1")
+    let run: SimulatorRun = sqlx::query_as("SELECT * FROM simulator_runs WHERE id = $1")  // allow-raw-sql: simulator admin tables; handler sets tenant context, RLS scopes the query
         .bind(id)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(AppError::NotFound)?;
-    let steps: Vec<SimulatorRunStep> = sqlx::query_as(
+    let steps: Vec<SimulatorRunStep> = sqlx::query_as(  // allow-raw-sql: simulator admin tables; handler sets tenant context, RLS scopes the query
         "SELECT * FROM simulator_run_steps \
          WHERE run_id = $1 ORDER BY created_at ASC LIMIT 5000",
     )
     .bind(id)
     .fetch_all(&mut *tx)
     .await?;
-    let findings: Vec<SimulatorRunFinding> = sqlx::query_as(
+    let findings: Vec<SimulatorRunFinding> = sqlx::query_as(  // allow-raw-sql: simulator admin tables; handler sets tenant context, RLS scopes the query
         "SELECT * FROM simulator_run_findings \
          WHERE run_id = $1 ORDER BY created_at ASC LIMIT 5000",
     )
