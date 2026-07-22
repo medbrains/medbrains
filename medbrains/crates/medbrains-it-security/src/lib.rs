@@ -887,6 +887,7 @@ pub async fn list_tat_benchmarks(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<TatBenchmark>>, AppError> {
+    require_permission(&claims, permissions::admin::SYSTEM)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -939,6 +940,7 @@ pub async fn list_tat_records(
     Extension(claims): Extension<Claims>,
     Query(params): Query<TatQuery>,
 ) -> Result<Json<Vec<TatRecordSummary>>, AppError> {
+    require_permission(&claims, permissions::admin::SYSTEM)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -979,6 +981,7 @@ pub async fn start_tat_record(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateTatRecordRequest>,
 ) -> Result<Json<TatRecord>, AppError> {
+    require_permission(&claims, permissions::admin::SYSTEM)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1023,6 +1026,7 @@ pub async fn complete_tat_record(
     Path(id): Path<Uuid>,
     Json(body): Json<CompleteTatRecordRequest>,
 ) -> Result<Json<TatRecord>, AppError> {
+    require_permission(&claims, permissions::admin::SYSTEM)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1053,6 +1057,7 @@ pub async fn tat_dashboard(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<TatDashboard>, AppError> {
+    require_permission(&claims, permissions::admin::SYSTEM)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1372,6 +1377,7 @@ pub async fn list_dq_issues(
     Extension(claims): Extension<Claims>,
     Query(params): Query<DataQualityQuery>,
 ) -> Result<Json<Vec<DataQualityIssue>>, AppError> {
+    require_permission(&claims, permissions::admin::COMPLIANCE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1407,6 +1413,7 @@ pub async fn resolve_dq_issue(
     Path(id): Path<Uuid>,
     Json(body): Json<ResolveIssueRequest>,
 ) -> Result<Json<DataQualityIssue>, AppError> {
+    require_permission(&claims, permissions::admin::COMPLIANCE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1431,6 +1438,7 @@ pub async fn dq_dashboard(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<DataQualityDashboard>, AppError> {
+    require_permission(&claims, permissions::admin::COMPLIANCE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -2458,4 +2466,53 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/incentive-calculations", get(list_incentive_calculations).post(calculate_incentive))
         .route("/api/incentive-calculations/{id}/approve", post(approve_incentive))
         .route("/api/incentive-calculations/{id}/paid", post(mark_incentive_paid))
+}
+
+#[cfg(test)]
+mod authz_coverage_tests {
+    /// Every handler in this module that touches the database must carry an
+    /// authorization check. TAT and data-quality reads/writes shipped without
+    /// one, so any authenticated role could read org-wide quality metrics and
+    /// resolve data-quality issues.
+    ///
+    /// This scans the source rather than listing handlers, so a newly added
+    /// ungated handler fails the test instead of slipping through review.
+    /// Self-scoped handlers (`*_my_*`, onboarding progress) are exempt: their
+    /// queries are already constrained to `claims.sub`.
+    #[test]
+    fn every_db_handler_is_gated_or_self_scoped() {
+        const SRC: &str = include_str!("lib.rs");
+        const SELF_SCOPED: &[&str] = &[
+            "end_break_glass",
+            "get_my_digest_subscription",
+            "upsert_digest_subscription",
+            "list_digest_history",
+            "get_onboarding_progress",
+            "update_onboarding_progress",
+            "complete_onboarding_step",
+            "complete_onboarding",
+        ];
+
+        let mut ungated = Vec::new();
+        let parts: Vec<&str> = SRC.split("pub async fn ").collect();
+        for part in parts.iter().skip(1) {
+            let Some(name) = part.split('(').next() else {
+                continue;
+            };
+            // Handler body ends where the next handler begins (split already did that).
+            if !part.contains("sqlx::query") || !part.contains("Extension<Claims>") {
+                continue;
+            }
+            if SELF_SCOPED.contains(&name) {
+                continue;
+            }
+            if !part.contains("require_permission") && !part.contains("require_step_up") {
+                ungated.push(name);
+            }
+        }
+        assert!(
+            ungated.is_empty(),
+            "these DB-touching handlers have no authorization check: {ungated:?}"
+        );
+    }
 }
