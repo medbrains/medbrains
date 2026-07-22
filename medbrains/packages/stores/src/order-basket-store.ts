@@ -72,10 +72,14 @@ export const useOrderBasketStore = create<OrderBasketState>()(
           warnings: [],
         })),
 
+      // Warnings address items by index, so removing one shifts every later
+      // item out from under its refs and the surviving warnings would render
+      // against the wrong drug. Invalidate instead and let the caller
+      // re-check, exactly as addItem and updateItem do.
       removeItem: (idx) =>
         set((state) => ({
           items: state.items.filter((_, i) => i !== idx),
-          warnings: state.warnings.filter((w) => !w.refs.includes(idx)),
+          warnings: [],
         })),
 
       clear: () =>
