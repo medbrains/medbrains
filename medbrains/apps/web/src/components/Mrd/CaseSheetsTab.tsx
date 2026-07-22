@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Card, Group, Select, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { nullOn404 } from "@medbrains/api";
 import {
   type MrdCaseSheetFileFormInput,
   type MrdCaseSheetReprintFormInput,
@@ -153,7 +154,7 @@ export function CaseSheetsTab() {
       });
       const [packetPages, packetCompleteness] = await Promise.all([
         mrdService.listMrdCaseSheetPages(printedPacket.id),
-        mrdService.getMrdCaseSheetCompleteness(printedPacket.id).catch(() => null),
+        mrdService.getMrdCaseSheetCompleteness(printedPacket.id).catch(nullOn404),
       ]);
       return {
         action: "print",
@@ -206,7 +207,7 @@ export function CaseSheetsTab() {
       });
       const [packetPages, packetCompleteness] = await Promise.all([
         mrdService.listMrdCaseSheetPages(printedPacket.id),
-        mrdService.getMrdCaseSheetCompleteness(printedPacket.id).catch(() => null),
+        mrdService.getMrdCaseSheetCompleteness(printedPacket.id).catch(nullOn404),
       ]);
       return {
         action: "reprint",

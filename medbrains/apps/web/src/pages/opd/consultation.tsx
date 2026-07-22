@@ -1,3 +1,4 @@
+import { nullOn404 } from "@medbrains/api";
 // OPD ConsultationTab — split from opd.tsx (pure move).
 
 import { Select, Stack, Text } from "@mantine/core";
@@ -29,7 +30,7 @@ export function ConsultationTab({
 
   const { data: consultation } = useQuery<Consultation | null>({
     queryKey: ["consultation", encounterId],
-    queryFn: () => opdService.getConsultation(encounterId).catch(() => null),
+    queryFn: () => opdService.getConsultation(encounterId).catch(nullOn404),
   });
 
   const { data: templates = [] } = useQuery<ConsultationTemplate[]>({

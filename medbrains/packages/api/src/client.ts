@@ -2359,6 +2359,34 @@ function reportClientFailure(data: ClientErrorReportRequest): void {
   }).catch(() => undefined);
 }
 
+/**
+ * A failed HTTP response, carrying the status so callers can tell the
+ * difference between "this record does not exist yet" and "the request
+ * failed". Without it every failure looks the same, and a read that treats
+ * any error as absence will offer to create a record that is already there.
+ */
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+/**
+ * For a GET whose record legitimately may not exist yet. Turns a 404 into
+ * `null` and lets every other failure through, so a 403 or a 500 still
+ * surfaces instead of rendering as "not created yet".
+ */
+export function nullOn404(error: unknown): null {
+  if (error instanceof ApiError && error.status === 404) {
+    return null;
+  }
+  throw error;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${getApiBase()}${path}`;
   const method = (init?.method ?? "GET").toUpperCase();
@@ -2468,7 +2496,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       throw new ValidationError((body as { fields: Record<string, string[]> }).fields);
     }
 
-    throw new Error(errorMessage);
+    throw new ApiError(errorMessage, response.status);
   }
 
   return response.json() as Promise<T>;

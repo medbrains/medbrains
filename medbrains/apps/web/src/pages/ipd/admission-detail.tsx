@@ -1,3 +1,4 @@
+import { nullOn404 } from "@medbrains/api";
 // Ipd AdmissionDetail — split from ipd.tsx (pure move).
 
 import { Box, Grid, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
@@ -196,7 +197,7 @@ export function AdmissionDetail({
   });
   const { data: dischargeSummary = null } = useQuery<IpdDischargeSummary | null>({
     queryKey: ["ipd-discharge-summary", admissionId],
-    queryFn: () => ipdService.getDischargeSummary(admissionId).catch(() => null),
+    queryFn: () => ipdService.getDischargeSummary(admissionId).catch(nullOn404),
   });
   const { data: patientInvoiceList } = useQuery({
     queryKey: ["invoices", "ipd-handoff", admissionPatientId],

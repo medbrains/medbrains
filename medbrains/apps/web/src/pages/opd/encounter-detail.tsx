@@ -1,3 +1,4 @@
+import { nullOn404 } from "@medbrains/api";
 // OPD EncounterDetail — split from opd.tsx (pure move).
 
 import { Card, Group, Menu, Modal, Stack, Tabs, Text } from "@mantine/core";
@@ -153,7 +154,7 @@ export function EncounterDetail({
   });
   const { data: consultation } = useQuery<Consultation | null>({
     queryKey: ["consultation", encounterId],
-    queryFn: () => opdService.getConsultation(encounterId).catch(() => null),
+    queryFn: () => opdService.getConsultation(encounterId).catch(nullOn404),
   });
   const { data: diagnoses = [] } = useQuery({
     queryKey: ["diagnoses", encounterId],

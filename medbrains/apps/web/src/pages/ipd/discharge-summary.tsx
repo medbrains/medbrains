@@ -1,15 +1,21 @@
+import { nullOn404 } from "@medbrains/api";
+
 // IPD DischargeSummaryTab — split from ipd.tsx (pure move).
 
-import { useClinicalEmit } from "@/components";
-import { Badge, Button, toast } from "@/components/ui";
-import { ipdService } from "@/services/ipd.service";
-import { Group, Stack, Text, TextInput, Textarea } from "@mantine/core";
+import { Group, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
+import type {
+  CreateDischargeSummaryRequest,
+  IpdDischargeSummary,
+  UpdateDischargeSummaryRequest,
+} from "@medbrains/types";
 import { P } from "@medbrains/types";
-import type { CreateDischargeSummaryRequest, IpdDischargeSummary, UpdateDischargeSummaryRequest } from "@medbrains/types";
 import { IconPencil } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useClinicalEmit } from "@/components";
+import { Badge, Button, toast } from "@/components/ui";
+import { ipdService } from "@/services/ipd.service";
 
 export function DischargeSummaryTab({
   admissionId,
@@ -26,7 +32,7 @@ export function DischargeSummaryTab({
 
   const { data: existing } = useQuery({
     queryKey: ["ipd-discharge-summary", admissionId],
-    queryFn: () => ipdService.getDischargeSummary(admissionId).catch(() => null),
+    queryFn: () => ipdService.getDischargeSummary(admissionId).catch(nullOn404),
   });
 
   const [finalDiagnosis, setFinalDiagnosis] = useState("");

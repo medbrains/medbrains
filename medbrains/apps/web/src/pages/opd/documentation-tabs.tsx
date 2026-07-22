@@ -1,5 +1,6 @@
 import { Group, Stack } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { nullOn404 } from "@medbrains/api";
 import type {
   Consultation,
   CreateConsultationRequest,
@@ -30,7 +31,7 @@ export function HistoryTab({ encounterId, canUpdate }: EncounterTabProps) {
 
   const { data: consultation } = useQuery({
     queryKey: ["consultation", encounterId],
-    queryFn: () => opdService.getConsultation(encounterId).catch(() => null),
+    queryFn: () => opdService.getConsultation(encounterId).catch(nullOn404),
   });
 
   const createMutation = useMutation({
@@ -79,7 +80,7 @@ export function ROSTab({ encounterId, canUpdate }: EncounterTabProps) {
 
   const { data: consultation } = useQuery({
     queryKey: ["consultation", encounterId],
-    queryFn: () => opdService.getConsultation(encounterId).catch(() => null),
+    queryFn: () => opdService.getConsultation(encounterId).catch(nullOn404),
   });
 
   const c = consultation as Consultation | null;
@@ -161,7 +162,7 @@ export function PhysicalExamTab({ encounterId, canUpdate }: EncounterTabProps) {
 
   const { data: consultation } = useQuery({
     queryKey: ["consultation", encounterId],
-    queryFn: () => opdService.getConsultation(encounterId).catch(() => null),
+    queryFn: () => opdService.getConsultation(encounterId).catch(nullOn404),
   });
 
   const createMutation = useMutation({
