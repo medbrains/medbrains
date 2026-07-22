@@ -42,26 +42,39 @@ VALID_POSTURES = {
 }
 
 CREATE_TABLE_RE = re.compile(
-    r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*?)\)\s*(?:PARTITION|;)",
+    r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:[a-zA-Z_][a-zA-Z0-9_]*\.)?([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*?)\)\s*(?:PARTITION|;)",
     re.IGNORECASE | re.DOTALL,
 )
 TENANT_COL_RE = re.compile(r"\btenant_id\s+UUID\b", re.IGNORECASE)
 ALTER_ADD_TENANT_RE = re.compile(
-    r"ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s+ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?tenant_id\s+UUID",
+    r"ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:[a-zA-Z_][a-zA-Z0-9_]*\.)?([a-zA-Z_][a-zA-Z0-9_]*)\s+ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?tenant_id\s+UUID",
     re.IGNORECASE,
 )
 ENABLE_RLS_RE = re.compile(
-    r"ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY",
+    r"ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:[a-zA-Z_][a-zA-Z0-9_]*\.)?([a-zA-Z_][a-zA-Z0-9_]*)\s+ENABLE\s+ROW\s+LEVEL\s+SECURITY",
     re.IGNORECASE,
 )
 POLICY_RE = re.compile(
-    r"CREATE\s+POLICY\s+\w+\s+ON\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+    r"CREATE\s+POLICY\s+\w+\s+ON\s+(?:[a-zA-Z_][a-zA-Z0-9_]*\.)?([a-zA-Z_][a-zA-Z0-9_]*)",
     re.IGNORECASE,
 )
 APPLY_TENANT_RLS_RE = re.compile(
-    r"SELECT\s+apply_tenant_rls(?:_with_global)?\(\s*'([a-zA-Z_][a-zA-Z0-9_]*)'\s*\)",
+    r"SELECT\s+apply_tenant_rls(?:_with_global)?\(\s*'(?:[a-zA-Z_][a-zA-Z0-9_]*\.)?([a-zA-Z_][a-zA-Z0-9_]*)'\s*\)",
     re.IGNORECASE,
 )
+# Declarative partitions inherit their parent's row-level security, so they are
+# covered by whatever protects the parent. They are also frequently policied via
+# dynamic SQL (see 0145's `PERFORM apply_tenant_rls(format(...))` loop over the
+# 32 relation_tuples partitions), which no static scan can see.
+ATTACH_PARTITION_RE = re.compile(
+    r"ATTACH\s+PARTITION\s+(?:[a-zA-Z_][a-zA-Z0-9_]*\.)?([a-zA-Z_][a-zA-Z0-9_]*)",
+    re.IGNORECASE,
+)
+PARTITION_OF_RE = re.compile(
+    r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:[a-zA-Z_][a-zA-Z0-9_]*\.)?([a-zA-Z_][a-zA-Z0-9_]*)\s+PARTITION\s+OF",
+    re.IGNORECASE,
+)
+
 HEADER_KEY_RE = re.compile(r"--\s*([A-Za-z][A-Za-z\-]+)\s*:\s*(.+?)\s*$", re.MULTILINE)
 
 
@@ -100,6 +113,7 @@ def main() -> int:
     tenant_tables: dict[str, str] = {}        # table -> first_seen_migration
     rls_enabled: set[str] = set()
     policies_on: set[str] = set()
+    partitions: set[str] = set()             # children of a partitioned parent
     posture_overrides: dict[str, str] = {}    # table -> posture from migration header
     header_errors: list[str] = []
 
@@ -138,6 +152,11 @@ def main() -> int:
             tenant_tables.setdefault(tname, path.name)
 
         # ENABLE RLS
+        for match in ATTACH_PARTITION_RE.finditer(sql):
+            partitions.add(match.group(1).lower())
+        for match in PARTITION_OF_RE.finditer(sql):
+            partitions.add(match.group(1).lower())
+
         for match in ENABLE_RLS_RE.finditer(sql):
             rls_enabled.add(match.group(1).lower())
 
@@ -156,7 +175,8 @@ def main() -> int:
     gaps: list[tuple[str, str, str]] = []  # (table, first_seen_migration, reason)
 
     for table, first_mig in sorted(tenant_tables.items()):
-        if table in ALLOWLIST:
+        if table in ALLOWLIST or table in partitions:
+            # A partition is protected by whatever protects its parent.
             continue
         posture = posture_overrides.get(table, "")
         if posture in bypass_postures:
