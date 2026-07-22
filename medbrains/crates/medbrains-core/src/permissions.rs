@@ -1584,6 +1584,18 @@ pub mod admin {
         pub const MANAGE: &str = "admin.sharing.manage";
     }
 
+    /// Queue/TV display boards. These codes already existed on the frontend
+    /// (`P.ADMIN.TV_DISPLAYS.*`) but had no Rust counterpart, so the handlers
+    /// enforced nothing — the gate was UI-only.
+    pub mod tv_displays {
+        pub const LIST: &str = "admin.tv_displays.list";
+        pub const CREATE: &str = "admin.tv_displays.create";
+        pub const UPDATE: &str = "admin.tv_displays.update";
+        pub const DELETE: &str = "admin.tv_displays.delete";
+        pub const TOKENS: &str = "admin.tv_displays.tokens";
+        pub const BROADCAST: &str = "admin.tv_displays.broadcast";
+    }
+
     pub mod settings {
         pub mod general {
             pub const MANAGE: &str = "admin.settings.general.manage";

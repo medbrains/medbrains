@@ -17,11 +17,22 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
+use medbrains_core::permissions::admin::tv_displays;
 use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::queue_broadcast::{
     AnnouncementEvent, QueueBroadcaster, QueueEvent, QueueTokenInfo, TOKEN_ONLY_QUEUE_PATIENT_NAME,
 };
 use medbrains_server_core::state::AppState;
+
+/// Permission gate in this module's `(StatusCode, String)` error shape.
+///
+/// The handlers here predate the shared `AppError` convention, so
+/// `require_permission`'s `AppError::Forbidden` is mapped by hand.
+fn require(claims: &Claims, perm: &str) -> Result<(), (StatusCode, String)> {
+    require_permission(claims, perm)
+        .map_err(|_| (StatusCode::FORBIDDEN, "forbidden".to_owned()))
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -239,6 +250,7 @@ pub async fn list_displays(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<TvDisplay>>, (StatusCode, String)> {
+    require(&claims, tv_displays::LIST)?;
     let displays = sqlx::query_as::<_, TvDisplay>(
         r"
         SELECT id, tenant_id, department_id, location_name, display_type,
@@ -277,6 +289,7 @@ pub async fn create_display(
     Extension(claims): Extension<Claims>,
     Json(req): Json<CreateDisplayRequest>,
 ) -> Result<Json<TvDisplay>, (StatusCode, String)> {
+    require(&claims, tv_displays::CREATE)?;
     let language_json = serde_json::to_value(&req.language)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     let show_patient_name =
@@ -320,6 +333,7 @@ pub async fn get_display(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TvDisplay>, (StatusCode, String)> {
+    require(&claims, tv_displays::LIST)?;
     let display = sqlx::query_as::<_, TvDisplay>(
         r"
         SELECT id, tenant_id, department_id, location_name, display_type,
@@ -360,6 +374,7 @@ pub async fn update_display(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateDisplayRequest>,
 ) -> Result<Json<TvDisplay>, (StatusCode, String)> {
+    require(&claims, tv_displays::UPDATE)?;
     // Build dynamic update query
     let language_json = req.language.and_then(|l| serde_json::to_value(l).ok());
 
@@ -419,6 +434,7 @@ pub async fn delete_display(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, String)> {
+    require(&claims, tv_displays::DELETE)?;
     let result = sqlx::query(
         r"
         DELETE FROM queue_display_config
@@ -449,6 +465,7 @@ pub async fn create_token(
     Extension(claims): Extension<Claims>,
     Json(req): Json<CreateTokenRequest>,
 ) -> Result<Json<CreateTokenResponse>, (StatusCode, String)> {
+    require(&claims, tv_displays::TOKENS)?;
     let today = Utc::now().date_naive();
     let priority = req.priority.as_deref().unwrap_or("normal");
 
@@ -557,6 +574,7 @@ pub async fn list_tokens(
     Extension(claims): Extension<Claims>,
     Query(query): Query<ListTokensQuery>,
 ) -> Result<Json<Vec<QueueToken>>, (StatusCode, String)> {
+    require(&claims, tv_displays::TOKENS)?;
     let date = query.date.unwrap_or_else(|| Utc::now().date_naive());
 
     let tokens = sqlx::query_as::<_, QueueToken>(
@@ -590,6 +608,7 @@ pub async fn call_token(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<QueueToken>, (StatusCode, String)> {
+    require(&claims, tv_displays::TOKENS)?;
     let token = sqlx::query_as::<_, QueueToken>(
         r"
         UPDATE queue_tokens
@@ -626,6 +645,7 @@ pub async fn complete_token(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<QueueToken>, (StatusCode, String)> {
+    require(&claims, tv_displays::TOKENS)?;
     let token = sqlx::query_as::<_, QueueToken>(
         r"
         UPDATE queue_tokens
@@ -662,6 +682,7 @@ pub async fn no_show_token(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<QueueToken>, (StatusCode, String)> {
+    require(&claims, tv_displays::TOKENS)?;
     let token = sqlx::query_as::<_, QueueToken>(
         r"
         UPDATE queue_tokens
@@ -770,6 +791,7 @@ pub async fn broadcast_announcement(
     Extension(claims): Extension<Claims>,
     Json(req): Json<BroadcastAnnouncementRequest>,
 ) -> Result<Json<AnnouncementEvent>, (StatusCode, String)> {
+    require(&claims, tv_displays::BROADCAST)?;
     // Store in database
     let id = Uuid::new_v4();
     sqlx::query(
@@ -2067,4 +2089,24 @@ pub fn router() -> axum::Router<AppState> {
             "/api/tv/queue/metrics/{department_id}",
             get(get_queue_metrics),
         )
+}
+
+#[cfg(test)]
+mod permission_tests {
+    use super::tv_displays;
+
+    /// The TV board handlers were gated in the UI (`P.ADMIN.TV_DISPLAYS.*`) but
+    /// not on the server, so any authenticated role could delete a display,
+    /// broadcast hospital-wide, or call/no-show queue tokens. These codes must
+    /// stay byte-identical to `packages/types/src/permissions.ts` — a rename on
+    /// either side silently reopens the hole.
+    #[test]
+    fn codes_match_the_frontend_permission_strings() {
+        assert_eq!(tv_displays::LIST, "admin.tv_displays.list");
+        assert_eq!(tv_displays::CREATE, "admin.tv_displays.create");
+        assert_eq!(tv_displays::UPDATE, "admin.tv_displays.update");
+        assert_eq!(tv_displays::DELETE, "admin.tv_displays.delete");
+        assert_eq!(tv_displays::TOKENS, "admin.tv_displays.tokens");
+        assert_eq!(tv_displays::BROADCAST, "admin.tv_displays.broadcast");
+    }
 }
