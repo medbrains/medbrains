@@ -1,0 +1,47 @@
+{
+  "audit_officer": {
+    "missing_from_template": 24,
+    "template_only": []
+  },
+  "billing_clerk": {
+    "missing_from_template": 21,
+    "template_only": []
+  },
+  "camp_coordinator": {
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "doctor": {
+    "missing_from_template": 66,
+    "template_only": [
+      "specialty.palliative.dnr.manage"
+    ]
+  },
+  "hr_officer": {
+    "missing_from_template": 0,
+    "template_only": [
+      "hr.leave.create",
+      "hr.on_call.list",
+      "hr.roster.list",
+      "hr.training.list"
+    ]
+  },
+  "lab_technician": {
+    "missing_from_template": 12,
+    "template_only": []
+  },
+  "nurse": {
+    "missing_from_template": 28,
+    "template_only": [
+      "specialty.endoscopy.scopes.list"
+    ]
+  },
+  "pharmacist": {
+    "missing_from_template": 40,
+    "template_only": []
+  },
+  "receptionist": {
+    "missing_from_template": 10,
+    "template_only": []
+  }
+}
