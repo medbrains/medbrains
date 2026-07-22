@@ -1216,6 +1216,39 @@ pub async fn schedule_analytics(
 
 // ── POST /api/scheduling/recurring ──────────────────────────
 
+/// Upper bound on a single recurring-booking request — a year of weekly visits.
+/// Without it `repeat_count` is an unbounded INSERT loop driven by the caller.
+const MAX_RECURRING_APPOINTMENTS: i32 = 52;
+
+/// Validate the caller-controlled loop inputs for a recurring booking.
+///
+/// Both are client input, so a bad value is a 400 — not the 500 this used to
+/// return. `repeat_count` additionally drives one INSERT per iteration, so an
+/// unbounded value would book an unbounded number of appointments in a single
+/// transaction.
+fn validate_recurring(day_of_week: i32, repeat_count: i32) -> Result<chrono::Weekday, AppError> {
+    let weekday = match day_of_week {
+        0 => chrono::Weekday::Sun,
+        1 => chrono::Weekday::Mon,
+        2 => chrono::Weekday::Tue,
+        3 => chrono::Weekday::Wed,
+        4 => chrono::Weekday::Thu,
+        5 => chrono::Weekday::Fri,
+        6 => chrono::Weekday::Sat,
+        other => {
+            return Err(AppError::BadRequest(format!(
+                "day_of_week must be 0 (Sunday) to 6 (Saturday), got {other}"
+            )));
+        }
+    };
+    if !(1..=MAX_RECURRING_APPOINTMENTS).contains(&repeat_count) {
+        return Err(AppError::BadRequest(format!(
+            "repeat_count must be between 1 and {MAX_RECURRING_APPOINTMENTS}, got {repeat_count}"
+        )));
+    }
+    Ok(weekday)
+}
+
 #[derive(Debug, Deserialize)]
 pub struct CreateRecurringRequest {
     pub doctor_id: Uuid,
@@ -1251,19 +1284,10 @@ pub async fn create_recurring(
 
     // Parse start_date, find first matching day_of_week
     let start = chrono::NaiveDate::parse_from_str(&body.start_date, "%Y-%m-%d")
-        .map_err(|e| AppError::Internal(format!("Invalid start_date: {e}")))?;
+        .map_err(|e| AppError::BadRequest(format!("Invalid start_date: {e}")))?;
 
     // Find the first date >= start_date that matches day_of_week
-    let target_weekday = match body.day_of_week {
-        0 => chrono::Weekday::Sun,
-        1 => chrono::Weekday::Mon,
-        2 => chrono::Weekday::Tue,
-        3 => chrono::Weekday::Wed,
-        4 => chrono::Weekday::Thu,
-        5 => chrono::Weekday::Fri,
-        6 => chrono::Weekday::Sat,
-        _ => return Err(AppError::Internal("day_of_week must be 0-6".to_string())),
-    };
+    let target_weekday = validate_recurring(body.day_of_week, body.repeat_count)?;
 
     let mut current_date = start;
     while current_date.weekday() != target_weekday {
@@ -1377,4 +1401,42 @@ pub async fn create_block(
 
     tx.commit().await?;
     Ok((StatusCode::CREATED, Json(row)))
+}
+
+#[cfg(test)]
+mod recurring_tests {
+    use super::{AppError, MAX_RECURRING_APPOINTMENTS, validate_recurring};
+
+    #[test]
+    fn valid_inputs_map_to_a_weekday() {
+        assert!(matches!(validate_recurring(0, 1), Ok(chrono::Weekday::Sun)));
+        assert!(matches!(
+            validate_recurring(6, MAX_RECURRING_APPOINTMENTS),
+            Ok(chrono::Weekday::Sat)
+        ));
+    }
+
+    /// Regression: an out-of-range `day_of_week` used to return 500 (Internal).
+    /// It is caller input, so it must be a 400.
+    #[test]
+    fn out_of_range_day_of_week_is_bad_request_not_internal() {
+        for day in [-1, 7, 99] {
+            assert!(
+                matches!(validate_recurring(day, 1), Err(AppError::BadRequest(_))),
+                "day_of_week {day} must be a BadRequest"
+            );
+        }
+    }
+
+    /// Regression: `repeat_count` drives one INSERT per iteration. Unbounded, a
+    /// single request could book an unbounded number of appointments.
+    #[test]
+    fn repeat_count_is_bounded() {
+        for count in [0, -5, MAX_RECURRING_APPOINTMENTS + 1, 100_000] {
+            assert!(
+                matches!(validate_recurring(1, count), Err(AppError::BadRequest(_))),
+                "repeat_count {count} must be a BadRequest"
+            );
+        }
+    }
 }
