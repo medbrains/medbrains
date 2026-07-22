@@ -44,9 +44,25 @@ AUDIT_LAYER_FILE = (
 ROUTER_FILE = (
     REPO_ROOT / "medbrains" / "crates" / "medbrains-server" / "src" / "routes" / "mod.rs"
 )
-AUDIT_LAYER_WIRED_RE = re.compile(
-    r"\.layer\(\s*from_fn_with_state\(.{0,120}?\baudit_layer\b", re.DOTALL
-)
+# Each `let <name> = Router::new()...;` binding is one router. A router that
+# applies auth_middleware serves authenticated traffic and therefore must also
+# apply audit_layer — asserting only that the layer appears *somewhere* would
+# let one router lose it silently while the other kept the check green.
+ROUTER_BINDING_RE = re.compile(r"let\s+(\w+)\s*=\s*Router::new\(\)")
+AUTH_LAYER_RE = re.compile(r"\bauth_middleware\b")
+AUDIT_LAYER_RE = re.compile(r"\baudit_layer\b")
+
+
+def unaudited_authenticated_routers(router_src: str) -> list[str]:
+    """Names of routers that apply auth_middleware but not audit_layer."""
+    bounds = [(m.start(), m.group(1)) for m in ROUTER_BINDING_RE.finditer(router_src)]
+    offenders = []
+    for i, (start, name) in enumerate(bounds):
+        end = bounds[i + 1][0] if i + 1 < len(bounds) else len(router_src)
+        body = router_src[start:end]
+        if AUTH_LAYER_RE.search(body) and not AUDIT_LAYER_RE.search(body):
+            offenders.append(name)
+    return offenders
 
 STATE_CHANGE_RE = re.compile(
     r"pub\s+async\s+fn\s+((?:post|create|update|delete|patch|revoke|cancel|approve|reject|activate|deactivate)_[a-z0-9_]+|"
@@ -107,14 +123,25 @@ def main() -> int:
     # existing: dropping the .layer(...) line would silently unaudit all 900+
     # handlers, and nothing else would notice.
     router = ROUTER_FILE.read_text(encoding="utf-8") if ROUTER_FILE.exists() else ""
-    if not AUDIT_LAYER_WIRED_RE.search(router):
-        print(f"\n❌ audit_layer is not applied to the router in "
+    if not AUDIT_LAYER_RE.search(router):
+        print(f"\n❌ audit_layer is not applied in "
               f"{ROUTER_FILE.relative_to(REPO_ROOT)}.")
         print(f"   {len(candidates)} state-changing handlers would go unaudited.")
         return 1
 
-    print(f"✓ audit_layer wired into the router; {len(candidates)} state-changing "
-          "handlers covered implicitly.")
+    offenders = unaudited_authenticated_routers(router)
+    if offenders:
+        print(f"\n❌ {len(offenders)} authenticated router(s) apply auth_middleware "
+              "but not audit_layer:")
+        for name in offenders:
+            print(f"  ✗ {name}")
+        print(f"   Handlers on those routers are unaudited in "
+              f"{ROUTER_FILE.relative_to(REPO_ROOT)}.")
+        return 1
+
+    audited = len(AUDIT_LAYER_RE.findall(router))
+    print(f"✓ every authenticated router applies audit_layer ({audited} sites); "
+          f"{len(candidates)} state-changing handlers covered implicitly.")
     return 0
 
 
