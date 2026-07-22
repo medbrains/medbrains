@@ -162,6 +162,8 @@
   "notify.patientRegisteredWithToken": "UHID: {{uhid}} · OPD token T{{token}}",
   "notify.patientRegisteredWithUhid": "UHID: {{uhid}}",
   "notify.registrationFailed": "Registration failed",
+  "notify.duplicateCheckUnavailable": "Duplicate check unavailable",
+  "notify.duplicateCheckUnavailableBody": "This patient could not be checked against existing records. Verify they are not already registered before continuing.",
   "notify.changesSaved": "Changes saved",
   "aria.delete": "Delete",
   "aria.camera": "Camera",

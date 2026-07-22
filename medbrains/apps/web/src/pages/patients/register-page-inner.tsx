@@ -23,11 +23,15 @@ import { DataTable, PageHeader, useClinicalEmit } from "@/components";
 import type { PatientRegistrationLinkedServicesOptions } from "@/components/Patient/PatientRegisterForm";
 import { PatientRegisterForm } from "@/components/Patient/PatientRegisterForm";
 import { Alert, Badge, Button, IconButton } from "@/components/ui";
+import { nextCheckState } from "@/lib/advisoryCheck";
 import { campService } from "@/services/camp.service";
 import { opdService } from "@/services/opd.service";
 import { patientsService } from "@/services/patients.service";
 import { patientRegistrationOpdHandoffRoute } from "../patient-registration-flow";
 import classes from "../patients.module.scss";
+import { registrationAction } from "./registrationGate";
+
+const NO_MATCHES: MpiMatchResult[] = [];
 
 interface RegisterPatientMutationInput {
   req: CreatePatientRequest;
@@ -316,6 +320,7 @@ export function PatientRegisterPageInner() {
           returnTo,
         }
       : undefined;
+    let check = nextCheckState<MpiMatchResult[]>({ type: "failed" }, NO_MATCHES);
     try {
       const matches = await patientsService.matchPatients({
         first_name: req.first_name,
@@ -323,14 +328,27 @@ export function PatientRegisterPageInner() {
         date_of_birth: req.date_of_birth ?? undefined,
         phone: req.phone ?? undefined,
       });
-      if (matches.length > 0) {
-        setDuplicateMatches(matches);
-        pendingRegistrationRef.current = { req, linkedServices, campContext };
-        dupModalHandlers.open();
-        return;
-      }
+      check = nextCheckState({ type: "checked", findings: matches }, NO_MATCHES);
     } catch {
-      // If MPI matching fails, proceed; registration still needs to work during camp load.
+      // Registration still has to work when MPI is down — a camp intake cannot
+      // stop for it — so this proceeds. But nobody has been compared, and a
+      // missed match means a second UHID for someone who already has one, so
+      // the registrar is told rather than left to assume it was checked.
+    }
+
+    const action = registrationAction(check);
+    if (action === "confirm") {
+      setDuplicateMatches(check.findings);
+      pendingRegistrationRef.current = { req, linkedServices, campContext };
+      dupModalHandlers.open();
+      return;
+    }
+    if (action === "proceedUnverified") {
+      notifications.show({
+        title: t("notify.duplicateCheckUnavailable"),
+        message: t("notify.duplicateCheckUnavailableBody"),
+        color: "warning",
+      });
     }
     createMutation.mutate({ req, linkedServices, campContext });
   };
