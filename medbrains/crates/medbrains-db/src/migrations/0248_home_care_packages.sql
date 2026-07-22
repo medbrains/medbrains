@@ -1,3 +1,6 @@
+-- Migration: 0248_home_care_packages.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Home care billing (ticket #2970): package-based billing — a prepaid bundle of N home-care visits.
 -- Purchase auto-charges the price to the patient (reusing the billing auto_charge seam); each visit
 -- consumed decrements the balance. Visit-based billing reuses auto_charge per visit (no table).

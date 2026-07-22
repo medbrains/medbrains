@@ -1,3 +1,6 @@
+-- Migration: 0243_trial_randomizations.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Blinded/unblinded randomization (ticket #2988): a patient's treatment-arm assignment. The arm
 -- is stored but concealed — the list endpoint only returns it once the record is unblinded (for a
 -- documented reason). The randomization/IWRS algorithm is external; this stores + guards the arm.

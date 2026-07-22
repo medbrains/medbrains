@@ -1,3 +1,6 @@
+-- Migration: 0250_hospice_enrollments.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Hospice enrollment (ticket #2972): enrolls a patient in the hospice / palliative program with a
 -- terminal diagnosis, a documented prognosis, a comfort-care plan, and DNR status. Tenant RLS.
 

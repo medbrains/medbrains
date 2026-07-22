@@ -1,3 +1,6 @@
+-- Migration: 0249_caregiver_education.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Caregiver education documentation (ticket #2971): records a teaching session given to a home
 -- patient's family caregiver — the topic, materials handed over, and whether understanding was
 -- confirmed (teach-back). Tenant RLS.

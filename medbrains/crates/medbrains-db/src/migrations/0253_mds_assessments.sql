@@ -1,3 +1,6 @@
+-- Migration: 0253_mds_assessments.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Long-Term Care: Minimum Data Set (MDS) assessment (ticket #2961). The standardized comprehensive
 -- assessment for a long-stay resident — cognition, mood, function (ADLs), continence, nutrition —
 -- done at admission and then quarterly / annually / on significant change. Summary domains are

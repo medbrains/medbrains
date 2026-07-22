@@ -1,3 +1,6 @@
+-- Migration: 0241_trial_visits.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Protocol-driven visit schedule + procedure tracking (ticket #2986): each enrolled patient has a
 -- schedule of protocol visits (e.g. Screening, Day 0, Day 28) with the procedures to perform and a
 -- completion status. Tenant RLS.

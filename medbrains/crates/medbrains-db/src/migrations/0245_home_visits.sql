@@ -1,3 +1,6 @@
+-- Migration: 0245_home_visits.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Home visit scheduling + nurse assignment (ticket #2967): a home-care visit assigned to a nurse
 -- for a date/time, with a manual visit_order for the day's route. Automated route optimization is
 -- a later enhancement — visit_order lets the nurse sequence the round for now. Tenant RLS.

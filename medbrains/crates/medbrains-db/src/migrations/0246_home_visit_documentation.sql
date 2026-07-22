@@ -1,3 +1,7 @@
+-- Migration: 0246_home_visit_documentation.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters home_visits, created with the tenant policy in 0245.
 -- Home visit documentation (ticket #2968): what the nurse records during the visit — vitals, a
 -- wound-photo URL (image uploaded to object storage elsewhere; we store the reference), and the
 -- patient's medication compliance. 1:1 with a visit, so these are columns on home_visits.

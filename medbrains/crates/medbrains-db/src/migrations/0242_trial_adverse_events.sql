@@ -1,3 +1,6 @@
+-- Migration: 0242_trial_adverse_events.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Adverse event + SAE reporting for clinical trials (ticket #2987): safety events during a trial,
 -- flagged serious (SAE) with severity, relatedness to the investigational product, and outcome.
 -- Tenant RLS.

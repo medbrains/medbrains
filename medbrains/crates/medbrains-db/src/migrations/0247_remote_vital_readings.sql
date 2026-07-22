@@ -1,3 +1,6 @@
+-- Migration: 0247_remote_vital_readings.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Remote vital monitoring (ticket #2969): readings streamed from a home patient's connected devices
 -- (BP cuff, glucometer, pulse oximeter, thermometer, scale). Bluetooth pairing + read happens in the
 -- mobile app; this stores the reading (flexible jsonb) and whether it breached a safe range. Tenant RLS.

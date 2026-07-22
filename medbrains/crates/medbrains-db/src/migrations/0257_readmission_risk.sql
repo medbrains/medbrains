@@ -1,3 +1,6 @@
+-- Migration: 0257_readmission_risk.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Readmission risk scoring (ticket #2965): a LACE-style index for a patient — Length of stay,
 -- Acuity of admission, Comorbidity burden, Emergency-department visits — summed to a total score
 -- and banded into low / moderate / high readmission risk. Tenant RLS.

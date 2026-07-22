@@ -1,3 +1,6 @@
+-- Migration: 0252_bereavement_followups.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Bereavement support coordination (ticket #2974): after a hospice patient's death, scheduled
 -- follow-up contacts with the bereaved family (call, home visit, support group, condolence letter)
 -- and their completion status. Tenant RLS.

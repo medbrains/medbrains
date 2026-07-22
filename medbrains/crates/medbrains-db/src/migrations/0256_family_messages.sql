@@ -1,3 +1,6 @@
+-- Migration: 0256_family_messages.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Family communication portal (ticket #2964): messages between the care team and a resident's
 -- family — care updates pushed to the family, and visit requests / general messages from the
 -- family — with a read/actioned status. Tenant RLS.

@@ -1,3 +1,6 @@
+-- Migration: 0244_trial_irb_submissions.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- IRB / Ethics committee submission tracking (ticket #2989): the ethics-committee submissions for a
 -- trial (initial, amendment, renewal, SAE report, closure) and their review outcome. Tenant RLS.
 

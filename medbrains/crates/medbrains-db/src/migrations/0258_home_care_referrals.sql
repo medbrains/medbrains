@@ -1,3 +1,6 @@
+-- Migration: 0258_home_care_referrals.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Home care referral from discharge (ticket #2966): at discharge, refer a patient to home-care
 -- services (skilled nursing, wound care, physiotherapy, OT, speech) and track the referral through
 -- acceptance / scheduling. Bridges discharge planning to the Home Care program. Tenant RLS.

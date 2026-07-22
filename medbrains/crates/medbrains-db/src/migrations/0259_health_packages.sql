@@ -1,3 +1,6 @@
+-- Migration: 0259_health_packages.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Health packages / promotions (ticket #2953): pre-priced health check-up / service packages a
 -- hospital markets to patients (e.g. "Master Health Check"), optionally promoted with a validity.
 -- Booking a package auto-charges its price (reusing the billing seam); the resulting invoice is

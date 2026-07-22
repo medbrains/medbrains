@@ -1,3 +1,6 @@
+-- Migration: 0260_testimonials.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Patient testimonials / reviews (ticket #2954): patient-submitted reviews shown on the hospital
 -- micro-site, moderated (approved) before being published. Tenant RLS.
 

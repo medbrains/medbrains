@@ -1,3 +1,6 @@
+-- Migration: 0255_rehab_progress.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Rehabilitation progress tracking (ticket #2963): therapy sessions (physiotherapy, occupational,
 -- speech) for a resident with the session goal, progress note and a functional score to trend
 -- recovery over time. Tenant RLS.

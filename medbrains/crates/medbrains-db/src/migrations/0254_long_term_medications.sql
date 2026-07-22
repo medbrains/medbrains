@@ -1,3 +1,6 @@
+-- Migration: 0254_long_term_medications.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Long-term medication management (ticket #2962): a long-stay resident's chronic medications on an
 -- extended (e.g. 90-day) supply cycle with optional auto-refill. Each refill advances the next
 -- refill date by the supply period. Tenant RLS.

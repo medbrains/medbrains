@@ -1,3 +1,6 @@
+-- Migration: 0251_advance_directives.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Advance directive / DNR management (ticket #2973): a patient's advance directives (living will,
 -- DNR, durable power of attorney, MOLST, organ donation) with family-consent tracking and a
 -- lifecycle (active -> revoked / superseded). Tenant RLS.
