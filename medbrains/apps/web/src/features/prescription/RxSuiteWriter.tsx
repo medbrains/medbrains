@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { Alert, Card, Checkbox, SegmentedControl } from "@/components/ui";
+import { nextCheckState } from "@/lib/advisoryCheck";
 import { ckbService } from "@/services/ckb.service";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { matchDrugAllergy } from "@/utils/allergyMatch";
@@ -23,7 +24,6 @@ import { RxPrint } from "./RxPrint";
 import { catalogToFormulary, prescriptionItemsToRx, rxItemsToInput } from "./rxAdapter";
 import { type FormularyDrug, maxDoseExceeded, type RxItem } from "./rxModel";
 import { type SafetyIssue, SafetyOverrideModal } from "./SafetyOverrideModal";
-import { nextSafetyState } from "./safetyState";
 
 interface Props {
   encounterId: string;
@@ -145,12 +145,12 @@ export function RxSuiteWriter({
   }, [prescriptions]);
 
   const runSafety = async (items: RxItem[]) => {
-    const apply = (next: { alerts: RxSafety; unavailable: boolean }) => {
-      setSafety(next.alerts);
+    const apply = (next: { findings: RxSafety; unavailable: boolean }) => {
+      setSafety(next.findings);
       setSafetyUnavailable(next.unavailable);
     };
     if (items.length === 0) {
-      apply(nextSafetyState({ type: "reset" }, EMPTY_SAFETY));
+      apply(nextCheckState({ type: "reset" }, EMPTY_SAFETY));
       return;
     }
     try {
@@ -164,13 +164,13 @@ export function RxSuiteWriter({
           catalog_item_id: i.catalog_item_id,
         })),
       });
-      apply(nextSafetyState({ type: "checked", alerts }, EMPTY_SAFETY));
+      apply(nextCheckState({ type: "checked", findings: alerts }, EMPTY_SAFETY));
     } catch {
       // Never block prescribing on a safety-service hiccup, but do not leave
       // the previous drug list's verdict on screen either — it would read as
       // if these drugs had been checked. Clear it and say so; the server
       // re-checks allergies and serious interactions at save regardless.
-      apply(nextSafetyState({ type: "failed" }, EMPTY_SAFETY));
+      apply(nextCheckState({ type: "failed" }, EMPTY_SAFETY));
     }
   };
 

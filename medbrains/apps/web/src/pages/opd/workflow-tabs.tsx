@@ -86,9 +86,12 @@ import {
   toCreateProcedureOrderRequest,
   toCreateReminderRequest,
 } from "@/forms/opd.form";
+import { type CheckResult, nextCheckState } from "@/lib/advisoryCheck";
 import { todayDateString } from "@/lib/date-utils";
 import { statusColor } from "@/lib/status-colors";
 import { opdService } from "@/services/opd.service";
+
+const NO_DUPES: DuplicateOrderInfo[] = [];
 
 const referralUrgencyValues = [
   "routine",
@@ -761,7 +764,12 @@ export function ProceduresTab({
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const [formOpened, formHandlers] = useDisclosure(false);
-  const [dupeWarning, setDupeWarning] = useState<DuplicateOrderInfo[]>([]);
+  const [dupeWarning, setDupeWarning] = useState<DuplicateOrderInfo[]>(NO_DUPES);
+  const [dupeCheckUnavailable, setDupeCheckUnavailable] = useState(false);
+  const applyDupeCheck = (next: CheckResult<DuplicateOrderInfo[]>) => {
+    setDupeWarning(next.findings);
+    setDupeCheckUnavailable(next.unavailable);
+  };
   const {
     control,
     handleSubmit,
@@ -799,17 +807,21 @@ export function ProceduresTab({
     onChange: (value: string | null) => void,
   ) => {
     onChange(procId);
-    setDupeWarning([]);
-    if (procId) {
-      try {
-        const dupes = await opdService.checkDuplicateOrders({
-          patient_id: patientId,
-          procedure_id: procId,
-        });
-        if (dupes.length > 0) setDupeWarning(dupes);
-      } catch {
-        /* ignore check failure */
-      }
+    if (!procId) {
+      applyDupeCheck(nextCheckState({ type: "reset" }, NO_DUPES));
+      return;
+    }
+    try {
+      const dupes = await opdService.checkDuplicateOrders({
+        patient_id: patientId,
+        procedure_id: procId,
+      });
+      applyDupeCheck(nextCheckState({ type: "checked", findings: dupes }, NO_DUPES));
+    } catch {
+      // The duplicate check warns but never blocks, and nothing re-checks it
+      // server-side — so if it fails, say so rather than showing the empty
+      // result the clinician would read as "no duplicates".
+      applyDupeCheck(nextCheckState({ type: "failed" }, NO_DUPES));
     }
   };
 
@@ -828,7 +840,7 @@ export function ProceduresTab({
         procedure_name: result.procedure_name,
       });
       reset(DEFAULT_OPD_PROCEDURE_ORDER_FORM_VALUES);
-      setDupeWarning([]);
+      applyDupeCheck(nextCheckState({ type: "reset" }, NO_DUPES));
       formHandlers.close();
     },
     onError: () => {
@@ -883,6 +895,18 @@ export function ProceduresTab({
                 />
               )}
             />
+            {dupeCheckUnavailable && (
+              <Alert
+                icon={<IconAlertTriangle size={14} />}
+                tone="warning"
+                title="Duplicate check unavailable"
+              >
+                <Text size="xs">
+                  This procedure could not be checked against recent orders. Confirm it has not
+                  already been ordered before proceeding.
+                </Text>
+              </Alert>
+            )}
             {dupeWarning.length > 0 && (
               <Alert
                 icon={<IconAlertTriangle size={14} />}
@@ -929,7 +953,7 @@ export function ProceduresTab({
                 onClick={() => {
                   formHandlers.close();
                   reset(DEFAULT_OPD_PROCEDURE_ORDER_FORM_VALUES);
-                  setDupeWarning([]);
+                  applyDupeCheck(nextCheckState({ type: "reset" }, NO_DUPES));
                 }}
               >
                 Cancel

@@ -45,7 +45,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SignatureHero } from "@/components/ui";
-import { nextSafetyState, type SafetyView } from "@/features/prescription/safetyState";
+import { type CheckResult, nextCheckState } from "@/lib/advisoryCheck";
 import { instructionsDisplayText } from "@/lib/medication-timing-utils";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { PrescriptionItemEntry } from "./PrescriptionItemEntry";
@@ -179,12 +179,12 @@ export function PrescriptionWriter({
   const [safetyUnavailable, setSafetyUnavailable] = useState(false);
 
   const checkDrugSafety = async (items: PrescriptionItemInput[]) => {
-    const apply = (next: SafetyView<SafetyAlerts>) => {
-      setSafetyAlerts(next.alerts);
+    const apply = (next: CheckResult<SafetyAlerts>) => {
+      setSafetyAlerts(next.findings);
       setSafetyUnavailable(next.unavailable);
     };
     if (items.length === 0 || !compliance.enforce_drug_interactions) {
-      apply(nextSafetyState({ type: "reset" }, EMPTY_ALERTS));
+      apply(nextCheckState({ type: "reset" }, EMPTY_ALERTS));
       return;
     }
     try {
@@ -192,13 +192,13 @@ export function PrescriptionWriter({
         drug_names: items.map((i) => i.drug_name),
         patient_id: patientId,
       });
-      apply(nextSafetyState({ type: "checked", alerts }, EMPTY_ALERTS));
+      apply(nextCheckState({ type: "checked", findings: alerts }, EMPTY_ALERTS));
     } catch {
       // Don't block prescribing, but don't leave the previous drug list's
       // alerts on screen either — they would read as if these drugs had been
       // checked. The server re-checks allergies and serious interactions at
       // save regardless.
-      apply(nextSafetyState({ type: "failed" }, EMPTY_ALERTS));
+      apply(nextCheckState({ type: "failed" }, EMPTY_ALERTS));
     }
   };
 

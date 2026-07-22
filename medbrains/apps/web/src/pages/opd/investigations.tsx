@@ -36,9 +36,12 @@ import {
   OPD_LAB_PRIORITY_OPTIONS,
   toCreateLabOrderRequest,
 } from "@/forms/opd.form";
+import { type CheckResult, nextCheckState } from "@/lib/advisoryCheck";
 import { confirmDestructive } from "@/lib/confirm";
 import { statusColor } from "@/lib/status-colors";
 import { opdService } from "@/services/opd.service";
+
+const NO_DUPES: DuplicateOrderInfo[] = [];
 
 const LAB_STATUS_COLORS: Record<string, BadgeTone> = {
   ordered: "primary",
@@ -92,7 +95,12 @@ export function InvestigationsTab({
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const [formOpened, formHandlers] = useDisclosure(false);
-  const [labDupeWarning, setLabDupeWarning] = useState<DuplicateOrderInfo[]>([]);
+  const [labDupeWarning, setLabDupeWarning] = useState<DuplicateOrderInfo[]>(NO_DUPES);
+  const [dupeCheckUnavailable, setDupeCheckUnavailable] = useState(false);
+  const applyDupeCheck = (next: CheckResult<DuplicateOrderInfo[]>) => {
+    setLabDupeWarning(next.findings);
+    setDupeCheckUnavailable(next.unavailable);
+  };
   const [selectedLabReportId, setSelectedLabReportId] = useState<string | null>(null);
   const {
     control,
@@ -215,17 +223,23 @@ export function InvestigationsTab({
                   value={field.value}
                   onChange={async (testId) => {
                     field.onChange(testId);
-                    setLabDupeWarning([]);
-                    if (testId) {
-                      try {
-                        const dupes = await opdService.checkDuplicateOrders({
-                          patient_id: patientId,
-                          test_id: testId,
-                        });
-                        if (dupes.length > 0) setLabDupeWarning(dupes);
-                      } catch {
-                        /* ignore */
-                      }
+                    if (!testId) {
+                      applyDupeCheck(nextCheckState({ type: "reset" }, NO_DUPES));
+                      return;
+                    }
+                    try {
+                      const dupes = await opdService.checkDuplicateOrders({
+                        patient_id: patientId,
+                        test_id: testId,
+                      });
+                      applyDupeCheck(
+                        nextCheckState({ type: "checked", findings: dupes }, NO_DUPES),
+                      );
+                    } catch {
+                      // Warns but never blocks, and nothing re-checks it
+                      // server-side — so if it fails, say so rather than
+                      // showing an empty result that reads as "no duplicates".
+                      applyDupeCheck(nextCheckState({ type: "failed" }, NO_DUPES));
                     }
                   }}
                   searchable
@@ -235,6 +249,18 @@ export function InvestigationsTab({
                 />
               )}
             />
+            {dupeCheckUnavailable && (
+              <Alert
+                icon={<IconAlertTriangle size={14} />}
+                tone="warning"
+                title="Duplicate check unavailable"
+              >
+                <Text size="xs">
+                  This test could not be checked against recent orders. Confirm it has not already
+                  been ordered before proceeding.
+                </Text>
+              </Alert>
+            )}
             {labDupeWarning.length > 0 && (
               <Alert
                 icon={<IconAlertTriangle size={14} />}
