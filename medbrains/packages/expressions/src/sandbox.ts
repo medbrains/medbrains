@@ -16,9 +16,9 @@
 
 import {
   BLOCKED_KEYS,
+  type ExpressionContext,
   MAX_AST_NODES,
   MAX_DEPTH,
-  type ExpressionContext,
   type ValidationResult,
 } from "./types.js";
 
@@ -27,9 +27,7 @@ import {
  * The returned object is deeply frozen and wrapped in a Proxy
  * that blocks dangerous property access.
  */
-export function createSandboxedContext(
-  data: Record<string, unknown>,
-): ExpressionContext {
+export function createSandboxedContext(data: Record<string, unknown>): ExpressionContext {
   // Deep copy to sever all shared references
   const cloned = safeDeepClone(data);
   return wrapWithProxy(cloned);
@@ -39,10 +37,7 @@ export function createSandboxedContext(
  * Deep clone that strips dangerous keys during cloning.
  * Uses structured cloning logic but filters blocked properties.
  */
-function safeDeepClone(
-  obj: unknown,
-  depth = 0,
-): unknown {
+function safeDeepClone(obj: unknown, depth = 0): unknown {
   if (depth > MAX_DEPTH) return undefined;
 
   if (obj === null || obj === undefined) return obj;
@@ -63,10 +58,7 @@ function safeDeepClone(
     const result: Record<string, unknown> = {};
     for (const key of Object.keys(obj as Record<string, unknown>)) {
       if (BLOCKED_KEYS.has(key)) continue;
-      result[key] = safeDeepClone(
-        (obj as Record<string, unknown>)[key],
-        depth + 1,
-      );
+      result[key] = safeDeepClone((obj as Record<string, unknown>)[key], depth + 1);
     }
     return result;
   }
@@ -94,7 +86,12 @@ function wrapWithProxy(obj: unknown): ExpressionContext {
       if (BLOCKED_KEYS.has(key)) return undefined;
       const val = t[key];
       // Recursively proxy nested objects for deep protection
-      if (typeof val === "object" && val !== null && !Array.isArray(val) && !(val instanceof Date)) {
+      if (
+        typeof val === "object" &&
+        val !== null &&
+        !Array.isArray(val) &&
+        !(val instanceof Date)
+      ) {
         return wrapWithProxy(val);
       }
       return val;
@@ -118,8 +115,13 @@ function wrapWithProxy(obj: unknown): ExpressionContext {
       if (BLOCKED_KEYS.has(key)) return undefined;
       const desc = Object.getOwnPropertyDescriptor(t, key);
       if (desc) {
+        // Read-only is safe to report. Non-configurable is not: a proxy may
+        // not describe a property as non-configurable when it is configurable
+        // on the target, and the engine throws rather than tolerating it —
+        // which broke every Object.keys() walk over a sandboxed context.
+        // Writes are already refused by the set and deleteProperty traps.
         desc.writable = false;
-        desc.configurable = false;
+        desc.configurable = true;
       }
       return desc;
     },
@@ -133,10 +135,7 @@ function wrapWithProxy(obj: unknown): ExpressionContext {
  * Resolves a dotted path ("patient.name") against a sandboxed context.
  * Enforces max depth and blocked key checks at every level.
  */
-export function resolveContextPath(
-  context: ExpressionContext,
-  path: string,
-): unknown {
+export function resolveContextPath(context: ExpressionContext, path: string): unknown {
   const parts = path.split(".");
   if (parts.length > MAX_DEPTH) return undefined;
 
@@ -187,9 +186,7 @@ export function validateExpressionString(expr: string): ValidationResult {
 
   // Estimate node count from tokens (rough heuristic)
   // Count operators, function calls, identifiers, and literals
-  const tokens = expr.match(
-    /\w+|[+\-*/%^]|[<>!=]=?|&&|\|\||[(),?:]/g,
-  );
+  const tokens = expr.match(/\w+|[+\-*/%^]|[<>!=]=?|&&|\|\||[(),?:]/g);
   const nodeCount = tokens?.length ?? 0;
 
   if (nodeCount > MAX_AST_NODES) {
@@ -245,15 +242,17 @@ export function validateTemplateString(template: string): ValidationResult {
  * JSON Logic is inherently safe (pure data), but we still
  * check for excessive nesting depth.
  */
-export function validateJsonLogicRule(
-  rule: unknown,
-  depth = 0,
-): ValidationResult {
+export function validateJsonLogicRule(rule: unknown, depth = 0): ValidationResult {
   if (depth > 20) {
     return { valid: false, error: "JSON Logic rule too deeply nested (max 20 levels)" };
   }
 
-  if (rule === null || typeof rule === "boolean" || typeof rule === "number" || typeof rule === "string") {
+  if (
+    rule === null ||
+    typeof rule === "boolean" ||
+    typeof rule === "number" ||
+    typeof rule === "string"
+  ) {
     return { valid: true, nodeCount: 1 };
   }
 

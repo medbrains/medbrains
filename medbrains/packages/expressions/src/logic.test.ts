@@ -2,77 +2,67 @@
 
 import type { FieldCondition } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
+import { evaluateComputed } from "./computed";
 import { evaluateFieldCondition, evaluateLogic, fieldConditionToJsonLogic } from "./logic";
+import { createSandboxedContext } from "./sandbox";
+import { renderTemplate } from "./template";
 
 /**
- * `evaluateFieldCondition` is documented as replacing the hand-rolled
- * `evaluateCondition` in @medbrains/schemas. It does not work.
+ * Every evaluator in this package walks its context with `Object.keys()` after
+ * sandboxing it behind a Proxy. The proxy's descriptor trap used to report
+ * properties as non-configurable when the target's were configurable, which
+ * is a Proxy invariant violation — the engine threw, all three evaluators
+ * caught it, and each degraded silently.
  *
- * Every evaluation throws inside `evaluateLogic`, and the documented
- * "on error, default to true" fallback converts that into an unconditional
- * allow. These tests assert the broken behaviour deliberately: nothing
- * imports the function today, so this is a landmine rather than an outage,
- * and the tests make it visible until it is fixed.
+ * The tests below would all have failed before that trap was corrected.
  */
 
-describe("rule translation is fine", () => {
-  it("produces the JSON Logic a condition should compile to", () => {
+describe("sandboxed contexts can be walked", () => {
+  it("Object.keys works on a sandboxed context", () => {
+    const ctx = createSandboxedContext({ qty: 4, patient: { age: 30 } });
+    expect(Object.keys(ctx).sort()).toEqual(["patient", "qty"]);
+  });
+
+  it("still hides blocked keys and refuses writes", () => {
+    const ctx = createSandboxedContext({ qty: 4, constructor: "evil", window: "evil" });
+    expect(Object.keys(ctx)).toEqual(["qty"]);
+    expect((ctx as Record<string, unknown>).constructor).toBeUndefined();
+    expect(() => {
+      (ctx as Record<string, unknown>).qty = 99;
+    }).toThrow();
+  });
+});
+
+describe("json logic", () => {
+  it("translates a condition to the expected rule", () => {
     expect(fieldConditionToJsonLogic({ field: "gender", operator: "eq", value: "female" })).toEqual(
       {
         "===": [{ var: "gender" }, "female"],
       },
     );
-    expect(fieldConditionToJsonLogic({ field: "age", operator: "gte", value: 18 })).toEqual({
-      ">=": [{ var: "age" }, 18],
-    });
   });
 
-  it("composes all and any into and/or", () => {
-    const leaf: FieldCondition = { field: "a", operator: "eq", value: 1 };
-    expect(fieldConditionToJsonLogic({ field: "", operator: "eq", all: [leaf] })).toEqual({
-      and: [{ "===": [{ var: "a" }, 1] }],
-    });
-    expect(fieldConditionToJsonLogic({ field: "", operator: "eq", any: [leaf] })).toEqual({
-      or: [{ "===": [{ var: "a" }, 1] }],
-    });
-  });
-});
-
-describe("evaluation is broken", () => {
-  /**
-   * `evaluateLogic` sandboxes the data behind a Proxy, then calls
-   * `flattenForJsonLogic` on it to get a plain object for json-logic-js.
-   * That flatten uses `Object.keys()`, which trips the proxy's
-   * `getOwnPropertyDescriptor` trap and throws. The catch turns it into a
-   * failed result, so every rule fails regardless of the data.
-   */
-  it("every evaluation fails on the sandbox proxy", () => {
-    const rule = fieldConditionToJsonLogic({ field: "gender", operator: "eq", value: "female" });
-    const result = evaluateLogic(rule, { gender: "female" });
-
-    expect(result.success).toBe(false);
-    expect(result.success ? "" : result.error).toContain("getOwnPropertyDescriptor");
-  });
-
-  it("fails even for data that plainly satisfies the rule", () => {
+  it("evaluates against real data instead of failing", () => {
     const rule = fieldConditionToJsonLogic({ field: "age", operator: "gte", value: 18 });
-    expect(evaluateLogic(rule, { age: 30 }).success).toBe(false);
+    expect(evaluateLogic(rule, { age: 30 })).toEqual({ success: true, value: true });
+    expect(evaluateLogic(rule, { age: 10 })).toEqual({ success: true, value: false });
   });
 });
 
-describe("the failure is invisible to callers", () => {
+describe("evaluateFieldCondition discriminates", () => {
   const eqFemale: FieldCondition = { field: "gender", operator: "eq", value: "female" };
 
   /**
-   * The consequence: matching and non-matching data give the same answer.
-   * A caller cannot tell the condition was never evaluated.
+   * The regression that matters: matching and non-matching data must give
+   * different answers. Previously both returned true, because the evaluation
+   * threw and the on-error fallback allowed everything through.
    */
-  it("returns true for data that matches and data that does not", () => {
+  it("separates matching from non-matching data", () => {
     expect(evaluateFieldCondition(eqFemale, { gender: "female" })).toBe(true);
-    expect(evaluateFieldCondition(eqFemale, { gender: "male" })).toBe(true);
+    expect(evaluateFieldCondition(eqFemale, { gender: "male" })).toBe(false);
   });
 
-  it("returns true for a contradiction that cannot be satisfied", () => {
+  it("evaluates a contradiction as false", () => {
     const impossible: FieldCondition = {
       field: "",
       operator: "eq",
@@ -81,43 +71,56 @@ describe("the failure is invisible to callers", () => {
         { field: "x", operator: "eq", value: 2 },
       ],
     };
-    expect(evaluateFieldCondition(impossible, { x: 1 })).toBe(true);
+    expect(evaluateFieldCondition(impossible, { x: 1 })).toBe(false);
+  });
+
+  it("handles composites and nested context", () => {
+    const adultFemale: FieldCondition = {
+      field: "",
+      operator: "eq",
+      all: [eqFemale, { field: "age", operator: "gte", value: 18 }],
+    };
+    expect(evaluateFieldCondition(adultFemale, { gender: "female", age: 30 })).toBe(true);
+    expect(evaluateFieldCondition(adultFemale, { gender: "female", age: 10 })).toBe(false);
+  });
+
+  it("reads _tenant.* from the tenant context", () => {
+    const c: FieldCondition = { field: "_tenant.country", operator: "eq", value: "IN" };
+    expect(evaluateFieldCondition(c, { any: "data" }, { country: "IN" })).toBe(true);
+    expect(evaluateFieldCondition(c, { any: "data" }, { country: "US" })).toBe(false);
   });
 
   /**
-   * The one case that still works, and it pins the cause precisely: with an
-   * empty data object the proxy has no keys, `Object.keys()` never reaches
-   * the failing trap, and the rule evaluates for real. So the function is
-   * correct exactly when there is nothing to evaluate against, and wrong for
-   * every context that carries data.
+   * The documented fallback still applies when a rule genuinely cannot be
+   * evaluated — it just no longer fires on every call.
    */
-  it("evaluates correctly only when the context is empty", () => {
-    expect(evaluateFieldCondition(eqFemale, {})).toBe(false);
-    expect(evaluateFieldCondition({ field: "", operator: "eq", any: [] }, {})).toBe(false);
-
-    // The moment the context has a key, it flips to the unconditional allow.
-    expect(evaluateFieldCondition(eqFemale, { gender: "male" })).toBe(true);
+  it("still allows when the condition itself is unusable", () => {
+    const bogus = { field: "f", operator: "no_such_operator" } as unknown as FieldCondition;
+    expect(evaluateFieldCondition(bogus, { f: 1 })).toBe(true);
   });
 });
 
-describe("why this matters if the migration is completed", () => {
+describe("the other evaluators were broken by the same trap", () => {
+  it("computed expressions evaluate against a populated context", () => {
+    expect(evaluateComputed("qty * price", { qty: 4, price: 25 })).toEqual({
+      success: true,
+      value: 100,
+    });
+  });
+
+  it("templates render values from a populated context", () => {
+    expect(renderTemplate("Qty: {{qty}}", { qty: 4, patient: { age: 30 } })).toEqual({
+      success: true,
+      value: "Qty: 4",
+    });
+  });
+
   /**
-   * buildFormSchema uses the condition result to decide whether a
-   * `conditional` field is mandatory. Swapping in this implementation as the
-   * comment intends would make every conditional field both visible and
-   * required on every form, because the answer is always true.
-   *
-   * The schemas implementation, whatever its own quirks, does evaluate.
+   * An empty context always worked, because a proxy with no keys never
+   * reached the failing trap. That is why the breakage was easy to miss.
    */
-  it("no input produces a false, so no condition can ever hide or relax a field", () => {
-    const inputs: Array<[FieldCondition, Record<string, unknown>]> = [
-      [{ field: "a", operator: "eq", value: "x" }, { a: "y" }],
-      [{ field: "n", operator: "lt", value: 5 }, { n: 100 }],
-      [{ field: "f", operator: "is_not_empty" }, { f: "" }],
-      [{ field: "s", operator: "contains", value: "zzz" }, { s: "abc" }],
-    ];
-    for (const [condition, values] of inputs) {
-      expect(evaluateFieldCondition(condition, values)).toBe(true);
-    }
+  it("an empty context worked before and still works", () => {
+    expect(evaluateComputed("2 + 2", {})).toEqual({ success: true, value: 4 });
+    expect(renderTemplate("static", {})).toEqual({ success: true, value: "static" });
   });
 });
