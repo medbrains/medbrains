@@ -1,3 +1,6 @@
+-- Migration: 0180_patient_record_access_log.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Read-access logging. The audit_log captures writes; for DPDP/HIPAA a
 -- paperless record must also log who *viewed / downloaded* a patient's
 -- records. This is the read-access trail, surfaced for transparency and

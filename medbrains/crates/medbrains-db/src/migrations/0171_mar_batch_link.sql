@@ -1,3 +1,7 @@
+-- Migration: 0171_mar_batch_link.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters ipd_medication_administration, already tenant-policied.
 -- eMAR batch traceability + consolidation onto the canonical table.
 --
 -- (1) Link each scheduled administration to the dispensed batch so a recall /

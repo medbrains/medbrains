@@ -1,3 +1,6 @@
+-- Migration: 0179_roi.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Release of Information (ROI). External parties (patient, insurer, court,
 -- police, employer) request a patient's medical records; the MRD officer
 -- reviews and approves/denies; every view/download is access-logged. Core

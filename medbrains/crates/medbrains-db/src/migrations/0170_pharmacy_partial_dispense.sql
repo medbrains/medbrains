@@ -1,3 +1,7 @@
+-- Migration: 0170_pharmacy_partial_dispense.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters pharmacy_orders and pharmacy_order_items, already tenant-policied.
 -- Allow partial dispensing: a pharmacy order can be left "partially_dispensed"
 -- (some line still has a balance) and the remainder dispensed later. The order
 -- status is a text column with a CHECK constraint; extend it to include the

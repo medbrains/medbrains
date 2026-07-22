@@ -1,3 +1,7 @@
+-- Migration: 0165_payment_terminal_acquiring_bank.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Adds a column to payment_terminals, already tenant-policied.
 -- ============================================================
 -- MedBrains schema — payment_terminals.acquiring_bank
 -- Indian bank-branded POS (SBI / Canara / Indian Overseas Bank /

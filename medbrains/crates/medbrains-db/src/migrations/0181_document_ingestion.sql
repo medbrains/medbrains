@@ -1,3 +1,6 @@
+-- Migration: 0181_document_ingestion.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Reverse print / document ingestion. Printing is digital → paper
 -- (print_case_sheet_packet). This is the reverse: scanned paper is uploaded,
 -- barcode-linked back to its MRD record (or case-sheet packet), optionally

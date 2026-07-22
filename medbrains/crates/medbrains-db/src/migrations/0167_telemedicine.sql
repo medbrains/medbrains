@@ -1,3 +1,6 @@
+-- Migration: 0167_telemedicine.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- ============================================================
 -- MedBrains schema — module: telemedicine (video consultations)
 -- A video-consult session bound to an appointment/encounter. Provider-agnostic

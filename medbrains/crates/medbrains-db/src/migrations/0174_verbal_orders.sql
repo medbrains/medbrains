@@ -1,3 +1,7 @@
+-- Migration: 0174_verbal_orders.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters prescriptions, already tenant-policied.
 -- Verbal / telephone order transcription. A nurse may take a doctor's verbal
 -- or telephone order and transcribe it into a prescription; the doctor must
 -- countersign within policy. Read-back is mandatory for verbal/telephone

@@ -1,3 +1,6 @@
+-- Migration: 0176_ot_postop_handoff.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- OT → PACU / ward post-op handoff. After surgery the OT nurse hands the
 -- patient over to the receiving PACU/ward nurse with a structured safety
 -- checklist (airway, vitals, pain/PONV, dressing, drains/lines, Aldrete,

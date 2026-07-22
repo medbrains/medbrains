@@ -1,3 +1,9 @@
+-- Migration: 0166_payment_webhook_exceptions.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- tenant_id is nullable: provider webhooks arrive unauthenticated and the row
+-- is written before the order is matched, so RLS is deliberately not applied.
+-- Reported by check-rls as uncovered; resolving it needs a writer refactor.
 -- ============================================================
 -- MedBrains schema — payment_webhook_exceptions
 -- Reverse-reconciliation safety net: when an inbound gateway webhook (the

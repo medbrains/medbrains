@@ -1,3 +1,6 @@
+-- Migration: 0169_oauth_connections.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- ============================================================
 -- MedBrains schema — oauth_connections (common 3rd-party OAuth token store)
 -- One reusable per-tenant OAuth connection per provider (Google / Microsoft /

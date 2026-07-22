@@ -1,3 +1,7 @@
+-- Migration: 0168_telemedicine_meeting_url.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Adds a column to tele_consultations, already tenant-policied.
 -- ============================================================
 -- MedBrains schema — telemedicine multi-provider
 -- A consult can run on Jitsi (auto room) OR an externally-created meeting

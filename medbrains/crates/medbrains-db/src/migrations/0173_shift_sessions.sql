@@ -1,3 +1,7 @@
+-- Migration: 0173_shift_sessions.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters attendance_records, already tenant-policied.
 -- Shift sessions on top of attendance: a staff member starts their shift,
 -- can extend ("snooze" / double shift), pause and resume later, and end it.
 -- Duty-hours fatigue is evaluated advisory-only and acknowledged in place.

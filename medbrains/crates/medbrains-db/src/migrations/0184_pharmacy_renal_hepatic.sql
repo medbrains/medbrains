@@ -1,3 +1,7 @@
+-- Migration: 0184_pharmacy_renal_hepatic.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Adds columns to pharmacy_catalog, already tenant-policied.
 -- Renal / hepatic dose-adjustment reference on the pharmacy catalogue.
 -- Advisory only (pharmacist-seeded, clinically reviewed). When a patient's
 -- latest eGFR is below the threshold, the prescribing safety rail surfaces the

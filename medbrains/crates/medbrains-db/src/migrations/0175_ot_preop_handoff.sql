@@ -1,3 +1,6 @@
+-- Migration: 0175_ot_preop_handoff.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Ward → OT pre-op send-off handoff. Before a patient leaves the ward for
 -- surgery, the ward nurse completes a safety checklist (consent, NPO, site
 -- marking, ID band, prosthetics removed, pre-op meds) and formally hands the

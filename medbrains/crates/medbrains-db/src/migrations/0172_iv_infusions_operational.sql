@@ -1,3 +1,7 @@
+-- Migration: 0172_iv_infusions_operational.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters and backfills iv_fluid_orders, already tenant-policied.
 -- Promote iv_fluid_orders from a print-only stub to an operational infusion
 -- record: structured rate, IV site, pump, lifecycle timestamps, and a real
 -- status machine (ordered → running ⇄ paused → completed / discontinued).

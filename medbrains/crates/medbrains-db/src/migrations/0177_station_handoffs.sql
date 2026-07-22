@@ -1,3 +1,6 @@
+-- Migration: 0177_station_handoffs.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Generic location/station handoff (open-pickup model). Distinct from the
 -- user-based handoffs (shift_handoffs, ot_*_handoffs) which name an incoming
 -- person: a station handoff is keyed to a LOCATION (OT room, ward, bed,
