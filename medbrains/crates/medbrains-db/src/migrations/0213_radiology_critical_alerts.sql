@@ -1,6 +1,6 @@
 -- ====================================================================
 -- Migration: 0213_radiology_critical_alerts.sql
--- RLS-Posture: tenant-rls
+-- RLS-Posture: tenant-scoped
 -- Tenant-Column: tenant_id
 -- New-Tables: radiology_critical_alerts
 -- Drops: none

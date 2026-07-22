@@ -1,6 +1,6 @@
 -- ====================================================================
 -- Migration: 0216_allergen_catalog.sql
--- RLS-Posture: tenant-rls
+-- RLS-Posture: tenant-scoped
 -- Tenant-Column: tenant_id
 -- New-Tables: allergen_catalog
 -- Drops: none

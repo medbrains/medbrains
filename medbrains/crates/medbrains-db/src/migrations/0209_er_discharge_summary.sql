@@ -1,6 +1,6 @@
 -- ====================================================================
 -- Migration: 0209_er_discharge_summary.sql
--- RLS-Posture: tenant-rls
+-- RLS-Posture: tenant-scoped
 -- Tenant-Column: tenant_id
 -- New-Tables: er_discharge_summaries
 -- Drops: none

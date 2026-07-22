@@ -1,6 +1,6 @@
 -- ====================================================================
 -- Migration: 0212_er_bays.sql
--- RLS-Posture: tenant-rls
+-- RLS-Posture: tenant-scoped
 -- Tenant-Column: tenant_id
 -- New-Tables: er_bays
 -- Drops: none

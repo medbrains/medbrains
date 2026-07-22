@@ -1,6 +1,6 @@
 -- ====================================================================
 -- Migration: 0208_ipd_no_dues_certificate.sql
--- RLS-Posture: tenant-rls
+-- RLS-Posture: tenant-scoped
 -- Tenant-Column: tenant_id
 -- New-Tables: ipd_no_dues_certificates
 -- Drops: none

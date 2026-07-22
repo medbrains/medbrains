@@ -1,6 +1,6 @@
 -- ====================================================================
 -- Migration: 0211_er_observation_notes.sql
--- RLS-Posture: tenant-rls
+-- RLS-Posture: tenant-scoped
 -- Tenant-Column: tenant_id
 -- New-Tables: er_observation_notes
 -- Drops: none

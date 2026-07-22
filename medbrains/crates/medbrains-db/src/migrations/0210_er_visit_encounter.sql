@@ -1,6 +1,7 @@
 -- ====================================================================
 -- Migration: 0210_er_visit_encounter.sql
--- RLS-Posture: tenant-rls (column on existing tenant-RLS table)
+-- RLS-Posture: tenant-scoped
+-- Adds a column to er_visits, which already carries the tenant-scoped policy.
 -- Tenant-Column: tenant_id (on er_visits)
 -- New-Tables: none
 -- Drops: none

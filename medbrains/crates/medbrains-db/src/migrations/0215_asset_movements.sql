@@ -1,6 +1,6 @@
 -- ====================================================================
 -- Migration: 0215_asset_movements.sql
--- RLS-Posture: tenant-rls
+-- RLS-Posture: tenant-scoped
 -- Tenant-Column: tenant_id
 -- New-Tables: asset_movements
 -- Drops: none

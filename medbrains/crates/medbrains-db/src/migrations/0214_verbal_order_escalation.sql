@@ -1,6 +1,7 @@
 -- ====================================================================
 -- Migration: 0214_verbal_order_escalation.sql
--- RLS-Posture: tenant-rls (alters existing tenant-scoped table)
+-- RLS-Posture: tenant-scoped
+-- Alters prescriptions, which already carries the tenant-scoped policy.
 -- Tenant-Column: tenant_id (existing on prescriptions)
 -- New-Tables: none
 -- Drops: none

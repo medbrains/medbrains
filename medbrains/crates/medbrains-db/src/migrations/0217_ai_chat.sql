@@ -1,6 +1,6 @@
 -- ====================================================================
 -- Migration: 0217_ai_chat.sql
--- RLS-Posture: tenant-rls
+-- RLS-Posture: tenant-scoped
 -- Tenant-Column: tenant_id
 -- New-Tables: ai_conversations, ai_messages
 -- Drops: none

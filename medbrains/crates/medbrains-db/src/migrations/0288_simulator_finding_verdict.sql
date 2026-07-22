@@ -1,4 +1,5 @@
--- RLS-Posture: tenant-scoped (inherits simulator_run_findings policy)
+-- RLS-Posture: tenant-scoped
+-- Inherits the simulator_run_findings tenant policy.
 -- Verifier + logic-finder support for agent findings.
 --
 -- `verdict` records an adversarial verification pass: objective failures (a
