@@ -49,7 +49,13 @@ def parse_screens_rs() -> list[dict]:
 
 
 def parse_navigation_ts() -> list[dict]:
-    """Pull each nav-item literal `{ ..., path: "...", requiredPermission: "..." }`."""
+    """Pull each nav-item literal `{ ..., path: "...", requiredPermission... }`.
+
+    Nav items declare their gate either as a single `requiredPermission` or as
+    an any-of list `requiredPermissions: [...]`. Only the singular form was
+    read, so every plural entry looked ungated and was reported as a mismatch
+    against its SCREENS permission (17 of 101 nav items use the plural form).
+    """
     text = NAV_TS.read_text()
     out = []
     # Greedy block of one nav item — relies on `path:` being present per item.
@@ -57,9 +63,12 @@ def parse_navigation_ts() -> list[dict]:
         item = m.group(0)
         path = m.group(1)
         perm_m = re.search(r"requiredPermission:\s*\"([^\"]+)\"", item)
+        any_of_m = re.search(r"requiredPermissions:\s*\[(.*?)\]", item, flags=re.DOTALL)
+        any_of = re.findall(r'"([^"]+)"', any_of_m.group(1)) if any_of_m else []
         out.append({
             "path": path,
             "requiredPermission": perm_m.group(1) if perm_m else None,
+            "requiredPermissions": any_of,
         })
     return out
 
@@ -84,6 +93,11 @@ def main() -> int:
         # Compare perms — None on either side means "always-visible"
         screen_perm = s.get("required_permission")
         nav_perm = nav.get("requiredPermission")
+        # An any-of list satisfies the screen as long as it contains the
+        # screen's permission — the nav item is reachable by anyone who can
+        # open the screen.
+        if screen_perm and screen_perm in nav.get("requiredPermissions", []):
+            continue
         if screen_perm != nav_perm:
             perm_mismatch.append((nav, s))
 
