@@ -61,6 +61,47 @@ RECORDED_UNENFORCED = {
 }
 
 
+# Control-shaped columns that no Rust file mentions at all — not read, not
+# written, not even named in an INSERT column list. This is a stricter and
+# heuristic-free test than the enforcement scan below: it asks only whether the
+# identifier appears anywhere in the crates, so it cannot false-positive.
+#
+#   requires_dual_sign      pharmacy_ndps_register  — dual signature on the
+#                           narcotics register
+#   msbos_limit             crossmatch_requests     — maximum surgical blood
+#                           order schedule ceiling
+#   max_order_qty           pharmacy_catalog        — per-order quantity cap
+#   drug_license_required   pharmacy_catalog        — licence needed to dispense
+RECORDED_ORPHANS = {
+    "drug_license_required",
+    "max_order_qty",
+    "msbos_limit",
+    "requires_dual_sign",
+}
+
+CONTROL_COLUMN_RE = re.compile(
+    r"^\s+([a-z][a-z0-9_]{3,})\s+"
+    r"(numeric|integer|int|smallint|bigint|bool(ean)?|interval)\b",
+    re.MULTILINE,
+)
+CONTROL_NAME_RE = re.compile(r"^(requires_|min_|max_|mandatory_)|_(required|limit|threshold)$")
+
+
+def orphan_controls() -> set[str]:
+    """Control columns whose name appears in no Rust source at all."""
+    declared: set[str] = set()
+    for path in MIGRATIONS.rglob("*.sql"):
+        declared.update(
+            m.group(1) for m in CONTROL_COLUMN_RE.finditer(path.read_text(encoding="utf-8"))
+        )
+    controls = {c for c in declared if CONTROL_NAME_RE.search(c)}
+
+    blob = "".join(
+        p.read_text(encoding="utf-8", errors="ignore") for p in CRATES.rglob("*.rs")
+    )
+    return {c for c in controls if c not in blob}
+
+
 def declared_flags() -> set[str]:
     flags: set[str] = set()
     for path in MIGRATIONS.rglob("*.sql"):
@@ -119,18 +160,26 @@ def main() -> int:
         f"{len(missing)} with no enforcement in any crate."
     )
 
-    new = sorted(missing - RECORDED_UNENFORCED)
-    if new:
-        print(f"\n=== {len(new)} NEW REQUIREMENT FLAG WITH NO ENFORCEMENT ===")
-        for flag in new:
-            print(f"  ✗ {flag}")
+    orphans = orphan_controls()
+    print(f"{len(orphans)} control column(s) referenced by no Rust source at all.")
+
+    failures: list[str] = []
+    for flag in sorted(missing - RECORDED_UNENFORCED):
+        failures.append(f"{flag} — declared and never enforced")
+    for column in sorted(orphans - RECORDED_ORPHANS):
+        failures.append(f"{column} — declared and referenced by no Rust source at all")
+
+    if failures:
+        print(f"\n=== {len(failures)} NEW UNENFORCED CONTROL ===")
+        for failure in failures:
+            print(f"  ✗ {failure}")
         print(
-            "\nA requires_/_required column that nothing reads is a control on paper "
-            "only. Enforce it, or add it to RECORDED_UNENFORCED with a reason."
+            "\nA requires_/_required/limit column that nothing reads is a control on "
+            "paper only. Enforce it, or record it with a reason."
         )
         return 1
 
-    print("✓ No new unenforced requirement flags.")
+    print("✓ No new unenforced controls.")
     return 0
 
 
