@@ -45,12 +45,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SignatureHero } from "@/components/ui";
+import { nextSafetyState, type SafetyView } from "@/features/prescription/safetyState";
 import { instructionsDisplayText } from "@/lib/medication-timing-utils";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { PrescriptionItemEntry } from "./PrescriptionItemEntry";
 import { PrescriptionItemsTable } from "./PrescriptionItemsTable";
 import { PrescriptionTemplateModal } from "./PrescriptionTemplateModal";
 import styles from "./prescription-writer.module.scss";
+
+interface SafetyAlerts {
+  interactions: DrugInteractionAlert[];
+  allergy_conflicts: AllergyConflict[];
+}
+
+const EMPTY_ALERTS: SafetyAlerts = { interactions: [], allergy_conflicts: [] };
 
 interface PrescriptionWriterProps {
   encounterId: string;
@@ -167,25 +175,30 @@ export function PrescriptionWriter({
   });
 
   // ── Drug Safety ──
-  const [safetyAlerts, setSafetyAlerts] = useState<{
-    interactions: DrugInteractionAlert[];
-    allergy_conflicts: AllergyConflict[];
-  }>({ interactions: [], allergy_conflicts: [] });
+  const [safetyAlerts, setSafetyAlerts] = useState<SafetyAlerts>(EMPTY_ALERTS);
+  const [safetyUnavailable, setSafetyUnavailable] = useState(false);
 
   const checkDrugSafety = async (items: PrescriptionItemInput[]) => {
+    const apply = (next: SafetyView<SafetyAlerts>) => {
+      setSafetyAlerts(next.alerts);
+      setSafetyUnavailable(next.unavailable);
+    };
     if (items.length === 0 || !compliance.enforce_drug_interactions) {
-      setSafetyAlerts({ interactions: [], allergy_conflicts: [] });
+      apply(nextSafetyState({ type: "reset" }, EMPTY_ALERTS));
       return;
     }
     try {
-      setSafetyAlerts(
-        await clinicalSupportService.checkDrugSafety({
-          drug_names: items.map((i) => i.drug_name),
-          patient_id: patientId,
-        }),
-      );
+      const alerts = await clinicalSupportService.checkDrugSafety({
+        drug_names: items.map((i) => i.drug_name),
+        patient_id: patientId,
+      });
+      apply(nextSafetyState({ type: "checked", alerts }, EMPTY_ALERTS));
     } catch {
-      /* don't block prescribing */
+      // Don't block prescribing, but don't leave the previous drug list's
+      // alerts on screen either — they would read as if these drugs had been
+      // checked. The server re-checks allergies and serious interactions at
+      // save regardless.
+      apply(nextSafetyState({ type: "failed" }, EMPTY_ALERTS));
     }
   };
 
@@ -352,6 +365,18 @@ export function PrescriptionWriter({
             />
 
             {/* Safety alerts */}
+            {safetyUnavailable && (
+              <Alert
+                color="warning"
+                icon={<IconAlertTriangle size={16} />}
+                title="Safety check unavailable"
+                variant="light"
+              >
+                The drug-safety service could not be reached, so these drugs have not been screened.
+                The server re-checks allergies and serious interactions when the prescription is
+                saved.
+              </Alert>
+            )}
             {safetyAlerts.allergy_conflicts.length > 0 && (
               <Alert
                 color="danger"

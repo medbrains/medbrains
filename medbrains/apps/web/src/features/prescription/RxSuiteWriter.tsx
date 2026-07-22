@@ -13,7 +13,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
-import { Card, Checkbox, SegmentedControl } from "@/components/ui";
+import { Alert, Card, Checkbox, SegmentedControl } from "@/components/ui";
 import { ckbService } from "@/services/ckb.service";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { matchDrugAllergy } from "@/utils/allergyMatch";
@@ -23,6 +23,7 @@ import { RxPrint } from "./RxPrint";
 import { catalogToFormulary, prescriptionItemsToRx, rxItemsToInput } from "./rxAdapter";
 import { type FormularyDrug, maxDoseExceeded, type RxItem } from "./rxModel";
 import { type SafetyIssue, SafetyOverrideModal } from "./SafetyOverrideModal";
+import { nextSafetyState } from "./safetyState";
 
 interface Props {
   encounterId: string;
@@ -76,6 +77,7 @@ export function RxSuiteWriter({
   // Print is permission-gated (doctors/admin), not tied to the nurse/doctor toggle.
   const canPrint = useHasPermission(P.OPD.VISIT_UPDATE);
   const [safety, setSafety] = useState<RxSafety>(EMPTY_SAFETY);
+  const [safetyUnavailable, setSafetyUnavailable] = useState(false);
   const [currentItems, setCurrentItems] = useState<RxItem[]>([]);
   const [printOpen, printDisc] = useDisclosure(false);
   const [orderMode, setOrderMode] = useState<RxOrderMode>("written");
@@ -143,25 +145,32 @@ export function RxSuiteWriter({
   }, [prescriptions]);
 
   const runSafety = async (items: RxItem[]) => {
+    const apply = (next: { alerts: RxSafety; unavailable: boolean }) => {
+      setSafety(next.alerts);
+      setSafetyUnavailable(next.unavailable);
+    };
     if (items.length === 0) {
-      setSafety(EMPTY_SAFETY);
+      apply(nextSafetyState({ type: "reset" }, EMPTY_SAFETY));
       return;
     }
     try {
-      setSafety(
-        await clinicalSupportService.checkDrugSafety({
-          drug_names: items.map((i) => i.name),
-          patient_id: patientId,
-          items: rxItemsToInput(items).map((i) => ({
-            drug_name: i.drug_name,
-            dosage: i.dosage,
-            frequency: i.frequency,
-            catalog_item_id: i.catalog_item_id,
-          })),
-        }),
-      );
+      const alerts = await clinicalSupportService.checkDrugSafety({
+        drug_names: items.map((i) => i.name),
+        patient_id: patientId,
+        items: rxItemsToInput(items).map((i) => ({
+          drug_name: i.drug_name,
+          dosage: i.dosage,
+          frequency: i.frequency,
+          catalog_item_id: i.catalog_item_id,
+        })),
+      });
+      apply(nextSafetyState({ type: "checked", alerts }, EMPTY_SAFETY));
     } catch {
-      /* never block prescribing on a safety-service hiccup */
+      // Never block prescribing on a safety-service hiccup, but do not leave
+      // the previous drug list's verdict on screen either — it would read as
+      // if these drugs had been checked. Clear it and say so; the server
+      // re-checks allergies and serious interactions at save regardless.
+      apply(nextSafetyState({ type: "failed" }, EMPTY_SAFETY));
     }
   };
 
@@ -322,6 +331,13 @@ export function RxSuiteWriter({
             )}
           </Stack>
         </Card>
+      )}
+      {safetyUnavailable && (
+        <Alert tone="warning" title="Interaction check unavailable">
+          The drug-safety service could not be reached, so these drugs have not been screened for
+          interactions. Documented allergies and dose limits are still checked, and the server
+          re-checks both at save.
+        </Alert>
       )}
       <RxDoctor
         formulary={formulary}
