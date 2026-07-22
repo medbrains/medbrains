@@ -8,16 +8,11 @@ not, the mismatch is invisible until a request actually carries that variant,
 and then Postgres raises 22P02 — the same class of runtime failure #4492 fixed
 the status mapping for.
 
-One enum still breaks it, and it is unreachable: queue.rs::QueuePriority has
-Pediatric and Emergency, which queue_priority does not define at all
-('emergency_referral' is the real value). Nothing imports that module —
-front_office.rs::QueuePriority is the type bound to queue_priority_rules, and
-it matches. The module is dead code carrying a mapping that would fail.
-
-Three others were live and are fixed in #4538: asa_classification,
-death_cert_form_type and print_format each encoded a digit-bearing variant
-without the underscore Postgres expects, breaking both the DB decode and the
-JSON contract. They now carry explicit renames.
+No Rust enum breaks it today. Three were live and fixed in #4538
+(asa_classification, death_cert_form_type, print_format); the fourth,
+queue.rs::QueuePriority, was in a module nothing imported and whose types were
+all independently redefined in medbrains-tv, so the module was deleted in
+#4540.
 
 `rename_all = "snake_case"` runs heck's to_snake_case, which does not break
 before a digit: `Asa1` becomes "asa1", not "asa_1". That is where all three
@@ -43,9 +38,7 @@ TS_TYPES = REPO_ROOT / "medbrains" / "packages" / "types" / "src"
 # Rust enums whose variants do not all exist in the Postgres enum they name.
 # Every one is currently unreachable; see the module docstring. Removing an
 # entry — because it was fixed or deleted — is always welcome; a new one fails.
-RECORDED_MISMATCHES = {
-    "queue_priority": {"pediatric", "emergency"},
-}
+RECORDED_MISMATCHES: dict[str, set[str]] = {}
 
 # TypeScript string-union aliases whose name maps to a Postgres enum but whose
 # values differ. Each was triaged; all are narrow subsets scoped to one screen,

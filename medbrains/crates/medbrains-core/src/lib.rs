@@ -91,7 +91,6 @@ pub mod telemedicine;
 pub mod privacy;
 pub mod procurement;
 pub mod quality;
-pub mod queue;
 pub mod radiology;
 pub mod regulatory;
 pub mod reports;
