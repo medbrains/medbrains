@@ -1,3 +1,6 @@
+-- Migration: 0219_vpn_devices.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- VPN device inventory (RFC-VPN-PLATFORM, Phase 1). One row per enrolled remote
 -- device. The device joins the on-prem Headscale tailnet via a per-device,
 -- single-use pre-auth key minted by POST /api/vpn/enroll; revoked on logout-all /

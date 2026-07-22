@@ -1,3 +1,7 @@
+-- Migration: 0197_widget_sensitive_money_fields.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Backfills dashboard_widgets, already tenant-policied.
 -- Tag money widgets as field-sensitive so the dashboard can mask/hide amounts
 -- per the viewer's field access (resolve_restricted_fields → billing.amount).
 --

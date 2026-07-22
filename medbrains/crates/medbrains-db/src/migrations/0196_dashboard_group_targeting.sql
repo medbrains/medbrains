@@ -1,3 +1,7 @@
+-- Migration: 0196_dashboard_group_targeting.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters dashboard tables, already tenant-policied.
 -- Dashboard group targeting + overlap priority.
 --
 -- Dashboards can already target a user (`user_id`), roles (`role_codes`) and

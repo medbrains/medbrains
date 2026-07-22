@@ -1,3 +1,6 @@
+-- Migration: 0195_partition_infrastructure.sql
+-- RLS-Posture: not-applicable
+-- Partition machinery only: partition_config plus helper functions, no tenant data.
 -- Partition infrastructure — app-managed declarative partitioning.
 --
 -- PostgreSQL is the single source of truth (YottaDB removed). High-volume,

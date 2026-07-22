@@ -1,3 +1,6 @@
+-- Migration: 0218_tenant_blocked_ips.sql
+-- RLS-Posture: bypass-only
+-- Alters the tenants registry itself, which has no tenant_id column.
 -- Optional network access layer (VPN/LAN): a per-tenant IP DENYLIST beside the
 -- existing allowlist (tenants.allowed_ips, 0001_core.sql). Deny wins over allow.
 -- Empty [] = no denials (opt-in; most hospitals run on LAN and set neither list).

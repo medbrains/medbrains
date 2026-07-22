@@ -1,3 +1,6 @@
+-- Migration: 0200_sso_foundation.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Enterprise SSO foundation — protocol-agnostic (OIDC + SAML).
 --
 -- Lets a tenant federate authentication to a corporate IdP (Azure AD / Entra,

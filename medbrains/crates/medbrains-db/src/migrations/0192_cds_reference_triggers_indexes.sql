@@ -1,3 +1,6 @@
+-- Migration: 0192_cds_reference_triggers_indexes.sql
+-- RLS-Posture: catalog
+-- Triggers and indexes on the global cds_* reference tables.
 -- DB lifecycle ownership for the global CDS reference tables. These were
 -- created with an `updated_at` column but no BEFORE UPDATE trigger, so the
 -- seed loaders had to set `updated_at = now()` by hand on every upsert. Attach

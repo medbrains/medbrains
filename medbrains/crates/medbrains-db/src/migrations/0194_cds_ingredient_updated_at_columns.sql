@@ -1,3 +1,6 @@
+-- Migration: 0194_cds_ingredient_updated_at_columns.sql
+-- RLS-Posture: catalog
+-- Adds columns to the global cds_* reference tables.
 -- Fix: migration 0192 attached the update_updated_at() BEFORE UPDATE trigger to
 -- cds_drug_ingredient and cds_ingredient_incompatibility, but those tables
 -- (created in 0188) have no updated_at column. On re-seed the ON CONFLICT DO

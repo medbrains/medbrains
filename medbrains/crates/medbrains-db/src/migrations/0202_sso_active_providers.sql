@@ -1,3 +1,6 @@
+-- Migration: 0202_sso_active_providers.sql
+-- RLS-Posture: not-applicable
+-- Creates a function only; no table, column or policy is touched.
 -- Public list of active SSO providers for the login page.
 --
 -- The login page is pre-auth (no tenant RLS context), so it cannot read

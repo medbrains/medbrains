@@ -1,3 +1,8 @@
+-- Migration: 0185_clinical_knowledge_base.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Also creates cds_diagnosis_reference, which is global reference data with
+-- no tenant_id; notifiable_disease_reports carries the tenant policy.
 -- Clinical Knowledge Base (CKB) — foundation.
 -- Global diagnosis reference (national IDSP notifiable list + common OPD dx,
 -- seeded from a github-tracked CSV) and the tenant statutory-report worklist.

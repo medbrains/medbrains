@@ -1,3 +1,6 @@
+-- Migration: 0186_cds_drug_reference.sql
+-- RLS-Posture: catalog
+-- Global CDS drug reference: no tenant_id column, shared across tenants.
 -- Global CDS drug reference (no tenant_id, like cds_diagnosis_reference).
 -- Seeded from the github-tracked drug_formulary.csv. The CDS dose/renal/hepatic
 -- checks COALESCE the tenant pharmacy_catalog row with this reference, so the

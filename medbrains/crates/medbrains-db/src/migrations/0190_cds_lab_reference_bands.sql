@@ -1,3 +1,6 @@
+-- Migration: 0190_cds_lab_reference_bands.sql
+-- RLS-Posture: catalog
+-- Alters the global cds_lab_reference; no tenant_id involved.
 -- Age/sex-specific normal ranges on the CDS lab reference, so result entry can
 -- flag against the patient's own band (a child's normal Hb differs from an
 -- adult's). normal_low/high stay as the Adult-M default.

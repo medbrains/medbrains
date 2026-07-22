@@ -1,3 +1,6 @@
+-- Migration: 0193_cds_state_formulary.sql
+-- RLS-Posture: catalog
+-- Global state-formulary reference: no tenant_id column.
 -- Per-state government free/subsidised medicine schemes (TNMSC, Rajasthan MNDY,
 -- Delhi/Kerala/Maharashtra etc.) mapped to essential generics. Global reference
 -- (no tenant_id, like the other cds_* tables), seeded from a github-tracked CSV.

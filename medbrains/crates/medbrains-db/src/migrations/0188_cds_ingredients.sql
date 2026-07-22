@@ -1,3 +1,6 @@
+-- Migration: 0188_cds_ingredients.sql
+-- RLS-Posture: catalog
+-- Global ingredient model: no tenant_id column, shared across tenants.
 -- Global ingredient model for combination-chemistry checks (no tenant_id).
 -- generic → active ingredient(s), and known dangerous ingredient pairs.
 CREATE TABLE IF NOT EXISTS public.cds_drug_ingredient (

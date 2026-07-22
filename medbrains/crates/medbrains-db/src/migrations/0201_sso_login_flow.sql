@@ -1,3 +1,8 @@
+-- Migration: 0201_sso_login_flow.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- sso_auth_state carries tenant_id NOT NULL but no policy, so check-rls
+-- reports it as uncovered. Left visible rather than declared a bypass.
 -- SSO login-flow support (OIDC; reused by SAML).
 --
 -- The authorize→callback round trip happens BEFORE the user is authenticated,

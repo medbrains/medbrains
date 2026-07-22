@@ -1,3 +1,6 @@
+-- Migration: 0187_cds_lab_reference.sql
+-- RLS-Posture: catalog
+-- Global CDS lab reference: no tenant_id column, shared across tenants.
 -- Global CDS lab reference (no tenant_id). Analyte reference ranges + critical
 -- thresholds, seeded from the github-tracked lab_reference.csv. Used to
 -- auto-detect critical lab values at result entry when the tenant has no

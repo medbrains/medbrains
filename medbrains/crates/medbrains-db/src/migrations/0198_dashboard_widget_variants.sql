@@ -1,3 +1,7 @@
+-- Migration: 0198_dashboard_widget_variants.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters dashboard tables, already tenant-policied.
 -- Per-audience widget variants.
 --
 -- One widget on a shared dashboard can render slightly different information per

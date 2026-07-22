@@ -1,3 +1,7 @@
+-- Migration: 0220_perm_version_triggers.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Triggers on roles and access_group tables, already tenant-policied.
 -- Auto-bump users.perm_version when the permission model changes underneath a
 -- live session, so grants/revokes take effect on the NEXT request instead of
 -- lingering until the 15-min access token expires. Catch-all DB triggers beat
