@@ -1,3 +1,6 @@
+-- Migration: 0226_oncology_depth.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Oncology depth (B3) — extends the existing chemo/tumor-board oncology (specialty_other
 -- module) with cancer TNM staging + radiation-therapy sessions. Tenant RLS. No new
 -- module_config row: these belong to the already-registered `specialty_other` module.

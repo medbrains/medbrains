@@ -1,3 +1,6 @@
+-- Migration: 0237_home_discharge_program.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Home Healthcare discharge program (ticket #2982): patient/family training materials handed out
 -- and the discharge-readiness criteria that must be met before the home-care episode ends. One
 -- checklist table with an item_type discriminator (training | criterion). Tenant RLS.

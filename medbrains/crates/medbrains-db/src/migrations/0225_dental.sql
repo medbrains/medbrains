@@ -1,3 +1,6 @@
+-- Migration: 0225_dental.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Dental specialty module — powers the dental_college edition. A dental exam (the visit)
 -- with tooth-wise chart entries (FDI numbering: 11-18, 21-28, 31-38, 41-48; deciduous
 -- 51-85). Each entry records a tooth's condition + surface + planned treatment. Tenant RLS.

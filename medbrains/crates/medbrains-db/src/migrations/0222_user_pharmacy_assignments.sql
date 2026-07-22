@@ -1,3 +1,6 @@
+-- Migration: 0222_user_pharmacy_assignments.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Multi-pharmacy staff scoping (MP3). Which pharmacy locations a user works at, so
 -- their stock view + dispensing can default/scope to their pharmacy. A user may
 -- cover several; is_default marks their home pharmacy. Tenant-scoped RLS.

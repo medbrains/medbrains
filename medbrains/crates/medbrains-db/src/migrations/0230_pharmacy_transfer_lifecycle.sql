@@ -1,3 +1,7 @@
+-- Migration: 0230_pharmacy_transfer_lifecycle.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters pharmacy_transfer_requests, already tenant-policied.
 -- Inter-pharmacy transfer lifecycle (MP4). The transfer stopped at 'approved' and never
 -- moved stock. Now: DISPATCH FEFO-decrements the from-location's batch_stock and records the
 -- exact batches taken in dispatched_lines; RECEIVE recreates those batches at the

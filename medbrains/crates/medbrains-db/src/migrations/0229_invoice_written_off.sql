@@ -1,3 +1,7 @@
+-- Migration: 0229_invoice_written_off.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters invoices, already tenant-policied.
 -- Write-off settlement. An approved bad-debt write-off is a non-cash settlement: it
 -- reduces the outstanding balance. We model it by adding the amount to paid_amount (so the
 -- balance = total_amount - paid_amount stays correct in every existing computation, ~11

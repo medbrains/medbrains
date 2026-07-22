@@ -1,3 +1,6 @@
+-- Migration: 0233_case_sheet_scans.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Handwritten case-sheet digitization (RFC-CASE-SHEET-DIGITIZATION). Scanned paper case sheets
 -- are uploaded, parsed by an async on-prem MinerU+VLM worker into a structured, per-field draft
 -- with confidence, then doctor-reviewed and committed to the EMR. This is the B2 ingestion

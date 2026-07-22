@@ -1,3 +1,6 @@
+-- Migration: 0238_clinical_trials.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Clinical Trials registry (ticket #2983): the trials a hospital's research department runs, with
 -- sponsor / phase / indication / PI and a lifecycle status (planned → recruiting → active →
 -- completed / terminated / suspended). Tenant RLS.

@@ -1,3 +1,6 @@
+-- Migration: 0234_home_med_administration.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Home Healthcare / Hospital-at-Home: medication administration tracking (IV antibiotics,
 -- infusions) given at the patient's home by a visiting nurse. A home eMAR — each dose is
 -- scheduled, then recorded as administered / missed / held with the site and notes. Tenant RLS.

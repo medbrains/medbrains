@@ -1,3 +1,6 @@
+-- Migration: 0223_nhcx_participants.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- NHCX payer directory. The payer/TPA participants known to NHCX, keyed by their HCX
 -- participant code (= the `recipient_code` for claim submission). Populated by the
 -- fetch/participants/list sync (or maintained manually); the claim-submit flow resolves

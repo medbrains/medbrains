@@ -1,3 +1,6 @@
+-- Migration: 0224_ophthalmology.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Ophthalmology (eye) specialty module — powers the eye_hospital edition. A comprehensive
 -- eye exam per patient: visual acuity, refraction (the spectacle Rx), IOP, slit-lamp, fundus,
 -- diagnosis + plan. Per-eye columns (OD = right, OS = left). Tenant RLS.

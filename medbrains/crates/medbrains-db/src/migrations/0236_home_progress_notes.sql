@@ -1,3 +1,6 @@
+-- Migration: 0236_home_progress_notes.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Home Healthcare daily clinical progress notes (ticket #2981) written by the visiting nurse or
 -- the remote physician during a home-care episode, with an optional vitals snapshot. Tenant RLS.
 

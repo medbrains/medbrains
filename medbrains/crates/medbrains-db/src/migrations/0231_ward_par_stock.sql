@@ -1,3 +1,6 @@
+-- Migration: 0231_ward_par_stock.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Ward / floor PAR (imprest) stock. Wards hold a par level of drugs; the pharmacy tops them
 -- up to par (replenish), nurses consume against ward stock. ward_par_levels = the target per
 -- ward × drug; ward_stock = current on-hand per ward × drug. Replenish decrements the

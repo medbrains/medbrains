@@ -1,3 +1,6 @@
+-- Migration: 0235_home_escalations.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Home Healthcare emergency escalation protocol (ticket #2980). When a home patient's vitals
 -- breach a safety threshold, an escalation is raised (by the monitoring device / visiting nurse),
 -- which can request an ambulance and is then resolved. The vital snapshot that triggered it is

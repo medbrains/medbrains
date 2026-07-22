@@ -1,3 +1,6 @@
+-- Migration: 0232_staff_location_assignments.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Persistent staff <-> location/station assignment (beyond the per-shift nurse_shift_assignments).
 -- A nursing station is a `locations` row of the new level 'station'. staff_location_assignments
 -- ties a user to any location (ward / station / floor) with a role label + primary flag +

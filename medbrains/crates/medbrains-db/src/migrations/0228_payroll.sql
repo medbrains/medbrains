@@ -1,3 +1,6 @@
+-- Migration: 0228_payroll.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
 -- Payroll — salary structures per employee, a payroll run per period, and the computed
 -- payslips. Attendance drives loss-of-pay (LOP); India statutory heads (PF/ESI/PT) are
 -- computed at generation time. Money = numeric(12,2). Tenant RLS.

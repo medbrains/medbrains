@@ -1,3 +1,8 @@
+-- Migration: 0221_store_catalog_domain.sql
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- Alters store_catalog, which carries tenant_id and the tenant policy
+-- despite its name.
 -- Stationery is the one product category the store catalog didn't cover. Rather
 -- than a separate table (which would fork the indent/transfer/inventory flows),
 -- tag store_catalog rows with a `domain`: clinical consumables vs office
