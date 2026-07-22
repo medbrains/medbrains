@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { serviceTypeFormSchema } from "./hms-forms.js";
 
 // ── Shared patterns ──────────────────────────────────────
 
@@ -234,7 +235,7 @@ export type CreateRoleInput = z.infer<typeof createRoleSchema>;
 export const createServiceSchema = z.object({
   code: codeField,
   name: nameField,
-  service_type: z.enum(["consultation", "procedure", "investigation", "nursing", "diet", "other"]),
+  service_type: serviceTypeFormSchema,
   description: z.string().max(500).optional(),
 });
 

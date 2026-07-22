@@ -19,9 +19,11 @@ const serviceTypes = [
   { value: "consultation", label: "Consultation" },
   { value: "procedure", label: "Procedure" },
   { value: "investigation", label: "Investigation" },
+  { value: "surgery", label: "Surgery" },
+  { value: "therapy", label: "Therapy" },
   { value: "nursing", label: "Nursing" },
-  { value: "diet", label: "Diet" },
-  { value: "other", label: "Other" },
+  { value: "support", label: "Support" },
+  { value: "administrative", label: "Administrative" },
 ];
 
 const templateServices: Array<{
@@ -63,7 +65,7 @@ const templateServices: Array<{
   {
     code: "ROOM-CHARGES",
     name: "Room Charges",
-    service_type: "other",
+    service_type: "support",
     description: "Room and bed charges",
   },
 ];
@@ -73,8 +75,10 @@ const typeColors: Record<string, BadgeTone> = {
   procedure: "accent",
   investigation: "success",
   nursing: "danger",
-  diet: "warning",
-  other: "neutral",
+  surgery: "warning",
+  therapy: "accent",
+  support: "neutral",
+  administrative: "neutral",
 };
 
 export function ServicesStep({ onNext, onBack }: Props) {

@@ -26,18 +26,22 @@ const SERVICE_TYPE_OPTIONS = [
   { value: "consultation", label: "Consultation" },
   { value: "procedure", label: "Procedure" },
   { value: "investigation", label: "Investigation" },
+  { value: "surgery", label: "Surgery" },
+  { value: "therapy", label: "Therapy" },
   { value: "nursing", label: "Nursing" },
-  { value: "diet", label: "Diet" },
-  { value: "other", label: "Other" },
+  { value: "support", label: "Support" },
+  { value: "administrative", label: "Administrative" },
 ];
 
 const SERVICE_TYPE_COLORS: Record<string, BadgeTone> = {
   consultation: "primary",
   procedure: "accent",
   investigation: "warning",
+  surgery: "warning",
+  therapy: "accent",
   nursing: "success",
-  diet: "success",
-  other: "neutral",
+  support: "neutral",
+  administrative: "neutral",
 };
 
 const EMPTY_FORM: ServiceSettingsFormInput = {

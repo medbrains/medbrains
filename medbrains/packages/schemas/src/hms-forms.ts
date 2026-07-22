@@ -954,13 +954,17 @@ export const locationLevelValues = [
   "room",
   "bed",
 ] as const;
+// Mirrors the `service_type` Postgres enum — services.service_type is that
+// enum and the onboarding insert casts to it.
 export const serviceTypeValues = [
   "consultation",
   "procedure",
   "investigation",
+  "surgery",
+  "therapy",
   "nursing",
-  "diet",
-  "other",
+  "support",
+  "administrative",
 ] as const;
 export const taxApplicabilityValues = ["taxable", "exempt", "zero_rated"] as const;
 export const insuranceProviderTypeValues = ["private", "government", "tpa"] as const;

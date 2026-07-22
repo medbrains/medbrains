@@ -38,6 +38,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 MIGRATIONS = REPO_ROOT / "medbrains" / "crates" / "medbrains-db" / "src" / "migrations"
 CRATES = REPO_ROOT / "medbrains" / "crates"
+TS_TYPES = REPO_ROOT / "medbrains" / "packages" / "types" / "src"
 
 # Rust enums whose variants do not all exist in the Postgres enum they name.
 # Every one is currently unreachable; see the module docstring. Removing an
@@ -45,6 +46,48 @@ CRATES = REPO_ROOT / "medbrains" / "crates"
 RECORDED_MISMATCHES = {
     "queue_priority": {"pediatric", "emergency"},
 }
+
+# TypeScript string-union aliases whose name maps to a Postgres enum but whose
+# values differ. Each was triaged; all are narrow subsets scoped to one screen,
+# or sit on a text column, and none can reach the enum.
+#
+# The one that did reach it was ServiceType: the onboarding step offered "diet"
+# and "other", and shipped a "Room Charges" template using "other", while
+# services.service_type is the enum and the insert casts to it. Any admin who
+# accepted that template failed the whole onboarding submission. Fixed rather
+# than recorded.
+RECORDED_TS_DIVERGENCE = {
+    # narrow subsets — the alias covers one screen, not the whole vocabulary
+    ("QueueStatus", "queue_status"),
+    ("DocumentTemplateCategory", "document_template_category"),
+    ("ChargeSource", "charge_source"),
+    ("AuditAction", "audit_action"),
+    ("UserRole", "user_role"),
+    # over-broad, but pharmacy_payment_transactions.payment_mode is text
+    ("PharmacyPaymentMode", "pharmacy_payment_mode"),
+    # the enum carries both 'deceased' and 'death'; nothing writes 'death'
+    ("DischargeType", "discharge_type"),
+}
+
+
+def pascal_to_snake(name: str) -> str:
+    out = re.sub(r"(?<=[a-z0-9])([A-Z])", r"_\1", name)
+    out = re.sub(r"(?<=[A-Z])([A-Z][a-z])", r"_\1", out)
+    return out.lower()
+
+
+def ts_unions() -> dict[str, set[str]]:
+    """Exported string-union aliases, by type name."""
+    found: dict[str, set[str]] = {}
+    if not TS_TYPES.exists():
+        return found
+    for path in sorted(TS_TYPES.glob("*.ts")):
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        for match in re.finditer(
+            r'export type (\w+)\s*=\s*((?:\s*\|?\s*"[^"]+")+)\s*;', text
+        ):
+            found[match.group(1)] = set(re.findall(r'"([^"]+)"', match.group(2)))
+    return found
 
 
 def to_snake_case(name: str) -> str:
@@ -140,6 +183,21 @@ def main() -> int:
                 f"{type_name} — {ident} in {file} encodes {sorted(new)}, "
                 f"which the Postgres enum does not accept"
             )
+
+    ts = ts_unions()
+    ts_new: list[str] = []
+    for name, values in sorted(ts.items()):
+        snake = pascal_to_snake(name)
+        if snake not in pg or values == pg[snake]:
+            continue
+        if (name, snake) in RECORDED_TS_DIVERGENCE:
+            continue
+        extra = sorted(values - pg[snake])
+        ts_new.append(
+            f"{name} differs from the {snake} enum"
+            + (f"; not accepted: {extra}" if extra else " (missing values only)")
+        )
+    failures.extend(ts_new)
 
     if failures:
         print(f"\n=== {len(failures)} RUST ENUM THAT POSTGRES WILL REJECT ===")

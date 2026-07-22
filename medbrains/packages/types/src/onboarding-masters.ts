@@ -3,13 +3,20 @@
 
 // ── Services ─────────────────────────────────────────────
 
+/**
+ * Mirrors the `service_type` Postgres enum. `services.service_type` is that
+ * enum and the onboarding insert casts to it (`$4::service_type`), so a value
+ * outside this set fails the whole onboarding submission.
+ */
 export type ServiceType =
   | "consultation"
   | "procedure"
   | "investigation"
+  | "surgery"
+  | "therapy"
   | "nursing"
-  | "diet"
-  | "other";
+  | "support"
+  | "administrative";
 
 export interface ServiceRow {
   id: string;
