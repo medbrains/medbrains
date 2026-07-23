@@ -157,17 +157,31 @@ fn field_access_to_wire(
         .collect()
 }
 
+/// Whether the caller is a native app, which must be answered with tokens in
+/// the body rather than a session cookie.
+///
+/// Cookies are not merely inconvenient here: a native client on Android is
+/// refused a `Secure` cookie over plain HTTP, so a surface that falls through
+/// to the cookie path cannot sign in at all. The TV app did, because it
+/// identifies as `medbrains-tv` and the match only knew about mobile and
+/// desktop.
+///
+/// Matching is on the family, after an optional `medbrains-` prefix, so a new
+/// surface is recognised by name rather than by remembering to add it here.
 fn wants_native_token_response(headers: &HeaderMap) -> bool {
-    matches!(
-        headers
-            .get("x-medbrains-client")
-            .and_then(|value| value.to_str().ok()),
-        Some(value)
-            if value.starts_with("mobile-")
-                || value == "mobile"
-                || value.starts_with("desktop-")
-                || value == "desktop"
-    )
+    const NATIVE_FAMILIES: [&str; 4] = ["mobile", "desktop", "tv", "kiosk"];
+
+    let Some(client) = headers
+        .get("x-medbrains-client")
+        .and_then(|value| value.to_str().ok())
+    else {
+        return false;
+    };
+    let client = client.strip_prefix("medbrains-").unwrap_or(client);
+
+    NATIVE_FAMILIES
+        .iter()
+        .any(|family| client == *family || client.starts_with(&format!("{family}-")))
 }
 
 /// SSO-first tenant policy: when `tenant_settings(auth, password_login_disabled)`
@@ -1434,4 +1448,48 @@ pub fn protected_router() -> axum::Router<AppState> {
         .route("/api/auth/logout-all", post(logout_all))
         .route("/api/auth/change-password", post(change_password))
         .route("/api/auth/revocations", get(list_revocations))
+}
+
+#[cfg(test)]
+mod native_client_tests {
+    use super::wants_native_token_response;
+    use axum::http::HeaderMap;
+
+    fn client(name: &str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-medbrains-client", name.parse().expect("header value"));
+        headers
+    }
+
+    #[test]
+    fn every_native_surface_is_answered_with_tokens() {
+        // `medbrains-tv` is what the TV app actually sends. It was refused, so
+        // the TV fell through to a Secure cookie Android will not store.
+        for name in [
+            "mobile",
+            "mobile-staff",
+            "desktop",
+            "desktop-workstation",
+            "tv",
+            "medbrains-tv",
+            "kiosk",
+            "medbrains-kiosk-registration",
+        ] {
+            assert!(
+                wants_native_token_response(&client(name)),
+                "{name} is a native surface and needs tokens in the body"
+            );
+        }
+    }
+
+    #[test]
+    fn browsers_keep_using_cookies() {
+        for name in ["web", "medbrains-web", "mobile_web", "tvguide"] {
+            assert!(
+                !wants_native_token_response(&client(name)),
+                "{name} is not a native surface"
+            );
+        }
+        assert!(!wants_native_token_response(&HeaderMap::new()));
+    }
 }
