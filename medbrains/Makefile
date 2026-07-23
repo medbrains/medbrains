@@ -9,7 +9,7 @@
        mobile-staff-android mobile-staff-prebuild mobile-staff-typecheck \
        check check-backend check-frontend lint check-api check-sqlx prepare-sqlx guard-sqlx-nonprod \
        check-ui-api check-types check-ui-seam check-raw-html check-secrets check-all \
-       check-rls check-sharing check-authz-posture check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-tenant-leak check-runtime-sqlx check-audit check-tracing \
+       check-rls check-sharing check-authz-posture check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-tenant-leak check-runtime-sqlx check-audit check-tracing \
        check-migration-headers \
        check-region-pinning check-no-card-logging check-egress-allowlist check-cert-readiness check-encryption-at-rest check-redaction-masking \
        smoke-test e2e-test e2e-smoke e2e-crud e2e-forms e2e-analytics e2e-rbac e2e-journeys e2e-ui-aaa e2e-full e2e-all generate-smoke generate-e2e \
@@ -299,7 +299,7 @@ check-raw-html: ## Verify no raw <button>/<input>/<select>/<textarea> in shipped
 check-secrets: ## Verify no live credentials (AWS/PAT/keys) are tracked in git
 	python3 scripts/check_secrets.py
 
-check-all: check-api check-ui-api check-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
+check-all: check-api check-ui-api check-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
 
 # ── Audit / Authz Static Checks (RFC-INFRA-2026-002 Phase 0) ─
 
@@ -338,6 +338,9 @@ check-permission-enforcement: ## Ban UI permission gates no handler enforces
 
 check-tenant-registry-reads: ## Ban unowned `tenants` reads on a caller-supplied id
 	python3 ../scripts/check_tenant_registry_reads.py
+
+check-pool-reads: ## Ban unscoped off-transaction reads of RLS-policed tables
+	python3 ../scripts/check_pool_reads_policed_tables.py
 
 check-tenant-leak: ## Ban raw sqlx::query* in routes/ (ratchets against baseline)
 	python3 ../scripts/check_tenant_leak.py

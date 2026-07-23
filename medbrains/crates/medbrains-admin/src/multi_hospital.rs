@@ -408,18 +408,28 @@ pub async fn list_user_assignments(
     Path(user_id): Path<Uuid>,
 ) -> Result<Json<UserWithAssignments>, AppError> {
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    let is_super = claims.role == "super_admin";
+    // Scoped exactly like the assignments query below. Without the predicate
+    // this returned any user's name and email from any tenant: it runs on the
+    // pool, so no tenant context applies, and `users` carries RLS but not
+    // FORCE, which the owner the app connects as does not honour.
     let (username, full_name, email) = sqlx::query_as::<_, (String, String, String)>(
-        "SELECT username, COALESCE(full_name, ''), COALESCE(email, '') FROM users WHERE id = $1",
+        "SELECT username, COALESCE(full_name, ''), COALESCE(email, '') FROM users \
+         WHERE id = $1 AND ($2 OR tenant_id = $3 OR tenant_id IN (SELECT id FROM tenants \
+               WHERE group_id = (SELECT group_id FROM tenants WHERE id = $3)))",
     )
     .bind(user_id)
+    .bind(is_super)
+    .bind(claims.tenant_id)
     .fetch_optional(&state.db)
     .await?
     .ok_or(AppError::NotFound)?;
-    let is_super = claims.role == "super_admin";
     let assignments = sqlx::query_as::<_, UserHospitalAssignment>(&format!(
+        // `tenant_id = $3` carries the standalone case: a hospital outside any
+        // chain has `group_id IS NULL`, and the subquery matches nothing.
         "SELECT {ASSIGNMENT_COLS} FROM user_hospital_assignments \
          WHERE user_id = $1 AND deleted_at IS NULL \
-           AND ($2 OR tenant_id IN (SELECT id FROM tenants \
+           AND ($2 OR tenant_id = $3 OR tenant_id IN (SELECT id FROM tenants \
                  WHERE group_id = (SELECT group_id FROM tenants WHERE id = $3))) \
          ORDER BY is_primary DESC"
     ))
@@ -522,7 +532,7 @@ pub async fn delete_user_assignment(
     sqlx::query(
         "UPDATE user_hospital_assignments \
          SET is_active = false, deleted_at = now(), deleted_by = $2 WHERE id = $1 \
-           AND ($3 OR tenant_id IN (SELECT id FROM tenants \
+           AND ($3 OR tenant_id = $4 OR tenant_id IN (SELECT id FROM tenants \
                  WHERE group_id = (SELECT group_id FROM tenants WHERE id = $4)))",
     )
     .bind(assignment_id)
