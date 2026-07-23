@@ -1059,6 +1059,23 @@ pub async fn get_hospital_kpi(
     Query(query): Query<DateRangeQuery>,
 ) -> Result<Json<HospitalKpiSummary>, AppError> {
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
+    // `tenants` carries no RLS policy, so the join reaches any hospital's name,
+    // branch code and region regardless of the caller's tenant context. The
+    // group_kpi_snapshots side is policed and would come back zeroed, but the
+    // identity would not — resolve this hospital's group and require access to
+    // it, as `get_group_dashboard` and `list_group_kpis` already do.
+    // Asking about your own hospital needs no group at all — a standalone
+    // hospital has `group_id IS NULL` and must still see its own KPIs.
+    if tenant_id != claims.tenant_id {
+        let group_id =
+            sqlx::query_scalar::<_, Option<Uuid>>("SELECT group_id FROM tenants WHERE id = $1")
+                .bind(tenant_id)
+                .fetch_optional(&state.db)
+                .await?
+                .flatten()
+                .ok_or(AppError::Forbidden)?;
+        require_group_access(&state, &claims, group_id).await?;
+    }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let summary = sqlx::query_as::<_, HospitalKpiSummary>(&format!(
