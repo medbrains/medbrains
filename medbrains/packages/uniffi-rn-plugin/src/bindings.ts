@@ -65,11 +65,12 @@ function runBindingsGeneration(
       cargoBuild(crateAbs, target, options.cargoProfile);
     }
   } else {
-    for (const abi of options.androidAbis) {
-      const triple = abiToTriple(abi);
-      log(`cargo build Android ABI: ${abi} (${triple})`);
-      cargoBuild(crateAbs, triple, options.cargoProfile);
-    }
+    // One `cargo ndk` invocation for every ABI. Plain `cargo build --target
+    // aarch64-linux-android` picks the host linker, and macOS `ld` rejects the
+    // GNU flags rustc passes ("unknown options: --version-script"), so the
+    // Android build never linked. cargo-ndk supplies the NDK linker per target.
+    log(`cargo ndk build Android ABIs: ${options.androidAbis.join(", ")}`);
+    cargoNdkBuild(crateAbs, options.androidAbis, options.cargoProfile);
   }
 
   // 2. uniffi-bindgen-react-native — emit TypeScript Turbo Module
@@ -90,6 +91,33 @@ function cargoBuild(
     throw new Error(
       `cargo build failed for ${target}: ${(err as Error).message}\n` +
         `Run \`rustup target add ${target}\` if the target isn't installed.`,
+    );
+  }
+}
+
+/**
+ * Android build, through cargo-ndk so each ABI links with the NDK toolchain.
+ *
+ * `-o` is deliberately omitted: the Android mod reads the artifacts straight
+ * out of `target/<triple>/<profile>/`, and passing an output directory would
+ * only copy them somewhere it does not look.
+ */
+function cargoNdkBuild(
+  crateRoot: string,
+  abis: string[],
+  profile: ResolvedOptions["cargoProfile"],
+): void {
+  const targets = abis.map((abi) => `-t ${abi}`).join(" ");
+  const profileFlag = profile === "release" ? "--release" : "";
+  const cmd = `cargo ndk ${targets} build ${profileFlag}`.trim();
+  try {
+    execSync(cmd, { cwd: crateRoot, stdio: "inherit" });
+  } catch (err) {
+    throw new Error(
+      `cargo ndk build failed for ${abis.join(", ")}: ${(err as Error).message}\n` +
+        "Install it with `cargo install cargo-ndk`, add the targets with " +
+        `\`rustup target add ${abis.map(abiToTriple).join(" ")}\`, and set ` +
+        "ANDROID_NDK_HOME to an installed NDK.",
     );
   }
 }

@@ -3,8 +3,10 @@
   "compilerOptions": {
     "outDir": "lib",
     "rootDir": "src",
-    "module": "CommonJS",
-    "moduleResolution": "node",
+    // package.json declares "type": "commonjs", so node16 emits CJS.
+    // TypeScript 7 removed the node10 resolver that "node" aliased.
+    "module": "node16",
+    "moduleResolution": "node16",
     "lib": ["ES2022"],
     "types": ["node"]
   },

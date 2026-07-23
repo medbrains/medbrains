@@ -57,6 +57,8 @@ apps/mobile/ios/build/
 apps/mobile/ios/Pods/
 
 # React Native — TV
+apps/tv/android/
+apps/tv/ios/
 apps/tv/android/app/build/
 apps/tv/android/build/
 apps/tv/android/.gradle/
