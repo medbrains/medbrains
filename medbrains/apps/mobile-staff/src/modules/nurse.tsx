@@ -14,6 +14,7 @@ import { AdmissionsListScreen } from "./nurse/admissions-list.js";
 import { BedsideActionScreen } from "./nurse/bedside-action.js";
 import { MarScheduleScreen } from "./nurse/mar-schedule.js";
 import { PatientWorkspaceScreen } from "./nurse/patient-workspace.js";
+import { ShiftHandoverScreen } from "./nurse/shift-handover.js";
 
 function NurseHome(): ReactNode {
   const router = useModuleRouter();
@@ -79,6 +80,16 @@ function NurseScreen(): ReactNode {
           <PatientWorkspaceScreen admission={payload as AdmissionRow} />
         ),
         mar: (payload) => <MarScheduleScreen admission={payload as AdmissionRow} />,
+        handover: (payload) => {
+          const admission = payload as AdmissionRow;
+          return (
+            <ShiftHandoverScreen
+              encounterId={admission.encounter_id}
+              patientName={admission.patient_name}
+              uhid={admission.uhid}
+            />
+          );
+        },
         "bedside-action": (payload) => {
           const params = payload as {
             admission: AdmissionRow;

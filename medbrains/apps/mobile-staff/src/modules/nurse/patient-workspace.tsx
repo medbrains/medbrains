@@ -21,7 +21,7 @@ export interface PatientWorkspaceScreenProps {
 export type BedsideActionMode = "vitals" | "io" | "pain" | "fall-risk";
 
 interface BedsideAction {
-  id: BedsideActionMode | "mar";
+  id: BedsideActionMode | "mar" | "handover";
   label: string;
   description: string;
   permissions: readonly string[];
@@ -35,6 +35,13 @@ const ACTIONS: readonly BedsideAction[] = [
     description: "Administer, hold, or refuse scheduled medication.",
     permissions: [P.IPD.MAR_LIST, P.NURSE.MAR_VIEW],
     tone: "copper",
+  },
+  {
+    id: "handover",
+    label: "SBAR handover",
+    description: "Hand this patient to the next shift, or accept one addressed to you.",
+    permissions: [P.NURSE.HANDOFF_RECORD],
+    tone: "warn",
   },
   {
     id: "vitals",
@@ -104,6 +111,8 @@ export function PatientWorkspaceScreen({ admission }: PatientWorkspaceScreenProp
             onPress={() => {
               if (action.id === "mar") {
                 router.push("mar", admission);
+              } else if (action.id === "handover") {
+                router.push("handover", admission);
               } else {
                 router.push("bedside-action", { admission, mode: action.id });
               }
