@@ -17,11 +17,7 @@ import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { ActivityIndicator, Text } from "react-native-paper";
 import { TvBoard, TvSummaryRow } from "../components/tv-board.js";
-import {
-  TvFeedStatusBanner,
-  tvTokenBoardLegend,
-  tvTokenBoardReadinessItems,
-} from "../components/tv-feed-status.js";
+import { TvFeedStatusBanner, tvTokenBoardReadinessItems } from "../components/tv-feed-status.js";
 import {
   tvTokenBoardFeedErrorLabel,
   tvTokenBoardLaneEmptyLabel,
@@ -97,14 +93,12 @@ function RadiologyQueueScreen({ route }: RadiologyQueueScreenProps) {
     [queue],
   );
   const modalityLabel = displayModality(queue?.modality ?? modality);
-  const deepLink = `medbrains://tv/radiology-queue?modality=${encodeURIComponent(modality)}`;
 
   return (
     <TvBoard
       eyebrow="RADIOLOGY"
       title={`${modalityLabel} imaging`}
       subtitle={tvTokenBoardSubtitle(RADIOLOGY_BOARD.id)}
-      legend={tvTokenBoardLegend(RADIOLOGY_BOARD, queueQuery.dataUpdatedAt, deepLink)}
       privacyNotice={RADIOLOGY_BOARD.privacyNotice}
       readiness={[
         ...tvTokenBoardReadinessItems({
@@ -114,7 +108,6 @@ function RadiologyQueueScreen({ route }: RadiologyQueueScreenProps) {
         }),
         { label: tvTokenBoardSummaryLabel("modality"), tone: "info", value: modalityLabel },
       ]}
-      tags={[...RADIOLOGY_BOARD.targets.tvAppCodes, "radiology", modalityLabel]}
     >
       <TvSummaryRow
         items={[

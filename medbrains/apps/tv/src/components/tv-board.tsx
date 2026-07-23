@@ -3,15 +3,24 @@
  * interactions (D-pad / focus only). Each TV module mounts a
  * `<TvBoard>` as its landing.
  *
- * Real WebSocket-driven data wiring follows in a per-module phase;
- * this scaffold ships the visual shell so the Android TV box has
- * the right boot screen per deep-link.
+ * A board does not scroll. Nobody is holding a remote to a waiting-room
+ * screen, so anything below the fold is simply never seen; the content fills
+ * the overscan-safe area and stops there.
+ *
+ * It also carries only what the room needs to read. Deep-link URIs, sync
+ * timestamps and app-inventory tags are operator detail and have no business
+ * on a screen patients are looking at.
+ *
+ * Status follows the same rule: a healthy board shows none, because "REFRESH
+ * 5S" tells a waiting patient nothing and costs the space the tokens need. A
+ * degraded or offline feed does show, prominently — a board quietly displaying
+ * stale numbers is worse than one admitting it is stale.
  */
 
 import type { IntentTone } from "@medbrains/ui-mobile";
-import { Badge, COLORS, INTENT_BG, INTENT_FG, OVERSCAN, SPACING } from "@medbrains/ui-mobile";
+import { COLORS, INTENT_BG, INTENT_FG, OVERSCAN, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
-import { ScrollView, View } from "react-native";
+import { View } from "react-native";
 import { Text } from "react-native-paper";
 import { TV_TEXT, tvText } from "./tv-i18n.js";
 
@@ -25,10 +34,8 @@ export interface TvBoardProps {
   eyebrow: string;
   title: string;
   subtitle?: string;
-  legend?: string;
   privacyNotice?: string;
   readiness?: ReadonlyArray<TvReadinessItem>;
-  tags?: ReadonlyArray<string>;
   children?: ReactNode;
 }
 
@@ -36,19 +43,20 @@ export function TvBoard({
   eyebrow,
   title,
   subtitle,
-  legend,
   privacyNotice,
   readiness = [],
-  tags = [],
   children,
 }: TvBoardProps): ReactNode {
+  // Only what is wrong. Healthy status is operator detail.
+  const problems = readiness.filter((item) => item.tone === "alert" || item.tone === "warn");
+
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: COLORS.brandDeep }}
-      contentContainerStyle={{
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: COLORS.brandDeep,
         paddingHorizontal: OVERSCAN.horizontal,
         paddingVertical: OVERSCAN.vertical,
-        minHeight: "100%",
       }}
     >
       <View style={{ marginBottom: SPACING.lg }}>
@@ -85,32 +93,13 @@ export function TvBoard({
             {subtitle}
           </Text>
         )}
-        {tags.length > 0 && (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: SPACING.md }}>
-            {tags.map((tag) => (
-              <Badge key={tag} label={tag} tone="info" />
-            ))}
-          </View>
-        )}
-        {readiness.length > 0 && <TvReadinessStrip items={readiness} />}
+        {problems.length > 0 && <TvReadinessStrip items={problems} />}
       </View>
       {privacyNotice && <TvPrivacyNotice label={privacyNotice} />}
-      {children}
-      {legend && (
-        <View style={{ marginTop: SPACING.xl }}>
-          <Text
-            style={{
-              color: COLORS.tint,
-              fontSize: 18,
-              opacity: 0.65,
-              fontFamily: "JetBrainsMono-Regular",
-            }}
-          >
-            {legend}
-          </Text>
-        </View>
-      )}
-    </ScrollView>
+      {/* Takes the rest of the screen, so a board fills it rather than
+          spilling past the bottom edge. */}
+      <View style={{ flex: 1 }}>{children}</View>
+    </View>
   );
 }
 
@@ -168,39 +157,28 @@ function TvReadinessStrip({ items }: { items: ReadonlyArray<TvReadinessItem> }):
   );
 }
 
+/**
+ * One line, not a block. The notice has to be present — a public display
+ * showing patient data must say what it withholds — but it is reassurance,
+ * not the content, and as a block it took a third of the screen from the
+ * tokens.
+ */
 function TvPrivacyNotice({ label }: { label: string }): ReactNode {
   return (
-    <View
+    <Text
+      numberOfLines={1}
       style={{
-        backgroundColor: "rgba(28, 183, 133, 0.16)",
-        borderColor: COLORS.emerald,
-        borderRadius: 10,
-        borderWidth: 2,
-        marginBottom: SPACING.lg,
-        padding: SPACING.md,
+        color: COLORS.emerald,
+        fontFamily: "JetBrainsMono-Regular",
+        fontSize: 16,
+        letterSpacing: 1.5,
+        marginBottom: SPACING.md,
+        opacity: 0.9,
+        textTransform: "uppercase",
       }}
     >
-      <Text
-        style={{
-          color: COLORS.emerald,
-          fontFamily: "JetBrainsMono-Regular",
-          fontSize: 16,
-          letterSpacing: 2,
-          textTransform: "uppercase",
-        }}
-      >
-        {tvText(TV_TEXT.privacy.displayMode)}
-      </Text>
-      <Text
-        style={{
-          color: COLORS.canvas,
-          fontSize: 22,
-          marginTop: SPACING.xs,
-        }}
-      >
-        {label}
-      </Text>
-    </View>
+      {`${tvText(TV_TEXT.privacy.displayMode)} \u00b7 ${label}`}
+    </Text>
   );
 }
 

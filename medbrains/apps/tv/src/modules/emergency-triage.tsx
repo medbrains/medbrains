@@ -11,11 +11,7 @@ import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { ActivityIndicator, Text } from "react-native-paper";
 import { TvBoard, TvSummaryRow } from "../components/tv-board.js";
-import {
-  TvFeedStatusBanner,
-  tvTokenBoardLegend,
-  tvTokenBoardReadinessItems,
-} from "../components/tv-feed-status.js";
+import { TvFeedStatusBanner, tvTokenBoardReadinessItems } from "../components/tv-feed-status.js";
 import {
   tvTokenBoardFeedErrorLabel,
   tvTokenBoardLoadingLabel,
@@ -87,14 +83,12 @@ function EmergencyTriageScreen() {
       eyebrow="EMERGENCY"
       title={EMERGENCY_BOARD.title}
       subtitle={tvTokenBoardSubtitle(EMERGENCY_BOARD.id)}
-      legend={tvTokenBoardLegend(EMERGENCY_BOARD, queueQuery.dataUpdatedAt)}
       privacyNotice={EMERGENCY_BOARD.privacyNotice}
       readiness={tvTokenBoardReadinessItems({
         isError: queueQuery.isError,
         surface: EMERGENCY_BOARD,
         updatedAt: queueQuery.dataUpdatedAt,
       })}
-      tags={[...EMERGENCY_BOARD.targets.tvAppCodes, "triage", "token-only", "staff-display"]}
     >
       <TvSummaryRow
         items={[

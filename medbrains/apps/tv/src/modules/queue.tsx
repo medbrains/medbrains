@@ -19,11 +19,7 @@ import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { ActivityIndicator, Text } from "react-native-paper";
 import { TvBoard, TvSummaryRow } from "../components/tv-board.js";
-import {
-  TvFeedStatusBanner,
-  tvTokenBoardLegend,
-  tvTokenBoardReadinessItems,
-} from "../components/tv-feed-status.js";
+import { TvFeedStatusBanner, tvTokenBoardReadinessItems } from "../components/tv-feed-status.js";
 import {
   tvTokenBoardFeedErrorLabel,
   tvTokenBoardLaneEmptyLabel,
@@ -97,7 +93,6 @@ function QueueScreen({ route }: QueueScreenProps) {
       subtitle={tvTokenBoardSubtitle(OPD_BOARD.id, {
         scope: departmentId ? "department" : "hospital",
       })}
-      legend={tvTokenBoardLegend(OPD_BOARD, tokensQuery.dataUpdatedAt)}
       privacyNotice={OPD_BOARD.privacyNotice}
       readiness={[
         ...tvTokenBoardReadinessItems({
@@ -111,7 +106,6 @@ function QueueScreen({ route }: QueueScreenProps) {
           value: tvTokenBoardScopeLabel(departmentId ? "department" : "hospital"),
         },
       ]}
-      tags={[...OPD_BOARD.targets.tvAppCodes, "OPD"]}
     >
       <TvSummaryRow
         items={[

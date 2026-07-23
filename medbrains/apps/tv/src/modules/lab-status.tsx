@@ -16,11 +16,7 @@ import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { ActivityIndicator, Text } from "react-native-paper";
 import { TvBoard, TvSummaryRow } from "../components/tv-board.js";
-import {
-  TvFeedStatusBanner,
-  tvTokenBoardLegend,
-  tvTokenBoardReadinessItems,
-} from "../components/tv-feed-status.js";
+import { TvFeedStatusBanner, tvTokenBoardReadinessItems } from "../components/tv-feed-status.js";
 import {
   tvTokenBoardFeedErrorLabel,
   tvTokenBoardLaneEmptyLabel,
@@ -71,14 +67,12 @@ function LabStatusScreen() {
       eyebrow="LABORATORY"
       title={LAB_BOARD.title}
       subtitle={tvTokenBoardSubtitle(LAB_BOARD.id)}
-      legend={tvTokenBoardLegend(LAB_BOARD, queueQuery.dataUpdatedAt)}
       privacyNotice={LAB_BOARD.privacyNotice}
       readiness={tvTokenBoardReadinessItems({
         isError: queueQuery.isError,
         surface: LAB_BOARD,
         updatedAt: queueQuery.dataUpdatedAt,
       })}
-      tags={[...LAB_BOARD.targets.tvAppCodes, "lab", "samples", "queue"]}
     >
       <TvSummaryRow
         items={[

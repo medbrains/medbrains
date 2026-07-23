@@ -18,11 +18,7 @@ import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { ActivityIndicator, Text } from "react-native-paper";
 import { TvBoard, TvSummaryRow } from "../components/tv-board.js";
-import {
-  TvFeedStatusBanner,
-  tvTokenBoardLegend,
-  tvTokenBoardReadinessItems,
-} from "../components/tv-feed-status.js";
+import { TvFeedStatusBanner, tvTokenBoardReadinessItems } from "../components/tv-feed-status.js";
 import {
   tvTokenBoardFeedErrorLabel,
   tvTokenBoardLaneEmptyLabel,
@@ -75,14 +71,12 @@ function BillingQueueScreen() {
       eyebrow="BILLING"
       title={BILLING_BOARD.title}
       subtitle={tvTokenBoardSubtitle(BILLING_BOARD.id)}
-      legend={tvTokenBoardLegend(BILLING_BOARD, queueQuery.dataUpdatedAt)}
       privacyNotice={BILLING_BOARD.privacyNotice}
       readiness={tvTokenBoardReadinessItems({
         isError: queueQuery.isError,
         surface: BILLING_BOARD,
         updatedAt: queueQuery.dataUpdatedAt,
       })}
-      tags={[...BILLING_BOARD.targets.tvAppCodes, "billing", "cashier", "insurance"]}
     >
       <TvSummaryRow
         items={[

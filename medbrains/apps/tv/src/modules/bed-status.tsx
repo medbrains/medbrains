@@ -13,18 +13,13 @@ import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { ActivityIndicator, Text } from "react-native-paper";
 import { TvBoard, TvSummaryRow } from "../components/tv-board.js";
-import {
-  TvFeedStatusBanner,
-  tvFeedReadiness,
-  tvLastUpdatedLabel,
-} from "../components/tv-feed-status.js";
+import { TvFeedStatusBanner, tvFeedReadiness } from "../components/tv-feed-status.js";
 import {
   tvBedStatusAvailableLegend,
   tvBedStatusDisplayName,
   tvBedStatusEmptyWaitingLabel,
   tvBedStatusEyebrow,
   tvBedStatusFeedErrorLabel,
-  tvBedStatusLegend,
   tvBedStatusLoadingLabel,
   tvBedStatusOccupancyTitle,
   tvBedStatusOccupiedLegend,
@@ -140,7 +135,6 @@ function BedStatusScreen({ route }: BedStatusScreenProps) {
   const available = bedState?.available ?? 0;
   const totalBeds = bedState?.total_beds ?? 0;
   const percentOccupied = occupancyPercent(bedState);
-  const syncLabel = tvLastUpdatedLabel(bedQuery.dataUpdatedAt);
   const wardLabel = displayWardType(wardType);
   const refreshLabel = tvBedStatusReadinessValue("refresh", {
     seconds: REFRESH_INTERVAL_SECONDS,
@@ -151,11 +145,6 @@ function BedStatusScreen({ route }: BedStatusScreenProps) {
       eyebrow={tvBedStatusEyebrow()}
       title={tvBedStatusTitle(wardLabel)}
       subtitle={tvBedStatusSubtitle()}
-      legend={tvBedStatusLegend({
-        deepLink: `medbrains://tv/bed-status?ward=${wardType}`,
-        refreshLabel,
-        syncLabel,
-      })}
       privacyNotice={tvBedStatusPrivacyNotice()}
       readiness={[
         {
@@ -167,7 +156,6 @@ function BedStatusScreen({ route }: BedStatusScreenProps) {
         { label: tvBedStatusReadinessLabel("refresh"), tone: "info", value: refreshLabel },
         { label: tvBedStatusReadinessLabel("ward"), tone: "info", value: wardLabel },
       ]}
-      tags={["TV-Ward", "TV-ICU", "IPD", "beds"]}
     >
       <TvSummaryRow
         items={[
