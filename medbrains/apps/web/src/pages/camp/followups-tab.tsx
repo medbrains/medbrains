@@ -67,7 +67,10 @@ export function FollowupsTab({
   selectedCamp: Camp | null;
 }) {
   const { t } = useTranslation("camp");
-  const canManage = useHasPermission(P.CAMP.FOLLOWUPS_MANAGE);
+  // Gate each action on the permission its handler actually requires:
+  // POST /camp/followups checks followups.schedule, PUT checks followups.outcome.
+  const canSchedule = useHasPermission(P.CAMP.FOLLOWUPS_SCHEDULE);
+  const canRecordOutcome = useHasPermission(P.CAMP.FOLLOWUPS_OUTCOME);
   const campNameAccess = useProtectedFieldAccess(CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY);
   const campPhoneAccess = useProtectedFieldAccess(CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY);
   const qc = useQueryClient();
@@ -240,7 +243,7 @@ export function FollowupsTab({
       key: "actions",
       label: "",
       render: (r) =>
-        canManage && r.status === "scheduled" ? (
+        canRecordOutcome && r.status === "scheduled" ? (
           <Group gap={4}>
             <Tooltip label={t("followups.actions.markCompleted")}>
               <IconButton
@@ -278,7 +281,7 @@ export function FollowupsTab({
             {t("followups.description")}
           </Text>
         </Stack>
-        {canManage && campId && (
+        {canSchedule && campId && (
           <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
             {t("followups.actions.scheduleFollowup")}
           </Button>

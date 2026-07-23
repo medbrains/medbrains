@@ -45,7 +45,9 @@ export function OtherSpecialtiesPage() {
   const canTemplates = useHasPermission(P.SPECIALTY.OTHER.TEMPLATES_MANAGE);
   const canRecords = useHasPermission(P.SPECIALTY.OTHER.RECORDS_CREATE);
   const canDialysis = useHasPermission(P.SPECIALTY.OTHER.DIALYSIS_MANAGE);
-  const canChemo = useHasPermission(P.SPECIALTY.OTHER.CHEMO_MANAGE);
+  // The chemo handlers gate on specialty.other.records.create, not on a
+  // chemo-specific code — the dialysis/oncology tabs each have their own.
+  const canChemo = useHasPermission(P.SPECIALTY.OTHER.RECORDS_CREATE);
 
   const [tab, setTab] = useState<string | null>("templates");
   const [tmplOpen, tmplHandlers] = useDisclosure(false);
