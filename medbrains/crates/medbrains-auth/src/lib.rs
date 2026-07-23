@@ -250,8 +250,15 @@ pub async fn login(
         ));
     }
 
-    // Verify password
-    let parsed_hash = PasswordHash::new(&row.password_hash).map_err(|_| AppError::Unauthorized)?;
+    // Verify password. An account provisioned through SSO carries no local
+    // hash (0200_sso_foundation dropped the NOT NULL), and password login is
+    // simply not a route it has.
+    let Some(ref password_hash) = row.password_hash else {
+        return Err(AppError::BadRequest(
+            "This account signs in with single sign-on. Please use SSO.".to_owned(),
+        ));
+    };
+    let parsed_hash = PasswordHash::new(password_hash).map_err(|_| AppError::Unauthorized)?;
     if Argon2::default()
         .verify_password(body.password.as_bytes(), &parsed_hash)
         .is_err()
@@ -978,9 +985,17 @@ pub async fn change_password(
     let Some(current_hash) = current_hash else {
         return Err(AppError::NotFound);
     };
+    // Nullable since 0200_sso_foundation: an SSO account has no local password
+    // to change, which is a different answer from "no such user".
+    let Some(ref current_hash) = current_hash else {
+        return Err(AppError::BadRequest(
+            "This account signs in with single sign-on and has no password to change."
+                .to_owned(),
+        ));
+    };
 
     // Verify current password
-    let parsed_hash = PasswordHash::new(&current_hash).map_err(|_| AppError::Unauthorized)?;
+    let parsed_hash = PasswordHash::new(current_hash).map_err(|_| AppError::Unauthorized)?;
     Argon2::default()
         .verify_password(body.current_password.as_bytes(), &parsed_hash)
         .map_err(|_| AppError::BadRequest("Current password is incorrect".to_owned()))?;

@@ -261,6 +261,9 @@ guard-sqlx-nonprod:
 			;; \
 	esac
 
+schema-db: guard-sqlx-nonprod ## Build a migrated schema DB (for prepare-sqlx, smoke tests, experiments)
+	@scripts/schema_db.sh "$(SQLX_DATABASE_URL)"
+
 prepare-sqlx: guard-sqlx-nonprod ## Refresh SQLx offline metadata from local/CI schema DB only
 	SQLX_OFFLINE=false DATABASE_URL="$(SQLX_DATABASE_URL)" cargo sqlx prepare --workspace -- $(SQLX_PREPARE_CARGO_ARGS)
 
