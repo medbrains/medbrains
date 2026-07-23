@@ -19,13 +19,12 @@ import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { ActivityIndicator, Text } from "react-native-paper";
 import { TvBoard, TvSummaryRow } from "../components/tv-board.js";
-import { TvFeedStatusBanner, tvTokenBoardReadinessItems } from "../components/tv-feed-status.js";
+import { TvFeedStatusBanner } from "../components/tv-feed-status.js";
 import {
   tvTokenBoardFeedErrorLabel,
   tvTokenBoardLaneEmptyLabel,
   tvTokenBoardLaneTitle,
   tvTokenBoardLoadingLabel,
-  tvTokenBoardScopeLabel,
   tvTokenBoardSubtitle,
   tvTokenBoardSummaryLabel,
   tvTokenBoardUnavailableMessage,
@@ -94,18 +93,6 @@ function QueueScreen({ route }: QueueScreenProps) {
         scope: departmentId ? "department" : "hospital",
       })}
       privacyNotice={OPD_BOARD.privacyNotice}
-      readiness={[
-        ...tvTokenBoardReadinessItems({
-          isError: tokensQuery.isError,
-          surface: OPD_BOARD,
-          updatedAt: tokensQuery.dataUpdatedAt,
-        }),
-        {
-          label: tvTokenBoardSummaryLabel("scope"),
-          tone: "info",
-          value: tvTokenBoardScopeLabel(departmentId ? "department" : "hospital"),
-        },
-      ]}
     >
       <TvSummaryRow
         items={[
@@ -120,10 +107,6 @@ function QueueScreen({ route }: QueueScreenProps) {
           {
             label: tvTokenBoardSummaryLabel("avgWait"),
             value: `${metricsQuery.data?.avg_wait_minutes ?? "—"} min`,
-          },
-          {
-            label: tvTokenBoardSummaryLabel("completed"),
-            value: String(boardState.completed.length),
           },
         ]}
       />
@@ -233,8 +216,8 @@ export const queueModule: Module = {
 
 const styles = StyleSheet.create({
   boardGrid: {
+    flex: 1,
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: SPACING.lg,
   },
   centerPanel: {
