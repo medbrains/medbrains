@@ -461,8 +461,8 @@ desktop-build-linux: ## Build .AppImage + .deb + .rpm (Linux host required)
 
 # ── Smoke & E2E Tests ────────────────────────────────────
 
-smoke-test: ## Run API smoke tests (needs running backend)
-	pnpm exec playwright test --config apps/web/playwright.config.ts e2e/smoke/
+smoke-test: ## Run API smoke tests (needs running backend; no browser required)
+	pnpm exec playwright test --config apps/web/playwright.config.ts --project=api
 
 e2e-test: ## Run full E2E scenario tests (needs backend + frontend)
 	pnpm exec playwright test --config apps/web/playwright.config.ts e2e/scenarios/

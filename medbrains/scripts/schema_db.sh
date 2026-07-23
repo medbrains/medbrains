@@ -35,14 +35,10 @@ echo "rebuilding $name"
 psql "$admin" -qtAc "DROP DATABASE IF EXISTS \"$name\" WITH (FORCE)"
 psql "$admin" -qtAc "CREATE DATABASE \"$name\""
 
-applied=0
-for migration in "$MIGRATIONS"/*.sql; do
-    if ! psql "$URL" -q -v ON_ERROR_STOP=1 -f "$migration" >/tmp/schema_db.log 2>&1; then
-        echo "failed: $(basename "$migration")" >&2
-        tail -5 /tmp/schema_db.log >&2
-        exit 1
-    fi
-    applied=$((applied + 1))
-done
+# Applied through sqlx rather than psql so `_sqlx_migrations` is populated.
+# Feeding the files to psql directly leaves that table empty, and the server
+# runs `sqlx::migrate!()` at boot — it would try to replay migration 1 and die
+# on "type already exists".
+DATABASE_URL="$URL" sqlx migrate run --source "$MIGRATIONS"
 
-echo "applied $applied migrations to $name"
+echo "migrated $name"

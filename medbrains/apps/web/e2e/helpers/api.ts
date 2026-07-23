@@ -10,6 +10,7 @@
 
 import { expect, type APIRequestContext } from "@playwright/test";
 import { getE2EIdentity } from "./e2e-identities";
+import { provisionIdentity } from "./identities";
 import type { ApiCallOptions, AuthContext } from "./types";
 
 export const E2E_BACKEND_URL =
@@ -25,18 +26,14 @@ interface PublicApiOptions {
 export async function loginAsAdmin(
   request: APIRequestContext,
 ): Promise<AuthContext> {
-  const admin = getE2EIdentity("super_admin");
-  const resp = await request.post(`${E2E_BACKEND_URL}/api/auth/login`, {
-    data: { username: admin.username, password: admin.password },
-  });
-  expect(resp.status(), `login expected 200, got ${resp.status()}`).toBe(200);
-  const body = await resp.json();
+  // A super admin created for this call, not a credential read off disk.
+  const admin = await provisionIdentity(request, "super_admin");
   return {
-    csrfToken: body.csrf_token ?? "",
-    cookieHeader: cookieHeaderFromResponse(resp),
+    csrfToken: admin.session.csrf,
+    cookieHeader: admin.session.cookieHeader,
     request,
-    userId: body.user?.id ?? "",
-    tenantId: body.user?.tenant_id ?? "",
+    userId: admin.session.user.id,
+    tenantId: admin.session.user.tenant_id,
   };
 }
 

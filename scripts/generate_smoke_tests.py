@@ -127,16 +127,10 @@ def generate_module_spec(
         ' * They run against a live backend server.',
         ' */',
         '',
-        'import { test, expect } from "@playwright/test";',
-        'import { getAuthToken, BACKEND_URL } from "../helpers";',
+        'import { test, expect } from "../fixtures/identity";',
+        'import { BACKEND_URL } from "../helpers/identities";',
         '',
         f'test.describe("/api/{module} smoke tests", () => {{',
-        '  let cookies: string;',
-        '',
-        '  test.beforeAll(async ({ request }) => {',
-        '    const auth = await getAuthToken(request);',
-        '    cookies = auth.cookies;',
-        '  });',
         '',
     ]
 
@@ -152,7 +146,8 @@ def generate_module_spec(
 
         if method == "GET":
             lines.extend([
-                f'  test("{test_name_escaped}", async ({{ request }}) => {{',
+                f'  test("{test_name_escaped}", async ({{ request, asRole }}) => {{',
+                '    const cookies = (await asRole("super_admin")).session.cookieHeader;',
                 f'    const resp = await request.get(`${{BACKEND_URL}}{test_path}`, {{',
                 '      headers: { Cookie: cookies },',
                 '    });',
@@ -166,7 +161,8 @@ def generate_module_spec(
             ])
         elif method == "POST":
             lines.extend([
-                f'  test("{test_name_escaped}", async ({{ request }}) => {{',
+                f'  test("{test_name_escaped}", async ({{ request, asRole }}) => {{',
+                '    const cookies = (await asRole("super_admin")).session.cookieHeader;',
                 f'    const resp = await request.post(`${{BACKEND_URL}}{test_path}`, {{',
                 '      headers: {',
                 '        Cookie: cookies,',
@@ -181,7 +177,8 @@ def generate_module_spec(
             ])
         elif method in ("PUT", "PATCH"):
             lines.extend([
-                f'  test("{test_name_escaped}", async ({{ request }}) => {{',
+                f'  test("{test_name_escaped}", async ({{ request, asRole }}) => {{',
+                '    const cookies = (await asRole("super_admin")).session.cookieHeader;',
                 f'    const resp = await request.{method.lower()}(`${{BACKEND_URL}}{test_path}`, {{',
                 '      headers: {',
                 '        Cookie: cookies,',

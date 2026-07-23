@@ -29,6 +29,9 @@ export default defineConfig({
 
   projects: [
     { name: "setup", testMatch: /global-setup\.ts/ },
+    // API-only layers. They talk HTTP and never open a page, so they neither
+    // need a browser binary nor the browser login the `setup` project performs.
+    { name: "api", testMatch: /(smoke\/.*\.smoke\.spec|identity\/identity\.spec)\.ts/ },
 
     // Layer 1 — API smoke (auto-generated, REST-only, no UI auth needed)
     {
