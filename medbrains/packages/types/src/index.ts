@@ -7762,3 +7762,33 @@ export interface UpsertBlogInput {
 }
 
 /** Ingested medical news article (global feed — `news_feed_articles`). */
+
+// ── Device-code pairing ───────────────────────────────────────────
+// For surfaces with no camera to scan a pairing QR with — the display asks
+// for a code, an administrator approves it, and the display polls for its JWT.
+
+export interface DeviceCodeResponse {
+  /** Shown on the display, grouped as `XXXX-XXXX` for reading aloud. */
+  user_code: string;
+  /** Secret. Never displayed; the only thing that can claim the approval. */
+  device_code: string;
+  expires_at: string;
+  poll_interval_seconds: number;
+}
+
+export interface DeviceTokenResponse {
+  status: "pending" | "approved" | "denied" | "expired";
+  jwt: string | null;
+  paired_device_id: string | null;
+  tenant_id: string | null;
+  user_id: string | null;
+}
+
+export interface DevicePairingRequest {
+  id: string;
+  user_code: string;
+  app_variant: string;
+  requested_label: string;
+  expires_at: string;
+  created_at: string;
+}

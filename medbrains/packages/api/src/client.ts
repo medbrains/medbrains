@@ -833,11 +833,14 @@ import type {
   // HR & Staff Management
   Designation,
   DeviceAdapterCatalog,
+  DeviceCodeResponse,
   DeviceConfigHistory,
   DeviceInfectionRate,
   DeviceInstance,
   DeviceMessage,
+  DevicePairingRequest,
   DeviceRoutingRule,
+  DeviceTokenResponse,
   DeviceUtilizationRow,
   DgUpsRunLogPrintData,
   Diagnosis,
@@ -15653,6 +15656,28 @@ export const api = {
     }),
   pairDevice: (data: Record<string, unknown>) =>
     request<unknown>("/device-pairing/pair", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  // Device-code pairing, for surfaces with no camera to scan a QR with.
+  requestDeviceCode: (data: { app_variant: string; label: string; public_key_pem?: string }) =>
+    request<DeviceCodeResponse>("/device-pairing/device-code", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  pollDeviceToken: (data: { device_code: string }) =>
+    request<DeviceTokenResponse>("/device-pairing/device-token", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  listDevicePairingRequests: () =>
+    request<DevicePairingRequest[]>("/admin/device-pairing/requests"),
+  approveDevicePairingRequest: (data: {
+    user_code: string;
+    approved_for_user_id?: string;
+    deny?: boolean;
+  }) =>
+    request<DevicePairingRequest>("/admin/device-pairing/approve", {
       method: "POST",
       body: JSON.stringify(data),
     }),

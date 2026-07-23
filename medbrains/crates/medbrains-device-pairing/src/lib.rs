@@ -30,6 +30,8 @@ use axum::{
     extract::{Path, State},
 };
 use axum::routing::{get,post,delete};
+
+pub mod device_code;
 use chrono::{DateTime, Duration, Utc};
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
@@ -41,9 +43,9 @@ use medbrains_server_core::middleware::auth::{Claims, encode_jwt};
 use medbrains_server_core::state::AppState;
 
 const TOKEN_TTL_MINUTES: i64 = 5;
-const DEVICE_JWT_DAYS: i64 = 30;
+pub(crate) const DEVICE_JWT_DAYS: i64 = 30;
 
-fn require_permission(claims: &Claims, perm: &str) -> Result<(), AppError> {
+pub(crate) fn require_permission(claims: &Claims, perm: &str) -> Result<(), AppError> {
     if claims.role == "super_admin" || claims.role == "hospital_admin" {
         return Ok(());
     }
@@ -241,10 +243,11 @@ pub async fn pair_device(
     let user_id = intended_user.unwrap_or(issued_by);
 
     // Resolve the user's role + permissions for the JWT.
+    // Departments live on `users.department_ids`; there is no user_departments
+    // table, so the previous join silently could not have worked.
     let user_row: Option<(String, i32, Vec<Uuid>)> = sqlx::query_as(
-        "SELECT u.role, u.perm_version, COALESCE(\
-            (SELECT array_agg(department_id) FROM user_departments WHERE user_id = u.id), \
-            ARRAY[]::uuid[]) \
+        // `users.role` is the `user_role` enum; decoding it as TEXT needs the cast.
+        "SELECT u.role::text, u.perm_version, COALESCE(u.department_ids, ARRAY[]::uuid[]) \
          FROM users u WHERE u.id = $1 AND u.tenant_id = $2",
     )
     .bind(user_id)
@@ -258,15 +261,12 @@ pub async fn pair_device(
         ));
     };
 
-    let permissions = sqlx::query_scalar::<_, String>(
-        "SELECT unnest(permissions) FROM roles \
-         WHERE tenant_id = $1 AND code = $2",
-    )
-    .bind(tenant_id)
-    .bind(&role)
-    .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    // The same resolver login uses, so a paired device carries exactly the
+    // permissions its user would get by signing in — including the bypass-role
+    // convention of an empty set.
+    let permissions =
+        medbrains_server_core::permissions::resolve_permissions(&state.db, tenant_id, user_id, &role)
+            .await?;
 
     let cert_pem = body.public_key_pem.trim().to_owned();
 
@@ -426,7 +426,7 @@ fn generate_token() -> String {
     format!("{}{}", &raw, &extra[..8])
 }
 
-fn sha256_hex(input: &[u8]) -> String {
+pub(crate) fn sha256_hex(input: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(input);
     hex::encode(hasher.finalize())
@@ -447,5 +447,32 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/admin/paired-devices/{id}",
             delete(revoke_paired_device),
+        )
+}
+
+/// Device-code pairing routes. The first two are unauthenticated by design —
+/// a display has no credentials yet, which is what it is asking for.
+pub fn device_code_router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/device-pairing/device-code",
+            post(device_code::request_device_code),
+        )
+        .route(
+            "/api/device-pairing/device-token",
+            post(device_code::poll_device_token),
+        )
+}
+
+/// Approval routes, which do require an authenticated administrator.
+pub fn device_code_admin_router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route(
+            "/api/admin/device-pairing/requests",
+            get(device_code::list_pairing_requests),
+        )
+        .route(
+            "/api/admin/device-pairing/approve",
+            post(device_code::approve_pairing_request),
         )
 }

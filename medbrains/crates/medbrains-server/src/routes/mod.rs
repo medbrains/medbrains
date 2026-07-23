@@ -91,6 +91,9 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_nhcx_callback::router())
         // Device pairing — gated by short-lived one-time token, not JWT
         .merge(medbrains_device_pairing::router())
+        // Device-code pairing — a display has no credentials yet, so asking for a
+        // code and polling for the result are public; approving is not.
+        .merge(medbrains_device_pairing::device_code_router())
         // Onboarding — public endpoints
         .merge(medbrains_onboarding::router())
         // Geo — public read-only endpoints
@@ -113,6 +116,7 @@ pub fn build_router(state: AppState) -> Router {
         // Auth — me/logout/change-password/revocations need Extension<Claims>
         .merge(medbrains_auth::protected_router())
         .merge(medbrains_client_errors::router())
+        .merge(medbrains_device_pairing::device_code_admin_router())
         .route("/api/access/manifest", get(access::get_manifest))
         .merge(medbrains_app_manifest::router())
         .merge(medbrains_clinical_scores::router())
