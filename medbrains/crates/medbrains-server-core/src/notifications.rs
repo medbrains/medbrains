@@ -443,6 +443,21 @@ const SURFACE_BOARD_PERMISSIONS: &[(&str, &[&str])] = &[
             permissions::pharmacy::prescriptions::VIEW,
         ],
     ),
+    ("billing", &[permissions::billing::invoices::LIST]),
+    (
+        "emergency",
+        &[
+            permissions::emergency::visits::LIST,
+            permissions::emergency::triage::LIST,
+        ],
+    ),
+    (
+        "radiology",
+        &[
+            permissions::radiology::orders::LIST,
+            permissions::radiology::orders::VIEW,
+        ],
+    ),
 ];
 
 async fn handle_notifications_socket(socket: WebSocket, state: AppState, topics: Vec<String>) {
@@ -500,7 +515,7 @@ async fn handle_notifications_socket(socket: WebSocket, state: AppState, topics:
 
 #[cfg(test)]
 mod tests {
-    use super::socket_topics;
+    use super::{SURFACE_BOARD_PERMISSIONS, socket_topics};
     use crate::middleware::auth::Claims;
     use uuid::Uuid;
 
@@ -528,6 +543,16 @@ mod tests {
             !topics.iter().any(|t| t == "board:pharmacy"),
             "lab permissions must not open the pharmacy board: {topics:?}"
         );
+    }
+
+    /// Every surface in the shared table needs a mirror here, or its board
+    /// silently falls back to polling.
+    #[test]
+    fn every_board_surface_is_mapped() {
+        let surfaces: Vec<&str> = SURFACE_BOARD_PERMISSIONS.iter().map(|(s, _)| *s).collect();
+        for expected in ["lab", "pharmacy", "billing", "emergency", "radiology"] {
+            assert!(surfaces.contains(&expected), "{expected} board has no permission mapping");
+        }
     }
 
     #[test]

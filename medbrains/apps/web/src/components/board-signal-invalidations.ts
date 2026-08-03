@@ -18,6 +18,13 @@ export const BOARD_SIGNAL_QUERY_KEYS: Readonly<Record<string, readonly string[]>
   "lab.result.posted": ["lab-orders", "lab-critical-alerts", "queue-tokens"],
   "lab.result.verified": ["lab-orders", "lab-critical-alerts", "queue-tokens"],
   "pharmacy.order.dispensed": ["pharmacy-orders", "queue-tokens"],
+  "billing.payment.received": ["invoices", "queue-tokens"],
+  "radiology.order.completed": ["radiology-orders", "queue-tokens"],
+  // Emergency is the one board where a poll interval is a clinical delay rather
+  // than a cosmetic one — the display exists so staff can see who is waiting and
+  // how sick they are.
+  "emergency.visit.created": ["er-visits", "triage", "queue-tokens"],
+  "emergency.visit.updated": ["er-visits", "triage", "queue-tokens"],
 };
 
 /** Query key roots to invalidate for a board signal; empty when unmapped. */

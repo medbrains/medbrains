@@ -1439,6 +1439,17 @@ pub async fn record_payment(
 
     tx.commit().await?;
 
+    // Post-commit: a settled bill should leave the counter board when it is
+    // settled, not on the board's next poll — the patient is already walking away.
+    medbrains_server_core::notifications::publish_surface_board_signal(
+        &state,
+        claims.tenant_id,
+        "billing",
+        ClinicalEventName::BillingPaymentReceived.as_str(),
+        "invoice",
+        invoice_id,
+    );
+
     let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,

@@ -825,7 +825,23 @@ pub async fn create_visit(
     medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
+    signal_triage_board(&state, &claims, ClinicalEventName::EmergencyVisitCreated.as_str(), row.id);
     Ok(Json(row))
+}
+
+/// Nudge the triage board. Emergency is the one board where a poll interval is
+/// a clinical delay rather than a cosmetic one: the display exists so staff can
+/// see who is waiting and how sick they are, and a newly-arrived or re-triaged
+/// patient must appear on it now.
+fn signal_triage_board(state: &AppState, claims: &Claims, kind: &str, visit_id: Uuid) {
+    medbrains_server_core::notifications::publish_surface_board_signal(
+        state,
+        claims.tenant_id,
+        "emergency",
+        kind,
+        "er_visit",
+        visit_id,
+    );
 }
 
 pub async fn update_visit(
@@ -878,6 +894,9 @@ pub async fn update_visit(
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
+    // Status and triage level both live on this update, and both change what the
+    // board should show.
+    signal_triage_board(&state, &claims, "emergency.visit.updated", row.id);
     Ok(Json(row))
 }
 

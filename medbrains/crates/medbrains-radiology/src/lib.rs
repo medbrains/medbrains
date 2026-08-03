@@ -942,6 +942,17 @@ pub async fn update_order_status(
     tx.commit().await?;
 
     if is_completed {
+        // Post-commit: the radiology board tracks what is still pending, so a
+        // completed study should drop off it immediately.
+        medbrains_server_core::notifications::publish_surface_board_signal(
+            &state,
+            claims.tenant_id,
+            "radiology",
+            ClinicalEventName::RadiologyOrderCompleted.as_str(),
+            "radiology_order",
+            order.id,
+        );
+
         // Enrich payload with patient name for orchestration
         let patient_name = sqlx::query_scalar::<_, String>(
             "SELECT first_name || ' ' || last_name FROM patients WHERE id = $1",

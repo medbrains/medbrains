@@ -26,10 +26,17 @@ describe("boardSignalQueryKeys", () => {
     expect(boardSignalQueryKeys("lab.result.verified")).toContain("lab-critical-alerts");
   });
 
+  it("refreshes the triage board on arrival and on re-triage", () => {
+    // A newly-arrived or re-triaged patient must appear on the emergency board
+    // now; there the poll interval is a clinical delay, not a cosmetic one.
+    expect(boardSignalQueryKeys("emergency.visit.created")).toContain("triage");
+    expect(boardSignalQueryKeys("emergency.visit.updated")).toContain("triage");
+  });
+
   it("ignores a kind it does not know", () => {
     // The server may emit events this client predates; an unmapped kind must be
     // inert rather than throwing inside the socket handler.
-    expect(boardSignalQueryKeys("radiology.order.completed")).toEqual([]);
+    expect(boardSignalQueryKeys("ipd.admission.created")).toEqual([]);
     expect(boardSignalQueryKeys("")).toEqual([]);
   });
 });
