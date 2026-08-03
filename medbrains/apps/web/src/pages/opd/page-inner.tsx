@@ -14,6 +14,7 @@ import { fieldAccessText } from "@medbrains/utils";
 import {
   IconCalendarStats,
   IconCheck,
+  IconDeviceHeartMonitor,
   IconEye,
   IconHeartbeat,
   IconPhone,
@@ -60,6 +61,7 @@ import {
   todayIsoDate,
 } from "./shared";
 import { TodayAppointmentsPanel } from "./today-appointments-panel";
+import { OpdVitalsCounter } from "./vitals-counter";
 import { FollowupComplianceTab, ReferralTrackingTab, WaitTimeBadge } from "./workflow-tabs";
 
 function queueEntryEventPayload(row: QueueEntry) {
@@ -478,6 +480,9 @@ export function OpdPageInner() {
           <Tabs.Tab value="queue" leftSection={<IconUsers size={16} />}>
             {t("queue")}
           </Tabs.Tab>
+          <Tabs.Tab value="vitals-counter" leftSection={<IconDeviceHeartMonitor size={16} />}>
+            {t("vitalsCounter.tab")}
+          </Tabs.Tab>
           <Tabs.Tab value="referral-tracking" leftSection={<IconTransferIn size={16} />}>
             {t("referralTracking")}
           </Tabs.Tab>
@@ -584,6 +589,13 @@ export function OpdPageInner() {
             virtualizeAt={40}
             virtualRowHeight={58}
             tableMaxHeight="calc(100vh - 410px)"
+          />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="vitals-counter">
+          <OpdVitalsCounter
+            departmentId={filterDeptId || undefined}
+            date={filterDate || undefined}
           />
         </Tabs.Panel>
 

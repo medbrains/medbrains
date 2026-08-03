@@ -286,5 +286,15 @@
   "aria.close": "Close",
   "aria.fileCheck": "File Check",
   "aria.delete": "Delete",
-  "queue.noComplaint": "Not recorded"
+  "queue.noComplaint": "Not recorded",
+  "vitalsCounter.tab": "Vitals counter",
+  "vitalsCounter.record": "Record vitals",
+  "vitalsCounter.recorded": "Vitals saved. The patient is now with the doctor.",
+  "vitalsCounter.recordedTitle": "Vitals recorded",
+  "vitalsCounter.recordFailed": "Could not save the vitals. Try again.",
+  "vitalsCounter.waitingCount": "{{count}} waiting for vitals",
+  "vitalsCounter.emptyTitle": "Nobody is waiting",
+  "vitalsCounter.emptyBody": "Every patient in this queue has had vitals taken.",
+  "vitalsCounter.modalTitle": "Vitals — {{token}} · {{patient}}",
+  "common.error": "Error"
 }

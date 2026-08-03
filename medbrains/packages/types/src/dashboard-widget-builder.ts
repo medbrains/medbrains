@@ -881,6 +881,8 @@ export interface QueueEntry {
   visit_type: string | null;
   /** Why this patient is waiting, carried from the encounter. */
   chief_complaint: string | null;
+  /** Whether the vitals counter has recorded anything for this encounter yet. */
+  has_vitals: boolean;
   camp_id: string | null;
   camp_name: string | null;
   appointment_id: string | null;

@@ -181,6 +181,10 @@ pub struct QueueEntry {
     /// Carried from the encounter so the waiting list says why each patient is
     /// here, not just that they are.
     pub chief_complaint: Option<String>,
+    /// Whether anything has been recorded at the vitals counter yet. Lets the
+    /// counter show who is still waiting without fetching every patient's
+    /// vitals and diffing client-side.
+    pub has_vitals: bool,
     pub camp_id: Option<Uuid>,
     pub camp_name: Option<String>,
     pub appointment_id: Option<Uuid>,
@@ -1305,6 +1309,7 @@ pub async fn list_queue(
                 CASE WHEN $3::bool THEN p.uhid ELSE NULL END AS uhid, \
                 e.visit_type::text AS visit_type, \
                 e.chief_complaints AS chief_complaint, \
+                EXISTS (SELECT 1 FROM vitals v WHERE v.encounter_id = e.id) AS has_vitals, \
                 NULLIF(e.attributes->>'camp_id', '')::uuid AS camp_id, \
                 e.attributes->>'camp_name' AS camp_name, \
                 a.id AS appointment_id, \
