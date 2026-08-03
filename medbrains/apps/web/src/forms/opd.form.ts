@@ -116,6 +116,7 @@ export const DEFAULT_OPD_QUEUE_VISIT_FORM_VALUES: OpdQueueVisitFormInput = {
   doctor_id: null,
   visit_type: "walk_in",
   camp_id: null,
+  chief_complaint: "",
   notes: "",
 };
 
@@ -213,6 +214,7 @@ export function toCreateEncounterRequest(values: OpdQueueVisitFormInput): Create
     doctor_id: optionalTextFromFormValue(values.doctor_id ?? ""),
     visit_type: values.visit_type,
     camp_id: optionalTextFromFormValue(values.camp_id ?? ""),
+    chief_complaint: optionalTextFromFormValue(values.chief_complaint),
     notes: optionalTextFromFormValue(values.notes),
   };
 }

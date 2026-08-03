@@ -34,6 +34,13 @@ pub struct Encounter {
     pub notes: Option<String>,
     pub attributes: serde_json::Value,
     pub visit_type: Option<String>,
+    /// Why the patient came, recorded at the front desk before they ever reach a
+    /// doctor. The doctor's own `consultations.chief_complaint` is a separate,
+    /// clinical record — this one is the reception/nurse note that travels with
+    /// the patient through the queue. Column is plural, the API is singular
+    /// everywhere else (camp registrations, consultations), so it is renamed here.
+    #[sqlx(rename = "chief_complaints")]
+    pub chief_complaint: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

@@ -21,6 +21,7 @@
   "queueColumns.token": "Token",
   "queueColumns.patient": "Patient",
   "queueColumns.visit": "Visit",
+  "queueColumns.complaint": "Complaint",
   "queueColumns.status": "Status",
   "queueColumns.appointment": "Appointment",
   "queueColumns.date": "Date",
@@ -181,7 +182,6 @@
   "admission.admitToIpd": "Admit to IPD",
   "admission.admitPatient": "Admit patient",
   "admission.modalTitle": "Admit {{patient}} to IPD",
-  "placeholder.selectDepartment": "Select department",
   "placeholder.selectWard(optional)": "Select ward (optional)",
   "label.bed": "Bed",
   "placeholder.selectAvailableBed": "Select available bed",
@@ -285,5 +285,6 @@
   "aria.userOff": "User Off",
   "aria.close": "Close",
   "aria.fileCheck": "File Check",
-  "aria.delete": "Delete"
+  "aria.delete": "Delete",
+  "queue.noComplaint": "Not recorded"
 }

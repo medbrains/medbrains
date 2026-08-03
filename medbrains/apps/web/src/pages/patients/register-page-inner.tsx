@@ -217,6 +217,7 @@ export function PatientRegisterPageInner() {
           doctor_id: req.consultant_id,
           visit_type: registrationVisitType(req),
           camp_id: req.camp_id,
+          chief_complaint: req.initial_diagnosis_text,
           notes: registrationQueueNotes(req),
         });
         return {

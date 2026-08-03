@@ -387,6 +387,22 @@ export function OpdPageInner() {
       render: (row: QueueEntry) => <QueueVisitTypeBadge row={row} />,
     },
     {
+      key: "chief_complaint",
+      label: t("queueColumns.complaint"),
+      searchable: true,
+      accessor: (row: QueueEntry) => row.chief_complaint ?? "",
+      render: (row: QueueEntry) =>
+        row.chief_complaint ? (
+          <Text size="sm" lineClamp={2}>
+            {row.chief_complaint}
+          </Text>
+        ) : (
+          <Text size="sm" c="dimmed">
+            {t("queue.noComplaint")}
+          </Text>
+        ),
+    },
+    {
       key: "status",
       label: t("queueColumns.status"),
       render: (row: QueueEntry) => (

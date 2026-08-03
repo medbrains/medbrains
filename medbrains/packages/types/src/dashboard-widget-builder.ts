@@ -839,6 +839,8 @@ export interface Encounter {
   notes: string | null;
   attributes: Record<string, unknown>;
   visit_type: string | null;
+  /** Recorded at reception. The doctor's clinical version lives on the consultation. */
+  chief_complaint: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -877,6 +879,8 @@ export interface QueueEntry {
   patient_name: string | null;
   uhid: string | null;
   visit_type: string | null;
+  /** Why this patient is waiting, carried from the encounter. */
+  chief_complaint: string | null;
   camp_id: string | null;
   camp_name: string | null;
   appointment_id: string | null;
@@ -903,6 +907,7 @@ export interface CreateEncounterRequest {
   notes?: string;
   visit_type?: string;
   camp_id?: string;
+  chief_complaint?: string;
 }
 
 export interface CreateEncounterResponse {

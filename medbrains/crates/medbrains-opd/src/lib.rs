@@ -122,6 +122,10 @@ pub struct CreateEncounterRequest {
     pub notes: Option<String>,
     pub visit_type: Option<String>,
     pub camp_id: Option<Uuid>,
+    /// What the patient says brought them in, captured at registration so the
+    /// doctor does not have to ask again. Free text — the clinical coding
+    /// happens later, in the consultation.
+    pub chief_complaint: Option<String>,
     /// Internal training / simulator flag. Only honoured for bypass roles
     /// (super_admin, hospital_admin); silently coerced to false otherwise.
     /// Tagged rows must be excluded from regulator-facing reports.
@@ -174,6 +178,9 @@ pub struct QueueEntry {
     pub patient_name: Option<String>,
     pub uhid: Option<String>,
     pub visit_type: Option<String>,
+    /// Carried from the encounter so the waiting list says why each patient is
+    /// here, not just that they are.
+    pub chief_complaint: Option<String>,
     pub camp_id: Option<Uuid>,
     pub camp_name: Option<String>,
     pub appointment_id: Option<Uuid>,
@@ -925,11 +932,20 @@ pub async fn create_encounter(
     let is_dummy =
         body.is_dummy.unwrap_or(false) && medbrains_server_core::middleware::authorization::is_bypass_role(&claims);
 
+    // A whitespace-only complaint is no complaint — store NULL so the doctor's
+    // screen shows "not recorded" rather than an empty line that looks answered.
+    let chief_complaint = body
+        .chief_complaint
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+
     let encounter = sqlx::query_as::<_, Encounter>(
         "INSERT INTO encounters \
          (tenant_id, patient_id, encounter_type, status, department_id, doctor_id, \
-          encounter_date, notes, attributes, visit_type, is_dummy) \
-         VALUES ($1, $2, 'opd'::encounter_type, 'open'::encounter_status, $3, $4, $5, $6, $7, $8, $9) \
+          encounter_date, notes, attributes, visit_type, is_dummy, chief_complaints) \
+         VALUES ($1, $2, 'opd'::encounter_type, 'open'::encounter_status, $3, $4, $5, $6, $7, $8, $9, $10) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -941,6 +957,7 @@ pub async fn create_encounter(
     .bind(attributes)
     .bind(visit_type)
     .bind(is_dummy)
+    .bind(chief_complaint.as_deref())
     .fetch_one(&mut *tx)
     .await?;
 
@@ -1287,6 +1304,7 @@ pub async fn list_queue(
                 CASE WHEN $3::bool THEN CONCAT(p.first_name, ' ', p.last_name) ELSE NULL END AS patient_name, \
                 CASE WHEN $3::bool THEN p.uhid ELSE NULL END AS uhid, \
                 e.visit_type::text AS visit_type, \
+                e.chief_complaints AS chief_complaint, \
                 NULLIF(e.attributes->>'camp_id', '')::uuid AS camp_id, \
                 e.attributes->>'camp_name' AS camp_name, \
                 a.id AS appointment_id, \

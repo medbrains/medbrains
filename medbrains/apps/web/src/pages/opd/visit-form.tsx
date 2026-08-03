@@ -192,6 +192,20 @@ export function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: Opd
       />
       <Controller
         control={control}
+        name="chief_complaint"
+        render={({ field }) => (
+          <Textarea
+            label="Chief complaint"
+            placeholder="What brought the patient in today"
+            description="In the patient's own words — the doctor sees this before calling them."
+            autosize
+            minRows={2}
+            {...field}
+          />
+        )}
+      />
+      <Controller
+        control={control}
         name="notes"
         render={({ field }) => <Textarea label="Notes" placeholder="Visit notes" {...field} />}
       />

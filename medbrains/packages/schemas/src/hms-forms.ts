@@ -4057,6 +4057,7 @@ const startOpdVisitFormShape = {
   doctor_id: z.string().nullable(),
   visit_type: opdVisitTypeFormSchema,
   camp_id: z.string().nullable(),
+  chief_complaint: z.string(),
   notes: z.string(),
 };
 
