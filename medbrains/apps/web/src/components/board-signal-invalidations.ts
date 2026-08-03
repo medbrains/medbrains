@@ -12,6 +12,12 @@
 export const BOARD_SIGNAL_QUERY_KEYS: Readonly<Record<string, readonly string[]>> = {
   "opd.vitals.recorded": ["opd-queue"],
   "opd.queue.changed": ["opd-queue", "queue-tokens", "queue-state"],
+  // A posted result can be a critical value, so the alert list refreshes with
+  // the order list — a critical value the screen has not shown yet is the one
+  // case where a stale board matters clinically.
+  "lab.result.posted": ["lab-orders", "lab-critical-alerts", "queue-tokens"],
+  "lab.result.verified": ["lab-orders", "lab-critical-alerts", "queue-tokens"],
+  "pharmacy.order.dispensed": ["pharmacy-orders", "queue-tokens"],
 };
 
 /** Query key roots to invalidate for a board signal; empty when unmapped. */

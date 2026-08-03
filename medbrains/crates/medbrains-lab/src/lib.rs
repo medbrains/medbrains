@@ -1050,6 +1050,16 @@ pub async fn verify_results(
     }
 
     tx.commit().await?;
+    if let Some(ref o) = order {
+        medbrains_server_core::notifications::publish_surface_board_signal(
+            &state,
+            claims.tenant_id,
+            "lab",
+            ClinicalEventName::LabResultVerified.as_str(),
+            "lab_order",
+            o.id,
+        );
+    }
     order.map_or_else(|| Err(AppError::NotFound), |o| Ok(Json(o)))
 }
 
@@ -1429,6 +1439,20 @@ pub async fn add_results(
     }
 
     tx.commit().await?;
+
+    // Post-commit: nudge the lab board so a posted result shows up when it is
+    // posted, not up to ten seconds later on the next poll.
+    if !results.is_empty() {
+        medbrains_server_core::notifications::publish_surface_board_signal(
+            &state,
+            claims.tenant_id,
+            "lab",
+            ClinicalEventName::LabResultPosted.as_str(),
+            "lab_order",
+            order.id,
+        );
+    }
+
     Ok(Json(results))
 }
 

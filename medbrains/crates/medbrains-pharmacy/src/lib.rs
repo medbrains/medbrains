@@ -3031,6 +3031,17 @@ pub async fn dispense_order(
 
     tx.commit().await?;
 
+    // Post-commit: the pharmacy board shows what is ready for handover, so a
+    // dispensed order should leave it immediately rather than on the next poll.
+    medbrains_server_core::notifications::publish_surface_board_signal(
+        &state,
+        claims.tenant_id,
+        "pharmacy",
+        ClinicalEventName::PharmacyOrderDispensed.as_str(),
+        "pharmacy_order",
+        order.id,
+    );
+
     let total_amount: Decimal = items.iter().map(|i| i.total_price).sum();
 
     // Emit integration event

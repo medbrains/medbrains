@@ -16,6 +16,8 @@ use uuid::Uuid;
 use std::sync::Arc;
 
 use crate::notification_hub::{EventScope, NotificationEvent, user_topic};
+use medbrains_core::permissions;
+
 use crate::{error::AppError, middleware::auth::Claims, state::AppState};
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -267,6 +269,45 @@ pub fn publish_board_signal(
     entity_type: &str,
     entity_id: Uuid,
 ) {
+    publish_to_board(
+        state,
+        tenant_id,
+        crate::notification_hub::department_topic(department_id),
+        kind,
+        entity_type,
+        entity_id,
+    );
+}
+
+/// Same nudge, addressed to a shared board surface (`lab`, `pharmacy`) rather
+/// than a department. A lab board serves whoever is standing in front of it, not
+/// one department's staff, so its stream is keyed by surface.
+pub fn publish_surface_board_signal(
+    state: &AppState,
+    tenant_id: Uuid,
+    surface: &str,
+    kind: &str,
+    entity_type: &str,
+    entity_id: Uuid,
+) {
+    publish_to_board(
+        state,
+        tenant_id,
+        crate::notification_hub::board_topic(surface),
+        kind,
+        entity_type,
+        entity_id,
+    );
+}
+
+fn publish_to_board(
+    state: &AppState,
+    tenant_id: Uuid,
+    topic: String,
+    kind: &str,
+    entity_type: &str,
+    entity_id: Uuid,
+) {
     let event = NotificationEvent {
         id: Uuid::new_v4(),
         tenant_id,
@@ -280,7 +321,6 @@ pub fn publish_board_signal(
         scope: EventScope::Board,
     };
     let hub = state.notifications.clone();
-    let topic = crate::notification_hub::department_topic(department_id);
     // Fire-and-forget: a board nudge must never block or fail the request path.
     tokio::spawn(async move {
         hub.publish(&[topic], event).await;
@@ -366,8 +406,44 @@ fn socket_topics(claims: &Claims) -> Vec<String> {
             topics.push(crate::notification_hub::department_topic(*department_id));
         }
     }
+    for (surface, required_any) in SURFACE_BOARD_PERMISSIONS {
+        let permitted = crate::middleware::authorization::is_bypass_role(claims)
+            || required_any
+                .iter()
+                .any(|needed| claims.permissions.iter().any(|held| held == needed));
+        if permitted {
+            topics.push(crate::notification_hub::board_topic(surface));
+        }
+    }
     topics
 }
+
+/// Who may listen to a shared board's stream.
+///
+/// This mirrors `requiredAnyPermissions` on `TOKEN_BOARD_SURFACES` in
+/// `@medbrains/types` — the same rule that decides whether the board renders at
+/// all decides whether its live stream is readable. Keep the two in step: a
+/// surface added there and missed here silently falls back to polling, which is
+/// slow rather than wrong; the reverse would leak a board to someone who cannot
+/// open it.
+const SURFACE_BOARD_PERMISSIONS: &[(&str, &[&str])] = &[
+    (
+        "lab",
+        &[
+            permissions::lab::phlebotomy::LIST,
+            permissions::lab::samples::LIST,
+            permissions::lab::orders::LIST,
+            permissions::lab::reports::VIEW,
+        ],
+    ),
+    (
+        "pharmacy",
+        &[
+            permissions::pharmacy::prescriptions::LIST,
+            permissions::pharmacy::prescriptions::VIEW,
+        ],
+    ),
+];
 
 async fn handle_notifications_socket(socket: WebSocket, state: AppState, topics: Vec<String>) {
     let (mut sender, mut receiver) = socket.split();
@@ -420,4 +496,56 @@ async fn handle_notifications_socket(socket: WebSocket, state: AppState, topics:
         forwarder.abort();
     }
     send_task.abort();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::socket_topics;
+    use crate::middleware::auth::Claims;
+    use uuid::Uuid;
+
+    fn claims(role: &str, permissions: &[&str], departments: &[Uuid]) -> Claims {
+        Claims {
+            sub: Uuid::new_v4(),
+            tenant_id: Uuid::new_v4(),
+            role: role.to_owned(),
+            permissions: permissions.iter().map(|p| (*p).to_owned()).collect(),
+            department_ids: departments.to_vec(),
+            perm_version: 0,
+            exp: 0,
+        }
+    }
+
+    /// A board's live stream must be readable by exactly the people who may open
+    /// the board. Someone without lab permissions holding a socket open would
+    /// otherwise see every result posting in the hospital go past.
+    #[test]
+    fn a_socket_only_joins_boards_its_claims_allow() {
+        let lab = claims("lab_technician", &["lab.orders.list"], &[]);
+        let topics = socket_topics(&lab);
+        assert!(topics.iter().any(|t| t == "board:lab"));
+        assert!(
+            !topics.iter().any(|t| t == "board:pharmacy"),
+            "lab permissions must not open the pharmacy board: {topics:?}"
+        );
+    }
+
+    #[test]
+    fn a_socket_with_no_board_permissions_joins_no_boards() {
+        let topics = socket_topics(&claims("receptionist", &["patients.list"], &[]));
+        assert!(
+            !topics.iter().any(|t| t.starts_with("board:")),
+            "no board permission should mean no board stream: {topics:?}"
+        );
+    }
+
+    /// Departments come from the signed token, never from the client, and are
+    /// de-duplicated so a repeated id cannot spawn a second forwarder.
+    #[test]
+    fn department_topics_are_derived_and_deduplicated() {
+        let department = Uuid::new_v4();
+        let topics = socket_topics(&claims("nurse", &[], &[department, department]));
+        let wanted = format!("department:{department}");
+        assert_eq!(topics.iter().filter(|t| **t == wanted).count(), 1);
+    }
 }
