@@ -1700,6 +1700,38 @@ pub async fn create_vital(
     .fetch_one(&mut *tx)
     .await?;
 
+    // `opd.vitals.recorded` has been declared in `ClinicalEventName` — and read by
+    // the NABH indicator reports — since the event enum was written, but no code
+    // ever emitted it. Queue it in this transaction so the event cannot exist
+    // without the vitals row, nor the row without the event.
+    let (patient_id, department_id) =
+        sqlx::query_as::<_, (Uuid, Option<Uuid>)>(
+            "SELECT patient_id, department_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(encounter_id)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+    let mut event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::OpdVitalsRecorded,
+        vital.id,
+        claims.sub,
+        serde_json::json!({
+            "encounter_id": encounter_id,
+            "patient_id": patient_id,
+            "vital_id": vital.id,
+            "recorded_at": vital.recorded_at,
+        }),
+    )
+    .with_patient(patient_id)
+    .with_encounter(encounter_id);
+    if let Some(department_id) = department_id {
+        event = event.with_department(department_id);
+    }
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+
     tx.commit().await?;
     Ok(Json(vital))
 }
