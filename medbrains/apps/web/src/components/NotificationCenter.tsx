@@ -73,7 +73,11 @@ export function NotificationCenter() {
   };
 
   // Live stream: refresh the feed/badge and raise a browser notification.
+  // The same socket also carries board signals for the user's departments —
+  // those are screen nudges, not inbox items, and must not ring the bell or
+  // pop a desktop alert.
   useNotificationStream((event) => {
+    if (event.scope === "board") return;
     invalidate();
     showBrowserNotification(event);
   });

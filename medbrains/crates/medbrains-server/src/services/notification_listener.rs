@@ -18,7 +18,7 @@ use sqlx::PgPool;
 use sqlx::postgres::PgListener;
 use uuid::Uuid;
 
-use crate::services::notification_hub::{NotificationEvent, NotificationHub, user_topic};
+use crate::services::notification_hub::{EventScope, NotificationEvent, NotificationHub, user_topic};
 
 const CHANNEL: &str = "notification_created";
 const RECONNECT_DELAY: Duration = Duration::from_secs(5);
@@ -71,6 +71,7 @@ async fn run(pool: &PgPool, hub: &NotificationHub, http: &reqwest::Client) -> Re
             entity_type: payload.entity_type.clone(),
             entity_id: payload.entity_id,
             action_url: payload.action_url.clone(),
+            scope: EventScope::Inbox,
         };
         hub.publish(std::slice::from_ref(&topic), event).await;
 

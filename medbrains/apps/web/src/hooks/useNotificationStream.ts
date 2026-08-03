@@ -1,5 +1,12 @@
 import { useEffect, useRef } from "react";
 
+/**
+ * What a live frame is for. `inbox` is a durable notification addressed to this
+ * user and belongs in the bell; `board` is an ephemeral "something changed in
+ * your department" nudge that must never surface as a notification.
+ */
+export type NotificationEventScope = "inbox" | "board";
+
 /** A live notification pushed over `/ws/notifications` (mirrors the server row). */
 export interface NotificationStreamEvent {
   id: string;
@@ -10,6 +17,8 @@ export interface NotificationStreamEvent {
   entity_type?: string | null;
   entity_id?: string | null;
   action_url?: string | null;
+  /** Absent on frames from servers predating board signals — treat as inbox. */
+  scope?: NotificationEventScope;
 }
 
 /**

@@ -1733,6 +1733,20 @@ pub async fn create_vital(
     medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
+
+    // Post-commit: nudge the department's open screens so the waiting list
+    // reflects the new vitals without waiting for its next poll.
+    if let Some(department_id) = department_id {
+        medbrains_server_core::notifications::publish_board_signal(
+            &state,
+            claims.tenant_id,
+            department_id,
+            ClinicalEventName::OpdVitalsRecorded.as_str(),
+            "encounter",
+            encounter_id,
+        );
+    }
+
     Ok(Json(vital))
 }
 

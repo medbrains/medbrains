@@ -13,7 +13,9 @@ use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::notification_hub::{NotificationEvent, user_topic};
+use std::sync::Arc;
+
+use crate::notification_hub::{EventScope, NotificationEvent, user_topic};
 use crate::{error::AppError, middleware::auth::Claims, state::AppState};
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -239,10 +241,47 @@ pub fn publish_notification(state: &AppState, tenant_id: Uuid, id: Uuid, n: &New
         entity_type: n.entity_type.map(str::to_owned),
         entity_id: n.entity_id,
         action_url: n.action_url.map(str::to_owned),
+        scope: EventScope::Inbox,
     };
     let hub = state.notifications.clone();
     let topic = user_topic(n.user_id);
     // Fire-and-forget: delivery must never block or fail the request path.
+    tokio::spawn(async move {
+        hub.publish(&[topic], event).await;
+    });
+}
+
+/// Tell a department's open screens that something changed, without writing a
+/// notification row for anyone.
+///
+/// Board signals are ephemeral by design: a queue moving is not an item in
+/// somebody's inbox, and persisting one per vitals reading would grow the
+/// `notifications` table by the busiest thing the hospital does. Screens that
+/// miss a signal recover on their next fetch — the database stays the source of
+/// truth, this is only the nudge.
+pub fn publish_board_signal(
+    state: &AppState,
+    tenant_id: Uuid,
+    department_id: Uuid,
+    kind: &str,
+    entity_type: &str,
+    entity_id: Uuid,
+) {
+    let event = NotificationEvent {
+        id: Uuid::new_v4(),
+        tenant_id,
+        kind: kind.to_owned(),
+        title: String::new(),
+        body: None,
+        category: None,
+        entity_type: Some(entity_type.to_owned()),
+        entity_id: Some(entity_id),
+        action_url: None,
+        scope: EventScope::Board,
+    };
+    let hub = state.notifications.clone();
+    let topic = crate::notification_hub::department_topic(department_id);
+    // Fire-and-forget: a board nudge must never block or fail the request path.
     tokio::spawn(async move {
         hub.publish(&[topic], event).await;
     });
@@ -305,29 +344,67 @@ pub async fn notifications_ws_handler(
         .or(q.token)
         .ok_or(AppError::Unauthorized)?;
     let claims = crate::middleware::auth::decode_and_validate(&token, &state.jwt_decoding_key)?;
-    let user_id = claims.sub;
-    Ok(ws.on_upgrade(move |socket| handle_notifications_socket(socket, state, user_id)))
+    let topics = socket_topics(&claims);
+    Ok(ws.on_upgrade(move |socket| handle_notifications_socket(socket, state, topics)))
 }
 
-async fn handle_notifications_socket(socket: WebSocket, state: AppState, user_id: Uuid) {
-    let (mut sender, mut receiver) = socket.split();
-    let mut rx = state.notifications.subscribe(&user_topic(user_id)).await;
+/// A socket never names its own topics. Subscribing to a department stream is
+/// an authorization decision, so the topic list is derived from the signed
+/// claims — a client-supplied topic would let any user read another
+/// department's patient traffic.
+///
+/// Capped so a malformed or oversized token cannot spawn unbounded forwarders
+/// (DEVICE-CONSTRAINED-RULES: bound every fan-out).
+fn socket_topics(claims: &Claims) -> Vec<String> {
+    const MAX_DEPARTMENT_TOPICS: usize = 64;
 
-    // Forward hub events → socket. Lagged (bounded backlog exceeded) is
-    // non-fatal: the client backfills via the REST feed on the next poll.
-    let send_task = tokio::spawn(async move {
-        loop {
-            match rx.recv().await {
-                Ok(event) => {
-                    let Ok(json) = serde_json::to_string(&*event) else {
-                        continue;
-                    };
-                    if sender.send(Message::Text(json.into())).await.is_err() {
-                        break;
+    let mut topics = Vec::with_capacity(claims.department_ids.len() + 1);
+    topics.push(user_topic(claims.sub));
+    let mut seen = std::collections::HashSet::new();
+    for department_id in claims.department_ids.iter().take(MAX_DEPARTMENT_TOPICS) {
+        if seen.insert(*department_id) {
+            topics.push(crate::notification_hub::department_topic(*department_id));
+        }
+    }
+    topics
+}
+
+async fn handle_notifications_socket(socket: WebSocket, state: AppState, topics: Vec<String>) {
+    let (mut sender, mut receiver) = socket.split();
+
+    // One broadcast receiver per topic, merged into a single bounded queue so
+    // the writer stays one task regardless of how many departments a user
+    // covers. Bounded: a slow client is dropped, never buffered without limit.
+    let (tx, mut merged) = tokio::sync::mpsc::channel::<Arc<NotificationEvent>>(256);
+    let mut forwarders = Vec::with_capacity(topics.len());
+    for topic in topics {
+        let mut rx = state.notifications.subscribe(&topic).await;
+        let tx = tx.clone();
+        forwarders.push(tokio::spawn(async move {
+            loop {
+                match rx.recv().await {
+                    // Lagged (bounded backlog exceeded) is non-fatal: the client
+                    // backfills via the REST feed on the next poll.
+                    Ok(event) => {
+                        if tx.send(event).await.is_err() {
+                            break;
+                        }
                     }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                 }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+            }
+        }));
+    }
+    drop(tx);
+
+    let send_task = tokio::spawn(async move {
+        while let Some(event) = merged.recv().await {
+            let Ok(json) = serde_json::to_string(&*event) else {
+                continue;
+            };
+            if sender.send(Message::Text(json.into())).await.is_err() {
+                break;
             }
         }
     });
@@ -338,6 +415,9 @@ async fn handle_notifications_socket(socket: WebSocket, state: AppState, user_id
             Ok(Message::Close(_)) | Err(_) => break,
             _ => {}
         }
+    }
+    for forwarder in forwarders {
+        forwarder.abort();
     }
     send_task.abort();
 }

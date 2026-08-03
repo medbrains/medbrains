@@ -27,6 +27,22 @@ use uuid::Uuid;
 /// reconnect (persist-then-deliver; the DB row is the source of truth).
 const CHANNEL_CAP: usize = 256;
 
+/// What a live frame is for. The same socket carries a user's personal
+/// notifications and their department's board traffic, and the two must not be
+/// treated alike: an inbox item belongs in the bell and may raise a desktop
+/// alert, while a board signal only tells a screen to refresh. Without this
+/// marker every nurse recording vitals would pop a browser notification on
+/// every doctor's machine in the department.
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum EventScope {
+    /// A durable `notifications` row addressed to one user.
+    Inbox,
+    /// An ephemeral "something changed here" signal for a shared surface.
+    /// Not persisted, never shown in the notification centre.
+    Board,
+}
+
 /// A live notification pushed to subscribed surfaces. Mirrors the durable
 /// `notifications` row plus the resolved topics it was fanned out to.
 #[derive(Debug, Clone, Serialize)]
@@ -40,6 +56,8 @@ pub struct NotificationEvent {
     pub entity_type: Option<String>,
     pub entity_id: Option<Uuid>,
     pub action_url: Option<String>,
+    /// Defaults to `Inbox` so every existing producer keeps its behaviour.
+    pub scope: EventScope,
 }
 
 /// Topic key for a user's personal stream.
@@ -145,7 +163,7 @@ impl NotificationHub {
 
 #[cfg(test)]
 mod tests {
-    use super::{NotificationEvent, NotificationHub, user_topic};
+    use super::{EventScope, NotificationEvent, NotificationHub, department_topic, user_topic};
     use uuid::Uuid;
 
     fn event(tenant: Uuid, title: &str) -> NotificationEvent {
@@ -159,6 +177,7 @@ mod tests {
             entity_type: None,
             entity_id: None,
             action_url: None,
+            scope: EventScope::Inbox,
         }
     }
 
@@ -173,6 +192,29 @@ mod tests {
 
         let got = rx.recv().await.expect("event delivered");
         assert_eq!(got.title, "hello");
+    }
+
+    /// A department subscriber receives board traffic; the user's own topic does
+    /// not. If these ever cross, every nurse recording vitals raises a desktop
+    /// alert on every doctor's machine in the department.
+    #[tokio::test]
+    async fn board_signals_go_to_the_department_not_the_user_inbox() {
+        let hub = NotificationHub::new();
+        let user = Uuid::new_v4();
+        let department = Uuid::new_v4();
+        let mut inbox = hub.subscribe(&user_topic(user)).await;
+        let mut board = hub.subscribe(&department_topic(department)).await;
+
+        let mut signal = event(Uuid::new_v4(), "");
+        signal.scope = EventScope::Board;
+        hub.publish(&[department_topic(department)], signal).await;
+
+        let got = board.recv().await.expect("board subscriber receives it");
+        assert_eq!(got.scope, EventScope::Board);
+        assert!(
+            inbox.try_recv().is_err(),
+            "a board signal must never land on a user's inbox topic"
+        );
     }
 
     #[tokio::test]
