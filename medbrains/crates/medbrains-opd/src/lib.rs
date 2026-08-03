@@ -1350,6 +1350,26 @@ pub async fn list_queue(
 //  Queue transitions
 // ══════════════════════════════════════════════════════════
 
+/// Board kind for "the queue in this department moved".
+///
+/// Deliberately not a `ClinicalEventName`: that enum is the clinical audit
+/// taxonomy, and a token being called is not a clinical fact. A board only
+/// needs to know it should refresh, so one kind covers every transition
+/// instead of four the client would have to map separately.
+const QUEUE_CHANGED_SIGNAL: &str = "opd.queue.changed";
+
+/// Nudge a department's boards after a queue transition commits.
+fn signal_queue_changed(state: &AppState, claims: &Claims, queue: &OpdQueue) {
+    medbrains_server_core::notifications::publish_board_signal(
+        state,
+        claims.tenant_id,
+        queue.department_id,
+        QUEUE_CHANGED_SIGNAL,
+        "queue_entry",
+        queue.id,
+    );
+}
+
 pub async fn call_queue_entry(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1372,6 +1392,9 @@ pub async fn call_queue_entry(
     .await?;
 
     tx.commit().await?;
+    if let Some(ref entry) = q {
+        signal_queue_changed(&state, &claims, entry);
+    }
     q.map_or_else(|| Err(AppError::NotFound), |e| Ok(Json(e)))
 }
 
@@ -1424,6 +1447,7 @@ pub async fn start_consultation(
     .await?;
 
     tx.commit().await?;
+    signal_queue_changed(&state, &claims, &q);
     Ok(Json(q))
 }
 
@@ -1578,6 +1602,7 @@ pub async fn complete_queue_entry(
     )
     .await;
 
+    signal_queue_changed(&state, &claims, &q);
     Ok(Json(q))
 }
 
@@ -1629,6 +1654,7 @@ pub async fn mark_no_show(
     .await?;
 
     tx.commit().await?;
+    signal_queue_changed(&state, &claims, &q);
     Ok(Json(q))
 }
 

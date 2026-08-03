@@ -30,7 +30,7 @@ import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/u
 import { defaultQueueTokenFormValues, queueTokenFormToRequest } from "@/forms/tv-displays.form";
 import { tvDisplaysService } from "@/services/tvDisplays.service";
 import styles from "../tv-displays.module.scss";
-import { QUEUE_REFRESH_MS, todayIsoDate } from "./shared";
+import { DISPLAY_LIST_REFRESH_MS, QUEUE_REFRESH_MS, todayIsoDate } from "./shared";
 
 const TOKEN_STATUSES = [
   { value: "waiting", label: "Waiting" },
@@ -101,7 +101,7 @@ export function QueueTokensTab({ canManage }: { canManage: boolean }) {
   const { data: displays = [] } = useQuery({
     queryKey: ["tv-displays"],
     queryFn: () => tvDisplaysService.listTvDisplays(),
-    refetchInterval: QUEUE_REFRESH_MS,
+    refetchInterval: DISPLAY_LIST_REFRESH_MS,
   });
 
   const { data: tokens = [], isLoading } = useQuery({

@@ -11,6 +11,7 @@
  */
 export const BOARD_SIGNAL_QUERY_KEYS: Readonly<Record<string, readonly string[]>> = {
   "opd.vitals.recorded": ["opd-queue"],
+  "opd.queue.changed": ["opd-queue", "queue-tokens", "queue-state"],
 };
 
 /** Query key roots to invalidate for a board signal; empty when unmapped. */

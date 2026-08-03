@@ -24,6 +24,7 @@ import { AnnouncementsTab } from "./tv-displays/announcements-tab";
 import { DisplaysTab } from "./tv-displays/displays-tab";
 import { QueueTokensTab } from "./tv-displays/queue-tokens-tab";
 import {
+  DISPLAY_LIST_REFRESH_MS,
   type DisplayLaunchTarget,
   displayLaunchTarget,
   QUEUE_REFRESH_MS,
@@ -55,7 +56,7 @@ export function TvDisplaysPage() {
   const { data: displays = [] } = useQuery({
     queryKey: ["tv-displays"],
     queryFn: () => tvDisplaysService.listTvDisplays(),
-    refetchInterval: QUEUE_REFRESH_MS,
+    refetchInterval: DISPLAY_LIST_REFRESH_MS,
   });
   const { data: tokens = [] } = useQuery({
     queryKey: ["queue-tokens", today, "workspace-summary"],
