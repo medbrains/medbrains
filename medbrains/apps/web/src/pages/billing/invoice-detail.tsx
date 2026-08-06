@@ -30,6 +30,7 @@ import type {
   RecordPaymentRequest,
 } from "@medbrains/types";
 import {
+  billingInvoiceBalance,
   billingInvoiceBalanceSignal,
   billingInvoiceStatusSignal,
   P,
@@ -77,6 +78,7 @@ import {
 } from "@/forms/billing.form";
 import { confirmDestructive } from "@/lib/confirm-destructive";
 import { billingService } from "@/services/billing.service";
+import { paymentsService } from "@/services/payments.service";
 import { printCopyRouteLabel } from "@/utils/printCopies";
 import classes from "../billing.module.scss";
 import { billingInvoicePaymentRoute } from "../billing-workspace";
@@ -332,9 +334,33 @@ export function InvoiceDetail({
   });
 
   const invoicePrintMutation = useMutation({
-    mutationFn: () => billingService.getInvoicePrintData(invoiceId),
-    onSuccess: (printData) => {
-      printInvoicePacket(printData, billingDisplayAccess);
+    mutationFn: async () => {
+      const printData = await billingService.getInvoicePrintData(invoiceId);
+      const balance = billingInvoiceBalance(
+        printData.invoice.total_amount,
+        printData.invoice.paid_amount,
+      );
+      const canSeeAmounts =
+        billingDisplayAccess.amount === "edit" || billingDisplayAccess.amount === "view";
+      // No QR on a settled bill, and none for a user who is not allowed to see
+      // the amount — the URI carries it.
+      if (balance <= 0 || !canSeeAmounts) {
+        return { printData, upiUri: undefined };
+      }
+      try {
+        const qr = await paymentsService.generateUpiQr({
+          amount: balance,
+          invoice_id: invoiceId,
+          description: `Invoice ${printData.invoice.invoice_number}`,
+        });
+        return { printData, upiUri: qr.upi_uri };
+      } catch {
+        // A hospital with no UPI configured still needs its bill. Print without.
+        return { printData, upiUri: undefined };
+      }
+    },
+    onSuccess: ({ printData, upiUri }) => {
+      printInvoicePacket(printData, billingDisplayAccess, upiUri);
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Unable to prepare invoice packet", {

@@ -18,6 +18,9 @@ import {
   billingInvoiceStatusLabel as sharedBillingInvoiceStatusLabel,
 } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
+import { QRCodeSVG } from "qrcode.react";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import type { useTranslation } from "react-i18next";
 import type { BadgeTone } from "@/components/ui";
 import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "@/utils/printCopies";
@@ -202,7 +205,44 @@ export function billingPrintDate(value: string | null | undefined): string {
 export const BILLING_INVOICE_PRINT_COPIES = PRINT_COPY_PACKETS.billingInvoice;
 export const BILLING_RECEIPT_PRINT_COPIES = PRINT_COPY_PACKETS.billingReceipt;
 
-export function printInvoicePacket(data: InvoicePrintData, access: BillingDisplayAccess) {
+/**
+ * The QR a patient can pay from.
+ *
+ * It encodes the UPI payment URI, not a link into this app, so the reader is
+ * the patient's own banking app — no new route to build and nothing to log in
+ * to. Any UPI app fills in payee, amount and the invoice reference from it.
+ *
+ * Rendered from `qrcode.react`, the same dependency the prescription print
+ * uses, into static markup because this print path writes an HTML string into
+ * a popup rather than mounting React.
+ */
+function invoicePayQrHtml(upiUri: string): string {
+  const svg = renderToStaticMarkup(
+    createElement(QRCodeSVG, {
+      value: upiUri,
+      size: 128,
+      // A printed bill gets scanned off paper that has been folded and handled.
+      level: "M",
+    }),
+  );
+  return `
+    <section class="pay-qr">
+      ${svg}
+      <div class="pay-qr-note">Scan with any UPI app to pay this bill</div>
+    </section>
+  `;
+}
+
+export function printInvoicePacket(
+  data: InvoicePrintData,
+  access: BillingDisplayAccess,
+  /**
+   * Omitted when the bill is settled, when amounts are masked for this user, or
+   * when the UPI lookup failed — a payment QR must never be the reason a bill
+   * cannot be printed.
+   */
+  upiUri?: string,
+) {
   const rows = data.items
     .map(
       (item) => `
@@ -261,6 +301,7 @@ export function printInvoicePacket(data: InvoicePrintData, access: BillingDispla
           ? `<table class="hsn"><thead><tr><th>HSN</th><th>Taxable</th><th>CGST</th><th>SGST</th><th>IGST</th><th>Total tax</th></tr></thead><tbody>${hsnRows}</tbody></table>`
           : ""
       }
+      ${upiUri ? invoicePayQrHtml(upiUri) : ""}
       <div class="totals">
         Subtotal: ${escapeBillingPrintText(billingAmountText(data.invoice.subtotal, access.amount))}<br />
         Tax: ${escapeBillingPrintText(billingAmountText(data.invoice.tax_amount, access.amount))}<br />
@@ -288,6 +329,8 @@ export function printInvoicePacket(data: InvoicePrintData, access: BillingDispla
           th { background: #eef5f3; }
           .hsn { font-size: 11px; }
           .totals { margin-top: 18px; text-align: right; line-height: 1.8; }
+          .pay-qr { margin-top: 18px; text-align: center; }
+          .pay-qr-note { font-size: 11px; margin-top: 4px; }
           ${copyPrintStyles()}
           @media print { body { padding: 0; } }
         </style>
