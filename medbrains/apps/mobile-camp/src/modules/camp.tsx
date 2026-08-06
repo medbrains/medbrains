@@ -36,6 +36,14 @@ import type { ModuleAction } from "../components/module-home.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
 import { ScreenHeader } from "../components/screen-header.js";
+import type { CampHistoryState, CampTestState } from "../components/screening-clinical-fields.js";
+import {
+  CAMP_HISTORY_QUESTIONS,
+  CAMP_TEST_FIELDS,
+  CampHistoryFields,
+  CampTestFields,
+  campHistoryAnswerToBool,
+} from "../components/screening-clinical-fields.js";
 import { useFetch } from "../lib/use-fetch.js";
 import type { CampOperationMode } from "../state/camp-session.js";
 import { useCampSession } from "../state/camp-session.js";
@@ -2008,6 +2016,10 @@ function IntakeScreen({ camp: routeCamp }: { camp?: Camp }): ReactNode {
   const [pulseRate, setPulseRate] = useState("");
   const [spo2, setSpo2] = useState("");
   const [temperature, setTemperature] = useState("");
+  // One object per group rather than eighteen hooks — bounded and cheap to reset.
+  const [history, setHistory] = useState<CampHistoryState>({});
+  const [tests, setTests] = useState<CampTestState>({});
+  const [historyNotes, setHistoryNotes] = useState("");
   const [sampleType, setSampleType] = useState("");
   const [barcode, setBarcode] = useState("");
   const [testRequested, setTestRequested] = useState("");
@@ -2073,9 +2085,34 @@ function IntakeScreen({ camp: routeCamp }: { camp?: Camp }): ReactNode {
       advice: referralReason || undefined,
       referred_to_hospital: !!referralReason,
       referral_department: referralDepartment || undefined,
+      medical_history_notes: historyNotes || undefined,
+      ...Object.fromEntries(
+        CAMP_HISTORY_QUESTIONS.map((question) => [
+          question.key,
+          campHistoryAnswerToBool(history[question.key] ?? ""),
+        ]),
+      ),
+      ...Object.fromEntries(
+        CAMP_TEST_FIELDS.map((test) => [
+          test.key,
+          test.numeric ? optionalNumber(tests[test.key] ?? "") : tests[test.key] || undefined,
+        ]),
+      ),
     });
     try {
       await queueAndPublishCampEvent(activeCamp.id, event);
+      // Clear the clinical answers for the next patient. The screen keeps the
+      // registration so a lab sample or referral can still attach, but a tick
+      // box left set from the previous person would be submitted as this one's
+      // history — and unlike the name field, nobody sees it happen.
+      setBpSystolic("");
+      setBpDiastolic("");
+      setPulseRate("");
+      setSpo2("");
+      setTemperature("");
+      setHistory({});
+      setTests({});
+      setHistoryNotes("");
       setMessage("Screening/vitals queued locally");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Screening queue failed");
@@ -2241,6 +2278,18 @@ function IntakeScreen({ camp: routeCamp }: { camp?: Camp }): ReactNode {
             </Button>
           </View>
         </Card>
+
+        <CampHistoryFields
+          values={history}
+          onChange={(key, value) => setHistory((prev) => ({ ...prev, [key]: value }))}
+        />
+
+        <CampTestFields
+          values={tests}
+          onChange={(key, value) => setTests((prev) => ({ ...prev, [key]: value }))}
+          notes={historyNotes}
+          onNotesChange={setHistoryNotes}
+        />
 
         <Card eyebrow="Lab" title="Sample" pattern="violet">
           <View style={{ gap: SPACING.sm }}>
