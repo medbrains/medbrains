@@ -49,6 +49,7 @@ enum ReportDataKind {
     HaiRate,
     HandHygieneCompliance,
     ReadmissionWatch,
+    OtCancellations,
     BedOccupancy,
     LabTat,
     SchedulingNoShow,
@@ -1423,14 +1424,14 @@ fn catalog_seed() -> Vec<ReportFamilySeed> {
                     ],
                     &[permissions::ot::reports::VIEW],
                     ReportPriority::P1,
-                    ReportReadiness::QueryBuildable,
+                    ReportReadiness::LiveApi,
                     &["pareto bar", "waterfall"],
                     "sankey",
                     "Daily / weekly",
                     GOVERNED_EXPORTS,
                     ReportExportMode::Governed,
                     &["reason", "surgeon", "specialty", "bed impact"],
-                    ReportDataKind::NotWired,
+                    ReportDataKind::OtCancellations,
                 ),
                 report(
                     "ot-checklist-ssi-outcome-matrix",
@@ -2167,6 +2168,11 @@ pub async fn data(
             let Json(rows) =
                 analytics::readmission_watch(State(state), Extension(claims), Query(range)).await?;
             live_response(&report_id, "analytics.ipd.readmission", rows)
+        }
+        ReportDataKind::OtCancellations => {
+            let Json(rows) =
+                analytics::ot_cancellations(State(state), Extension(claims), Query(range)).await?;
+            live_response(&report_id, "analytics.ot.cancellations", rows)
         }
         ReportDataKind::BedOccupancy => {
             let Json(rows) = analytics::bed_occupancy(State(state), Extension(claims)).await?;

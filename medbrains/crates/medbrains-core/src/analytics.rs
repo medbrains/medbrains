@@ -302,6 +302,33 @@ pub struct ReadmissionRow {
     pub readmission_rate_30_day_percent: Option<f64>,
 }
 
+/// Cancelled and postponed theatre cases, ranked by reason.
+///
+/// Postponements count alongside cancellations. To the patient they are the
+/// same event — fasted since midnight, sent home — and to the theatre they are
+/// the same empty slot. Counting only the ones labelled `cancelled` rewards
+/// relabelling rather than fixing, which is the easiest way to make this number
+/// fall without a single extra operation happening.
+///
+/// Cases with no reason recorded get their own row rather than being dropped.
+/// "Nobody wrote down why" is the most actionable finding a Pareto of
+/// cancellation reasons can produce, and it is exactly what a `GROUP BY reason`
+/// silently discards.
+#[derive(Debug, Serialize, FromRow)]
+pub struct OtCancellationRow {
+    pub reason: String,
+    pub cancelled: i64,
+    pub postponed: i64,
+    /// Both together — the theatre slots actually lost.
+    pub slots_lost: i64,
+    /// Lost on or after the scheduled date, when the patient had already
+    /// prepared and the slot could no longer be refilled.
+    pub late_losses: i64,
+    /// Share of all scheduled cases in the period, so a rising count on a
+    /// growing list is distinguishable from a worsening one.
+    pub percent_of_scheduled: Option<f64>,
+}
+
 // ── Bed Occupancy ─────────────────────────────────────────
 
 #[derive(Debug, Serialize, FromRow)]

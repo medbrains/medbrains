@@ -9,7 +9,8 @@ use medbrains_core::analytics::{
     BedOccupancyRow, CapaAgingRow, ClinicalIndicatorRow, CredentialExpiryRow, DateRangeQuery,
     DeptRevenueRow, DischargeSummaryCompletionRow, DoctorRevenueRow, ErVolumeRow, ExportQuery,
     HaiRateRow, HandHygieneComplianceRow, IpdCensusRow, LabCriticalValueComplianceRow, LabTatRow,
-    OpdFootfallRow, OpdQueueWaitRow, OtUtilizationRow, PharmacySalesRow, ReadmissionRow,
+    OpdFootfallRow, OpdQueueWaitRow, OtCancellationRow, OtUtilizationRow, PharmacySalesRow,
+    ReadmissionRow,
 };
 use medbrains_core::permissions;
 use serde::Serialize;
@@ -757,6 +758,68 @@ pub async fn readmission_watch(
          ) a \
          GROUP BY month \
          ORDER BY month LIMIT 5000",
+    )
+    .bind(claims.tenant_id)
+    .bind(&from)
+    .bind(&to)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+// ── 9j. OT Cancellation Pareto ─────────────────────────────
+/// Theatre cases lost, by reason.
+///
+/// Postponed is counted with cancelled. The two statuses describe the same
+/// thing from the hospital's side — an empty theatre slot and a patient who
+/// fasted for nothing — and separating them lets a unit move cases from one
+/// bucket to the other instead of preventing them.
+///
+/// A case with no reason recorded becomes a 'not recorded' row rather than
+/// disappearing. `GROUP BY cancellation_reason` would drop exactly the cases
+/// nobody documented, which are the ones worth chasing.
+///
+/// The denominator is every case scheduled in the window, so a rising count on
+/// a growing theatre list can be told apart from a genuinely worsening one.
+pub async fn ot_cancellations(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<DateRangeQuery>,
+) -> Result<Json<Vec<OtCancellationRow>>, AppError> {
+    require_permission(&claims, permissions::analytics::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (from, to) = default_range(&params);
+    let rows = sqlx::query_as::<_, OtCancellationRow>(
+        "WITH scheduled AS ( \
+             SELECT COUNT(*)::bigint AS total \
+               FROM ot_bookings \
+              WHERE tenant_id = $1 \
+                AND deleted_at IS NULL \
+                AND scheduled_date >= $2::date AND scheduled_date <= $3::date \
+         ) \
+         SELECT COALESCE( \
+                  NULLIF(TRIM(COALESCE(b.cancellation_reason, b.postpone_reason)), ''), \
+                  'not recorded') AS reason, \
+                COUNT(*) FILTER (WHERE b.status = 'cancelled'::ot_booking_status)::bigint \
+                  AS cancelled, \
+                COUNT(*) FILTER (WHERE b.status = 'postponed'::ot_booking_status)::bigint \
+                  AS postponed, \
+                COUNT(*)::bigint AS slots_lost, \
+                COUNT(*) FILTER (WHERE b.updated_at::date >= b.scheduled_date)::bigint \
+                  AS late_losses, \
+                CASE WHEN (SELECT total FROM scheduled) > 0 \
+                     THEN (COUNT(*) * 100.0) / (SELECT total FROM scheduled) \
+                     ELSE NULL \
+                END::double precision AS percent_of_scheduled \
+         FROM ot_bookings b \
+         WHERE b.tenant_id = $1 \
+           AND b.deleted_at IS NULL \
+           AND b.status IN ('cancelled'::ot_booking_status, 'postponed'::ot_booking_status) \
+           AND b.scheduled_date >= $2::date AND b.scheduled_date <= $3::date \
+         GROUP BY reason \
+         ORDER BY slots_lost DESC, reason LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(&from)
