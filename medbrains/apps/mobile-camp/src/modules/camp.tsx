@@ -18,7 +18,15 @@ import {
   type Patient,
   type PatientContext,
 } from "@medbrains/types";
-import { Card, COLORS, EcgLoader, Empty, MobileTextField, SPACING } from "@medbrains/ui-mobile";
+import {
+  Card,
+  COLORS,
+  EcgLoader,
+  Empty,
+  FormScrollView,
+  MobileTextField,
+  SPACING,
+} from "@medbrains/ui-mobile";
 import * as Crypto from "expo-crypto";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -2192,7 +2200,7 @@ function IntakeScreen({ camp: routeCamp }: { camp?: Camp }): ReactNode {
         title={activeCamp.name}
         description="Register camp patients first, then continue into vitals, lab sample and referral."
       />
-      <ScrollView contentContainerStyle={{ padding: SPACING.md, gap: SPACING.sm }}>
+      <FormScrollView>
         {message && (
           <Text variant="bodyMedium" style={{ color: COLORS.emerald }}>
             {message}
@@ -2376,7 +2384,7 @@ function IntakeScreen({ camp: routeCamp }: { camp?: Camp }): ReactNode {
             </Button>
           </View>
         </Card>
-      </ScrollView>
+      </FormScrollView>
     </View>
   );
 }
