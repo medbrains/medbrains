@@ -329,6 +329,29 @@ pub struct OtCancellationRow {
     pub percent_of_scheduled: Option<f64>,
 }
 
+/// Sample rejections by reason, with the recollection that did or did not follow.
+///
+/// A rejection count on its own measures tidiness in the lab. The number that
+/// matters clinically is `never_recollected`: a sample rejected and never
+/// re-drawn means the doctor never got the result and, unless somebody noticed,
+/// the patient was simply not tested. That failure leaves no error message
+/// anywhere — the order is just quietly incomplete.
+///
+/// Orders are counted distinctly as well as rejections, because one order
+/// rejected three times is one patient inconvenienced three times, not three
+/// patients.
+#[derive(Debug, Serialize, FromRow)]
+pub struct SampleRejectionRow {
+    pub rejection_reason: String,
+    pub rejections: i64,
+    pub orders_affected: i64,
+    /// Rejected and no result ever posted afterwards — the test never happened.
+    pub never_recollected: i64,
+    /// Share of all orders raised in the window, so a rising count on rising
+    /// volume is distinguishable from a worsening collection process.
+    pub percent_of_orders: Option<f64>,
+}
+
 // ── Bed Occupancy ─────────────────────────────────────────
 
 #[derive(Debug, Serialize, FromRow)]

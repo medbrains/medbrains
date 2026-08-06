@@ -10,7 +10,7 @@ use medbrains_core::analytics::{
     DeptRevenueRow, DischargeSummaryCompletionRow, DoctorRevenueRow, ErVolumeRow, ExportQuery,
     HaiRateRow, HandHygieneComplianceRow, IpdCensusRow, LabCriticalValueComplianceRow, LabTatRow,
     OpdFootfallRow, OpdQueueWaitRow, OtCancellationRow, OtUtilizationRow, PharmacySalesRow,
-    ReadmissionRow,
+    ReadmissionRow, SampleRejectionRow,
 };
 use medbrains_core::permissions;
 use serde::Serialize;
@@ -820,6 +820,68 @@ pub async fn ot_cancellations(
            AND b.scheduled_date >= $2::date AND b.scheduled_date <= $3::date \
          GROUP BY reason \
          ORDER BY slots_lost DESC, reason LIMIT 5000",
+    )
+    .bind(claims.tenant_id)
+    .bind(&from)
+    .bind(&to)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+// ── 9k. Sample Rejection and Recollection ──────────────────
+/// Why samples were rejected, and whether the patient was ever re-drawn.
+///
+/// The rejection count is the easy half. `never_recollected` is the half that
+/// matters: a sample rejected with no result posted afterwards means the test
+/// never happened, and nothing in the system raises its hand about it — the
+/// order simply sits incomplete while everyone assumes it was repeated.
+///
+/// Rejections and affected orders are counted separately. One order rejected
+/// three times is one patient stuck three times, not three patients, and
+/// reporting only the rejection count would overstate how many people were
+/// affected while understating how badly.
+///
+/// The denominator is every order raised in the window, so a rising rejection
+/// count during a busy month is distinguishable from a collection process that
+/// is actually getting worse.
+pub async fn sample_rejections(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<DateRangeQuery>,
+) -> Result<Json<Vec<SampleRejectionRow>>, AppError> {
+    require_permission(&claims, permissions::analytics::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (from, to) = default_range(&params);
+    let rows = sqlx::query_as::<_, SampleRejectionRow>(
+        "WITH ordered AS ( \
+             SELECT COUNT(*)::bigint AS total \
+               FROM lab_orders \
+              WHERE tenant_id = $1 \
+                AND created_at::date >= $2::date AND created_at::date <= $3::date \
+         ) \
+         SELECT r.rejection_reason::text AS rejection_reason, \
+                COUNT(*)::bigint AS rejections, \
+                COUNT(DISTINCT r.order_id)::bigint AS orders_affected, \
+                COUNT(DISTINCT r.order_id) FILTER ( \
+                  WHERE NOT EXISTS ( \
+                    SELECT 1 FROM lab_results res \
+                     WHERE res.order_id = r.order_id \
+                       AND res.created_at > r.rejected_at \
+                  ) \
+                )::bigint AS never_recollected, \
+                CASE WHEN (SELECT total FROM ordered) > 0 \
+                     THEN (COUNT(DISTINCT r.order_id) * 100.0) / (SELECT total FROM ordered) \
+                     ELSE NULL \
+                END::double precision AS percent_of_orders \
+         FROM lab_sample_rejections r \
+         WHERE r.tenant_id = $1 \
+           AND r.deleted_at IS NULL \
+           AND r.rejected_at::date >= $2::date AND r.rejected_at::date <= $3::date \
+         GROUP BY r.rejection_reason \
+         ORDER BY never_recollected DESC, rejections DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(&from)

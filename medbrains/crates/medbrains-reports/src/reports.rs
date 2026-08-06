@@ -50,6 +50,7 @@ enum ReportDataKind {
     HandHygieneCompliance,
     ReadmissionWatch,
     OtCancellations,
+    SampleRejections,
     BedOccupancy,
     LabTat,
     SchedulingNoShow,
@@ -793,14 +794,14 @@ fn catalog_seed() -> Vec<ReportFamilySeed> {
                     &["lab_orders", "lab_samples", "sample_rejections"],
                     &[permissions::lab::reports::VIEW],
                     ReportPriority::P1,
-                    ReportReadiness::QueryBuildable,
+                    ReportReadiness::LiveApi,
                     &["pareto bar", "heatmap"],
                     "heatmap",
                     "Daily",
                     GOVERNED_EXPORTS,
                     ReportExportMode::Governed,
                     &["collection point", "unit", "phlebotomist", "sample type"],
-                    ReportDataKind::NotWired,
+                    ReportDataKind::SampleRejections,
                 ),
                 report(
                     "lab-qc-eqas-outsourced",
@@ -2173,6 +2174,11 @@ pub async fn data(
             let Json(rows) =
                 analytics::ot_cancellations(State(state), Extension(claims), Query(range)).await?;
             live_response(&report_id, "analytics.ot.cancellations", rows)
+        }
+        ReportDataKind::SampleRejections => {
+            let Json(rows) =
+                analytics::sample_rejections(State(state), Extension(claims), Query(range)).await?;
+            live_response(&report_id, "analytics.lab.sample_rejections", rows)
         }
         ReportDataKind::BedOccupancy => {
             let Json(rows) = analytics::bed_occupancy(State(state), Extension(claims)).await?;
