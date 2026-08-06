@@ -10,7 +10,7 @@ use medbrains_core::analytics::{
     DeptRevenueRow, DischargeSummaryCompletionRow, DoctorRevenueRow, ErVolumeRow, ExportQuery,
     HaiRateRow, HandHygieneComplianceRow, IpdCensusRow, LabCriticalValueComplianceRow, LabTatRow,
     OpdFootfallRow, OpdQueueWaitRow, OtCancellationRow, OtUtilizationRow, PharmacySalesRow,
-    ReadmissionRow, SampleRejectionRow,
+    RadiologyTatRow, ReadmissionRow, SampleRejectionRow,
 };
 use medbrains_core::permissions;
 use serde::Serialize;
@@ -882,6 +882,66 @@ pub async fn sample_rejections(
            AND r.rejected_at::date >= $2::date AND r.rejected_at::date <= $3::date \
          GROUP BY r.rejection_reason \
          ORDER BY never_recollected DESC, rejections DESC LIMIT 5000",
+    )
+    .bind(claims.tenant_id)
+    .bind(&from)
+    .bind(&to)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+// ── 9l. Radiology TAT and Backlog ──────────────────────────
+/// Order-to-report turnaround, reported next to the queue it excludes.
+///
+/// Percentiles are computed only over studies that were actually reported,
+/// because an unreported study has no turnaround yet. That is correct and it is
+/// also dangerous: the unreported ones are the slow ones, so a department
+/// falling further behind every week shows an *improving* median. The average
+/// speeds up because the slow work has not landed, not because anything got
+/// faster.
+///
+/// `still_pending` and `oldest_pending_days` are therefore part of the same
+/// row rather than a separate report. A falling TAT beside a growing backlog is
+/// the signature of a department in trouble, and it is only visible if the two
+/// numbers are read together.
+///
+/// Rows are keyed by the month the study was ORDERED, so the backlog stays
+/// attached to the month that created it instead of drifting forward.
+pub async fn radiology_tat(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<DateRangeQuery>,
+) -> Result<Json<Vec<RadiologyTatRow>>, AppError> {
+    require_permission(&claims, permissions::analytics::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (from, to) = default_range(&params);
+    let rows = sqlx::query_as::<_, RadiologyTatRow>(
+        "SELECT date_trunc('month', o.created_at)::date AS month, \
+                o.priority::text AS priority, \
+                COUNT(*)::bigint AS ordered, \
+                COUNT(*) FILTER (WHERE o.completed_at IS NOT NULL)::bigint AS reported, \
+                COUNT(*) FILTER ( \
+                  WHERE o.completed_at IS NULL \
+                    AND o.status <> 'cancelled'::radiology_order_status \
+                )::bigint AS still_pending, \
+                MAX(CURRENT_DATE - o.created_at::date) FILTER ( \
+                  WHERE o.completed_at IS NULL \
+                    AND o.status <> 'cancelled'::radiology_order_status \
+                )::bigint AS oldest_pending_days, \
+                percentile_cont(0.5) WITHIN GROUP ( \
+                  ORDER BY EXTRACT(EPOCH FROM (o.completed_at - o.created_at)) / 3600.0 \
+                )::double precision AS median_hours_to_report, \
+                percentile_cont(0.9) WITHIN GROUP ( \
+                  ORDER BY EXTRACT(EPOCH FROM (o.completed_at - o.created_at)) / 3600.0 \
+                )::double precision AS p90_hours_to_report \
+         FROM radiology_orders o \
+         WHERE o.tenant_id = $1 \
+           AND o.created_at::date >= $2::date AND o.created_at::date <= $3::date \
+         GROUP BY month, o.priority \
+         ORDER BY still_pending DESC, month, priority LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(&from)

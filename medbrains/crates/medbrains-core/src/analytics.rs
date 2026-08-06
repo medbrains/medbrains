@@ -352,6 +352,31 @@ pub struct SampleRejectionRow {
     pub percent_of_orders: Option<f64>,
 }
 
+/// Radiology turnaround with the backlog it would otherwise hide.
+///
+/// Turnaround measured only over reported studies is a survivorship statistic.
+/// The studies still sitting unreported are precisely the slow ones, and
+/// excluding them means a department that falls further behind every week
+/// reports an improving turnaround — the average gets faster because the slow
+/// work has not finished yet, not because anything got quicker.
+///
+/// So the pending count and the age of the oldest unreported study sit beside
+/// the percentiles. Read together, a falling TAT with a growing backlog is
+/// visible; read apart, it looks like success.
+#[derive(Debug, Serialize, FromRow)]
+pub struct RadiologyTatRow {
+    pub month: NaiveDate,
+    pub priority: String,
+    pub ordered: i64,
+    pub reported: i64,
+    /// Ordered and still not reported — the queue the percentiles exclude.
+    pub still_pending: i64,
+    /// Age in days of the oldest unreported study; the backlog's true depth.
+    pub oldest_pending_days: Option<i64>,
+    pub median_hours_to_report: Option<f64>,
+    pub p90_hours_to_report: Option<f64>,
+}
+
 // ── Bed Occupancy ─────────────────────────────────────────
 
 #[derive(Debug, Serialize, FromRow)]

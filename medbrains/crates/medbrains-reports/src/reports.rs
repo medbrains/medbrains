@@ -51,6 +51,7 @@ enum ReportDataKind {
     ReadmissionWatch,
     OtCancellations,
     SampleRejections,
+    RadiologyTat,
     BedOccupancy,
     LabTat,
     SchedulingNoShow,
@@ -853,14 +854,14 @@ fn catalog_seed() -> Vec<ReportFamilySeed> {
                     &["radiology_orders", "radiology_reports"],
                     &[permissions::radiology::orders::VIEW],
                     ReportPriority::P1,
-                    ReportReadiness::QueryBuildable,
+                    ReportReadiness::LiveApi,
                     &["boxplot", "burn-down line"],
                     "boxplot",
                     "15 min / hourly",
                     GOVERNED_EXPORTS,
                     ReportExportMode::Governed,
                     &["modality", "priority", "radiologist", "department"],
-                    ReportDataKind::NotWired,
+                    ReportDataKind::RadiologyTat,
                 ),
                 report(
                     "radiology-dose-dosimetry",
@@ -2179,6 +2180,11 @@ pub async fn data(
             let Json(rows) =
                 analytics::sample_rejections(State(state), Extension(claims), Query(range)).await?;
             live_response(&report_id, "analytics.lab.sample_rejections", rows)
+        }
+        ReportDataKind::RadiologyTat => {
+            let Json(rows) =
+                analytics::radiology_tat(State(state), Extension(claims), Query(range)).await?;
+            live_response(&report_id, "analytics.radiology.tat_backlog", rows)
         }
         ReportDataKind::BedOccupancy => {
             let Json(rows) = analytics::bed_occupancy(State(state), Extension(claims)).await?;
