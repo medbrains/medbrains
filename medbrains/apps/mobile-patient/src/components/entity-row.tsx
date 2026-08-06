@@ -7,7 +7,10 @@ import type { IntentTone } from "@medbrains/ui-mobile";
 import { Badge, COLORS, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
 import { View } from "react-native";
-import { Text } from "react-native-paper";
+import { Text, TouchableRipple } from "react-native-paper";
+
+/** WCAG 2.2 SC 2.5.8 / the mobile surface rules: no target smaller than this. */
+const MIN_TOUCH_TARGET = 44;
 
 export interface EntityRowProps {
   title: string;
@@ -24,9 +27,8 @@ export function EntityRow({
   accent = false,
   onPress,
 }: EntityRowProps): ReactNode {
-  return (
+  const card = (
     <View
-      onTouchEnd={onPress}
       style={{
         backgroundColor: COLORS.canvas,
         borderWidth: 1,
@@ -58,5 +60,23 @@ export function EntityRow({
       </View>
       {badge && <Badge label={badge.label} tone={badge.tone} />}
     </View>
+  );
+
+  if (!onPress) {
+    return card;
+  }
+
+  // A tappable row has to announce itself as a button and give feedback. The
+  // plain View this replaced did neither, so a patient using VoiceOver could
+  // not open their own bill or report.
+  return (
+    <TouchableRipple
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={subtitle ? `${title}. ${subtitle}` : title}
+      style={{ borderRadius: 8, minHeight: MIN_TOUCH_TARGET }}
+    >
+      {card}
+    </TouchableRipple>
   );
 }

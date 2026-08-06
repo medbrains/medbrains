@@ -3,12 +3,12 @@
  * tap into a row for the consultation detail.
  */
 
-import { Badge, COLORS, EcgLoader, Empty, SPACING } from "@medbrains/ui-mobile";
+import { COLORS, EcgLoader, Empty, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
 import { ScrollView, View } from "react-native";
-import { Text } from "react-native-paper";
 import type { QueueEntry } from "../../api/opd.js";
 import { listOpdQueue } from "../../api/opd.js";
+import { EntityRow } from "../../components/entity-row.js";
 import { useModuleRouter } from "../../components/module-router.js";
 import { ScreenHeader } from "../../components/screen-header.js";
 import { useFetch } from "../../lib/use-fetch.js";
@@ -65,37 +65,13 @@ export function QueueListScreen(): ReactNode {
 
 function QueueRow({ entry, onPress }: { entry: QueueEntry; onPress: () => void }): ReactNode {
   return (
-    <View
-      onTouchEnd={onPress}
-      style={{
-        backgroundColor: COLORS.canvas,
-        borderWidth: 1,
-        borderColor: COLORS.rule,
-        padding: SPACING.md,
-        borderRadius: 8,
-        marginBottom: SPACING.sm,
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-      }}
-    >
-      <View style={{ flex: 1, paddingRight: SPACING.sm }}>
-        <Text variant="titleMedium" style={{ color: COLORS.ink, fontWeight: "600" }}>
-          {entry.patient_name}
-        </Text>
-        <Text
-          variant="bodySmall"
-          style={{
-            color: COLORS.brandDeep,
-            opacity: 0.7,
-            fontFamily: "JetBrainsMono-Regular",
-            marginTop: 2,
-          }}
-        >
-          UHID {entry.uhid} · TOKEN {entry.token_number}
-        </Text>
-      </View>
-      <Badge label={entry.status} tone={STATUS_TONE[entry.status] ?? "neutral"} />
+    <View style={{ marginBottom: SPACING.sm }}>
+      <EntityRow
+        title={entry.patient_name}
+        subtitle={`UHID ${entry.uhid} \u00b7 TOKEN ${entry.token_number}`}
+        badge={{ label: entry.status, tone: STATUS_TONE[entry.status] ?? "neutral" }}
+        onPress={onPress}
+      />
     </View>
   );
 }

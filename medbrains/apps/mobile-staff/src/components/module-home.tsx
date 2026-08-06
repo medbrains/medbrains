@@ -8,8 +8,11 @@ import type { IntentTone } from "@medbrains/ui-mobile";
 import { Badge, Card, COLORS, EcgLoader, Empty, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
 import { ScrollView, View } from "react-native";
-import { Text } from "react-native-paper";
+import { List, Text } from "react-native-paper";
 import { useHasPermission } from "../lib/permissions.js";
+
+/** WCAG 2.2 SC 2.5.8 / the mobile surface rules: no target smaller than this. */
+const MIN_TOUCH_TARGET = 44;
 
 export interface ModuleAction {
   id: string;
@@ -128,35 +131,75 @@ function hashKey(value: string): number {
   return Array.from(value).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
 }
 
+/**
+ * A row a nurse or guard can actually operate.
+ *
+ * This was a plain `View` with `onTouchEnd`, which meant three things at once:
+ * a screen-reader user could not activate any action in the app, a tap gave no
+ * feedback and fired even if the finger slid off the row, and an action with no
+ * handler looked exactly like one that worked. A guard tapping "Log new
+ * incident" — the most time-critical thing they do — got silence and no way to
+ * tell whether they had missed the row or the app was broken.
+ *
+ * `List.Item` is Paper's own row (already used in apps/mobile), so it carries
+ * the button role, the ripple and the disabled semantics for free.
+ */
 function ActionRow({ action }: { action: ModuleAction }) {
   const allowed = useHasPermission(action.permission ?? "");
   const visible = !action.permission || allowed;
   if (!visible) {
     return null;
   }
+
+  // Permitted but unbuilt. Say so rather than absorbing the tap in silence.
+  const isUnavailable = !action.onPress;
+  const description = isUnavailable
+    ? [action.description, "Not available on mobile yet."].filter(Boolean).join(" ")
+    : action.description;
+
   return (
-    <View
+    <List.Item
+      title={action.label}
+      description={description}
+      onPress={action.onPress}
+      disabled={isUnavailable}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: isUnavailable }}
       style={{
         borderTopWidth: 1,
         borderTopColor: COLORS.rule,
-        paddingVertical: SPACING.md,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
+        minHeight: MIN_TOUCH_TARGET,
+        paddingVertical: SPACING.sm,
+        opacity: isUnavailable ? 0.55 : 1,
       }}
-      onTouchEnd={action.onPress}
-    >
-      <View style={{ flex: 1, paddingRight: SPACING.md }}>
-        <Text variant="titleSmall" style={{ color: COLORS.ink, fontWeight: "600" }}>
-          {action.label}
-        </Text>
-        {action.description && (
-          <Text variant="bodySmall" style={{ color: COLORS.brandDeep, opacity: 0.7, marginTop: 2 }}>
-            {action.description}
-          </Text>
-        )}
-      </View>
-      {action.badge && <Badge label={action.badge.label} tone={action.badge.tone} />}
-    </View>
+      titleStyle={{ color: COLORS.ink, fontWeight: "600" }}
+      descriptionStyle={{ color: COLORS.brandDeep, opacity: 0.7 }}
+      descriptionNumberOfLines={3}
+      right={() => <ActionRowBadge action={action} isUnavailable={isUnavailable} />}
+    />
   );
+}
+
+function ActionRowBadge({
+  action,
+  isUnavailable,
+}: {
+  action: ModuleAction;
+  isUnavailable: boolean;
+}) {
+  if (action.badge) {
+    return (
+      <View style={{ justifyContent: "center" }}>
+        <Badge label={action.badge.label} tone={action.badge.tone} />
+      </View>
+    );
+  }
+  if (isUnavailable) {
+    return (
+      <View style={{ justifyContent: "center" }}>
+        <Badge label="Not on mobile" tone="neutral" />
+      </View>
+    );
+  }
+  return null;
 }

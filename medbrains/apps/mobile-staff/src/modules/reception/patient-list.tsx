@@ -3,13 +3,14 @@
  * a row to view detail.
  */
 
-import { Badge, COLORS, EcgLoader, Empty, SPACING } from "@medbrains/ui-mobile";
+import { COLORS, EcgLoader, Empty, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { ScrollView, View } from "react-native";
-import { Text, TextInput } from "react-native-paper";
+import { TextInput } from "react-native-paper";
 import type { PatientRow } from "../../api/patients.js";
 import { listPatients } from "../../api/patients.js";
+import { EntityRow } from "../../components/entity-row.js";
 import { useModuleRouter } from "../../components/module-router.js";
 import { ScreenHeader } from "../../components/screen-header.js";
 import { useFetch } from "../../lib/use-fetch.js";
@@ -69,40 +70,15 @@ export function PatientListScreen(): ReactNode {
 }
 
 function PatientRowView({ row, onPress }: { row: PatientRow; onPress: () => void }): ReactNode {
+  const name = `${row.prefix ? `${row.prefix} ` : ""}${row.first_name} ${row.last_name}`;
   return (
-    <View
-      onTouchEnd={onPress}
-      style={{
-        backgroundColor: COLORS.canvas,
-        borderWidth: 1,
-        borderColor: COLORS.rule,
-        padding: SPACING.md,
-        borderRadius: 8,
-        marginBottom: SPACING.sm,
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-      }}
-    >
-      <View style={{ flex: 1, paddingRight: SPACING.sm }}>
-        <Text variant="titleMedium" style={{ color: COLORS.ink, fontWeight: "600" }}>
-          {row.prefix ? `${row.prefix} ` : ""}
-          {row.first_name} {row.last_name}
-        </Text>
-        <Text
-          variant="bodySmall"
-          style={{
-            color: COLORS.brandDeep,
-            opacity: 0.7,
-            fontFamily: "JetBrainsMono-Regular",
-            marginTop: 2,
-          }}
-        >
-          UHID {row.uhid}
-          {row.phone ? ` · ${row.phone}` : ""}
-        </Text>
-      </View>
-      {!row.is_active && <Badge label="inactive" tone="alert" />}
+    <View style={{ marginBottom: SPACING.sm }}>
+      <EntityRow
+        title={name}
+        subtitle={`UHID ${row.uhid}${row.phone ? ` \u00b7 ${row.phone}` : ""}`}
+        badge={row.is_active ? undefined : { label: "inactive", tone: "alert" }}
+        onPress={onPress}
+      />
     </View>
   );
 }

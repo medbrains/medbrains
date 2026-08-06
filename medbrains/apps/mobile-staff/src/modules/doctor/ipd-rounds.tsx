@@ -9,6 +9,7 @@ import { ScrollView, View } from "react-native";
 import { Text } from "react-native-paper";
 import type { AdmissionRow } from "../../api/ipd.js";
 import { listActiveAdmissions } from "../../api/ipd.js";
+import { EntityRow } from "../../components/entity-row.js";
 import { useModuleRouter } from "../../components/module-router.js";
 import { ScreenHeader } from "../../components/screen-header.js";
 import { useFetch } from "../../lib/use-fetch.js";
@@ -105,38 +106,13 @@ export function DoctorIpdRoundDetailScreen({ admission }: { admission: Admission
 
 function RoundRow({ row, onPress }: { row: AdmissionRow; onPress: () => void }): ReactNode {
   return (
-    <View
-      onTouchEnd={onPress}
-      style={{
-        backgroundColor: COLORS.canvas,
-        borderWidth: 1,
-        borderColor: COLORS.rule,
-        padding: SPACING.md,
-        borderRadius: 8,
-        marginBottom: SPACING.sm,
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-      }}
-    >
-      <View style={{ flex: 1, paddingRight: SPACING.sm }}>
-        <Text variant="titleMedium" style={{ color: COLORS.ink, fontWeight: "600" }}>
-          {row.patient_name}
-        </Text>
-        <Text
-          variant="bodySmall"
-          style={{
-            color: COLORS.brandDeep,
-            opacity: 0.7,
-            fontFamily: "JetBrainsMono-Regular",
-            marginTop: 2,
-          }}
-        >
-          UHID {row.uhid}
-          {row.bed_label ? ` · ${row.bed_label}` : ""}
-        </Text>
-      </View>
-      <Badge label="round" tone="info" />
+    <View style={{ marginBottom: SPACING.sm }}>
+      <EntityRow
+        title={row.patient_name}
+        subtitle={`UHID ${row.uhid}${row.bed_label ? ` \u00b7 ${row.bed_label}` : ""}`}
+        badge={{ label: "round", tone: "info" }}
+        onPress={onPress}
+      />
     </View>
   );
 }

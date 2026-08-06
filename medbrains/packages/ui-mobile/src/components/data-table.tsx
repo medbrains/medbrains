@@ -9,9 +9,12 @@
 
 import type { ReactNode } from "react";
 import { ActivityIndicator, ScrollView, View } from "react-native";
-import { Text } from "react-native-paper";
+import { Text, TouchableRipple } from "react-native-paper";
 import { COLORS, SPACING } from "../tokens.js";
 import { Empty } from "./empty.js";
+
+/** WCAG 2.2 SC 2.5.8 / the mobile surface rules: no target smaller than this. */
+const MIN_TOUCH_TARGET = 44;
 
 export interface DataTableColumn<T> {
   key: string;
@@ -28,6 +31,11 @@ export interface DataTableProps<T> {
   emptyTitle?: string;
   emptyDescription?: string;
   onRowPress?: (row: T) => void;
+  /**
+   * What a screen reader should announce for a tappable row. Without it the
+   * reader spells out every cell, which on a ten-column table is unusable.
+   */
+  rowLabel?: (row: T) => string;
 }
 
 export function DataTable<T>(props: DataTableProps<T>): ReactNode {
@@ -39,6 +47,7 @@ export function DataTable<T>(props: DataTableProps<T>): ReactNode {
     emptyTitle = "Nothing here yet",
     emptyDescription,
     onRowPress,
+    rowLabel,
   } = props;
 
   if (loading) {
@@ -84,9 +93,8 @@ export function DataTable<T>(props: DataTableProps<T>): ReactNode {
         </View>
         {data.map((row) => {
           const key = rowKey(row);
-          return (
+          const cells = (
             <View
-              key={key}
               style={{
                 flexDirection: "row",
                 borderBottomWidth: 1,
@@ -94,8 +102,8 @@ export function DataTable<T>(props: DataTableProps<T>): ReactNode {
                 paddingVertical: SPACING.md,
                 paddingHorizontal: SPACING.md,
                 backgroundColor: COLORS.canvas,
+                minHeight: MIN_TOUCH_TARGET,
               }}
-              onTouchEnd={onRowPress ? () => onRowPress(row) : undefined}
             >
               {columns.map((col) => (
                 <View key={col.key} style={{ width: col.width ?? 140 }}>
@@ -103,6 +111,23 @@ export function DataTable<T>(props: DataTableProps<T>): ReactNode {
                 </View>
               ))}
             </View>
+          );
+
+          if (!onRowPress) {
+            return <View key={key}>{cells}</View>;
+          }
+
+          // A row you can open is a button, and has to say so out loud. The
+          // plain View this replaced was invisible to TalkBack and VoiceOver.
+          return (
+            <TouchableRipple
+              key={key}
+              onPress={() => onRowPress(row)}
+              accessibilityRole="button"
+              accessibilityLabel={rowLabel ? rowLabel(row) : undefined}
+            >
+              {cells}
+            </TouchableRipple>
           );
         })}
       </View>
