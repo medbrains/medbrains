@@ -161,6 +161,31 @@ pub struct LabCriticalValueComplianceRow {
     pub p90_minutes_to_notify: f64,
 }
 
+/// Credential expiry risk, one row per credential type.
+///
+/// The point of this report is the people who should not be working right now.
+/// A lapsed medical-council registration is not an administrative untidiness —
+/// it means somebody is treating patients without a licence, and the hospital
+/// is liable for every hour it goes unnoticed.
+///
+/// Buckets are cumulative deadlines rather than exclusive ranges: an already
+/// expired credential is the emergency, the next 30 days is what a rota can
+/// still absorb, and 90 days is when renewal paperwork has to start.
+#[derive(Debug, Serialize, FromRow)]
+pub struct CredentialExpiryRow {
+    pub credential_type: String,
+    pub total_credentials: i64,
+    /// Already lapsed and not yet renewed — staff who should be stood down.
+    pub expired: i64,
+    pub expiring_within_30_days: i64,
+    pub expiring_within_90_days: i64,
+    /// Held but never verified against the issuing body. A trusted photocopy
+    /// is not evidence, and NABH treats it as a finding.
+    pub unverified: i64,
+    /// Days until the soonest expiry still ahead; negative when one has lapsed.
+    pub days_to_next_expiry: Option<i64>,
+}
+
 // ── Bed Occupancy ─────────────────────────────────────────
 
 #[derive(Debug, Serialize, FromRow)]

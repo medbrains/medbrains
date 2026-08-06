@@ -6,9 +6,9 @@ use axum::{
     response::IntoResponse,
 };
 use medbrains_core::analytics::{
-    BedOccupancyRow, ClinicalIndicatorRow, DateRangeQuery, DeptRevenueRow, DoctorRevenueRow,
-    ErVolumeRow, ExportQuery, IpdCensusRow, LabCriticalValueComplianceRow, LabTatRow,
-    OpdFootfallRow, OpdQueueWaitRow, OtUtilizationRow, PharmacySalesRow,
+    BedOccupancyRow, ClinicalIndicatorRow, CredentialExpiryRow, DateRangeQuery, DeptRevenueRow,
+    DoctorRevenueRow, ErVolumeRow, ExportQuery, IpdCensusRow, LabCriticalValueComplianceRow,
+    LabTatRow, OpdFootfallRow, OpdQueueWaitRow, OtUtilizationRow, PharmacySalesRow,
 };
 use medbrains_core::permissions;
 use serde::Serialize;
@@ -391,6 +391,54 @@ pub async fn lab_critical_value_compliance(
     .bind(claims.tenant_id)
     .bind(&from)
     .bind(&to)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+// ── 9d. Credential and Licence Expiry ──────────────────────
+/// Who is working on a credential that has lapsed, or is about to.
+///
+/// Deliberately not filtered by status. A row whose `status` still says
+/// `active` while its `expiry_date` is in the past is exactly the case this
+/// report has to catch — the status column reflects what somebody last typed,
+/// the date reflects what is true. Trusting the status would hide the failure.
+///
+/// Revoked and suspended credentials are excluded from the expiry buckets:
+/// those people are already stood down, and counting them as "expiring" would
+/// pad the number a manager is meant to act on.
+pub async fn credential_expiry(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<CredentialExpiryRow>>, AppError> {
+    require_permission(&claims, permissions::analytics::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, CredentialExpiryRow>(
+        "SELECT c.credential_type::text AS credential_type, \
+                COUNT(*)::bigint AS total_credentials, \
+                COUNT(*) FILTER ( \
+                  WHERE c.expiry_date < CURRENT_DATE \
+                )::bigint AS expired, \
+                COUNT(*) FILTER ( \
+                  WHERE c.expiry_date >= CURRENT_DATE \
+                    AND c.expiry_date <= CURRENT_DATE + 30 \
+                )::bigint AS expiring_within_30_days, \
+                COUNT(*) FILTER ( \
+                  WHERE c.expiry_date >= CURRENT_DATE \
+                    AND c.expiry_date <= CURRENT_DATE + 90 \
+                )::bigint AS expiring_within_90_days, \
+                COUNT(*) FILTER (WHERE c.verified_at IS NULL)::bigint AS unverified, \
+                MIN(c.expiry_date - CURRENT_DATE)::bigint AS days_to_next_expiry \
+         FROM employee_credentials c \
+         WHERE c.tenant_id = $1 \
+           AND c.deleted_at IS NULL \
+           AND c.status NOT IN ('revoked'::credential_status, 'suspended'::credential_status) \
+         GROUP BY c.credential_type \
+         ORDER BY expired DESC, credential_type LIMIT 5000",
+    )
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;

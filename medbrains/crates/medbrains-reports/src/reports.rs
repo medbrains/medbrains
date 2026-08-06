@@ -43,6 +43,7 @@ enum ReportDataKind {
     OpdFootfall,
     OpdQueueWait,
     LabCriticalValueCompliance,
+    CredentialExpiry,
     BedOccupancy,
     LabTat,
     SchedulingNoShow,
@@ -1700,14 +1701,14 @@ fn catalog_seed() -> Vec<ReportFamilySeed> {
                     &["hr_credentials", "hr_employees", "radiation_tld_logs"],
                     &[permissions::hr::credentials::LIST],
                     ReportPriority::P1,
-                    ReportReadiness::QueryBuildable,
+                    ReportReadiness::LiveApi,
                     &["aging bar", "timeline"],
                     "line",
                     "Daily",
                     GOVERNED_EXPORTS,
                     ReportExportMode::Governed,
                     &["credential type", "department", "role", "expiry bucket"],
-                    ReportDataKind::NotWired,
+                    ReportDataKind::CredentialExpiry,
                 ),
             ],
         ),
@@ -2128,6 +2129,10 @@ pub async fn data(
                 analytics::lab_critical_value_compliance(State(state), Extension(claims), Query(range))
                     .await?;
             live_response(&report_id, "analytics.lab.critical_value_compliance", rows)
+        }
+        ReportDataKind::CredentialExpiry => {
+            let Json(rows) = analytics::credential_expiry(State(state), Extension(claims)).await?;
+            live_response(&report_id, "analytics.hr.credential_expiry", rows)
         }
         ReportDataKind::BedOccupancy => {
             let Json(rows) = analytics::bed_occupancy(State(state), Extension(claims)).await?;
