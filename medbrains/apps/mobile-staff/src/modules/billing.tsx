@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import { listInvoices } from "../api/billing.js";
 import { EntityListScreen } from "../components/entity-list.js";
 import { EntityRow } from "../components/entity-row.js";
+import { useModuleCount } from "../components/module-count.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
 
@@ -24,6 +25,12 @@ const STATUS_TONE: Record<string, IntentTone> = {
 
 function BillingHome(): ReactNode {
   const router = useModuleRouter();
+  // Outstanding is a balance, not a status word — a partly-paid invoice is
+  // still money owed however it is labelled.
+  const outstanding = useModuleCount(
+    () => listInvoices().then((r) => r.invoices),
+    (i) => Number(i.balance_due) > 0,
+  );
   return (
     <ModuleHome
       eyebrow="MODULE"
@@ -31,7 +38,7 @@ function BillingHome(): ReactNode {
       description="Invoices, payments, credit, reconciliation."
       tags={["Mobile-Admin", "Desktop-Workstation", "finance", "cash-control"]}
       summaries={[
-        { eyebrow: "OPEN", count: "—", title: "Outstanding invoices" },
+        { eyebrow: "OPEN", count: outstanding.count, title: "Outstanding invoices" },
         { eyebrow: "TODAY", count: "—", title: "Collections so far" },
       ]}
       actions={[

@@ -18,6 +18,7 @@ import {
 } from "../api/blood-bank.js";
 import { EntityListScreen } from "../components/entity-list.js";
 import { EntityRow } from "../components/entity-row.js";
+import { useModuleCount } from "../components/module-count.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
 
@@ -42,6 +43,7 @@ const CROSSMATCH_TONE: Record<string, IntentTone> = {
 
 function BloodBankHome(): ReactNode {
   const router = useModuleRouter();
+  const availableUnits = useModuleCount(() => listBloodComponents({ status: "available" }));
   return (
     <ModuleHome
       eyebrow="MODULE"
@@ -49,7 +51,7 @@ function BloodBankHome(): ReactNode {
       description="Donors, component inventory, crossmatch and transfusion safety."
       tags={["Mobile-LabTech", "Mobile-Nurse", "Mobile-Doctor", "blood-safety", "NACO"]}
       summaries={[
-        { eyebrow: "STOCK", count: "—", title: "Available units" },
+        { eyebrow: "STOCK", count: availableUnits.count, title: "Available units" },
         { eyebrow: "XMATCH", count: "—", title: "Pending crossmatches" },
       ]}
       actions={[

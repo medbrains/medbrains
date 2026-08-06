@@ -8,7 +8,9 @@
 import type { Module } from "@medbrains/mobile-shell";
 import { P } from "@medbrains/types";
 import type { ReactNode } from "react";
+import { listOpdQueue } from "../api/opd.js";
 import type { PatientRow } from "../api/patients.js";
+import { useModuleCount } from "../components/module-count.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
 import { PatientDetailScreen } from "./reception/patient-detail.js";
@@ -17,6 +19,10 @@ import { RegisterPatientScreen } from "./reception/register-patient.js";
 
 function ReceptionHome(): ReactNode {
   const router = useModuleRouter();
+  const queueLength = useModuleCount(
+    () => listOpdQueue(),
+    (q) => q.status === "waiting",
+  );
   return (
     <ModuleHome
       eyebrow="MODULE"
@@ -24,7 +30,7 @@ function ReceptionHome(): ReactNode {
       description="Registration, queue, appointments, visitor passes."
       tags={["Desktop-Kiosk", "Desktop-Workstation", "OPD", "ABHA"]}
       summaries={[
-        { eyebrow: "WAIT", count: "—", title: "OPD queue length" },
+        { eyebrow: "WAIT", count: queueLength.count, title: "OPD queue length" },
         { eyebrow: "TODAY", count: "—", title: "Registrations so far" },
       ]}
       actions={[
