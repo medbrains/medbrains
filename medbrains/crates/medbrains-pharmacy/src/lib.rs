@@ -3725,6 +3725,9 @@ pub async fn create_discharge_dispensing(
 #[derive(Debug, serde::Deserialize)]
 pub struct CatalogQuery {
     pub search: Option<String>,
+    /// Exact pack barcode. Separate from `search` on purpose: a scan is an
+    /// identity claim, and matching it loosely would hand back a different drug.
+    pub barcode: Option<String>,
     pub category: Option<String>,
     pub formulary_status: Option<String>,
     pub drug_schedule: Option<String>,
@@ -3770,6 +3773,7 @@ pub async fn list_catalog(
            AND ($3::text IS NULL OR category = $3)
            AND ($4::text IS NULL OR formulary_status::text = $4)
            AND ($5::text IS NULL OR drug_schedule::text = $5)
+           AND ($6::text IS NULL OR barcode = $6)
          ORDER BY name LIMIT 100",
     )
     .bind(claims.tenant_id)
@@ -3777,6 +3781,7 @@ pub async fn list_catalog(
     .bind(&q.category)
     .bind(&q.formulary_status)
     .bind(&q.drug_schedule)
+    .bind(q.barcode.as_deref().map(str::trim).filter(|b| !b.is_empty()))
     .fetch_all(&mut *tx)
     .await?;
 

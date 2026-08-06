@@ -13,6 +13,7 @@ import { EntityListScreen } from "../components/entity-list.js";
 import { EntityRow } from "../components/entity-row.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import { ScanStockScreen } from "./pharmacy/scan-stock.js";
 
 const STATUS_TONE: Record<string, IntentTone> = {
   draft: "neutral",
@@ -61,6 +62,13 @@ function PharmacyHome(): ReactNode {
           permission: P.PHARMACY.POS_CREATE,
         },
         {
+          id: "scan-stock",
+          label: "Scan a pack",
+          description: "Record receipt, issue or a correction on the shelf.",
+          permission: P.PHARMACY.STOCK_MANAGE,
+          onPress: () => router.push("scan-stock"),
+        },
+        {
           id: "stock",
           label: "Stock + batches",
           description: "FEFO check + near-expiry, dead-stock.",
@@ -95,7 +103,11 @@ function PharmacyScreen(): ReactNode {
   return (
     <ModuleRouter
       initial="home"
-      screens={{ home: <PharmacyHome />, orders: <PharmacyOrdersScreen /> }}
+      screens={{
+        home: <PharmacyHome />,
+        orders: <PharmacyOrdersScreen />,
+        "scan-stock": <ScanStockScreen />,
+      }}
     />
   );
 }
