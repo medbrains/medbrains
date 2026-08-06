@@ -63,5 +63,10 @@
   "tokenConsole.counter": "Counter / room",
   "tokenConsole.counterPlaceholder": "e.g. Counter 2",
   "tokenConsole.callNext": "Call next",
-  "tokenConsole.empty": "No tokens in the queue"
+  "tokenConsole.empty": "No tokens in the queue",
+  "tokenBoards.wait.label": "Approximate wait now",
+  "tokenBoards.wait.minutes": "About {{count}} min",
+  "tokenBoards.wait.next": "You are next",
+  "tokenBoards.wait.ahead": "{{count}} waiting ahead",
+  "tokenBoards.wait.pace": "~{{minutes}} min per consultation"
 }

@@ -31,6 +31,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
 import { Badge, type BadgeTone, Button } from "@/components/ui";
 import type { DisplayToken, TokenBoardRouteDisplayMode } from "../front-office-token-boards";
+import { BoardWaitEstimate } from "./board-wait-estimate";
 import {
   BILLING_BOARD,
   EMERGENCY_BOARD,
@@ -648,6 +649,9 @@ export function TokenBoardsTab({
         </Card>
       ) : (
         <>
+          {activeSurface === "opd" && canViewOpdQueue && (
+            <BoardWaitEstimate isKiosk={isKioskDisplay} />
+          )}
           {!isKioskDisplay && (
             <Group gap="xs" wrap="wrap">
               <Button
