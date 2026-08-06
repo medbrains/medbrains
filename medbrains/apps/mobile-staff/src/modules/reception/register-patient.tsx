@@ -19,12 +19,12 @@ import type {
   SetupUser,
   TerminologySearchResult,
 } from "@medbrains/types";
-import { Card, COLORS, MobileTextField, SPACING } from "@medbrains/ui-mobile";
+import { Card, COLORS, FormScrollView, MobileTextField, SPACING } from "@medbrains/ui-mobile";
 import type { ComponentProps, ReactNode } from "react";
 import { useMemo, useState } from "react";
 import type { Control, FieldPath, FieldPathValue } from "react-hook-form";
 import { Controller, useForm } from "react-hook-form";
-import { ScrollView, View } from "react-native";
+import { View } from "react-native";
 import { Button, HelperText, Menu, SegmentedButtons, Text } from "react-native-paper";
 import type { CreatePatientPayload } from "../../api/patients.js";
 import { createPatient } from "../../api/patients.js";
@@ -247,7 +247,7 @@ export function RegisterPatientScreen(): ReactNode {
         title="Register patient"
         description="OPD, referral and camp registration with department, consultant and safety context."
       />
-      <ScrollView contentContainerStyle={{ padding: SPACING.md, gap: SPACING.sm }}>
+      <FormScrollView>
         <Card eyebrow="Identity" title="Patient">
           <View style={{ gap: SPACING.sm }}>
             <FormTextField control={control} name="first_name" label="First name" required />
@@ -554,7 +554,7 @@ export function RegisterPatientScreen(): ReactNode {
         <Button mode="outlined" onPress={router.pop} disabled={busy}>
           Cancel
         </Button>
-      </ScrollView>
+      </FormScrollView>
     </View>
   );
 }

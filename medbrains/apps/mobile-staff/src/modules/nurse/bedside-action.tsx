@@ -3,10 +3,17 @@
  * the nurse module so each write stays patient/admission-scoped.
  */
 
-import { Badge, Card, COLORS, MobileTextField, SPACING } from "@medbrains/ui-mobile";
+import {
+  Badge,
+  Card,
+  COLORS,
+  FormScrollView,
+  MobileTextField,
+  SPACING,
+} from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
-import { ScrollView, View } from "react-native";
+import { View } from "react-native";
 import { Button, Text } from "react-native-paper";
 import type { AdmissionRow } from "../../api/ipd.js";
 import {
@@ -96,7 +103,7 @@ export function BedsideActionScreen({ admission, mode }: BedsideActionScreenProp
         description={`${admission.patient_name} · UHID ${admission.uhid}`}
         trailing={<Badge label={spec.badge} tone={spec.tone} />}
       />
-      <ScrollView contentContainerStyle={{ padding: SPACING.md, gap: SPACING.sm }}>
+      <FormScrollView>
         <Card
           eyebrow="CONTEXT"
           title={admission.bed_label ?? "Active admission"}
@@ -259,7 +266,7 @@ export function BedsideActionScreen({ admission, mode }: BedsideActionScreenProp
         <Button mode="contained" loading={busy} disabled={busy} onPress={submit}>
           Save
         </Button>
-      </ScrollView>
+      </FormScrollView>
     </View>
   );
 }

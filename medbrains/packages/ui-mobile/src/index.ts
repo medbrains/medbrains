@@ -15,6 +15,8 @@ export type { EcgLoaderProps } from "./components/ecg-loader.js";
 export { EcgLoader } from "./components/ecg-loader.js";
 export type { EmptyProps } from "./components/empty.js";
 export { Empty } from "./components/empty.js";
+export type { FormScrollViewProps } from "./components/form-scroll-view.js";
+export { FormScrollView } from "./components/form-scroll-view.js";
 export type { MobileTextFieldProps } from "./components/mobile-text-field.js";
 export { MobileTextField } from "./components/mobile-text-field.js";
 export type { WorkflowSignalMarkerProps } from "./components/workflow-signal-marker.js";
