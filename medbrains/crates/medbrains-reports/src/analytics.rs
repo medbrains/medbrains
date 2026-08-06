@@ -9,7 +9,7 @@ use medbrains_core::analytics::{
     BedOccupancyRow, CapaAgingRow, ClinicalIndicatorRow, CredentialExpiryRow, DateRangeQuery,
     DeptRevenueRow, DischargeSummaryCompletionRow, DoctorRevenueRow, ErVolumeRow, ExportQuery,
     HaiRateRow, HandHygieneComplianceRow, IpdCensusRow, LabCriticalValueComplianceRow, LabTatRow,
-    OpdFootfallRow, OpdQueueWaitRow, OtUtilizationRow, PharmacySalesRow,
+    OpdFootfallRow, OpdQueueWaitRow, OtUtilizationRow, PharmacySalesRow, ReadmissionRow,
 };
 use medbrains_core::permissions;
 use serde::Serialize;
@@ -680,6 +680,83 @@ pub async fn hand_hygiene_compliance(
            AND a.audit_date::date >= $2::date AND a.audit_date::date <= $3::date \
          GROUP BY month, staff_category \
          ORDER BY month, staff_category LIMIT 5000",
+    )
+    .bind(claims.tenant_id)
+    .bind(&from)
+    .bind(&to)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+// ── 9i. Readmission Watch ──────────────────────────────────
+/// 7- and 30-day readmission, measured from the index discharge.
+///
+/// Three choices decide whether this number is honest:
+///
+/// Deaths are excluded from the denominator. A patient who died cannot be
+/// readmitted, so leaving them in makes the rate fall as mortality rises.
+/// The count is still reported, so the exclusion is visible rather than a
+/// silent thumb on the scale.
+///
+/// The month is the month of the *index discharge*, not of the readmission.
+/// Keying on the return date would attribute a failure to whichever month
+/// happened to receive the patient.
+///
+/// A readmission is any later admission for the same patient inside the window.
+/// `EXISTS` rather than a join, so a patient who bounced back three times is
+/// one readmitted discharge, not three — otherwise a handful of revolving-door
+/// patients could push the rate above 100%.
+pub async fn readmission_watch(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<DateRangeQuery>,
+) -> Result<Json<Vec<ReadmissionRow>>, AppError> {
+    require_permission(&claims, permissions::analytics::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (from, to) = default_range(&params);
+    let rows = sqlx::query_as::<_, ReadmissionRow>(
+        "SELECT date_trunc('month', a.discharged_at)::date AS month, \
+                COUNT(*) FILTER (WHERE NOT died)::bigint AS eligible_discharges, \
+                COUNT(*) FILTER (WHERE died)::bigint AS deaths_excluded, \
+                COUNT(*) FILTER (WHERE NOT died AND back_within_7)::bigint \
+                  AS readmitted_within_7_days, \
+                COUNT(*) FILTER (WHERE NOT died AND back_within_30)::bigint \
+                  AS readmitted_within_30_days, \
+                CASE WHEN COUNT(*) FILTER (WHERE NOT died) > 0 \
+                     THEN (COUNT(*) FILTER (WHERE NOT died AND back_within_30) * 100.0) \
+                          / COUNT(*) FILTER (WHERE NOT died) \
+                     ELSE NULL \
+                END::double precision AS readmission_rate_30_day_percent \
+         FROM ( \
+             SELECT a.discharged_at, \
+                    a.discharge_type::text IN ('death', 'deceased') AS died, \
+                    EXISTS ( \
+                      SELECT 1 FROM admissions r \
+                       WHERE r.tenant_id = a.tenant_id \
+                         AND r.patient_id = a.patient_id \
+                         AND r.id <> a.id \
+                         AND r.admitted_at > a.discharged_at \
+                         AND r.admitted_at <= a.discharged_at + INTERVAL '7 days' \
+                    ) AS back_within_7, \
+                    EXISTS ( \
+                      SELECT 1 FROM admissions r \
+                       WHERE r.tenant_id = a.tenant_id \
+                         AND r.patient_id = a.patient_id \
+                         AND r.id <> a.id \
+                         AND r.admitted_at > a.discharged_at \
+                         AND r.admitted_at <= a.discharged_at + INTERVAL '30 days' \
+                    ) AS back_within_30 \
+               FROM admissions a \
+              WHERE a.tenant_id = $1 \
+                AND a.discharged_at IS NOT NULL \
+                AND a.discharged_at::date >= $2::date \
+                AND a.discharged_at::date <= $3::date \
+         ) a \
+         GROUP BY month \
+         ORDER BY month LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(&from)

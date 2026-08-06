@@ -48,6 +48,7 @@ enum ReportDataKind {
     DischargeSummaryCompletion,
     HaiRate,
     HandHygieneCompliance,
+    ReadmissionWatch,
     BedOccupancy,
     LabTat,
     SchedulingNoShow,
@@ -729,14 +730,14 @@ fn catalog_seed() -> Vec<ReportFamilySeed> {
                     &["admissions", "discharge_milestones", "encounters"],
                     &[permissions::ipd::reports::VIEW],
                     ReportPriority::P1,
-                    ReportReadiness::QueryBuildable,
+                    ReportReadiness::LiveApi,
                     &["funnel", "line"],
                     "funnel",
                     "Daily",
                     GOVERNED_EXPORTS,
                     ReportExportMode::Governed,
                     &["specialty", "consultant", "payer", "discharge reason"],
-                    ReportDataKind::NotWired,
+                    ReportDataKind::ReadmissionWatch,
                 ),
             ],
         ),
@@ -2161,6 +2162,11 @@ pub async fn data(
                 analytics::hand_hygiene_compliance(State(state), Extension(claims), Query(range))
                     .await?;
             live_response(&report_id, "analytics.infection.hand_hygiene", rows)
+        }
+        ReportDataKind::ReadmissionWatch => {
+            let Json(rows) =
+                analytics::readmission_watch(State(state), Extension(claims), Query(range)).await?;
+            live_response(&report_id, "analytics.ipd.readmission", rows)
         }
         ReportDataKind::BedOccupancy => {
             let Json(rows) = analytics::bed_occupancy(State(state), Extension(claims)).await?;

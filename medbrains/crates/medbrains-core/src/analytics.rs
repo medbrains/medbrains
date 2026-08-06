@@ -278,6 +278,30 @@ pub struct HandHygieneComplianceRow {
     pub compliance_percent: Option<f64>,
 }
 
+/// Readmission watch, one row per month of index discharge.
+///
+/// Deaths are excluded from the denominator. A patient who died cannot be
+/// readmitted, so counting them as an eligible discharge makes the rate fall as
+/// mortality rises — the hospital looks better the more patients it loses. CMS
+/// and every serious readmission measure exclude them for that reason.
+///
+/// Rows are keyed by the month of the *index discharge*, not of the
+/// readmission. Attributing a readmission to the month the patient came back
+/// would smear responsibility onto whichever month happened to receive them and
+/// would let a deteriorating ward look flat.
+#[derive(Debug, Serialize, FromRow)]
+pub struct ReadmissionRow {
+    pub month: NaiveDate,
+    /// Live discharges — the population that could come back.
+    pub eligible_discharges: i64,
+    /// Deaths, reported so the exclusion is visible rather than silent.
+    pub deaths_excluded: i64,
+    pub readmitted_within_7_days: i64,
+    pub readmitted_within_30_days: i64,
+    /// `None` when nothing was discharged that month.
+    pub readmission_rate_30_day_percent: Option<f64>,
+}
+
 // ── Bed Occupancy ─────────────────────────────────────────
 
 #[derive(Debug, Serialize, FromRow)]
