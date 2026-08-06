@@ -24,7 +24,7 @@ use medbrains_server_core::{
 };
 
 // Shared with the cash-closing path that produces the figures this reports on.
-use crate::PaymentModeTotal;
+use crate::cash_closing::PaymentModeTotal;
 
 // ══════════════════════════════════════════════════════════
 //  Revenue Reports
