@@ -44,6 +44,7 @@ enum ReportDataKind {
     OpdQueueWait,
     LabCriticalValueCompliance,
     CredentialExpiry,
+    CapaAging,
     BedOccupancy,
     LabTat,
     SchedulingNoShow,
@@ -1175,14 +1176,14 @@ fn catalog_seed() -> Vec<ReportFamilySeed> {
                         permissions::quality::audits::LIST,
                     ],
                     ReportPriority::P1,
-                    ReportReadiness::QueryBuildable,
+                    ReportReadiness::LiveApi,
                     &["funnel", "boxplot"],
                     "funnel",
                     "Daily / weekly",
                     GOVERNED_EXPORTS,
                     ReportExportMode::Governed,
                     &["chapter", "owner", "department", "severity"],
-                    ReportDataKind::NotWired,
+                    ReportDataKind::CapaAging,
                 ),
                 report(
                     "quality-feedback-complaints-prem-prom",
@@ -2133,6 +2134,10 @@ pub async fn data(
         ReportDataKind::CredentialExpiry => {
             let Json(rows) = analytics::credential_expiry(State(state), Extension(claims)).await?;
             live_response(&report_id, "analytics.hr.credential_expiry", rows)
+        }
+        ReportDataKind::CapaAging => {
+            let Json(rows) = analytics::capa_aging(State(state), Extension(claims)).await?;
+            live_response(&report_id, "analytics.quality.capa_aging", rows)
         }
         ReportDataKind::BedOccupancy => {
             let Json(rows) = analytics::bed_occupancy(State(state), Extension(claims)).await?;

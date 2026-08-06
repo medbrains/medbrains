@@ -6,9 +6,10 @@ use axum::{
     response::IntoResponse,
 };
 use medbrains_core::analytics::{
-    BedOccupancyRow, ClinicalIndicatorRow, CredentialExpiryRow, DateRangeQuery, DeptRevenueRow,
-    DoctorRevenueRow, ErVolumeRow, ExportQuery, IpdCensusRow, LabCriticalValueComplianceRow,
-    LabTatRow, OpdFootfallRow, OpdQueueWaitRow, OtUtilizationRow, PharmacySalesRow,
+    BedOccupancyRow, CapaAgingRow, ClinicalIndicatorRow, CredentialExpiryRow, DateRangeQuery,
+    DeptRevenueRow, DoctorRevenueRow, ErVolumeRow, ExportQuery, IpdCensusRow,
+    LabCriticalValueComplianceRow, LabTatRow, OpdFootfallRow, OpdQueueWaitRow, OtUtilizationRow,
+    PharmacySalesRow,
 };
 use medbrains_core::permissions;
 use serde::Serialize;
@@ -437,6 +438,64 @@ pub async fn credential_expiry(
            AND c.status NOT IN ('revoked'::credential_status, 'suspended'::credential_status) \
          GROUP BY c.credential_type \
          ORDER BY expired DESC, credential_type LIMIT 5000",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+// ── 9e. CAPA Aging ─────────────────────────────────────────
+/// Corrective actions that are late, and ones closed without being checked.
+///
+/// Overdue is computed from `due_date` and `completed_at`, not from the status
+/// column — the same reason as credential expiry. A CAPA whose status still
+/// reads `in_progress` a month after its due date is overdue whatever the
+/// column says, and an audit will treat it that way.
+///
+/// `completed_unverified` is deliberately its own count rather than folded into
+/// closed. NABH separates completion from effectiveness verification because an
+/// action nobody checked is a promise, not a fix, and reporting them together
+/// would let a hospital close its CAPA log without improving anything.
+///
+/// Days-to-verify is measured only over CAPAs that actually reached
+/// verification. Including the unverified ones as zero would make a backlog of
+/// unchecked actions look like fast closure.
+pub async fn capa_aging(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<CapaAgingRow>>, AppError> {
+    require_permission(&claims, permissions::analytics::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, CapaAgingRow>(
+        "SELECT COALESCE(c.capa_type, 'unspecified') AS capa_type, \
+                COUNT(*)::bigint AS total_capas, \
+                COUNT(*) FILTER ( \
+                  WHERE c.completed_at IS NULL \
+                    AND c.due_date IS NOT NULL \
+                    AND c.due_date < CURRENT_DATE \
+                )::bigint AS overdue, \
+                COUNT(*) FILTER ( \
+                  WHERE c.completed_at IS NULL \
+                    AND (c.due_date IS NULL OR c.due_date >= CURRENT_DATE) \
+                )::bigint AS open_on_time, \
+                COUNT(*) FILTER ( \
+                  WHERE c.completed_at IS NOT NULL AND c.verified_at IS NULL \
+                )::bigint AS completed_unverified, \
+                COUNT(*) FILTER (WHERE c.verified_at IS NOT NULL)::bigint AS verified, \
+                COALESCE(percentile_cont(0.5) WITHIN GROUP ( \
+                  ORDER BY EXTRACT(EPOCH FROM (c.verified_at - c.created_at)) / 86400.0), 0) \
+                  AS median_days_to_verify, \
+                MAX(CURRENT_DATE - c.due_date) FILTER ( \
+                  WHERE c.completed_at IS NULL AND c.due_date < CURRENT_DATE \
+                )::bigint AS max_days_overdue \
+         FROM quality_capa c \
+         WHERE c.tenant_id = $1 \
+           AND c.deleted_at IS NULL \
+         GROUP BY capa_type \
+         ORDER BY overdue DESC, capa_type LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

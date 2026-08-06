@@ -186,6 +186,31 @@ pub struct CredentialExpiryRow {
     pub days_to_next_expiry: Option<i64>,
 }
 
+/// CAPA closure aging, one row per corrective-action type.
+///
+/// A corrective action exists because something already went wrong. The number
+/// that matters is not how many were raised but how many are still open past
+/// their due date, and how many were marked done without anyone checking they
+/// worked.
+///
+/// NABH treats effectiveness verification as a separate step from completion
+/// for exactly that reason: an action nobody verified is a promise, not a fix.
+#[derive(Debug, Serialize, FromRow)]
+pub struct CapaAgingRow {
+    pub capa_type: String,
+    pub total_capas: i64,
+    /// Past the due date with nothing recorded as done.
+    pub overdue: i64,
+    pub open_on_time: i64,
+    /// Completed but never verified — closed on paper only.
+    pub completed_unverified: i64,
+    pub verified: i64,
+    /// Median days from raised to verified, over the ones that got there.
+    pub median_days_to_verify: f64,
+    /// How far past due the worst still-open action is.
+    pub max_days_overdue: Option<i64>,
+}
+
 // ── Bed Occupancy ─────────────────────────────────────────
 
 #[derive(Debug, Serialize, FromRow)]
