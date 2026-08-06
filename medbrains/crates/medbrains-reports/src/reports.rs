@@ -45,6 +45,7 @@ enum ReportDataKind {
     LabCriticalValueCompliance,
     CredentialExpiry,
     CapaAging,
+    DischargeSummaryCompletion,
     BedOccupancy,
     LabTat,
     SchedulingNoShow,
@@ -1726,14 +1727,14 @@ fn catalog_seed() -> Vec<ReportFamilySeed> {
                     &["mrd_records", "admissions", "discharge_summaries"],
                     &[permissions::mrd::records::LIST],
                     ReportPriority::P1,
-                    ReportReadiness::QueryBuildable,
+                    ReportReadiness::LiveApi,
                     &["gauge", "boxplot"],
                     "gauge",
                     "Daily",
                     GOVERNED_EXPORTS,
                     ReportExportMode::Governed,
                     &["department", "consultant", "record type", "TAT bucket"],
-                    ReportDataKind::NotWired,
+                    ReportDataKind::DischargeSummaryCompletion,
                 ),
                 report(
                     "mrd-file-deficiency-matrix",
@@ -2138,6 +2139,15 @@ pub async fn data(
         ReportDataKind::CapaAging => {
             let Json(rows) = analytics::capa_aging(State(state), Extension(claims)).await?;
             live_response(&report_id, "analytics.quality.capa_aging", rows)
+        }
+        ReportDataKind::DischargeSummaryCompletion => {
+            let Json(rows) = analytics::discharge_summary_completion(
+                State(state),
+                Extension(claims),
+                Query(range),
+            )
+            .await?;
+            live_response(&report_id, "analytics.mrd.discharge_summary_completion", rows)
         }
         ReportDataKind::BedOccupancy => {
             let Json(rows) = analytics::bed_occupancy(State(state), Extension(claims)).await?;

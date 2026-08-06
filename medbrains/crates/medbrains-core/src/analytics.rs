@@ -211,6 +211,30 @@ pub struct CapaAgingRow {
     pub max_days_overdue: Option<i64>,
 }
 
+/// Discharge summary completion, one row per discharge date.
+///
+/// Counted from the discharges, never from the summaries. A discharge with no
+/// summary row at all is the failure this report exists to find, and it is
+/// invisible to any query that starts from the summary table — completion would
+/// read 100% precisely because the missing ones do not exist to be counted.
+///
+/// NABH expects the summary to go with the patient. Drafted but not finalised
+/// is counted apart from finalised for the same reason CAPA separates completed
+/// from verified: an unfinalised summary is not something a patient can take to
+/// their next doctor.
+#[derive(Debug, Serialize, FromRow)]
+pub struct DischargeSummaryCompletionRow {
+    pub discharge_date: NaiveDate,
+    pub discharges: i64,
+    pub finalized: i64,
+    pub draft_only: i64,
+    /// Discharged with nothing written at all.
+    pub missing: i64,
+    /// Finalised inside 24 hours of the patient leaving.
+    pub finalized_within_24h: i64,
+    pub median_hours_to_finalize: f64,
+}
+
 // ── Bed Occupancy ─────────────────────────────────────────
 
 #[derive(Debug, Serialize, FromRow)]

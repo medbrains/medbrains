@@ -7,9 +7,9 @@ use axum::{
 };
 use medbrains_core::analytics::{
     BedOccupancyRow, CapaAgingRow, ClinicalIndicatorRow, CredentialExpiryRow, DateRangeQuery,
-    DeptRevenueRow, DoctorRevenueRow, ErVolumeRow, ExportQuery, IpdCensusRow,
-    LabCriticalValueComplianceRow, LabTatRow, OpdFootfallRow, OpdQueueWaitRow, OtUtilizationRow,
-    PharmacySalesRow,
+    DeptRevenueRow, DischargeSummaryCompletionRow, DoctorRevenueRow, ErVolumeRow, ExportQuery,
+    IpdCensusRow, LabCriticalValueComplianceRow, LabTatRow, OpdFootfallRow, OpdQueueWaitRow,
+    OtUtilizationRow, PharmacySalesRow,
 };
 use medbrains_core::permissions;
 use serde::Serialize;
@@ -498,6 +498,59 @@ pub async fn capa_aging(
          ORDER BY overdue DESC, capa_type LIMIT 5000",
     )
     .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+// ── 9f. Discharge Summary Completion ───────────────────────
+/// Whether patients left with a summary, and how long it took to finalise.
+///
+/// The query starts from `admissions`, not from `ipd_discharge_summaries`, and
+/// that choice is the whole report. A discharge with no summary row has nothing
+/// to join to; starting from the summary side would silently drop it and report
+/// perfect completion for a ward that writes nothing. Only a LEFT JOIN from the
+/// discharges can count an absence.
+///
+/// Time-to-finalise is measured only over summaries that were finalised.
+/// Counting the missing ones as zero hours would reward never writing one.
+pub async fn discharge_summary_completion(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<DateRangeQuery>,
+) -> Result<Json<Vec<DischargeSummaryCompletionRow>>, AppError> {
+    require_permission(&claims, permissions::analytics::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (from, to) = default_range(&params);
+    let rows = sqlx::query_as::<_, DischargeSummaryCompletionRow>(
+        "SELECT a.discharged_at::date AS discharge_date, \
+                COUNT(*)::bigint AS discharges, \
+                COUNT(*) FILTER (WHERE s.finalized_at IS NOT NULL)::bigint AS finalized, \
+                COUNT(*) FILTER ( \
+                  WHERE s.id IS NOT NULL AND s.finalized_at IS NULL \
+                )::bigint AS draft_only, \
+                COUNT(*) FILTER (WHERE s.id IS NULL)::bigint AS missing, \
+                COUNT(*) FILTER ( \
+                  WHERE s.finalized_at IS NOT NULL \
+                    AND s.finalized_at <= a.discharged_at + INTERVAL '24 hours' \
+                )::bigint AS finalized_within_24h, \
+                COALESCE(percentile_cont(0.5) WITHIN GROUP ( \
+                  ORDER BY EXTRACT(EPOCH FROM (s.finalized_at - a.discharged_at)) / 3600.0), 0) \
+                  AS median_hours_to_finalize \
+         FROM admissions a \
+         LEFT JOIN ipd_discharge_summaries s \
+                ON s.admission_id = a.id AND s.deleted_at IS NULL \
+         WHERE a.tenant_id = $1 \
+           AND a.discharged_at IS NOT NULL \
+           AND a.discharged_at::date >= $2::date AND a.discharged_at::date <= $3::date \
+         GROUP BY discharge_date \
+         ORDER BY discharge_date LIMIT 5000",
+    )
+    .bind(claims.tenant_id)
+    .bind(&from)
+    .bind(&to)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
