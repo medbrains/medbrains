@@ -34,6 +34,9 @@ pub struct PharmacyCatalog {
     pub batch_tracking_required: bool,
     pub storage_conditions: Option<String>,
     pub black_box_warning: Option<String>,
+    /// GTIN/EAN-13 or other pack barcode identifying the product. Batch and
+    /// expiry are not encoded here — those live on the batch.
+    pub barcode: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

@@ -3097,6 +3097,8 @@ export interface PharmacyCatalog {
   batch_tracking_required: boolean;
   storage_conditions: string | null;
   black_box_warning: string | null;
+  /** GTIN/EAN-13 or other pack barcode. Batch and expiry live on the batch. */
+  barcode: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -3289,6 +3291,7 @@ export interface CreatePharmacyCatalogRequest {
   batch_tracking_required?: boolean;
   storage_conditions?: string;
   black_box_warning?: string;
+  barcode?: string;
 }
 
 export interface UpdatePharmacyCatalogRequest {
@@ -3316,6 +3319,7 @@ export interface UpdatePharmacyCatalogRequest {
   batch_tracking_required?: boolean;
   storage_conditions?: string;
   black_box_warning?: string;
+  barcode?: string;
 }
 
 export interface CreateStockTransactionRequest {

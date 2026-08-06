@@ -74,6 +74,7 @@ export function PharmacyCatalogTab({
     aware_category: undefined,
     inn_name: "",
     atc_code: "",
+    barcode: "",
     is_controlled: false,
   };
   const {
@@ -122,6 +123,7 @@ export function PharmacyCatalogTab({
       aware_category: values.aware_category,
       inn_name: optionalFormText(values.inn_name),
       atc_code: optionalFormText(values.atc_code),
+      barcode: optionalFormText(values.barcode),
       is_controlled: values.is_controlled || undefined,
     });
   };
@@ -298,6 +300,7 @@ export function PharmacyCatalogTab({
           "drug_schedule",
           "inn_name",
           "atc_code",
+          "barcode",
           "mrp",
         ]}
         onImport={(data) => pharmacyService.importPharmacyCatalog(data)}
@@ -448,6 +451,13 @@ export function PharmacyCatalogTab({
               {...register("atc_code")}
             />
           </Group>
+          <TextInput
+            label="Pack barcode"
+            placeholder="GTIN / EAN-13 printed on the pack"
+            description="Lets the pack be scanned instead of found by name. Batch and expiry stay on the batch."
+            error={errors.barcode?.message}
+            {...register("barcode")}
+          />
           <Controller
             control={control}
             name="is_controlled"

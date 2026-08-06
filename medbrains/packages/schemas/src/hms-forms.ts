@@ -1677,6 +1677,10 @@ export const pharmacyCatalogFormSchema = z.object({
   aware_category: awareCategoryFormSchema.optional(),
   inn_name: z.string(),
   atc_code: z.string(),
+  // Pack barcode. Free text rather than an EAN-13 check: hospitals also use
+  // in-house labels and DataMatrix, and rejecting those would push staff back
+  // to typing the name.
+  barcode: z.string(),
   is_controlled: z.boolean(),
 });
 
