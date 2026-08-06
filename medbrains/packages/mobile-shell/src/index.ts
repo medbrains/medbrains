@@ -20,6 +20,7 @@ export * from "./nav/index.js";
 export * from "./notifications/index.js";
 export * from "./offline/index.js";
 export * from "./pairing/index.js";
+export * from "./scanner/index.js";
 export * from "./secret-store/index.js";
 export type { ShellProps } from "./shell.js";
 export { Shell } from "./shell.js";

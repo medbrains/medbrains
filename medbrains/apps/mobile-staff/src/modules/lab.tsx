@@ -22,6 +22,7 @@ import { EntityListScreen } from "../components/entity-list.js";
 import { EntityRow } from "../components/entity-row.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import { ScanSampleScreen } from "./lab/scan-sample.js";
 
 const STATUS_TONE: Record<string, IntentTone> = {
   ordered: "warn",
@@ -65,6 +66,13 @@ function LabHome(): ReactNode {
           description: "Delta-check vs prior + critical-value flag.",
           permission: P.LAB.RESULTS_CREATE,
           onPress: () => router.push("orders"),
+        },
+        {
+          id: "scan",
+          label: "Scan a specimen",
+          description: "Read the tube label instead of typing it.",
+          permission: P.LAB.ORDERS_LIST,
+          onPress: () => router.push("scan"),
         },
         {
           id: "phlebo",
@@ -245,6 +253,7 @@ function LabScreen(): ReactNode {
         phlebotomy: <PhlebotomyQueueScreen />,
         "critical-alerts": <CriticalAlertsScreen />,
         tat: <TatAnalyticsScreen />,
+        scan: <ScanSampleScreen />,
       }}
     />
   );
