@@ -277,7 +277,7 @@ export const REPORT_FAMILIES: readonly ReportFamily[] = [
         sourceTables: ["lab_critical_alerts", "lab_results", "comm_critical_alerts"],
         permissions: [P.LAB.REPORTS_VIEW],
         priority: "P1",
-        readiness: "query_buildable",
+        readiness: "live_api",
         chartTypes: ["funnel", "bullet bar"],
         visualKind: "funnel",
         refresh: "Near-real-time",

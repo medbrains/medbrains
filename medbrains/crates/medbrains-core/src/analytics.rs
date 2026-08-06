@@ -137,6 +137,30 @@ pub struct OpdQueueWaitRow {
     pub longest_wait_minutes: f64,
 }
 
+/// One day of critical-value handling in the lab.
+///
+/// A critical value is a result so far out of range that somebody has to be
+/// told now, and NABH judges the lab on whether that happened and how fast —
+/// not on whether the result was produced. So the counts here are all about
+/// what happened *after* the number existed: was a clinician told, did they
+/// acknowledge, was the value read back to confirm it was heard correctly, and
+/// did it have to be escalated because nobody answered.
+#[derive(Debug, Serialize, FromRow)]
+pub struct LabCriticalValueComplianceRow {
+    pub alert_date: NaiveDate,
+    pub critical_values: i64,
+    pub notified: i64,
+    pub acknowledged: i64,
+    /// Read-back is the control against a critical value being misheard on the
+    /// phone, which is why it is counted separately from acknowledgement.
+    pub readback_verified: i64,
+    pub escalated: i64,
+    /// The common NABH expectation is notification inside an hour.
+    pub notified_within_60_min: i64,
+    pub median_minutes_to_notify: f64,
+    pub p90_minutes_to_notify: f64,
+}
+
 // ── Bed Occupancy ─────────────────────────────────────────
 
 #[derive(Debug, Serialize, FromRow)]

@@ -1,15 +1,14 @@
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Query, State},
     http::{HeaderMap, HeaderValue, header},
     response::IntoResponse,
 };
-use axum::routing::{get};
 use medbrains_core::analytics::{
     BedOccupancyRow, ClinicalIndicatorRow, DateRangeQuery, DeptRevenueRow, DoctorRevenueRow,
-    ErVolumeRow, ExportQuery, IpdCensusRow, LabTatRow, OpdFootfallRow, OpdQueueWaitRow,
-    OtUtilizationRow,
-    PharmacySalesRow,
+    ErVolumeRow, ExportQuery, IpdCensusRow, LabCriticalValueComplianceRow, LabTatRow,
+    OpdFootfallRow, OpdQueueWaitRow, OtUtilizationRow, PharmacySalesRow,
 };
 use medbrains_core::permissions;
 use serde::Serialize;
@@ -346,6 +345,58 @@ pub async fn opd_queue_wait(
     Ok(Json(rows))
 }
 
+// ── 9c. Lab Critical Value Compliance ──────────────────────
+/// Whether critical results were actually communicated, and how fast.
+///
+/// The clock runs from when the alert was raised to when a clinician was
+/// notified — not to when the result was verified. A verified result nobody was
+/// told about is the failure this report exists to catch.
+///
+/// Unnotified alerts are counted but excluded from the timing percentiles: they
+/// have no elapsed time yet, and treating them as zero would make a lab that
+/// never picks up the phone look instantaneous.
+pub async fn lab_critical_value_compliance(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<DateRangeQuery>,
+) -> Result<Json<Vec<LabCriticalValueComplianceRow>>, AppError> {
+    require_permission(&claims, permissions::analytics::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (from, to) = default_range(&params);
+    let rows = sqlx::query_as::<_, LabCriticalValueComplianceRow>(
+        "SELECT a.created_at::date AS alert_date, \
+                COUNT(*)::bigint AS critical_values, \
+                COUNT(*) FILTER (WHERE a.notified_at IS NOT NULL)::bigint AS notified, \
+                COUNT(*) FILTER (WHERE a.acknowledged_at IS NOT NULL)::bigint AS acknowledged, \
+                COUNT(*) FILTER (WHERE a.readback_verified)::bigint AS readback_verified, \
+                COUNT(*) FILTER (WHERE a.escalated_at IS NOT NULL)::bigint AS escalated, \
+                COUNT(*) FILTER ( \
+                  WHERE a.notified_at IS NOT NULL \
+                    AND a.notified_at <= a.created_at + INTERVAL '60 minutes' \
+                )::bigint AS notified_within_60_min, \
+                COALESCE(percentile_cont(0.5) WITHIN GROUP ( \
+                  ORDER BY EXTRACT(EPOCH FROM (a.notified_at - a.created_at)) / 60.0), 0) \
+                  AS median_minutes_to_notify, \
+                COALESCE(percentile_cont(0.9) WITHIN GROUP ( \
+                  ORDER BY EXTRACT(EPOCH FROM (a.notified_at - a.created_at)) / 60.0), 0) \
+                  AS p90_minutes_to_notify \
+         FROM lab_critical_alerts a \
+         WHERE a.tenant_id = $1 \
+           AND a.deleted_at IS NULL \
+           AND a.created_at::date >= $2::date AND a.created_at::date <= $3::date \
+         GROUP BY alert_date \
+         ORDER BY alert_date LIMIT 5000",
+    )
+    .bind(claims.tenant_id)
+    .bind(&from)
+    .bind(&to)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
 // ── 10. Bed Occupancy ──────────────────────────────────────
 pub async fn bed_occupancy(
     State(state): State<AppState>,
@@ -444,48 +495,18 @@ pub async fn export_csv(
 /// analytics routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/analytics/revenue/department",
-            get(dept_revenue),
-        )
-        .route(
-            "/api/analytics/revenue/doctor",
-            get(doctor_revenue),
-        )
-        .route(
-            "/api/analytics/ipd/census",
-            get(ipd_census),
-        )
-        .route(
-            "/api/analytics/lab/tat",
-            get(lab_tat),
-        )
-        .route(
-            "/api/analytics/pharmacy/sales",
-            get(pharmacy_sales),
-        )
-        .route(
-            "/api/analytics/ot/utilization",
-            get(ot_utilization),
-        )
-        .route(
-            "/api/analytics/er/volume",
-            get(er_volume),
-        )
+        .route("/api/analytics/revenue/department", get(dept_revenue))
+        .route("/api/analytics/revenue/doctor", get(doctor_revenue))
+        .route("/api/analytics/ipd/census", get(ipd_census))
+        .route("/api/analytics/lab/tat", get(lab_tat))
+        .route("/api/analytics/pharmacy/sales", get(pharmacy_sales))
+        .route("/api/analytics/ot/utilization", get(ot_utilization))
+        .route("/api/analytics/er/volume", get(er_volume))
         .route(
             "/api/analytics/clinical/indicators",
             get(clinical_indicators),
         )
-        .route(
-            "/api/analytics/opd/footfall",
-            get(opd_footfall),
-        )
-        .route(
-            "/api/analytics/bed/occupancy",
-            get(bed_occupancy),
-        )
-        .route(
-            "/api/analytics/export",
-            get(export_csv),
-        )
+        .route("/api/analytics/opd/footfall", get(opd_footfall))
+        .route("/api/analytics/bed/occupancy", get(bed_occupancy))
+        .route("/api/analytics/export", get(export_csv))
 }

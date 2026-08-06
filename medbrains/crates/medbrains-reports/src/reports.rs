@@ -1,8 +1,8 @@
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::{get};
 use medbrains_core::{
     analytics::DateRangeQuery,
     clinical_events::ClinicalEventName,
@@ -16,12 +16,12 @@ use medbrains_core::{
 use serde::Serialize;
 use serde_json::Value;
 
-use medbrains_server_core::error::AppError;
-use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{is_bypass_role, require_any_permission};
 use crate::analytics;
 use crate::nabh_indicators;
 use medbrains_scheduling::scheduling;
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::{is_bypass_role, require_any_permission};
 use medbrains_server_core::state::AppState;
 
 const STANDARD_EXPORTS: &[ReportExportFormat] = &[
@@ -42,6 +42,7 @@ enum ReportDataKind {
     DeptRevenue,
     OpdFootfall,
     OpdQueueWait,
+    LabCriticalValueCompliance,
     BedOccupancy,
     LabTat,
     SchedulingNoShow,
@@ -769,14 +770,14 @@ fn catalog_seed() -> Vec<ReportFamilySeed> {
                         permissions::quality::indicators::LIST,
                     ],
                     ReportPriority::P1,
-                    ReportReadiness::QueryBuildable,
+                    ReportReadiness::LiveApi,
                     &["funnel", "bullet bar"],
                     "funnel",
                     "15 min / hourly",
                     GOVERNED_EXPORTS,
                     ReportExportMode::Governed,
                     &["test", "shift", "ward", "ordering doctor"],
-                    ReportDataKind::NotWired,
+                    ReportDataKind::LabCriticalValueCompliance,
                 ),
                 report(
                     "lab-sample-rejection-recollection",
@@ -2121,6 +2122,12 @@ pub async fn data(
             let Json(rows) =
                 analytics::opd_queue_wait(State(state), Extension(claims), Query(range)).await?;
             live_response(&report_id, "analytics.opd.queue_wait", rows)
+        }
+        ReportDataKind::LabCriticalValueCompliance => {
+            let Json(rows) =
+                analytics::lab_critical_value_compliance(State(state), Extension(claims), Query(range))
+                    .await?;
+            live_response(&report_id, "analytics.lab.critical_value_compliance", rows)
         }
         ReportDataKind::BedOccupancy => {
             let Json(rows) = analytics::bed_occupancy(State(state), Extension(claims)).await?;
