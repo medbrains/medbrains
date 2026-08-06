@@ -3897,10 +3897,12 @@ async fn apply_camp_sync_event(
                 "INSERT INTO camp_registrations \
                  (id, tenant_id, camp_id, registration_number, person_name, age, gender, phone, \
                   address, id_proof_type, id_proof_number, patient_id, chief_complaint, \
-                  is_walk_in, registered_by) \
+                  is_walk_in, registered_by, \
+                  father_spouse_name, marital_status, blood_group, insurance_details) \
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, \
                          $9, $10, $11, $12, $13, \
-                         COALESCE($14, true), $15) \
+                         COALESCE($14, true), $15, \
+                         $16, $17, $18, $19) \
                  RETURNING id",
             )
             .bind(entity_id)
@@ -3918,6 +3920,10 @@ async fn apply_camp_sync_event(
             .bind(&body.chief_complaint)
             .bind(body.is_walk_in)
             .bind(claims.sub)
+            .bind(&body.father_spouse_name)
+            .bind(&body.marital_status)
+            .bind(&body.blood_group)
+            .bind(&body.insurance_details)
             .fetch_one(&mut **tx)
             .await?;
 
@@ -3969,11 +3975,21 @@ async fn apply_camp_sync_event(
                  (id, tenant_id, registration_id, bp_systolic, bp_diastolic, pulse_rate, spo2, \
                   temperature, blood_sugar_random, bmi, height_cm, weight_kg, \
                   visual_acuity_left, visual_acuity_right, findings, diagnosis, advice, \
-                  referred_to_hospital, referral_department, referral_urgency, screened_by) \
+                  referred_to_hospital, referral_department, referral_urgency, screened_by, \
+                  mh_diabetes, mh_hypertension, mh_asthma, mh_heart_disease, mh_thyroid_disorder, \
+                  mh_previous_surgeries, mh_allergies, mh_smoking_history, mh_alcohol_use, \
+                  mh_family_history, mh_others, medical_history_notes, \
+                  test_hba1c, test_haemoglobin, test_thyroid, test_ecg, test_xray, test_bmd, \
+                  test_biothesiometry, referral_doctor_name, icd_codes) \
                  VALUES ($1, $2, $3, $4, $5, $6, $7, \
                          $8, $9, $10, $11, $12, \
                          $13, $14, $15, $16, $17, \
-                         COALESCE($18, false), $19, $20, $21) \
+                         COALESCE($18, false), $19, $20, $21, \
+                         $22, $23, $24, $25, $26, \
+                         $27, $28, $29, $30, \
+                         $31, $32, $33, \
+                         $34, $35, $36, $37, $38, $39, \
+                         $40, $41, $42) \
                  RETURNING id",
             )
             .bind(entity_id)
@@ -3997,6 +4013,27 @@ async fn apply_camp_sync_event(
             .bind(body.referral_department)
             .bind(body.referral_urgency)
             .bind(claims.sub)
+            .bind(body.mh_diabetes)
+            .bind(body.mh_hypertension)
+            .bind(body.mh_asthma)
+            .bind(body.mh_heart_disease)
+            .bind(body.mh_thyroid_disorder)
+            .bind(body.mh_previous_surgeries)
+            .bind(body.mh_allergies)
+            .bind(body.mh_smoking_history)
+            .bind(body.mh_alcohol_use)
+            .bind(body.mh_family_history)
+            .bind(body.mh_others)
+            .bind(&body.medical_history_notes)
+            .bind(body.test_hba1c)
+            .bind(body.test_haemoglobin)
+            .bind(body.test_thyroid)
+            .bind(&body.test_ecg)
+            .bind(&body.test_xray)
+            .bind(&body.test_bmd)
+            .bind(&body.test_biothesiometry)
+            .bind(&body.referral_doctor_name)
+            .bind(body.icd_codes.as_deref())
             .fetch_one(&mut **tx)
             .await?;
 
