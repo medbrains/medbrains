@@ -12,6 +12,7 @@ import { EntityListScreen } from "../components/entity-list.js";
 import { EntityRow } from "../components/entity-row.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import { ReportIncidentScreen } from "./security/report-incident.js";
 
 const STATUS_TONE: Record<string, IntentTone> = {
   open: "warn",
@@ -47,6 +48,7 @@ function SecurityHome(): ReactNode {
           label: "Log new incident",
           description: "Time, place, parties, action taken.",
           permission: P.SECURITY.INCIDENTS_CREATE,
+          onPress: () => router.push("report"),
         },
         {
           id: "patient-safety",
@@ -96,7 +98,11 @@ function SecurityScreen(): ReactNode {
   return (
     <ModuleRouter
       initial="home"
-      screens={{ home: <SecurityHome />, incidents: <IncidentsScreen /> }}
+      screens={{
+        home: <SecurityHome />,
+        incidents: <IncidentsScreen />,
+        report: <ReportIncidentScreen onReported={() => undefined} />,
+      }}
     />
   );
 }
