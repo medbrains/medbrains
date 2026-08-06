@@ -22,3 +22,18 @@ export async function listWorkOrders(status?: string): Promise<WorkOrderRow[]> {
   const qs = status ? `?status=${encodeURIComponent(status)}` : "";
   return request<WorkOrderRow[]>(apiConfig, "GET", `/api/facilities/work-orders${qs}`);
 }
+
+export interface RaiseWorkOrderInput {
+  description: string;
+  priority?: string;
+  category?: string;
+  notes?: string;
+}
+
+/**
+ * Raised by whoever found the fault, which is rarely a maintenance engineer.
+ * The server assigns the number and the reporter from the token.
+ */
+export async function raiseWorkOrder(input: RaiseWorkOrderInput): Promise<WorkOrderRow> {
+  return request<WorkOrderRow>(apiConfig, "POST", "/api/facilities/work-orders", input);
+}

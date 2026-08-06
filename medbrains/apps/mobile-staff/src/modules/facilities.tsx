@@ -12,6 +12,7 @@ import { EntityListScreen } from "../components/entity-list.js";
 import { EntityRow } from "../components/entity-row.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import { RaiseWorkOrderScreen } from "./facilities/raise-work-order.js";
 
 const STATUS_TONE: Record<string, IntentTone> = {
   open: "warn",
@@ -52,6 +53,7 @@ function FacilitiesHome(): ReactNode {
           label: "Create work order",
           description: "Site, asset, urgency, assignee.",
           permission: P.FACILITIES.WORK_ORDERS_CREATE,
+          onPress: () => router.push("raise"),
         },
         {
           id: "gas",
@@ -100,7 +102,11 @@ function FacilitiesScreen(): ReactNode {
   return (
     <ModuleRouter
       initial="home"
-      screens={{ home: <FacilitiesHome />, "work-orders": <WorkOrdersScreen /> }}
+      screens={{
+        home: <FacilitiesHome />,
+        "work-orders": <WorkOrdersScreen />,
+        raise: <RaiseWorkOrderScreen />,
+      }}
     />
   );
 }
