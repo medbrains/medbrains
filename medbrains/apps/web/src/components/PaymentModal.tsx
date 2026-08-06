@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Alert,
   Badge,
+  Box,
   Button,
   Divider,
   Group,
@@ -27,9 +28,9 @@ import {
   IconQrcode,
 } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Image } from "@/components/ui";
 import { paymentsService } from "@/services/payments.service";
 import { VirtualAccountPanel } from "./VirtualAccountPanel";
 
@@ -547,7 +548,19 @@ function paymentAmountText(
   );
 }
 
-/** UPI QR code display using Google Charts API. Replace with `qrcode.react` in production. */
+/**
+ * UPI QR, rendered locally.
+ *
+ * This used to be an `<img>` pointed at `chart.googleapis.com`. Three things
+ * were wrong with that. The UPI string carries the payee VPA, the amount and
+ * the transaction reference, so every payment a hospital took was handed to a
+ * third party. The Charts image API is turned down, so the cashier could be
+ * holding out a blank square to a patient who is trying to pay. And it needed
+ * internet egress from the payment counter, which plenty of hospital networks
+ * do not give.
+ *
+ * `qrcode.react` was already a dependency — the prescription print uses it.
+ */
 function QrCodeDisplay({ value }: { value: string }) {
   return (
     <Stack
@@ -561,7 +574,7 @@ function QrCodeDisplay({ value }: { value: string }) {
         width: "100%",
       }}
     >
-      <div
+      <Box
         style={{
           width: 200,
           height: 200,
@@ -573,15 +586,16 @@ function QrCodeDisplay({ value }: { value: string }) {
           border: "1px solid var(--mantine-color-gray-3)",
         }}
       >
-        <Image
-          src={`https://chart.googleapis.com/chart?cht=qr&chs=180x180&chl=${encodeURIComponent(value)}`}
-          alt="UPI QR Code"
-          w={180}
-          h={180}
-          fit="contain"
-          radius={4}
+        <QRCodeSVG
+          value={value}
+          size={180}
+          // A counter QR gets scanned at an angle, in bad light, off a screen
+          // with fingerprints on it. Level M leaves room to still decode.
+          level="M"
+          role="img"
+          aria-label="UPI payment QR code"
         />
-      </div>
+      </Box>
       <TextInput
         value={value}
         readOnly
