@@ -22,6 +22,7 @@ import { COLORS, INTENT_BG, INTENT_FG, OVERSCAN, SPACING } from "@medbrains/ui-m
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import { Text } from "react-native-paper";
+import { TvErrorBoundary } from "./tv-error-boundary.js";
 import { TV_TEXT, tvText } from "./tv-i18n.js";
 
 export interface TvReadinessItem {
@@ -98,7 +99,13 @@ export function TvBoard({
       {privacyNotice && <TvPrivacyNotice label={privacyNotice} />}
       {/* Takes the rest of the screen, so a board fills it rather than
           spilling past the bottom edge. */}
-      <View style={{ flex: 1 }}>{children}</View>
+      <View style={{ flex: 1 }}>
+        {/*
+          Inside the board, not around it: the eyebrow and title survive a
+          crash, so the room still knows which screen it is looking at.
+        */}
+        <TvErrorBoundary boardName={title}>{children}</TvErrorBoundary>
+      </View>
     </View>
   );
 }

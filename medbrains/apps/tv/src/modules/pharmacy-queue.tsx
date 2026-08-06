@@ -107,7 +107,11 @@ function PharmacyQueueScreen() {
           <ActivityIndicator size="large" color={COLORS.emerald} />
           <Text style={styles.loadingText}>{tvTokenBoardLoadingLabel(PHARMACY_BOARD.id)}</Text>
         </View>
-      ) : queueQuery.isError ? (
+      ) : queueQuery.isError && !queueQuery.data ? (
+        // Only when there is nothing to show at all. A board that has ever
+        // loaded keeps its last known list up: a slightly stale queue is far
+        // more use to a waiting room than an error page, and the banner above
+        // already says the feed has gone quiet.
         <View style={styles.centerPanel}>
           <Text style={styles.errorTitle}>{tvTokenBoardUnavailableTitle(PHARMACY_BOARD.id)}</Text>
           <Text style={styles.errorText}>{tvTokenBoardUnavailableMessage(PHARMACY_BOARD.id)}</Text>
