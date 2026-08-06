@@ -52,6 +52,7 @@ enum ReportDataKind {
     OtCancellations,
     SampleRejections,
     RadiologyTat,
+    StockAtRisk,
     BedOccupancy,
     LabTat,
     SchedulingNoShow,
@@ -933,14 +934,14 @@ fn catalog_seed() -> Vec<ReportFamilySeed> {
                     &["pharmacy_batches", "stock_transactions", "purchase_orders"],
                     &[permissions::pharmacy::analytics::VIEW],
                     ReportPriority::P1,
-                    ReportReadiness::QueryBuildable,
+                    ReportReadiness::LiveApi,
                     &["heatmap", "treemap"],
                     "treemap",
                     "15 min / hourly",
                     STANDARD_EXPORTS,
                     ReportExportMode::Standard,
                     &["store", "SKU", "category", "vendor", "ABC/VED"],
-                    ReportDataKind::NotWired,
+                    ReportDataKind::StockAtRisk,
                 ),
                 report(
                     "pharmacy-ndps-high-risk-compliance",
@@ -2185,6 +2186,10 @@ pub async fn data(
             let Json(rows) =
                 analytics::radiology_tat(State(state), Extension(claims), Query(range)).await?;
             live_response(&report_id, "analytics.radiology.tat_backlog", rows)
+        }
+        ReportDataKind::StockAtRisk => {
+            let Json(rows) = analytics::stock_at_risk(State(state), Extension(claims)).await?;
+            live_response(&report_id, "analytics.pharmacy.stock_at_risk", rows)
         }
         ReportDataKind::BedOccupancy => {
             let Json(rows) = analytics::bed_occupancy(State(state), Extension(claims)).await?;

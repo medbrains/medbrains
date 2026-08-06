@@ -10,7 +10,7 @@ use medbrains_core::analytics::{
     DeptRevenueRow, DischargeSummaryCompletionRow, DoctorRevenueRow, ErVolumeRow, ExportQuery,
     HaiRateRow, HandHygieneComplianceRow, IpdCensusRow, LabCriticalValueComplianceRow, LabTatRow,
     OpdFootfallRow, OpdQueueWaitRow, OtCancellationRow, OtUtilizationRow, PharmacySalesRow,
-    RadiologyTatRow, ReadmissionRow, SampleRejectionRow,
+    RadiologyTatRow, ReadmissionRow, SampleRejectionRow, StockAtRiskRow,
 };
 use medbrains_core::permissions;
 use serde::Serialize;
@@ -946,6 +946,65 @@ pub async fn radiology_tat(
     .bind(claims.tenant_id)
     .bind(&from)
     .bind(&to)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+// ── 9m. Stock at Risk ──────────────────────────────────────
+/// Stockout and expiry exposure, counted in dispensable units.
+///
+/// The whole report turns on one decision: availability is summed from batches
+/// whose `expiry_date` is still ahead, not read from
+/// `pharmacy_catalog.current_stock`. That column counts expired stock, and
+/// expired stock cannot be given to a patient — a shelf full of out-of-date
+/// tablets is a stockout wearing a disguise, and the naive query calls it
+/// healthy inventory.
+///
+/// `below_reorder` and `stocked_out` are therefore derived from usable stock
+/// too. An item can be flagged stocked out while `current_stock` reads in the
+/// hundreds, and that is the correct answer.
+///
+/// Expired quantity is reported rather than filtered away: it explains why the
+/// shelf looks full and it is a write-off somebody has to sign for.
+pub async fn stock_at_risk(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<StockAtRiskRow>>, AppError> {
+    require_permission(&claims, permissions::analytics::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, StockAtRiskRow>(
+        "SELECT c.code AS item_code, \
+                c.name AS item_name, \
+                COALESCE(SUM(b.quantity_on_hand) FILTER ( \
+                  WHERE b.expiry_date >= CURRENT_DATE \
+                ), 0)::bigint AS usable_on_hand, \
+                COALESCE(SUM(b.quantity_on_hand) FILTER ( \
+                  WHERE b.expiry_date < CURRENT_DATE \
+                ), 0)::bigint AS expired_on_hand, \
+                COALESCE(SUM(b.quantity_on_hand) FILTER ( \
+                  WHERE b.expiry_date >= CURRENT_DATE \
+                    AND b.expiry_date <= CURRENT_DATE + 30 \
+                ), 0)::bigint AS expiring_within_30_days, \
+                COALESCE(c.reorder_level, 0)::bigint AS reorder_level, \
+                COALESCE(SUM(b.quantity_on_hand) FILTER ( \
+                  WHERE b.expiry_date >= CURRENT_DATE \
+                ), 0) <= COALESCE(c.reorder_level, 0) AS below_reorder, \
+                COALESCE(SUM(b.quantity_on_hand) FILTER ( \
+                  WHERE b.expiry_date >= CURRENT_DATE \
+                ), 0) = 0 AS stocked_out \
+         FROM pharmacy_catalog c \
+         LEFT JOIN pharmacy_batches b \
+                ON b.catalog_item_id = c.id AND b.tenant_id = c.tenant_id \
+         WHERE c.tenant_id = $1 \
+           AND c.is_active \
+         GROUP BY c.id, c.code, c.name, c.reorder_level \
+         ORDER BY stocked_out DESC, below_reorder DESC, expiring_within_30_days DESC \
+         LIMIT 5000",
+    )
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;

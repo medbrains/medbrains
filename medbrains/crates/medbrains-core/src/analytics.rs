@@ -377,6 +377,33 @@ pub struct RadiologyTatRow {
     pub p90_hours_to_report: Option<f64>,
 }
 
+/// Stock at risk, counted as what can actually be dispensed.
+///
+/// `pharmacy_catalog.current_stock` includes batches that have already expired.
+/// Expired stock cannot legally leave the shelf, so a pharmacy holding a
+/// thousand expired tablets and none in date reads as fully stocked on that
+/// column while the drug is, in practice, unavailable. Every figure here is
+/// computed from batches still in date.
+///
+/// Expired quantity is reported rather than discarded, because it is both the
+/// reason the shelf looks full and a write-off somebody has to account for.
+#[derive(Debug, Serialize, FromRow)]
+pub struct StockAtRiskRow {
+    pub item_code: String,
+    pub item_name: String,
+    /// In-date stock — the only stock that can be dispensed.
+    pub usable_on_hand: i64,
+    /// On the shelf, out of date, dispensable to nobody.
+    pub expired_on_hand: i64,
+    pub expiring_within_30_days: i64,
+    pub reorder_level: i64,
+    /// True when usable stock is at or below the reorder level. Computed from
+    /// usable stock, not from `current_stock`.
+    pub below_reorder: bool,
+    /// No usable stock at all, whatever the catalog column says.
+    pub stocked_out: bool,
+}
+
 // ── Bed Occupancy ─────────────────────────────────────────
 
 #[derive(Debug, Serialize, FromRow)]
