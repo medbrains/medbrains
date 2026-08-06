@@ -12,6 +12,7 @@ import { EntityListScreen } from "../components/entity-list.js";
 import { EntityRow } from "../components/entity-row.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import { BedTurnaroundScreen } from "./housekeeping/bed-turnaround.js";
 
 const STATUS_TONE: Record<string, IntentTone> = {
   pending: "warn",
@@ -45,6 +46,7 @@ function HousekeepingHome(): ReactNode {
           label: "Bed turnaround",
           description: "Discharge → terminal-clean → ready.",
           permission: P.HOUSEKEEPING.TURNAROUND_LIST,
+          onPress: () => router.push("turnaround"),
         },
         {
           id: "linen",
@@ -92,7 +94,11 @@ function HousekeepingScreen(): ReactNode {
   return (
     <ModuleRouter
       initial="home"
-      screens={{ home: <HousekeepingHome />, cleaning: <CleaningScreen /> }}
+      screens={{
+        home: <HousekeepingHome />,
+        cleaning: <CleaningScreen />,
+        turnaround: <BedTurnaroundScreen />,
+      }}
     />
   );
 }
