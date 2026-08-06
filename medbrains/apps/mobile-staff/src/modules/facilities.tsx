@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import { listWorkOrders } from "../api/facilities.js";
 import { EntityListScreen } from "../components/entity-list.js";
 import { EntityRow } from "../components/entity-row.js";
+import { useModuleCount } from "../components/module-count.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
 import { RaiseWorkOrderScreen } from "./facilities/raise-work-order.js";
@@ -30,6 +31,11 @@ const PRIORITY_TONE: Record<string, IntentTone> = {
 
 function FacilitiesHome(): ReactNode {
   const router = useModuleRouter();
+  // on_hold counts as open: it is still the team's problem, and excluding it
+  // would let a backlog be hidden by parking tickets rather than closing them.
+  const openWorkOrders = useModuleCount(listWorkOrders, (w) =>
+    ["open", "assigned", "in_progress", "on_hold"].includes(w.status),
+  );
   return (
     <ModuleHome
       eyebrow="MODULE"
@@ -37,7 +43,7 @@ function FacilitiesHome(): ReactNode {
       description="MGPS, fire safety, water, energy, work orders."
       tags={["Mobile-BME", "Mobile-Housekeeping", "MGPS", "fire-safety"]}
       summaries={[
-        { eyebrow: "OPEN", count: "—", title: "Work orders" },
+        { eyebrow: "OPEN", count: openWorkOrders.count, title: "Work orders" },
         { eyebrow: "INSP", count: "—", title: "Inspections due" },
       ]}
       actions={[

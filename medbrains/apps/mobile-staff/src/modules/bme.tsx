@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import { listEquipment } from "../api/bme.js";
 import { EntityListScreen } from "../components/entity-list.js";
 import { EntityRow } from "../components/entity-row.js";
+import { useModuleCount } from "../components/module-count.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
 
@@ -23,6 +24,7 @@ const STATUS_TONE: Record<string, IntentTone> = {
 
 function BmeHome(): ReactNode {
   const router = useModuleRouter();
+  const equipment = useModuleCount(listEquipment);
   return (
     <ModuleHome
       eyebrow="MODULE"
@@ -30,7 +32,7 @@ function BmeHome(): ReactNode {
       description="Equipment register, PM, calibrations, AMC."
       tags={["Mobile-BME", "Desktop-DeviceBridge", "assets", "calibration"]}
       summaries={[
-        { eyebrow: "PM DUE", count: "—", title: "PMs due this week" },
+        { eyebrow: "PM DUE", count: equipment.count, title: "PMs due this week" },
         { eyebrow: "CAL", count: "—", title: "Calibrations expiring" },
       ]}
       actions={[

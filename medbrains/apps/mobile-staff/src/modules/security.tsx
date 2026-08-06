@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import { listSecurityIncidents } from "../api/security.js";
 import { EntityListScreen } from "../components/entity-list.js";
 import { EntityRow } from "../components/entity-row.js";
+import { useModuleCount } from "../components/module-count.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
 import { ReportIncidentScreen } from "./security/report-incident.js";
@@ -25,6 +26,7 @@ const SEVERITY_ALERT = new Set(["critical", "high"]);
 
 function SecurityHome(): ReactNode {
   const router = useModuleRouter();
+  const openIncidents = useModuleCount(listSecurityIncidents, (i) => i.status !== "resolved");
   return (
     <ModuleHome
       eyebrow="MODULE"
@@ -32,7 +34,7 @@ function SecurityHome(): ReactNode {
       description="Access, CCTV, incidents, patient safety."
       tags={["Mobile-Security", "visitor-pass", "incident", "code-response"]}
       summaries={[
-        { eyebrow: "OPEN", count: "—", title: "Active incidents" },
+        { eyebrow: "OPEN", count: openIncidents.count, title: "Active incidents" },
         { eyebrow: "TODAY", count: "—", title: "Visitor pass issued" },
       ]}
       actions={[

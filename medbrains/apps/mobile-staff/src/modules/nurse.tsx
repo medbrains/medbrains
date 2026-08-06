@@ -8,6 +8,8 @@ import type { Module } from "@medbrains/mobile-shell";
 import { P } from "@medbrains/types";
 import type { ReactNode } from "react";
 import type { AdmissionRow } from "../api/ipd.js";
+import { listActiveAdmissions } from "../api/ipd.js";
+import { useModuleCount } from "../components/module-count.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
 import { AdmissionsListScreen } from "./nurse/admissions-list.js";
@@ -18,6 +20,7 @@ import { ShiftHandoverScreen } from "./nurse/shift-handover.js";
 
 function NurseHome(): ReactNode {
   const router = useModuleRouter();
+  const admissions = useModuleCount(listActiveAdmissions);
   return (
     <ModuleHome
       eyebrow="MODULE"
@@ -25,7 +28,7 @@ function NurseHome(): ReactNode {
       description="MAR, vitals, handoff, intake/output."
       tags={["Mobile-Nurse", "IPD", "eMAR", "offline-ready"]}
       summaries={[
-        { eyebrow: "DUE", count: "—", title: "MAR doses (next hour)" },
+        { eyebrow: "DUE", count: admissions.count, title: "MAR doses (next hour)" },
         { eyebrow: "VITALS", count: "—", title: "Bedside rounds left" },
       ]}
       actions={[
