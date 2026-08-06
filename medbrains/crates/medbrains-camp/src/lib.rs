@@ -23,10 +23,12 @@ use serde_json::Value;
 use std::{collections::HashMap, str::FromStr};
 use uuid::Uuid;
 
-use axum::routing::{get,post,put,delete};
+use axum::routing::{delete, get, post, put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{is_bypass_role, require_any_permission, require_permission};
+use medbrains_server_core::middleware::authorization::{
+    is_bypass_role, require_any_permission, require_permission,
+};
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 
@@ -423,6 +425,10 @@ pub struct CreateRegistrationRequest {
     pub address: Option<String>,
     pub id_proof_type: Option<String>,
     pub id_proof_number: Option<String>,
+    pub father_spouse_name: Option<String>,
+    pub marital_status: Option<String>,
+    pub blood_group: Option<String>,
+    pub insurance_details: Option<String>,
     pub patient_id: Option<Uuid>,
     pub clinical_department_id: Option<Uuid>,
     pub attending_doctor_id: Option<Uuid>,
@@ -712,12 +718,34 @@ pub struct CreateScreeningRequest {
     pub weight_kg: Option<Decimal>,
     pub visual_acuity_left: Option<String>,
     pub visual_acuity_right: Option<String>,
+    pub mh_diabetes: Option<bool>,
+    pub mh_hypertension: Option<bool>,
+    pub mh_asthma: Option<bool>,
+    pub mh_heart_disease: Option<bool>,
+    pub mh_thyroid_disorder: Option<bool>,
+    pub mh_previous_surgeries: Option<bool>,
+    pub mh_allergies: Option<bool>,
+    pub mh_smoking_history: Option<bool>,
+    pub mh_alcohol_use: Option<bool>,
+    pub mh_family_history: Option<bool>,
+    pub mh_others: Option<bool>,
+    pub medical_history_notes: Option<String>,
+    pub test_hba1c: Option<Decimal>,
+    pub test_haemoglobin: Option<Decimal>,
+    pub test_thyroid: Option<Decimal>,
+    pub test_ecg: Option<String>,
+    pub test_xray: Option<String>,
+    pub test_bmd: Option<String>,
+    pub test_biothesiometry: Option<String>,
     pub findings: Option<String>,
     pub diagnosis: Option<String>,
     pub advice: Option<String>,
     pub referred_to_hospital: Option<bool>,
     pub referral_department: Option<String>,
+    pub referral_doctor_name: Option<String>,
     pub referral_urgency: Option<String>,
+    #[serde(default)]
+    pub icd_codes: Option<Vec<String>>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -740,6 +768,10 @@ struct OpenEncounterRegistrationContext {
     address: Option<String>,
     id_proof_type: Option<String>,
     id_proof_number: Option<String>,
+    father_spouse_name: Option<String>,
+    marital_status: Option<String>,
+    blood_group: Option<String>,
+    insurance_details: Option<String>,
     patient_id: Option<Uuid>,
     clinical_department_id: Option<Uuid>,
     attending_doctor_id: Option<Uuid>,
@@ -3548,12 +3580,16 @@ async fn apply_camp_sync_event(
             .bind(patient_id)
             .fetch_all(&mut **tx)
             .await?;
-            let drug_names: Vec<String> =
-                body.items.iter().map(|item| item.drug_name.clone()).collect();
-            let conflicts: Vec<String> = medbrains_core::allergy::find_conflicts(&drug_names, &allergens)
-                .into_iter()
-                .map(|c| format!("{} (allergy: {})", c.drug_name, c.allergen))
+            let drug_names: Vec<String> = body
+                .items
+                .iter()
+                .map(|item| item.drug_name.clone())
                 .collect();
+            let conflicts: Vec<String> =
+                medbrains_core::allergy::find_conflicts(&drug_names, &allergens)
+                    .into_iter()
+                    .map(|c| format!("{} (allergy: {})", c.drug_name, c.allergen))
+                    .collect();
             let allergy_review_note = (!conflicts.is_empty()).then(|| {
                 format!(
                     "ALLERGY ALERT (camp sync): conflicts with documented drug allergy — {}. \
@@ -5026,7 +5062,8 @@ pub async fn sync_camp_inbound(
                 tx.commit().await?;
 
                 if let Some(patient_id) = patient_grant_id {
-                    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
+                    let authz_ctx =
+                        medbrains_server_core::middleware::authorization::authz_context(&claims);
                     if let Err(err) = state
                         .authz
                         .write_tuple(
@@ -6348,11 +6385,13 @@ pub async fn create_registration(
          (tenant_id, camp_id, registration_number, person_name, age, gender, phone, \
           address, id_proof_type, id_proof_number, patient_id, clinical_department_id, \
           attending_doctor_id, service_line, chief_complaint, \
-          is_walk_in, registered_by) \
+          is_walk_in, registered_by, \
+          father_spouse_name, marital_status, blood_group, insurance_details) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, \
                  $8, $9, $10, $11, $12, \
                  $13, $14, $15, \
-                 COALESCE($16, true), $17) \
+                 COALESCE($16, true), $17, \
+                 $18, $19, $20, $21) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -6372,6 +6411,10 @@ pub async fn create_registration(
     .bind(&body.chief_complaint)
     .bind(body.is_walk_in)
     .bind(claims.sub)
+    .bind(&body.father_spouse_name)
+    .bind(&body.marital_status)
+    .bind(&body.blood_group)
+    .bind(&body.insurance_details)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -6474,7 +6517,9 @@ pub async fn open_registration_encounter(
         "SELECT r.camp_id, c.camp_code, c.name AS camp_name, \
                 c.organizing_department_id, \
                 r.person_name, r.age, r.gender, r.phone, r.address, \
-                r.id_proof_type, r.id_proof_number, r.patient_id, \
+                r.id_proof_type, r.id_proof_number, \
+                r.father_spouse_name, r.marital_status, r.blood_group, r.insurance_details, \
+                r.patient_id, \
                 r.clinical_department_id, r.attending_doctor_id, r.service_line, \
                 r.chief_complaint, r.is_walk_in \
          FROM camp_registrations r \
@@ -6520,6 +6565,10 @@ pub async fn open_registration_encounter(
         address: context.address.clone(),
         id_proof_type: context.id_proof_type.clone(),
         id_proof_number: context.id_proof_number.clone(),
+        father_spouse_name: context.father_spouse_name.clone(),
+        marital_status: context.marital_status.clone(),
+        blood_group: context.blood_group.clone(),
+        insurance_details: context.insurance_details.clone(),
         patient_id: context.patient_id,
         clinical_department_id: context.clinical_department_id,
         attending_doctor_id: context.attending_doctor_id,
@@ -6717,12 +6766,22 @@ pub async fn create_screening(
           temperature, blood_sugar_random, bmi, height_cm, weight_kg, \
           visual_acuity_left, visual_acuity_right, \
           findings, diagnosis, advice, \
-          referred_to_hospital, referral_department, referral_urgency, screened_by) \
+          referred_to_hospital, referral_department, referral_urgency, screened_by, \
+          mh_diabetes, mh_hypertension, mh_asthma, mh_heart_disease, mh_thyroid_disorder, \
+          mh_previous_surgeries, mh_allergies, mh_smoking_history, mh_alcohol_use, \
+          mh_family_history, mh_others, medical_history_notes, \
+          test_hba1c, test_haemoglobin, test_thyroid, test_ecg, test_xray, test_bmd, \
+          test_biothesiometry, referral_doctor_name, icd_codes) \
          VALUES ($1, $2, $3, $4, $5, $6, \
                  $7, $8, $9, $10, $11, \
                  $12, $13, \
                  $14, $15, $16, \
-                 COALESCE($17, false), $18, $19, $20) \
+                 COALESCE($17, false), $18, $19, $20, \
+                 $21, $22, $23, $24, $25, \
+                 $26, $27, $28, $29, \
+                 $30, $31, $32, \
+                 $33, $34, $35, $36, $37, $38, \
+                 $39, $40, $41) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -6745,6 +6804,27 @@ pub async fn create_screening(
     .bind(&body.referral_department)
     .bind(&body.referral_urgency)
     .bind(claims.sub)
+    .bind(body.mh_diabetes)
+    .bind(body.mh_hypertension)
+    .bind(body.mh_asthma)
+    .bind(body.mh_heart_disease)
+    .bind(body.mh_thyroid_disorder)
+    .bind(body.mh_previous_surgeries)
+    .bind(body.mh_allergies)
+    .bind(body.mh_smoking_history)
+    .bind(body.mh_alcohol_use)
+    .bind(body.mh_family_history)
+    .bind(body.mh_others)
+    .bind(&body.medical_history_notes)
+    .bind(body.test_hba1c)
+    .bind(body.test_haemoglobin)
+    .bind(body.test_thyroid)
+    .bind(&body.test_ecg)
+    .bind(&body.test_xray)
+    .bind(&body.test_bmd)
+    .bind(&body.test_biothesiometry)
+    .bind(&body.referral_doctor_name)
+    .bind(body.icd_codes.as_deref())
     .fetch_one(&mut *tx)
     .await?;
 
@@ -7172,7 +7252,9 @@ async fn mirror_camp_billing_to_common_billing_in_tx(
     payment_mode: Option<&str>,
     payment_reference: Option<&str>,
 ) -> Result<(), AppError> {
-    if !medbrains_server_services::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "camp").await? {
+    if !medbrains_server_services::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "camp")
+        .await?
+    {
         return Ok(());
     }
 
@@ -7798,34 +7880,16 @@ pub async fn camp_report(
 /// Medical camp management (camps, registrations, screening, referrals, follow-up) routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/camp/camps",
-            get(list_camps).post(create_camp),
-        )
-        .route(
-            "/api/camp/camps/{id}",
-            get(get_camp).put(update_camp),
-        )
-        .route(
-            "/api/camp/camps/{id}/packet",
-            get(get_camp_packet),
-        )
+        .route("/api/camp/camps", get(list_camps).post(create_camp))
+        .route("/api/camp/camps/{id}", get(get_camp).put(update_camp))
+        .route("/api/camp/camps/{id}/packet", get(get_camp_packet))
         .route(
             "/api/camp/camps/{id}/planning-summary",
             get(get_camp_planning_summary),
         )
-        .route(
-            "/api/camp/sync/inbound",
-            post(sync_camp_inbound),
-        )
-        .route(
-            "/api/camp/lookups/staff",
-            get(list_staff_options),
-        )
-        .route(
-            "/api/camp/lookups/medicines",
-            get(list_medicine_options),
-        )
+        .route("/api/camp/sync/inbound", post(sync_camp_inbound))
+        .route("/api/camp/lookups/staff", get(list_staff_options))
+        .route("/api/camp/lookups/medicines", get(list_medicine_options))
         .route(
             "/api/camp/camps/{camp_id}/remote-operations",
             get(get_remote_operations),
@@ -7846,42 +7910,21 @@ pub fn router() -> axum::Router<AppState> {
             "/api/camp/camps/{camp_id}/supplies/bulk",
             post(bulk_create_supply_items),
         )
-        .route(
-            "/api/camp/supplies/{id}",
-            put(update_supply_item),
-        )
+        .route("/api/camp/supplies/{id}", put(update_supply_item))
         .route(
             "/api/camp/camps/{camp_id}/referrals",
             get(list_camp_referrals).post(create_camp_referral),
         )
-        .route(
-            "/api/camp/referrals/{id}",
-            put(update_camp_referral),
-        )
+        .route("/api/camp/referrals/{id}", put(update_camp_referral))
         .route(
             "/api/camp/camps/{camp_id}/incidents",
             post(create_camp_incident),
         )
-        .route(
-            "/api/camp/incidents/{id}",
-            put(update_camp_incident),
-        )
-        .route(
-            "/api/camp/camps/{id}/approve",
-            put(approve_camp),
-        )
-        .route(
-            "/api/camp/camps/{id}/activate",
-            put(activate_camp),
-        )
-        .route(
-            "/api/camp/camps/{id}/complete",
-            put(complete_camp),
-        )
-        .route(
-            "/api/camp/camps/{id}/cancel",
-            put(cancel_camp),
-        )
+        .route("/api/camp/incidents/{id}", put(update_camp_incident))
+        .route("/api/camp/camps/{id}/approve", put(approve_camp))
+        .route("/api/camp/camps/{id}/activate", put(activate_camp))
+        .route("/api/camp/camps/{id}/complete", put(complete_camp))
+        .route("/api/camp/camps/{id}/cancel", put(cancel_camp))
         .route(
             "/api/camp/camps/{camp_id}/team",
             get(list_team_members).post(add_team_member),
@@ -7894,10 +7937,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/camp/registrations",
             get(list_registrations).post(create_registration),
         )
-        .route(
-            "/api/camp/registrations/{id}",
-            put(update_registration),
-        )
+        .route("/api/camp/registrations/{id}", put(update_registration))
         .route(
             "/api/camp/registrations/{id}/open-encounter",
             post(open_registration_encounter),
@@ -7910,32 +7950,14 @@ pub fn router() -> axum::Router<AppState> {
             "/api/camp/lab-samples",
             get(list_lab_samples).post(create_lab_sample),
         )
-        .route(
-            "/api/camp/lab-samples/{id}/link",
-            put(link_lab_sample),
-        )
-        .route(
-            "/api/camp/billing",
-            get(list_billing).post(create_billing),
-        )
+        .route("/api/camp/lab-samples/{id}/link", put(link_lab_sample))
+        .route("/api/camp/billing", get(list_billing).post(create_billing))
         .route(
             "/api/camp/followups",
             get(list_followups).post(create_followup),
         )
-        .route(
-            "/api/camp/followups/{id}",
-            put(update_followup),
-        )
-        .route(
-            "/api/camp/camps/{id}/stats",
-            get(camp_stats),
-        )
-        .route(
-            "/api/camp/analytics",
-            get(camp_analytics),
-        )
-        .route(
-            "/api/camp/camps/{id}/report",
-            get(camp_report),
-        )
+        .route("/api/camp/followups/{id}", put(update_followup))
+        .route("/api/camp/camps/{id}/stats", get(camp_stats))
+        .route("/api/camp/analytics", get(camp_analytics))
+        .route("/api/camp/camps/{id}/report", get(camp_report))
 }

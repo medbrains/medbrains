@@ -117,6 +117,14 @@ pub struct CampRegistration {
     pub address: Option<String>,
     pub id_proof_type: Option<String>,
     pub id_proof_number: Option<String>,
+    /// Printed on the camp form as "Father / Spouse name" — the identifier
+    /// rural registers actually use to tell two same-named people apart.
+    pub father_spouse_name: Option<String>,
+    pub marital_status: Option<String>,
+    /// As reported at the desk, not as typed from a sample.
+    pub blood_group: Option<String>,
+    /// The form's combined "Insurance name / number" box.
+    pub insurance_details: Option<String>,
     pub patient_id: Option<Uuid>,
     pub clinical_department_id: Option<Uuid>,
     pub attending_doctor_id: Option<Uuid>,
@@ -145,12 +153,44 @@ pub struct CampScreening {
     pub weight_kg: Option<Decimal>,
     pub visual_acuity_left: Option<String>,
     pub visual_acuity_right: Option<String>,
+    // ── Medical history ──────────────────────────────────────
+    // Tick boxes on the paper form, so `None` and `Some(false)` are different
+    // facts: not asked versus asked and denied. A screening camp cannot treat
+    // an unasked question as a negative finding.
+    pub mh_diabetes: Option<bool>,
+    pub mh_hypertension: Option<bool>,
+    pub mh_asthma: Option<bool>,
+    pub mh_heart_disease: Option<bool>,
+    pub mh_thyroid_disorder: Option<bool>,
+    pub mh_previous_surgeries: Option<bool>,
+    pub mh_allergies: Option<bool>,
+    pub mh_smoking_history: Option<bool>,
+    pub mh_alcohol_use: Option<bool>,
+    pub mh_family_history: Option<bool>,
+    pub mh_others: Option<bool>,
+    pub medical_history_notes: Option<String>,
+    // ── Point-of-care tests ──────────────────────────────────
+    // Numeric where the form records a number and the value is worth trending.
+    pub test_hba1c: Option<Decimal>,
+    pub test_haemoglobin: Option<Decimal>,
+    pub test_thyroid: Option<Decimal>,
+    // Handwritten impressions — coding these would invent precision the paper
+    // never had.
+    pub test_ecg: Option<String>,
+    pub test_xray: Option<String>,
+    pub test_bmd: Option<String>,
+    pub test_biothesiometry: Option<String>,
     pub findings: Option<String>,
     pub diagnosis: Option<String>,
     pub advice: Option<String>,
     pub referred_to_hospital: bool,
     pub referral_department: Option<String>,
+    /// Named on the form, often somebody who is not a user of this system.
+    pub referral_doctor_name: Option<String>,
     pub referral_urgency: Option<String>,
+    /// ICD-10 assigned at the camp. An array because one screening routinely
+    /// yields more than one.
+    pub icd_codes: Option<Vec<String>>,
     pub screened_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
