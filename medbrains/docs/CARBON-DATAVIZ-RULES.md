@@ -36,9 +36,9 @@ is a **patient-safety risk** — accuracy and clarity are non-negotiable.
 
 ## Colour (Carbon palettes)
 
-- Use the Carbon categorical / sequential / diverging palettes (via `@carbon/charts`
-  tokens), **not** ad-hoc hex. Sequential for magnitude, diverging for +/- around a
-  midpoint, categorical for discrete series.
+- Use the Carbon categorical / sequential / diverging palettes (from the
+  `@medbrains/design-system` tokens), **not** ad-hoc hex. Sequential for magnitude,
+  diverging for +/- around a midpoint, categorical for discrete series.
 - **Colour-blind safe** + **never colour alone** — pair with labels, patterns, or
   shape (WCAG 1.4.1). Series text/marks ≥ **3:1** non-text contrast (1.4.11).
 - Reserve the emergency-code + danger colours for genuine alerts only.
@@ -56,8 +56,25 @@ is a **patient-safety risk** — accuracy and clarity are non-negotiable.
   monochrome-plus-one-accent. Each stat traces to a real, cited source.
 - Don't distort proportions for drama (pictograms must scale by area honestly).
 
-## Applied
+## Applied — which chart library
 
-- Use `@carbon/charts` (or the existing chart components) — don't hand-roll SVG
-  charts. Drive colour from tokens. Dashboard KPIs = number-first with a small
-  trend; reserve full charts for analysis screens.
+Carbon is the **palette and the layout language here, not the chart renderer**.
+`@carbon/charts` is not installed and we are not adopting it: porting the ~38
+files already on `@mantine/charts` would buy documentation compliance and nothing
+a user can see. Decision taken 2026-08-06.
+
+Two libraries, with a real division of labour — check this before adding a third:
+
+| Use | Library | Why |
+|---|---|---|
+| Line, bar, area, donut, sparkline — dashboards, KPI cards, module screens | **`@mantine/charts`** | Already the stack in ~38 files; matches the Mantine seam the rest of the UI is built from |
+| Heatmap, sankey, treemap, gauge, boxplot, radar, graph — the analytical `VisualKind`s in the report catalog | **`echarts`** | `@mantine/charts` has no such marks. Confined to the reports module (`ReportChart.tsx`, `chart-options.ts`) |
+
+`recharts` appears in `package.json` but is **not** ours to call directly — it is
+the peer dependency `@mantine/charts` renders through. Do not import it, and do
+not "clean it up": removing it breaks every Mantine chart.
+
+Whichever library: don't hand-roll SVG charts, drive colour from the design-system
+tokens (never library defaults, never raw hex), and keep the accessibility rules
+above — they are library-independent. Dashboard KPIs = number-first with a small
+trend; reserve full charts for analysis screens.
