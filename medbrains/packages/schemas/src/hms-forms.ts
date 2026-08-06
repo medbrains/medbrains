@@ -3145,6 +3145,10 @@ export const campRegistrationFormSchema = z.object({
   address: z.string(),
   id_proof_type: z.union([campIdProofTypeFormSchema, z.literal("")]),
   id_proof_number: z.string(),
+  father_spouse_name: z.string(),
+  marital_status: z.string(),
+  blood_group: z.string(),
+  insurance_details: z.string(),
   clinical_department_id: z.string().nullable(),
   attending_doctor_id: z.string().nullable(),
   service_line: z.string(),
@@ -3316,6 +3320,18 @@ export const campBillingFormSchema = z
     }
   });
 
+/**
+ * A camp history question has three states, not two. Blank means the question
+ * was never asked; "no" means it was asked and denied. A screening camp must
+ * not record an unasked question as a negative finding, so the form cannot use
+ * a checkbox here.
+ */
+export const campHistoryAnswerFormSchema = z.union([
+  z.literal(""),
+  z.literal("yes"),
+  z.literal("no"),
+]);
+
 export const campScreeningFormSchema = z.object({
   registration_id: requiredTrimmed("Select a camp registration"),
   bp_systolic: optionalNonNegativeIntegerNumber("Systolic BP must be a whole number").refine(
@@ -3351,12 +3367,33 @@ export const campScreeningFormSchema = z.object({
   bmi: optionalNumericFormValue("BMI cannot be negative", 0),
   visual_acuity_left: z.string(),
   visual_acuity_right: z.string(),
+  mh_diabetes: campHistoryAnswerFormSchema,
+  mh_hypertension: campHistoryAnswerFormSchema,
+  mh_asthma: campHistoryAnswerFormSchema,
+  mh_heart_disease: campHistoryAnswerFormSchema,
+  mh_thyroid_disorder: campHistoryAnswerFormSchema,
+  mh_previous_surgeries: campHistoryAnswerFormSchema,
+  mh_allergies: campHistoryAnswerFormSchema,
+  mh_smoking_history: campHistoryAnswerFormSchema,
+  mh_alcohol_use: campHistoryAnswerFormSchema,
+  mh_family_history: campHistoryAnswerFormSchema,
+  mh_others: campHistoryAnswerFormSchema,
+  medical_history_notes: z.string(),
+  test_hba1c: optionalNumericFormValue("HbA1c must be between 2 and 20 %", 2, 20),
+  test_haemoglobin: optionalNumericFormValue("Haemoglobin must be between 1 and 25 g/dl", 1, 25),
+  test_thyroid: optionalNumericFormValue("TSH cannot be negative", 0),
+  test_ecg: z.string(),
+  test_xray: z.string(),
+  test_bmd: z.string(),
+  test_biothesiometry: z.string(),
   findings: z.string(),
   diagnosis: z.string(),
   advice: z.string(),
   referred_to_hospital: z.boolean(),
   referral_department: z.string(),
+  referral_doctor_name: z.string(),
   referral_urgency: z.string(),
+  icd_codes: z.string(),
 });
 
 export const campLabSampleFormSchema = z.object({
@@ -5434,6 +5471,7 @@ export type CampRegistrationFormInput = z.infer<typeof campRegistrationFormSchem
 export type CampClinicalVisitFormInput = z.infer<typeof campClinicalVisitFormSchema>;
 export type CampBillingFormInput = z.infer<typeof campBillingFormSchema>;
 export type CampScreeningFormInput = z.infer<typeof campScreeningFormSchema>;
+export type CampHistoryAnswerFormValue = z.infer<typeof campHistoryAnswerFormSchema>;
 export type CampLabSampleFormInput = z.infer<typeof campLabSampleFormSchema>;
 export type CampFollowupFormInput = z.infer<typeof campFollowupFormSchema>;
 export type DietOrderFormInput = z.infer<typeof dietOrderFormSchema>;

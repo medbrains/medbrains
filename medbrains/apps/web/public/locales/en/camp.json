@@ -142,5 +142,8 @@
   "followups.status.cancelled": "Cancelled",
   "followups.type.phone_call": "Phone Call",
   "followups.type.hospital_visit": "Hospital Visit",
-  "followups.type.home_visit": "Home Visit"
+  "followups.type.home_visit": "Home Visit",
+  "screenings.form.icdCodes": "ICD-10 codes",
+  "screenings.form.icdCodesHint": "Comma separated. One screening often yields more than one.",
+  "screenings.form.referralDoctor": "Referred to (doctor)"
 }

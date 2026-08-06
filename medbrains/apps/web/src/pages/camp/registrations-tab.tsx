@@ -130,6 +130,10 @@ export function RegistrationsTab({
     address: "",
     id_proof_type: "",
     id_proof_number: "",
+    father_spouse_name: "",
+    marital_status: "",
+    blood_group: "",
+    insurance_details: "",
     clinical_department_id: null,
     attending_doctor_id: null,
     service_line: "",
@@ -306,6 +310,10 @@ export function RegistrationsTab({
       address: campOptionalText(values.address),
       id_proof_type: campOptionalText(values.id_proof_type),
       id_proof_number: campOptionalText(values.id_proof_number),
+      father_spouse_name: campOptionalText(values.father_spouse_name),
+      marital_status: campOptionalText(values.marital_status),
+      blood_group: campOptionalText(values.blood_group),
+      insurance_details: campOptionalText(values.insurance_details),
       clinical_department_id: values.clinical_department_id ?? undefined,
       attending_doctor_id: values.attending_doctor_id ?? undefined,
       service_line: campOptionalText(values.service_line),
@@ -633,6 +641,34 @@ export function RegistrationsTab({
               error={errors.id_proof_number?.message}
               disabled={!canEditCampIdProof}
               {...register("id_proof_number")}
+            />
+          </Group>
+          <Group grow>
+            {/* The identifier a rural register actually uses to tell two
+                same-named people apart. */}
+            <TextInput
+              label="Father / Spouse name"
+              error={errors.father_spouse_name?.message}
+              {...register("father_spouse_name")}
+            />
+            <TextInput
+              label="Marital status"
+              error={errors.marital_status?.message}
+              {...register("marital_status")}
+            />
+          </Group>
+          <Group grow>
+            <TextInput
+              label="Blood group"
+              placeholder="O+"
+              description="As reported at the desk, not from a typed sample"
+              error={errors.blood_group?.message}
+              {...register("blood_group")}
+            />
+            <TextInput
+              label="Insurance name / number"
+              error={errors.insurance_details?.message}
+              {...register("insurance_details")}
             />
           </Group>
           <Textarea

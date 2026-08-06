@@ -1,5 +1,6 @@
 import type {
   CampFollowupTypeFormValue,
+  CampHistoryAnswerFormValue,
   CampIdProofTypeFormValue,
   CampTypeFormValue,
 } from "@medbrains/schemas";
@@ -69,4 +70,36 @@ export function campOptionalInteger(value: number | string): number | undefined 
 
 export function campOptionalText(value: string): string | undefined {
   return optionalTextFromFormValue(value);
+}
+
+/**
+ * A camp history answer carries three states. Blank is "not asked", which is a
+ * different fact from "asked and denied" — a screening camp must not record an
+ * unasked question as a negative finding, so blank maps to `undefined` and
+ * never to `false`.
+ */
+export function campHistoryAnswer(value: CampHistoryAnswerFormValue): boolean | undefined {
+  if (value === "yes") return true;
+  if (value === "no") return false;
+  return undefined;
+}
+
+/** The reverse, for loading a saved screening back into the form. */
+export function campHistoryFormValue(value: boolean | null): CampHistoryAnswerFormValue {
+  if (value === true) return "yes";
+  if (value === false) return "no";
+  return "";
+}
+
+/**
+ * ICD codes are typed as one comma- or space-separated string at the counter
+ * and stored as an array. Uppercased because ICD-10 is, and de-duplicated
+ * because a rushed typist repeats one.
+ */
+export function campIcdCodes(value: string): string[] | undefined {
+  const codes = value
+    .split(/[,\s]+/)
+    .map((code) => code.trim().toUpperCase())
+    .filter(Boolean);
+  return codes.length > 0 ? [...new Set(codes)] : undefined;
 }

@@ -39,8 +39,15 @@ import { DataTable, useClinicalEmit, useProtectedFieldAccess } from "@/component
 import { VitalsRecorder } from "@/components/Clinical/VitalsRecorder";
 import type { Column } from "@/components/DataTable";
 import { Badge, Button } from "@/components/ui";
-import { campOptionalInteger, campOptionalNumber, campOptionalText } from "@/forms/camp.form";
+import {
+  campHistoryAnswer,
+  campIcdCodes,
+  campOptionalInteger,
+  campOptionalNumber,
+  campOptionalText,
+} from "@/forms/camp.form";
 import { campService } from "@/services/camp.service";
+import { CampScreeningHistoryFields, CampScreeningTestFields } from "./screening-history-fields";
 import {
   campRegistrationOptionLabel,
   campWorkflowLabel,
@@ -112,12 +119,33 @@ export function ScreeningsTab({
     weight_kg: "",
     visual_acuity_left: "",
     visual_acuity_right: "",
+    mh_diabetes: "",
+    mh_hypertension: "",
+    mh_asthma: "",
+    mh_heart_disease: "",
+    mh_thyroid_disorder: "",
+    mh_previous_surgeries: "",
+    mh_allergies: "",
+    mh_smoking_history: "",
+    mh_alcohol_use: "",
+    mh_family_history: "",
+    mh_others: "",
+    medical_history_notes: "",
+    test_hba1c: "",
+    test_haemoglobin: "",
+    test_thyroid: "",
+    test_ecg: "",
+    test_xray: "",
+    test_bmd: "",
+    test_biothesiometry: "",
     findings: "",
     diagnosis: "",
     advice: "",
     referred_to_hospital: false,
     referral_department: "",
+    referral_doctor_name: "",
     referral_urgency: "",
+    icd_codes: "",
   };
   const labSampleDefaults: CampLabSampleFormInput = {
     registration_id: "",
@@ -291,6 +319,29 @@ export function ScreeningsTab({
       referral_urgency: values.referred_to_hospital
         ? campOptionalText(values.referral_urgency)
         : undefined,
+      referral_doctor_name: values.referred_to_hospital
+        ? campOptionalText(values.referral_doctor_name)
+        : undefined,
+      mh_diabetes: campHistoryAnswer(values.mh_diabetes),
+      mh_hypertension: campHistoryAnswer(values.mh_hypertension),
+      mh_asthma: campHistoryAnswer(values.mh_asthma),
+      mh_heart_disease: campHistoryAnswer(values.mh_heart_disease),
+      mh_thyroid_disorder: campHistoryAnswer(values.mh_thyroid_disorder),
+      mh_previous_surgeries: campHistoryAnswer(values.mh_previous_surgeries),
+      mh_allergies: campHistoryAnswer(values.mh_allergies),
+      mh_smoking_history: campHistoryAnswer(values.mh_smoking_history),
+      mh_alcohol_use: campHistoryAnswer(values.mh_alcohol_use),
+      mh_family_history: campHistoryAnswer(values.mh_family_history),
+      mh_others: campHistoryAnswer(values.mh_others),
+      medical_history_notes: campOptionalText(values.medical_history_notes),
+      test_hba1c: campOptionalNumber(values.test_hba1c),
+      test_haemoglobin: campOptionalNumber(values.test_haemoglobin),
+      test_thyroid: campOptionalNumber(values.test_thyroid),
+      test_ecg: campOptionalText(values.test_ecg),
+      test_xray: campOptionalText(values.test_xray),
+      test_bmd: campOptionalText(values.test_bmd),
+      test_biothesiometry: campOptionalText(values.test_biothesiometry),
+      icd_codes: campIcdCodes(values.icd_codes),
     });
   };
 
@@ -505,10 +556,18 @@ export function ScreeningsTab({
               {...registerScreening("visual_acuity_right")}
             />
           </Group>
+          <CampScreeningHistoryFields control={screeningControl} />
+          <CampScreeningTestFields control={screeningControl} />
           <Textarea label={t("screenings.form.findings")} {...registerScreening("findings")} />
           <Textarea
             label={t("screenings.form.provisionalDiagnosis")}
             {...registerScreening("diagnosis")}
+          />
+          <TextInput
+            label={t("screenings.form.icdCodes")}
+            placeholder="M25.5, E11.9"
+            description={t("screenings.form.icdCodesHint")}
+            {...registerScreening("icd_codes")}
           />
           <Textarea label={t("screenings.form.advice")} {...registerScreening("advice")} />
           <Controller
@@ -527,6 +586,10 @@ export function ScreeningsTab({
               <TextInput
                 label={t("screenings.form.referralDepartment")}
                 {...registerScreening("referral_department")}
+              />
+              <TextInput
+                label={t("screenings.form.referralDoctor")}
+                {...registerScreening("referral_doctor_name")}
               />
               <Controller
                 control={screeningControl}
