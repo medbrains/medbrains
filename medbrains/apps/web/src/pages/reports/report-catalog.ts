@@ -136,7 +136,7 @@ export const REPORT_FAMILIES: readonly ReportFamily[] = [
         sourceTables: ["opd_queues", "appointments", "encounters", "queue_tokens"],
         permissions: [P.ANALYTICS.VIEW],
         priority: "P1",
-        readiness: "query_buildable",
+        readiness: "live_api",
         chartTypes: ["heatmap", "line"],
         visualKind: "heatmap",
         refresh: "5-15 min",

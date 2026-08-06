@@ -41,6 +41,7 @@ const GOVERNED_EXPORTS: &[ReportExportFormat] = &[
 enum ReportDataKind {
     DeptRevenue,
     OpdFootfall,
+    OpdQueueWait,
     BedOccupancy,
     LabTat,
     SchedulingNoShow,
@@ -593,14 +594,14 @@ fn catalog_seed() -> Vec<ReportFamilySeed> {
                     &["opd_queues", "appointments", "encounters"],
                     &[permissions::analytics::VIEW, permissions::opd::queue::VIEW],
                     ReportPriority::P1,
-                    ReportReadiness::QueryBuildable,
+                    ReportReadiness::LiveApi,
                     &["heatmap", "line"],
                     "heatmap",
                     "5-15 min",
                     GOVERNED_EXPORTS,
                     ReportExportMode::Governed,
                     &["clinic", "doctor", "slot", "patient queue"],
-                    ReportDataKind::NotWired,
+                    ReportDataKind::OpdQueueWait,
                 ),
                 report(
                     "opd-consultant-slot-utilization",
@@ -2115,6 +2116,11 @@ pub async fn data(
             let Json(rows) =
                 analytics::opd_footfall(State(state), Extension(claims), Query(range)).await?;
             live_response(&report_id, "analytics.opd.footfall", rows)
+        }
+        ReportDataKind::OpdQueueWait => {
+            let Json(rows) =
+                analytics::opd_queue_wait(State(state), Extension(claims), Query(range)).await?;
+            live_response(&report_id, "analytics.opd.queue_wait", rows)
         }
         ReportDataKind::BedOccupancy => {
             let Json(rows) = analytics::bed_occupancy(State(state), Extension(claims)).await?;

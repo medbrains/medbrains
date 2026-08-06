@@ -7,7 +7,8 @@ use axum::{
 use axum::routing::{get};
 use medbrains_core::analytics::{
     BedOccupancyRow, ClinicalIndicatorRow, DateRangeQuery, DeptRevenueRow, DoctorRevenueRow,
-    ErVolumeRow, ExportQuery, IpdCensusRow, LabTatRow, OpdFootfallRow, OtUtilizationRow,
+    ErVolumeRow, ExportQuery, IpdCensusRow, LabTatRow, OpdFootfallRow, OpdQueueWaitRow,
+    OtUtilizationRow,
     PharmacySalesRow,
 };
 use medbrains_core::permissions;
@@ -290,6 +291,57 @@ pub async fn opd_footfall(
          GROUP BY e.encounter_date, d.name ORDER BY date, department_name LIMIT 5000",
     )
     .bind(&from).bind(&to).fetch_all(&mut *tx).await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+// ── 9b. OPD Queue Wait ─────────────────────────────────────
+/// Wait is token-issued to token-called: what the patient experienced sitting in
+/// the corridor, not how long the consultation took.
+///
+/// Only called entries count. A patient still waiting has no wait yet, and a
+/// no-show never waited — including either would report a shorter queue than the
+/// clinic actually ran, which is the wrong direction for a staffing number.
+///
+/// One pass with `percentile_cont`, grouped in the database. Pulling every queue
+/// row into the server and sorting per bucket gives the same answer for far more
+/// memory and round-trips.
+pub async fn opd_queue_wait(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<DateRangeQuery>,
+) -> Result<Json<Vec<OpdQueueWaitRow>>, AppError> {
+    require_permission(&claims, permissions::analytics::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (from, to) = default_range(&params);
+    let rows = sqlx::query_as::<_, OpdQueueWaitRow>(
+        "SELECT q.queue_date, \
+                EXTRACT(HOUR FROM q.created_at)::int AS hour_of_day, \
+                COALESCE(d.name, 'Unassigned') AS department_name, \
+                COUNT(*)::bigint AS patients_seen, \
+                COALESCE(percentile_cont(0.5) WITHIN GROUP ( \
+                  ORDER BY EXTRACT(EPOCH FROM (q.called_at - q.created_at)) / 60.0), 0) \
+                  AS median_wait_minutes, \
+                COALESCE(percentile_cont(0.9) WITHIN GROUP ( \
+                  ORDER BY EXTRACT(EPOCH FROM (q.called_at - q.created_at)) / 60.0), 0) \
+                  AS p90_wait_minutes, \
+                COALESCE(MAX(EXTRACT(EPOCH FROM \
+                  (q.called_at - q.created_at)) / 60.0), 0)::double precision \
+                  AS longest_wait_minutes \
+         FROM opd_queues q \
+         LEFT JOIN departments d ON d.id = q.department_id \
+         WHERE q.tenant_id = $1 \
+           AND q.called_at IS NOT NULL \
+           AND q.queue_date >= $2::date AND q.queue_date <= $3::date \
+         GROUP BY q.queue_date, hour_of_day, d.name \
+         ORDER BY q.queue_date, hour_of_day, department_name LIMIT 5000",
+    )
+    .bind(claims.tenant_id)
+    .bind(&from)
+    .bind(&to)
+    .fetch_all(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(Json(rows))
 }

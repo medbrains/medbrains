@@ -118,6 +118,25 @@ pub struct OpdFootfallRow {
     pub follow_ups: i64,
 }
 
+/// One cell of the OPD wait heatmap: how long patients waited in a given
+/// department during a given hour of a given day.
+///
+/// Median and p90 rather than a mean: waiting times are long-tailed — one
+/// patient waiting three hours drags an average that then describes nobody. The
+/// p90 is the number a clinic manager can act on, because it is the experience
+/// of the patients actually suffering the queue.
+#[derive(Debug, Serialize, FromRow)]
+pub struct OpdQueueWaitRow {
+    pub queue_date: NaiveDate,
+    /// Hour the token was issued, 0-23.
+    pub hour_of_day: i32,
+    pub department_name: String,
+    pub patients_seen: i64,
+    pub median_wait_minutes: f64,
+    pub p90_wait_minutes: f64,
+    pub longest_wait_minutes: f64,
+}
+
 // ── Bed Occupancy ─────────────────────────────────────────
 
 #[derive(Debug, Serialize, FromRow)]
