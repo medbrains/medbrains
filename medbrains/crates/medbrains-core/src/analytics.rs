@@ -235,6 +235,30 @@ pub struct DischargeSummaryCompletionRow {
     pub median_hours_to_finalize: f64,
 }
 
+/// Healthcare-associated infection rate, one row per month and HAI type.
+///
+/// The rate, not the count, is the number that means anything. A raw count of
+/// CLABSIs falls when the ICU is empty and rises when it is full, so it
+/// describes occupancy rather than infection control. NHSN and NABH both
+/// express these per 1,000 device-days for that reason — the denominator is the
+/// point of the metric, not decoration on it.
+///
+/// Suspected infections are reported separately from confirmed. Folding them
+/// together would inflate the rate on cases that were later ruled out; dropping
+/// them would hide a unit that investigates nothing.
+#[derive(Debug, Serialize, FromRow)]
+pub struct HaiRateRow {
+    pub month: NaiveDate,
+    pub hai_type: String,
+    pub confirmed: i64,
+    pub suspected: i64,
+    /// Device-days for the device this HAI type is attributed to.
+    pub device_days: i64,
+    /// Confirmed infections per 1,000 device-days. `None` when no device-days
+    /// were recorded — an undefined rate, which is not the same as zero.
+    pub rate_per_1000_device_days: Option<f64>,
+}
+
 // ── Bed Occupancy ─────────────────────────────────────────
 
 #[derive(Debug, Serialize, FromRow)]

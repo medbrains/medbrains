@@ -8,8 +8,8 @@ use axum::{
 use medbrains_core::analytics::{
     BedOccupancyRow, CapaAgingRow, ClinicalIndicatorRow, CredentialExpiryRow, DateRangeQuery,
     DeptRevenueRow, DischargeSummaryCompletionRow, DoctorRevenueRow, ErVolumeRow, ExportQuery,
-    IpdCensusRow, LabCriticalValueComplianceRow, LabTatRow, OpdFootfallRow, OpdQueueWaitRow,
-    OtUtilizationRow, PharmacySalesRow,
+    HaiRateRow, IpdCensusRow, LabCriticalValueComplianceRow, LabTatRow, OpdFootfallRow,
+    OpdQueueWaitRow, OtUtilizationRow, PharmacySalesRow,
 };
 use medbrains_core::permissions;
 use serde::Serialize;
@@ -547,6 +547,88 @@ pub async fn discharge_summary_completion(
            AND a.discharged_at::date >= $2::date AND a.discharged_at::date <= $3::date \
          GROUP BY discharge_date \
          ORDER BY discharge_date LIMIT 5000",
+    )
+    .bind(claims.tenant_id)
+    .bind(&from)
+    .bind(&to)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+// ── 9g. HAI Rate ───────────────────────────────────────────
+/// Device-associated infection rates, per 1,000 device-days.
+///
+/// Each HAI type is divided by the device-days for *its own* device: CLABSI by
+/// central-line days, CAUTI by urinary-catheter days, VAP by ventilator days.
+/// Dividing everything by patient-days would be easier and would understate
+/// every rate, because most patients have no device at all.
+///
+/// The rate is `None` rather than zero when no device-days were recorded. Zero
+/// asserts "we had catheters and no infections"; `None` says "we cannot tell",
+/// and a ward that stopped recording device-days must not appear to have
+/// achieved a perfect record by doing so.
+pub async fn hai_rate(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<DateRangeQuery>,
+) -> Result<Json<Vec<HaiRateRow>>, AppError> {
+    require_permission(&claims, permissions::analytics::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (from, to) = default_range(&params);
+    let rows = sqlx::query_as::<_, HaiRateRow>(
+        "WITH events AS ( \
+             SELECT date_trunc('month', e.infection_date)::date AS month, \
+                    e.hai_type::text AS hai_type, \
+                    COUNT(*) FILTER ( \
+                      WHERE e.infection_status = 'confirmed'::infection_status \
+                    )::bigint AS confirmed, \
+                    COUNT(*) FILTER ( \
+                      WHERE e.infection_status = 'suspected'::infection_status \
+                    )::bigint AS suspected \
+               FROM infection_surveillance_events e \
+              WHERE e.tenant_id = $1 \
+                AND e.deleted_at IS NULL \
+                AND e.infection_date::date >= $2::date \
+                AND e.infection_date::date <= $3::date \
+              GROUP BY month, e.hai_type \
+         ), device AS ( \
+             SELECT date_trunc('month', d.record_date)::date AS month, \
+                    COALESCE(SUM(d.central_line_days), 0)::bigint AS clabsi_days, \
+                    COALESCE(SUM(d.urinary_catheter_days), 0)::bigint AS cauti_days, \
+                    COALESCE(SUM(d.ventilator_days), 0)::bigint AS vap_days \
+               FROM infection_device_days d \
+              WHERE d.tenant_id = $1 \
+                AND d.record_date >= $2::date AND d.record_date <= $3::date \
+              GROUP BY month \
+         ) \
+         SELECT ev.month, ev.hai_type, ev.confirmed, ev.suspected, \
+                COALESCE( \
+                  CASE ev.hai_type \
+                    WHEN 'clabsi' THEN dv.clabsi_days \
+                    WHEN 'cauti'  THEN dv.cauti_days \
+                    WHEN 'vap'    THEN dv.vap_days \
+                  END, 0)::bigint AS device_days, \
+                CASE \
+                  WHEN COALESCE( \
+                    CASE ev.hai_type \
+                      WHEN 'clabsi' THEN dv.clabsi_days \
+                      WHEN 'cauti'  THEN dv.cauti_days \
+                      WHEN 'vap'    THEN dv.vap_days \
+                    END, 0) > 0 \
+                  THEN (ev.confirmed * 1000.0) / \
+                       CASE ev.hai_type \
+                         WHEN 'clabsi' THEN dv.clabsi_days \
+                         WHEN 'cauti'  THEN dv.cauti_days \
+                         WHEN 'vap'    THEN dv.vap_days \
+                       END \
+                  ELSE NULL \
+                END::double precision AS rate_per_1000_device_days \
+           FROM events ev \
+           LEFT JOIN device dv ON dv.month = ev.month \
+          ORDER BY ev.month, ev.hai_type LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(&from)
