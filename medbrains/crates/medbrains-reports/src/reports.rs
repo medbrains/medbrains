@@ -47,6 +47,7 @@ enum ReportDataKind {
     CapaAging,
     DischargeSummaryCompletion,
     HaiRate,
+    HandHygieneCompliance,
     BedOccupancy,
     LabTat,
     SchedulingNoShow,
@@ -1628,14 +1629,14 @@ fn catalog_seed() -> Vec<ReportFamilySeed> {
                         permissions::infection_control::outbreak::LIST,
                     ],
                     ReportPriority::P1,
-                    ReportReadiness::QueryBuildable,
+                    ReportReadiness::LiveApi,
                     &["gauge", "anomaly line", "calendar heatmap"],
                     "forecast",
                     "Daily",
                     GOVERNED_EXPORTS,
                     ReportExportMode::Governed,
                     &["ward", "audit point", "outbreak cluster", "waste stream"],
-                    ReportDataKind::NotWired,
+                    ReportDataKind::HandHygieneCompliance,
                 ),
             ],
         ),
@@ -2154,6 +2155,12 @@ pub async fn data(
             let Json(rows) =
                 analytics::hai_rate(State(state), Extension(claims), Query(range)).await?;
             live_response(&report_id, "analytics.infection.hai_rate", rows)
+        }
+        ReportDataKind::HandHygieneCompliance => {
+            let Json(rows) =
+                analytics::hand_hygiene_compliance(State(state), Extension(claims), Query(range))
+                    .await?;
+            live_response(&report_id, "analytics.infection.hand_hygiene", rows)
         }
         ReportDataKind::BedOccupancy => {
             let Json(rows) = analytics::bed_occupancy(State(state), Extension(claims)).await?;

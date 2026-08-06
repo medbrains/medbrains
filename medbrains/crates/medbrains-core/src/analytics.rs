@@ -259,6 +259,25 @@ pub struct HaiRateRow {
     pub rate_per_1000_device_days: Option<f64>,
 }
 
+/// Hand hygiene compliance, one row per month and staff category.
+///
+/// Compliance is recomputed from observations rather than read from the stored
+/// `compliance_rate` column, and it is a ratio of sums rather than a mean of
+/// ratios. Averaging the per-audit rates would weight a five-observation spot
+/// check the same as a five-hundred-observation ward round, which is how a unit
+/// with one flattering mini-audit ends up outranking one that measured properly.
+#[derive(Debug, Serialize, FromRow)]
+pub struct HandHygieneComplianceRow {
+    pub month: NaiveDate,
+    pub staff_category: String,
+    pub audits: i64,
+    pub observations: i64,
+    pub compliant: i64,
+    /// `None` when nothing was observed — an unmeasured month is not a
+    /// compliant one.
+    pub compliance_percent: Option<f64>,
+}
+
 // ── Bed Occupancy ─────────────────────────────────────────
 
 #[derive(Debug, Serialize, FromRow)]

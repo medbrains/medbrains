@@ -8,8 +8,8 @@ use axum::{
 use medbrains_core::analytics::{
     BedOccupancyRow, CapaAgingRow, ClinicalIndicatorRow, CredentialExpiryRow, DateRangeQuery,
     DeptRevenueRow, DischargeSummaryCompletionRow, DoctorRevenueRow, ErVolumeRow, ExportQuery,
-    HaiRateRow, IpdCensusRow, LabCriticalValueComplianceRow, LabTatRow, OpdFootfallRow,
-    OpdQueueWaitRow, OtUtilizationRow, PharmacySalesRow,
+    HaiRateRow, HandHygieneComplianceRow, IpdCensusRow, LabCriticalValueComplianceRow, LabTatRow,
+    OpdFootfallRow, OpdQueueWaitRow, OtUtilizationRow, PharmacySalesRow,
 };
 use medbrains_core::permissions;
 use serde::Serialize;
@@ -629,6 +629,57 @@ pub async fn hai_rate(
            FROM events ev \
            LEFT JOIN device dv ON dv.month = ev.month \
           ORDER BY ev.month, ev.hai_type LIMIT 5000",
+    )
+    .bind(claims.tenant_id)
+    .bind(&from)
+    .bind(&to)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+// ── 9h. Hand Hygiene Compliance ────────────────────────────
+/// Hand hygiene compliance, computed from the observations.
+///
+/// Two deliberate choices, both of which change the number:
+///
+/// The stored `compliance_rate` column is ignored and the percentage is
+/// recomputed from `compliant` and `observations`. A denormalised rate is only
+/// as good as the last write that touched it, and this is an audited figure.
+///
+/// It is a ratio of sums, not a mean of ratios — `SUM(compliant) /
+/// SUM(observations)`, never `AVG(compliance_rate)`. Averaging per-audit rates
+/// weights a five-observation spot check the same as a five-hundred-observation
+/// ward round, which lets one flattering mini-audit outrank a unit that
+/// measured honestly.
+///
+/// Months with no observations return `None`, not 100% and not 0%: nobody
+/// watched, so there is nothing to report.
+pub async fn hand_hygiene_compliance(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<DateRangeQuery>,
+) -> Result<Json<Vec<HandHygieneComplianceRow>>, AppError> {
+    require_permission(&claims, permissions::analytics::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let (from, to) = default_range(&params);
+    let rows = sqlx::query_as::<_, HandHygieneComplianceRow>(
+        "SELECT date_trunc('month', a.audit_date)::date AS month, \
+                COALESCE(a.staff_category, 'unspecified') AS staff_category, \
+                COUNT(*)::bigint AS audits, \
+                COALESCE(SUM(a.observations), 0)::bigint AS observations, \
+                COALESCE(SUM(a.compliant), 0)::bigint AS compliant, \
+                CASE WHEN COALESCE(SUM(a.observations), 0) > 0 \
+                     THEN (SUM(a.compliant) * 100.0) / SUM(a.observations) \
+                     ELSE NULL \
+                END::double precision AS compliance_percent \
+         FROM hand_hygiene_audits a \
+         WHERE a.tenant_id = $1 \
+           AND a.audit_date::date >= $2::date AND a.audit_date::date <= $3::date \
+         GROUP BY month, staff_category \
+         ORDER BY month, staff_category LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(&from)
