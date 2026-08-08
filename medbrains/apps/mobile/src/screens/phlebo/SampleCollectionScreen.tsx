@@ -1,3 +1,4 @@
+import { BarcodeScanner } from "@medbrains/mobile-shell";
 import type { LabHomeCollection } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -20,6 +21,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { assignBarcode, canComplete } from "../../lib/specimen.js";
 import { phlebotomyService } from "../../services/phlebotomy.service";
 import { mobilePhlebotomyText } from "./phlebotomyText";
 
@@ -60,6 +62,7 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
   ]);
   const [notes, setNotes] = useState("");
   const [confirmDialogVisible, setConfirmDialogVisible] = useState(false);
+  const [scanningFor, setScanningFor] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState({ visible: false, message: "" });
 
   const { data: collection, isLoading } = useQuery({
@@ -100,27 +103,29 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
     );
   };
 
+  /**
+   * Applies a label to one named tube, refusing a code already on another.
+   * The rule lives in `lib/specimen` so it can be tested without a renderer.
+   */
   const handleSetBarcode = (sampleId: string, barcode: string) => {
-    setSamples(
-      samples.map((s) =>
-        s.sampleId === sampleId ? { ...s, barcode, collected: Boolean(barcode) } : s,
-      ),
-    );
+    const outcome = assignBarcode(samples, sampleId, barcode);
+    if (!outcome.ok) {
+      setSnackbar({ visible: true, message: outcome.reason });
+      return;
+    }
+    setSamples(outcome.samples);
   };
 
-  const handleScanBarcode = () => {
-    // In real app, this would open camera for barcode scanning
-    const mockBarcode = `SAM${Date.now().toString().slice(-8)}`;
-    const uncollectedSample = samples.find((s) => !s.collected);
-    if (uncollectedSample) {
-      handleSetBarcode(uncollectedSample.sampleId, mockBarcode);
-      setSnackbar({
-        visible: true,
-        message: mobilePhlebotomyText("phlebotomy.collection.barcodeScanned", {
-          barcode: mockBarcode,
-        }),
-      });
-    }
+  /**
+   * Opens the real camera for the tube being labelled.
+   *
+   * This used to invent a barcode from the clock and report it as scanned, and
+   * it applied that value to whichever tube happened to be first — so a
+   * phlebotomist labelling their third tube recorded against their first, while
+   * being told the scan had succeeded.
+   */
+  const handleScanBarcode = (sampleId: string) => {
+    setScanningFor(sampleId);
   };
 
   const handleAddSample = () => {
@@ -130,7 +135,27 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
     ]);
   };
 
-  const allCollected = samples.every((s) => s.collected && s.barcode);
+  const allCollected = canComplete(samples);
+
+  // The camera takes the whole screen: a tube label is small, curved and
+  // often read in a corridor, so there is nothing to gain from a preview
+  // squeezed beside the form.
+  if (scanningFor) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <BarcodeScanner
+          title="Scan the label on this tube"
+          hint="Hold the barcode inside the frame"
+          resumeKey={scanningFor}
+          onCancel={() => setScanningFor(null)}
+          onScan={(value) => {
+            handleSetBarcode(scanningFor, value);
+            setScanningFor(null);
+          }}
+        />
+      </SafeAreaView>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -243,7 +268,7 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
                 <Button
                   mode="contained"
                   icon="barcode-scan"
-                  onPress={handleScanBarcode}
+                  onPress={() => handleScanBarcode(sample.sampleId)}
                   compact
                   style={styles.scanButton}
                 >

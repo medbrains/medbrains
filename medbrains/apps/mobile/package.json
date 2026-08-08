@@ -7,7 +7,8 @@
     "android": "react-native run-android",
     "ios": "react-native run-ios",
     "typecheck": "tsc --noEmit",
-    "lint": "biome check src/"
+    "lint": "biome check src/",
+    "test": "vitest run"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -27,11 +28,14 @@
     "react-native-safe-area-context": "^5.4.0",
     "react-native-screens": "^4.10.0",
     "react-native-vector-icons": "^10.3.0",
-    "zustand": "^5.0.11"
+    "zustand": "^5.0.11",
+    "@medbrains/mobile-shell": "workspace:*",
+    "expo-camera": "~17.0.10"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.6",
     "@types/react": "^19.2.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.5"
   }
 }
