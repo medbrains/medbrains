@@ -3,6 +3,7 @@ pub mod access;
 pub mod admin;
 pub mod admin_simulator;
 pub mod appointments;
+pub mod portal;
 pub mod audit;
 pub mod coverage;
 pub mod debug;
@@ -691,7 +692,18 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/public/radiology/viewer/{token}",
             get(radiology::validate_share_link),
-        );
+        )
+        // Patient portal sign-in. Unauthenticated by necessity — this is how a
+        // patient gets a token in the first place.
+        .route("/api/portal/auth/request-otp", post(portal::request_portal_otp))
+        .route("/api/portal/auth/verify", post(portal::verify_portal_otp));
+
+    // ── Patient portal — behind require_patient, never the staff auth stack.
+    //    A staff token cannot satisfy this extractor and a patient token cannot
+    //    satisfy the staff one; the two shapes are mutually undecodable.
+    let portal_routes = Router::new()
+        .route("/api/portal/bills", get(portal::portal_bills))
+        .layer(from_fn_with_state(state.clone(), portal::require_patient));
 
     // ── Reminder config — protected, must run through the same auth +
     //    csrf + audit middleware stack as `protected`. Without these
@@ -712,6 +724,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(protected)
         .merge(bridge_routes)
         .merge(public_booking)
+        .merge(portal_routes)
         .merge(reminder_routes)
         .with_state(state)
 }
