@@ -39,3 +39,34 @@ export interface ReportIncidentInput {
 export async function reportSecurityIncident(input: ReportIncidentInput): Promise<IncidentRow> {
   return request<IncidentRow>(apiConfig, "POST", "/api/security/incidents", input);
 }
+
+export interface TagAlertRow {
+  id: string;
+  tag_id: string;
+  alert_type: string;
+  triggered_at: string;
+  location_description: string | null;
+  is_resolved: boolean;
+  was_false_alarm: boolean;
+}
+
+/**
+ * Unresolved infant-RFID and wander-guard triggers. These are the Code Pink
+ * path — a tagged patient crossing a boundary they should not — so the mobile
+ * app asks only for the ones nobody has closed.
+ */
+export async function listOpenTagAlerts(): Promise<TagAlertRow[]> {
+  return request<TagAlertRow[]>(apiConfig, "GET", "/api/security/tag-alerts?is_resolved=false");
+}
+
+export interface ResolveTagAlertInput {
+  was_false_alarm: boolean;
+  resolution_notes: string;
+}
+
+export async function resolveTagAlert(
+  id: string,
+  input: ResolveTagAlertInput,
+): Promise<TagAlertRow> {
+  return request<TagAlertRow>(apiConfig, "PUT", `/api/security/tag-alerts/${id}/resolve`, input);
+}

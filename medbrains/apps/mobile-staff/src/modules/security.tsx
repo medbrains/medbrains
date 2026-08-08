@@ -14,6 +14,7 @@ import { useModuleCount } from "../components/module-count.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
 import { ReportIncidentScreen } from "./security/report-incident.js";
+import { TagAlertsScreen } from "./security/tag-alerts.js";
 
 const STATUS_TONE: Record<string, IntentTone> = {
   open: "warn",
@@ -54,9 +55,10 @@ function SecurityHome(): ReactNode {
         },
         {
           id: "patient-safety",
-          label: "Patient-safety events",
-          description: "Falls, near-miss, MLC trigger flags.",
+          label: "Tag alerts",
+          description: "Infant RFID and wander guard, oldest first.",
           permission: P.SECURITY.PATIENT_SAFETY_LIST,
+          onPress: () => router.push("tag-alerts"),
         },
         {
           id: "debriefs",
@@ -104,6 +106,7 @@ function SecurityScreen(): ReactNode {
         home: <SecurityHome />,
         incidents: <IncidentsScreen />,
         report: <ReportIncidentScreen onReported={() => undefined} />,
+        "tag-alerts": <TagAlertsScreen />,
       }}
     />
   );
