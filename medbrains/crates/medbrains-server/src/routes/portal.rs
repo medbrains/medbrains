@@ -339,3 +339,137 @@ pub async fn portal_bills(
     tx.commit().await?;
     Ok(Json(rows))
 }
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct PortalLabReport {
+    pub order_id: Uuid,
+    pub test_name: String,
+    pub parameter_name: String,
+    pub value: String,
+    pub unit: Option<String>,
+    pub normal_range: Option<String>,
+    pub flag: Option<String>,
+    pub reported_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// `GET /api/portal/lab-reports`
+///
+/// Two things are deliberately withheld.
+///
+/// **Unverified results.** A result is a draft until a pathologist verifies it,
+/// and a number that may still be corrected is worse than no number at all —
+/// people act on what they read. Only verified orders appear.
+///
+/// **Results carrying an unacknowledged critical alert.** A critical value is
+/// supposed to be spoken to a clinician, who then speaks to the patient. Nobody
+/// should learn their potassium is 7.2 from a phone in a car park before that
+/// call has happened. Once the alert is acknowledged the result appears
+/// normally, so this delays disclosure rather than hiding it.
+pub async fn portal_lab_reports(
+    State(state): State<AppState>,
+    Extension(claims): Extension<PatientClaims>,
+) -> Result<Json<Vec<PortalLabReport>>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, PortalLabReport>(
+        "SELECT lo.id AS order_id, t.name AS test_name, r.parameter_name, r.value, \
+                r.unit, r.normal_range, r.flag::text AS flag, r.created_at AS reported_at \
+         FROM lab_results r \
+         JOIN lab_orders lo ON lo.id = r.order_id AND lo.tenant_id = r.tenant_id \
+         JOIN lab_test_catalog t ON t.id = lo.test_id \
+         WHERE r.tenant_id = $1 \
+           AND lo.patient_id = $2 \
+           AND lo.verified_at IS NOT NULL \
+           AND NOT EXISTS ( \
+             SELECT 1 FROM lab_critical_alerts a \
+             WHERE a.tenant_id = r.tenant_id AND a.result_id = r.id \
+               AND a.acknowledged_at IS NULL \
+           ) \
+         ORDER BY r.created_at DESC LIMIT 200",
+    )
+    .bind(claims.tenant_id)
+    .bind(claims.pid)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct PortalPrescriptionItem {
+    pub prescription_id: Uuid,
+    pub drug_name: String,
+    pub dosage: String,
+    pub frequency: String,
+    pub duration: String,
+    pub prescribed_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// `GET /api/portal/prescriptions`
+///
+/// Returns the medicines themselves rather than a list of prescription numbers.
+/// A patient opening this screen wants to know what to take and how often; a
+/// header with a count answers nothing.
+///
+/// Some prescriptions carry `patient_id` directly and older ones reach the
+/// patient only through their encounter, so both paths are covered — otherwise
+/// a patient's earlier medicines would silently be missing.
+pub async fn portal_prescriptions(
+    State(state): State<AppState>,
+    Extension(claims): Extension<PatientClaims>,
+) -> Result<Json<Vec<PortalPrescriptionItem>>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, PortalPrescriptionItem>(
+        "SELECT p.id AS prescription_id, i.drug_name, i.dosage, i.frequency, i.duration, \
+                p.created_at AS prescribed_at \
+         FROM prescriptions p \
+         JOIN prescription_items i \
+           ON i.prescription_id = p.id AND i.tenant_id = p.tenant_id \
+         LEFT JOIN encounters e ON e.id = p.encounter_id AND e.tenant_id = p.tenant_id \
+         WHERE p.tenant_id = $1 AND COALESCE(p.patient_id, e.patient_id) = $2 \
+         ORDER BY p.created_at DESC LIMIT 200",
+    )
+    .bind(claims.tenant_id)
+    .bind(claims.pid)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct PortalAppointment {
+    pub id: Uuid,
+    pub appointment_date: chrono::NaiveDate,
+    pub status: String,
+    pub department_name: Option<String>,
+}
+
+/// `GET /api/portal/appointments`
+pub async fn portal_appointments(
+    State(state): State<AppState>,
+    Extension(claims): Extension<PatientClaims>,
+) -> Result<Json<Vec<PortalAppointment>>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, PortalAppointment>(
+        "SELECT a.id, a.appointment_date, a.status::text AS status, d.name AS department_name \
+         FROM appointments a \
+         LEFT JOIN departments d ON d.id = a.department_id AND d.tenant_id = a.tenant_id \
+         WHERE a.tenant_id = $1 AND a.patient_id = $2 \
+         ORDER BY a.appointment_date DESC LIMIT 100",
+    )
+    .bind(claims.tenant_id)
+    .bind(claims.pid)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}

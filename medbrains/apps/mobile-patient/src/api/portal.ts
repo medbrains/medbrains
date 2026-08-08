@@ -53,3 +53,46 @@ export async function verifyPortalOtp(
 export async function listPortalBills(): Promise<PortalInvoice[]> {
   return request<PortalInvoice[]>(apiConfig, "GET", "/api/portal/bills");
 }
+
+export interface PortalLabReport {
+  order_id: string;
+  test_name: string;
+  parameter_name: string;
+  value: string;
+  unit: string | null;
+  normal_range: string | null;
+  flag: string | null;
+  reported_at: string;
+}
+
+export interface PortalPrescriptionItem {
+  prescription_id: string;
+  drug_name: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  prescribed_at: string;
+}
+
+export interface PortalAppointment {
+  id: string;
+  appointment_date: string;
+  status: string;
+  department_name: string | null;
+}
+
+/**
+ * Only verified results, and nothing carrying an unacknowledged critical alert
+ * — the backend applies both rules, so this list is already safe to show.
+ */
+export async function listPortalLabReports(): Promise<PortalLabReport[]> {
+  return request<PortalLabReport[]>(apiConfig, "GET", "/api/portal/lab-reports");
+}
+
+export async function listPortalPrescriptions(): Promise<PortalPrescriptionItem[]> {
+  return request<PortalPrescriptionItem[]>(apiConfig, "GET", "/api/portal/prescriptions");
+}
+
+export async function listPortalAppointments(): Promise<PortalAppointment[]> {
+  return request<PortalAppointment[]>(apiConfig, "GET", "/api/portal/appointments");
+}

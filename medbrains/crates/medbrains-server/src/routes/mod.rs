@@ -703,6 +703,9 @@ pub fn build_router(state: AppState) -> Router {
     //    satisfy the staff one; the two shapes are mutually undecodable.
     let portal_routes = Router::new()
         .route("/api/portal/bills", get(portal::portal_bills))
+        .route("/api/portal/lab-reports", get(portal::portal_lab_reports))
+        .route("/api/portal/prescriptions", get(portal::portal_prescriptions))
+        .route("/api/portal/appointments", get(portal::portal_appointments))
         .layer(from_fn_with_state(state.clone(), portal::require_patient));
 
     // ── Reminder config — protected, must run through the same auth +
