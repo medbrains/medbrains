@@ -418,6 +418,7 @@ interface TokenBoardsTabProps {
   canViewEmergency: boolean;
   canViewPharmacy: boolean;
   canViewBilling: boolean;
+  canViewCamp: boolean;
 }
 
 function readinessColor(tone: TokenBoardReadinessTone): BadgeTone {
@@ -531,6 +532,7 @@ export function TokenBoardsTab({
   canViewEmergency,
   canViewPharmacy,
   canViewBilling,
+  canViewCamp,
 }: TokenBoardsTabProps) {
   const { t } = useTranslation("frontOffice");
   const routeNavigate = useNavigate();
@@ -572,9 +574,11 @@ export function TokenBoardsTab({
     canViewRadiology ||
     canViewEmergency ||
     canViewPharmacy ||
-    canViewBilling;
+    canViewBilling ||
+    canViewCamp;
   const boardAccess: Readonly<Record<TokenBoardSurfaceId, boolean>> = {
     billing: canViewBilling,
+    camp: canViewCamp,
     emergency: canViewEmergency,
     lab: canViewLab,
     opd: canViewOpdQueue,

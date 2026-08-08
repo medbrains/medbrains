@@ -9,6 +9,7 @@ import {
   type QueuePriority,
   type QueueToken,
   type QueueTokenStatus,
+  recentlyMissedTokens,
   TOKEN_BOARD_SURFACES,
   tokenBoardStatusLabel,
   tokenBoardStatusSignal,
@@ -82,8 +83,14 @@ function QueueScreen({ route }: QueueScreenProps) {
       tokens.find((token) => token.status === "called" || token.status === "in_progress") ?? null;
     const waiting = tokens.filter((token) => token.status === "waiting");
     const completed = tokens.filter((token) => token.status === "completed");
-    return { completed, current, waiting };
-  }, [tokens]);
+    // A missed token used to match none of the three lanes above and so left
+    // the board entirely. The patient who stepped out for five minutes came
+    // back to a screen that had forgotten them, with nothing to say why.
+    const missed = recentlyMissedTokens(tokens, tokensQuery.dataUpdatedAt || Date.now());
+    return { completed, current, missed, waiting };
+    // Recomputed on every refetch so the window closes on its own: the same
+    // token list an hour later yields an empty lane without any timer here.
+  }, [tokens, tokensQuery.dataUpdatedAt]);
 
   return (
     <TvBoard
@@ -143,6 +150,16 @@ function QueueScreen({ route }: QueueScreenProps) {
             emptyLabel={tvTokenBoardLaneEmptyLabel("nextTokens")}
             tokens={boardState.waiting.slice(0, DISPLAY_TOKEN_LIMIT)}
           />
+          {/* Only when somebody has actually been missed. An always-present
+              "No missed tokens" lane spends board space on a reassurance
+              nobody is waiting to read. */}
+          {boardState.missed.length > 0 && (
+            <TokenLane
+              title={tvTokenBoardLaneTitle("missed")}
+              emptyLabel={tvTokenBoardLaneEmptyLabel("missed")}
+              tokens={boardState.missed.slice(0, DISPLAY_TOKEN_LIMIT)}
+            />
+          )}
         </View>
       )}
     </TvBoard>

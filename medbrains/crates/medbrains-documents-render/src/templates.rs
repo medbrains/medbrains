@@ -27,6 +27,7 @@ async fn patient_id_for(
         "admissions" => "SELECT patient_id FROM admissions WHERE id = $1 AND tenant_id = $2",
         "er_visits" => "SELECT patient_id FROM er_visits WHERE id = $1 AND tenant_id = $2",
         "lab_orders" => "SELECT patient_id FROM lab_orders WHERE id = $1 AND tenant_id = $2",
+        "queue_tokens" => "SELECT patient_id FROM queue_tokens WHERE id = $1 AND tenant_id = $2",
         "insurance_claims" => {
             "SELECT patient_id FROM insurance_claims WHERE id = $1 AND tenant_id = $2"
         }
@@ -193,6 +194,24 @@ pub(crate) async fn build_context(
                 obj.insert("qr_svg".to_owned(), serde_json::json!(qr_svg));
             }
             serde_json::json!({ "band": band })
+        }
+        "queue_token_slip" => {
+            let Json(data) = medbrains_print_data::clinical::get_token_slip_print_data(
+                State(state.clone()),
+                Extension(claims.clone()),
+                Path(source_id),
+            )
+            .await?;
+            // The handler hands back the QR *payload*; the slip needs the
+            // drawn code, exactly as the wristband does.
+            let qr_svg = codes::qr_svg(&data.qr_code_data)
+                .map_err(|e| AppError::Internal(format!("token slip qr: {e}")))?;
+            let mut token =
+                serde_json::to_value(&data).map_err(|e| AppError::Internal(e.to_string()))?;
+            if let Some(obj) = token.as_object_mut() {
+                obj.insert("qr_svg".to_owned(), serde_json::json!(qr_svg));
+            }
+            serde_json::json!({ "token": token })
         }
         "insurance_cashless_claim" => {
             let Json(data) = medbrains_print_data::billing::get_cashless_claim_print_data(

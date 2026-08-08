@@ -67,6 +67,7 @@ const RADIOLOGY_BOARD = TOKEN_BOARD_SURFACES.radiology;
 const EMERGENCY_BOARD = TOKEN_BOARD_SURFACES.emergency;
 const PHARMACY_BOARD = TOKEN_BOARD_SURFACES.pharmacy;
 const BILLING_BOARD = TOKEN_BOARD_SURFACES.billing;
+const CAMP_BOARD = TOKEN_BOARD_SURFACES.camp;
 const TOKEN_BOARDS_TEXT = MOBILE_TOKEN_BOARDS_TEXT;
 
 const SURFACE_TEXT_KEYS: Record<
@@ -79,6 +80,7 @@ const SURFACE_TEXT_KEYS: Record<
   }
 > = {
   billing: TOKEN_BOARDS_TEXT.surfaces.billing,
+  camp: TOKEN_BOARDS_TEXT.surfaces.camp,
   emergency: TOKEN_BOARDS_TEXT.surfaces.emergency,
   lab: TOKEN_BOARDS_TEXT.surfaces.lab,
   opd: TOKEN_BOARDS_TEXT.surfaces.opd,
@@ -693,10 +695,18 @@ export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps)
   const canViewEr = useHasAnyPermission(EMERGENCY_BOARD.requiredAnyPermissions);
   const canViewPharmacy = useHasAnyPermission(PHARMACY_BOARD.requiredAnyPermissions);
   const canViewBilling = useHasAnyPermission(BILLING_BOARD.requiredAnyPermissions);
+  const canViewCamp = useHasAnyPermission(CAMP_BOARD.requiredAnyPermissions);
   const canViewAnyBoard =
-    canViewOpd || canViewLab || canViewRadiology || canViewEr || canViewPharmacy || canViewBilling;
+    canViewOpd ||
+    canViewLab ||
+    canViewRadiology ||
+    canViewEr ||
+    canViewPharmacy ||
+    canViewBilling ||
+    canViewCamp;
   const boardAccess: Readonly<Record<TokenBoardSurfaceId, boolean>> = {
     billing: canViewBilling,
+    camp: canViewCamp,
     emergency: canViewEr,
     lab: canViewLab,
     opd: canViewOpd,

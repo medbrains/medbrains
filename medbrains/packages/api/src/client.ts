@@ -1469,6 +1469,7 @@ import type {
   PharmacyPrescriptionRx,
   PharmacyPricingTier,
   // Specialty Queue Displays
+  CampBoardRow,
   PharmacyQueueDisplay,
   PharmacyReturn,
   PharmacyRxDetailResponse,
@@ -1527,6 +1528,8 @@ import type {
   PsychRestraint,
   PublicInvite,
   PublicTenant,
+  PublicTokenLink,
+  PublicTokenStatus,
   PurchaseConsumptionTrendRow,
   PurchaseOrder,
   PurchaseOrderPrintData,
@@ -13207,6 +13210,10 @@ export const api = {
 
   getBillingQueueDisplay: () => request<BillingQueueDisplay>("/tv/queue/billing"),
 
+  /** Every station in one camp with its live queue and who is on duty. */
+  getCampBoard: (campId: string) =>
+    request<CampBoardRow[]>(`/tokens/camp-board?camp_id=${encodeURIComponent(campId)}`),
+
   getBedAvailabilityDisplay: (wardType: string) =>
     request<BedAvailabilityDisplay>(`/tv/queue/beds/${wardType}`),
 
@@ -15638,6 +15645,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  /** Follow a queue token from a patient's phone. No auth: the opaque token is the authorisation. */
+  getPublicQueueTokenStatus: (statusToken: string) =>
+    request<PublicTokenStatus>(`/public/queue-token/${statusToken}`),
+  /** The link the front desk hands a patient so they can follow their token. */
+  getQueueTokenStatusLink: (id: string) =>
+    request<PublicTokenLink>(`/opd/queue-tokens/${id}/status-link`),
   getPublicRadiologyViewer: (id: string) => request<unknown>(`/public/radiology/viewer/${id}`),
   registerBridge: (data: Record<string, unknown>) =>
     request<unknown>("/bridge/register", {

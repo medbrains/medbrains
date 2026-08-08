@@ -24,6 +24,7 @@ export type TvTokenBoardLaneKey =
   | "calledNow"
   | "collectingNow"
   | "inProgress"
+  | "missed"
   | "nextTokens"
   | "nowServing"
   | "preparing"
@@ -85,6 +86,7 @@ export const TV_TEXT = {
   tokenBoards: {
     feedError: {
       billing: "tv.tokenBoards.feedError.billing",
+      camp: "tv.tokenBoards.feedError.camp",
       emergency: "tv.tokenBoards.feedError.emergency",
       lab: "tv.tokenBoards.feedError.lab",
       opd: "tv.tokenBoards.feedError.opd",
@@ -98,6 +100,7 @@ export const TV_TEXT = {
       inProgress: "tv.tokenBoards.laneEmpty.inProgress",
       insurance_desk: "tv.tokenBoards.laneEmpty.billing.insuranceDesk",
       ipd_discharge: "tv.tokenBoards.laneEmpty.billing.ipdDischarge",
+      missed: "tv.tokenBoards.laneEmpty.missed",
       nextTokens: "tv.tokenBoards.laneEmpty.nextTokens",
       nowServing: "tv.tokenBoards.laneEmpty.nowServing",
       opd_billing: "tv.tokenBoards.laneEmpty.billing.opdBilling",
@@ -114,6 +117,7 @@ export const TV_TEXT = {
       inProgress: "tv.tokenBoards.laneTitle.inProgress",
       insurance_desk: "tv.tokenBoards.laneTitle.billing.insuranceDesk",
       ipd_discharge: "tv.tokenBoards.laneTitle.billing.ipdDischarge",
+      missed: "tv.tokenBoards.laneTitle.missed",
       nextTokens: "tv.tokenBoards.laneTitle.nextTokens",
       nowServing: "tv.tokenBoards.laneTitle.nowServing",
       opd_billing: "tv.tokenBoards.laneTitle.billing.opdBilling",
@@ -125,6 +129,7 @@ export const TV_TEXT = {
     },
     loading: {
       billing: "tv.tokenBoards.loading.billing",
+      camp: "tv.tokenBoards.loading.camp",
       emergency: "tv.tokenBoards.loading.emergency",
       lab: "tv.tokenBoards.loading.lab",
       opd: "tv.tokenBoards.loading.opd",
@@ -137,6 +142,7 @@ export const TV_TEXT = {
     },
     subtitle: {
       billing: "tv.tokenBoards.subtitle.billing",
+      camp: "tv.tokenBoards.subtitle.camp",
       emergency: "tv.tokenBoards.subtitle.emergency",
       lab: "tv.tokenBoards.subtitle.lab",
       opdDepartment: "tv.tokenBoards.subtitle.opdDepartment",
@@ -189,6 +195,7 @@ export const TV_TEXT = {
     },
     unavailableTitle: {
       billing: "tv.tokenBoards.unavailableTitle.billing",
+      camp: "tv.tokenBoards.unavailableTitle.camp",
       emergency: "tv.tokenBoards.unavailableTitle.emergency",
       lab: "tv.tokenBoards.unavailableTitle.lab",
       opd: "tv.tokenBoards.unavailableTitle.opd",
@@ -197,6 +204,7 @@ export const TV_TEXT = {
     },
     unavailableMessage: {
       billing: "tv.tokenBoards.unavailableMessage.billing",
+      camp: "tv.tokenBoards.unavailableMessage.camp",
       emergency: "tv.tokenBoards.unavailableMessage.emergency",
       lab: "tv.tokenBoards.unavailableMessage.lab",
       opd: "tv.tokenBoards.unavailableMessage.opd",
@@ -243,6 +251,8 @@ const TV_MESSAGES: Readonly<Record<string, string>> = {
   "tv.privacy.displayMode": "Privacy display mode",
   "tv.tokenBoards.feedError.billing":
     "Billing queue feed is unreachable. Continuing with the last available token state.",
+  "tv.tokenBoards.feedError.camp":
+    "Camp board feed is unreachable. Continuing with the last available station state.",
   "tv.tokenBoards.feedError.emergency":
     "Emergency triage feed is unreachable. Continuing with the last available token state.",
   "tv.tokenBoards.feedError.lab":
@@ -260,6 +270,7 @@ const TV_MESSAGES: Readonly<Record<string, string>> = {
   "tv.tokenBoards.laneEmpty.calledNow": "No token is currently called",
   "tv.tokenBoards.laneEmpty.collectingNow": "No token is currently called",
   "tv.tokenBoards.laneEmpty.inProgress": "No collections in progress",
+  "tv.tokenBoards.laneEmpty.missed": "No missed tokens",
   "tv.tokenBoards.laneEmpty.nextTokens": "No waiting tokens",
   "tv.tokenBoards.laneEmpty.nowServing": "No token is currently being dispensed",
   "tv.tokenBoards.laneEmpty.preparing": "No tokens in preparation",
@@ -274,6 +285,7 @@ const TV_MESSAGES: Readonly<Record<string, string>> = {
   "tv.tokenBoards.laneTitle.calledNow": "Called now",
   "tv.tokenBoards.laneTitle.collectingNow": "Collecting now",
   "tv.tokenBoards.laneTitle.inProgress": "In progress",
+  "tv.tokenBoards.laneTitle.missed": "Missed - please see the front desk",
   "tv.tokenBoards.laneTitle.nextTokens": "Next tokens",
   "tv.tokenBoards.laneTitle.nowServing": "Now serving",
   "tv.tokenBoards.laneTitle.preparing": "Preparing",
@@ -282,6 +294,7 @@ const TV_MESSAGES: Readonly<Record<string, string>> = {
   "tv.tokenBoards.laneTitle.waitingSamples": "Waiting samples",
   "tv.tokenBoards.laneTitle.waitingScans": "Waiting scans",
   "tv.tokenBoards.loading.billing": "Loading billing queue...",
+  "tv.tokenBoards.loading.camp": "Loading camp stations...",
   "tv.tokenBoards.loading.emergency": "Loading emergency triage...",
   "tv.tokenBoards.loading.lab": "Loading lab collection queue...",
   "tv.tokenBoards.loading.opd": "Loading live queue...",
@@ -290,6 +303,7 @@ const TV_MESSAGES: Readonly<Record<string, string>> = {
   "tv.tokenBoards.scope.department": "Department",
   "tv.tokenBoards.scope.hospital": "Hospital",
   "tv.tokenBoards.subtitle.billing": "Please proceed to the billing desk when your token shows.",
+  "tv.tokenBoards.subtitle.camp": "Please go to the room shown when your token is called.",
   "tv.tokenBoards.subtitle.emergency": "Live triage queue with token-only public display.",
   "tv.tokenBoards.subtitle.lab": "Please proceed to sample collection when your token shows.",
   "tv.tokenBoards.subtitle.opdDepartment":
@@ -328,6 +342,7 @@ const TV_MESSAGES: Readonly<Record<string, string>> = {
   "tv.tokenBoards.triageLane.yellow.target": "Urgent",
   "tv.tokenBoards.triageLane.yellow.title": "Yellow",
   "tv.tokenBoards.unavailableTitle.billing": "Billing feed unavailable",
+  "tv.tokenBoards.unavailableTitle.camp": "No camp on this display",
   "tv.tokenBoards.unavailableTitle.emergency": "Triage feed unavailable",
   "tv.tokenBoards.unavailableTitle.lab": "Lab feed unavailable",
   "tv.tokenBoards.unavailableTitle.opd": "Queue feed unavailable",
@@ -335,6 +350,8 @@ const TV_MESSAGES: Readonly<Record<string, string>> = {
   "tv.tokenBoards.unavailableTitle.radiology": "Radiology feed unavailable",
   "tv.tokenBoards.unavailableMessage.billing":
     "Check TV pairing, network, and billing queue display permissions.",
+  "tv.tokenBoards.unavailableMessage.camp":
+    "Pair this display to a camp, then check network and camp board permissions.",
   "tv.tokenBoards.unavailableMessage.emergency":
     "Check TV pairing, network, and emergency display permissions.",
   "tv.tokenBoards.unavailableMessage.lab": "Check TV pairing, network, and lab display access.",

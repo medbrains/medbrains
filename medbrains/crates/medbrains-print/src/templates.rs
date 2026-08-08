@@ -137,6 +137,25 @@ pub const SYSTEM_TEMPLATES: &[SystemTemplate] = &[
         sample_context: WRISTBAND_SAMPLE,
     },
     SystemTemplate {
+        code: "queue_token_slip",
+        title: "Queue Token Slip",
+        module_code: "opd",
+        source_table: "queue_tokens",
+        number_prefix: "QT",
+        // The slip a kiosk or front desk hands over, so it prints on the roll a
+        // kiosk actually has. Height grows with content: a patient queued at
+        // several counters gets a longer slip rather than a truncated one.
+        paper: Paper::Thermal80 { height_mm: 90.0 },
+        margins: MarginsMm {
+            top: 3.0,
+            right: 3.0,
+            bottom: 3.0,
+            left: 3.0,
+        },
+        html: QUEUE_TOKEN_SLIP_HTML,
+        sample_context: QUEUE_TOKEN_SLIP_SAMPLE,
+    },
+    SystemTemplate {
         code: "insurance_cashless_claim",
         title: "Cashless Claim Summary",
         module_code: "insurance",
@@ -608,6 +627,58 @@ const LAB_REPORT_SAMPLE: &str = r#"{
 
 // ── Pharmacy / IPD labels ───────────────────────────────────
 
+const QUEUE_TOKEN_SLIP_HTML: &str = r#"{% extends "base.html" %}
+{% block extra_css %}
+  html, body { font-size: 8pt; }
+  .slip { padding: 1mm 0; text-align: center; }
+  .token { font-size: 30pt; font-weight: 700; line-height: 1; margin: 1.5mm 0; }
+  .where { font-size: 11pt; font-weight: 700; }
+  .who { font-size: 9pt; margin-top: 1mm; }
+  .wait { font-size: 9pt; margin-top: 2mm; }
+  .rule { border-top: 1px dashed #000; margin: 2mm 0; }
+  .qr svg { width: 22mm; height: 22mm; }
+  .note { font-size: 7pt; margin-top: 1.5mm; }
+{% endblock extra_css %}
+{% block letterhead %}{% endblock letterhead %}
+{% block content %}
+<div class="slip">
+  <div>{{ branding.hospital_name }}</div>
+  <div class="muted">{{ token.token_date }} {{ token.token_time }}</div>
+
+  <div class="token mono">{{ token.token_number }}</div>
+  <div class="where">{{ token.department_name }}</div>
+  {% if token.doctor_name %}<div>{{ token.doctor_name }}</div>{% endif %}
+  {% if token.room_number %}<div class="muted">Room {{ token.room_number }}</div>{% endif %}
+
+  <div class="rule"></div>
+
+  <div class="who">{{ token.patient_name }}{% if token.uhid %} · <span class="mono">{{ token.uhid }}</span>{% endif %}</div>
+
+  {# The wait prints only when the queue actually knows it. A slip reading
+     "0 minutes" because nothing has been measured yet is still a promise, and
+     the patient keeps holding it long after it stops being true. #}
+  {% if token.estimated_wait_minutes %}
+    <div class="wait">About {{ token.estimated_wait_minutes }} minutes</div>
+  {% endif %}
+
+  {% if token.qr_svg %}<div class="qr">{{ token.qr_svg | safe }}</div>{% endif %}
+  {% if token.instructions %}<div class="note">{{ token.instructions }}</div>{% endif %}
+</div>
+{% endblock content %}
+{% block footer %}{% endblock footer %}"#;
+
+const QUEUE_TOKEN_SLIP_SAMPLE: &str = r#"{
+  "token": {
+    "token_number": "CARD-014", "department_name": "Cardiology",
+    "doctor_name": "Dr. S. Venkatesh", "room_number": "3",
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "estimated_wait_minutes": 18, "priority": "normal",
+    "token_date": "12-Jun-2026", "token_time": "09:41",
+    "instructions": "Please wait for your token to be called.",
+    "qr_svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><rect width='10' height='10' fill='#eee'/></svg>"
+  }
+}"#;
+
 const PHARMACY_LABEL_HTML: &str = r#"{% extends "base.html" %}
 {% block extra_css %}
   html, body { font-size: 6.5pt; }
@@ -722,3 +793,90 @@ const CASHLESS_CLAIM_SAMPLE: &str = r#"{
   },
   "document_number": "INS-CLM-20260612-0001"
 }"#;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Sample contexts carry only the document's own entity; tenant branding is
+    /// added by the server at render time, so a test must supply it too.
+    fn sample_with_branding(template: &SystemTemplate) -> serde_json::Value {
+        let mut context: serde_json::Value = serde_json::from_str(template.sample_context)
+            .unwrap_or_else(|e| panic!("{}: sample context is not valid JSON: {e}", template.code));
+        context["branding"] = serde_json::json!({ "hospital_name": "Alagappa Hospital" });
+        context
+    }
+
+    /// Every system template must render from its own sample. A sample that has
+    /// drifted from its template is how a print endpoint starts emitting blanks
+    /// where a field used to be.
+    #[test]
+    fn every_template_renders_from_its_sample() {
+        for template in SYSTEM_TEMPLATES {
+            let context = sample_with_branding(template);
+            if let Err(e) = crate::engine::render_html(template.html, &context) {
+                let mut why = e.to_string();
+                let mut src: Option<&dyn std::error::Error> = std::error::Error::source(&e);
+                while let Some(inner) = src {
+                    why.push_str(&format!("\n  caused by: {inner}"));
+                    src = inner.source();
+                }
+                panic!("{}: {why}", template.code);
+            }
+        }
+    }
+
+    /// The queue token slip exists to be handed to a patient, so the number,
+    /// the room and the doctor have to survive rendering — those are what they
+    /// read off it while waiting.
+    #[test]
+    fn the_queue_token_slip_shows_number_room_and_doctor() {
+        let template = find_template("queue_token_slip").expect("queue token slip is registered");
+        let context = sample_with_branding(template);
+        let html = crate::engine::render_html(template.html, &context).expect("render");
+
+        assert!(
+            html.contains("CARD-014"),
+            "the token number must be on the slip"
+        );
+        assert!(
+            html.contains("Cardiology"),
+            "the department must be on the slip"
+        );
+        assert!(
+            html.contains("Dr. S. Venkatesh"),
+            "the doctor must be on the slip"
+        );
+        assert!(
+            html.contains("18"),
+            "the estimated wait must be on the slip"
+        );
+    }
+
+    /// A queue with no measured pace yet must print no wait at all rather than
+    /// "0 minutes", which reads as a promise the queue never made.
+    #[test]
+    fn an_unknown_wait_is_omitted_rather_than_printed_as_zero() {
+        let template = find_template("queue_token_slip").expect("queue token slip is registered");
+        let context = serde_json::json!({
+            "branding": { "hospital_name": "Alagappa Hospital" },
+            "token": {
+                "token_number": "CARD-001", "department_name": "Cardiology",
+                "patient_name": "R. Lakshmi",
+                "token_date": "12-Jun-2026", "token_time": "09:41",
+                "estimated_wait_minutes": null,
+            },
+        });
+        let html = crate::engine::render_html(template.html, &context).expect("render");
+
+        assert!(html.contains("CARD-001"));
+        assert!(
+            !html.contains("minutes"),
+            "no wait is known, so none should be printed"
+        );
+        assert!(
+            !html.contains("About"),
+            "an unknown wait must leave the line off entirely"
+        );
+    }
+}

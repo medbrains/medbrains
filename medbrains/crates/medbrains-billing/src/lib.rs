@@ -768,10 +768,14 @@ pub async fn create_invoice(
 
     // Auto-issue a billing-counter token (one per patient per day; gated by the
     // tenant's billing-token enablement).
+    // Join the visit this patient is already in, so the number on their
+    // slip carries through to this counter too.
+    let visit_id = medbrains_tokens::current_visit(&mut tx, invoice.patient_id).await?;
     medbrains_tokens::issue_token_once_per_patient_day(
         &mut tx,
         claims.tenant_id,
         medbrains_tokens::IssueToken {
+            visit_id,
             module: "billing",
             scope: "global",
             scope_id: None,

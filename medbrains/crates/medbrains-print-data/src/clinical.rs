@@ -917,6 +917,9 @@ pub async fn get_er_discharge_print_data(
 struct TokenSlipRow {
     token_number: String,
     created_at: chrono::DateTime<Utc>,
+    department_id: Uuid,
+    token_date: chrono::NaiveDate,
+    token_seq: i32,
     patient_name: Option<String>,
     uhid: Option<String>,
     department_name: Option<String>,
@@ -940,6 +943,9 @@ pub async fn get_token_slip_print_data(
         "SELECT \
            qt.token_number, \
            qt.created_at, \
+           qt.department_id, \
+           qt.token_date, \
+           qt.token_seq, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            dept.name AS department_name, \
@@ -963,6 +969,18 @@ pub async fn get_token_slip_print_data(
 
     tx.commit().await?;
 
+    // Ask the queue module rather than counting here: the slip must promise the
+    // same wait the board shows, and two implementations would drift apart.
+    let (_, estimated_wait_minutes) = medbrains_tv::position_and_wait(
+        &state.db,
+        claims.tenant_id,
+        row.department_id,
+        row.token_date,
+        row.token_seq,
+        &row.priority,
+    )
+    .await?;
+
     // Generate QR code data (token ID for verification)
     let qr_data = format!("MBTOKEN:{token_id}");
 
@@ -975,7 +993,7 @@ pub async fn get_token_slip_print_data(
         department_name: row.department_name.unwrap_or_default(),
         doctor_name: row.doctor_name,
         room_number: row.room_number,
-        estimated_wait_minutes: None, // Can be calculated from queue position
+        estimated_wait_minutes,
         priority: row.priority,
         qr_code_data: qr_data,
         instructions: "Please wait for your token to be called. Listen for announcements or watch the display screen.".to_string(),

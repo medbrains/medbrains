@@ -1,6 +1,6 @@
 use axum::{
-    Json,
     extract::{Query, State},
+    Json,
 };
 use chrono::{Datelike, Duration, NaiveTime, Utc};
 use medbrains_core::appointment::{Appointment, AppointmentStatus, AvailableSlot, DoctorSchedule};
@@ -10,8 +10,15 @@ use crate::{error::AppError, event_tokens, state::AppState};
 
 use super::{
     KioskCheckinRequest, KioskCheckinResponse, PublicBookingRequest, PublicBookingResponse,
-    PublicSlotsQuery,
+    PublicSlotsQuery, PublicTokenLink, PublicTokenStatus,
 };
+
+/// How long a patient's status link stays live.
+///
+/// The token belongs to one day's queue, so the link is useless past it either
+/// way; the expiry is what stops a link shared or logged today from being
+/// replayed next week.
+const STATUS_LINK_HOURS: i64 = 16;
 
 /// POST /api/public/appointments/book
 pub async fn public_book_appointment(
@@ -200,7 +207,7 @@ pub async fn kiosk_checkin(
     .execute(&mut *tx)
     .await?;
 
-    let token_number = super::issue_queue_token(
+    let (queue_token_id, token_number) = super::issue_queue_token(
         &mut tx,
         appointment.tenant_id,
         appointment.department_id,
@@ -232,6 +239,16 @@ pub async fn kiosk_checkin(
         .await;
     tx.commit().await?;
 
+    let status_token = event_tokens::issue_event_token(
+        &state,
+        appointment.tenant_id,
+        "queue.status",
+        "queue_token",
+        queue_token_id,
+        Utc::now() + Duration::hours(STATUS_LINK_HOURS),
+    )
+    .await?;
+
     Ok(Json(KioskCheckinResponse {
         appointment_id,
         patient_name,
@@ -240,7 +257,133 @@ pub async fn kiosk_checkin(
         token_number,
         status: "checked_in".to_owned(),
         message: "Check-in successful. Wait for your token.".to_owned(),
+        status_token,
     }))
+}
+
+/// GET /api/opd/queue-tokens/{id}/status-link — the link to hand a patient.
+///
+/// Most patients check in at the desk rather than at a kiosk, so this is the
+/// path that actually reaches them: staff open a token and give the patient the
+/// link (as a QR on screen, or a message) to follow it on their own phone.
+///
+/// Returns the opaque handle only. Turning it into a URL or a QR is the caller's
+/// business — the desk, the slip and a message each render it differently.
+pub async fn queue_token_status_link(
+    State(state): State<AppState>,
+    axum::Extension(claims): axum::Extension<crate::middleware::auth::Claims>,
+    axum::extract::Path(id): axum::extract::Path<Uuid>,
+) -> Result<Json<PublicTokenLink>, AppError> {
+    crate::middleware::authorization::require_permission(
+        &claims,
+        medbrains_core::permissions::front_office::queue::LIST,
+    )?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    // Confirm the token is this tenant's before sealing its id into a link that
+    // needs no further authorisation to use.
+    let exists: Option<(Uuid,)> = sqlx::query_as(
+        "SELECT id FROM queue_tokens \
+          WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    exists.ok_or(AppError::NotFound)?;
+
+    let status_token = event_tokens::issue_event_token(
+        &state,
+        claims.tenant_id,
+        "queue.status",
+        "queue_token",
+        id,
+        Utc::now() + Duration::hours(STATUS_LINK_HOURS),
+    )
+    .await?;
+
+    Ok(Json(PublicTokenLink { status_token }))
+}
+
+/// GET /api/public/queue-token/{token} — follow your own token from your phone.
+///
+/// Checking in gives a patient a number and, until now, nowhere to watch it.
+/// The board is in the waiting room; a digital token you cannot follow is a
+/// screenshot, and the patient still has to stand in front of the screen.
+///
+/// Unauthenticated by necessity — the patient has no login — so the opaque
+/// token is the whole of the authorisation: it is encrypted, tenant-stamped and
+/// expiring, and it names one queue row. Nothing here widens that to a second
+/// row, and the reply carries no identity.
+pub async fn public_token_status(
+    State(state): State<AppState>,
+    axum::extract::Path(token): axum::extract::Path<String>,
+) -> Result<Json<PublicTokenStatus>, AppError> {
+    let opened = event_tokens::open_event_token(&state, &token, "queue.status").await?;
+    if opened.subject_type != "queue_token" {
+        return Err(AppError::BadRequest("Invalid token".to_owned()));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &opened.tenant_id).await?;
+
+    // Tenant is matched from the sealed token, not from the request: a link
+    // minted for one tenant must not read another's queue even if the ids were
+    // somehow known.
+    let row = sqlx::query_as::<_, QueueTokenStatusRow>(
+        "SELECT qt.token_number, qt.status, qt.token_date, qt.token_seq, \
+                qt.priority::text AS priority, qt.department_id, \
+                COALESCE(d.name, '') AS department_name \
+           FROM queue_tokens qt \
+           LEFT JOIN departments d ON d.id = qt.department_id \
+                                  AND d.tenant_id = qt.tenant_id \
+          WHERE qt.id = $1 AND qt.tenant_id = $2 AND qt.deleted_at IS NULL",
+    )
+    .bind(opened.subject_id)
+    .bind(opened.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+
+    // Position only means anything while still queued. A patient who has been
+    // called or seen gets the status and no count, rather than a stale "3 ahead"
+    // that would read as though they were still waiting.
+    let (ahead, estimated_wait_minutes) = if row.status == "waiting" {
+        let (ahead, wait) = medbrains_tv::position_and_wait(
+            &state.db,
+            opened.tenant_id,
+            row.department_id,
+            row.token_date,
+            row.token_seq,
+            &row.priority,
+        )
+        .await?;
+        (Some(ahead), wait)
+    } else {
+        (None, None)
+    };
+
+    Ok(Json(PublicTokenStatus {
+        token_number: row.token_number,
+        department_name: row.department_name,
+        status: row.status,
+        ahead,
+        estimated_wait_minutes,
+    }))
+}
+
+#[derive(sqlx::FromRow)]
+struct QueueTokenStatusRow {
+    token_number: String,
+    status: String,
+    token_date: chrono::NaiveDate,
+    token_seq: i32,
+    priority: String,
+    department_id: Uuid,
+    department_name: String,
 }
 
 async fn find_or_create_patient(

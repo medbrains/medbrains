@@ -746,6 +746,12 @@ export const MOBILE_TOKEN_BOARDS_TEXT = {
       subtitle: "patientJourney.mobile.tokenBoards.surfaces.billing.subtitle",
       title: "patientJourney.mobile.tokenBoards.surfaces.billing.title",
     },
+    camp: {
+      flow: "patientJourney.mobile.tokenBoards.surfaces.camp.flow",
+      restricted: "patientJourney.mobile.tokenBoards.surfaces.camp.restricted",
+      subtitle: "patientJourney.mobile.tokenBoards.surfaces.camp.subtitle",
+      title: "patientJourney.mobile.tokenBoards.surfaces.camp.title",
+    },
     emergency: {
       flow: "patientJourney.mobile.tokenBoards.surfaces.emergency.flow",
       restricted: "patientJourney.mobile.tokenBoards.surfaces.emergency.restricted",
@@ -1438,6 +1444,11 @@ const MOBILE_PATIENT_JOURNEY_MESSAGES: Record<string, string> = {
   "patientJourney.mobile.tokenBoards.status.waiting": "Waiting",
   "patientJourney.mobile.tokenBoards.surfaces.billing.flow": "Billing",
   "patientJourney.mobile.tokenBoards.surfaces.billing.restricted": "Billing board restricted",
+  "patientJourney.mobile.tokenBoards.surfaces.camp.flow": "Camp stations",
+  "patientJourney.mobile.tokenBoards.surfaces.camp.restricted": "Camp board restricted",
+  "patientJourney.mobile.tokenBoards.surfaces.camp.subtitle":
+    "Consultation rooms and service counters for the day's camp.",
+  "patientJourney.mobile.tokenBoards.surfaces.camp.title": "Camp stations",
   "patientJourney.mobile.tokenBoards.surfaces.billing.subtitle":
     "OPD, IPD discharge, advance and insurance desks",
   "patientJourney.mobile.tokenBoards.surfaces.billing.title": "Billing counters",

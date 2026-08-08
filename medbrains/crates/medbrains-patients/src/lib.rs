@@ -1564,10 +1564,14 @@ pub async fn create_patient(
 
     // Auto-issue a registration token (skipped if the module is disabled).
     let patient_label = format!("{} {}", patient.first_name, patient.last_name);
+    // Registration is where a visit starts, so it mints the id the rest of the
+    // journey shares: the lab and pharmacy tokens raised later carry the same
+    // number, and the patient holds one slip instead of three.
     medbrains_tokens::issue_token_in_tx(
         &mut tx,
         claims.tenant_id,
         medbrains_tokens::IssueToken {
+            visit_id: Some(Uuid::new_v4()),
             module: "registration",
             scope: "global",
             scope_id: None,

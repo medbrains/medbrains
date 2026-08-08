@@ -11,7 +11,9 @@ pub use bookings::{
     get_appointment, list_appointments, mark_appointment_no_show, reschedule_appointment,
 };
 pub use public::{
-    kiosk_checkin, public_available_slots, public_book_appointment, request_public_booking_otp,
+    kiosk_checkin, public_available_slots, public_book_appointment, public_token_status,
+    queue_token_status_link,
+    request_public_booking_otp,
 };
 pub use reminders::{get_reminder_config, update_reminder_config};
 pub use schedules::{
@@ -22,7 +24,9 @@ pub use types::{
     AppointmentWithPatient, BookAppointmentRequest, CancelRequest, CreateExceptionRequest,
     CreateScheduleRequest, KioskCheckinRequest, KioskCheckinResponse, ListAppointmentsQuery,
     ListExceptionsQuery, ListSchedulesQuery, ListSlotsQuery, PublicBookingOtpRequest,
-    PublicBookingRequest, PublicBookingResponse, PublicSlotsQuery, ReminderConfig,
+    PublicBookingRequest, PublicBookingResponse, PublicSlotsQuery, PublicTokenLink,
+    PublicTokenStatus,
+    ReminderConfig,
     RescheduleRequest, UpdateScheduleRequest,
 };
 
@@ -34,7 +38,7 @@ pub(crate) async fn issue_queue_token(
     tenant_id: uuid::Uuid,
     department_id: uuid::Uuid,
     patient_id: uuid::Uuid,
-) -> Result<String, crate::error::AppError> {
+) -> Result<(uuid::Uuid, String), crate::error::AppError> {
     let token_seq: i32 = sqlx::query_scalar(  // allow-raw-sql: helper runs on the caller's tenant-scoped transaction
         "SELECT COALESCE(MAX(token_seq), 0) + 1 FROM queue_tokens \
          WHERE department_id = $1 AND token_date = CURRENT_DATE",
@@ -44,18 +48,21 @@ pub(crate) async fn issue_queue_token(
     .await?;
     let token_number = format!("T-{token_seq:03}");
 
-    sqlx::query(  // allow-raw-sql: helper runs on the caller's tenant-scoped transaction
+    // The id comes back so a caller can hand the patient an opaque reference to
+    // follow this token on their phone; the number alone cannot address a row.
+    let id: uuid::Uuid = sqlx::query_scalar(  // allow-raw-sql: helper runs on the caller's tenant-scoped transaction
         "INSERT INTO queue_tokens \
          (tenant_id, department_id, patient_id, token_date, token_seq, token_number, status) \
-         VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, 'waiting')",
+         VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, 'waiting') \
+         RETURNING id",
     )
     .bind(tenant_id)
     .bind(department_id)
     .bind(patient_id)
     .bind(token_seq)
     .bind(&token_number)
-    .execute(&mut **tx)
+    .fetch_one(&mut **tx)
     .await?;
 
-    Ok(token_number)
+    Ok((id, token_number))
 }

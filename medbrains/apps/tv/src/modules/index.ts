@@ -8,6 +8,7 @@ import type { Module } from "@medbrains/mobile-shell";
 import type { TokenBoardTvDisplayType } from "@medbrains/types";
 import { bedStatusModule } from "./bed-status";
 import { billingQueueModule } from "./billing-queue";
+import { campQueueModule } from "./camp-queue";
 import { digitalSignageModule } from "./digital-signage";
 import { emergencyTriageModule } from "./emergency-triage";
 import { labStatusModule } from "./lab-status";
@@ -21,6 +22,7 @@ import {
 
 export const TOKEN_BOARD_TV_MODULES = {
   billing_queue: billingQueueModule,
+  camp_queue: campQueueModule,
   emergency_triage: emergencyTriageModule,
   lab_queue: labStatusModule,
   opd_queue: queueModule,

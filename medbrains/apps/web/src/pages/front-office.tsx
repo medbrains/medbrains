@@ -215,6 +215,7 @@ export function FrontOfficePage() {
           canViewEmergency={canViewEmergency}
           canViewPharmacy={canViewPharmacy}
           canViewBilling={canViewBilling}
+          canViewCamp={canViewCamp}
         />
       </Box>
     );
@@ -272,6 +273,7 @@ export function FrontOfficePage() {
               canViewEmergency={canViewEmergency}
               canViewPharmacy={canViewPharmacy}
               canViewBilling={canViewBilling}
+              canViewCamp={canViewCamp}
             />
           </Tabs.Panel>
         )}

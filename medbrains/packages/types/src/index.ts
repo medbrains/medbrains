@@ -269,6 +269,9 @@ export * from "./tenant-facility";
 export type {
   BillingQueueLaneDefinition,
   BillingQueueLaneKey,
+  MissableToken,
+  PublicTokenLink,
+  PublicTokenStatus,
   TokenBoardDisplayMode,
   TokenBoardLaunchTargets,
   TokenBoardReadinessItem,
@@ -289,6 +292,8 @@ export {
   getTokenBoardSurface,
   isTokenBoardStatusValue,
   isTokenBoardSurfaceId,
+  MISSED_TOKEN_BOARD_WINDOW_MINUTES,
+  recentlyMissedTokens,
   TOKEN_BOARD_FAST_REFRESH_MS,
   TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE,
   TOKEN_BOARD_STANDARD_REFRESH_MS,
@@ -4663,6 +4668,26 @@ export interface PartReplaced {
 // ── Specialty Queue Displays ───────────────────────────────────────────────
 
 /** Pharmacy queue token for display */
+/**
+ * One station on a camp board: a department, the counters mapped to it, whoever
+ * is on duty, and its live queue. Field names mirror the Rust `CampBoardRow`.
+ */
+export interface CampBoardRow {
+  department_id: string;
+  department: string;
+  /** Counters mapped to this department, comma-joined; null if none. */
+  counter_name: string | null;
+  location_label: string | null;
+  /** Summed across the department's counters. */
+  capacity_per_hour: number | null;
+  /** Doctors rostered to the department and staff rostered to its counters. */
+  staff: string[];
+  /** Token numbers with a patient in the room; more than one where a counter is staffed by several. */
+  serving: string[];
+  waiting: number;
+  completed: number;
+}
+
 export interface PharmacyQueueToken {
   token_number: string;
   patient_name: string;
@@ -7714,6 +7739,14 @@ export interface ModuleToken {
   entity_type?: string | null;
   entity_id?: string | null;
   counter_label?: string | null;
+  /** Groups a visit's tokens so one number carries OPD -> lab -> pharmacy. */
+  visit_id?: string | null;
+  /**
+   * How many this department will call first — priority, then queue position.
+   * Only returned by `myTokens`; a shared visit number is unreadable on a board
+   * without it.
+   */
+  ahead?: number;
   called_at?: string | null;
   served_at?: string | null;
   completed_at?: string | null;

@@ -1988,10 +1988,14 @@ pub async fn create_order_in_tx(
     ensure_pharmacy_billing_indent_for_order_in_tx(tx, &claims.tenant_id, &order, &items).await?;
 
     // Auto-issue a pharmacy token (per store counter when known).
+    // Join the visit this patient is already in, so the number on their
+    // slip carries through to this counter too.
+    let visit_id = medbrains_tokens::current_visit(tx, order.patient_id).await?;
     medbrains_tokens::issue_token_in_tx(
         tx,
         claims.tenant_id,
         medbrains_tokens::IssueToken {
+            visit_id,
             module: "pharmacy",
             scope: if order.store_location_id.is_some() { "counter" } else { "global" },
             scope_id: order.store_location_id,

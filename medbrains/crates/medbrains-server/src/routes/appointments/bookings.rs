@@ -544,7 +544,7 @@ pub async fn check_in_appointment(
     }
 
     // TV token board entry + broadcast (same path the kiosk uses).
-    let queue_token =
+    let (_, queue_token) =
         super::issue_queue_token(&mut tx, claims.tenant_id, row.department_id, row.patient_id)
             .await?;
     state
@@ -553,10 +553,16 @@ pub async fn check_in_appointment(
         .await;
 
     // Unified OPD token (department scope) for the new token boards / console.
+    // Arriving for an appointment joins the visit this patient already has —
+    // they may have registered first — and otherwise starts one.
+    let visit_id = crate::routes::tokens::current_visit(&mut tx, row.patient_id)
+        .await?
+        .or_else(|| Some(Uuid::new_v4()));
     crate::routes::tokens::issue_token_in_tx(
         &mut tx,
         claims.tenant_id,
         crate::routes::tokens::IssueToken {
+            visit_id,
             module: "opd",
             scope: "department",
             scope_id: Some(row.department_id),

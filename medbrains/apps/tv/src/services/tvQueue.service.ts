@@ -11,4 +11,5 @@ export const tvQueueService = {
   getPharmacyQueueDisplay: () => api.getPharmacyQueueDisplay(),
   getRadiologyQueueDisplay: (modality: string) => api.getRadiologyQueueDisplay(modality),
   getBillingQueueDisplay: () => api.getBillingQueueDisplay(),
+  getCampBoard: (campId: string) => api.getCampBoard(campId),
 };

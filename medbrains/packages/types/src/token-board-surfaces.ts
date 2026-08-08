@@ -2,6 +2,7 @@ import { P } from "./permissions.js";
 
 export type TokenBoardSurfaceId =
   | "billing"
+  | "camp"
   | "emergency"
   | "lab"
   | "opd"
@@ -21,6 +22,7 @@ export type TokenBoardStatusPhase =
 export type TokenBoardStatusShape = "circle" | "diamond" | "pill" | "ring" | "square";
 export type TokenBoardTvDisplayType =
   | "billing_queue"
+  | "camp_queue"
   | "emergency_triage"
   | "lab_queue"
   | "opd_queue"
@@ -65,7 +67,7 @@ export interface TokenBoardSurfaceDefinition {
   accent: "brand" | "copper" | "emerald" | "red" | "violet";
   description: string;
   displayMode: TokenBoardDisplayMode;
-  module: "billing" | "emergency" | "lab" | "opd" | "pharmacy" | "radiology";
+  module: "billing" | "camp" | "emergency" | "lab" | "opd" | "pharmacy" | "radiology";
   privacyNotice: string;
   readiness: {
     flow: string;
@@ -190,6 +192,40 @@ export const TOKEN_BOARD_SURFACES: Readonly<
       webPath: tokenBoardWebPath("billing"),
     },
     title: "Billing counters",
+  },
+  camp: {
+    accent: "emerald",
+    description:
+      "Outreach camp board — every consultation room and service counter for one camp, with who is on duty.",
+    displayMode: "token_only_public",
+    id: "camp",
+    module: "camp",
+    privacyNotice:
+      "Token-only camp display. Patient names, identifiers, Aadhaar and complaints are withheld; only the staff on duty are named.",
+    readiness: {
+      flow: "Camp stations",
+      privacy: "Token only",
+    },
+    // A camp queue turns over faster than a hospital clinic: one counter can
+    // feed thirteen rooms, so the board is refreshed on the fast interval.
+    refreshIntervalMs: TOKEN_BOARD_FAST_REFRESH_MS,
+    requiredAnyPermissions: [P.CAMP.LIST, P.CAMP.REGISTRATIONS_LIST],
+    restrictedLabel: "Camp board restricted",
+    standardRefs: ["NABH CHO community outreach", "IPSG.1 patient identification"],
+    subtitle: "Consultation rooms and service counters for the day's camp",
+    targets: {
+      kioskPath: tokenBoardKioskPath("camp"),
+      mobileParams: { surface: "camp" },
+      mobileRoute: "TokenBoards",
+      // A TV taken to a camp is a queue display. There is no "TV-Camp" in the
+      // AppSurfaceCode catalog and adding a shipped app target is an org
+      // decision, not a board one.
+      tvAppCodes: ["TV-Queue"],
+      tvDeepLink: "medbrains://tv/camp-queue",
+      tvDisplayType: "camp_queue",
+      webPath: tokenBoardWebPath("camp"),
+    },
+    title: "Camp stations",
   },
   emergency: {
     accent: "red",
@@ -473,6 +509,7 @@ const TOKEN_BOARD_REFRESH_VALUE_KEY = "tokenBoards.readiness.values.refreshSecon
 
 const TOKEN_BOARD_SURFACE_FLOW_LABEL_KEYS: Readonly<Record<TokenBoardSurfaceId, string>> = {
   billing: "tokenBoards.surfaces.billing.flow",
+  camp: "tokenBoards.surfaces.camp.flow",
   emergency: "tokenBoards.surfaces.emergency.flow",
   lab: "tokenBoards.surfaces.lab.flow",
   opd: "tokenBoards.surfaces.opd.flow",
@@ -676,6 +713,71 @@ export function tokenBoardStatusSignal(status: string): TokenBoardStatusSignal {
 
 export function tokenBoardStatusLabelKey(status: string): string | null {
   return isTokenBoardStatusValue(status) ? TOKEN_BOARD_STATUS_LABEL_KEYS[status] : null;
+}
+
+/**
+ * How long a missed token keeps its place on the board.
+ *
+ * Long enough that someone who stepped out to the toilet or the pharmacy walks
+ * back, finds their number still on screen, and knows to go to the desk. Short
+ * enough that the board is not carrying every no-show of the day by afternoon —
+ * a "Missed" list forty numbers long tells nobody anything.
+ *
+ * Ten minutes is a starting figure, not a measured one; it is named here so a
+ * site that runs busier or quieter can change it in one place.
+ */
+export const MISSED_TOKEN_BOARD_WINDOW_MINUTES = 10;
+
+/**
+ * What a patient sees when they follow their own token from their phone.
+ *
+ * No name, no identifiers: the link needs no login, so it must reveal no more
+ * than the waiting-room screen shows to everyone already standing in front of
+ * it.
+ */
+export interface PublicTokenStatus {
+  token_number: string;
+  department_name: string;
+  status: string;
+  /** How many are called first. Null once the token is no longer waiting. */
+  ahead: number | null;
+  estimated_wait_minutes: number | null;
+}
+
+/** The opaque handle staff hand to a patient so they can follow their token. */
+export interface PublicTokenLink {
+  status_token: string;
+}
+
+/** The shape needed to tell whether a token was recently missed. */
+export interface MissableToken {
+  status: string;
+  /** When the token left the queue. Missed tokens without one are not shown. */
+  completed_at: string | null;
+}
+
+/**
+ * The tokens a board should announce as missed right now.
+ *
+ * Only `no_show`. A `cancelled` token shares the same "blocked" phase but is a
+ * deliberate act — announcing it as missed would send a patient to the desk to
+ * ask about a token somebody already withdrew on purpose.
+ *
+ * Tokens with no `completed_at` are left out: without a time there is no way to
+ * tell a call missed a minute ago from one missed at eight this morning, and
+ * showing both is how the list stops meaning anything.
+ */
+export function recentlyMissedTokens<T extends MissableToken>(
+  tokens: readonly T[],
+  nowMs: number,
+  windowMinutes: number = MISSED_TOKEN_BOARD_WINDOW_MINUTES,
+): T[] {
+  const cutoff = nowMs - windowMinutes * 60_000;
+  return tokens.filter((token) => {
+    if (token.status !== "no_show" || token.completed_at === null) return false;
+    const missedAt = Date.parse(token.completed_at);
+    return !Number.isNaN(missedAt) && missedAt >= cutoff;
+  });
 }
 
 export function tokenBoardStatusLabel(status: string): string {

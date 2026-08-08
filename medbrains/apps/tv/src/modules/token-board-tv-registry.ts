@@ -16,6 +16,7 @@ export interface TokenBoardTvModuleRegistryEntry {
 
 export const TOKEN_BOARD_TV_MODULE_IDS_BY_DISPLAY = {
   billing_queue: "billing-queue",
+  camp_queue: "camp-queue",
   emergency_triage: "emergency-triage",
   lab_queue: "lab-status",
   opd_queue: "queue",

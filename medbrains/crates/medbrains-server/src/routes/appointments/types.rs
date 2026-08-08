@@ -150,6 +150,30 @@ pub struct KioskCheckinResponse {
     pub token_number: String,
     pub status: String,
     pub message: String,
+    /// Opaque handle the patient keeps on their phone to follow this token.
+    /// Encrypted and expiring; it addresses the queue row without exposing it.
+    pub status_token: String,
+}
+
+/// The opaque handle staff hand to a patient so they can follow their token.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PublicTokenLink {
+    pub status_token: String,
+}
+
+/// What a patient may see about their own token from an unauthenticated phone.
+///
+/// Deliberately no name, no UHID, no patient or department id: this is reached
+/// with a link and nothing else, so it must reveal no more than the waiting-room
+/// screen already shows to everyone standing in front of it.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PublicTokenStatus {
+    pub token_number: String,
+    pub department_name: String,
+    pub status: String,
+    /// How many are called before this one. `None` once it is no longer waiting.
+    pub ahead: Option<i64>,
+    pub estimated_wait_minutes: Option<i32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
