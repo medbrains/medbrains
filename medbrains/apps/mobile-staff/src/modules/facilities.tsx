@@ -13,6 +13,7 @@ import { EntityRow } from "../components/entity-row.js";
 import { useModuleCount } from "../components/module-count.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import { FireRoundScreen } from "./facilities/fire-round.js";
 import { GasReadingScreen } from "./facilities/gas-reading.js";
 import { RaiseWorkOrderScreen } from "./facilities/raise-work-order.js";
 
@@ -71,9 +72,10 @@ function FacilitiesHome(): ReactNode {
         },
         {
           id: "fire",
-          label: "Fire safety",
-          description: "Equipment, drills, NOC tracking.",
+          label: "Fire round",
+          description: "Scan each unit and record the check.",
           permission: P.FACILITIES.FIRE_LIST,
+          onPress: () => router.push("fire-round"),
         },
         {
           id: "water",
@@ -115,6 +117,7 @@ function FacilitiesScreen(): ReactNode {
         "work-orders": <WorkOrdersScreen />,
         raise: <RaiseWorkOrderScreen />,
         "gas-reading": <GasReadingScreen />,
+        "fire-round": <FireRoundScreen />,
       }}
     />
   );

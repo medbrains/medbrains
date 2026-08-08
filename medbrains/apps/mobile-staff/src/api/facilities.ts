@@ -72,3 +72,39 @@ export async function listGasReadings(): Promise<GasReadingRow[]> {
 export async function recordGasReading(input: GasReadingInput): Promise<GasReadingRow> {
   return request<GasReadingRow>(apiConfig, "POST", "/api/facilities/gas-readings", input);
 }
+
+export interface FireEquipmentRow {
+  id: string;
+  name: string;
+  equipment_type: string;
+  serial_number: string | null;
+  capacity: string | null;
+  expiry_date: string | null;
+  next_refill_date: string | null;
+  barcode_value: string | null;
+  qr_code_value: string | null;
+}
+
+/**
+ * Active fire equipment only. A hospital has a few hundred of these, which is
+ * why the scan matches client-side — unlike a drug catalogue, the whole set
+ * fits comfortably on a phone and there is no barcode filter server-side.
+ */
+export async function listFireEquipment(): Promise<FireEquipmentRow[]> {
+  return request<FireEquipmentRow[]>(
+    apiConfig,
+    "GET",
+    "/api/facilities/fire-equipment?is_active=true",
+  );
+}
+
+export interface FireInspectionInput {
+  equipment_id: string;
+  inspection_date: string;
+  is_functional: boolean;
+  findings?: string;
+}
+
+export async function recordFireInspection(input: FireInspectionInput): Promise<unknown> {
+  return request<unknown>(apiConfig, "POST", "/api/facilities/fire-inspections", input);
+}
