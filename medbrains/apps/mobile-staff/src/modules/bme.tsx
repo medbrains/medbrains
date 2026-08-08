@@ -13,6 +13,7 @@ import { EntityRow } from "../components/entity-row.js";
 import { useModuleCount } from "../components/module-count.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import { ReportBreakdownScreen } from "./bme/report-breakdown.js";
 
 const STATUS_TONE: Record<string, IntentTone> = {
   active: "success",
@@ -60,6 +61,7 @@ function BmeHome(): ReactNode {
           label: "Log breakdown",
           description: "Open ticket + dispatch service.",
           permission: P.BME.BREAKDOWNS_CREATE,
+          onPress: () => router.push("report-breakdown"),
         },
         {
           id: "contracts",
@@ -95,7 +97,14 @@ function EquipmentScreen(): ReactNode {
 
 function BmeScreen(): ReactNode {
   return (
-    <ModuleRouter initial="home" screens={{ home: <BmeHome />, equipment: <EquipmentScreen /> }} />
+    <ModuleRouter
+      initial="home"
+      screens={{
+        home: <BmeHome />,
+        equipment: <EquipmentScreen />,
+        "report-breakdown": <ReportBreakdownScreen />,
+      }}
+    />
   );
 }
 
