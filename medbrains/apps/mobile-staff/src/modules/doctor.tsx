@@ -14,6 +14,7 @@ import { useModuleCount } from "../components/module-count.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
 import { DoctorIpdRoundDetailScreen, DoctorIpdRoundsScreen } from "./doctor/ipd-rounds.js";
+import { MyClinicScreen } from "./doctor/my-clinic.js";
 import { QueueDetailScreen } from "./doctor/queue-detail.js";
 import { QueueListScreen } from "./doctor/queue-list.js";
 
@@ -74,6 +75,7 @@ function DoctorHome(): ReactNode {
           label: "Appointments",
           description: "View today's schedule and reschedule.",
           permission: P.OPD.APPOINTMENT.LIST,
+          onPress: () => router.push("my-clinic"),
         },
       ]}
     />
@@ -92,6 +94,7 @@ function DoctorScreen(): ReactNode {
         "ipd-round-detail": (payload) => (
           <DoctorIpdRoundDetailScreen admission={payload as AdmissionRow} />
         ),
+        "my-clinic": <MyClinicScreen />,
       }}
     />
   );

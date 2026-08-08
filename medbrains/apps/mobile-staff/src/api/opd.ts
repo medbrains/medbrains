@@ -61,3 +61,28 @@ export async function startConsultation(id: string): Promise<QueueTransitionResp
 export async function completeQueueEntry(id: string): Promise<QueueTransitionResponse> {
   return request<QueueTransitionResponse>(apiConfig, "PUT", `/api/opd/queue/${id}/complete`);
 }
+
+export interface AppointmentRow {
+  id: string;
+  patient_id: string;
+  patient_name: string | null;
+  doctor_id: string;
+  appointment_date: string;
+  start_time: string | null;
+  status: string;
+  reason: string | null;
+}
+
+/**
+ * A doctor's own list for a day. `doctor_id` is passed from the signed-in
+ * identity rather than chosen — a doctor looking at their phone between rounds
+ * wants their own clinic, and there is no reason for the app to offer anyone
+ * else's.
+ */
+export async function listMyAppointments(
+  doctorId: string,
+  date: string,
+): Promise<AppointmentRow[]> {
+  const qs = new URLSearchParams({ doctor_id: doctorId, date });
+  return request<AppointmentRow[]>(apiConfig, "GET", `/api/opd/appointments?${qs}`);
+}
