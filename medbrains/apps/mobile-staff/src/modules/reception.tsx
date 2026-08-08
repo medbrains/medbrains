@@ -15,6 +15,7 @@ import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
 import { PatientDetailScreen } from "./reception/patient-detail.js";
 import { PatientListScreen } from "./reception/patient-list.js";
+import { QueueBoardScreen } from "./reception/queue-board.js";
 import { RegisterPatientScreen } from "./reception/register-patient.js";
 
 function ReceptionHome(): ReactNode {
@@ -53,6 +54,7 @@ function ReceptionHome(): ReactNode {
           label: "OPD queue",
           description: "Token issue + call.",
           permission: P.OPD.QUEUE_LIST,
+          onPress: () => router.push("queue-board"),
         },
         {
           id: "appointments",
@@ -86,6 +88,7 @@ function ReceptionScreen(): ReactNode {
         register: <RegisterPatientScreen />,
         directory: <PatientListScreen />,
         "patient-detail": (payload) => <PatientDetailScreen patient={payload as PatientRow} />,
+        "queue-board": <QueueBoardScreen />,
       }}
     />
   );
