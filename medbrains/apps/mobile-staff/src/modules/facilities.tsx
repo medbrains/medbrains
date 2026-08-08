@@ -13,6 +13,7 @@ import { EntityRow } from "../components/entity-row.js";
 import { useModuleCount } from "../components/module-count.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import { GasReadingScreen } from "./facilities/gas-reading.js";
 import { RaiseWorkOrderScreen } from "./facilities/raise-work-order.js";
 
 const STATUS_TONE: Record<string, IntentTone> = {
@@ -66,6 +67,7 @@ function FacilitiesHome(): ReactNode {
           label: "MGPS readings",
           description: "Gas pressures + PESO compliance log.",
           permission: P.FACILITIES.GAS_LIST,
+          onPress: () => router.push("gas-reading"),
         },
         {
           id: "fire",
@@ -112,6 +114,7 @@ function FacilitiesScreen(): ReactNode {
         home: <FacilitiesHome />,
         "work-orders": <WorkOrdersScreen />,
         raise: <RaiseWorkOrderScreen />,
+        "gas-reading": <GasReadingScreen />,
       }}
     />
   );
