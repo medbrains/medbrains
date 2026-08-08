@@ -1,12 +1,12 @@
 // IPD NearExpiryHints — split from pharmacy.tsx (pure move).
 
-import { ExpiryCell, renderPharmacySensitiveValue } from "./shared";
-import { Table } from "@/components/ui";
-import { pharmacyService } from "@/services/pharmacy.service";
 import { Stack, Text } from "@mantine/core";
 import { useFieldAccess } from "@medbrains/stores";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { Table } from "@/components/ui";
+import { pharmacyService } from "@/services/pharmacy.service";
+import { ExpiryCell, renderPharmacySensitiveValue } from "./shared";
 
 export function NearExpiryHints({ drugNames }: { drugNames: string[] }) {
   const batchNumberAccess = useFieldAccess("pharmacy.batches.batch_number");

@@ -1,16 +1,21 @@
 // IPD PrintAdmissionButton — split from ipd.tsx (pure move).
 
-import { protectedIpdPatientIdentifier, protectedIpdPatientName } from "./shared";
-import { useProtectedFieldAccess } from "@/components";
-import { Badge, Button } from "@/components/ui";
-import { ipdService } from "@/services/ipd.service";
-import { buildCopyPrintHtml, copyPrintStyles, printCopyRouteLabel, PRINT_COPY_PACKETS } from "@/utils/printCopies";
 import { Drawer, Group, SimpleGrid, Stack, Text } from "@mantine/core";
-import { PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import type { AdmissionPrintData } from "@medbrains/types";
+import { PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import { IconPrinter } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useRef, useState } from "react";
+import { useProtectedFieldAccess } from "@/components";
+import { Badge, Button } from "@/components/ui";
+import { ipdService } from "@/services/ipd.service";
+import {
+  buildCopyPrintHtml,
+  copyPrintStyles,
+  PRINT_COPY_PACKETS,
+  printCopyRouteLabel,
+} from "@/utils/printCopies";
+import { protectedIpdPatientIdentifier, protectedIpdPatientName } from "./shared";
 
 const IPD_ADMISSION_PRINT_COPIES = PRINT_COPY_PACKETS.ipdAdmission;
 

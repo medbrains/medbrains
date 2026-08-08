@@ -1,15 +1,15 @@
 // IPD TransferTab — split from ipd.tsx (pure move).
 
-import { emitIpdBedMovementEvent } from "./shared";
-import { useClinicalEmit } from "@/components";
-import { BedSelect } from "@/components/BedSelect";
-import { Button, toast } from "@/components/ui";
-import { ipdService } from "@/services/ipd.service";
 import { Stack, Text, Textarea } from "@mantine/core";
 import { IconBed } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useClinicalEmit } from "@/components";
+import { BedSelect } from "@/components/BedSelect";
+import { Button, toast } from "@/components/ui";
+import { ipdService } from "@/services/ipd.service";
+import { emitIpdBedMovementEvent } from "./shared";
 
 export function TransferTab({
   admissionId,

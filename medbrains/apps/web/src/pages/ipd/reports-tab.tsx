@@ -1,9 +1,15 @@
 // IPD ReportsTab — split from ipd.tsx (pure move).
 
-import { AnesthesiaComplicationsReport } from "./anesthesia-complications";
-import { AlosReport, CensusReport, DischargeStatsReport, OccupancyReport, SurgeonCaseloadReport } from "./reports";
 import { Group, Select, Stack, TextInput } from "@mantine/core";
 import { useState } from "react";
+import { AnesthesiaComplicationsReport } from "./anesthesia-complications";
+import {
+  AlosReport,
+  CensusReport,
+  DischargeStatsReport,
+  OccupancyReport,
+  SurgeonCaseloadReport,
+} from "./reports";
 
 export function ReportsTab() {
   const [reportType, setReportType] = useState("census");

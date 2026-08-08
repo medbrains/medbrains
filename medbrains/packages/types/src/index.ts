@@ -7825,3 +7825,27 @@ export interface DevicePairingRequest {
   expires_at: string;
   created_at: string;
 }
+
+/** What the QR on a printed prescription resolves to. */
+export interface VerifiedMedication {
+  drug_name: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+}
+
+/**
+ * Deliberately carries no full name, phone, address, diagnosis or vitals — a
+ * pharmacist already holds the paper with the name on it and needs only to
+ * confirm it matches.
+ */
+export interface VerifiedPrescription {
+  hospital_name: string;
+  doctor_name: string;
+  doctor_registration: string | null;
+  patient_initials: string;
+  uhid_suffix: string;
+  issued_on: string;
+  medications: VerifiedMedication[];
+  previous_checks: number;
+}

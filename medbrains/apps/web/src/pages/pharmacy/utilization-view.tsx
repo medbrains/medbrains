@@ -1,11 +1,11 @@
 // IPD UtilizationView — split from pharmacy.tsx (pure move).
 
-import { DataTable } from "@/components";
-import { Badge } from "@/components/ui";
-import { pharmacyService } from "@/services/pharmacy.service";
 import { Text } from "@mantine/core";
 import type { DrugUtilizationRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
+import { DataTable } from "@/components";
+import { Badge } from "@/components/ui";
+import { pharmacyService } from "@/services/pharmacy.service";
 
 export function UtilizationView() {
   const { data: rows = [], isLoading } = useQuery({

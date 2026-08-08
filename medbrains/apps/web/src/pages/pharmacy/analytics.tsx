@@ -1,10 +1,10 @@
 // IPD AnalyticsTab — split from pharmacy.tsx (pure move).
 
+import { SegmentedControl, Stack } from "@mantine/core";
+import { useState } from "react";
 import { AbcVedView } from "./abc-ved-view";
 import { ConsumptionView } from "./consumption-view";
 import { UtilizationView } from "./utilization-view";
-import { SegmentedControl, Stack } from "@mantine/core";
-import { useState } from "react";
 
 export function AnalyticsTab() {
   const [view, setView] = useState("consumption");

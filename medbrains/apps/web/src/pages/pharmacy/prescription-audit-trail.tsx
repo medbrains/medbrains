@@ -1,10 +1,10 @@
 // IPD PrescriptionAuditTrail — split from pharmacy.tsx (pure move).
 
-import { Badge, Table } from "@/components/ui";
-import { pharmacyService } from "@/services/pharmacy.service";
 import { Text } from "@mantine/core";
 import type { PrescriptionAuditEntry } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
+import { Badge, Table } from "@/components/ui";
+import { pharmacyService } from "@/services/pharmacy.service";
 
 export function PrescriptionAuditTrail({ prescriptionId }: { prescriptionId: string }) {
   const { data: entries = [], isLoading } = useQuery({

@@ -1,10 +1,10 @@
 // IPD StoresTransfersTab — split from pharmacy.tsx (pure move).
-import { PharmacyRegistry } from "@/components/Pharmacy/PharmacyRegistry";
-import { Alert } from "@/components/ui";
 
-import { TransfersView } from "./transfers-view";
 import { SegmentedControl, Stack } from "@mantine/core";
 import { useState } from "react";
+import { PharmacyRegistry } from "@/components/Pharmacy/PharmacyRegistry";
+import { Alert } from "@/components/ui";
+import { TransfersView } from "./transfers-view";
 
 function PharmacyLocationsView({ canViewStores }: { canViewStores: boolean }) {
   return canViewStores ? (

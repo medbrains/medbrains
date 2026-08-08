@@ -1,12 +1,12 @@
 // IPD FormularyCheckModal — split from pharmacy.tsx (pure move).
 
-import { DrugSearchSelect } from "@/components/DrugSearchSelect";
-import { Alert, Badge, Button } from "@/components/ui";
-import { pharmacyService } from "@/services/pharmacy.service";
 import { Card, Group, Modal, Stack, Text } from "@mantine/core";
 import type { FormularyCheckResult } from "@medbrains/types";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
+import { DrugSearchSelect } from "@/components/DrugSearchSelect";
+import { Alert, Badge, Button } from "@/components/ui";
+import { pharmacyService } from "@/services/pharmacy.service";
 
 export function FormularyCheckModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const [drugId, setDrugId] = useState("");

@@ -2057,6 +2057,7 @@ import type {
   WorkOrderPrintData,
   WoundCertificatePrintData,
   WristbandPrintData,
+  VerifiedPrescription,
 } from "@medbrains/types";
 import { getApiBase } from "./config.js";
 
@@ -12827,6 +12828,17 @@ export const api = {
     request<TransfusionReactionPrintData>(`/print-data/transfusion-reaction/${reactionId}`),
 
   // ── Phase 4: Clinical Delivery Print Data ─────────────────
+  /**
+   * Minted when a prescription is printed. The QR on the paper carries this
+   * token, never the encounter id — a raw id cannot expire or be revoked.
+   */
+  issuePrescriptionVerifyLink: (encounterId: string) =>
+    request<{ token: string }>(`/opd/encounters/${encounterId}/verify-link`, { method: "POST" }),
+
+  /** Public — scanned by a pharmacist who is not a user of this system. */
+  verifyPrescription: (token: string) =>
+    request<VerifiedPrescription>(`/public/prescriptions/verify/${token}`),
+
   getOpdPrescriptionPrintData: (encounterId: string) =>
     request<OpdPrescriptionPrintData>(`/print-data/opd-prescription/${encounterId}`),
 

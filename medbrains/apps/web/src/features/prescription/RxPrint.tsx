@@ -84,7 +84,16 @@ export function RxPrint({
     const d = formularyById[it.id];
     return d?.controlled || d?.schedule === "X" || d?.schedule === "H1";
   });
-  const verifyUrl = `${window.location.origin}/verify/rx/${encounterId}`;
+  // The QR carries a minted token, never the encounter id. A raw id cannot
+  // expire, cannot be revoked, and identifies the encounter to anyone who
+  // photographs the paper.
+  const { data: verifyLink } = useQuery({
+    queryKey: ["prescription-verify-link", encounterId],
+    queryFn: () => opdService.issuePrescriptionVerifyLink(encounterId),
+    enabled: opened && items.length > 0,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+  const verifyUrl = verifyLink ? `${window.location.origin}/verify/rx/${verifyLink.token}` : null;
   const date = new Date().toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
@@ -196,8 +205,12 @@ export function RxPrint({
 
         <Box className="rxp-foot">
           <Box>
-            <QRCodeSVG value={verifyUrl} size={72} />
-            <Box className="rxp-fine">Scan to verify · valid for one dispense unless stated</Box>
+            {verifyUrl && <QRCodeSVG value={verifyUrl} size={72} />}
+            <Box className="rxp-fine">
+              {verifyUrl
+                ? "Scan to verify · valid for one dispense unless stated"
+                : "Verification code unavailable"}
+            </Box>
           </Box>
           <Box className="rxp-sign">
             <Box className="rxp-sign-line">

@@ -20,13 +20,11 @@ import type { TurnaroundRow } from "../../api/housekeeping.js";
 import { completeTurnaround, listTurnarounds } from "../../api/housekeeping.js";
 import { EntityRow } from "../../components/entity-row.js";
 import { ScreenHeader } from "../../components/screen-header.js";
+import { isOverdue, minutesWaiting, waitingLabel } from "../../lib/turnaround.js";
 import { useFetch } from "../../lib/use-fetch.js";
 
 /** Bounded like every other constrained-surface list in the app. */
 const PAGE_SIZE = 50;
-
-/** Past this, a dirty bed is the reason somebody is waiting. */
-const OVERDUE_MINUTES = 60;
 
 export function BedTurnaroundScreen(): ReactNode {
   const { data, loading, error, refetch } = useFetch(listTurnarounds, []);
@@ -123,16 +121,16 @@ function TurnaroundCard({
   onComplete: () => void;
 }): ReactNode {
   const waiting = minutesWaiting(row);
-  const isOverdue = waiting !== null && waiting >= OVERDUE_MINUTES;
+  const overdue = isOverdue(waiting);
 
   return (
     <View style={{ marginBottom: SPACING.sm }}>
       <EntityRow
         title={row.location_id ?? "Unassigned bed"}
         subtitle={waitingLabel(waiting)}
-        accent={isOverdue}
+        accent={overdue}
         badge={
-          isOverdue
+          overdue
             ? { label: "overdue", tone: "alert" }
             : { label: row.cleaning_started_at ? "in progress" : "waiting", tone: "warn" }
         }
@@ -149,33 +147,4 @@ function TurnaroundCard({
       </Button>
     </View>
   );
-}
-
-/**
- * Counts from whichever moment the bed actually became the housekeeper's
- * problem — dirty if recorded, otherwise discharge. Falling back to discharge
- * matters: a bed nobody flagged as dirty is exactly the one that goes unnoticed.
- */
-function minutesWaiting(row: TurnaroundRow): number | null {
-  const since = row.dirty_at ?? row.discharge_at;
-  if (!since) {
-    return null;
-  }
-  const started = new Date(since).getTime();
-  if (Number.isNaN(started)) {
-    return null;
-  }
-  return Math.max(0, Math.round((Date.now() - started) / 60_000));
-}
-
-function waitingLabel(waiting: number | null): string {
-  if (waiting === null) {
-    return "Waiting time unknown";
-  }
-  if (waiting < 60) {
-    return `WAITING ${waiting} MIN`;
-  }
-  const hours = Math.floor(waiting / 60);
-  const minutes = waiting % 60;
-  return `WAITING ${hours}H ${minutes}M`;
 }

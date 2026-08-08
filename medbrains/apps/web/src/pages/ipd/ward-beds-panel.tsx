@@ -1,16 +1,20 @@
 // IPD WardBedsPanel — split from ipd.tsx (pure move).
 
-import { bedStatusBadgeTones, protectedIpdPatientIdentifier, protectedIpdPatientName } from "./shared";
+import { Group, Stack, Text, TextInput, Tooltip } from "@mantine/core";
+import type { WardBedRow } from "@medbrains/types";
+import { PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
+import { IconTrash } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useProtectedFieldAccess } from "@/components";
 import { Badge, Button, IconButton, Table } from "@/components/ui";
 import { confirmDestructive } from "@/lib/confirm-destructive";
 import { ipdService } from "@/services/ipd.service";
-import { Group, Stack, Text, TextInput, Tooltip } from "@mantine/core";
-import { PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
-import type { WardBedRow } from "@medbrains/types";
-import { IconTrash } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import {
+  bedStatusBadgeTones,
+  protectedIpdPatientIdentifier,
+  protectedIpdPatientName,
+} from "./shared";
 
 export function WardBedsPanel({ wardId, canManage }: { wardId: string; canManage: boolean }) {
   const queryClient = useQueryClient();

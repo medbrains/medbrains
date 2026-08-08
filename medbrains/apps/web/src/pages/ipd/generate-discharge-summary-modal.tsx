@@ -1,13 +1,13 @@
 // IPD GenerateDischargeSummaryModal — split from ipd.tsx (pure move).
 
-import { protectedIpdPatientName } from "./shared";
+import { Group, Modal, Stack, Text } from "@mantine/core";
+import type { DischargeSummary as DischargeSummaryGenerated } from "@medbrains/types";
+import { PATIENT_NAME_FIELD_ACCESS_KEYS } from "@medbrains/types";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useProtectedFieldAccess } from "@/components";
 import { Badge, Button, toast } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
-import { Group, Modal, Stack, Text } from "@mantine/core";
-import { PATIENT_NAME_FIELD_ACCESS_KEYS } from "@medbrains/types";
-import type { DischargeSummary as DischargeSummaryGenerated } from "@medbrains/types";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { protectedIpdPatientName } from "./shared";
 
 export function GenerateDischargeSummaryModal({
   admissionId,

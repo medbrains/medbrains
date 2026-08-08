@@ -1,15 +1,15 @@
 // IPD BedTransferModal — split from ipd.tsx (pure move).
 
-import { emitIpdBedMovementEvent } from "./shared";
-import { FormModal, useClinicalEmit } from "@/components";
-import { BedSelect } from "@/components/BedSelect";
-import { toast } from "@/components/ui";
-import { ipdService } from "@/services/ipd.service";
-import { TextInput, Textarea } from "@mantine/core";
+import { Textarea, TextInput } from "@mantine/core";
 import type { BedTransferRequest } from "@medbrains/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { FormModal, useClinicalEmit } from "@/components";
+import { BedSelect } from "@/components/BedSelect";
+import { toast } from "@/components/ui";
+import { ipdService } from "@/services/ipd.service";
+import { emitIpdBedMovementEvent } from "./shared";
 
 export function BedTransferModal({
   admissionId,

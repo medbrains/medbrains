@@ -1,16 +1,26 @@
 // IPD Birth Records tab — split from ipd.tsx (pure move).
 
-import { Badge, Button, Table, toast } from "@/components/ui";
-import { ipdService } from "@/services/ipd.service";
-import { Card, Checkbox, Group, NumberInput, Select, SimpleGrid, Stack, Text, TextInput, Textarea } from "@mantine/core";
+import {
+  Card,
+  Checkbox,
+  Group,
+  NumberInput,
+  Select,
+  SimpleGrid,
+  Stack,
+  Text,
+  Textarea,
+  TextInput,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
-import { P } from "@medbrains/types";
 import type { CreateBirthRecordRequest, IpdBirthRecord } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-
+import { Badge, Button, Table, toast } from "@/components/ui";
+import { ipdService } from "@/services/ipd.service";
 
 export function BirthRecordsTab({
   admissionId,
@@ -284,4 +294,3 @@ export function BirthRecordsTab({
 // ═══════════════════════════════════════════════════════════
 // ── Generate Discharge Summary Modal ──────────────────────
 // ═══════════════════════════════════════════════════════════
-

@@ -1,11 +1,11 @@
 // IPD ConsentsTab — split from ipd.tsx (pure move).
 
-import { Badge, Table } from "@/components/ui";
-import type { BadgeTone } from "@/components/ui";
-import { ipdService } from "@/services/ipd.service";
 import { Stack, Text } from "@mantine/core";
 import type { ProcedureConsent } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
+import type { BadgeTone } from "@/components/ui";
+import { Badge, Table } from "@/components/ui";
+import { ipdService } from "@/services/ipd.service";
 
 export function ConsentsTab({ admissionId }: { admissionId: string }) {
   const { data, isLoading } = useQuery({

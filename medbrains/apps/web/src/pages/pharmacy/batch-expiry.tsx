@@ -1,10 +1,10 @@
 // IPD BatchExpiryTab — split from pharmacy.tsx (pure move).
 
+import { SegmentedControl, Stack } from "@mantine/core";
+import { useState } from "react";
 import { BatchLedgerView } from "./batch-ledger-view";
 import { DeadStockView } from "./dead-stock-view";
 import { NearExpiryView } from "./near-expiry-view";
-import { SegmentedControl, Stack } from "@mantine/core";
-import { useState } from "react";
 
 export function BatchExpiryTab() {
   const [view, setView] = useState("batches");

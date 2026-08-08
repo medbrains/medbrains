@@ -1,20 +1,35 @@
 // IPD BedDashboardTab — split from ipd.tsx (pure move).
 
-import { ipdAdmissionWorkspaceTabRoute } from "../ipd-workspace";
-import { BedTurnaroundView } from "./bed-turnaround";
-import { bedDashboardSignalLabel, bedDashboardStatusIcon, bedDashboardStatusLabel, bedDashboardStatusShape, bedDashboardStatusTone, bedStatusColors, protectedIpdPatientIdentifier, protectedIpdPatientName } from "./shared";
-import { OperationalSignal, useProtectedFieldAccess } from "@/components";
-import { Button } from "@/components/ui";
-import { ipdService } from "@/services/ipd.service";
 import { Card, Group, Select, SimpleGrid, Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
-import { BED_BOARD_MUTABLE_STATUS_VALUES, BED_BOARD_STATUS_VALUES, P, PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import type { BedDashboardRow, BedDashboardSummary } from "@medbrains/types";
+import {
+  BED_BOARD_MUTABLE_STATUS_VALUES,
+  BED_BOARD_STATUS_VALUES,
+  P,
+  PATIENT_NAME_FIELD_ACCESS_KEYS,
+  PATIENT_UHID_FIELD_ACCESS_KEY,
+} from "@medbrains/types";
 import { IconBuildingHospital, IconEye } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
+import { OperationalSignal, useProtectedFieldAccess } from "@/components";
+import { Button } from "@/components/ui";
+import { ipdService } from "@/services/ipd.service";
+import { ipdAdmissionWorkspaceTabRoute } from "../ipd-workspace";
+import { BedTurnaroundView } from "./bed-turnaround";
+import {
+  bedDashboardSignalLabel,
+  bedDashboardStatusIcon,
+  bedDashboardStatusLabel,
+  bedDashboardStatusShape,
+  bedDashboardStatusTone,
+  bedStatusColors,
+  protectedIpdPatientIdentifier,
+  protectedIpdPatientName,
+} from "./shared";
 
 export function BedDashboardTab() {
   const { t } = useTranslation("ipd");

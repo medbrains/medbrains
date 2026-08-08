@@ -1,10 +1,10 @@
 // IPD IoChartTab — split from ipd.tsx (pure move).
 
-import { Badge, Table } from "@/components/ui";
-import { ipdService } from "@/services/ipd.service";
 import { Group, Stack, Text } from "@mantine/core";
 import type { IpdIntakeOutput } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
+import { Badge, Table } from "@/components/ui";
+import { ipdService } from "@/services/ipd.service";
 
 export function IoChartTab({ admissionId }: { admissionId: string }) {
   const { data: ioData } = useQuery({

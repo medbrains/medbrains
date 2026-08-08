@@ -1,12 +1,17 @@
 // IPD BillingTab — split from ipd.tsx (pure move).
 
+import { Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
+import type {
+  BillingSummaryResponse,
+  EstimatedCostResponse,
+  IpTypeConfiguration,
+  Receipt,
+} from "@medbrains/types";
+import { IconAlertTriangle } from "@tabler/icons-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DocumentActions } from "@/components";
 import { Badge, Button, Table, toast } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
-import { Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
-import type { BillingSummaryResponse, EstimatedCostResponse, IpTypeConfiguration, Receipt } from "@medbrains/types";
-import { IconAlertTriangle } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function BillingTab({ admissionId }: { admissionId: string }) {
   const billingQueryClient = useQueryClient();

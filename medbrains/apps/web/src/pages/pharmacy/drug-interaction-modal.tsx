@@ -1,15 +1,15 @@
 // IPD DrugInteractionModal — split from pharmacy.tsx (pure move).
 
-import { PharmacyPatientContext, sharedColorBadgeTone } from "./shared";
-import { DrugSearchSelect } from "@/components/DrugSearchSelect";
-import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Alert, Badge, Button } from "@/components/ui";
-import type { AlertTone } from "@/components/ui";
-import { pharmacyService } from "@/services/pharmacy.service";
 import { Group, Modal, Stack, Text } from "@mantine/core";
 import type { DrugInteractionCheckRequest, DrugInteractionResult } from "@medbrains/types";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
+import { DrugSearchSelect } from "@/components/DrugSearchSelect";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import type { AlertTone } from "@/components/ui";
+import { Alert, Badge, Button } from "@/components/ui";
+import { pharmacyService } from "@/services/pharmacy.service";
+import { PharmacyPatientContext, sharedColorBadgeTone } from "./shared";
 
 export function DrugInteractionModal({
   opened,

@@ -21,18 +21,34 @@ export interface ModuleCount {
   loading: boolean;
 }
 
+/**
+ * The rule, separated from the hook so it can be tested without React.
+ *
+ * A failed fetch stays unknown. Returning 0 there would be indistinguishable
+ * from a genuinely quiet shift and would stop someone acting on a queue that is
+ * actually full.
+ */
+export function resolveCount<T>(
+  data: ReadonlyArray<T> | null,
+  error: string | null,
+  matches?: (item: T) => boolean,
+): number | string {
+  if (error || !data) {
+    return COUNT_UNKNOWN;
+  }
+  return matches ? data.filter(matches).length : data.length;
+}
+
 export function useModuleCount<T>(
   fetcher: () => Promise<ReadonlyArray<T>>,
   matches?: (item: T) => boolean,
 ): ModuleCount {
   const { data, loading, error } = useFetch(fetcher, []);
 
-  const count = useMemo<number | string>(() => {
-    if (error || !data) {
-      return COUNT_UNKNOWN;
-    }
-    return matches ? data.filter(matches).length : data.length;
-  }, [data, error, matches]);
+  const count = useMemo<number | string>(
+    () => resolveCount(data, error, matches),
+    [data, error, matches],
+  );
 
   return { count, loading };
 }

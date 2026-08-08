@@ -26,6 +26,7 @@ import type { CatalogItemRow, StockMovement } from "../../api/pharmacy.js";
 import { findCatalogByBarcode, recordStockTransaction } from "../../api/pharmacy.js";
 import { EntityRow } from "../../components/entity-row.js";
 import { ScreenHeader } from "../../components/screen-header.js";
+import { checkQuantity } from "../../lib/stock-entry.js";
 
 const MOVEMENTS: ReadonlyArray<{ value: StockMovement; label: string }> = [
   { value: "receipt", label: "Received" },
@@ -71,17 +72,11 @@ export function ScanStockScreen(): ReactNode {
     setScanRound((round) => round + 1);
   }, []);
 
-  const parsedQuantity = Number.parseInt(quantity, 10);
-  const quantityError =
-    quantity.trim() === ""
-      ? null
-      : !Number.isFinite(parsedQuantity) || parsedQuantity <= 0
-        ? "Enter a whole number of units, more than zero."
-        : null;
+  const { quantity: parsedQuantity, error: quantityError } = checkQuantity(quantity);
 
   const record = useCallback(
     async (item: CatalogItemRow) => {
-      if (!Number.isFinite(parsedQuantity) || parsedQuantity <= 0) {
+      if (parsedQuantity === null) {
         return;
       }
       setBusy(true);

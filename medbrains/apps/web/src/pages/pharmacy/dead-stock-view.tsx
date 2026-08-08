@@ -1,13 +1,13 @@
 // IPD DeadStockView — split from pharmacy.tsx (pure move).
 
-import { renderPharmacySensitiveCurrency } from "./shared";
-import { DataTable } from "@/components";
-import { Badge } from "@/components/ui";
-import { pharmacyService } from "@/services/pharmacy.service";
 import { Text } from "@mantine/core";
 import { useFieldAccess } from "@medbrains/stores";
 import type { PharmacyDeadStockRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
+import { DataTable } from "@/components";
+import { Badge } from "@/components/ui";
+import { pharmacyService } from "@/services/pharmacy.service";
+import { renderPharmacySensitiveCurrency } from "./shared";
 
 export function DeadStockView() {
   const valueAccess = useFieldAccess("pharmacy.analytics.value");

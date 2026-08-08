@@ -1,15 +1,29 @@
 // IPD DeathSummaryTab — split from ipd.tsx (pure move).
 
-import { P } from "@medbrains/types";
-import { Badge, Button, toast } from "@/components/ui";
-import { ipdService } from "@/services/ipd.service";
-import { Card, Checkbox, Group, Select, SimpleGrid, Stack, Text, TextInput, Textarea } from "@mantine/core";
+import {
+  Card,
+  Checkbox,
+  Group,
+  Select,
+  SimpleGrid,
+  Stack,
+  Text,
+  Textarea,
+  TextInput,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
-import type { CreateDeathSummaryRequest, DeathCertFormType, IpdDeathSummary } from "@medbrains/types";
+import type {
+  CreateDeathSummaryRequest,
+  DeathCertFormType,
+  IpdDeathSummary,
+} from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Badge, Button, toast } from "@/components/ui";
+import { ipdService } from "@/services/ipd.service";
 
 export function DeathSummaryTab({
   admissionId,

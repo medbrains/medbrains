@@ -4,6 +4,7 @@ pub mod admin;
 pub mod admin_simulator;
 pub mod appointments;
 pub mod portal;
+pub mod rx_verify;
 pub mod audit;
 pub mod coverage;
 pub mod debug;
@@ -206,6 +207,12 @@ pub fn build_router(state: AppState) -> Router {
         // Dashboard — widget data
         // ── OPD + OPD Appointments ──────────────────────────
         .merge(medbrains_opd::router())
+        // Minted when a prescription is printed; the QR on the paper points at
+        // the token this returns.
+        .route(
+            "/api/opd/encounters/{id}/verify-link",
+            post(rx_verify::issue_verify_link),
+        )
         .route(
             "/api/opd/schedules",
             get(appointments::list_schedules).post(appointments::create_schedule),
@@ -704,7 +711,13 @@ pub fn build_router(state: AppState) -> Router {
         // Patient portal sign-in. Unauthenticated by necessity — this is how a
         // patient gets a token in the first place.
         .route("/api/portal/auth/request-otp", post(portal::request_portal_otp))
-        .route("/api/portal/auth/verify", post(portal::verify_portal_otp));
+        .route("/api/portal/auth/verify", post(portal::verify_portal_otp))
+        // Scanned by a pharmacist at a counter, who is not a user of this
+        // system — so the token in the URL is the whole credential.
+        .route(
+            "/api/public/prescriptions/verify/{token}",
+            get(rx_verify::verify_prescription),
+        );
 
     // ── Patient portal — behind require_patient, never the staff auth stack.
     //    A staff token cannot satisfy this extractor and a patient token cannot

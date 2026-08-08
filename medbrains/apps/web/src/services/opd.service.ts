@@ -126,6 +126,10 @@ export const opdService = {
     api.opdReferralTracking(...args),
   opdFollowupCompliance: (...args: Parameters<typeof api.opdFollowupCompliance>) =>
     api.opdFollowupCompliance(...args),
+  issuePrescriptionVerifyLink: (...args: Parameters<typeof api.issuePrescriptionVerifyLink>) =>
+    api.issuePrescriptionVerifyLink(...args),
+  verifyPrescription: (...args: Parameters<typeof api.verifyPrescription>) =>
+    api.verifyPrescription(...args),
   getWaitEstimate: (...args: Parameters<typeof api.getWaitEstimate>) =>
     api.getWaitEstimate(...args),
   listAvailableBeds: (...args: Parameters<typeof api.listAvailableBeds>) =>

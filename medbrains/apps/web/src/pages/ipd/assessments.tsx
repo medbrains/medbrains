@@ -1,21 +1,41 @@
 // IPD AssessmentsTab — split from ipd.tsx (pure move).
 
-import { Alert, Badge, Button, Table } from "@/components/ui";
-import type { BadgeTone } from "@/components/ui";
-import { DEFAULT_IPD_CLINICAL_ASSESSMENT_VALUES, IPD_ASSESSMENT_TYPE_OPTIONS, IPD_BRADEN_INJURY_ACQUIRED_OPTIONS, IPD_BRADEN_INJURY_STAGE_OPTIONS, IPD_RISK_LEVEL_OPTIONS, bradenRiskLevel, calculateBradenTotal, normalizeIpdAssessmentType, toCreateAssessmentRequest } from "@/forms/ipd.form";
-import { ipdService } from "@/services/ipd.service";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Checkbox, Group, NumberInput, Select, SimpleGrid, Stack, Text, TextInput, Textarea } from "@mantine/core";
+import {
+  Checkbox,
+  Group,
+  NumberInput,
+  Select,
+  SimpleGrid,
+  Stack,
+  Text,
+  Textarea,
+  TextInput,
+} from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { ipdClinicalAssessmentFormSchema } from "@medbrains/schemas";
 import type { IpdClinicalAssessmentFormInput } from "@medbrains/schemas";
+import { ipdClinicalAssessmentFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import { P } from "@medbrains/types";
 import type { IpdClinicalAssessment } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconAlertTriangle, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Controller, useForm } from "react-hook-form";
 import type { Resolver } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
+import type { BadgeTone } from "@/components/ui";
+import { Alert, Badge, Button, Table } from "@/components/ui";
+import {
+  bradenRiskLevel,
+  calculateBradenTotal,
+  DEFAULT_IPD_CLINICAL_ASSESSMENT_VALUES,
+  IPD_ASSESSMENT_TYPE_OPTIONS,
+  IPD_BRADEN_INJURY_ACQUIRED_OPTIONS,
+  IPD_BRADEN_INJURY_STAGE_OPTIONS,
+  IPD_RISK_LEVEL_OPTIONS,
+  normalizeIpdAssessmentType,
+  toCreateAssessmentRequest,
+} from "@/forms/ipd.form";
+import { ipdService } from "@/services/ipd.service";
 
 export function AssessmentsTab({ admissionId }: { admissionId: string }) {
   const canCreate = useHasPermission(P.IPD.ASSESSMENTS_CREATE);

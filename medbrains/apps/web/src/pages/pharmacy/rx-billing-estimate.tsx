@@ -1,15 +1,26 @@
 // IPD RxBillingEstimate — split from pharmacy.tsx (pure move).
 
-import styles from "../pharmacy.module.scss";
-import { canEditPharmacyField, canViewPharmacyField, renderPharmacySensitiveCurrency, rxReviewInputFromItem } from "./shared";
-import { OperationalSignal } from "@/components";
-import { IconButton, Table } from "@/components/ui";
 import { Card, Group, Loader, NumberInput, Stack, Text, Tooltip } from "@mantine/core";
 import { useFieldAccess } from "@medbrains/stores";
 import type { PharmacyRxDetailItem, PharmacyRxReviewItemInput } from "@medbrains/types";
-import { IconAlertTriangle, IconDeviceFloppy, IconLock, IconPencil, IconReceipt } from "@tabler/icons-react";
+import {
+  IconAlertTriangle,
+  IconDeviceFloppy,
+  IconLock,
+  IconPencil,
+  IconReceipt,
+} from "@tabler/icons-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { OperationalSignal } from "@/components";
+import { IconButton, Table } from "@/components/ui";
+import styles from "../pharmacy.module.scss";
+import {
+  canEditPharmacyField,
+  canViewPharmacyField,
+  renderPharmacySensitiveCurrency,
+  rxReviewInputFromItem,
+} from "./shared";
 
 export function RxBillingEstimate({
   items,

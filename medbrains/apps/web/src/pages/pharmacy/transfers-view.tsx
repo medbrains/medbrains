@@ -1,12 +1,12 @@
 // IPD TransfersView — split from pharmacy.tsx (pure move).
 
-import { DataTable, TableValueBadge } from "@/components";
-import { Alert, IconButton, toast } from "@/components/ui";
-import { pharmacyService } from "@/services/pharmacy.service";
 import { Group, Text, Tooltip } from "@mantine/core";
 import type { PharmacyTransferRequest } from "@medbrains/types";
 import { IconCheck, IconPackageImport, IconTruck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { DataTable, TableValueBadge } from "@/components";
+import { Alert, IconButton, toast } from "@/components/ui";
+import { pharmacyService } from "@/services/pharmacy.service";
 
 export function TransfersView({
   canViewStores,

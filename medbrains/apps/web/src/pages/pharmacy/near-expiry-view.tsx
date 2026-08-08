@@ -1,13 +1,13 @@
 // IPD NearExpiryView — split from pharmacy.tsx (pure move).
 
-import { renderPharmacySensitiveValue } from "./shared";
-import { DataTable } from "@/components";
-import { Badge } from "@/components/ui";
-import { pharmacyService } from "@/services/pharmacy.service";
 import { Text } from "@mantine/core";
 import { useFieldAccess } from "@medbrains/stores";
 import type { NearExpiryRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
+import { DataTable } from "@/components";
+import { Badge } from "@/components/ui";
+import { pharmacyService } from "@/services/pharmacy.service";
+import { renderPharmacySensitiveValue } from "./shared";
 
 export function NearExpiryView() {
   const batchNumberAccess = useFieldAccess("pharmacy.batches.batch_number");

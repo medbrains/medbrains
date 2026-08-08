@@ -1,12 +1,12 @@
 // IPD IpTypeConfigSection — split from ipd.tsx (pure move).
 
-import { Badge, Button, IconButton, Table, toast } from "@/components/ui";
-import { ipdService } from "@/services/ipd.service";
 import { Card, Checkbox, Group, NumberInput, Stack, Text } from "@mantine/core";
 import type { IpTypeConfiguration } from "@medbrains/types";
 import { IconPencil } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Badge, Button, IconButton, Table, toast } from "@/components/ui";
+import { ipdService } from "@/services/ipd.service";
 
 export function IpTypeConfigSection() {
   const queryClient = useQueryClient();

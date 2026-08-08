@@ -1,17 +1,17 @@
 // IPD OtcSaleDrawer — split from pharmacy.tsx (pure move).
 
-import styles from "../pharmacy.module.scss";
-import { draftPharmacyOrderItemsPayload, newDraftPharmacyOrderItem } from "./shared";
-import type { DraftPharmacyOrderItem } from "./shared";
-import { MedicineOrderLineCard } from "@/components/Pharmacy/MedicineOrderLineCard";
-import { Button, toast } from "@/components/ui";
-import { pharmacyService } from "@/services/pharmacy.service";
 import { Drawer, Group, Stack, Text, Textarea } from "@mantine/core";
-import { P } from "@medbrains/types";
 import type { CreateOtcSaleRequest } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { MedicineOrderLineCard } from "@/components/Pharmacy/MedicineOrderLineCard";
+import { Button, toast } from "@/components/ui";
+import { pharmacyService } from "@/services/pharmacy.service";
+import styles from "../pharmacy.module.scss";
+import type { DraftPharmacyOrderItem } from "./shared";
+import { draftPharmacyOrderItemsPayload, newDraftPharmacyOrderItem } from "./shared";
 
 export function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();

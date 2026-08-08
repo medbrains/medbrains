@@ -1,10 +1,10 @@
 import { Group, Stack, Switch, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Badge, Button, IconButton, Modal, Select } from "@/components/ui";
 import { pharmacyService } from "@/services/pharmacy.service";
-import { IconTrash } from "@tabler/icons-react";
 
 /** Assign / unassign staff to a single pharmacy (MP3). */
 export function PharmacyStaffModal({

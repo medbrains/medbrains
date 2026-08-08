@@ -103,12 +103,7 @@ export function UserActivityTab() {
           </Text>
         </Stack>
         <Group align="end" gap="xs">
-          <EmployeeSearchSelect
-            label="User"
-            value={userId}
-            onChange={setUserId}
-            size="sm"
-          />
+          <EmployeeSearchSelect label="User" value={userId} onChange={setUserId} size="sm" />
           <Button
             tone="primary"
             leftSection={<IconSearch size={14} />}

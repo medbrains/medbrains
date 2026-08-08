@@ -1,18 +1,18 @@
 // IPD AdmissionsTab — split from ipd.tsx (pure move).
 
-import { DataTable, StatusDot } from "@/components";
-import type { Column } from "@/components";
-import { Button, IconButton } from "@/components/ui";
-import { statusColor } from "@/lib/status-colors";
-import { ipdService } from "@/services/ipd.service";
 import { Group, Select, Stack, Text, Tooltip } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
-import { P, PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS } from "@medbrains/types";
 import type { AdmissionRow } from "@medbrains/types";
+import { P, PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS } from "@medbrains/types";
 import { IconEye, IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
+import type { Column } from "@/components";
+import { DataTable, StatusDot } from "@/components";
+import { Button, IconButton } from "@/components/ui";
+import { statusColor } from "@/lib/status-colors";
+import { ipdService } from "@/services/ipd.service";
 
 export function AdmissionsTab() {
   const canCreate = useHasPermission(P.IPD.ADMISSIONS_CREATE);

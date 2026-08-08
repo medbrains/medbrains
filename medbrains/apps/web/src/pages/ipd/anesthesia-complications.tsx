@@ -1,13 +1,13 @@
 // IPD AnesthesiaComplicationsReport — split from ipd.tsx (pure move).
 
-import { protectedIpdPatientName } from "./shared";
+import { Stack, Text } from "@mantine/core";
+import type { AnesthesiaComplicationEntry } from "@medbrains/types";
+import { PATIENT_NAME_FIELD_ACCESS_KEYS } from "@medbrains/types";
+import { useQuery } from "@tanstack/react-query";
 import { useProtectedFieldAccess } from "@/components";
 import { Badge, Table } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
-import { Stack, Text } from "@mantine/core";
-import { PATIENT_NAME_FIELD_ACCESS_KEYS } from "@medbrains/types";
-import type { AnesthesiaComplicationEntry } from "@medbrains/types";
-import { useQuery } from "@tanstack/react-query";
+import { protectedIpdPatientName } from "./shared";
 
 export function AnesthesiaComplicationsReport({ from, to }: { from: string; to: string }) {
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);

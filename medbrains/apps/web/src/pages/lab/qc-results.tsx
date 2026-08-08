@@ -1,6 +1,7 @@
 // Lab QcResultsSection — split from lab.tsx (pure move).
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { LineChart } from "@mantine/charts";
 import { Group, NumberInput, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { LabQcResultFormInput } from "@medbrains/schemas";
@@ -11,7 +12,6 @@ import { P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { LineChart } from "@mantine/charts";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components";

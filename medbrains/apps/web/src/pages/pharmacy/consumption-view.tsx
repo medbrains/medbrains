@@ -1,12 +1,12 @@
 // IPD ConsumptionView — split from pharmacy.tsx (pure move).
 
-import { renderPharmacySensitiveCurrency } from "./shared";
-import { DataTable, TableValueBadge } from "@/components";
-import { pharmacyService } from "@/services/pharmacy.service";
 import { Text } from "@mantine/core";
 import { useFieldAccess } from "@medbrains/stores";
 import type { PharmacyConsumptionRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
+import { DataTable, TableValueBadge } from "@/components";
+import { pharmacyService } from "@/services/pharmacy.service";
+import { renderPharmacySensitiveCurrency } from "./shared";
 
 export function ConsumptionView() {
   const valueAccess = useFieldAccess("pharmacy.analytics.value");
