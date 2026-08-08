@@ -16,6 +16,7 @@ import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
 import { FireRoundScreen } from "./facilities/fire-round.js";
 import { GasReadingScreen } from "./facilities/gas-reading.js";
 import { RaiseWorkOrderScreen } from "./facilities/raise-work-order.js";
+import { WaterTestScreen } from "./facilities/water-test.js";
 
 const STATUS_TONE: Record<string, IntentTone> = {
   open: "warn",
@@ -82,6 +83,7 @@ function FacilitiesHome(): ReactNode {
           label: "Water tests",
           description: "Schedules + results capture.",
           permission: P.FACILITIES.WATER_LIST,
+          onPress: () => router.push("water-test"),
         },
       ]}
     />
@@ -118,6 +120,7 @@ function FacilitiesScreen(): ReactNode {
         raise: <RaiseWorkOrderScreen />,
         "gas-reading": <GasReadingScreen />,
         "fire-round": <FireRoundScreen />,
+        "water-test": <WaterTestScreen />,
       }}
     />
   );

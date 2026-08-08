@@ -108,3 +108,20 @@ export interface FireInspectionInput {
 export async function recordFireInspection(input: FireInspectionInput): Promise<unknown> {
   return request<unknown>(apiConfig, "POST", "/api/facilities/fire-inspections", input);
 }
+
+export interface WaterTestInput {
+  source_type: string;
+  test_type: string;
+  sample_date: string;
+  parameter_name: string;
+  result_value?: number;
+  unit?: string;
+  acceptable_min?: number;
+  acceptable_max?: number;
+  is_within_limits?: boolean;
+  corrective_action?: string;
+}
+
+export async function recordWaterTest(input: WaterTestInput): Promise<unknown> {
+  return request<unknown>(apiConfig, "POST", "/api/facilities/water-tests", input);
+}
