@@ -23,6 +23,7 @@ import { EntityRow } from "../components/entity-row.js";
 import { useModuleCount } from "../components/module-count.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import { QcStatusScreen } from "./lab/qc-status.js";
 import { ScanSampleScreen } from "./lab/scan-sample.js";
 
 const STATUS_TONE: Record<string, IntentTone> = {
@@ -88,6 +89,7 @@ function LabHome(): ReactNode {
           label: "QC / Westgard",
           description: "Levey-Jennings + multi-rule violations.",
           permission: P.LAB.QC_LIST,
+          onPress: () => router.push("qc-status"),
         },
         {
           id: "outsourced",
@@ -256,6 +258,7 @@ function LabScreen(): ReactNode {
         "critical-alerts": <CriticalAlertsScreen />,
         tat: <TatAnalyticsScreen />,
         scan: <ScanSampleScreen />,
+        "qc-status": <QcStatusScreen />,
       }}
     />
   );

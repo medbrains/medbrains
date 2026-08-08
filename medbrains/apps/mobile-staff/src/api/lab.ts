@@ -89,3 +89,23 @@ export async function updatePhlebotomyStatus(
 export async function getLabTatAnalytics(): Promise<LabTatAnalyticsRow[]> {
   return request<LabTatAnalyticsRow[]>(apiConfig, "GET", "/api/lab/analytics/tat");
 }
+
+export interface QcResultRow {
+  id: string;
+  test_id: string;
+  level: string;
+  observed_value: string | null;
+  target_mean: string | null;
+  sd_index: string | null;
+  status: "accepted" | "rejected" | "warning";
+  westgard_violations: string[] | null;
+  run_date: string | null;
+}
+
+/**
+ * QC runs, newest window. The verdict is the server's — it computes the SD
+ * index and applies the Westgard rules; the app only orders and explains it.
+ */
+export async function listQcResults(): Promise<QcResultRow[]> {
+  return request<QcResultRow[]>(apiConfig, "GET", "/api/lab/qc-results");
+}
