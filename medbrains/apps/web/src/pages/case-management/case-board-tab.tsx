@@ -261,14 +261,26 @@ export function CaseBoardTab() {
         }
       }
 
-      // Parse risk_score from notes or use dummy calculation
+      /*
+       * Risk is scraped out of free-text notes — there is no risk field on the
+       * assignment. Unscored cases stay "Not assessed" rather than defaulting
+       * to a band, so nothing is invented.
+       *
+       * The score is bounded to 1–10, the range the bands below actually
+       * cover. Without that, an incidental number in a note ("risk 45") banded
+       * as High, and a case board that cries High on a stray digit is one
+       * people stop reading.
+       */
       let riskScore = 0;
       let riskLabel = "Not assessed";
       let riskColor = "slate";
 
       if (a.notes) {
         const match = a.notes.match(/risk[:\s]+(\d+)/i);
-        if (match?.[1]) riskScore = parseInt(match[1], 10);
+        const parsed = match?.[1] ? Number.parseInt(match[1], 10) : Number.NaN;
+        if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 10) {
+          riskScore = parsed;
+        }
       }
       if (riskScore > 0) {
         if (riskScore <= 3) {
