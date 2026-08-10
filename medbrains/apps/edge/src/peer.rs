@@ -318,9 +318,9 @@ mod tests {
             peers: vec![PeerRosterEntry {
                 node_id: "peer-one".to_owned(),
                 binding: PeerBinding {
-                    device_instance_id: Uuid::new_v4(),
+                    paired_device_id: Uuid::new_v4(),
                     tenant_id: tenant,
-                    device_status: "active".to_owned(),
+                    app_variant: "staff".to_owned(),
                     revoked: false,
                 },
             }],

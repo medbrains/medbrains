@@ -33,6 +33,7 @@ use axum::routing::{get,post,delete};
 
 pub mod device_code;
 use chrono::{DateTime, Duration, Utc};
+use medbrains_core::peer_sync::{PeerBinding, PeerRosterDoc, PeerRosterEntry};
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -410,6 +411,20 @@ pub async fn revoke_paired_device(
     .await?
     .ok_or(AppError::NotFound)?;
 
+    // Revoking a device revokes the key it syncs by, in the same transaction.
+    // Otherwise a device recorded as revoked keeps a live key sitting in the
+    // roster that offline nodes admit from, and it goes on being accepted out
+    // in the field long after somebody believed they had cut it off.
+    sqlx::query(
+        "UPDATE device_node_keys SET revoked_at = now(), revoked_by = $2 \
+         WHERE paired_device_id = $1 AND tenant_id = $3 AND revoked_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.sub)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -436,6 +451,13 @@ pub(crate) fn sha256_hex(input: &[u8]) -> String {
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/device-pairing/pair", post(pair_device))
+        .route(
+            "/api/device-pairing/paired/{id}/node-key",
+            get(get_device_node_key)
+                .post(register_device_node_key)
+                .delete(revoke_device_node_key),
+        )
+        .route("/api/device-pairing/peer-roster", get(get_peer_roster))
         .route(
             "/api/admin/device-pairing-tokens",
             post(mint_pairing_token),
@@ -475,4 +497,229 @@ pub fn device_code_admin_router() -> axum::Router<AppState> {
             "/api/admin/device-pairing/approve",
             post(device_code::approve_pairing_request),
         )
+}
+
+// ══════════════════════════════════════════════════════════
+//  Peer node keys — see medbrains_edge::peer_admission
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, serde::Deserialize)]
+pub struct RegisterNodeKeyRequest {
+    pub node_id: String,
+}
+
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct DeviceNodeKey {
+    pub id: Uuid,
+    pub paired_device_id: Uuid,
+    pub node_id: String,
+    pub revoked_at: Option<DateTime<Utc>>,
+    pub last_seen_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// `POST /api/device-pairing/paired/{id}/node-key`
+///
+/// Binds a peer-to-peer node key to a device that has already been paired.
+///
+/// Enrolment is a privileged act, not something a device does for itself. The
+/// device presents its public key; an operator with device-management rights
+/// decides it belongs to a machine this hospital admitted. A device that could
+/// self-enrol would make the binding worthless — anyone able to reach the
+/// endpoint could mint an admitted peer.
+///
+/// Re-registering replaces the live key rather than adding a second, so a
+/// device that rotates its key does not leave a usable old one behind.
+pub async fn register_device_node_key(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RegisterNodeKeyRequest>,
+) -> Result<Json<DeviceNodeKey>, AppError> {
+    require_permission(&claims, permissions::devices::pairing::TOKEN_CREATE)?;
+
+    let node_id = body.node_id.trim();
+    if node_id.is_empty() {
+        return Err(AppError::BadRequest("node_id is required".to_owned()));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // The device must exist in this tenant. Without this the FK would still
+    // hold, but a key could be bound to another tenant's device.
+    let owns_device: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM paired_devices WHERE id = $1 AND tenant_id = $2 AND revoked_at IS NULL)",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if !owns_device {
+        return Err(AppError::NotFound);
+    }
+
+    // Retire whatever this device had. Revoked rows are kept: an audit asking
+    // which device held a key at a point in time needs the history.
+    sqlx::query(
+        "UPDATE device_node_keys SET revoked_at = now(), revoked_by = $2 \
+         WHERE paired_device_id = $1 AND revoked_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.sub)
+    .execute(&mut *tx)
+    .await?;
+
+    let row = sqlx::query_as::<_, DeviceNodeKey>(
+        "INSERT INTO device_node_keys (tenant_id, paired_device_id, node_id, created_by) \
+         VALUES ($1, $2, $3, $4) \
+         RETURNING id, paired_device_id, node_id, revoked_at, last_seen_at, created_at",
+    )
+    .bind(claims.tenant_id)
+    .bind(id)
+    .bind(node_id)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| {
+        // The unique index is global: a key already claimed elsewhere must not
+        // be silently rebound, and the answer says nothing about who holds it.
+        if matches!(&e, sqlx::Error::Database(db) if db.is_unique_violation()) {
+            AppError::Conflict("that node key is already registered".into())
+        } else {
+            AppError::from(e)
+        }
+    })?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// `DELETE /api/device-pairing/paired/{id}/node-key`
+///
+/// Revokes without deleting. This is the emergency stop for a lost tablet, and
+/// it is expected to be used long before anyone gets round to changing the
+/// device's status.
+pub async fn revoke_device_node_key(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::devices::pairing::TOKEN_CREATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let revoked = sqlx::query(
+        "UPDATE device_node_keys SET revoked_at = now(), revoked_by = $2 \
+         WHERE paired_device_id = $1 AND tenant_id = $3 AND revoked_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.sub)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({ "revoked": revoked })))
+}
+
+/// `GET /api/device-pairing/paired/{id}/node-key`
+///
+/// The live key for a device, if it has one. Revoked keys are not returned —
+/// the history exists for audit, not for an operator screen to confuse.
+pub async fn get_device_node_key(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Option<DeviceNodeKey>>, AppError> {
+    require_permission(&claims, permissions::devices::pairing::PAIRED_LIST)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, DeviceNodeKey>(
+        "SELECT id, paired_device_id, node_id, revoked_at, last_seen_at, created_at \
+         FROM device_node_keys \
+         WHERE paired_device_id = $1 AND tenant_id = $2 AND revoked_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// `GET /api/device-pairing/peer-roster`
+///
+/// The list an edge appliance or a phone uses to admit peers while it cannot
+/// reach this server.
+///
+/// Neither of those carries a database, so without this they can only admit
+/// nobody — which is safe, and useless. This hands them the same facts the
+/// database holds and lets the shared admission rule decide, rather than
+/// shipping pre-computed verdicts that would put a second copy of that rule on
+/// every device.
+///
+/// Revoked keys are omitted rather than sent as revoked: a key absent from the
+/// roster is refused for the same reason and with the same message, so there is
+/// nothing to gain by listing retirements to every device in the hospital.
+///
+/// Devices that are paired but out of service ARE listed, with their real
+/// status. The rule refuses them; sending the status keeps that decision in one
+/// place instead of splitting it between the query and the device.
+pub async fn get_peer_roster(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<PeerRosterDoc>, AppError> {
+    require_permission(&claims, permissions::devices::pairing::PAIRED_LIST)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, PeerRosterRow>(
+        "SELECT k.node_id, k.paired_device_id, d.app_variant \
+         FROM device_node_keys k \
+         JOIN paired_devices d ON d.id = k.paired_device_id \
+         WHERE k.tenant_id = $1 AND k.revoked_at IS NULL AND d.revoked_at IS NULL \
+         ORDER BY k.node_id",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    let peers = rows
+        .into_iter()
+        .map(|r| PeerRosterEntry {
+            node_id: r.node_id,
+            binding: PeerBinding {
+                paired_device_id: r.paired_device_id,
+                tenant_id: claims.tenant_id,
+                app_variant: r.app_variant,
+                // Both the key and the device are filtered to live rows above,
+                // so anything reaching here is a device that may still sync.
+                revoked: false,
+            },
+        })
+        .collect();
+
+    Ok(Json(PeerRosterDoc {
+        tenant_id: claims.tenant_id,
+        issued_at: Utc::now().timestamp(),
+        peers,
+    }))
+}
+
+/// The roster query's row shape. Kept separate from the wire type so the SQL
+/// can change without moving what devices parse.
+#[derive(sqlx::FromRow)]
+struct PeerRosterRow {
+    node_id: String,
+    paired_device_id: Uuid,
+    app_variant: String,
 }

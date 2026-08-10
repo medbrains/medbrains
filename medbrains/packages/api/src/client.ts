@@ -9380,21 +9380,21 @@ export const api = {
   },
   /** The live peer node key for a device, or null if it has none. */
   getDeviceNodeKey: (deviceId: string) =>
-    request<DeviceNodeKey | null>(`/devices/instances/${deviceId}/node-key`),
+    request<DeviceNodeKey | null>(`/device-pairing/paired/${deviceId}/node-key`),
 
   /**
    * Binds a node key to a paired device. Enrolment is privileged — a device
    * that could enrol itself would make the binding worthless.
    */
   registerDeviceNodeKey: (deviceId: string, body: { node_id: string }) =>
-    request<DeviceNodeKey>(`/devices/instances/${deviceId}/node-key`, {
+    request<DeviceNodeKey>(`/device-pairing/paired/${deviceId}/node-key`, {
       method: "POST",
       body: JSON.stringify(body),
     }),
 
   /** Revokes without deleting — the emergency stop for a lost device. */
   revokeDeviceNodeKey: (deviceId: string) =>
-    request<{ revoked: number }>(`/devices/instances/${deviceId}/node-key`, {
+    request<{ revoked: number }>(`/device-pairing/paired/${deviceId}/node-key`, {
       method: "DELETE",
     }),
 
@@ -14059,12 +14059,8 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  // Retiring a device also revokes the key it syncs by, so the count says
-  // whether this device was one that could still reach the network.
   decommissionDevice: (id: string) =>
-    request<{ status: string; node_keys_revoked: number }>(`/devices/instances/${id}`, {
-      method: "DELETE",
-    }),
+    request<{ status: string }>(`/devices/instances/${id}`, { method: "DELETE" }),
 
   testDeviceConnection: (id: string) =>
     request<{ status: string; message: string }>(`/devices/instances/${id}/test`, {

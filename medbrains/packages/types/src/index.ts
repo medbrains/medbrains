@@ -7874,7 +7874,7 @@ export interface KioskCheckinResult {
  */
 export interface DeviceNodeKey {
   id: string;
-  device_instance_id: string;
+  paired_device_id: string;
   node_id: string;
   revoked_at: string | null;
   last_seen_at: string | null;

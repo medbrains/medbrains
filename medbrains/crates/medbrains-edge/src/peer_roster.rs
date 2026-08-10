@@ -98,11 +98,11 @@ mod tests {
 
     const NOW: i64 = 1_800_000_000;
 
-    fn binding(tenant: Uuid, status: &str, revoked: bool) -> PeerBinding {
+    fn binding(tenant: Uuid, revoked: bool) -> PeerBinding {
         PeerBinding {
-            device_instance_id: Uuid::new_v4(),
+            paired_device_id: Uuid::new_v4(),
             tenant_id: tenant,
-            device_status: status.to_owned(),
+            app_variant: "staff".to_owned(),
             revoked,
         }
     }
@@ -112,12 +112,8 @@ mod tests {
             tenant,
             issued_at,
             vec![
-                ("peer-active".to_owned(), binding(tenant, "active", false)),
-                ("peer-revoked".to_owned(), binding(tenant, "active", true)),
-                (
-                    "peer-retired".to_owned(),
-                    binding(tenant, "decommissioned", false),
-                ),
+                ("peer-active".to_owned(), binding(tenant, false)),
+                ("peer-revoked".to_owned(), binding(tenant, true)),
             ],
         )
     }
@@ -215,7 +211,7 @@ mod tests {
         // the per-peer checks are the same ones the edge applies.
         let tenant = Uuid::new_v4();
         let r = roster(tenant, NOW);
-        for node in ["peer-revoked", "peer-retired", "not-in-list"] {
+        for node in ["peer-revoked", "not-in-list"] {
             assert!(
                 matches!(r.admit_peer(node, tenant, NOW), Admission::Refuse(_)),
                 "{node} must not be admitted"

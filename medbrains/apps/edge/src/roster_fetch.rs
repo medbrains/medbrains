@@ -98,7 +98,7 @@ async fn fetch(
     tenant_id: Uuid,
 ) -> Result<PeerRosterDoc> {
     let url = format!(
-        "{}/api/devices/peer-roster",
+        "{}/api/device-pairing/peer-roster",
         server_url.trim_end_matches('/')
     );
 
@@ -181,9 +181,9 @@ mod tests {
                 .map(|i| PeerRosterEntry {
                     node_id: format!("peer-{i}"),
                     binding: PeerBinding {
-                        device_instance_id: Uuid::new_v4(),
+                        paired_device_id: Uuid::new_v4(),
                         tenant_id: tenant,
-                        device_status: "active".to_owned(),
+                        app_variant: "staff".to_owned(),
                         revoked: false,
                     },
                 })

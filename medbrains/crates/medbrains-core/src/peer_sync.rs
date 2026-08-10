@@ -20,12 +20,19 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// What the store knows about a node key that presented itself.
+///
+/// The device here is a `paired_devices` row — a staff phone, a ward tablet, a
+/// TV board — not a biomedical instrument. Those have no lifecycle beyond
+/// paired and revoked, which is why there is no status field: for a paired
+/// device, in service means exactly "not revoked".
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PeerBinding {
-    pub device_instance_id: Uuid,
+    pub paired_device_id: Uuid,
     pub tenant_id: Uuid,
-    /// `device_instances.status` as text.
-    pub device_status: String,
+    /// What the app on that device is — `staff`, `tv` or `vendor`. Carried for
+    /// the operator's log rather than the rule; a revoked TV and a revoked
+    /// phone are refused identically.
+    pub app_variant: String,
     pub revoked: bool,
 }
 
@@ -71,9 +78,9 @@ mod tests {
             peers: vec![PeerRosterEntry {
                 node_id: "abc123".to_owned(),
                 binding: PeerBinding {
-                    device_instance_id: Uuid::new_v4(),
+                    paired_device_id: Uuid::new_v4(),
                     tenant_id: tenant,
-                    device_status: "active".to_owned(),
+                    app_variant: "staff".to_owned(),
                     revoked: false,
                 },
             }],
@@ -84,7 +91,7 @@ mod tests {
         // binding's fields must sit beside `node_id`, not nested under it.
         let peer = &json["peers"][0];
         assert_eq!(peer["node_id"], "abc123");
-        assert_eq!(peer["device_status"], "active");
+        assert_eq!(peer["app_variant"], "staff");
         assert!(peer.get("binding").is_none(), "binding must be flattened");
 
         let back: PeerRosterDoc = serde_json::from_value(json).expect("deserialise");
