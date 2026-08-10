@@ -6,6 +6,15 @@ const MOBILE_SHELL_PAIRING_MESSAGES: Record<string, string> = {
     "Ask an administrator to generate a one-time QR. Scanning issues a device certificate stored in the OS keychain.",
   "mobileShell.pairing.error.failed": "Pairing failed",
   "mobileShell.pairing.title": "Pair this device",
+  "mobileShell.sync.action.create": "Create sync key",
+  "mobileShell.sync.action.done": "Done",
+  "mobileShell.sync.body":
+    "This device can already sync on the hospital network. To let it sync from a camp, on mobile data, or directly with another device, an administrator needs to add the key below.",
+  "mobileShell.sync.loading": "Checking this device",
+  "mobileShell.sync.nodeId.help":
+    "Read this out to an administrator. They add it under Admin, Paired devices. Until they do, this device syncs on the hospital network only.",
+  "mobileShell.sync.nodeId.label": "This device's sync key",
+  "mobileShell.sync.title": "Sync away from the hospital",
 };
 
 function interpolate(template: string, values?: MobileShellPairingTextValues): string {
