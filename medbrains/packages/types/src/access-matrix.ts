@@ -422,6 +422,17 @@ const TOKEN_BOARD_ACCESS_SURFACES: readonly AccessMatrixSurface[] = [
     masking: "identity",
     activatesAfter: ["opd.encounter.created", "opd.queue.called"],
   }),
+  // The camp board had a surface definition, a TV module and i18n, but no
+  // access-matrix entry — so it could not be permission-controlled at all.
+  // Camp displays are token-only: names, identifiers and complaints are
+  // withheld, which is stricter than the hospital boards, so identity masking
+  // applies here too.
+  tokenBoardAccessSurface({
+    id: "camp",
+    fieldAccessKeys: PATIENT_IDENTITY_FIELDS,
+    masking: "identity",
+    activatesAfter: ["opd.encounter.created", "opd.queue.called"],
+  }),
   tokenBoardAccessSurface({
     id: "lab",
     fieldAccessKeys: LAB_PUBLIC_QUEUE_FIELDS,

@@ -342,7 +342,7 @@ const TV_MESSAGES: Readonly<Record<string, string>> = {
   "tv.tokenBoards.triageLane.yellow.target": "Urgent",
   "tv.tokenBoards.triageLane.yellow.title": "Yellow",
   "tv.tokenBoards.unavailableTitle.billing": "Billing feed unavailable",
-  "tv.tokenBoards.unavailableTitle.camp": "No camp on this display",
+  "tv.tokenBoards.unavailableTitle.camp": "Camp feed unavailable",
   "tv.tokenBoards.unavailableTitle.emergency": "Triage feed unavailable",
   "tv.tokenBoards.unavailableTitle.lab": "Lab feed unavailable",
   "tv.tokenBoards.unavailableTitle.opd": "Queue feed unavailable",
@@ -351,7 +351,7 @@ const TV_MESSAGES: Readonly<Record<string, string>> = {
   "tv.tokenBoards.unavailableMessage.billing":
     "Check TV pairing, network, and billing queue display permissions.",
   "tv.tokenBoards.unavailableMessage.camp":
-    "Pair this display to a camp, then check network and camp board permissions.",
+    "Check TV pairing, network, and camp board display permissions.",
   "tv.tokenBoards.unavailableMessage.emergency":
     "Check TV pairing, network, and emergency display permissions.",
   "tv.tokenBoards.unavailableMessage.lab": "Check TV pairing, network, and lab display access.",

@@ -186,6 +186,9 @@ describe("front-office token-board display mapping", () => {
 
     expect(refreshBySurface).toEqual({
       billing: TOKEN_BOARD_STANDARD_REFRESH_MS,
+      // Camp boards refresh fast: a camp queue turns over quicker than a
+      // hospital department's.
+      camp: TOKEN_BOARD_FAST_REFRESH_MS,
       emergency: TOKEN_BOARD_FAST_REFRESH_MS,
       lab: TOKEN_BOARD_STANDARD_REFRESH_MS,
       opd: TOKEN_BOARD_FAST_REFRESH_MS,

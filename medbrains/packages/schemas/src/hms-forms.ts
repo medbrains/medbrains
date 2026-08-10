@@ -153,6 +153,10 @@ export type ClinicalProtocolFormInput = z.infer<typeof clinicalProtocolFormSchem
 
 export const tvDisplayTypeValues = [
   "opd_queue",
+  // A camp board is provisioned like any other token board. Without this the
+  // camp TV module, its i18n and its surface definition all exist but no screen
+  // can be configured to show one.
+  "camp_queue",
   "pharmacy_queue",
   "billing_queue",
   "lab_queue",
