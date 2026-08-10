@@ -81,6 +81,7 @@ pub mod order_set;
 pub mod ot;
 pub mod patient;
 pub mod payment;
+pub mod peer_sync;
 pub mod permissions;
 pub mod perms_block;
 pub mod pharmacy;

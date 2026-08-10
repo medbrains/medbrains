@@ -17,15 +17,10 @@ use uuid::Uuid;
 
 use crate::sync::Frame;
 
-/// What the store knows about a node key that presented itself.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PeerBinding {
-    pub device_instance_id: Uuid,
-    pub tenant_id: Uuid,
-    /// `device_instances.status` as text.
-    pub device_status: String,
-    pub revoked: bool,
-}
+// The binding itself lives in `medbrains-core` because the server writes these
+// rosters and devices read them: one shape, or the two ends drift and a device
+// keeps admitting peers the hospital retired.
+pub use medbrains_core::peer_sync::PeerBinding;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Admission {

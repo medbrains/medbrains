@@ -12,6 +12,7 @@ use medbrains_core::device::{
     DeviceConfigHistoryRow, DeviceInstanceRow, DeviceMessageRow, DeviceRoutingRuleRow,
     GeneratedDeviceConfig, UpdateDeviceInstanceRequest, UpdateRoutingRuleRequest,
 };
+use medbrains_core::peer_sync::{PeerBinding, PeerRosterDoc, PeerRosterEntry};
 use medbrains_core::permissions;
 
 fn require_permission(claims: &Claims, perm: &str) -> Result<(), AppError> {
@@ -1009,6 +1010,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/devices/instances/{id}/node-key",
             get(get_device_node_key).post(register_device_node_key).delete(revoke_device_node_key),
         )
+        .route("/api/devices/peer-roster", get(get_peer_roster))
         .route("/api/devices/instances/{id}/regenerate-config", post(regenerate_config))
         .route("/api/devices/instances/{id}/messages", get(list_device_messages))
         .route("/api/devices/instances/{id}/config-history", get(list_config_history))
@@ -1178,3 +1180,74 @@ pub async fn get_device_node_key(
     tx.commit().await?;
     Ok(Json(row))
 }
+
+/// `GET /api/devices/peer-roster`
+///
+/// The list an edge appliance or a phone uses to admit peers while it cannot
+/// reach this server.
+///
+/// Neither of those carries a database, so without this they can only admit
+/// nobody — which is safe, and useless. This hands them the same facts the
+/// database holds and lets the shared admission rule decide, rather than
+/// shipping pre-computed verdicts that would put a second copy of that rule on
+/// every device.
+///
+/// Revoked keys are omitted rather than sent as revoked: a key absent from the
+/// roster is refused for the same reason and with the same message, so there is
+/// nothing to gain by listing retirements to every device in the hospital.
+///
+/// Devices that are paired but out of service ARE listed, with their real
+/// status. The rule refuses them; sending the status keeps that decision in one
+/// place instead of splitting it between the query and the device.
+pub async fn get_peer_roster(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<PeerRosterDoc>, AppError> {
+    require_permission(&claims, permissions::devices::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, PeerRosterRow>(
+        "SELECT k.node_id, k.device_instance_id, d.status::text AS device_status \
+         FROM device_node_keys k \
+         JOIN device_instances d ON d.id = k.device_instance_id \
+         WHERE k.tenant_id = $1 AND k.revoked_at IS NULL \
+         ORDER BY k.node_id",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    let peers = rows
+        .into_iter()
+        .map(|r| PeerRosterEntry {
+            node_id: r.node_id,
+            binding: PeerBinding {
+                device_instance_id: r.device_instance_id,
+                tenant_id: claims.tenant_id,
+                device_status: r.device_status,
+                // Revoked keys are filtered out above, so anything here is live.
+                revoked: false,
+            },
+        })
+        .collect();
+
+    Ok(Json(PeerRosterDoc {
+        tenant_id: claims.tenant_id,
+        issued_at: chrono::Utc::now().timestamp(),
+        peers,
+    }))
+}
+
+/// The roster query's row shape. Kept separate from the wire type so the SQL
+/// can change without moving what devices parse.
+#[derive(sqlx::FromRow)]
+struct PeerRosterRow {
+    node_id: String,
+    device_instance_id: Uuid,
+    device_status: String,
+}
+
