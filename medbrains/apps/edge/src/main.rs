@@ -5,6 +5,8 @@
 //! Usage:
 //!   medbrains-edge --config /etc/medbrains-edge/config.toml
 
+mod peer;
+
 use anyhow::{Context, Result};
 use clap::Parser;
 use futures::{SinkExt, StreamExt};
@@ -40,6 +42,9 @@ struct Config {
     service_name: String,
     docs_path: PathBuf,
     chain_path: PathBuf,
+    /// Peer-to-peer sync. Absent means the appliance serves its LAN listener
+    /// only, which is how every existing install is configured.
+    iroh: Option<peer::IrohConfig>,
 }
 
 #[tokio::main]
@@ -84,6 +89,21 @@ async fn main() -> Result<()> {
         info!("mDNS service announcement disabled");
         None
     };
+
+    if let Some(iroh_cfg) = cfg.iroh {
+        if iroh_cfg.enabled {
+            let server = Arc::clone(&server);
+            // Alongside the LAN listener, not instead of it: devices already
+            // paired over WebSocket keep working while a fleet moves across.
+            tokio::spawn(async move {
+                if let Err(e) = peer::serve(iroh_cfg, server).await {
+                    error!(error = %e, "iroh sync endpoint stopped");
+                }
+            });
+        } else {
+            info!("peer-to-peer sync is configured but disabled");
+        }
+    }
 
     loop {
         let (stream, peer) = match listener.accept().await {

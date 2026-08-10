@@ -11,3 +11,24 @@ mdns_hostname = "medbrains-edge-dev.local."
 service_name  = "medbrains-edge-dev"
 docs_path     = "./var/medbrains-edge/docs"
 chain_path    = "./var/medbrains-edge/chain"
+
+# Peer-to-peer sync (iroh). Absent or disabled means this appliance serves its
+# LAN listener only, which is how every existing install runs.
+#
+# Reaches devices the LAN listener cannot: a phone on cellular, a hotspot with
+# client isolation, a vehicle whose wifi drops mid-round.
+#
+# `roster_path` is the list of paired devices this box admits from, fetched from
+# `GET /api/devices/peer-roster`. Without a current one the appliance admits no
+# peer at all — that is the safe direction, not a bug.
+#
+# `relays` are relays YOU run. Leaving it empty means direct connections only;
+# it is empty on purpose, because a public relay would route this hospital's
+# sync metadata through a third party.
+#
+# [iroh]
+# enabled         = true
+# tenant_id       = "00000000-0000-0000-0000-000000000000"
+# secret_key_path = "./var/medbrains-edge/node.key"
+# roster_path     = "./var/medbrains-edge/peer-roster.json"
+# relays          = []

@@ -11,7 +11,8 @@ name = "medbrains-edge"
 path = "src/main.rs"
 
 [dependencies]
-medbrains-edge = { path = "../../crates/medbrains-edge" }
+medbrains-edge = { path = "../../crates/medbrains-edge", features = ["iroh"] }
+medbrains-core = { path = "../../crates/medbrains-core" }
 
 tokio = { workspace = true }
 tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
@@ -28,6 +29,13 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 anyhow = { workspace = true }
+
+# Peer-to-peer transport. iroh is pinned in medbrains-edge; see the note there.
+iroh = "0.92"
+getrandom = { version = "0.3", features = ["std"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [lints]
 workspace = true
