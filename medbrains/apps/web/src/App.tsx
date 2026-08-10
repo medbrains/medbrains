@@ -27,6 +27,9 @@ const OnboardingPage = lazy(() =>
 const VerifyEmailPage = lazy(() =>
   import("./pages/verify-email").then((m) => ({ default: m.VerifyEmailPage })),
 );
+const QueueStatusPage = lazy(() =>
+  import("./pages/queue-status").then((m) => ({ default: m.QueueStatusPage })),
+);
 const VerifyPrescriptionPage = lazy(() =>
   import("./pages/verify-prescription").then((m) => ({ default: m.VerifyPrescriptionPage })),
 );
@@ -412,6 +415,8 @@ export function App() {
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             {/* Scanned off a printed prescription — public by necessity. */}
             <Route path="/verify/rx/:token" element={<VerifyPrescriptionPage />} />
+            {/* Scanned off the kiosk slip — the patient has no login. */}
+            <Route path="/queue/:token" element={<QueueStatusPage />} />
             {/* Unattended self-service terminal in the lobby. */}
             <Route path="/kiosk/checkin" element={<KioskSelfCheckinPage />} />
             <Route path="/accept-invite" element={<AcceptInvitePage />} />

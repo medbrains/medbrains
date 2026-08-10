@@ -11,10 +11,10 @@
  * them apart would confirm that a token once existed.
  */
 
-import { Alert, Group, Stack, Table, Text, Title } from "@mantine/core";
+import { Group, Stack, Text, Title } from "@mantine/core";
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router";
-import { Badge, Card } from "@/components/ui";
+import { Alert, Badge, Card, Table } from "@/components/ui";
 import { opdService } from "@/services/opd.service";
 
 export function VerifyPrescriptionPage() {
@@ -43,7 +43,7 @@ export function VerifyPrescriptionPage() {
     return (
       <Stack p="xl" gap="md" maw={640} mx="auto">
         <Title order={2}>This prescription could not be verified</Title>
-        <Alert color="red" title="No match">
+        <Alert tone="danger" title="No match">
           The code on this prescription is not one this hospital issued, or it is no longer valid.
           Do not dispense against it without contacting the hospital directly.
         </Alert>
@@ -104,7 +104,7 @@ export function VerifyPrescriptionPage() {
           </Table.Tbody>
         </Table>
         {prescription.medications.length === 0 && (
-          <Alert color="yellow" title="No medicines recorded">
+          <Alert tone="warning" title="No medicines recorded">
             This encounter is genuine but has no prescribed items against it. A paper listing
             medicines does not match this record.
           </Alert>
@@ -112,7 +112,7 @@ export function VerifyPrescriptionPage() {
       </Stack>
 
       {prescription.previous_checks > 3 && (
-        <Alert color="yellow" title="Checked before">
+        <Alert tone="warning" title="Checked before">
           This prescription has been verified {prescription.previous_checks} times already. That is
           normal for a repeat dispense, and worth a second look if it is not.
         </Alert>
