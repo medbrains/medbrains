@@ -21,6 +21,32 @@ namespace edge_rn {
     /// write so they can show the right error UX before hitting
     /// the AuthzCache.
     boolean is_action_offline_required(string object_type, string action);
+
+    /// Create this device's peer-to-peer sync identity.
+    ///
+    /// Called once, the first time a device is set up for sync. The
+    /// caller MUST put `secret_hex` in platform secure storage —
+    /// Keychain on iOS, Keystore on Android — and never in
+    /// AsyncStorage or a log: anyone holding it can be this device.
+    ///
+    /// `node_id` is the public half and is meant to be shown. An
+    /// administrator reads it off the screen and binds it to this
+    /// device in Admin → Paired devices, which is what admits the
+    /// device to sync.
+    [Throws=BridgeError]
+    NodeIdentity generate_node_identity();
+
+    /// Recover the node id from a stored secret, on later launches.
+    [Throws=BridgeError]
+    string node_id_for_secret(string secret_hex);
+};
+
+/// A device's peer-to-peer sync identity.
+dictionary NodeIdentity {
+    /// Hex-encoded private key. Secure storage only.
+    string secret_hex;
+    /// The public node id, exactly as a peer sees it on the wire.
+    string node_id;
 };
 
 // ── Errors ─────────────────────────────────────────────────────────
@@ -36,6 +62,7 @@ enum BridgeError {
     "AuthzCache",
     "RevocationCache",
     "InvalidUuid",
+    "InvalidNodeKey",
 };
 
 // ── Loro CRDT bridge ───────────────────────────────────────────────

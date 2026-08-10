@@ -64,6 +64,9 @@ pub enum BridgeError {
 
     #[error("invalid uuid: {0}")]
     InvalidUuid(String),
+
+    #[error("invalid node key: {0}")]
+    InvalidNodeKey(String),
 }
 
 impl From<loro::LoroError> for BridgeError {
@@ -324,6 +327,60 @@ pub fn is_action_offline_required(object_type: String, action: String) -> bool {
     offline::ONLINE_REQUIRED_ACTIONS
         .iter()
         .any(|(t, a)| *t == object_type && *a == action)
+}
+
+// ── Peer-to-peer sync identity ─────────────────────────────────────
+
+/// A device's peer-to-peer sync identity.
+///
+/// Split deliberately: the secret never leaves the device, and the
+/// node id is meant to be read aloud. Keeping them in one struct
+/// makes it obvious which half is which at the call site.
+#[derive(Debug, Clone)]
+pub struct NodeIdentity {
+    /// Hex-encoded private key. Secure storage only.
+    pub secret_hex: String,
+    /// The public node id, exactly as a peer sees it on the wire.
+    pub node_id: String,
+}
+
+/// Create this device's sync identity.
+///
+/// Generated here rather than issued by the server, because a key the
+/// server has seen is a key the server could impersonate the device
+/// with. The device makes its own and shows only the public half.
+///
+/// The caller MUST store `secret_hex` in platform secure storage —
+/// Keychain or Keystore — and never in `AsyncStorage` or a log.
+/// Anyone holding it can be this device.
+pub fn generate_node_identity() -> Result<NodeIdentity, BridgeError> {
+    let mut bytes = [0u8; 32];
+    // Fails loudly. A device whose OS could not give 32 random bytes
+    // must not end up holding a predictable key — it would pair
+    // normally and be impersonable for the rest of its life.
+    getrandom::fill(&mut bytes)
+        .map_err(|e| BridgeError::InvalidNodeKey(format!("no secure randomness: {e}")))?;
+    let secret = iroh_base::SecretKey::from_bytes(&bytes);
+    Ok(NodeIdentity {
+        secret_hex: hex::encode(secret.to_bytes()),
+        node_id: secret.public().to_string(),
+    })
+}
+
+/// Recover the node id from a stored secret.
+///
+/// Derived rather than stored alongside, so a device cannot end up
+/// presenting a node id that does not match the key it will dial with
+/// — which would look to an administrator like a correctly bound
+/// device that silently never connects.
+pub fn node_id_for_secret(secret_hex: String) -> Result<String, BridgeError> {
+    let raw = hex::decode(secret_hex.trim())
+        .map_err(|e| BridgeError::InvalidNodeKey(format!("not hex: {e}")))?;
+    let bytes: [u8; 32] = raw
+        .as_slice()
+        .try_into()
+        .map_err(|_| BridgeError::InvalidNodeKey(format!("expected 32 bytes, got {}", raw.len())))?;
+    Ok(iroh_base::SecretKey::from_bytes(&bytes).public().to_string())
 }
 
 // ── Phase B: AuthzCache handle ─────────────────────────────────────
@@ -751,5 +808,49 @@ mod tests {
             } => {}
             other => panic!("expected Deny(CacheMissStrict), got {other:?}"),
         }
+    }
+
+    /// The whole point of deriving rather than storing: what the
+    /// device shows an administrator must be what it later dials
+    /// with. If these drift, the binding looks correct and the device
+    /// silently never connects.
+    #[test]
+    fn a_stored_secret_recovers_the_same_node_id() {
+        let identity = generate_node_identity().expect("generate");
+        let recovered = node_id_for_secret(identity.secret_hex.clone()).expect("recover");
+        assert_eq!(recovered, identity.node_id);
+    }
+
+    #[test]
+    fn two_devices_do_not_share_an_identity() {
+        let a = generate_node_identity().expect("a");
+        let b = generate_node_identity().expect("b");
+        assert_ne!(a.secret_hex, b.secret_hex);
+        assert_ne!(a.node_id, b.node_id);
+    }
+
+    /// A device offering a node id that is not 32 bytes of key is a
+    /// device with a corrupted or half-written secret. Deriving
+    /// something from it anyway would produce an id nobody can dial.
+    #[test]
+    fn a_malformed_secret_is_refused_rather_than_coerced() {
+        for bad in ["", "not-hex", "abcd"] {
+            assert!(
+                matches!(
+                    node_id_for_secret(bad.to_owned()),
+                    Err(BridgeError::InvalidNodeKey(_))
+                ),
+                "{bad:?} must be refused"
+            );
+        }
+    }
+
+    /// Surrounding whitespace comes free with copy-paste and secure
+    /// storage round-trips; it should not cost a device its identity.
+    #[test]
+    fn a_secret_survives_stray_whitespace() {
+        let identity = generate_node_identity().expect("generate");
+        let padded = format!("  {}\n", identity.secret_hex);
+        assert_eq!(node_id_for_secret(padded).expect("recover"), identity.node_id);
     }
 }
