@@ -740,48 +740,59 @@ export function CaseBoardTab() {
               </div>
             </SimpleGrid>
 
-            {/* Care Plan Progress */}
+            {/* Case stage — the status machine, not a care plan */}
             <Card withBorder p="md">
               <Text fw={600} mb="sm">
-                Care Plan Progress
+                Case stage
               </Text>
               {(() => {
-                // Parse milestones from notes or create dummy data
-                const createdDate = editing.created_at ?? new Date().toISOString();
-                const targetDate = editing.target_discharge_date ?? new Date().toISOString();
-                const actualDate = editing.actual_discharge_date ?? "";
+                /*
+                 * These are the case's own status stages, not a care plan.
+                 *
+                 * They used to be titled "Care Plan Progress" with milestone
+                 * names — "Initial Assessment", "Care Plan Development" — that
+                 * no assessment or plan record backs. Worse, a stage reached at
+                 * any point in the past was stamped "Completed: <today>", so a
+                 * case that moved to discharge planning three weeks ago read as
+                 * having done it this morning.
+                 *
+                 * There is no milestone model to read, so nothing is invented:
+                 * the stages are the status machine, and a date is shown only
+                 * where a real one exists.
+                 */
+                const createdDate = editing.created_at ?? null;
+                const targetDate = editing.target_discharge_date ?? null;
+                const actualDate = editing.actual_discharge_date ?? null;
+
+                const reached = (...statuses: string[]) => statuses.includes(editing.status);
 
                 const milestones = [
                   {
-                    title: "Initial Assessment",
+                    title: "Case opened",
                     target: createdDate,
+                    // The only stage with a date the record actually holds.
                     completed: createdDate,
                     status: "completed",
                   },
                   {
-                    title: "Care Plan Development",
-                    target: targetDate,
-                    completed:
-                      editing.status === "active" ? new Date().toISOString().slice(0, 10) : "",
-                    status: editing.status === "active" ? "completed" : "pending",
+                    title: "Active management",
+                    target: null,
+                    completed: null,
+                    status: reached("active", "pending_discharge", "discharged")
+                      ? "completed"
+                      : "pending",
                   },
                   {
-                    title: "Discharge Planning",
+                    title: "Discharge planning",
                     target: targetDate,
-                    completed:
-                      editing.status === "pending_discharge"
-                        ? new Date().toISOString().slice(0, 10)
-                        : "",
-                    status:
-                      editing.status === "pending_discharge" || editing.status === "discharged"
-                        ? "completed"
-                        : "pending",
+                    completed: null,
+                    status: reached("pending_discharge", "discharged") ? "completed" : "pending",
                   },
                   {
-                    title: "Discharge Execution",
+                    title: "Discharged",
                     target: targetDate,
                     completed: actualDate,
-                    status: editing.status === "discharged" ? "completed" : "pending",
+                    status: reached("discharged") ? "completed" : "pending",
                   },
                 ];
 
@@ -792,8 +803,7 @@ export function CaseBoardTab() {
                   <>
                     <Progress value={progressPct} color="primary" size="lg" mb="md" />
                     <Text size="sm" c="dimmed" mb="md">
-                      {completedCount} of {milestones.length} milestones completed (
-                      {progressPct.toFixed(0)}%)
+                      Stage {completedCount} of {milestones.length}
                     </Text>
                     <Timeline active={completedCount - 1} bulletSize={24} lineWidth={2}>
                       {milestones.map((m) => (
@@ -808,12 +818,14 @@ export function CaseBoardTab() {
                           }
                           title={m.title}
                         >
-                          <Text size="xs" c="dimmed">
-                            Target: {m.target}
-                          </Text>
+                          {m.target && (
+                            <Text size="xs" c="dimmed">
+                              Target: {m.target}
+                            </Text>
+                          )}
                           {m.completed && (
                             <Text size="xs" c="teal">
-                              Completed: {m.completed}
+                              {m.completed}
                             </Text>
                           )}
                           <Badge
