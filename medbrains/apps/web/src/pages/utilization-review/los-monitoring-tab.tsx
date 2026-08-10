@@ -119,8 +119,12 @@ export function LosMonitoringTab() {
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
 
-    // Calculate overturn rate (for now, use dummy data)
-    const overturnRate = deniedReviews.length > 0 ? 15 : 0;
+    // Overturn rate is not derivable from what the review record holds: an
+    // overturn is an appeal outcome, and appeals are not tracked here yet.
+    // This showed a flat 15% whenever any denial existed, which read as a
+    // measurement and was a constant — the worst way for a KPI to be wrong,
+    // because nothing about it looks uncertain.
+    const overturnRate: number | null = null;
     const denialRate = s.total_reviews > 0 ? (s.denial_count / s.total_reviews) * 100 : 0;
 
     return {
@@ -214,8 +218,8 @@ export function LosMonitoringTab() {
               <Text size="xs" c="dimmed">
                 Overturn Rate
               </Text>
-              <Text fw={700} size="lg" c="success">
-                {denialData.overturnRate}%
+              <Text fw={700} size="lg" c={denialData.overturnRate === null ? "dimmed" : "success"}>
+                {denialData.overturnRate === null ? "—" : `${denialData.overturnRate}%`}
               </Text>
             </Card>
             <Card withBorder p="sm" bg="orange.0">

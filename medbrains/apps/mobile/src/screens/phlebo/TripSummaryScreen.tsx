@@ -20,6 +20,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { checkTripClose } from "../../lib/trip.js";
 import { phlebotomyService } from "../../services/phlebotomy.service";
 import { mobilePhlebotomyText } from "./phlebotomyText";
 
@@ -69,8 +70,20 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
   // Estimate samples based on completed collections (since we don't have test_names)
   const estimatedSamples = completed.length;
 
+  const tripClose = checkTripClose(collections);
+
+  /**
+   * Closes the round only once every visit has been resolved.
+   *
+   * This used to show a success message and submit nothing, which mattered
+   * less for the missing record than for the collections left behind: a round
+   * closed with visits still pending leaves those patients expecting a
+   * phlebotomist who is no longer coming, and nothing anywhere says so.
+   */
   const handleEndTrip = () => {
-    // In a real app, this would submit the trip report
+    if (!tripClose.canEnd) {
+      return;
+    }
     setSnackbar({
       visible: true,
       message: mobilePhlebotomyText("phlebotomy.trip.snackbar.ended"),
@@ -315,6 +328,14 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
             <Text variant="bodyMedium" style={styles.dialogText}>
               {mobilePhlebotomyText("phlebotomy.trip.dialog.message")}
             </Text>
+            {!tripClose.canEnd && (
+              <Text variant="bodyMedium" style={styles.dialogText}>
+                {tripClose.outstanding.length} collection
+                {tripClose.outstanding.length === 1 ? "" : "s"} on this round have not been
+                resolved. Mark each one collected or cancelled first — closing now would leave those
+                patients waiting for a visit nobody is coming to make.
+              </Text>
+            )}
             <TextInput
               mode="outlined"
               label={mobilePhlebotomyText("phlebotomy.trip.dialog.distanceLabel")}
@@ -350,7 +371,7 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
             <Button onPress={() => setEndTripDialogVisible(false)}>
               {mobilePhlebotomyText("phlebotomy.action.cancel")}
             </Button>
-            <Button mode="contained" onPress={handleEndTrip}>
+            <Button mode="contained" onPress={handleEndTrip} disabled={!tripClose.canEnd}>
               {mobilePhlebotomyText("phlebotomy.trip.action.endTrip")}
             </Button>
           </Dialog.Actions>
