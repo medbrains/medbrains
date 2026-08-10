@@ -210,6 +210,8 @@ import type {
   CampAnalytics,
   CampAssetReservation,
   CampBillingRecord,
+  // Specialty Queue Displays
+  CampBoardRow,
   CampFollowup,
   CampIncident,
   CampLabSample,
@@ -838,6 +840,7 @@ import type {
   DeviceInfectionRate,
   DeviceInstance,
   DeviceMessage,
+  DeviceNodeKey,
   DevicePairingRequest,
   DeviceRoutingRule,
   DeviceTokenResponse,
@@ -1149,6 +1152,7 @@ import type {
   JobStats,
   JournalEntry,
   JournalEntryDetail,
+  KioskCheckinResult,
   KitchenAudit,
   KitchenInventory,
   KitchenMenu,
@@ -1437,6 +1441,7 @@ import type {
   PcpndtForm,
   PcpndtQuarterlySummary,
   PcpndtReportPrintData,
+  PeerRosterDoc,
   PendingAckUser,
   PendingDischargeRow,
   PendingSignoffEntry,
@@ -1468,8 +1473,6 @@ import type {
   PharmacyPosSaleItem,
   PharmacyPrescriptionRx,
   PharmacyPricingTier,
-  // Specialty Queue Displays
-  CampBoardRow,
   PharmacyQueueDisplay,
   PharmacyReturn,
   PharmacyRxDetailResponse,
@@ -1526,6 +1529,10 @@ import type {
   // Specialty Clinical: Psychiatry
   PsychPatient,
   PsychRestraint,
+  PublicAvailableSlot,
+  PublicBookableDoctor,
+  PublicBookingRequest,
+  PublicBookingResponse,
   PublicInvite,
   PublicTenant,
   PublicTokenLink,
@@ -2010,6 +2017,7 @@ import type {
   VendorComparisonRow,
   VendorPerformanceRow,
   VerbalOrderEntry,
+  VerifiedPrescription,
   VerifyConsentRequest,
   VerifyConsentResponse,
   VerifyNewbornIdentityRequest,
@@ -2057,10 +2065,6 @@ import type {
   WorkOrderPrintData,
   WoundCertificatePrintData,
   WristbandPrintData,
-  KioskCheckinResult,
-  DeviceNodeKey,
-  PeerRosterDoc,
-  VerifiedPrescription,
 } from "@medbrains/types";
 import { getApiBase } from "./config.js";
 
@@ -15642,9 +15646,18 @@ export const api = {
   deleteNewsArticle: (id: string) => request<void>(`/admin/news/${id}`, { method: "DELETE" }),
   exportAuditLog: () => request<unknown>("/audit/export"),
   getIntegrationCodeSnippet: (id: string) => request<unknown>(`/integration/code-snippets/${id}`),
-  getPublicAppointmentSlots: () => request<unknown>("/public/appointments/slots"),
-  bookPublicAppointment: (data: Record<string, unknown>) =>
-    request<unknown>("/public/appointments/book", {
+  /** Doctors a member of the public may book with. 404 unless the tenant opts in. */
+  getPublicBookableDoctors: (tenantCode: string) =>
+    request<PublicBookableDoctor[]>(
+      `/public/appointments/directory?tenant_code=${encodeURIComponent(tenantCode)}`,
+    ),
+  getPublicAppointmentSlots: (params: { tenant_code: string; doctor_id: string; date: string }) =>
+    request<PublicAvailableSlot[]>(
+      `/public/appointments/slots?tenant_code=${encodeURIComponent(params.tenant_code)}` +
+        `&doctor_id=${encodeURIComponent(params.doctor_id)}&date=${encodeURIComponent(params.date)}`,
+    ),
+  bookPublicAppointment: (data: PublicBookingRequest) =>
+    request<PublicBookingResponse>("/public/appointments/book", {
       method: "POST",
       body: JSON.stringify(data),
     }),

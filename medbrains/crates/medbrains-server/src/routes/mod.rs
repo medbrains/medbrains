@@ -697,6 +697,10 @@ pub fn build_router(state: AppState) -> Router {
             post(appointments::request_public_booking_otp),
         )
         .route(
+            "/api/public/appointments/directory",
+            get(appointments::public_bookable_doctors),
+        )
+        .route(
             "/api/public/kiosk/checkin",
             post(appointments::kiosk_checkin),
         )

@@ -786,3 +786,52 @@ export function tokenBoardStatusLabel(status: string): string {
     ? TOKEN_BOARD_STATUS_LABELS[status]
     : status.replace(/_/g, " ");
 }
+
+/**
+ * A doctor a member of the public may book with.
+ *
+ * Served to anyone holding a hospital's code, so it carries what somebody
+ * needs to choose an appointment and nothing more — no contact details, no
+ * employee id, no roster.
+ */
+export interface PublicBookableDoctor {
+  doctor_id: string;
+  doctor_name: string;
+  department_id: string;
+  department_name: string;
+}
+
+/** One bookable slot in a doctor's day. Times are `HH:MM:SS`. */
+export interface PublicAvailableSlot {
+  start_time: string;
+  end_time: string;
+  booked_count: number;
+  max_patients: number;
+  is_available: boolean;
+}
+
+export interface PublicBookingRequest {
+  tenant_code: string;
+  doctor_id: string;
+  department_id: string;
+  appointment_date: string;
+  slot_start: string;
+  slot_end: string;
+  patient_name: string;
+  patient_phone: string;
+  patient_dob?: string;
+  reason?: string;
+  /** Required only when the tenant turns on booking OTP. */
+  otp?: string;
+}
+
+export interface PublicBookingResponse {
+  appointment_id: string;
+  appointment_date: string;
+  slot_start: string;
+  doctor_name: string;
+  department_name: string;
+  qr_code_data: string;
+  status: string;
+  message: string;
+}

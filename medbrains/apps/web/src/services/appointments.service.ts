@@ -8,6 +8,11 @@ export const appointmentsService = {
   publicKioskCheckin: (...args: Parameters<typeof api.publicKioskCheckin>) =>
     api.publicKioskCheckin(...args),
   getPublicQueueTokenStatus: (statusToken: string) => api.getPublicQueueTokenStatus(statusToken),
+  getPublicBookableDoctors: (tenantCode: string) => api.getPublicBookableDoctors(tenantCode),
+  getPublicAppointmentSlots: (params: Parameters<typeof api.getPublicAppointmentSlots>[0]) =>
+    api.getPublicAppointmentSlots(params),
+  bookPublicAppointment: (data: Parameters<typeof api.bookPublicAppointment>[0]) =>
+    api.bookPublicAppointment(data),
   listDepartments: () => api.listDepartments(),
   listSetupUsers: () => api.listSetupUsers(),
   listPatients: (params: Parameters<typeof api.listPatients>[0]) => api.listPatients(params),

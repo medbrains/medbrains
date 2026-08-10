@@ -185,3 +185,21 @@ pub struct ReminderConfig {
     pub sms_template: String,
     pub whatsapp_template: String,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct PublicDirectoryQuery {
+    pub tenant_code: String,
+}
+
+/// A doctor a member of the public may book with.
+///
+/// Deliberately thin. This is served to anyone who knows a hospital's code, so
+/// it carries what somebody needs to choose an appointment and nothing more —
+/// no contact details, no employee id, no roster.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct PublicBookableDoctor {
+    pub doctor_id: Uuid,
+    pub doctor_name: String,
+    pub department_id: Uuid,
+    pub department_name: String,
+}

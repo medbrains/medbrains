@@ -9,8 +9,9 @@ use uuid::Uuid;
 use crate::{error::AppError, event_tokens, state::AppState};
 
 use super::{
-    KioskCheckinRequest, KioskCheckinResponse, PublicBookingRequest, PublicBookingResponse,
-    PublicSlotsQuery, PublicTokenLink, PublicTokenStatus,
+    KioskCheckinRequest, KioskCheckinResponse, PublicBookableDoctor, PublicBookingRequest,
+    PublicBookingResponse, PublicDirectoryQuery, PublicSlotsQuery, PublicTokenLink,
+    PublicTokenStatus,
 };
 
 /// How long a patient's status link stays live.
@@ -99,6 +100,70 @@ pub async fn public_book_appointment(
         status: "confirmed".to_owned(),
         message: "Appointment booked. Show QR code at kiosk on arrival.".to_owned(),
     }))
+}
+
+/// GET /api/public/appointments/directory
+///
+/// The doctors a member of the public may book with, so the booking page has
+/// something to offer. Booking already needed a `doctor_id` and there was no
+/// public way to learn one — the flow could not be started from outside.
+///
+/// **Opt-in per tenant.** Publishing a staff roster is a decision a hospital
+/// makes, not a default it discovers. Without
+/// `appointments.public_booking_enabled` this answers exactly as an unknown
+/// hospital does, so the setting cannot be probed for.
+///
+/// Only doctors with an active schedule are listed. Offering one with no
+/// schedule sends a patient to a date picker that will never show a slot, and
+/// nothing on the page could explain why.
+pub async fn public_bookable_doctors(
+    State(state): State<AppState>,
+    Query(params): Query<PublicDirectoryQuery>,
+) -> Result<Json<Vec<PublicBookableDoctor>>, AppError> {
+    let tenant_id: Uuid =
+        sqlx::query_scalar("SELECT id FROM tenants WHERE code = $1 AND is_active = true")
+            .bind(&params.tenant_code)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or(AppError::NotFound)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+
+    let enabled = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'appointments' \
+           AND key = 'public_booking_enabled'",
+    )
+    .bind(tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .map(|v| v.as_bool().unwrap_or(v.as_str() == Some("true")))
+    .unwrap_or(false);
+
+    if !enabled {
+        return Err(AppError::NotFound);
+    }
+
+    // One query, not a doctor list followed by a schedule lookup each. DISTINCT
+    // because a doctor holding several weekday schedules in one department is
+    // still one choice on the page.
+    let rows = sqlx::query_as::<_, PublicBookableDoctor>(
+        "SELECT DISTINCT u.id AS doctor_id, u.full_name AS doctor_name, \
+                d.id AS department_id, d.name AS department_name \
+           FROM doctor_schedules ds \
+           JOIN users u ON u.id = ds.doctor_id AND u.tenant_id = ds.tenant_id \
+           JOIN departments d ON d.id = ds.department_id AND d.tenant_id = ds.tenant_id \
+          WHERE ds.tenant_id = $1 AND ds.is_active \
+            AND u.is_active AND u.role = 'doctor' \
+          ORDER BY d.name, u.full_name",
+    )
+    .bind(tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
 }
 
 /// GET /api/public/appointments/slots

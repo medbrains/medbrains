@@ -11,7 +11,8 @@ pub use bookings::{
     get_appointment, list_appointments, mark_appointment_no_show, reschedule_appointment,
 };
 pub use public::{
-    kiosk_checkin, public_available_slots, public_book_appointment, public_token_status,
+    kiosk_checkin, public_available_slots, public_book_appointment, public_bookable_doctors,
+    public_token_status,
     queue_token_status_link,
     request_public_booking_otp,
 };
@@ -23,8 +24,10 @@ pub use schedules::{
 pub use types::{
     AppointmentWithPatient, BookAppointmentRequest, CancelRequest, CreateExceptionRequest,
     CreateScheduleRequest, KioskCheckinRequest, KioskCheckinResponse, ListAppointmentsQuery,
-    ListExceptionsQuery, ListSchedulesQuery, ListSlotsQuery, PublicBookingOtpRequest,
-    PublicBookingRequest, PublicBookingResponse, PublicSlotsQuery, PublicTokenLink,
+    ListExceptionsQuery, ListSchedulesQuery, ListSlotsQuery, PublicBookableDoctor,
+    PublicBookingOtpRequest,
+    PublicBookingRequest, PublicBookingResponse, PublicDirectoryQuery, PublicSlotsQuery,
+    PublicTokenLink,
     PublicTokenStatus,
     ReminderConfig,
     RescheduleRequest, UpdateScheduleRequest,
