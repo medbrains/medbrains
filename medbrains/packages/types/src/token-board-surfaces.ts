@@ -801,6 +801,18 @@ export interface PublicBookableDoctor {
   department_name: string;
 }
 
+/**
+ * What a booking page needs before it can render a correct form.
+ *
+ * `otp_required` travels with the doctor list because the page cannot show the
+ * right fields without it, and a second round trip for one boolean is a second
+ * thing to fail.
+ */
+export interface PublicBookingDirectory {
+  otp_required: boolean;
+  doctors: PublicBookableDoctor[];
+}
+
 /** One bookable slot in a doctor's day. Times are `HH:MM:SS`. */
 export interface PublicAvailableSlot {
   start_time: string;

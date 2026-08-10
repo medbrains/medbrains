@@ -13,6 +13,8 @@ export const appointmentsService = {
     api.getPublicAppointmentSlots(params),
   bookPublicAppointment: (data: Parameters<typeof api.bookPublicAppointment>[0]) =>
     api.bookPublicAppointment(data),
+  requestPublicBookingOtp: (data: Parameters<typeof api.requestPublicBookingOtp>[0]) =>
+    api.requestPublicBookingOtp(data),
   listDepartments: () => api.listDepartments(),
   listSetupUsers: () => api.listSetupUsers(),
   listPatients: (params: Parameters<typeof api.listPatients>[0]) => api.listPatients(params),

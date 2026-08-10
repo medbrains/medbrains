@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   bookableSlots,
   bookingProblem,
+  canRequestOtp,
   groupByDepartment,
   lastBookableDate,
   slotLabel,
@@ -111,5 +112,46 @@ describe("bookingProblem", () => {
 describe("lastBookableDate", () => {
   it("is bounded, so nobody books against a schedule that does not exist yet", () => {
     expect(lastBookableDate(new Date("2026-01-01T00:00:00Z"))).toBe("2026-03-02");
+  });
+});
+
+describe("canRequestOtp", () => {
+  /**
+   * Gated on the phone alone so the button lights up as soon as it is useful,
+   * not after a name the patient has not typed yet.
+   */
+  it("is ready as soon as the number could be dialled", () => {
+    expect(canRequestOtp("9876543210")).toBe(true);
+    expect(canRequestOtp("+91 98765-43210")).toBe(true);
+  });
+
+  it("is not ready for a partial number", () => {
+    expect(canRequestOtp("")).toBe(false);
+    expect(canRequestOtp("98765")).toBe(false);
+    expect(canRequestOtp("1".repeat(16))).toBe(false);
+  });
+});
+
+describe("bookingProblem with phone verification on", () => {
+  const base = { patientName: "Asha Menon", patientPhone: "9876543210", otpRequired: true };
+
+  it("asks for the code before letting the booking through", () => {
+    expect(bookingProblem(base)).toMatch(/code we sent/i);
+    expect(bookingProblem({ ...base, otp: "" })).toMatch(/code we sent/i);
+  });
+
+  it("rejects a code of the wrong length rather than sending it to be refused", () => {
+    expect(bookingProblem({ ...base, otp: "123" })).toMatch(/6 digits/);
+    expect(bookingProblem({ ...base, otp: "1234567" })).toMatch(/6 digits/);
+  });
+
+  it("accepts a six-digit code, spaces and all", () => {
+    expect(bookingProblem({ ...base, otp: "123456" })).toBeNull();
+    expect(bookingProblem({ ...base, otp: "123 456" })).toBeNull();
+  });
+
+  /** With verification off, no code is asked for and none is required. */
+  it("does not ask when the hospital has verification off", () => {
+    expect(bookingProblem({ patientName: "Asha", patientPhone: "9876543210" })).toBeNull();
   });
 });

@@ -25,7 +25,7 @@ pub use types::{
     AppointmentWithPatient, BookAppointmentRequest, CancelRequest, CreateExceptionRequest,
     CreateScheduleRequest, KioskCheckinRequest, KioskCheckinResponse, ListAppointmentsQuery,
     ListExceptionsQuery, ListSchedulesQuery, ListSlotsQuery, PublicBookableDoctor,
-    PublicBookingOtpRequest,
+    PublicBookingDirectory, PublicBookingOtpRequest,
     PublicBookingRequest, PublicBookingResponse, PublicDirectoryQuery, PublicSlotsQuery,
     PublicTokenLink,
     PublicTokenStatus,

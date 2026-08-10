@@ -24,9 +24,11 @@ import { appointmentsService } from "@/services/appointments.service";
 import {
   bookableSlots,
   bookingProblem,
+  canRequestOtp,
   groupByDepartment,
   isoDate,
   lastBookableDate,
+  OTP_LENGTH,
   slotLabel,
 } from "./public-booking-model";
 
@@ -46,10 +48,13 @@ export function PublicBookingPage() {
   const [patientName, setPatientName] = useState("");
   const [patientPhone, setPatientPhone] = useState("");
   const [reason, setReason] = useState("");
+  const [otp, setOtp] = useState("");
+  const [codeSent, setCodeSent] = useState(false);
   const [booked, setBooked] = useState<PublicBookingResponse | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
-  const doctors = directory.data ?? [];
+  const doctors = directory.data?.doctors ?? [];
+  const otpRequired = directory.data?.otp_required ?? false;
   const groups = useMemo(() => groupByDepartment(doctors), [doctors]);
   const doctor = useMemo(
     () => doctors.find((entry) => entry.doctor_id === doctorId) ?? null,
@@ -70,7 +75,7 @@ export function PublicBookingPage() {
 
   const open = useMemo(() => bookableSlots(slots.data ?? []), [slots.data]);
   const chosen = open.find((slot) => slot.start_time === slotStart) ?? null;
-  const problem = bookingProblem({ patientName, patientPhone });
+  const problem = bookingProblem({ patientName, patientPhone, otpRequired, otp });
 
   const book = useMutation({
     mutationFn: () => {
@@ -87,9 +92,27 @@ export function PublicBookingPage() {
         patient_name: patientName.trim(),
         patient_phone: patientPhone.trim(),
         reason: reason.trim() || undefined,
+        otp: otpRequired ? otp.replace(/\D/g, "") : undefined,
       });
     },
     onSuccess: setBooked,
+    onError: (error: Error) => setFailure(error.message),
+  });
+
+  const sendCode = useMutation({
+    mutationFn: () =>
+      appointmentsService.requestPublicBookingOtp({
+        tenant_code: tenantCode,
+        patient_phone: patientPhone.trim(),
+      }),
+    // The server answers the same whether or not it knows the number, so that
+    // a stranger cannot use this to test which phones a hospital holds. The
+    // page keeps that promise: it never says "sent" as though delivery were
+    // confirmed.
+    onSuccess: () => {
+      setCodeSent(true);
+      setFailure(null);
+    },
     onError: (error: Error) => setFailure(error.message),
   });
 
@@ -188,6 +211,17 @@ export function PublicBookingPage() {
             autoComplete="tel"
             w="100%"
           />
+          {otpRequired && (
+            <VerifyPhone
+              phone={patientPhone}
+              otp={otp}
+              onOtp={setOtp}
+              codeSent={codeSent}
+              sending={sendCode.isPending}
+              onSend={() => sendCode.mutate()}
+            />
+          )}
+
           <Textarea
             label="Reason for the visit (optional)"
             value={reason}
@@ -219,6 +253,66 @@ export function PublicBookingPage() {
         </>
       )}
     </Frame>
+  );
+}
+
+/**
+ * Phone verification, when the hospital requires it.
+ *
+ * The code is requested from this page rather than assumed, because the number
+ * being verified is the one just typed — asking earlier would verify a number
+ * the patient then corrected.
+ *
+ * The wording never claims the message arrived. The server deliberately answers
+ * identically whether or not it recognises the number, so that nobody can use
+ * this to discover which phones a hospital holds, and a page that said "sent"
+ * would quietly undo that.
+ */
+function VerifyPhone({
+  phone,
+  otp,
+  onOtp,
+  codeSent,
+  sending,
+  onSend,
+}: {
+  phone: string;
+  otp: string;
+  onOtp: (value: string) => void;
+  codeSent: boolean;
+  sending: boolean;
+  onSend: () => void;
+}) {
+  return (
+    <Stack gap="xs" w="100%">
+      <Button
+        tone={codeSent ? "secondary" : "primary"}
+        fullWidth
+        loading={sending}
+        disabled={sending || !canRequestOtp(phone)}
+        onClick={onSend}
+      >
+        {codeSent ? "Send the code again" : "Send verification code"}
+      </Button>
+
+      {codeSent && (
+        <>
+          <TextInput
+            label="Verification code"
+            description={`Enter the ${OTP_LENGTH} digits sent to ${phone}. The code expires in 10 minutes.`}
+            value={otp}
+            onChange={(event) => onOtp(event.currentTarget.value)}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={OTP_LENGTH + 2}
+            w="100%"
+          />
+          <Text size="xs" c="dimmed">
+            If nothing arrives, check the number above and send it again.
+          </Text>
+        </>
+      )}
+    </Stack>
   );
 }
 

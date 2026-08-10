@@ -272,6 +272,7 @@ export type {
   MissableToken,
   PublicAvailableSlot,
   PublicBookableDoctor,
+  PublicBookingDirectory,
   PublicBookingRequest,
   PublicBookingResponse,
   PublicTokenLink,

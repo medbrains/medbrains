@@ -1530,7 +1530,7 @@ import type {
   PsychPatient,
   PsychRestraint,
   PublicAvailableSlot,
-  PublicBookableDoctor,
+  PublicBookingDirectory,
   PublicBookingRequest,
   PublicBookingResponse,
   PublicInvite,
@@ -15648,7 +15648,7 @@ export const api = {
   getIntegrationCodeSnippet: (id: string) => request<unknown>(`/integration/code-snippets/${id}`),
   /** Doctors a member of the public may book with. 404 unless the tenant opts in. */
   getPublicBookableDoctors: (tenantCode: string) =>
-    request<PublicBookableDoctor[]>(
+    request<PublicBookingDirectory>(
       `/public/appointments/directory?tenant_code=${encodeURIComponent(tenantCode)}`,
     ),
   getPublicAppointmentSlots: (params: { tenant_code: string; doctor_id: string; date: string }) =>

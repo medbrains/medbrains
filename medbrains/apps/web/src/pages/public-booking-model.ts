@@ -57,9 +57,27 @@ export function bookableSlots(slots: ReadonlyArray<PublicAvailableSlot>): Public
   return slots.filter((slot) => slot.is_available && slot.booked_count < slot.max_patients);
 }
 
+/** Digits in the code the server mints. */
+export const OTP_LENGTH = 6;
+
 export interface BookingDetails {
   patientName: string;
   patientPhone: string;
+  /** Required only when the hospital turns phone verification on. */
+  otpRequired?: boolean;
+  otp?: string;
+}
+
+/**
+ * Whether the phone number is complete enough to send a code to.
+ *
+ * Checked separately from the whole form so the "send code" button can light
+ * up as soon as it is useful, rather than waiting for a name the patient has
+ * not typed yet.
+ */
+export function canRequestOtp(phone: string): boolean {
+  const digits = phone.replace(/\D/g, "");
+  return digits.length >= 10 && digits.length <= 15;
 }
 
 /**
@@ -80,6 +98,15 @@ export function bookingProblem(details: BookingDetails): string | null {
   }
   if (digits.length > 15) {
     return "That number is longer than any phone number.";
+  }
+  if (details.otpRequired) {
+    const otp = (details.otp ?? "").replace(/\D/g, "");
+    if (otp.length === 0) {
+      return "Enter the code we sent to your phone.";
+    }
+    if (otp.length !== OTP_LENGTH) {
+      return `The code is ${OTP_LENGTH} digits.`;
+    }
   }
   return null;
 }

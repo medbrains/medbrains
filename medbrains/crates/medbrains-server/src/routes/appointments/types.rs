@@ -196,6 +196,17 @@ pub struct PublicDirectoryQuery {
 /// Deliberately thin. This is served to anyone who knows a hospital's code, so
 /// it carries what somebody needs to choose an appointment and nothing more —
 /// no contact details, no employee id, no roster.
+/// What a booking page needs before it can show anything.
+///
+/// Bundled with the doctor list rather than served separately: the page cannot
+/// render a correct form without knowing whether a code is required, and a
+/// second round trip to learn one boolean is a second thing to fail.
+#[derive(Debug, Serialize)]
+pub struct PublicBookingDirectory {
+    pub otp_required: bool,
+    pub doctors: Vec<PublicBookableDoctor>,
+}
+
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct PublicBookableDoctor {
     pub doctor_id: Uuid,

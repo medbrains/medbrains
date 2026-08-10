@@ -9,7 +9,8 @@ use uuid::Uuid;
 use crate::{error::AppError, event_tokens, state::AppState};
 
 use super::{
-    KioskCheckinRequest, KioskCheckinResponse, PublicBookableDoctor, PublicBookingRequest,
+    KioskCheckinRequest, KioskCheckinResponse, PublicBookableDoctor, PublicBookingDirectory,
+    PublicBookingRequest,
     PublicBookingResponse, PublicDirectoryQuery, PublicSlotsQuery, PublicTokenLink,
     PublicTokenStatus,
 };
@@ -119,7 +120,7 @@ pub async fn public_book_appointment(
 pub async fn public_bookable_doctors(
     State(state): State<AppState>,
     Query(params): Query<PublicDirectoryQuery>,
-) -> Result<Json<Vec<PublicBookableDoctor>>, AppError> {
+) -> Result<Json<PublicBookingDirectory>, AppError> {
     let tenant_id: Uuid =
         sqlx::query_scalar("SELECT id FROM tenants WHERE code = $1 AND is_active = true")
             .bind(&params.tenant_code)
@@ -130,20 +131,30 @@ pub async fn public_bookable_doctors(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
 
-    let enabled = sqlx::query_scalar::<_, serde_json::Value>(
-        "SELECT value FROM tenant_settings \
+    // Both switches in one read. Two round trips to learn two booleans off the
+    // same row set is the kind of thing that is free once and expensive at a
+    // thousand page loads.
+    let settings = sqlx::query_as::<_, (String, serde_json::Value)>(
+        "SELECT key, value FROM tenant_settings \
          WHERE tenant_id = $1 AND category = 'appointments' \
-           AND key = 'public_booking_enabled'",
+           AND key IN ('public_booking_enabled', 'public_booking_otp_required')",
     )
     .bind(tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .map(|v| v.as_bool().unwrap_or(v.as_str() == Some("true")))
-    .unwrap_or(false);
+    .fetch_all(&mut *tx)
+    .await?;
 
-    if !enabled {
+    let flag = |name: &str| {
+        settings
+            .iter()
+            .find(|(key, _)| key == name)
+            .map(|(_, value)| value.as_bool().unwrap_or(value.as_str() == Some("true")))
+            .unwrap_or(false)
+    };
+
+    if !flag("public_booking_enabled") {
         return Err(AppError::NotFound);
     }
+    let otp_required = flag("public_booking_otp_required");
 
     // One query, not a doctor list followed by a schedule lookup each. DISTINCT
     // because a doctor holding several weekday schedules in one department is
@@ -163,7 +174,10 @@ pub async fn public_bookable_doctors(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(PublicBookingDirectory {
+        otp_required,
+        doctors: rows,
+    }))
 }
 
 /// GET /api/public/appointments/slots
