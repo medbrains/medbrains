@@ -1,3 +1,4 @@
+export { createDeviceSyncModule } from "./device-sync-module.js";
 export type {
   DiscoveredEdge,
   DiscoverySubscription,

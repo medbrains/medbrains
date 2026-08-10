@@ -4,7 +4,7 @@
  * permissions before rendering the navigator.
  */
 
-import type { Module } from "@medbrains/mobile-shell";
+import { createDeviceSyncModule, type Module } from "@medbrains/mobile-shell";
 import { billingModule } from "./billing";
 import { bloodBankModule } from "./blood-bank";
 import { bmeModule } from "./bme";
@@ -31,4 +31,5 @@ export const MODULES: ReadonlyArray<Module> = [
   securityModule,
   hrModule,
   receptionModule,
+  createDeviceSyncModule(["Mobile-Admin"]),
 ];
