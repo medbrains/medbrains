@@ -1005,6 +1005,10 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/devices/instances", get(list_device_instances).post(create_device_instance))
         .route("/api/devices/instances/{id}", get(get_device_instance).put(update_device_instance).delete(decommission_device))
         .route("/api/devices/instances/{id}/test", post(test_device_connection))
+        .route(
+            "/api/devices/instances/{id}/node-key",
+            get(get_device_node_key).post(register_device_node_key).delete(revoke_device_node_key),
+        )
         .route("/api/devices/instances/{id}/regenerate-config", post(regenerate_config))
         .route("/api/devices/instances/{id}/messages", get(list_device_messages))
         .route("/api/devices/instances/{id}/config-history", get(list_config_history))
@@ -1019,4 +1023,158 @@ pub fn bridge_router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/bridge/register", post(register_bridge_agent))
         .route("/api/bridge/heartbeat", post(bridge_heartbeat))
+}
+
+// ══════════════════════════════════════════════════════════
+//  Peer node keys — see medbrains_edge::peer_admission
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, serde::Deserialize)]
+pub struct RegisterNodeKeyRequest {
+    pub node_id: String,
+}
+
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct DeviceNodeKey {
+    pub id: Uuid,
+    pub device_instance_id: Uuid,
+    pub node_id: String,
+    pub revoked_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub last_seen_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// `POST /api/devices/instances/{id}/node-key`
+///
+/// Binds a peer-to-peer node key to a device that has already been paired.
+///
+/// Enrolment is a privileged act, not something a device does for itself. The
+/// device presents its public key; an operator with device-management rights
+/// decides it belongs to a machine this hospital admitted. A device that could
+/// self-enrol would make the binding worthless — anyone able to reach the
+/// endpoint could mint an admitted peer.
+///
+/// Re-registering replaces the live key rather than adding a second, so a
+/// device that rotates its key does not leave a usable old one behind.
+pub async fn register_device_node_key(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RegisterNodeKeyRequest>,
+) -> Result<Json<DeviceNodeKey>, AppError> {
+    require_permission(&claims, permissions::devices::UPDATE)?;
+
+    let node_id = body.node_id.trim();
+    if node_id.is_empty() {
+        return Err(AppError::BadRequest("node_id is required".to_owned()));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // The device must exist in this tenant. Without this the FK would still
+    // hold, but a key could be bound to another tenant's device.
+    let owns_device: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM device_instances WHERE id = $1 AND tenant_id = $2)",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if !owns_device {
+        return Err(AppError::NotFound);
+    }
+
+    // Retire whatever this device had. Revoked rows are kept: an audit asking
+    // which device held a key at a point in time needs the history.
+    sqlx::query(
+        "UPDATE device_node_keys SET revoked_at = now(), revoked_by = $2 \
+         WHERE device_instance_id = $1 AND revoked_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.sub)
+    .execute(&mut *tx)
+    .await?;
+
+    let row = sqlx::query_as::<_, DeviceNodeKey>(
+        "INSERT INTO device_node_keys (tenant_id, device_instance_id, node_id, created_by) \
+         VALUES ($1, $2, $3, $4) \
+         RETURNING id, device_instance_id, node_id, revoked_at, last_seen_at, created_at",
+    )
+    .bind(claims.tenant_id)
+    .bind(id)
+    .bind(node_id)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| {
+        // The unique index is global: a key already claimed elsewhere must not
+        // be silently rebound, and the answer says nothing about who holds it.
+        if matches!(&e, sqlx::Error::Database(db) if db.is_unique_violation()) {
+            AppError::Conflict("that node key is already registered".into())
+        } else {
+            AppError::from(e)
+        }
+    })?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// `DELETE /api/devices/instances/{id}/node-key`
+///
+/// Revokes without deleting. This is the emergency stop for a lost tablet, and
+/// it is expected to be used long before anyone gets round to changing the
+/// device's status.
+pub async fn revoke_device_node_key(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::devices::UPDATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let revoked = sqlx::query(
+        "UPDATE device_node_keys SET revoked_at = now(), revoked_by = $2 \
+         WHERE device_instance_id = $1 AND tenant_id = $3 AND revoked_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.sub)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({ "revoked": revoked })))
+}
+
+/// `GET /api/devices/instances/{id}/node-key`
+///
+/// The live key for a device, if it has one. Revoked keys are not returned —
+/// the history exists for audit, not for an operator screen to confuse.
+pub async fn get_device_node_key(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Option<DeviceNodeKey>>, AppError> {
+    require_permission(&claims, permissions::devices::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, DeviceNodeKey>(
+        "SELECT id, device_instance_id, node_id, revoked_at, last_seen_at, created_at \
+         FROM device_node_keys \
+         WHERE device_instance_id = $1 AND tenant_id = $2 AND revoked_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
 }

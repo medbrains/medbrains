@@ -7865,3 +7865,18 @@ export interface KioskCheckinResult {
    */
   status_token: string;
 }
+
+/**
+ * A peer-to-peer node key bound to a paired device.
+ *
+ * The key alone proves possession of a private key and nothing more — see
+ * `medbrains-edge::peer_admission` for why that is not an identity.
+ */
+export interface DeviceNodeKey {
+  id: string;
+  device_instance_id: string;
+  node_id: string;
+  revoked_at: string | null;
+  last_seen_at: string | null;
+  created_at: string;
+}

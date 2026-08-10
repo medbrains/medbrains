@@ -2058,6 +2058,7 @@ import type {
   WoundCertificatePrintData,
   WristbandPrintData,
   KioskCheckinResult,
+  DeviceNodeKey,
   VerifiedPrescription,
 } from "@medbrains/types";
 import { getApiBase } from "./config.js";
@@ -9377,6 +9378,26 @@ export const api = {
     const qs = sp.toString();
     return request<BmeWorkOrder[]>(`/bme/work-orders${qs ? `?${qs}` : ""}`);
   },
+  /** The live peer node key for a device, or null if it has none. */
+  getDeviceNodeKey: (deviceId: string) =>
+    request<DeviceNodeKey | null>(`/devices/instances/${deviceId}/node-key`),
+
+  /**
+   * Binds a node key to a paired device. Enrolment is privileged — a device
+   * that could enrol itself would make the binding worthless.
+   */
+  registerDeviceNodeKey: (deviceId: string, body: { node_id: string }) =>
+    request<DeviceNodeKey>(`/devices/instances/${deviceId}/node-key`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  /** Revokes without deleting — the emergency stop for a lost device. */
+  revokeDeviceNodeKey: (deviceId: string) =>
+    request<{ revoked: number }>(`/devices/instances/${deviceId}/node-key`, {
+      method: "DELETE",
+    }),
+
   getBmeWorkOrder: (id: string) => request<BmeWorkOrder>(`/bme/work-orders/${id}`),
   createBmeWorkOrder: (body: CreateBmeWorkOrderRequest) =>
     request<BmeWorkOrder>("/bme/work-orders", {
