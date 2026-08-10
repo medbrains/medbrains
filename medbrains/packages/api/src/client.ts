@@ -2059,6 +2059,7 @@ import type {
   WristbandPrintData,
   KioskCheckinResult,
   DeviceNodeKey,
+  PeerRosterDoc,
   VerifiedPrescription,
 } from "@medbrains/types";
 import { getApiBase } from "./config.js";
@@ -9391,6 +9392,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  /**
+   * Every live node key in the tenant. Edge appliances poll this to admit peers
+   * while offline; the admin UI reads it once to show which devices are keyed,
+   * rather than one request per row.
+   */
+  getPeerRoster: () => request<PeerRosterDoc>("/device-pairing/peer-roster"),
 
   /** Revokes without deleting — the emergency stop for a lost device. */
   revokeDeviceNodeKey: (deviceId: string) =>

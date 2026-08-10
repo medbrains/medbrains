@@ -31,13 +31,14 @@ import {
 import { useHasPermission } from "@medbrains/stores";
 import { P, STATION_TYPES, type Station } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "@/components";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { Alert, Badge, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminDevicesService, type PairingToken } from "@/services/adminDevices.service";
+import { SyncKeyBadge, SyncKeyModal } from "./paired-device-sync-key";
 
 // Surface catalog for the mint picker. Location-scoped (TV/kiosk) surfaces are grouped separately
 // from user-scoped (mobile) ones; legacy coarse variants stay for existing apps. The backend
@@ -85,6 +86,23 @@ export function PairedDevicesPage() {
   useRequirePermission(P.DEVICES.PAIRING.PAIRED_LIST);
   const canMintToken = useHasPermission(P.DEVICES.PAIRING.TOKEN_CREATE);
   const canRevoke = useHasPermission(P.DEVICES.PAIRING.PAIRED_REVOKE);
+  const [syncKeyFor, setSyncKeyFor] = useState<{ id: string; label: string } | null>(null);
+
+  // One request for the whole fleet. The per-device endpoint exists, but calling
+  // it once per row is an N+1 against a table that lists every device in the
+  // hospital.
+  const { data: roster } = useQuery({
+    queryKey: ["peer-roster"],
+    queryFn: () => adminDevicesService.getPeerRoster(),
+  });
+
+  const nodeIdByDevice = useMemo(() => {
+    const index = new Map<string, string>();
+    for (const peer of roster?.peers ?? []) {
+      index.set(peer.paired_device_id, peer.node_id);
+    }
+    return index;
+  }, [roster]);
 
   const canManageLocations = useHasPermission("admin.settings.locations.create");
   const [mintOpen, { open: openMint, close: closeMint }] = useDisclosure(false);
@@ -156,6 +174,7 @@ export function PairedDevicesPage() {
               <Table.Th>Paired at</Table.Th>
               <Table.Th>Last seen</Table.Th>
               <Table.Th>Status</Table.Th>
+              <Table.Th>Sync key</Table.Th>
               <Table.Th />
             </Table.Tr>
           </Table.Thead>
@@ -196,6 +215,22 @@ export function PairedDevicesPage() {
                     )}
                   </Table.Td>
                   <Table.Td>
+                    {revoked ? (
+                      <Text size="xs" c="dimmed">
+                        —
+                      </Text>
+                    ) : (
+                      <Button
+                        tone="ghost"
+                        size="xs"
+                        onClick={() => setSyncKeyFor({ id: row.id, label: row.label })}
+                        aria-label={`Manage the sync key for ${row.label}`}
+                      >
+                        <SyncKeyBadge nodeId={nodeIdByDevice.get(row.id)} />
+                      </Button>
+                    )}
+                  </Table.Td>
+                  <Table.Td>
                     {!revoked && canRevoke && (
                       <Button
                         tone="subtle-danger"
@@ -213,6 +248,13 @@ export function PairedDevicesPage() {
           </Table.Tbody>
         </Table>
       )}
+
+      <SyncKeyModal
+        device={syncKeyFor}
+        nodeId={syncKeyFor ? nodeIdByDevice.get(syncKeyFor.id) : undefined}
+        canManage={canMintToken}
+        onClose={() => setSyncKeyFor(null)}
+      />
 
       <Modal opened={mintOpen} onClose={closeMint} title="Mint pairing token" size="lg">
         {tokenResult ? (

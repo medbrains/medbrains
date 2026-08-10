@@ -7880,3 +7880,25 @@ export interface DeviceNodeKey {
   last_seen_at: string | null;
   created_at: string;
 }
+
+/** One paired device's live node key, as the roster carries it. */
+export interface PeerRosterEntry {
+  node_id: string;
+  paired_device_id: string;
+  tenant_id: string;
+  app_variant: string;
+  revoked: boolean;
+}
+
+/**
+ * Every live node key in the tenant, as of `issued_at` (epoch seconds).
+ *
+ * Issued for edge appliances and devices to admit peers offline, and read by
+ * the admin UI so one call answers "which devices have a sync key" for a whole
+ * fleet instead of one request per row.
+ */
+export interface PeerRosterDoc {
+  tenant_id: string;
+  issued_at: number;
+  peers: PeerRosterEntry[];
+}

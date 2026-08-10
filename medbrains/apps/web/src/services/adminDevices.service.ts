@@ -22,6 +22,12 @@ export const adminDevicesService = {
   listPairedDevices: () => api.listPairedDevices(),
   mintDevicePairingToken: (data: MintDevicePairingTokenInput) => api.mintDevicePairingToken(data),
   revokePairedDevice: (id: string, reason?: string) => api.revokePairedDevice(id, reason),
+  // One call for the whole fleet. The per-device endpoint exists, but asking it
+  // once per row is an N+1 against a table that can hold a hospital's devices.
+  getPeerRoster: () => api.getPeerRoster(),
+  registerDeviceNodeKey: (deviceId: string, nodeId: string) =>
+    api.registerDeviceNodeKey(deviceId, { node_id: nodeId }),
+  revokeDeviceNodeKey: (deviceId: string) => api.revokeDeviceNodeKey(deviceId),
   listStations: () => api.listStations(),
   createStation: (data: Parameters<typeof api.createStation>[0]) => api.createStation(data),
   updateStation: (id: string, data: Parameters<typeof api.updateStation>[1]) =>
