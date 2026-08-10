@@ -36,11 +36,7 @@ export interface CacheKey {
   action: string;
 }
 
-export type CacheSourceKind =
-  | "CloudFresh"
-  | "CloudCached"
-  | "JwtFallback"
-  | "OnlineRequiredDeny";
+export type CacheSourceKind = "CloudFresh" | "CloudCached" | "JwtFallback" | "OnlineRequiredDeny";
 
 export type DenyReasonKind =
   | "CacheMissStrict"
@@ -72,6 +68,18 @@ export interface RevocationCacheHandle {
   len(): number;
 }
 
+/**
+ * A device's peer-to-peer sync identity.
+ *
+ * `secretHex` belongs in platform secure storage and nowhere else —
+ * anyone holding it can be this device. `nodeId` is the public half
+ * and is meant to be shown, so an administrator can bind it.
+ */
+export interface NodeIdentity {
+  secretHex: string;
+  nodeId: string;
+}
+
 const NOT_PREBUILT = (): never => {
   throw new Error(
     "@medbrains/edge-rn-bindings has not been prebuilt. Run `expo prebuild` " +
@@ -86,10 +94,8 @@ export const verifyJwt: (
   clockSkewSecs: number,
 ) => JwtOutcome = NOT_PREBUILT;
 
-export const isActionOfflineRequired: (
-  objectType: string,
-  action: string,
-) => boolean = NOT_PREBUILT;
+export const isActionOfflineRequired: (objectType: string, action: string) => boolean =
+  NOT_PREBUILT;
 
 export const AuthzCacheHandle: new (
   path: string,
@@ -105,11 +111,16 @@ export const AuthzCacheHandle: new (
   defaultTtlSecs: number,
 ) => AuthzCacheHandle;
 
-export const RevocationCacheHandle: new (
-  path: string,
-  capacity: number,
-) => RevocationCacheHandle = class {
-  constructor(_path: string, _capacity: number) {
-    NOT_PREBUILT();
-  }
-} as unknown as new (path: string, capacity: number) => RevocationCacheHandle;
+export const RevocationCacheHandle: new (path: string, capacity: number) => RevocationCacheHandle =
+  class {
+    constructor(_path: string, _capacity: number) {
+      NOT_PREBUILT();
+    }
+  } as unknown as new (
+    path: string,
+    capacity: number,
+  ) => RevocationCacheHandle;
+
+export const generateNodeIdentity: () => NodeIdentity = NOT_PREBUILT;
+
+export const nodeIdForSecret: (secretHex: string) => string = NOT_PREBUILT;

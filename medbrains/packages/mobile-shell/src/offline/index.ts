@@ -13,6 +13,12 @@ export type {
 export { loadEdgeRnBindings, setEdgeRnBindings } from "./edge-rn-loader.js";
 export type { OfflineHandles, OfflineProviderProps } from "./offline-provider.js";
 export { OfflineProvider, useOfflineHandles } from "./offline-provider.js";
+export type { SyncIdentity } from "./sync-identity.js";
+export {
+  ensureSyncIdentity,
+  forgetSyncIdentity,
+  peekSyncIdentity,
+} from "./sync-identity.js";
 export { useAuthzCache } from "./use-authz-cache.js";
 export { useJwtVerify } from "./use-jwt-verify.js";
 export { usePermissionCheck } from "./use-permission-check.js";

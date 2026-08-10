@@ -18,6 +18,7 @@ export type {
   DenyReasonKind,
   JwtClaims,
   JwtOutcome,
+  NodeIdentity,
   OfflinePolicyKind,
   RevocationCacheHandle,
 } from "@medbrains/edge-rn-bindings";
@@ -28,6 +29,7 @@ import type {
   CacheSourceKind,
   CheckOutcome,
   JwtOutcome,
+  NodeIdentity,
   OfflinePolicyKind,
   RevocationCacheHandle,
 } from "@medbrains/edge-rn-bindings";
@@ -49,6 +51,12 @@ export interface EdgeRnBindings {
   ) => AuthzCacheHandle;
 
   RevocationCacheHandle: new (path: string, capacity: number) => RevocationCacheHandle;
+
+  /** Mints this device's sync identity. Called once, ever. */
+  generateNodeIdentity(): NodeIdentity;
+
+  /** Derives the public node id from a stored secret. */
+  nodeIdForSecret(secretHex: string): string;
 }
 
 // Helper imports re-exported as values for downstream code that

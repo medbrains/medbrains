@@ -39,6 +39,8 @@ export const SECRET_KEYS = {
   edgeCertFingerprint: "medbrains.edge_fingerprint",
   abhaToken: "medbrains.abha_token",
   pairingId: "medbrains.pairing_id",
+  /** Peer-to-peer sync private key. Never leaves the device. */
+  syncNodeKey: "medbrains.sync_node_key",
 } as const;
 
 export type SecretKey = (typeof SECRET_KEYS)[keyof typeof SECRET_KEYS];
