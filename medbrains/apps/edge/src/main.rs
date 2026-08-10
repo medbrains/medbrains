@@ -6,6 +6,7 @@
 //!   medbrains-edge --config /etc/medbrains-edge/config.toml
 
 mod peer;
+mod roster_fetch;
 
 use anyhow::{Context, Result};
 use clap::Parser;

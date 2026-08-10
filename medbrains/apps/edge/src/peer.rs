@@ -19,14 +19,17 @@
 //! one nobody does.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use medbrains_core::peer_sync::PeerRosterDoc;
 use medbrains_edge::iroh_transport::{PeerGatekeeper, build_endpoint, serve_connection};
-use medbrains_edge::peer_admission::Admission;
+use medbrains_edge::peer_admission::{Admission, RefusalReason};
 use medbrains_edge::peer_roster::PeerRoster;
 use medbrains_edge::sync::SyncServer;
+
+use crate::roster_fetch;
 use serde::Deserialize;
 use tokio::sync::Semaphore;
 use tracing::{error, info, warn};
@@ -55,20 +58,66 @@ pub(crate) struct IrohConfig {
     /// hospital sync metadata routed through anybody else's infrastructure.
     #[serde(default)]
     pub(crate) relays: Vec<String>,
+    /// Where to refresh the roster from, e.g. `https://hms.example.org`.
+    /// Absent means the roster is whatever an operator placed on disk.
+    #[serde(default)]
+    pub(crate) server_url: Option<String>,
+    /// File holding the bearer token used to fetch the roster. A path rather
+    /// than the token itself, so the secret stays out of the config and can be
+    /// held at 0600 like the node key.
+    #[serde(default)]
+    pub(crate) auth_token_path: Option<PathBuf>,
+    #[serde(default = "default_refresh_seconds")]
+    pub(crate) roster_refresh_seconds: u64,
+}
+
+/// Fifteen minutes. Frequent enough that a device paired this morning works
+/// this morning, and far inside the roster's own staleness ceiling so an
+/// appliance has many chances to refresh before it starts refusing everyone.
+const fn default_refresh_seconds() -> u64 {
+    15 * 60
+}
+
+/// Read the bearer token, holding it to the same standard as the node key.
+///
+/// A token readable by every account on the box is a credential that can fetch
+/// the hospital's device roster, so it is refused rather than used.
+fn read_token(path: Option<&Path>) -> Result<Option<String>> {
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    refuse_if_world_readable(path)?;
+    let token = std::fs::read_to_string(path).with_context(|| format!("read {path:?}"))?;
+    let token = token.trim().to_owned();
+    if token.is_empty() {
+        bail!("{path:?} is empty — expected a bearer token");
+    }
+    Ok(Some(token))
 }
 
 /// Admits peers from the cached roster.
+///
+/// The roster is swapped in place by the refresher, so a device paired a minute
+/// ago can sync without restarting the appliance — and one retired a minute ago
+/// stops being admitted at the next refresh rather than at the next reboot.
 struct RosterGate {
-    roster: PeerRoster,
+    roster: Arc<RwLock<PeerRoster>>,
 }
 
 impl PeerGatekeeper for RosterGate {
     fn admit(&self, node_id: &str, claimed_tenant: Uuid) -> Admission {
+        // A plain read lock: the critical section is one hash lookup and never
+        // awaits, so an async lock would buy nothing.
+        //
+        // A poisoned lock means the refresher panicked mid-swap and the roster
+        // may be half-replaced. Refusing is the only safe reading of that.
+        let Ok(roster) = self.roster.read() else {
+            return Admission::Refuse(RefusalReason::NotPaired);
+        };
         // `PeerRoster` owns the staleness rule and delegates the rest to the
         // shared admission logic, so this box and a phone reach the same verdict
         // on the same key.
-        self.roster
-            .admit_peer(node_id, claimed_tenant, now_epoch_seconds())
+        roster.admit_peer(node_id, claimed_tenant, now_epoch_seconds())
     }
 }
 
@@ -158,13 +207,7 @@ fn load_roster(path: &Path, tenant_id: Uuid) -> Result<PeerRoster> {
         bail!("roster at {path:?} was issued for another tenant");
     }
 
-    let peers = doc
-        .peers
-        .into_iter()
-        .map(|entry| (entry.node_id, entry.binding))
-        .collect();
-
-    Ok(PeerRoster::new(doc.tenant_id, doc.issued_at, peers))
+    Ok(roster_fetch::to_roster(doc))
 }
 
 /// Serve peer connections until the process stops.
@@ -193,7 +236,26 @@ pub(crate) async fn serve(cfg: IrohConfig, server: Arc<SyncServer>) -> Result<()
     let endpoint = build_endpoint(secret, relays).await?;
     info!(node_id = %endpoint.node_id(), "iroh sync endpoint listening");
 
-    let gate: Arc<dyn PeerGatekeeper> = Arc::new(RosterGate { roster });
+    let shared = Arc::new(RwLock::new(roster));
+
+    match (&cfg.server_url, read_token(cfg.auth_token_path.as_deref())?) {
+        (Some(url), Some(token)) => {
+            tokio::spawn(roster_fetch::refresh_forever(
+                url.clone(),
+                token,
+                cfg.tenant_id,
+                cfg.roster_path.clone(),
+                Duration::from_secs(cfg.roster_refresh_seconds),
+                Arc::clone(&shared),
+            ));
+        }
+        _ => warn!(
+            "no server_url and auth_token_path — the roster will not refresh, \
+             so it will admit nobody once it ages out"
+        ),
+    }
+
+    let gate: Arc<dyn PeerGatekeeper> = Arc::new(RosterGate { roster: shared });
     let slots = Arc::new(Semaphore::new(MAX_CONCURRENT_PEERS));
 
     while let Some(incoming) = endpoint.accept().await {
