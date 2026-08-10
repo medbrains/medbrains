@@ -372,6 +372,18 @@ pub async fn update_device_instance(
     Ok(Json(row))
 }
 
+/// Retires a device, and with it the key it syncs by.
+///
+/// Retiring is the moment a device stops being ours — it was replaced, sold,
+/// lost, or simply worn out. Leaving its node key live past that point means the
+/// only thing standing between a retired tablet and a sync session is the status
+/// check, and one check is not a boundary. Revoking here means the key also
+/// drops out of the roster that offline nodes admit from, so peers stop
+/// accepting it as soon as they next refresh rather than never.
+///
+/// This is the one path that retires a device — `update_device_instance`
+/// deliberately cannot set a status — so the revocation belongs here rather
+/// than in a trigger nobody reading the handler would see.
 pub async fn decommission_device(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -388,8 +400,24 @@ pub async fn decommission_device(
         .execute(&mut *tx)
         .await?;
 
+    // Same transaction: a device recorded as retired while its key stays live is
+    // exactly the state this is meant to prevent.
+    let keys_revoked = sqlx::query(
+        "UPDATE device_node_keys SET revoked_at = now(), revoked_by = $2 \
+         WHERE device_instance_id = $1 AND tenant_id = $3 AND revoked_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.sub)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?
+    .rows_affected();
+
     tx.commit().await?;
-    Ok(Json(serde_json::json!({"status": "decommissioned"})))
+    Ok(Json(serde_json::json!({
+        "status": "decommissioned",
+        "node_keys_revoked": keys_revoked,
+    })))
 }
 
 pub async fn test_device_connection(

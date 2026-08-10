@@ -14059,8 +14059,12 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  // Retiring a device also revokes the key it syncs by, so the count says
+  // whether this device was one that could still reach the network.
   decommissionDevice: (id: string) =>
-    request<{ status: string }>(`/devices/instances/${id}`, { method: "DELETE" }),
+    request<{ status: string; node_keys_revoked: number }>(`/devices/instances/${id}`, {
+      method: "DELETE",
+    }),
 
   testDeviceConnection: (id: string) =>
     request<{ status: string; message: string }>(`/devices/instances/${id}/test`, {
