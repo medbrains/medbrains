@@ -37,6 +37,10 @@ anyhow = { workspace = true }
 
 # Hashing for the Merkle audit chain
 sha2 = { workspace = true }
+# Pinned to 0.92: 0.93+ pull ed25519-dalek 3.0.0-pre.1, whose own tree is
+# internally inconsistent (it needs pkcs8 rc.6 semantics while iroh requires
+# >=rc.7). 0.92 resolves to the stable dalek 2.x already in this workspace.
+iroh = { version = "0.92", features = ["discovery-local-network"], optional = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
@@ -46,3 +50,4 @@ tokio = { workspace = true }
 workspace = true
 
 [features]
+iroh = ["dep:iroh"]

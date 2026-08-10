@@ -56,6 +56,8 @@
 //! reproducible, the CRDT format is upstream Loro.
 
 pub mod doc_store;
+#[cfg(feature = "iroh")]
+pub mod iroh_transport;
 pub mod merkle;
 pub mod peer_admission;
 pub mod peer_roster;

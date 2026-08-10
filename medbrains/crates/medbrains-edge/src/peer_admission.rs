@@ -15,6 +15,8 @@
 
 use uuid::Uuid;
 
+use crate::sync::Frame;
+
 /// What the store knows about a node key that presented itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PeerBinding {
@@ -90,6 +92,18 @@ pub fn admit(binding: Option<&PeerBinding>, claimed_tenant: Uuid) -> Admission {
 /// The specific reason goes to the operator's log, not down the wire.
 pub const fn refusal_message() -> &'static str {
     "this device is not admitted for sync"
+}
+
+/// Whether a handshake names a tenant other than the one the peer was admitted
+/// for.
+///
+/// Admission establishes which device is calling and, from its binding, which
+/// hospital it belongs to. The handshake then states a tenant again — and a
+/// device whose key is bound to one hospital must not reach another's records
+/// by naming it. Only `Hello` carries a tenant; every later frame is scoped by
+/// the session that handshake opened.
+pub fn names_other_tenant(frame: &Frame, admitted: Uuid) -> bool {
+    matches!(frame, Frame::Hello { tenant_id, .. } if *tenant_id != admitted)
 }
 
 #[cfg(test)]
@@ -204,5 +218,40 @@ mod tests {
         // Differing messages would let a prober tell an unknown key from a
         // revoked one, which is enough to map a hospital's fleet.
         assert_eq!(refusal_message(), "this device is not admitted for sync");
+    }
+
+    /// The hole this closes: admission proves *which* device is calling, but
+    /// the handshake states a tenant again. Without this, a device paired to
+    /// one hospital could open a session against another simply by naming it.
+    #[test]
+    fn a_handshake_may_not_name_a_tenant_the_peer_is_not_admitted_for() {
+        let admitted = Uuid::new_v4();
+        let somebody_else = Uuid::new_v4();
+
+        let honest = Frame::Hello {
+            protocol: crate::PROTOCOL_VERSION,
+            device_id: Uuid::new_v4(),
+            tenant_id: admitted,
+        };
+        assert!(!names_other_tenant(&honest, admitted));
+
+        let crossing = Frame::Hello {
+            protocol: crate::PROTOCOL_VERSION,
+            device_id: Uuid::new_v4(),
+            tenant_id: somebody_else,
+        };
+        assert!(names_other_tenant(&crossing, admitted));
+    }
+
+    /// Only the handshake carries a tenant. Later frames are scoped by the
+    /// session, so treating them as tenant claims would refuse honest traffic.
+    #[test]
+    fn a_later_frame_carries_no_tenant_claim() {
+        let admitted = Uuid::new_v4();
+        let push = Frame::Push {
+            doc_id: "d".to_owned(),
+            update_b64: String::new(),
+        };
+        assert!(!names_other_tenant(&push, admitted));
     }
 }
