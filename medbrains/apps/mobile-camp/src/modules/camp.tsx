@@ -57,6 +57,7 @@ import type { CampOperationMode } from "../state/camp-session.js";
 import { useCampSession } from "../state/camp-session.js";
 import {
   type CampPacketMeta,
+  campOutboxState,
   loadActiveCampPacket,
   loadCampPacket,
   loadCampPacketMeta,
@@ -68,6 +69,7 @@ import {
   saveCampPacket,
   wipeCampPacket,
 } from "../storage/camp-local-store.js";
+import { type CampDataState, needsOperatorAttention } from "../storage/readability.js";
 
 type PatientChartTab =
   | "summary"
@@ -993,6 +995,7 @@ function SyncCenterScreen({ camp: routeCamp }: { camp?: Camp }): ReactNode {
   const selectedCamp = useCampSession((state) => state.selectedCamp);
   const camp = routeCamp ?? selectedCamp;
   const [events, setEvents] = useState<StoredCampEvent[]>([]);
+  const [dataState, setDataState] = useState<CampDataState>("absent");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1007,6 +1010,14 @@ function SyncCenterScreen({ camp: routeCamp }: { camp?: Camp }): ReactNode {
     readCampOutbox(camp.id).then((outbox) => {
       if (!cancelled) {
         setEvents(outbox);
+      }
+    });
+    // An unreadable outbox reads as an empty one everywhere else, and empty is
+    // also what a clean sync looks like. Someone has to be told the difference
+    // before they pack up assuming the day uploaded.
+    campOutboxState(camp.id).then((state) => {
+      if (!cancelled) {
+        setDataState(state);
       }
     });
     return () => {
@@ -1026,6 +1037,7 @@ function SyncCenterScreen({ camp: routeCamp }: { camp?: Camp }): ReactNode {
 
   async function load(): Promise<void> {
     setEvents(await readCampOutbox(activeCamp.id));
+    setDataState(await campOutboxState(activeCamp.id));
   }
 
   async function syncNow(): Promise<void> {
@@ -1079,6 +1091,19 @@ function SyncCenterScreen({ camp: routeCamp }: { camp?: Camp }): ReactNode {
           <Text variant="bodyMedium" style={{ color: COLORS.emerald }}>
             {message}
           </Text>
+        )}
+        {needsOperatorAttention(dataState) && (
+          <Card eyebrow="Check this" title="Stored records cannot be read" pattern="alert">
+            <Text variant="bodyMedium" style={{ color: COLORS.ink }}>
+              {dataState === "locked"
+                ? "This device holds a queued outbox for this camp, but the key that opens it is gone — usually after a reinstall or a phone restore. Anything registered on this device and not yet synced cannot be recovered here."
+                : "The queued outbox on this device is unreadable. Anything registered on it and not yet synced cannot be recovered here."}
+            </Text>
+            <Text variant="bodyMedium" style={{ color: COLORS.ink }}>
+              Tell the camp lead before packing up. An empty outbox normally means everything
+              uploaded, and that is not what has happened here.
+            </Text>
+          </Card>
         )}
         <Card eyebrow="Privacy" title="Cryptographic wipe" pattern="alert">
           <Text variant="bodyMedium" style={{ color: COLORS.ink }}>

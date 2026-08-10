@@ -12,6 +12,7 @@ import { gcm } from "@noble/ciphers/aes";
 import * as Crypto from "expo-crypto";
 import * as FileSystem from "expo-file-system/legacy";
 import { apiConfig } from "../api/config.js";
+import { type CampDataState, campDataState } from "./readability.js";
 
 const CACHE_DIR = `${FileSystem.documentDirectory ?? ""}medbrains-camp/`;
 const PACKET_PREFIX = "packet-";
@@ -101,12 +102,11 @@ export async function loadCampPacket(campId: string): Promise<CampPacketResponse
   const text = await FileSystem.readAsStringAsync(packetPath(campId));
   const envelope = JSON.parse(text) as unknown;
   if (!isEncryptedCampEnvelope(envelope) || envelope.kind !== "packet") {
-    await deleteFileIfExists(packetPath(campId));
     return null;
   }
   const keyBytes = await getPacketKeyBytes(campId);
   if (!keyBytes) {
-    await deleteFileIfExists(packetPath(campId));
+    // Same rule as the outbox: leave it, report it, delete only on request.
     return null;
   }
   const packet = decryptJson<CampPacketResponse>(envelope, keyBytes);
@@ -185,13 +185,15 @@ export async function readCampOutbox(campId: string): Promise<StoredCampEvent[]>
   }
   const text = await FileSystem.readAsStringAsync(path);
   const envelope = JSON.parse(text) as unknown;
+  // A read never deletes. If this file cannot be opened it still holds the only
+  // evidence that a day's registrations existed, and discarding it here — on a
+  // path nobody reviews as a write — is how that disappears silently. Use
+  // `campOutboxState` to find out, and `wipeCampPacket` to remove on purpose.
   if (!isEncryptedCampEnvelope(envelope) || envelope.kind !== "outbox") {
-    await deleteFileIfExists(path);
     return [];
   }
   const keyBytes = await getPacketKeyBytes(campId);
   if (!keyBytes) {
-    await deleteFileIfExists(path);
     return [];
   }
   return decryptJson<StoredCampEvent[]>(envelope, keyBytes);
@@ -380,4 +382,29 @@ function safeFileName(value: string): string {
 
 function isExpired(value: string): boolean {
   return new Date(value).getTime() < Date.now();
+}
+
+/**
+ * Whether this camp's stored data can still be opened.
+ *
+ * Exists because an unreadable outbox and an empty one look identical to every
+ * other read path — and after a lost key, "empty" is what a volunteer sees
+ * having registered forty patients that morning.
+ */
+export async function campOutboxState(campId: string): Promise<CampDataState> {
+  await ensureCacheDir();
+  const path = outboxPath(campId);
+  const info = await FileSystem.getInfoAsync(path);
+  if (!info.exists) {
+    return "absent";
+  }
+  let envelopeValid = false;
+  try {
+    const envelope = JSON.parse(await FileSystem.readAsStringAsync(path)) as unknown;
+    envelopeValid = isEncryptedCampEnvelope(envelope) && envelope.kind === "outbox";
+  } catch {
+    envelopeValid = false;
+  }
+  const keyBytes = await getPacketKeyBytes(campId);
+  return campDataState({ fileExists: true, envelopeValid, keyPresent: Boolean(keyBytes) });
 }
