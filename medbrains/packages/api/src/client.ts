@@ -1490,6 +1490,11 @@ import type {
   PoDetailResponse,
   PoListResponse,
   PolypharmacyInteractionAlert,
+  PortalAppointment,
+  PortalInvoice,
+  PortalLabReport,
+  PortalPrescriptionItem,
+  PortalSession,
   PosDaySummary,
   PosSaleRequest,
   PosSaleResponse,
@@ -2401,6 +2406,11 @@ export function nullOn404(error: unknown): null {
   throw error;
 }
 
+/** Authorisation for a portal call. The patient's token, never the staff one. */
+function portalAuth(token: string): RequestInit {
+  return { headers: { Authorization: `Bearer ${token}` } };
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${getApiBase()}${path}`;
   const method = (init?.method ?? "GET").toUpperCase();
@@ -2414,7 +2424,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers["X-MedBrains-Client"] = nativeClientName;
   }
 
-  if (nativeAccessToken && path !== "/auth/login" && path !== "/auth/refresh") {
+  // An explicit Authorization from the caller wins. A portal call carries a
+  // patient's token, and silently replacing it with the staff session would
+  // authorise the wrong principal — on native, where a staff token is held in
+  // this module, it would do so without any visible failure.
+  if (
+    nativeAccessToken &&
+    !headers.Authorization &&
+    path !== "/auth/login" &&
+    path !== "/auth/refresh"
+  ) {
     headers.Authorization = `Bearer ${nativeAccessToken}`;
   }
 
@@ -15646,6 +15665,32 @@ export const api = {
   deleteNewsArticle: (id: string) => request<void>(`/admin/news/${id}`, { method: "DELETE" }),
   exportAuditLog: () => request<unknown>("/audit/export"),
   getIntegrationCodeSnippet: (id: string) => request<unknown>(`/integration/code-snippets/${id}`),
+  // ── Patient portal ────────────────────────────────────────────────
+  //
+  // The portal session is passed per call rather than held in the client.
+  // A patient token is a different credential from a staff one — it speaks
+  // for one patient and carries no role — and letting the two share the
+  // module-level slot is how a staff session ends up authorising a portal
+  // read, or the reverse.
+
+  requestPortalOtp: (data: { tenant_code: string; phone: string }) =>
+    request<{ status: string; message: string }>("/portal/auth/request-otp", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  verifyPortalOtp: (data: { tenant_code: string; phone: string; code: string }) =>
+    request<PortalSession>("/portal/auth/verify", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getPortalBills: (token: string) => request<PortalInvoice[]>("/portal/bills", portalAuth(token)),
+  getPortalLabReports: (token: string) =>
+    request<PortalLabReport[]>("/portal/lab-reports", portalAuth(token)),
+  getPortalPrescriptions: (token: string) =>
+    request<PortalPrescriptionItem[]>("/portal/prescriptions", portalAuth(token)),
+  getPortalAppointments: (token: string) =>
+    request<PortalAppointment[]>("/portal/appointments", portalAuth(token)),
+
   /** Doctors a member of the public may book with. 404 unless the tenant opts in. */
   getPublicBookableDoctors: (tenantCode: string) =>
     request<PublicBookingDirectory>(

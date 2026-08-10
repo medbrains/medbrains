@@ -847,3 +847,60 @@ export interface PublicBookingResponse {
   status: string;
   message: string;
 }
+
+// ── Patient portal ──────────────────────────────────────────────────
+//
+// A patient signing in for their own records. Separate from staff auth
+// throughout: the session token carries a patient id and nothing a staff
+// route could act on.
+
+export interface PortalSession {
+  token: string;
+  patient_id: string;
+  tenant_id: string;
+  expires_in_hours: number;
+}
+
+export interface PortalInvoice {
+  id: string;
+  invoice_number: string;
+  status: string;
+  total_amount: string;
+  paid_amount: string;
+  balance_due: string;
+  created_at: string;
+}
+
+/**
+ * One reported lab parameter.
+ *
+ * The server withholds unverified results and any carrying an unacknowledged
+ * critical alert, so anything arriving here is safe for a patient to read
+ * unaccompanied.
+ */
+export interface PortalLabReport {
+  order_id: string;
+  test_name: string;
+  parameter_name: string;
+  value: string;
+  unit: string | null;
+  normal_range: string | null;
+  flag: string | null;
+  reported_at: string;
+}
+
+export interface PortalPrescriptionItem {
+  prescription_id: string;
+  drug_name: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  prescribed_at: string;
+}
+
+export interface PortalAppointment {
+  id: string;
+  appointment_date: string;
+  status: string;
+  department_name: string | null;
+}
