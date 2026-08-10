@@ -307,6 +307,12 @@ pub async fn pair_device(
     tx.commit().await?;
 
     // Issue the device JWT.
+    //
+    // It names the device, not just the user who paired it. That is what makes
+    // revoking the device mean something: this token lives for weeks on
+    // hardware that gets lost, and every request re-checks the named device is
+    // still admitted. Without the claim, revocation would change a row and the
+    // tablet would keep working until the token expired on its own.
     let now = Utc::now();
     let claims = Claims {
         sub: user_id,
@@ -315,6 +321,7 @@ pub async fn pair_device(
         permissions,
         department_ids,
         perm_version,
+        paired_device_id: Some(paired_id),
         exp: (now + Duration::days(DEVICE_JWT_DAYS)).timestamp() as usize,
     };
     let jwt = encode_jwt(&claims, &state.jwt_encoding_key)

@@ -279,6 +279,9 @@ pub async fn poll_device_token(
         permissions,
         department_ids,
         perm_version,
+        // The other pairing flow. Same reasoning as `pair_device`: without the
+        // claim, revoking a device paired by code would not stop it.
+        paired_device_id: Some(paired_id),
         exp: (Utc::now() + Duration::days(DEVICE_JWT_DAYS)).timestamp() as usize,
     };
     let jwt = encode_jwt(&claims, &state.jwt_encoding_key)

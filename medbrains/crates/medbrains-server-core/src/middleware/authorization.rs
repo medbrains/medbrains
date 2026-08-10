@@ -126,6 +126,7 @@ mod tests {
             permissions: Vec::new(),
             department_ids,
             perm_version: 1,
+            paired_device_id: None,
             exp: 4_102_444_800,
         }
     }

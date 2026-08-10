@@ -33,6 +33,19 @@ pub struct Claims {
     pub department_ids: Vec<Uuid>,
     #[serde(default)]
     pub perm_version: i32,
+    /// Set when this token was issued to a paired device rather than to a
+    /// person at a browser.
+    ///
+    /// A device token is not the same kind of credential as a session cookie.
+    /// It lives for weeks on hardware that gets lost, lent and stolen, so it
+    /// carries the device it was minted for and every request re-checks that
+    /// the device is still one this hospital admits. Without that, revoking a
+    /// lost tablet changes a row and nothing else.
+    ///
+    /// Absent on every user token, and absent from tokens minted before this
+    /// existed — which is why it is optional rather than a breaking claim.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paired_device_id: Option<Uuid>,
     pub exp: usize,
 }
 
@@ -62,6 +75,7 @@ pub async fn auth_middleware(
     if let Some(ref token) = cookie_token {
         let mut claims = decode_and_validate(token, &state.jwt_decoding_key)?;
         verify_perm_version(&state.db, &claims).await?;
+        verify_device_not_revoked(&state.db, &claims).await?;
         hydrate_permissions(&state.db, &mut claims).await?;
         request.extensions_mut().insert(AuthMethod::Cookie);
         request.extensions_mut().insert(claims);
@@ -78,6 +92,7 @@ pub async fn auth_middleware(
     if let Some(token) = bearer_token {
         let mut claims = decode_and_validate(token, &state.jwt_decoding_key)?;
         verify_perm_version(&state.db, &claims).await?;
+        verify_device_not_revoked(&state.db, &claims).await?;
         hydrate_permissions(&state.db, &mut claims).await?;
         request.extensions_mut().insert(AuthMethod::Bearer);
         request.extensions_mut().insert(claims);
@@ -146,6 +161,52 @@ async fn hydrate_permissions(db: &PgPool, claims: &mut Claims) -> Result<(), App
     Ok(())
 }
 
+/// Refuse a token whose device has been revoked.
+///
+/// A device token outlives the decision to revoke it by weeks. `perm_version`
+/// does not help: it tracks the *user's* permissions, and revoking a tablet
+/// says nothing about the person who paired it — who is very often still a
+/// working member of staff with a valid session on their own phone.
+///
+/// So revocation has to be checked against the device itself, on every request
+/// that presents a device token. That is one indexed primary-key lookup, on the
+/// same request that already reads `users` for `perm_version`, and only for
+/// device-authenticated traffic. Cheaper than the alternative, which is a lost
+/// tablet keeping API access for the rest of its token's life.
+async fn verify_device_not_revoked(db: &PgPool, claims: &Claims) -> Result<(), AppError> {
+    let Some(device_id) = claims.paired_device_id else {
+        return Ok(());
+    };
+
+    // Runtime query rather than the checked macro: this crate's queries are
+    // runtime by convention, and a macro here would need `.sqlx` metadata
+    // regenerated against a migrated database to build at all.
+    let live: Option<bool> = sqlx::query_scalar::<_, bool>(
+        "SELECT revoked_at IS NULL FROM paired_devices WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(device_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(db)
+    .await?;
+
+    if device_admitted(live) {
+        Ok(())
+    } else {
+        Err(AppError::Unauthorized)
+    }
+}
+
+/// Whether a `paired_devices` lookup means "still admitted".
+///
+/// `None` is a row that is not there — the device was deleted, or belongs to
+/// another tenant. Refused for the same reason a revoked one is: the token
+/// names a device this tenant no longer vouches for. Pulled out of the query so
+/// the fail-closed reading is pinned by a test rather than by a `match` arm
+/// somebody later "simplifies".
+const fn device_admitted(live: Option<bool>) -> bool {
+    matches!(live, Some(true))
+}
+
 /// Reject tokens whose `perm_version` is stale.
 ///
 /// Compares the JWT's `perm_version` against the current DB value.
@@ -167,5 +228,28 @@ async fn verify_perm_version(db: &PgPool, claims: &Claims) -> Result<(), AppErro
     match current {
         Some(v) if v == claims.perm_version => Ok(()),
         Some(_) | None => Err(AppError::Unauthorized),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::device_admitted;
+
+    #[test]
+    fn a_live_device_is_admitted() {
+        assert!(device_admitted(Some(true)));
+    }
+
+    #[test]
+    fn a_revoked_device_is_refused() {
+        assert!(!device_admitted(Some(false)));
+    }
+
+    /// The one that matters. A token naming a device that no longer exists —
+    /// deleted, or another tenant's — must not sail through because the query
+    /// returned nothing to compare.
+    #[test]
+    fn a_device_that_is_not_there_is_refused() {
+        assert!(!device_admitted(None));
     }
 }

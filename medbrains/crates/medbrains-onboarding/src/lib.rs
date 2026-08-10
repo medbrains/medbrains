@@ -281,6 +281,7 @@ pub async fn init(
         permissions: Vec::new(),
         department_ids: Vec::new(),
         perm_version: 1,
+        paired_device_id: None,
         exp: (now + chrono::Duration::minutes(60)).timestamp() as usize,
     };
     let access_token = encode_jwt(&access_claims, &state.jwt_encoding_key)

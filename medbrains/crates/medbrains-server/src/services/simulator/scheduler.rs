@@ -278,6 +278,7 @@ fn system_claims(schedule: &SimulatorSchedule) -> Claims {
         permissions: Vec::new(),
         department_ids: Vec::new(),
         perm_version: 0,
+        paired_device_id: None,
         exp: 0,
     }
 }

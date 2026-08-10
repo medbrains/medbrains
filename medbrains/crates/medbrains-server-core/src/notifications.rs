@@ -527,6 +527,7 @@ mod tests {
             permissions: permissions.iter().map(|p| (*p).to_owned()).collect(),
             department_ids: departments.to_vec(),
             perm_version: 0,
+            paired_device_id: None,
             exp: 0,
         }
     }

@@ -338,6 +338,7 @@ pub async fn login(
         permissions: Vec::new(),
         department_ids: department_ids.clone(),
         perm_version: row.perm_version,
+        paired_device_id: None,
         exp: (now + chrono::Duration::minutes(15)).timestamp() as usize,
     };
     let access_token = encode_jwt(&access_claims, &state.jwt_encoding_key)
@@ -676,6 +677,7 @@ pub async fn refresh_token(
         permissions: Vec::new(),
         department_ids,
         perm_version: row.perm_version,
+        paired_device_id: None,
         exp: (Utc::now() + chrono::Duration::minutes(15)).timestamp() as usize,
     };
 
