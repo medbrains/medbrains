@@ -675,7 +675,15 @@ pub async fn get_peer_roster(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<PeerRosterDoc>, AppError> {
-    require_permission(&claims, permissions::devices::pairing::PAIRED_LIST)?;
+    // Either right opens this. `ROSTER_READ` exists so an appliance can hold
+    // *only* this — it polls unattended and keeps its credential on disk for
+    // months, and a leaked token that also lists every paired device is a map
+    // of the estate. `PAIRED_LIST` is accepted too because an operator holding
+    // it can already see this data on the devices screen; requiring the new
+    // right as well would have logged them out of a page that worked yesterday.
+    if require_permission(&claims, permissions::devices::pairing::ROSTER_READ).is_err() {
+        require_permission(&claims, permissions::devices::pairing::PAIRED_LIST)?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

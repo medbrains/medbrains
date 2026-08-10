@@ -22,6 +22,10 @@ chain_path    = "./var/medbrains-edge/chain"
 # `GET /api/devices/peer-roster`. Without a current one the appliance admits no
 # peer at all — that is the safe direction, not a bug.
 #
+# The token behind `auth_token_path` should hold `devices.pairing.roster.read`
+# and nothing else. This box polls unattended and keeps that file for months; a
+# token that can also list every paired device is a map of the estate.
+#
 # `relays` are relays YOU run. Leaving it empty means direct connections only;
 # it is empty on purpose, because a public relay would route this hospital's
 # sync metadata through a third party.

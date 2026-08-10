@@ -4306,6 +4306,13 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "devices",
   },
   {
+    code: "devices.pairing.roster.read",
+    label: "Read Peer Sync Roster",
+    description:
+      "Fetch the list of node keys admitted to peer-to-peer sync. Intended for edge appliances, which need this and nothing else",
+    module: "devices",
+  },
+  {
     code: "devices.pairing.paired.revoke",
     label: "Revoke Paired Device",
     description: "Revoke a paired device's certificate, terminating its access",
@@ -5877,6 +5884,7 @@ export const P = {
       TOKEN_CREATE: "devices.pairing.token.create" as const,
       PAIRED_LIST: "devices.pairing.paired.list" as const,
       PAIRED_REVOKE: "devices.pairing.paired.revoke" as const,
+      ROSTER_READ: "devices.pairing.roster.read" as const,
     },
   },
   STORAGE: {

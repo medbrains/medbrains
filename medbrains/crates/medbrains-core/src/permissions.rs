@@ -1915,6 +1915,14 @@ pub mod devices {
         pub const TOKEN_CREATE: &str = "devices.pairing.token.create";
         pub const PAIRED_LIST: &str = "devices.pairing.paired.list";
         pub const PAIRED_REVOKE: &str = "devices.pairing.paired.revoke";
+        /// Read the peer-sync roster.
+        ///
+        /// Separate from `PAIRED_LIST` on purpose. An edge appliance
+        /// polls the roster unattended and holds its credential on
+        /// disk for months; giving it the operator's device-listing
+        /// right means a leaked appliance token enumerates the whole
+        /// estate. This is the one thing an appliance needs.
+        pub const ROSTER_READ: &str = "devices.pairing.roster.read";
     }
 }
 
