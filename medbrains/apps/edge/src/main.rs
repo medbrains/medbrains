@@ -9,6 +9,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use futures::{SinkExt, StreamExt};
 use mdns_sd::{ServiceDaemon, ServiceInfo};
+use medbrains_edge::SyncSession;
 use medbrains_edge::sync::Frame;
 use medbrains_edge::{DocStore, MerkleAudit, SyncServer};
 use serde::Deserialize;
@@ -19,7 +20,6 @@ use tokio::net::TcpListener;
 use tokio_tungstenite::accept_async;
 use tokio_tungstenite::tungstenite::Message;
 use tracing::{error, info, warn};
-use uuid::Uuid;
 
 #[derive(Parser, Debug)]
 #[command(name = "medbrains-edge", about = "MedBrains LAN Sync Edge Appliance")]
@@ -111,7 +111,9 @@ async fn handle_conn(
     info!(%peer, "client connected");
     let (mut tx, mut rx) = ws.split();
 
-    let mut session_tenant: Option<Uuid> = None;
+    // The protocol lives in medbrains-edge so a second transport cannot drift
+    // from this one. This loop only moves bytes.
+    let mut session = SyncSession::new(server);
 
     while let Some(msg) = rx.next().await {
         let msg = match msg {
@@ -142,54 +144,7 @@ async fn handle_conn(
             }
         };
 
-        let response: Frame = match (frame, session_tenant) {
-            (
-                Frame::Hello {
-                    protocol,
-                    tenant_id,
-                    ..
-                },
-                _,
-            ) => {
-                if protocol == medbrains_edge::PROTOCOL_VERSION {
-                    session_tenant = Some(tenant_id);
-                    Frame::Ack {
-                        doc_id: String::new(),
-                        chain_tip: String::new(),
-                    }
-                } else {
-                    Frame::Error {
-                        message: format!(
-                            "protocol mismatch: server={}, client={}",
-                            medbrains_edge::PROTOCOL_VERSION,
-                            protocol
-                        ),
-                    }
-                }
-            }
-            (Frame::Push { doc_id, update_b64 }, Some(t)) => {
-                match server.handle_push(t, &doc_id, &update_b64).await {
-                    Ok(f) => f,
-                    Err(e) => Frame::Error {
-                        message: format!("push: {e}"),
-                    },
-                }
-            }
-            (Frame::PullSince { doc_id, vv_b64 }, Some(t)) => {
-                match server.handle_pull(t, &doc_id, &vv_b64).await {
-                    Ok(f) => f,
-                    Err(e) => Frame::Error {
-                        message: format!("pull: {e}"),
-                    },
-                }
-            }
-            (_, None) => Frame::Error {
-                message: "send Hello first".to_owned(),
-            },
-            (other, _) => Frame::Error {
-                message: format!("unexpected frame: {other:?}"),
-            },
-        };
+        let response = session.handle(frame).await;
         send_frame(&mut tx, &response).await?;
     }
     info!(%peer, "client disconnected");

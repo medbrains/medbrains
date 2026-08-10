@@ -57,6 +57,8 @@
 
 pub mod doc_store;
 pub mod merkle;
+pub mod peer_admission;
+pub mod session;
 pub mod sync;
 
 // AuthzCache + ONLINE_REQUIRED_ACTIONS et al moved to
@@ -70,6 +72,8 @@ pub use medbrains_offline_core::{
 
 pub use doc_store::DocStore;
 pub use merkle::MerkleAudit;
+pub use peer_admission::{Admission, PeerBinding, RefusalReason, admit, refusal_message};
+pub use session::SyncSession;
 pub use sync::{SessionContext, SyncServer, SyncServerError};
 
 /// Server-side handshake protocol version. Bumped on incompatible
