@@ -58,6 +58,7 @@
 pub mod doc_store;
 pub mod merkle;
 pub mod peer_admission;
+pub mod peer_roster;
 pub mod session;
 pub mod sync;
 
@@ -73,6 +74,7 @@ pub use medbrains_offline_core::{
 pub use doc_store::DocStore;
 pub use merkle::MerkleAudit;
 pub use peer_admission::{Admission, PeerBinding, RefusalReason, admit, refusal_message};
+pub use peer_roster::{PeerRoster, ROSTER_MAX_AGE_SECONDS};
 pub use session::SyncSession;
 pub use sync::{SessionContext, SyncServer, SyncServerError};
 
