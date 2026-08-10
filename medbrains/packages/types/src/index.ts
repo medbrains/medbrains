@@ -7849,3 +7849,19 @@ export interface VerifiedPrescription {
   medications: VerifiedMedication[];
   previous_checks: number;
 }
+
+/** What a kiosk self-check-in returns. Mirrors KioskCheckinResponse in Rust. */
+export interface KioskCheckinResult {
+  appointment_id: string;
+  patient_name: string;
+  doctor_name: string;
+  department_name: string;
+  token_number: string;
+  status: string;
+  message: string;
+  /**
+   * Opaque, expiring handle the patient keeps on their phone to follow this
+   * token. It addresses the queue row without exposing it.
+   */
+  status_token: string;
+}

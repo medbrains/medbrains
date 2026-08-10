@@ -5,6 +5,8 @@ export type CancelAppointmentInput = Parameters<typeof api.cancelAppointment>[1]
 export type RescheduleAppointmentInput = Parameters<typeof api.rescheduleAppointment>[1];
 
 export const appointmentsService = {
+  publicKioskCheckin: (...args: Parameters<typeof api.publicKioskCheckin>) =>
+    api.publicKioskCheckin(...args),
   listDepartments: () => api.listDepartments(),
   listSetupUsers: () => api.listSetupUsers(),
   listPatients: (params: Parameters<typeof api.listPatients>[0]) => api.listPatients(params),

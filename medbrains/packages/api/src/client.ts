@@ -2057,6 +2057,7 @@ import type {
   WorkOrderPrintData,
   WoundCertificatePrintData,
   WristbandPrintData,
+  KioskCheckinResult,
   VerifiedPrescription,
 } from "@medbrains/types";
 import { getApiBase } from "./config.js";
@@ -15652,8 +15653,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  publicKioskCheckin: (data: Record<string, unknown>) =>
-    request<unknown>("/public/kiosk/checkin", {
+  publicKioskCheckin: (data: { qr_data: string }) =>
+    request<KioskCheckinResult>("/public/kiosk/checkin", {
       method: "POST",
       body: JSON.stringify(data),
     }),

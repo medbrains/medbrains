@@ -30,6 +30,9 @@ const VerifyEmailPage = lazy(() =>
 const VerifyPrescriptionPage = lazy(() =>
   import("./pages/verify-prescription").then((m) => ({ default: m.VerifyPrescriptionPage })),
 );
+const KioskSelfCheckinPage = lazy(() =>
+  import("./pages/kiosk/self-checkin").then((m) => ({ default: m.KioskSelfCheckinPage })),
+);
 const AcceptInvitePage = lazy(() =>
   import("./pages/accept-invite").then((m) => ({ default: m.AcceptInvitePage })),
 );
@@ -409,6 +412,8 @@ export function App() {
             <Route path="/verify-email" element={<VerifyEmailPage />} />
             {/* Scanned off a printed prescription — public by necessity. */}
             <Route path="/verify/rx/:token" element={<VerifyPrescriptionPage />} />
+            {/* Unattended self-service terminal in the lobby. */}
+            <Route path="/kiosk/checkin" element={<KioskSelfCheckinPage />} />
             <Route path="/accept-invite" element={<AcceptInvitePage />} />
             <Route path="/force-password-change" element={<ForcePasswordChangePage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
