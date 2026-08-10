@@ -3515,6 +3515,11 @@ export const api = {
   // ── Unified token / queue system ──
   issueToken: (input: IssueTokenInput) =>
     request<ModuleToken>("/tokens/issue", { method: "POST", body: JSON.stringify(input) }),
+  /**
+   * A no-show who came back. Keeps their token number, so the slip in their
+   * hand and the link on their phone both keep working.
+   */
+  requeueToken: (id: string) => request<ModuleToken>(`/tokens/${id}/requeue`, { method: "POST" }),
   listTokenBoard: (params: { module: string; scope?: string; scope_id?: string }) => {
     const qs = new URLSearchParams({ module: params.module });
     if (params.scope) qs.set("scope", params.scope);

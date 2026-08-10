@@ -1,6 +1,8 @@
 import { api } from "@medbrains/api";
 
 export const frontOfficeService = {
+  listTokenBoard: (params: Parameters<typeof api.listTokenBoard>[0]) => api.listTokenBoard(params),
+  requeueToken: (id: string) => api.requeueToken(id),
   getQueueStats: api.getQueueStats,
   listVisitors: api.listVisitors,
   listVisitorPasses: api.listVisitorPasses,

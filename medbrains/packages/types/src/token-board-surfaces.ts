@@ -753,8 +753,14 @@ export interface PublicTokenLink {
 /** The shape needed to tell whether a token was recently missed. */
 export interface MissableToken {
   status: string;
-  /** When the token left the queue. Missed tokens without one are not shown. */
-  completed_at: string | null;
+  /**
+   * When the token left the queue. Missed tokens without one are not shown.
+   *
+   * Optional as well as nullable, because the board DTO omits it rather than
+   * sending null — a narrower type here would exclude the very caller this
+   * helper exists for.
+   */
+  completed_at?: string | null;
 }
 
 /**
@@ -775,7 +781,7 @@ export function recentlyMissedTokens<T extends MissableToken>(
 ): T[] {
   const cutoff = nowMs - windowMinutes * 60_000;
   return tokens.filter((token) => {
-    if (token.status !== "no_show" || token.completed_at === null) return false;
+    if (token.status !== "no_show" || token.completed_at == null) return false;
     const missedAt = Date.parse(token.completed_at);
     return !Number.isNaN(missedAt) && missedAt >= cutoff;
   });

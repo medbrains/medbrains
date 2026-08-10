@@ -64,6 +64,12 @@ describe("recentlyMissedTokens", () => {
     expect(recentlyMissedTokens([token({ completed_at: null })], NOW)).toEqual([]);
   });
 
+  // The board DTO omits the field rather than sending null, so `undefined` is
+  // the shape this actually meets in production.
+  it("skips a no-show whose timestamp is absent rather than null", () => {
+    expect(recentlyMissedTokens([token({ completed_at: undefined })], NOW)).toEqual([]);
+  });
+
   it("skips a no-show whose timestamp will not parse", () => {
     expect(recentlyMissedTokens([token({ completed_at: "not a date" })], NOW)).toEqual([]);
   });

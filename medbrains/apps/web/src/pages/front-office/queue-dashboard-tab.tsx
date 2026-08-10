@@ -4,6 +4,7 @@ import { Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import type { QueueStatsResponse } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { frontOfficeService } from "@/services/frontOffice.service";
+import { CameBackPanel } from "./came-back-panel";
 
 export function QueueDashboardTab() {
   const { data: stats, isLoading } = useQuery<QueueStatsResponse[]>({
@@ -13,6 +14,8 @@ export function QueueDashboardTab() {
 
   return (
     <Stack gap="md">
+      {/* Above the statistics: somebody may be standing at the desk right now. */}
+      <CameBackPanel />
       <Text size="sm" c="dimmed">
         Real-time queue statistics across departments (today)
       </Text>
