@@ -1,4 +1,7 @@
 -- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- New-Tables: none
+-- Drops: none
 -- Bind node keys to the devices that actually sync.
 --
 -- 0298 bound `device_node_keys` to `device_instances`. That is the wrong table.

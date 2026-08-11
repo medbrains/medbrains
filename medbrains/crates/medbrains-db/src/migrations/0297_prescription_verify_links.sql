@@ -1,4 +1,7 @@
 -- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- New-Tables: prescription_verify_links
+-- Drops: none
 -- Verification links for printed prescriptions.
 --
 -- The QR on a printed prescription encoded the raw encounter id at a route that

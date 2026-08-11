@@ -1,4 +1,7 @@
 -- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- New-Tables: patient_portal_otps
+-- Drops: none
 -- One-time codes that let a patient into their own record.
 --
 -- Deliberately NOT the public_booking_otps table. That code is sent to somebody

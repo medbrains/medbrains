@@ -1,4 +1,7 @@
 -- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- New-Tables: device_node_keys
+-- Drops: none
 -- Peer identities for direct device-to-device sync.
 --
 -- A peer-to-peer transport identifies a peer by its own public key. That key
