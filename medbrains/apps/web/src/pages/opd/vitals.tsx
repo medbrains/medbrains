@@ -10,6 +10,7 @@ import { useClinicalEmit, VitalsRecorder } from "@/components";
 import { Badge, Button } from "@/components/ui";
 import { useVitalsSource } from "@/hooks/useVitalsSource";
 import { opdService } from "@/services/opd.service";
+import { bloodPressureSeverity, severityTone, spo2Severity } from "./vitals-thresholds";
 
 export function VitalsTab({
   encounterId,
@@ -124,20 +125,14 @@ export function VitalsTab({
                   )}
                   {v.systolic_bp != null && v.diastolic_bp != null && (
                     <Badge
-                      tone={
-                        Number(v.systolic_bp) > 140
-                          ? "danger"
-                          : Number(v.systolic_bp) < 90
-                            ? "warning"
-                            : "primary"
-                      }
+                      tone={severityTone(bloodPressureSeverity(v.systolic_bp, v.diastolic_bp))}
                       size="md"
                     >
                       🩸 {v.systolic_bp}/{v.diastolic_bp} mmHg
                     </Badge>
                   )}
                   {v.spo2 != null && (
-                    <Badge tone={Number(v.spo2) < 94 ? "danger" : "primary"} size="md">
+                    <Badge tone={severityTone(spo2Severity(v.spo2))} size="md">
                       💨 SpO₂ {v.spo2}%
                     </Badge>
                   )}
@@ -200,12 +195,14 @@ export function VitalsTab({
                     </Badge>
                   )}
                   {v.systolic_bp != null && v.diastolic_bp != null && (
-                    <Badge>
+                    <Badge
+                      tone={severityTone(bloodPressureSeverity(v.systolic_bp, v.diastolic_bp))}
+                    >
                       BP {v.systolic_bp}/{v.diastolic_bp}
                     </Badge>
                   )}
                   {v.spo2 != null && (
-                    <Badge tone={v.spo2 < 94 ? "danger" : "primary"}>SpO₂ {v.spo2}%</Badge>
+                    <Badge tone={severityTone(spo2Severity(v.spo2))}>SpO₂ {v.spo2}%</Badge>
                   )}
                   {v.weight_kg != null && <Badge variant="outline">Weight {v.weight_kg} kg</Badge>}
                   {v.bmi != null && <Badge variant="outline">BMI {v.bmi}</Badge>}
