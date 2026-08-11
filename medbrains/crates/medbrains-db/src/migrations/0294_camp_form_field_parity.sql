@@ -1,6 +1,7 @@
 -- ====================================================================
 -- Migration: 0294_camp_form_field_parity.sql
--- RLS-Posture: inherits (columns added to existing tenant-scoped tables)
+-- RLS-Posture: tenant-scoped
+-- Columns added to existing tenant-scoped tables; no new policies needed.
 -- Tenant-Column: tenant_id (already present on both tables)
 -- New-Tables: none
 -- Drops: none

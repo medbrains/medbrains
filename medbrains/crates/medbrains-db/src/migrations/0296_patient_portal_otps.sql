@@ -1,3 +1,4 @@
+-- RLS-Posture: tenant-scoped
 -- One-time codes that let a patient into their own record.
 --
 -- Deliberately NOT the public_booking_otps table. That code is sent to somebody

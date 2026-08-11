@@ -1,0 +1,17 @@
+[package]
+name = "medbrains-printing"
+description = "Native printing — CUPS on macOS/Linux, winspool on Windows. Used by the desktop shell and any surface that must print without a dialog."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# CUPS on Unix, winspool on Windows — the same backends the OS print dialog
+# uses, reached directly so an unattended kiosk never has to show one.
+printers = "2.3"
+serde = { workspace = true }
+tempfile = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

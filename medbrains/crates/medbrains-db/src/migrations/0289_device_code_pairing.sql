@@ -1,3 +1,4 @@
+-- RLS-Posture: tenant-scoped
 -- Device-code pairing for camera-less surfaces (RFC 8628 shape).
 --
 -- The existing flow in 0059 is admin-first: an administrator mints a token and

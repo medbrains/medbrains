@@ -1,3 +1,4 @@
+-- RLS-Posture: tenant-scoped
 -- Verification links for printed prescriptions.
 --
 -- The QR on a printed prescription encoded the raw encounter id at a route that

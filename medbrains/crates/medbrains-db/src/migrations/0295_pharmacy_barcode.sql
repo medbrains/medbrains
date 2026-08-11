@@ -1,3 +1,4 @@
+-- RLS-Posture: tenant-scoped
 -- Pack barcode for pharmacy stock, so a phone can identify a product.
 --
 -- Nothing in the pharmacy tables carried a barcode, which meant a storekeeper

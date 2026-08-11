@@ -121,6 +121,7 @@ members = [
     "crates/medbrains-ancillary",
     "crates/medbrains-community-health",
     "apps/edge",
+    "crates/medbrains-printing",
     "apps/desktop/src-tauri",
 ]
 

@@ -43,6 +43,10 @@ keyring = { version = "3", features = [
     "crypto-rust",
 ] }
 
+# Printing lives in its own crate so it is testable without a printer attached
+# and reusable by any other surface that grows one.
+medbrains-printing = { path = "../../../crates/medbrains-printing" }
+
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

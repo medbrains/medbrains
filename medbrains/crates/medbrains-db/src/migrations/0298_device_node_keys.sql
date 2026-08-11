@@ -1,3 +1,4 @@
+-- RLS-Posture: tenant-scoped
 -- Peer identities for direct device-to-device sync.
 --
 -- A peer-to-peer transport identifies a peer by its own public key. That key
