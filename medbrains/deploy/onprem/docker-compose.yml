@@ -1,0 +1,103 @@
+# MedBrains on-prem — one box, everything in containers.
+#
+# Runs identically on Windows Server (Docker Desktop / WSL2), Linux and macOS,
+# because nothing here is installed on the host. That is the point: the
+# standalone kit next door is Ubuntu + systemd + certbot and cannot be handed
+# to a hospital whose IT department runs Windows.
+#
+# The server image is the repo Dockerfile, so no Windows Rust toolchain is
+# needed — Docker runs the Linux binary. The only unix-specific code in the
+# server is a SIGTERM handler already behind #[cfg(unix)].
+#
+#   docker compose --env-file .env up -d
+#
+# Ports: only Caddy is published. Postgres, the API and Gotenberg talk over the
+# compose network and are unreachable from the ward LAN.
+
+name: medbrains
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # The built SPA. Produce it with:
+      #   pnpm --filter @medbrains/web build
+      # then point WEB_DIST at apps/web/dist.
+      - ${WEB_DIST:?set WEB_DIST to the built web app, e.g. ../../apps/web/dist}:/srv:ro
+      # Holds the internal CA and issued certificates. Losing this volume means
+      # a new CA and re-trusting on every workstation, so it is named, not
+      # anonymous.
+      - caddy-data:/data
+      - caddy-config:/config
+      - caddy-logs:/var/log/caddy
+    depends_on:
+      medbrains-server:
+        condition: service_started
+
+  medbrains-server:
+    # Built from the repo root Dockerfile. Pin a tag once you have a registry;
+    # building on the hospital's box is slow and needs a toolchain it should
+    # not have.
+    image: ${MEDBRAINS_IMAGE:-medbrains-server:local}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-medbrains}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-medbrains}
+      MEDBRAINS_DEPLOY_MODE: onprem
+      RUST_LOG: ${RUST_LOG:-medbrains=info,tower_http=warn}
+      SQLX_OFFLINE: "true"
+      GOTENBERG_URL: http://gotenberg:3000
+      # Object storage. Default is the local filesystem tier, which is what a
+      # single hospital box wants — no S3, no MinIO, no egress. Set the S3_*
+      # vars only if pointing at MinIO or a cloud bucket; the client already
+      # honours a custom endpoint with path-style addressing.
+      MEDBRAINS_OBJECT_ROOT: /var/lib/medbrains/objects
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_REGION: ${S3_REGION:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+    volumes:
+      - medbrains-objects:/var/lib/medbrains/objects
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-medbrains}
+      POSTGRES_USER: ${POSTGRES_USER:-medbrains}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      # Named volume, not a bind mount. A Windows bind mount gives the
+      # container a filesystem whose permissions Postgres rejects on init.
+      - medbrains-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-medbrains}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Headless Chrome for server-rendered PDFs — bills, labels, discharge
+  # summaries. Stateless and unpublished.
+  gotenberg:
+    image: gotenberg/gotenberg:8.21
+    restart: unless-stopped
+    command:
+      - gotenberg
+      - --api-timeout=30s
+      - --chromium-restart-after=50
+    mem_limit: 600m
+
+volumes:
+  medbrains-pgdata:
+  medbrains-objects:
+  caddy-data:
+  caddy-config:
+  caddy-logs:

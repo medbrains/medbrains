@@ -1,0 +1,101 @@
+# MedBrains on-prem front door.
+#
+# Prefer `medbrains-proxy` (Pingora) where it can run — see README. It enforces
+# per-route body limits, idempotency keys on /api/sync/ and /api/outbox/, CSP
+# and source-map blocking, none of which this file reproduces.
+#
+# Caddy is here for the two cases Pingora cannot cover:
+#
+#   1. Windows Server. Pingora is Linux-first.
+#   2. A LAN with no public DNS, where certbot cannot issue and Pingora would
+#      be left reading a hand-made certificate somebody must remember to
+#      replace. Caddy's internal CA issues and renews itself.
+#
+# Pick ONE of the three server blocks below and delete the rest.
+
+# ── 1. LAN, no internet, no public DNS (the common hospital case) ──
+#
+# Caddy mints its own CA and issues a certificate for this name. Browsers will
+# warn until the CA root is trusted on each machine — see README, "Trusting the
+# certificate". That is a one-off per device and is why this is not simply
+# plain HTTP: session cookies and patient data should not cross a ward network
+# in the clear, and a warning a person clicks through once beats no encryption
+# at all.
+#
+# Replace with the hostname staff will type. A real DNS name from the
+# hospital's internal DNS is better than an IP; an IP works.
+hims.hospital.local {
+	tls internal
+
+	# Order matters. `handle` blocks are mutually exclusive and are matched in
+	# the order written, so the catch-all must come LAST — put it first and it
+	# swallows every API call, serving index.html to the SPA's own fetches.
+	#
+	# The API and websockets. Caddy proxies websockets without extra config.
+	handle /api/* {
+		reverse_proxy medbrains-server:3000
+	}
+	handle /ws/* {
+		reverse_proxy medbrains-server:3000
+	}
+
+	# The SPA, and everything else. Built with
+	# `pnpm --filter @medbrains/web build`, mounted at /srv. try_files sends
+	# unknown paths to index.html so client-side routes such as
+	# /portal/acme survive a refresh.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	encode zstd gzip
+
+	# Uploads: scans, discharge summaries. The server enforces its own limits;
+	# this stops a single request exhausting the proxy first.
+	request_body {
+		max_size 100MB
+	}
+
+	header {
+		# HSTS is deliberately absent. On an internal CA it would pin browsers
+		# to a certificate the hospital may need to replace by hand.
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 50MB
+			roll_keep 10
+		}
+	}
+}
+
+# ── 2. Public hostname, internet reachable ────────────────────────
+#
+# Uncomment and delete block 1. Caddy obtains and renews a real certificate
+# with no certbot, no cron, no renewal hook.
+#
+# hims.example.org {
+# 	handle /api/* { reverse_proxy medbrains-server:3000 }
+# 	handle /ws/*  { reverse_proxy medbrains-server:3000 }
+# 	handle { root * /srv; try_files {path} /index.html; file_server }
+# 	encode zstd gzip
+# }
+
+# ── 3. Public name, but the box is NOT reachable from the internet ─
+#
+# The case a LAN deployment hits when it still wants a publicly trusted
+# certificate: prove the domain over DNS instead of HTTP. Needs a Caddy build
+# with the matching DNS plugin and an API token.
+#
+# hims.example.org {
+# 	tls {
+# 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+# 	}
+# 	handle /api/* { reverse_proxy medbrains-server:3000 }
+# 	handle /ws/*  { reverse_proxy medbrains-server:3000 }
+# 	handle { root * /srv; try_files {path} /index.html; file_server }
+# }
