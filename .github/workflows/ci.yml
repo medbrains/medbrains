@@ -1,0 +1,257 @@
+# CI — the gate that actually runs.
+#
+# There has been a comprehensive `ci.yml` in this repo since June, and it has
+# never executed once. GitHub only reads workflows from `.github/workflows/` at
+# the *repository root*, and that file lives at `medbrains/.github/workflows/`,
+# where nothing looks. Zero runs, ever, while the file sat there looking like a
+# safety net.
+#
+# It could not have passed anyway: it references `dtolnay/rust-action@stable`,
+# which does not exist, and sets no `working-directory` — so its Python steps
+# (repo root) and its cargo steps (`medbrains/`) cannot both resolve.
+#
+# This file is deliberately smaller than that one. Every blocking job here has
+# been run against master and passes. Everything known to fail is present too,
+# as `continue-on-error`, so it is visible and measured rather than quietly
+# absent — a red pipeline on day one is a pipeline everyone learns to ignore.
+#
+# The `continue-on-error` jobs are the backlog. Each should become blocking as
+# its debt is paid; none should be deleted to make this file look better.
+
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # The committed .sqlx metadata. CI has no database, and must not need one.
+  SQLX_OFFLINE: true
+
+jobs:
+  # ── Blocking: run against master and verified green ──────────────
+
+  audit-checks:
+    name: Audit checks (RLS, sharing, egress, PCI)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # These four pass today. They stay blocking so they cannot regress
+      # while the others are being fixed.
+      - run: python3 scripts/check_sharing.py
+      - run: python3 scripts/check_audit_coverage.py
+      - run: python3 scripts/check_region_pinning.py
+      - run: python3 scripts/check_no_card_logging.py
+      - run: python3 scripts/check_egress_allowlist.py
+
+  contracts:
+    name: API + UI contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Frontend calls resolve to real routes
+        run: python3 scripts/check_api_contract.py
+      - name: Page API references resolve
+        run: python3 scripts/check_ui_api_coverage.py
+      - name: Pages build from the @/components/ui seam
+        run: python3 medbrains/scripts/check_ui_seam.py
+      - name: No raw interactive HTML in shipped JSX
+        run: python3 medbrains/scripts/check_raw_html.py
+
+  rust-fmt:
+    name: "Rust format (TODO: 1053 diffs on master)"
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: medbrains
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      # Not blocking: `cargo fmt --check` reports 1053 diffs across the tree.
+      # Reformatting in bulk would bury real changes in review noise for weeks,
+      # so this is measured while files are tidied as they are touched.
+      - run: cargo fmt --all -- --check
+
+  web:
+    name: Web typecheck, lint, test, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: medbrains
+    steps:
+      - uses: actions/checkout@v4
+      # `with:` inputs are resolved from the repo root — `defaults.run` does not
+      # apply to them — so every path here is root-relative even though the
+      # steps below run in `medbrains/`. There is an untracked `.nvmrc` at the
+      # root that would resolve locally and not exist on a runner.
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: medbrains/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: medbrains/.nvmrc
+          cache: pnpm
+          cache-dependency-path: medbrains/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+
+      # Build before typecheck, deliberately. `tsc --noEmit` reads a stale
+      # tsconfig.tsbuildinfo and reports clean while real type errors are
+      # present — that happened three separate times in one day of work.
+      # Building first makes the incremental state honest.
+      #
+      # Scoped to the web app and its dependencies. A full `turbo run build`
+      # takes 35 minutes because it compiles the Tauri desktop shell, which is
+      # not worth paying on every PR; the full build is measured separately.
+      - run: pnpm turbo run build --filter=@medbrains/web...
+      - run: pnpm run typecheck
+      - run: pnpm run test
+
+  web-lint:
+    name: "Web lint (TODO: noArrayIndexKey in web, deps in mobile-patient)"
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: medbrains
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: medbrains/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: medbrains/.nvmrc
+          cache: pnpm
+          cache-dependency-path: medbrains/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint
+
+  full-build:
+    name: "Full build incl. desktop (TODO: 35 min — needs splitting)"
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: medbrains
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: medbrains/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: medbrains/.nvmrc
+          cache: pnpm
+          cache-dependency-path: medbrains/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      # Passes, but the Tauri shell dominates. Left non-blocking until the
+      # desktop build is a separate workflow on its own trigger.
+      - run: pnpm run build
+
+  # ── Known-failing: measured, not enforced ────────────────────────
+  #
+  # Each of these fails on master today. They run so the number is visible on
+  # every PR and can be watched going down. Flip to blocking as each clears.
+
+  rust-clippy:
+    name: "Rust clippy (TODO: cannot pass --all-targets)"
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: medbrains
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            medbrains/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('medbrains/**/Cargo.toml') }}
+
+      # Library code is clean and is the bar worth holding first.
+      - name: Clippy (lib)
+        run: cargo clippy --workspace -- -D warnings
+
+      # Test modules are not. They use unwrap/expect/panic freely, which the
+      # workspace lints deny — see access_log.rs, allergy.rs, boundary_filter.rs,
+      # dose_safety.rs, mar_schedule.rs, object_store/*, db/pool.rs.
+      - name: Clippy (all targets)
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  schema-and-tenancy:
+    name: "Schema + tenancy (TODO: 51 tables without an RLS policy)"
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The one to fix first. 51 tenant-bearing tables have RLS *enabled* with
+      # no policy and no FORCE, so the app — which connects as the table owner
+      # — bypasses row-level security on all of them. Not proof of a leak,
+      # because most queries filter by tenant_id themselves; it is the absence
+      # of the backstop that exists for the queries that forget.
+      - name: RLS coverage
+        run: python3 scripts/check_rls.py
+
+      # 4 raw SQL statements in routes/. Exactly the class of query the
+      # backstop above is meant to catch.
+      - name: No raw SQL in routes
+        run: python3 scripts/check_tenant_leak.py
+
+      - name: Migration headers
+        run: python3 scripts/migration_header_lint.py
+
+      # 12 handlers without #[tracing::instrument]. Matters for an audit trail
+      # a regulator will ask to see.
+      - name: Tracing spans
+        run: python3 scripts/check_tracing_spans.py
+
+  rust-test:
+    name: "Rust tests (TODO: unverified in CI)"
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: medbrains
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            medbrains/target
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('medbrains/**/Cargo.toml') }}
+
+      # Non-blocking until it has been seen to pass on a runner: several suites
+      # want a database, and which ones has not been established here.
+      - run: cargo test --workspace
