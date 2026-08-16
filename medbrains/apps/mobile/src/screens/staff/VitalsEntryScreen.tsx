@@ -1,6 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type MobileVitalsEntryFormInput, mobileVitalsEntryFormSchema } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
 import type { Vital } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -94,6 +96,7 @@ function toOptionalNumber(value: string): number | undefined {
 }
 
 export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps) {
+  const canRecordVitals = useHasPermission(P.OPD.VITALS_CREATE);
   const theme = useTheme();
   const queryClient = useQueryClient();
   const { encounterId } = route.params;
@@ -353,7 +356,7 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
           mode="contained"
           onPress={() => void submitVitals()}
           loading={saveMutation.isPending}
-          disabled={!hasAnyValue || saveMutation.isPending}
+          disabled={!hasAnyValue || saveMutation.isPending || !canRecordVitals}
           style={styles.saveButton}
           contentStyle={styles.saveButtonContent}
           icon="content-save"

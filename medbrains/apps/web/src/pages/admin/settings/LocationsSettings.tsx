@@ -11,7 +11,9 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { useHasPermission } from "@medbrains/stores";
 import type { LocationRow } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconCheck,
   IconMapPin,
@@ -424,6 +426,15 @@ function LocationTreeView({ locations }: { locations: LocationRow[] }) {
 
 export function LocationsSettings() {
   const queryClient = useQueryClient();
+  // The tab is gated on `…locations.list` (a read permission, see SETTINGS_TABS), so
+  // without these the write controls render for a read-only admin who then gets
+  // a 403 from a form they were invited to fill.
+  const canCreate = useHasPermission(P.ADMIN.SETTINGS.LOCATIONS.CREATE);
+  const canUpdate = useHasPermission(P.ADMIN.SETTINGS.LOCATIONS.UPDATE);
+  const canDelete = useHasPermission(P.ADMIN.SETTINGS.LOCATIONS.DELETE);
+  // "Manage staff" assigns users to a location — a user-directory write, which
+  // is why it needs admin.users.create and not a locations permission.
+  const canManageStaff = useHasPermission(P.ADMIN.USERS.CREATE);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState<LocationRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LocationRow | null>(null);
@@ -510,15 +521,21 @@ export function LocationsSettings() {
       </Table.Td>
       <Table.Td>
         <Group gap={4}>
-          <IconButton tone="default" onClick={() => setStaffLoc(loc)} aria-label="Manage staff">
-            <IconUsers size={16} />
-          </IconButton>
-          <IconButton tone="primary" onClick={() => openEdit(loc)} aria-label="Edit">
-            <IconPencil size={16} />
-          </IconButton>
-          <IconButton tone="danger" onClick={() => setDeleteTarget(loc)} aria-label="Delete">
-            <IconTrash size={16} />
-          </IconButton>
+          {canManageStaff && (
+            <IconButton tone="default" onClick={() => setStaffLoc(loc)} aria-label="Manage staff">
+              <IconUsers size={16} />
+            </IconButton>
+          )}
+          {canUpdate && (
+            <IconButton tone="primary" onClick={() => openEdit(loc)} aria-label="Edit">
+              <IconPencil size={16} />
+            </IconButton>
+          )}
+          {canDelete && (
+            <IconButton tone="danger" onClick={() => setDeleteTarget(loc)} aria-label="Delete">
+              <IconTrash size={16} />
+            </IconButton>
+          )}
         </Group>
       </Table.Td>
     </Table.Tr>
@@ -540,14 +557,16 @@ export function LocationsSettings() {
               { label: "Tree", value: "tree" },
             ]}
           />
-          <Button
-            tone="primary"
-            size="sm"
-            leftSection={<IconPlus size={14} />}
-            onClick={openCreate}
-          >
-            Add Location
-          </Button>
+          {canCreate && (
+            <Button
+              tone="primary"
+              size="sm"
+              leftSection={<IconPlus size={14} />}
+              onClick={openCreate}
+            >
+              Add Location
+            </Button>
+          )}
         </Group>
       </Group>
 

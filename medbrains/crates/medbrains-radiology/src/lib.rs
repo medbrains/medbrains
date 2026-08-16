@@ -472,15 +472,16 @@ pub async fn list_orders(
         None
     } else {
         Some(
-            state
-                .authz
-                .list_accessible(
-                    &authz_ctx,
-                    "radiology_order",
-                    medbrains_authz::Relation::Viewer,
-                )
-                .await
-                .unwrap_or_default(),
+            match state.authz.list_accessible(&authz_ctx, "radiology_order", medbrains_authz::Relation::Viewer,).await {
+            Ok(ids) => ids,
+            Err(e) => {
+                tracing::error!(error = %e, object_type = "radiology_order",
+                    "rebac: list_accessible failed; refusing rather than showing an empty list");
+                return Err(AppError::ServiceUnavailable(
+                    "authorization backend unavailable".to_owned(),
+                ));
+            }
+        },
         )
     };
 
@@ -816,19 +817,12 @@ pub async fn get_order(
 
     // ── ReBAC pre-check — must hold `view` on the radiology_order ─
     let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
-    let allowed = state
-        .authz
-        .check(
-            &authz_ctx,
-            medbrains_authz::Relation::Viewer,
+    medbrains_server_core::middleware::authorization::collapse(
+        medbrains_server_core::middleware::authorization::outcome_of(
+            state.authz.check(&authz_ctx, medbrains_authz::Relation::Viewer, "radiology_order", id,).await,
             "radiology_order",
-            id,
-        )
-        .await
-        .unwrap_or(false);
-    if !allowed {
-        return Err(AppError::NotFound);
-    }
+        ),
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

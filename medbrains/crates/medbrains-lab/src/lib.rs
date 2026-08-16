@@ -386,11 +386,16 @@ pub async fn list_orders(
             None
         } else {
             Some(
-                state
-                    .authz
-                    .list_accessible(&authz_ctx, "lab_order", medbrains_authz::Relation::Viewer)
-                    .await
-                    .unwrap_or_default(),
+                match state.authz.list_accessible(&authz_ctx, "lab_order", medbrains_authz::Relation::Viewer).await {
+                Ok(ids) => ids,
+                Err(e) => {
+                    tracing::error!(error = %e, object_type = "lab_order",
+                        "rebac: list_accessible failed; refusing rather than showing an empty list");
+                    return Err(AppError::ServiceUnavailable(
+                        "authorization backend unavailable".to_owned(),
+                    ));
+                }
+            },
             )
         };
 
@@ -711,19 +716,12 @@ pub async fn get_order(
     // ── ReBAC pre-check — must hold `view` on the lab_order ───
     let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
     if !has_operational_lab_order_scope(&claims) {
-        let allowed = state
-            .authz
-            .check(
-                &authz_ctx,
-                medbrains_authz::Relation::Viewer,
+        medbrains_server_core::middleware::authorization::collapse(
+            medbrains_server_core::middleware::authorization::outcome_of(
+                state.authz.check(&authz_ctx, medbrains_authz::Relation::Viewer, "lab_order", id,).await,
                 "lab_order",
-                id,
-            )
-            .await
-            .unwrap_or(false);
-        if !allowed {
-            return Err(AppError::NotFound);
-        }
+            ),
+        )?;
     }
 
     let mut tx = state.db.begin().await?;
@@ -768,6 +766,16 @@ pub async fn collect_sample(
     Json(body): Json<CollectSampleRequest>,
 ) -> Result<Json<LabOrder>, AppError> {
     require_permission(&claims, permissions::lab::results::CREATE)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        id,
+    )
+    .await?;
 
     let provided = body.patient_identifier.trim();
     if provided.is_empty() {
@@ -855,6 +863,16 @@ pub async fn start_processing(
 ) -> Result<Json<LabOrder>, AppError> {
     require_permission(&claims, permissions::lab::results::CREATE)?;
 
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        id,
+    )
+    .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -880,6 +898,16 @@ pub async fn complete_order(
     Path(id): Path<Uuid>,
 ) -> Result<Json<LabOrder>, AppError> {
     require_permission(&claims, permissions::lab::results::CREATE)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -985,6 +1013,16 @@ pub async fn verify_results(
 ) -> Result<Json<LabOrder>, AppError> {
     require_permission(&claims, permissions::lab::results::UPDATE)?;
 
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        id,
+    )
+    .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1073,6 +1111,16 @@ pub async fn cancel_order(
     Path(id): Path<Uuid>,
 ) -> Result<Json<LabOrder>, AppError> {
     require_permission(&claims, permissions::lab::orders::CREATE)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1223,6 +1271,16 @@ pub async fn add_results(
     Json(body): Json<AddResultsRequest>,
 ) -> Result<Json<Vec<LabResult>>, AppError> {
     require_permission(&claims, permissions::lab::results::CREATE)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        order_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1466,6 +1524,16 @@ pub async fn list_results(
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<Vec<LabResult>>, AppError> {
     require_permission(&claims, permissions::lab::orders::VIEW)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        order_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1822,6 +1890,16 @@ pub async fn reject_sample(
 ) -> Result<Json<LabOrder>, AppError> {
     require_permission(&claims, permissions::lab::results::CREATE)?;
 
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        id,
+    )
+    .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1869,6 +1947,16 @@ pub async fn amend_result(
     Json(body): Json<AmendResultRequest>,
 ) -> Result<Json<LabResultAmendment>, AppError> {
     require_permission(&claims, permissions::lab::results::AMEND)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        order_id,
+    )
+    .await?;
 
     // NABL/CAP: every amendment to a reported diagnostic value must carry a documented
     // reason — a lab result cannot be silently changed.
@@ -2030,6 +2118,16 @@ pub async fn list_amendments(
 ) -> Result<Json<Vec<LabResultAmendment>>, AppError> {
     require_permission(&claims, permissions::lab::orders::VIEW)?;
 
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        order_id,
+    )
+    .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -2144,6 +2242,16 @@ pub async fn update_report_status(
 ) -> Result<Json<LabOrder>, AppError> {
     require_permission(&claims, permissions::lab::results::UPDATE)?;
 
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        order_id,
+    )
+    .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -2170,6 +2278,16 @@ pub async fn lock_report(
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<LabOrder>, AppError> {
     require_permission(&claims, permissions::lab::results::UPDATE)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        order_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2772,6 +2890,16 @@ pub async fn add_on_test(
     Json(body): Json<AddOnTestRequest>,
 ) -> Result<Json<LabOrder>, AppError> {
     require_permission(&claims, permissions::lab::orders::CREATE)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        parent_order_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4427,6 +4555,16 @@ pub async fn get_order_crossmatch(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::lab::orders::LIST)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 

@@ -1,4 +1,6 @@
+import { useHasPermission } from "@medbrains/stores";
 import type { PrescriptionHistoryItem, PrescriptionItem } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
@@ -122,6 +124,7 @@ function medicationStatusText(status: string): string {
 }
 
 export function PatientPharmacyScreen({ route }: PatientPharmacyScreenProps) {
+  const canViewPatient = useHasPermission(P.PATIENTS.VIEW);
   const theme = useTheme();
   const { handoff, patientId, pharmacyOrderId, pharmacyRxQueueId } = route.params;
   const [filter, setFilter] = useState<PharmacyFilter>("recent");
@@ -134,7 +137,9 @@ export function PatientPharmacyScreen({ route }: PatientPharmacyScreenProps) {
   } = useQuery({
     queryKey: ["patient", "pharmacy", patientId],
     queryFn: () => patientService.listPatientPrescriptions(patientId),
-    enabled: Boolean(patientId),
+    // Do not fetch what this user may not see — hiding it after
+    // the fetch still leaves it in the response and in devtools.
+    enabled: Boolean(patientId) && canViewPatient,
   });
 
   const thirtyDaysAgo = new Date();

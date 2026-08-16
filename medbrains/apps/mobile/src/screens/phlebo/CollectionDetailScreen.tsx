@@ -1,4 +1,6 @@
+import { useHasPermission } from "@medbrains/stores";
 import type { LabHomeCollection } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { Linking, ScrollView, StyleSheet, View } from "react-native";
 import {
@@ -46,6 +48,7 @@ function getStatusColor(status: string): string {
 }
 
 export function CollectionDetailScreen({ route, navigation }: CollectionDetailScreenProps) {
+  const canListCollections = useHasPermission(P.LAB.SAMPLES_LIST);
   const theme = useTheme();
   const { orderId } = route.params;
 
@@ -55,7 +58,9 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
       const collections = await phlebotomyService.listHomeCollections({});
       return collections.find((c: LabHomeCollection) => c.id === orderId);
     },
-    enabled: Boolean(orderId),
+    // Do not fetch what this user may not see — hiding it after
+    // the fetch still leaves it in the response and in devtools.
+    enabled: Boolean(orderId) && canListCollections,
   });
 
   const handleCall = () => {

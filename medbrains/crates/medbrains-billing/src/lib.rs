@@ -361,20 +361,13 @@ async fn ensure_invoice_view_access(
     invoice_id: Uuid,
 ) -> Result<(), AppError> {
     let authz_ctx = authz_context(claims);
-    let allowed = state
-        .authz
-        .check(
-            &authz_ctx,
-            medbrains_authz::Relation::Viewer,
+    medbrains_server_core::middleware::authorization::collapse(
+        medbrains_server_core::middleware::authorization::outcome_of(
+            state.authz.check(&authz_ctx, medbrains_authz::Relation::Viewer, "invoice", invoice_id,).await,
             "invoice",
-            invoice_id,
-        )
-        .await
-        .unwrap_or(false);
-    if allowed {
-        return Ok(());
-    }
-    Err(AppError::NotFound)
+        ),
+    )
+
 }
 
 const BILLING_INVOICE_WORKSPACE_PERMISSIONS: &[&str] = &[
@@ -541,11 +534,16 @@ pub async fn list_invoices(
         None
     } else {
         Some(
-            state
-                .authz
-                .list_accessible(&authz_ctx, "invoice", medbrains_authz::Relation::Viewer)
-                .await
-                .unwrap_or_default(),
+            match state.authz.list_accessible(&authz_ctx, "invoice", medbrains_authz::Relation::Viewer).await {
+            Ok(ids) => ids,
+            Err(e) => {
+                tracing::error!(error = %e, object_type = "invoice",
+                    "rebac: list_accessible failed; refusing rather than showing an empty list");
+                return Err(AppError::ServiceUnavailable(
+                    "authorization backend unavailable".to_owned(),
+                ));
+            }
+        },
         )
     };
 
@@ -839,6 +837,16 @@ pub async fn get_invoice(
 ) -> Result<Json<InvoiceDetailResponse>, AppError> {
     require_any_permission(&claims, BILLING_INVOICE_WORKSPACE_PERMISSIONS)?;
 
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        id,
+    )
+    .await?;
+
     // Invoice viewers keep resource-scoped ReBAC. Payment/receipt action roles may open
     // a known invoice shell so they can collect, reverse, or print without list authority.
     ensure_invoice_workspace_access(&state, &claims, id).await?;
@@ -905,6 +913,16 @@ pub async fn update_invoice(
 ) -> Result<Json<Invoice>, AppError> {
     require_permission(&claims, permissions::billing::invoices::UPDATE)?;
 
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        id,
+    )
+    .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -959,6 +977,16 @@ pub async fn add_invoice_item(
     Json(body): Json<AddInvoiceItemRequest>,
 ) -> Result<Json<InvoiceItem>, AppError> {
     require_permission(&claims, permissions::billing::invoices::UPDATE)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        invoice_id,
+    )
+    .await?;
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
     validate_billing_amount_write_access(&restricted_fields)?;
 
@@ -1181,6 +1209,16 @@ pub async fn issue_invoice(
     body: Option<Json<IssueInvoiceRequest>>,
 ) -> Result<Json<Invoice>, AppError> {
     require_permission(&claims, permissions::billing::invoices::UPDATE)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        id,
+    )
+    .await?;
     let body = body.map(|Json(body)| body).unwrap_or_default();
 
     let mut tx = state.db.begin().await?;
@@ -1263,6 +1301,16 @@ pub async fn cancel_invoice(
 ) -> Result<Json<Invoice>, AppError> {
     require_permission(&claims, permissions::billing::invoices::CANCEL)?;
 
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        id,
+    )
+    .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1296,6 +1344,16 @@ pub async fn close_zero_invoice(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Invoice>, AppError> {
     require_permission(&claims, permissions::billing::payments::CREATE)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1350,6 +1408,16 @@ pub async fn record_payment(
     Json(body): Json<RecordPaymentRequest>,
 ) -> Result<Json<Payment>, AppError> {
     require_permission(&claims, permissions::billing::payments::CREATE)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        invoice_id,
+    )
+    .await?;
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
     validate_billing_amount_write_access(&restricted_fields)?;
 
@@ -1525,6 +1593,16 @@ pub async fn list_payments(
     Path(invoice_id): Path<Uuid>,
 ) -> Result<Json<Vec<Payment>>, AppError> {
     require_any_permission(&claims, BILLING_INVOICE_WORKSPACE_PERMISSIONS)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        invoice_id,
+    )
+    .await?;
     ensure_invoice_workspace_access(&state, &claims, invoice_id).await?;
 
     let mut tx = state.db.begin().await?;
@@ -1589,6 +1667,16 @@ pub async fn list_receipts(
     Path(invoice_id): Path<Uuid>,
 ) -> Result<Json<Vec<Receipt>>, AppError> {
     require_any_permission(&claims, BILLING_RECEIPT_CONTEXT_PERMISSIONS)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        invoice_id,
+    )
+    .await?;
     ensure_invoice_workspace_access(&state, &claims, invoice_id).await?;
 
     let mut tx = state.db.begin().await?;
@@ -1614,6 +1702,16 @@ pub async fn generate_receipt(
     Json(body): Json<GenerateReceiptRequest>,
 ) -> Result<Json<Receipt>, AppError> {
     require_permission(&claims, permissions::billing::receipts::PRINT)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        invoice_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2048,6 +2146,16 @@ pub async fn clone_invoice(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Invoice>, AppError> {
     require_permission(&claims, permissions::billing::invoices::CREATE)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see authz_patient::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

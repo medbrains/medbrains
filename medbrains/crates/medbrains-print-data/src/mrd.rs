@@ -37,17 +37,10 @@ async fn require_admission_access(
     claims: &Claims,
     admission_id: Uuid,
 ) -> Result<(), AppError> {
-    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
-    let allowed = state
-        .authz
-        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "admission", admission_id)
-        .await
-        .unwrap_or(false);
-    if allowed {
-        Ok(())
-    } else {
-        Err(AppError::NotFound)
-    }
+    // Delegates to the canonical resolver rather than repeating it. The
+    // hand-rolled copy that lived here collapsed a backend outage into
+    // `NotFound`, so a fault told the caller the record did not exist.
+    medbrains_authz_gate::require_admission_access(state, claims, admission_id).await
 }
 
 // ── Helper row types ─────────────────────────────────────
@@ -514,7 +507,7 @@ pub async fn get_vitals_chart_print_data(
          LEFT JOIN users u ON u.id = v.recorded_by \
          WHERE v.patient_id = (SELECT patient_id FROM admissions WHERE id = $1) \
            AND v.tenant_id = $2 \
-           AND v.recorded_at::date = CURRENT_DATE \
+           AND (v.recorded_at >= CURRENT_DATE AND v.recorded_at < CURRENT_DATE + 1) \
          ORDER BY v.recorded_at LIMIT 5000",
     )
     .bind(admission_id)
@@ -623,7 +616,7 @@ pub async fn get_io_chart_print_data(
          LEFT JOIN users u ON u.id = io.recorded_by \
          WHERE io.admission_id = $1 \
            AND io.tenant_id = $2 \
-           AND io.recorded_at::date = CURRENT_DATE \
+           AND (io.recorded_at >= CURRENT_DATE AND io.recorded_at < CURRENT_DATE + 1) \
          ORDER BY io.recorded_at LIMIT 5000",
     )
     .bind(admission_id)
@@ -936,7 +929,7 @@ pub async fn get_fluid_balance_chart_print_data(
          FROM fluid_intake fi \
          LEFT JOIN users recorder ON recorder.id = fi.recorded_by_id \
          WHERE fi.admission_id = $1 AND fi.tenant_id = $2 \
-           AND fi.recorded_at::date = CURRENT_DATE \
+           AND (fi.recorded_at >= CURRENT_DATE AND fi.recorded_at < CURRENT_DATE + 1) \
          ORDER BY fi.recorded_at LIMIT 5000",
     )
     .bind(admission_id)
@@ -955,7 +948,7 @@ pub async fn get_fluid_balance_chart_print_data(
          FROM fluid_output fo \
          LEFT JOIN users recorder ON recorder.id = fo.recorded_by_id \
          WHERE fo.admission_id = $1 AND fo.tenant_id = $2 \
-           AND fo.recorded_at::date = CURRENT_DATE \
+           AND (fo.recorded_at >= CURRENT_DATE AND fo.recorded_at < CURRENT_DATE + 1) \
          ORDER BY fo.recorded_at LIMIT 5000",
     )
     .bind(admission_id)
@@ -1040,7 +1033,7 @@ pub async fn get_pain_assessment_print_data(
          FROM pain_assessments pa \
          LEFT JOIN users assessor ON assessor.id = pa.assessed_by_id \
          WHERE pa.admission_id = $1 AND pa.tenant_id = $2 \
-           AND pa.recorded_at::date = CURRENT_DATE \
+           AND (pa.recorded_at >= CURRENT_DATE AND pa.recorded_at < CURRENT_DATE + 1) \
          ORDER BY pa.recorded_at LIMIT 5000",
     )
     .bind(admission_id)
@@ -1389,7 +1382,7 @@ pub async fn get_gcs_chart_print_data(
          FROM gcs_assessments ga \
          LEFT JOIN users assessor ON assessor.id = ga.assessed_by_id \
          WHERE ga.admission_id = $1 AND ga.tenant_id = $2 \
-           AND ga.recorded_at::date = CURRENT_DATE \
+           AND (ga.recorded_at >= CURRENT_DATE AND ga.recorded_at < CURRENT_DATE + 1) \
          ORDER BY ga.recorded_at LIMIT 5000",
     )
     .bind(admission_id)

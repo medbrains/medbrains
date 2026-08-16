@@ -1,6 +1,8 @@
 import { Grid, Group, Loader, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { useHasPermission } from "@medbrains/stores";
 import type { DepartmentRow, WorkingHours } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconCheck, IconClock, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -407,6 +409,12 @@ function DeleteConfirmModal({
 
 export function DepartmentsSettings() {
   const queryClient = useQueryClient();
+  // The tab itself is gated on `…departments.list` (see SETTINGS_TABS), which is
+  // a read permission. Without these the Add/Edit/Delete controls render for a
+  // read-only admin, who then gets a 403 from a form they were invited to fill.
+  const canCreate = useHasPermission(P.ADMIN.SETTINGS.DEPARTMENTS.CREATE);
+  const canUpdate = useHasPermission(P.ADMIN.SETTINGS.DEPARTMENTS.UPDATE);
+  const canDelete = useHasPermission(P.ADMIN.SETTINGS.DEPARTMENTS.DELETE);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingDept, setEditingDept] = useState<DepartmentRow | null>(null);
   const [deletingDept, setDeletingDept] = useState<DepartmentRow | null>(null);
@@ -502,12 +510,16 @@ export function DepartmentsSettings() {
       </Table.Td>
       <Table.Td>
         <Group gap={4}>
-          <IconButton tone="primary" onClick={() => openEdit(dept)} aria-label="Edit">
-            <IconPencil size={16} />
-          </IconButton>
-          <IconButton tone="danger" onClick={() => openDelete(dept)} aria-label="Delete">
-            <IconTrash size={16} />
-          </IconButton>
+          {canUpdate && (
+            <IconButton tone="primary" onClick={() => openEdit(dept)} aria-label="Edit">
+              <IconPencil size={16} />
+            </IconButton>
+          )}
+          {canDelete && (
+            <IconButton tone="danger" onClick={() => openDelete(dept)} aria-label="Delete">
+              <IconTrash size={16} />
+            </IconButton>
+          )}
         </Group>
       </Table.Td>
     </Table.Tr>
@@ -519,9 +531,16 @@ export function DepartmentsSettings() {
         <Text size="sm" c="dimmed">
           Manage hospital departments and their working hours.
         </Text>
-        <Button tone="primary" size="sm" leftSection={<IconPlus size={14} />} onClick={openCreate}>
-          Add Department
-        </Button>
+        {canCreate && (
+          <Button
+            tone="primary"
+            size="sm"
+            leftSection={<IconPlus size={14} />}
+            onClick={openCreate}
+          >
+            Add Department
+          </Button>
+        )}
       </Group>
 
       <Table striped highlightOnHover withTableBorder withColumnBorders>

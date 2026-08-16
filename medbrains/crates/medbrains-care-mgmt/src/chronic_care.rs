@@ -26,13 +26,10 @@ async fn require_patient_access(
     claims: &Claims,
     patient_id: Uuid,
 ) -> Result<(), AppError> {
-    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
-    let allowed = state
-        .authz
-        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", patient_id)
-        .await
-        .unwrap_or(false);
-    if allowed { Ok(()) } else { Err(AppError::NotFound) }
+    // Delegates to the canonical resolver rather than repeating it. The
+    // hand-rolled copy that lived here collapsed a backend outage into
+    // `NotFound`, so a fault told the caller the record did not exist.
+    medbrains_authz_gate::require_patient_access(state, claims, patient_id).await
 }
 
 // ══════════════════════════════════════════════════════════

@@ -532,7 +532,7 @@ pub async fn get_wristband_print_data(
     Query(query): Query<WristbandPrintQuery>,
 ) -> Result<Json<WristbandPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::wristband::PRINT)?;
-    medbrains_server_core::authz_patient::require_admission_access(&state, &claims, admission_id).await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -732,7 +732,7 @@ pub async fn get_discharge_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<DischargeSummaryPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
-    medbrains_server_core::authz_patient::require_admission_access(&state, &claims, admission_id).await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -1108,7 +1108,7 @@ pub async fn get_treatment_chart_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<TreatmentChartPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
-    medbrains_server_core::authz_patient::require_admission_access(&state, &claims, admission_id).await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -1200,7 +1200,7 @@ pub async fn get_treatment_chart_print_data(
          FROM stat_orders so \
          LEFT JOIN users u ON u.id = so.ordered_by \
          WHERE so.admission_id = $1 AND so.tenant_id = $2 \
-           AND so.created_at::date = CURRENT_DATE \
+           AND (so.created_at >= CURRENT_DATE AND so.created_at < CURRENT_DATE + 1) \
          ORDER BY so.created_at DESC LIMIT 5000",
     )
     .bind(admission_id)
@@ -1510,7 +1510,7 @@ pub async fn get_registration_card_print_data(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<RegistrationCardPrintData>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_server_core::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1731,7 +1731,7 @@ pub async fn get_opd_prescription_print_data(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<OpdPrescriptionPrintData>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
-    medbrains_server_core::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -2127,7 +2127,7 @@ pub async fn get_cumulative_lab_report_print_data(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<CumulativeLabReportPrintData>, AppError> {
     require_permission(&claims, permissions::lab::reports::VIEW)?;
-    medbrains_server_core::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2475,7 +2475,7 @@ pub async fn get_death_certificate_print_data(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<DeathCertificatePrintData>, AppError> {
     require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
-    medbrains_server_core::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -2666,8 +2666,13 @@ async fn get_tenant_info(
 /// GET /print-data/ot-register/{ot_id}/{date}
 pub async fn get_ot_register_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path((ot_id, date)): Path<(Uuid, String)>,
 ) -> Result<Json<OtRegisterPrintData>, AppError> {
+    // The OT register is the log of cases performed; `ot::case_records` is the
+    // permission that governs those records elsewhere.
+    require_permission(&claims, permissions::ot::case_records::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     let register_date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
@@ -2821,8 +2826,11 @@ pub async fn get_ot_register_print_data(
 /// GET /print-data/blood-donor-form/{donor_id}
 pub async fn get_blood_donor_form_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(donor_id): Path<Uuid>,
 ) -> Result<Json<BloodDonorFormPrintData>, AppError> {
+    require_permission(&claims, permissions::blood_bank::donors::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -2950,8 +2958,12 @@ pub async fn get_blood_donor_form_print_data(
 /// GET /print-data/cross-match-requisition/{requisition_id}
 pub async fn get_cross_match_requisition_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(requisition_id): Path<Uuid>,
 ) -> Result<Json<CrossMatchRequisitionPrintData>, AppError> {
+    require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -3057,8 +3069,12 @@ pub async fn get_cross_match_requisition_print_data(
 /// GET /print-data/appointment-slip/{appointment_id}
 pub async fn get_appointment_slip_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(appointment_id): Path<Uuid>,
 ) -> Result<Json<AppointmentSlipPrintData>, AppError> {
+    require_permission(&claims, permissions::opd::appointment::LIST)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -3141,8 +3157,15 @@ pub async fn get_appointment_slip_print_data(
 /// GET /print-data/dpdp-consent/{consent_id}
 pub async fn get_dpdp_consent_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(consent_id): Path<Uuid>,
 ) -> Result<Json<DpdpConsentPrintData>, AppError> {
+    // No other code reads `dpdp_consents`, so there is no sibling handler to
+    // copy from. A DPDP consent is a signed consent record, which is what
+    // `consent::signatures` governs.
+    require_permission(&claims, permissions::consent::signatures::LIST)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -3270,8 +3293,13 @@ pub async fn get_dpdp_consent_print_data(
 /// GET /print-data/video-consent/{video_consent_id}
 pub async fn get_video_consent_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(video_consent_id): Path<Uuid>,
 ) -> Result<Json<VideoConsentPrintData>, AppError> {
+    // Same reasoning as the DPDP consent above — a signed consent record.
+    require_permission(&claims, permissions::consent::signatures::LIST)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -3356,8 +3384,13 @@ pub async fn get_video_consent_print_data(
 /// GET /print-data/restraint-documentation/{restraint_id}
 pub async fn get_restraint_documentation_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(restraint_id): Path<Uuid>,
 ) -> Result<Json<RestraintDocumentationPrintData>, AppError> {
+    // `nurse_clinical.rs` guards the restraint record itself with this.
+    require_permission(&claims, permissions::nurse::restraint::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]

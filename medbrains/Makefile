@@ -9,6 +9,7 @@
        mobile-staff-android mobile-staff-prebuild mobile-staff-typecheck \
        check check-backend check-frontend lint check-api check-sqlx prepare-sqlx guard-sqlx-nonprod \
        check-ui-api check-types check-ui-seam check-raw-html check-secrets check-all \
+       check-field-classes check-authz-collapse check-relation-parity check-parent-id-scoping authz-ledger \
        check-rls check-sharing check-authz-posture check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-tenant-leak check-runtime-sqlx check-audit check-tracing \
        check-migration-headers \
        check-region-pinning check-no-card-logging check-egress-allowlist check-cert-readiness check-encryption-at-rest check-redaction-masking \
@@ -302,7 +303,7 @@ check-raw-html: ## Verify no raw <button>/<input>/<select>/<textarea> in shipped
 check-secrets: ## Verify no live credentials (AWS/PAT/keys) are tracked in git
 	python3 scripts/check_secrets.py
 
-check-all: check-api check-ui-api check-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
+check-all: check-permissions check-field-classes check-authz-collapse check-api check-ui-api check-types check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-circular check-nav-drift check-ui-seam check-raw-html check-secrets check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
 
 # ── Audit / Authz Static Checks (RFC-INFRA-2026-002 Phase 0) ─
 
@@ -320,6 +321,24 @@ check-requirement-flags: ## Verify requires_*/_required columns are actually enf
 
 check-surface-drift: ## Verify the three deployment-surface lists agree
 	python3 ../scripts/check_surface_drift.py
+
+check-permissions: ## Verify the UI permission catalogue is generated from the Rust constants
+	python3 scripts/generate_permissions_ts.py --check
+
+check-authz-collapse: ## Ban collapsing an authz check's error into a denial
+	python3 scripts/check_authz_collapse.py
+
+authz-ledger: ## Report authorization conformance per module (4 axes)
+	python3 scripts/authz_ledger.py
+
+check-parent-id-scoping: ## Ban nested routes that discard their parent id
+	python3 scripts/check_parent_id_scoping.py
+
+check-relation-parity: ## Verify schema.zed and the Relation enum name the same relations
+	python3 scripts/check_relation_parity.py
+
+check-field-classes: ## Verify every redactable field declares a DataClass
+	python3 scripts/check_field_classes.py
 
 check-role-templates: ## Verify UI role templates match the seeded built-in roles
 	python3 ../scripts/check_role_template_parity.py
