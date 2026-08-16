@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, tenant_id, username, email, password_hash, full_name, role::text AS \"role!\", is_active, perm_version FROM users WHERE username = $1",
+  "query": "SELECT id, tenant_id, username, email, password_hash, full_name, role::text AS \"role!\", is_active, perm_version FROM users WHERE username = $1 AND is_service_account = false",
   "describe": {
     "columns": [
       {
@@ -66,5 +66,5 @@
       false
     ]
   },
-  "hash": "b4180c7f537759fb227c2a9318bc72bd2c0c0072e834f874f449ab2d0e5075f3"
+  "hash": "89e279d4da5aa8f0dcdffa6336be6b838045a3c9049f51d95e1ba4b1df5bd3ca"
 }

@@ -11,6 +11,10 @@
 
 pub mod backend_durable_spicedb;
 pub mod backend_pg;
+pub mod classification;
+pub mod context;
+pub mod decision;
+pub mod field_class;
 pub mod backend_spicedb;
 pub mod backend_test;
 pub mod caveat;

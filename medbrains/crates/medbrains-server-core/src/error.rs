@@ -20,6 +20,17 @@ pub enum AppError {
     #[error("forbidden")]
     Forbidden,
 
+    /// A 403 that says why.
+    ///
+    /// `Forbidden` answers "no" and nothing else, which is right when the
+    /// reason is that the caller lacks a permission — spelling that out tells
+    /// them what to go and acquire. It is wrong when the route is refusing a
+    /// *kind* of caller, because the request will never succeed however the
+    /// permissions are changed, and an integration author reading a bare
+    /// "forbidden" has no way to learn that.
+    #[error("forbidden: {0}")]
+    ForbiddenReason(String),
+
     #[error("step-up required")]
     StepUpRequired,
 
@@ -100,6 +111,10 @@ impl IntoResponse for AppError {
             Self::Forbidden => {
                 tracing::warn!("forbidden request");
                 (StatusCode::FORBIDDEN, "forbidden", "forbidden".to_owned())
+            }
+            Self::ForbiddenReason(msg) => {
+                tracing::warn!(%msg, "forbidden request");
+                (StatusCode::FORBIDDEN, "forbidden", msg.clone())
             }
             Self::StepUpRequired => {
                 tracing::debug!("step-up required");

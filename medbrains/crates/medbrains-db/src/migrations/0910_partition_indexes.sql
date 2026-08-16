@@ -1,0 +1,595 @@
+ALTER INDEX public.idx_audit_log_deleted_at_f8ccc35e ATTACH PARTITION public.audit_log_2026_07_deleted_at_idx;
+
+ALTER INDEX public.audit_log_pkey1 ATTACH PARTITION public.audit_log_2026_07_pkey;
+
+ALTER INDEX public.idx_audit_log_tenant_action_time ATTACH PARTITION public.audit_log_2026_07_tenant_id_action_created_at_idx;
+
+ALTER INDEX public.idx_audit_log_deleted_at_f8ccc35e ATTACH PARTITION public.audit_log_2026_08_deleted_at_idx;
+
+ALTER INDEX public.audit_log_pkey1 ATTACH PARTITION public.audit_log_2026_08_pkey;
+
+ALTER INDEX public.idx_audit_log_tenant_action_time ATTACH PARTITION public.audit_log_2026_08_tenant_id_action_created_at_idx;
+
+ALTER INDEX public.idx_audit_log_deleted_at_f8ccc35e ATTACH PARTITION public.audit_log_2026_09_deleted_at_idx;
+
+ALTER INDEX public.audit_log_pkey1 ATTACH PARTITION public.audit_log_2026_09_pkey;
+
+ALTER INDEX public.idx_audit_log_tenant_action_time ATTACH PARTITION public.audit_log_2026_09_tenant_id_action_created_at_idx;
+
+ALTER INDEX public.idx_audit_log_deleted_at_f8ccc35e ATTACH PARTITION public.audit_log_2026_10_deleted_at_idx;
+
+ALTER INDEX public.audit_log_pkey1 ATTACH PARTITION public.audit_log_2026_10_pkey;
+
+ALTER INDEX public.idx_audit_log_tenant_action_time ATTACH PARTITION public.audit_log_2026_10_tenant_id_action_created_at_idx;
+
+ALTER INDEX public.idx_audit_log_deleted_at_f8ccc35e ATTACH PARTITION public.audit_log_2026_11_deleted_at_idx;
+
+ALTER INDEX public.audit_log_pkey1 ATTACH PARTITION public.audit_log_2026_11_pkey;
+
+ALTER INDEX public.idx_audit_log_tenant_action_time ATTACH PARTITION public.audit_log_2026_11_tenant_id_action_created_at_idx;
+
+ALTER INDEX public.idx_audit_log_deleted_at_f8ccc35e ATTACH PARTITION public.audit_log_2026_12_deleted_at_idx;
+
+ALTER INDEX public.audit_log_pkey1 ATTACH PARTITION public.audit_log_2026_12_pkey;
+
+ALTER INDEX public.idx_audit_log_tenant_action_time ATTACH PARTITION public.audit_log_2026_12_tenant_id_action_created_at_idx;
+
+ALTER INDEX public.idx_audit_log_deleted_at_f8ccc35e ATTACH PARTITION public.audit_log_2027_01_deleted_at_idx;
+
+ALTER INDEX public.audit_log_pkey1 ATTACH PARTITION public.audit_log_2027_01_pkey;
+
+ALTER INDEX public.idx_audit_log_tenant_action_time ATTACH PARTITION public.audit_log_2027_01_tenant_id_action_created_at_idx;
+
+ALTER INDEX public.idx_audit_log_deleted_at_f8ccc35e ATTACH PARTITION public.audit_log_2027_02_deleted_at_idx;
+
+ALTER INDEX public.audit_log_pkey1 ATTACH PARTITION public.audit_log_2027_02_pkey;
+
+ALTER INDEX public.idx_audit_log_tenant_action_time ATTACH PARTITION public.audit_log_2027_02_tenant_id_action_created_at_idx;
+
+ALTER INDEX public.idx_audit_log_deleted_at_f8ccc35e ATTACH PARTITION public.audit_log_2027_03_deleted_at_idx;
+
+ALTER INDEX public.audit_log_pkey1 ATTACH PARTITION public.audit_log_2027_03_pkey;
+
+ALTER INDEX public.idx_audit_log_tenant_action_time ATTACH PARTITION public.audit_log_2027_03_tenant_id_action_created_at_idx;
+
+ALTER INDEX public.idx_audit_log_deleted_at_f8ccc35e ATTACH PARTITION public.audit_log_2027_04_deleted_at_idx;
+
+ALTER INDEX public.audit_log_pkey1 ATTACH PARTITION public.audit_log_2027_04_pkey;
+
+ALTER INDEX public.idx_audit_log_tenant_action_time ATTACH PARTITION public.audit_log_2027_04_tenant_id_action_created_at_idx;
+
+ALTER INDEX public.idx_audit_log_deleted_at_f8ccc35e ATTACH PARTITION public.audit_log_2027_05_deleted_at_idx;
+
+ALTER INDEX public.audit_log_pkey1 ATTACH PARTITION public.audit_log_2027_05_pkey;
+
+ALTER INDEX public.idx_audit_log_tenant_action_time ATTACH PARTITION public.audit_log_2027_05_tenant_id_action_created_at_idx;
+
+ALTER INDEX public.idx_audit_log_deleted_at_f8ccc35e ATTACH PARTITION public.audit_log_2027_06_deleted_at_idx;
+
+ALTER INDEX public.audit_log_pkey1 ATTACH PARTITION public.audit_log_2027_06_pkey;
+
+ALTER INDEX public.idx_audit_log_tenant_action_time ATTACH PARTITION public.audit_log_2027_06_tenant_id_action_created_at_idx;
+
+ALTER INDEX public.idx_audit_log_deleted_at_f8ccc35e ATTACH PARTITION public.audit_log_2027_07_deleted_at_idx;
+
+ALTER INDEX public.audit_log_pkey1 ATTACH PARTITION public.audit_log_2027_07_pkey;
+
+ALTER INDEX public.idx_audit_log_tenant_action_time ATTACH PARTITION public.audit_log_2027_07_tenant_id_action_created_at_idx;
+
+ALTER INDEX public.idx_audit_log_deleted_at_f8ccc35e ATTACH PARTITION public.audit_log_legacy_archive_deleted_at_idx;
+
+ALTER INDEX public.audit_log_pkey1 ATTACH PARTITION public.audit_log_legacy_archive_pkey;
+
+ALTER INDEX public.idx_audit_log_tenant_action_time ATTACH PARTITION public.audit_log_legacy_archive_tenant_id_action_created_at_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p0_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p0_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p0_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p0_tenant_id_object_type_object_id_relation_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p0_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p0_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p0_tenant_id_spicedb_next_attempt_at_tuple__idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p0_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p10_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p10_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p10_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p10_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p10_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p10_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p10_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p10_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p11_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p11_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p11_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p11_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p11_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p11_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p11_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p11_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p12_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p12_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p12_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p12_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p12_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p12_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p12_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p12_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p13_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p13_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p13_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p13_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p13_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p13_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p13_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p13_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p14_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p14_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p14_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p14_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p14_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p14_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p14_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p14_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p15_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p15_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p15_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p15_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p15_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p15_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p15_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p15_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p16_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p16_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p16_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p16_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p16_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p16_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p16_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p16_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p17_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p17_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p17_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p17_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p17_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p17_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p17_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p17_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p18_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p18_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p18_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p18_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p18_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p18_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p18_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p18_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p19_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p19_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p19_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p19_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p19_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p19_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p19_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p19_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p1_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p1_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p1_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p1_tenant_id_object_type_object_id_relation_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p1_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p1_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p1_tenant_id_spicedb_next_attempt_at_tuple__idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p1_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p20_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p20_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p20_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p20_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p20_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p20_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p20_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p20_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p21_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p21_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p21_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p21_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p21_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p21_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p21_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p21_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p22_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p22_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p22_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p22_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p22_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p22_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p22_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p22_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p23_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p23_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p23_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p23_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p23_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p23_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p23_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p23_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p24_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p24_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p24_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p24_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p24_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p24_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p24_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p24_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p25_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p25_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p25_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p25_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p25_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p25_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p25_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p25_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p26_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p26_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p26_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p26_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p26_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p26_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p26_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p26_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p27_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p27_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p27_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p27_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p27_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p27_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p27_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p27_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p28_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p28_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p28_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p28_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p28_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p28_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p28_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p28_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p29_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p29_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p29_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p29_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p29_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p29_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p29_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p29_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p2_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p2_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p2_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p2_tenant_id_object_type_object_id_relation_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p2_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p2_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p2_tenant_id_spicedb_next_attempt_at_tuple__idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p2_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p30_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p30_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p30_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p30_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p30_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p30_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p30_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p30_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p31_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p31_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p31_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p31_tenant_id_object_type_object_id_relatio_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p31_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p31_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p31_tenant_id_spicedb_next_attempt_at_tuple_idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p31_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p3_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p3_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p3_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p3_tenant_id_object_type_object_id_relation_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p3_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p3_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p3_tenant_id_spicedb_next_attempt_at_tuple__idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p3_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p4_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p4_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p4_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p4_tenant_id_object_type_object_id_relation_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p4_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p4_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p4_tenant_id_spicedb_next_attempt_at_tuple__idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p4_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p5_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p5_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p5_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p5_tenant_id_object_type_object_id_relation_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p5_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p5_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p5_tenant_id_spicedb_next_attempt_at_tuple__idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p5_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p6_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p6_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p6_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p6_tenant_id_object_type_object_id_relation_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p6_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p6_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p6_tenant_id_spicedb_next_attempt_at_tuple__idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p6_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p7_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p7_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p7_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p7_tenant_id_object_type_object_id_relation_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p7_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p7_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p7_tenant_id_spicedb_next_attempt_at_tuple__idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p7_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p8_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p8_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p8_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p8_tenant_id_object_type_object_id_relation_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p8_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p8_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p8_tenant_id_spicedb_next_attempt_at_tuple__idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p8_tenant_id_subject_type_subject_id_idx;
+
+ALTER INDEX public.idx_relation_tuples_deleted_at_14d7b207 ATTACH PARTITION public.relation_tuples_p9_deleted_at_idx;
+
+ALTER INDEX public.rt_expiry_idx ATTACH PARTITION public.relation_tuples_p9_expires_at_idx;
+
+ALTER INDEX public.relation_tuples_pkey ATTACH PARTITION public.relation_tuples_p9_pkey;
+
+ALTER INDEX public.rt_lookup_idx ATTACH PARTITION public.relation_tuples_p9_tenant_id_object_type_object_id_relation_idx;
+
+ALTER INDEX public.rt_derived_idx ATTACH PARTITION public.relation_tuples_p9_tenant_id_source_derived_from_idx;
+
+ALTER INDEX public.rt_spicedb_failed_idx ATTACH PARTITION public.relation_tuples_p9_tenant_id_spicedb_attempts_tuple_id_idx;
+
+ALTER INDEX public.rt_spicedb_outbox_idx ATTACH PARTITION public.relation_tuples_p9_tenant_id_spicedb_next_attempt_at_tuple__idx;
+
+ALTER INDEX public.rt_subject_idx ATTACH PARTITION public.relation_tuples_p9_tenant_id_subject_type_subject_id_idx;

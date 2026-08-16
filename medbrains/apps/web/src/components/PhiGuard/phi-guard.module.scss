@@ -1,0 +1,70 @@
+// Watermark and selection control for patient data.
+//
+// Colours come from tokens, never literals — a hardcoded grey here would pin
+// the watermark to one colour scheme and make it invisible in the other, which
+// is the exact bug this codebase already shipped once on the patient banner.
+
+.guard {
+  position: relative;
+  // Friction, not security. Stops the reflexive drag-select into a chat
+  // window; stops nothing else, and is not intended to.
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+  // Inputs stay selectable: a clinician has to be able to edit what they type,
+  // and blocking selection inside a field breaks correction entirely.
+  input,
+  textarea,
+  [contenteditable="true"] {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+}
+
+.watermark {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: space-around;
+  justify-content: space-around;
+  gap: 24px;
+  overflow: hidden;
+  // Above the content so it appears in a capture, but transparent to every
+  // interaction — a watermark that eats clicks is a watermark somebody
+  // switches off.
+  pointer-events: none;
+}
+
+.mark {
+  font-family: var(--mb-font-mono, "IBM Plex Mono", monospace);
+  font-size: 11px;
+  white-space: nowrap;
+  transform: rotate(-24deg);
+  color: var(--mb-text, #161616);
+  // Faint enough to read the record through, dark enough to survive JPEG
+  // compression and a photograph of a monitor.
+  opacity: 0.07;
+  user-select: none;
+}
+
+// Printing is a capture too, and the likeliest one in a hospital. The
+// watermark must survive it, and print drops backgrounds by default.
+@media print {
+  .mark {
+    opacity: 0.14;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .watermark {
+    transition: none;
+  }
+}

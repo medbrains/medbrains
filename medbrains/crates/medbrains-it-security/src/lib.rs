@@ -1,11 +1,11 @@
 //! IT Security routes — Break-Glass, Clinical Access Monitor, Stock Disposal,
 //! TAT Tracking, Data Migration, EOD Digest, Data Quality, CERT-In Compliance.
 
+use axum::routing::{delete, get, patch, post};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::{get,post,delete,patch};
 use medbrains_core::it_security::{
     AccessAlert,
     AcknowledgeAlertRequest,
@@ -2032,6 +2032,8 @@ pub async fn get_onboarding_progress(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Option<OnboardingProgress>>, AppError> {
+    require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -2051,6 +2053,8 @@ pub async fn update_onboarding_progress(
     Extension(claims): Extension<Claims>,
     Json(body): Json<UpdateOnboardingRequest>,
 ) -> Result<Json<OnboardingProgress>, AppError> {
+    require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -2081,6 +2085,8 @@ pub async fn complete_onboarding_step(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CompleteOnboardingStepRequest>,
 ) -> Result<Json<OnboardingProgress>, AppError> {
+    require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -2107,6 +2113,8 @@ pub async fn complete_onboarding(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<OnboardingProgress>, AppError> {
+    require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -2421,51 +2429,126 @@ pub async fn mark_incentive_paid(
 /// IT security & compliance routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route("/api/break-glass", post(start_break_glass).get(list_break_glass))
+        .route(
+            "/api/break-glass",
+            post(start_break_glass).get(list_break_glass),
+        )
         .route("/api/break-glass/{id}", get(get_break_glass))
         .route("/api/break-glass/{id}/end", post(end_break_glass))
         .route("/api/break-glass/{id}/review", post(review_break_glass))
-        .route("/api/sensitive-patients", get(list_sensitive_patients).post(create_sensitive_patient))
-        .route("/api/sensitive-patients/{id}", delete(delete_sensitive_patient))
+        .route(
+            "/api/sensitive-patients",
+            get(list_sensitive_patients).post(create_sensitive_patient),
+        )
+        .route(
+            "/api/sensitive-patients/{id}",
+            delete(delete_sensitive_patient),
+        )
         .route("/api/access-alerts", get(list_access_alerts))
-        .route("/api/access-alerts/{id}/acknowledge", post(acknowledge_access_alert))
+        .route(
+            "/api/access-alerts/{id}/acknowledge",
+            post(acknowledge_access_alert),
+        )
         .route("/api/disposals", get(list_disposals).post(create_disposal))
         .route("/api/disposals/{id}", get(get_disposal))
         .route("/api/disposals/{id}/items", get(get_disposal_items))
         .route("/api/disposals/{id}/approve", post(approve_disposal))
         .route("/api/disposals/{id}/execute", post(execute_disposal))
-        .route("/api/tat/benchmarks", get(list_tat_benchmarks).post(create_tat_benchmark))
-        .route("/api/tat/records", get(list_tat_records).post(start_tat_record))
+        .route(
+            "/api/tat/benchmarks",
+            get(list_tat_benchmarks).post(create_tat_benchmark),
+        )
+        .route(
+            "/api/tat/records",
+            get(list_tat_records).post(start_tat_record),
+        )
         .route("/api/tat/records/{id}/complete", post(complete_tat_record))
         .route("/api/tat/dashboard", get(tat_dashboard))
-        .route("/api/migrations", get(list_migrations).post(create_migration))
+        .route(
+            "/api/migrations",
+            get(list_migrations).post(create_migration),
+        )
         .route("/api/migrations/{id}", get(get_migration))
         .route("/api/migrations/{id}/cancel", post(cancel_migration))
-        .route("/api/digest/subscription", get(get_my_digest_subscription).post(upsert_digest_subscription))
+        .route(
+            "/api/digest/subscription",
+            get(get_my_digest_subscription).post(upsert_digest_subscription),
+        )
         .route("/api/digest/history", get(list_digest_history))
-        .route("/api/data-quality/rules", get(list_dq_rules).post(create_dq_rule))
+        .route(
+            "/api/data-quality/rules",
+            get(list_dq_rules).post(create_dq_rule),
+        )
         .route("/api/data-quality/issues", get(list_dq_issues))
-        .route("/api/data-quality/issues/{id}/resolve", post(resolve_dq_issue))
+        .route(
+            "/api/data-quality/issues/{id}/resolve",
+            post(resolve_dq_issue),
+        )
         .route("/api/data-quality/dashboard", get(dq_dashboard))
-        .route("/api/security-incidents", get(list_security_incidents).post(create_security_incident))
-        .route("/api/security-incidents/{id}", get(get_security_incident).patch(update_security_incident))
-        .route("/api/security-incidents/{id}/cert-in", post(report_to_cert_in))
-        .route("/api/security-incidents/{id}/updates", get(get_incident_updates).post(add_incident_update))
-        .route("/api/vulnerabilities", get(list_vulnerabilities).post(create_vulnerability))
+        .route(
+            "/api/security-incidents",
+            get(list_security_incidents).post(create_security_incident),
+        )
+        .route(
+            "/api/security-incidents/{id}",
+            get(get_security_incident).patch(update_security_incident),
+        )
+        .route(
+            "/api/security-incidents/{id}/cert-in",
+            post(report_to_cert_in),
+        )
+        .route(
+            "/api/security-incidents/{id}/updates",
+            get(get_incident_updates).post(add_incident_update),
+        )
+        .route(
+            "/api/vulnerabilities",
+            get(list_vulnerabilities).post(create_vulnerability),
+        )
         .route("/api/vulnerabilities/{id}", patch(update_vulnerability))
-        .route("/api/compliance-requirements", get(list_compliance_requirements))
-        .route("/api/compliance-requirements/{id}", patch(update_compliance_requirement))
+        .route(
+            "/api/compliance-requirements",
+            get(list_compliance_requirements),
+        )
+        .route(
+            "/api/compliance-requirements/{id}",
+            patch(update_compliance_requirement),
+        )
         .route("/api/system-health", get(system_health_dashboard))
         .route("/api/backups", get(list_backups))
-        .route("/api/it-onboarding/progress", get(get_onboarding_progress).post(update_onboarding_progress))
-        .route("/api/it-onboarding/complete-step", post(complete_onboarding_step))
+        .route(
+            "/api/it-onboarding/progress",
+            get(get_onboarding_progress).post(update_onboarding_progress),
+        )
+        .route(
+            "/api/it-onboarding/complete-step",
+            post(complete_onboarding_step),
+        )
         .route("/api/it-onboarding/complete", post(complete_onboarding))
-        .route("/api/incentive-plans", get(list_incentive_plans).post(create_incentive_plan))
-        .route("/api/incentive-plans/{id}/rules", get(get_incentive_plan_rules).post(add_incentive_rule))
-        .route("/api/incentive-assignments", get(list_doctor_incentive_assignments).post(assign_incentive_plan))
-        .route("/api/incentive-calculations", get(list_incentive_calculations).post(calculate_incentive))
-        .route("/api/incentive-calculations/{id}/approve", post(approve_incentive))
-        .route("/api/incentive-calculations/{id}/paid", post(mark_incentive_paid))
+        .route(
+            "/api/incentive-plans",
+            get(list_incentive_plans).post(create_incentive_plan),
+        )
+        .route(
+            "/api/incentive-plans/{id}/rules",
+            get(get_incentive_plan_rules).post(add_incentive_rule),
+        )
+        .route(
+            "/api/incentive-assignments",
+            get(list_doctor_incentive_assignments).post(assign_incentive_plan),
+        )
+        .route(
+            "/api/incentive-calculations",
+            get(list_incentive_calculations).post(calculate_incentive),
+        )
+        .route(
+            "/api/incentive-calculations/{id}/approve",
+            post(approve_incentive),
+        )
+        .route(
+            "/api/incentive-calculations/{id}/paid",
+            post(mark_incentive_paid),
+        )
 }
 
 #[cfg(test)]

@@ -86,11 +86,16 @@ import type {
   AntibioticTimeoutReviewBody,
   AntimicrobialConsumptionRow,
   AntiRaggingUndertakingPrintData,
+  ApiKeySummary,
+  ApiKeyUsageRow,
   AppManifest,
   Appointment,
   AppointmentSlipPrintData,
   AppointmentWithPatient,
   Appraisal,
+  ApprovalListParams,
+  ApprovalRequestDetail,
+  ApprovalRequestSummary,
   ApproveDisposalRequest,
   ApproveIncentiveRequest,
   ApproveIndentRequest,
@@ -370,6 +375,7 @@ import type {
   CreateAmbulanceTripRequest,
   CreateAncVisitRequest,
   CreateAnesthesiaRecordRequest,
+  CreateApiKeyInput,
   CreateAppealRequest,
   CreateAppraisalRequest,
   CreateAssessmentRequest,
@@ -507,6 +513,7 @@ import type {
   CreateDonorRequest,
   CreateDrugInteractionRequest,
   CreateDrugScreenRequest,
+  CreatedApiKey,
   CreateEmergencyPoRequest,
   CreateEmployeeRequest,
   CreateEncounterRequest,
@@ -820,6 +827,8 @@ import type {
   DeathCertificatePrintData,
   DeathDeclarationPrintData,
   DeathRegisterPrintData,
+  DecideApprovalRequest,
+  DecidedApprovalRequest,
   DecideItemRequest,
   DeliveryType,
   DentalChartEntry,
@@ -1583,6 +1592,8 @@ import type {
   RadiologyReportFullPrintData,
   RadiologyReportPrintData,
   RadiologyTatRow,
+  RaiseApprovalRequest,
+  RaisedApprovalRequest,
   RateContract,
   RatePlan,
   RatePlanDetailResponse,
@@ -2930,6 +2941,74 @@ export const api = {
     }>("/sharing/subjects"),
 
   // ── IAM access requests ──
+  // ── API keys ──────────────────────────────────────────────────────────────
+
+  listApiKeys: () => request<ApiKeySummary[]>("/admin/api-keys"),
+
+  /**
+   * Issue a key. The response carries the secret, once.
+   *
+   * A 403 here is usually not a missing `admin.api_keys.create` — it is the
+   * escalation guard refusing to mint a key holding permissions the caller
+   * does not hold themselves. The message names which ones.
+   */
+  createApiKey: (data: CreateApiKeyInput) =>
+    request<CreatedApiKey>("/admin/api-keys", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  revokeApiKey: (id: string, reason?: string) =>
+    request<{ revoked: boolean }>(`/admin/api-keys/${id}/revoke`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+
+  /** What the key actually did — the question asked after a leak. */
+  getApiKeyUsage: (id: string) => request<ApiKeyUsageRow[]>(`/admin/api-keys/${id}/usage`),
+
+  // ── central approvals ─────────────────────────────────────────────────────
+  //
+  // One set of methods for every request type. What a request *is* — its form,
+  // its approval chain — is configuration on the server, so nothing here is
+  // specific to leave, access or anything else.
+
+  /** What is awaiting this user's decision. */
+  listApprovalInbox: () => request<ApprovalRequestSummary[]>("/approvals/inbox"),
+
+  /** What this user has asked for. */
+  listMyApprovalRequests: () => request<ApprovalRequestSummary[]>("/approvals/mine"),
+
+  listApprovalRequests: (params?: ApprovalListParams) => {
+    const qs = new URLSearchParams();
+    if (params?.kind) qs.set("kind", params.kind);
+    if (params?.status) qs.set("status", params.status);
+    if (params?.limit) qs.set("limit", String(params.limit));
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<ApprovalRequestSummary[]>(`/approvals/requests${suffix}`);
+  },
+
+  getApprovalRequest: (id: string) => request<ApprovalRequestDetail>(`/approvals/requests/${id}`),
+
+  raiseApprovalRequest: (data: RaiseApprovalRequest) =>
+    request<RaisedApprovalRequest>("/approvals/requests", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  /**
+   * Record a decision.
+   *
+   * `expected_step_seq` must be the stage the UI rendered. A 409 means the
+   * request moved on — another approver got there first, or the tab is stale —
+   * and the caller should reload rather than retry.
+   */
+  decideApprovalRequest: (id: string, data: DecideApprovalRequest) =>
+    request<DecidedApprovalRequest>(`/approvals/requests/${id}/decide`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   listIamAccessRequests: (params?: { status?: string }) => {
     const qs = params?.status ? `?status=${encodeURIComponent(params.status)}` : "";
     return request<IamAccessRequest[]>(`/iam/access-requests${qs}`);

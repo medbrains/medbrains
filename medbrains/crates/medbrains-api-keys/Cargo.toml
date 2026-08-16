@@ -1,0 +1,25 @@
+[package]
+name = "medbrains-api-keys"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+# Machine credentials for the API.
+#
+# The minting and verification logic is pure and lives here on its own, with no
+# database and no web framework, so every property that matters — the format,
+# the constant-time comparison, what a key may and may not be granted — is
+# settled by a test rather than by reading.
+[dependencies]
+medbrains-core = { path = "../medbrains-core" }
+serde = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+getrandom = { version = "0.3", features = ["std"] }
+subtle = "2"
+thiserror = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

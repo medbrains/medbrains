@@ -1,0 +1,27 @@
+---
+import { SITE } from "../consts";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Page not found — {SITE.brand}</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo+Expanded:wght@900&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <main>
+      <p class="code">404</p>
+      <h1>This page flatlined.</h1>
+      <a href="/">← Back to {SITE.brand}</a>
+    </main>
+    <style>
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0b0b0c; color: #fff; text-align: center; font-family: "IBM Plex Mono", monospace; }
+      .code { color: #42be65; font-size: 1rem; letter-spacing: .3em; margin: 0 0 1rem; }
+      h1 { font-family: "Archivo Expanded", sans-serif; font-weight: 900; font-size: clamp(2rem, 6vw, 4rem); margin: 0 0 1.5rem; }
+      a { color: #42be65; text-decoration: none; border-bottom: 2px solid #42be65; }
+    </style>
+  </body>
+</html>

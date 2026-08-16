@@ -26,11 +26,21 @@ variable "uploads_cors_origins" {
   default     = ["https://medbrains.localhost", "https://localhost:5173"]
 }
 
-# 1. Audit archive — Object Lock compliance, 7-year retention
+variable "compliance_mode" {
+  type        = bool
+  default     = true
+  description = <<-EOT
+    Prod/compliance: audit archive gets Object Lock COMPLIANCE (7y, IRREVERSIBLE —
+    objects undeletable even by root, bucket un-destroyable until retention lapses).
+    Set false for dev/test/demo so the bucket is force-destroyable on teardown.
+  EOT
+}
+
+# 1. Audit archive — Object Lock compliance (prod), plain versioned (dev/test)
 resource "aws_s3_bucket" "audit_archive" {
   bucket              = "medbrains-${var.environment}-audit-archive-${var.region}"
-  force_destroy       = false
-  object_lock_enabled = true
+  force_destroy       = !var.compliance_mode
+  object_lock_enabled = var.compliance_mode
 }
 
 resource "aws_s3_bucket_versioning" "audit_archive" {
@@ -41,12 +51,34 @@ resource "aws_s3_bucket_versioning" "audit_archive" {
 }
 
 resource "aws_s3_bucket_object_lock_configuration" "audit_archive" {
+  count  = var.compliance_mode ? 1 : 0
   bucket = aws_s3_bucket.audit_archive.id
   rule {
     default_retention {
       mode  = "COMPLIANCE" # cannot be shortened even by root account
       years = 7
     }
+  }
+}
+
+# Clean up failed multipart uploads (silent billable leak) on every bucket.
+resource "aws_s3_bucket_lifecycle_configuration" "audit_archive" {
+  bucket = aws_s3_bucket.audit_archive.id
+  rule {
+    id     = "abort-incomplete-multipart"
+    status = "Enabled"
+    filter {}
+    abort_incomplete_multipart_upload { days_after_initiation = 7 }
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "static" {
+  bucket = aws_s3_bucket.static.id
+  rule {
+    id     = "abort-incomplete-multipart"
+    status = "Enabled"
+    filter {}
+    abort_incomplete_multipart_upload { days_after_initiation = 7 }
   }
 }
 
@@ -120,6 +152,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
   rule {
     id     = "transition-to-glacier"
     status = "Enabled"
+    filter {}
 
     transition {
       days          = 90
@@ -129,6 +162,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
     noncurrent_version_expiration {
       noncurrent_days = 365
     }
+
+    abort_incomplete_multipart_upload { days_after_initiation = 7 }
   }
 }
 

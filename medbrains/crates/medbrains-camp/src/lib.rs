@@ -418,6 +418,14 @@ pub struct ListRegistrationsQuery {
 #[derive(Debug, Deserialize)]
 pub struct CreateRegistrationRequest {
     pub camp_id: Uuid,
+    /// A stable reference to whatever the device or extract calls this record
+    /// — a paper form's scan id, a tablet's local row.
+    ///
+    /// Optional, and older clients do not send it. When present it is what a
+    /// re-sync matches on, so corrections land on the patient the first sync
+    /// created instead of forking a duplicate the moment a name is fixed.
+    #[serde(default)]
+    pub external_ref: Option<String>,
     pub person_name: String,
     pub age: Option<i32>,
     pub gender: Option<String>,
@@ -3001,12 +3009,66 @@ fn normalize_camp_gender(value: Option<&str>) -> String {
     }
 }
 
+/// A written name split into the two columns `patients` stores.
+///
+/// A one-word name gets an empty surname, not the word "Patient".
+///
+/// Mononyms are ordinary here — 104 of the first 364 camp records loaded were
+/// a single name — and the old default turned every one of them into
+/// "Monilca Patient" and "Sudha Patient". That is not a display quirk: the
+/// fabricated surname is stored, so it is what appears on the ward list, in
+/// search, on the printed prescription and on the discharge summary, and a
+/// patient handed a prescription addressed to a surname they do not have has
+/// been given someone else's document as far as they can tell.
+///
+/// `last_name` is NOT NULL, so absent is the empty string rather than NULL.
 fn split_person_name(person_name: &str) -> (String, String) {
     let parts: Vec<&str> = person_name.split_whitespace().collect();
     match parts.as_slice() {
+        // Nothing legible at all. This one keeps a marker, because a record
+        // with two empty name columns is unsearchable and unfindable.
         [] => ("Camp".to_owned(), "Patient".to_owned()),
-        [first] => ((*first).to_owned(), "Patient".to_owned()),
+        [first] => ((*first).to_owned(), String::new()),
         [first, rest @ ..] => ((*first).to_owned(), rest.join(" ")),
+    }
+}
+
+#[cfg(test)]
+mod person_name_tests {
+    use super::split_person_name;
+
+    #[test]
+    fn a_single_name_gets_no_invented_surname() {
+        // Real camp records. Each of these used to become "<name> Patient".
+        for name in ["Monilca", "Sudha", "Krishuavenin", "Henedina"] {
+            let (first, last) = split_person_name(name);
+            assert_eq!(first, name);
+            assert_eq!(last, "", "{name} was given a surname it does not have");
+        }
+    }
+
+    #[test]
+    fn a_full_name_splits_on_the_first_space() {
+        assert_eq!(
+            split_person_name("Henry Baskar"),
+            ("Henry".to_owned(), "Baskar".to_owned())
+        );
+        // Everything after the first token is the surname, so a three-part
+        // name keeps all of it rather than dropping the tail.
+        assert_eq!(
+            split_person_name("R. Manikavasagam Pillai"),
+            ("R.".to_owned(), "Manikavasagam Pillai".to_owned())
+        );
+    }
+
+    #[test]
+    fn an_empty_name_keeps_a_findable_marker() {
+        // Two empty columns would make the record unsearchable; 35 camp forms
+        // arrive with no legible name at all.
+        assert_eq!(
+            split_person_name("   "),
+            ("Camp".to_owned(), "Patient".to_owned())
+        );
     }
 }
 
@@ -3123,6 +3185,38 @@ async fn create_or_link_patient_for_camp_registration(
     let (first_name, last_name) = split_person_name(&body.person_name);
     let phone = body.phone.clone().unwrap_or_default();
 
+    // A stable reference to the paper form this person came from, when the
+    // caller has one.
+    //
+    // Camp records get corrected for weeks after the camp — a name is
+    // re-read, a gender is filled in — and the correction has to land on the
+    // patient the first pass created. Matching on name and phone cannot do
+    // that: correcting the name means the corrected record no longer matches
+    // and a duplicate patient appears, while correcting anything else matches
+    // and is then thrown away, because this path only ever *found* a patient
+    // and never updated one. Neither failure is visible from the outside; you
+    // simply end up with two of some people and stale data on the rest.
+    //
+    // `external_ref` is the form's own identity, so it survives every
+    // correction to the content, and a re-sync updates in place.
+    if let Some(external_ref) = body.external_ref.as_deref().filter(|r| !r.trim().is_empty()) {
+        if let Some(existing_id) = sqlx::query_scalar::<_, Uuid>(
+            "SELECT id FROM patients \
+             WHERE tenant_id = $1 \
+               AND is_active = true \
+               AND attributes->'registration_context'->>'external_ref' = $2 \
+             LIMIT 1",
+        )
+        .bind(claims.tenant_id)
+        .bind(external_ref)
+        .fetch_optional(&mut **tx)
+        .await?
+        {
+            apply_camp_corrections(tx, claims, existing_id, body, &first_name, &last_name).await?;
+            return Ok(existing_id);
+        }
+    }
+
     if !phone.trim().is_empty() {
         if let Some(existing_id) = sqlx::query_scalar::<_, Uuid>(
             "SELECT id FROM patients \
@@ -3154,6 +3248,7 @@ async fn create_or_link_patient_for_camp_registration(
             "camp_name": camp.name,
             "camp_code": camp.camp_code,
             "chief_complaint": body.chief_complaint,
+            "external_ref": body.external_ref,
             "source": "mobile_camp_sync"
         },
         "camp_registration": {
@@ -3196,6 +3291,51 @@ async fn create_or_link_patient_for_camp_registration(
     .await?;
 
     Ok(patient_id)
+}
+
+/// Fold a re-synced camp form's corrections into the patient it already made.
+///
+/// Camp forms are reviewed for weeks after the camp — 4,374 fields corrected
+/// by hand on the last extract, across 645 forms — and every one of those is a
+/// clinician saying the first pass was wrong. Without this the correction had
+/// nowhere to go: the lookup above found the patient and returned, so a fixed
+/// name, age or phone number stayed fixed only on paper.
+///
+/// `COALESCE` on every column, so a field the form no longer carries leaves
+/// what is already stored alone. A correction that blanks a field is not
+/// expressible here, and deliberately so: "the reviewer did not re-enter this"
+/// and "the reviewer cleared this" arrive identically, and of the two,
+/// silently erasing a recorded name is the worse thing to guess at.
+async fn apply_camp_corrections(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    patient_id: Uuid,
+    body: &CreateRegistrationRequest,
+    first_name: &str,
+    last_name: &str,
+) -> Result<(), AppError> {
+    let gender = normalize_camp_gender(body.gender.as_deref());
+    sqlx::query(
+        "UPDATE patients SET \
+             first_name = COALESCE(NULLIF($3, ''), first_name), \
+             last_name = COALESCE(NULLIF($4, ''), last_name), \
+             gender = COALESCE($5::gender, gender), \
+             phone = COALESCE(NULLIF($6, ''), phone), \
+             date_of_birth = COALESCE($7, date_of_birth), \
+             is_dob_estimated = CASE WHEN $7 IS NULL THEN is_dob_estimated ELSE true END, \
+             updated_at = now() \
+         WHERE tenant_id = $1 AND id = $2",
+    )
+    .bind(claims.tenant_id)
+    .bind(patient_id)
+    .bind(first_name)
+    .bind(last_name)
+    .bind(&gender)
+    .bind(body.phone.as_deref().unwrap_or_default())
+    .bind(estimated_dob_from_age(body.age))
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
 }
 
 async fn find_or_create_camp_encounter(
@@ -5041,7 +5181,20 @@ pub async fn sync_camp_inbound(
         .fetch_optional(&mut *tx)
         .await?;
 
-        if let Some(existing) = existing {
+        // A previous attempt that FAILED is not a duplicate — it is work still
+        // owed. An idempotency key exists to stop the same event being applied
+        // twice, not to stop it being applied once.
+        //
+        // Treating a failure as a duplicate made the failure permanent: a camp
+        // device retrying after a transient error got "duplicate", assumed the
+        // record was safely on the server, and the clinical record was lost
+        // with nothing reporting it. Retried instead, updating the existing row
+        // rather than inserting a second with the same key.
+        let retrying = existing
+            .as_ref()
+            .is_some_and(|previous| previous.status != "applied");
+
+        if let Some(existing) = existing.filter(|_| !retrying) {
             duplicates += 1;
             results.push(CampSyncEventResult {
                 idempotency_key: event.idempotency_key.clone(),
@@ -5058,11 +5211,26 @@ pub async fn sync_camp_inbound(
             continue;
         }
 
+        // On a retry the row already exists under this key, so the insert
+        // upserts rather than colliding with its own uniqueness constraint.
+        //
+        // `received` is the status for "accepted, not yet applied", and it is
+        // one of the four the table's check constraint permits — `received`,
+        // `applied`, `duplicate`, `failed`. Writing `pending` here instead
+        // made every retry fail the constraint and return a 400 that named
+        // the constraint rather than the cause, which is how a resumed camp
+        // load died two batches in.
         sqlx::query(
             "INSERT INTO camp_sync_events \
              (tenant_id, camp_id, device_id, idempotency_key, event_type, client_entity_id, \
               payload, occurred_at) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) \
+             ON CONFLICT (tenant_id, idempotency_key) DO UPDATE SET \
+               event_type = EXCLUDED.event_type, \
+               payload = EXCLUDED.payload, \
+               occurred_at = EXCLUDED.occurred_at, \
+               status = 'received', \
+               error = NULL",
         )
         .bind(claims.tenant_id)
         .bind(body.camp_id)
@@ -6595,6 +6763,9 @@ pub async fn open_registration_encounter(
     };
     let registration_payload = CreateRegistrationRequest {
         camp_id: context.camp_id,
+        // This path already holds the registration it is promoting, so it has
+        // no separate external record to reconcile against.
+        external_ref: None,
         person_name: context.person_name.clone(),
         age: context.age,
         gender: context.gender.clone(),

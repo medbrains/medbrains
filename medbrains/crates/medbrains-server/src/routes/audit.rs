@@ -144,7 +144,7 @@ pub async fn audit_stats(
 
     let today = sqlx::query_as::<_, CountRow>(
         "SELECT COUNT(*)::bigint AS count FROM audit_log \
-         WHERE created_at::date = CURRENT_DATE",
+         WHERE (created_at >= CURRENT_DATE AND created_at < CURRENT_DATE + 1)",
     )
     .fetch_one(&mut *tx)
     .await?;

@@ -261,7 +261,49 @@ fn demo_fixture_seed_enabled() -> bool {
 
 /// Insert built-in system roles into the `roles` table.
 /// Idempotent — updates roles that already exist via `ON CONFLICT DO UPDATE`.
-async fn seed_built_in_roles(
+/// Re-apply the code-owned role definitions to every live tenant.
+///
+/// Permissions themselves are not database rows — they are 893 constants in
+/// `medbrains_core::permissions`, referenced by `BUILT_IN_ROLES`, so the
+/// compiler already refuses a role that names one that does not exist. What
+/// *is* in the database is the role-to-permission mapping, and that has to be
+/// rebuildable from code after a flush, a restore, or simply adding a
+/// permission.
+///
+/// It ran for the `DEFAULT` tenant only. A hospital created through the
+/// onboarding wizard therefore had no `roles` rows at all — and
+/// `resolve_permissions` reads `SELECT permissions FROM roles WHERE tenant_id
+/// = $1 AND code = $2`, so every non-bypass user at that hospital resolved to
+/// zero permissions. Only `super_admin` and `hospital_admin` worked, because
+/// they skip the lookup entirely.
+///
+/// Idempotent: `ON CONFLICT DO UPDATE` on `(tenant_id, code)`, and it touches
+/// only `is_system` roles, so custom roles an administrator built are left
+/// exactly as they are.
+///
+/// # Errors
+/// Propagates database errors; a tenant that fails stops the run rather than
+/// leaving the rest half-applied silently.
+pub async fn reconcile_built_in_roles(pool: &PgPool) -> Result<usize, Box<dyn std::error::Error>> {
+    let tenants: Vec<uuid::Uuid> = sqlx::query_scalar(
+        "SELECT id FROM tenants WHERE deleted_at IS NULL AND is_active = true",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    for tenant_id in &tenants {
+        seed_built_in_roles(pool, *tenant_id).await?;
+    }
+
+    tracing::info!(
+        tenants = tenants.len(),
+        roles = BUILT_IN_ROLES.len(),
+        "reconciled built-in roles from code",
+    );
+    Ok(tenants.len())
+}
+
+pub(crate) async fn seed_built_in_roles(
     pool: &PgPool,
     tenant_id: uuid::Uuid,
 ) -> Result<(), Box<dyn std::error::Error>> {

@@ -1,0 +1,373 @@
+---
+import { SITE, WHATSAPP, SOCIAL, FORMSPREE_ID } from "../consts";
+
+const waHref = `https://wa.me/${WHATSAPP.number}?text=${encodeURIComponent(WHATSAPP.prefilledText)}`;
+const formAction = `https://formspree.io/f/${FORMSPREE_ID}`;
+
+const features = [
+  { kicker: "Accreditation", title: "NABH & JCI audit-ready", body: "Patient-ID, medication safety, infection control and consent workflows mapped to accreditation criteria — out of the box." },
+  { kicker: "Interoperability", title: "ABDM / ABHA ready", body: "Health-ID integration and FHIR R4 for the national digital-health ecosystem." },
+  { kicker: "Finance", title: "GST-compliant billing", body: "Cashier-first billing, advances, TPA and CGHS / ECHS formats — reconciled and tax-correct." },
+  { kicker: "Pharmacy", title: "Controlled-substance safe", body: "NDPS register with dual-lock, Schedule H / H1 / X enforcement, LASA flags, allergy cross-checks." },
+  { kicker: "Scale", title: "67+ modules, one system", body: "OPD, IPD, Lab, Pharmacy, Radiology, Blood Bank, OT, Nursing — clinical to administrative in one tenant." },
+  { kicker: "Deployment", title: "On-prem or cloud", body: "Row-level tenant isolation. Run it hosted, or on your own infrastructure with data in-house." },
+];
+
+const surfaces = [
+  { kicker: "Web · Workstations", title: "Every desk in the building", body: "Browser-based clinical workstations for OPD, wards, labs, pharmacy and admin. Nothing to install." },
+  { kicker: "Kiosks", title: "Self-service front desk", body: "Patient check-in, token printing and bill payment. Big targets, forgiving timeouts, multilingual." },
+  { kicker: "Mobile · iOS + Android", title: "Rounds in your pocket", body: "Doctor and nurse apps for eMAR, orders and rounds — offline-first, syncs the moment the network returns." },
+  { kicker: "TV Displays", title: "Boards you read across the ward", body: "OP queues, ward status, OT boards and emergency-code displays. 10-foot readable, real-time over WebSocket." },
+  { kicker: "Edge · Devices · IoT", title: "The machines, wired in", body: "Bridges for vitals monitors, lab analysers and biometric gates. Headless edge keeps running if the network drops." },
+  { kicker: "Developer · APIs", title: "Open by design", body: "HL7 FHIR R4, ABDM and clean REST APIs. Plug in your PACS, TPA and government portals." },
+];
+
+// Placeholder posts for the PULSE health desk — swap for real HealthPulse feed later.
+const pulse = [
+  { tag: "Policy", title: "What the latest ABDM circular means for private hospitals", read: "5 min" },
+  { tag: "Patient safety", title: "Cutting medication errors: a practical LASA checklist", read: "7 min" },
+  { tag: "Operations", title: "Discharge in under an hour — what the fastest wards do differently", read: "6 min" },
+  { tag: "Accreditation", title: "Your NABH re-assessment survival guide", read: "9 min" },
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{SITE.brand} — {SITE.tagline}</title>
+    <meta name="description" content={`${SITE.brand}: a multi-tenant hospital management system. NABH-audit-ready, ABDM-compliant, 67+ clinical and administrative modules.`} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta property="og:title" content={`${SITE.brand} — ${SITE.tagline}`} />
+    <meta property="og:description" content={`Multi-tenant HMS. NABH-audit-ready, ABDM-compliant, 67+ modules.`} />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Archivo+Expanded:wght@700;800;900&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div class="topbar" aria-hidden="true"></div>
+
+    <header class="masthead">
+      <a class="brand" href="/">
+        <img src="/logo/medbrains-mark.svg" alt="" width="34" height="34" class="brand-mark" />
+        {SITE.brand}
+      </a>
+      <nav>
+        <a href="#features">Product</a>
+        <a href="#surfaces">Surfaces</a>
+        <a href="#compliance">Compliance</a>
+        <a href="#pulse">Health desk</a>
+        <a href={SOCIAL.github} target="_blank" rel="noopener">GitHub</a>
+        <a class="nav-cta" href="#demo">Book a demo</a>
+      </nav>
+    </header>
+
+    <main>
+      <!-- HERO -->
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Hospital Management System · Est. for Indian hospitals</p>
+          <h1>Run your hospital <em>audit-ready</em>.</h1>
+          <p class="lede">{SITE.brand} is a multi-tenant HMS spanning 67+ clinical and administrative modules — NABH/JCI, ABDM and NDPS compliance built <strong>in</strong>, not bolted on.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="#demo">Book a demo →</a>
+            <a class="btn btn-ghost" href={waHref} target="_blank" rel="noopener">WhatsApp us</a>
+          </div>
+        </div>
+        <div class="hero-ecg" aria-hidden="true">
+          <svg viewBox="0 0 400 120" preserveAspectRatio="none">
+            <path class="ecg-line" d="M0,60 L120,60 L140,60 L150,20 L162,100 L175,40 L188,60 L400,60" />
+          </svg>
+          <span class="ecg-badge">67+ modules · 1 system · 0 audit surprises</span>
+        </div>
+      </section>
+
+      <!-- FEATURE RIVER -->
+      <section id="features" class="river">
+        <div class="section-head">
+          <h2>The whole hospital, one system</h2>
+          <span class="rule"></span>
+        </div>
+        <div class="grid">
+          {features.map((f) => (
+            <article class="card">
+              <span class="kicker">{f.kicker}</span>
+              <h3>{f.title}</h3>
+              <p>{f.body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <!-- SURFACES -->
+      <section id="surfaces" class="river surfaces-sec">
+        <div class="section-head">
+          <h2>Runs on every surface in the building</h2>
+          <span class="rule"></span>
+        </div>
+        <div class="grid">
+          {surfaces.map((s) => (
+            <article class="card">
+              <span class="kicker">{s.kicker}</span>
+              <h3>{s.title}</h3>
+              <p>{s.body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <!-- COMPLIANCE CALLOUT -->
+      <section id="compliance" class="callout">
+        <p class="eyebrow inv">Why hospitals switch</p>
+        <blockquote>Compliance is the <em>feature</em>, not the footnote.</blockquote>
+        <p class="callout-body">Every module ships with the regulatory workflow inside — NDPS registers, IPSG patient-safety goals, informed consent, incident reporting, ICD-10 and LOINC coding. Walk into your accreditation audit prepared.</p>
+      </section>
+
+      <!-- PULSE HEALTH DESK -->
+      <section id="pulse" class="pulse">
+        <div class="section-head">
+          <h2>PULSE — the {SITE.brand} health desk</h2>
+          <a class="rule-link" href={`https://news.${SITE.domain}`}>All stories →</a>
+        </div>
+        <div class="posts">
+          {pulse.map((p, i) => (
+            <a class={`post ${i === 0 ? "post-lead" : ""}`} href={`https://news.${SITE.domain}`}>
+              <span class="post-tag">{p.tag}</span>
+              <h3>{p.title}</h3>
+              <span class="post-meta">{p.read} read</span>
+            </a>
+          ))}
+        </div>
+      </section>
+
+      <!-- DEMO -->
+      <section id="demo" class="demo">
+        <div class="demo-copy">
+          <p class="eyebrow">Book a demo</p>
+          <h2>See it on your departments.</h2>
+          <p>Tell us about your hospital and we'll tailor the walkthrough. Prefer to talk now? <a href={waHref} target="_blank" rel="noopener">Message us on WhatsApp →</a></p>
+        </div>
+        <form class="demo-form" action={formAction} method="POST">
+          <label>Name<input type="text" name="name" required autocomplete="name" /></label>
+          <label>Hospital / organisation<input type="text" name="hospital" required /></label>
+          <label>Phone<input type="tel" name="phone" required autocomplete="tel" /></label>
+          <label>Email<input type="email" name="email" required autocomplete="email" /></label>
+          <label>What are you looking for?<textarea name="message" rows="3"></textarea></label>
+          <button type="submit" class="btn btn-primary">Request demo →</button>
+        </form>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-brand">
+        <span class="brand"><img src="/logo/medbrains-mark.svg" alt="" width="30" height="30" class="brand-mark" />{SITE.brand}</span>
+        <p>{SITE.tagline}</p>
+      </div>
+      <div class="footer-links">
+        <a href={`mailto:${SITE.email}`}>{SITE.email}</a>
+        <a href={waHref} target="_blank" rel="noopener">WhatsApp</a>
+        <a href={SOCIAL.instagram} target="_blank" rel="noopener">Instagram</a>
+        <a href={SOCIAL.facebook} target="_blank" rel="noopener">Facebook</a>
+        <a href={SOCIAL.github} target="_blank" rel="noopener">GitHub</a>
+        <a href={SOCIAL.linkedin} target="_blank" rel="noopener">LinkedIn</a>
+        <a href={`https://news.${SITE.domain}`}>Health desk</a>
+      </div>
+    </footer>
+
+    <a class="wa-float" href={waHref} target="_blank" rel="noopener" aria-label="Chat on WhatsApp">
+      <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.7-.9-2-1s-.5-.1-.7.1-.8 1-1 1.2-.4.2-.7.1a8 8 0 0 1-2.4-1.5 9 9 0 0 1-1.6-2c-.2-.3 0-.5.1-.6l.5-.6.3-.5v-.5L9 5.9c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3A2.8 2.8 0 0 0 6.3 8c0 1.2.9 2.4 1 2.6s1.7 2.7 4.2 3.8a14 14 0 0 0 1.4.5 3.4 3.4 0 0 0 1.5.1c.5-.1 1.7-.7 1.9-1.4s.2-1.1.2-1.2zM12 2a10 10 0 0 0-8.5 15.2L2 22l4.9-1.3A10 10 0 1 0 12 2z"/></svg>
+    </a>
+
+    <style>
+      :root {
+        --ink: #0b0b0c;
+        --accent: #42be65;          /* brand green (matches logo dot) — the one loud color */
+        --accent-ink: #08301b;
+        --paper: #ffffff;
+        --paper-2: #f4f3ef;         /* warm editorial off-white */
+        --muted: #55554f;
+        --line: var(--ink);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: var(--paper); color: var(--ink);
+        font-family: "IBM Plex Sans", sans-serif; line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+      a { color: inherit; text-decoration: none; }
+      em { font-style: normal; color: var(--accent-ink); background: var(--accent); padding: 0 .12em; }
+
+      .eyebrow {
+        font-family: "IBM Plex Mono", monospace; font-weight: 600;
+        text-transform: uppercase; letter-spacing: .1em; font-size: .72rem;
+        color: var(--muted); margin: 0 0 1rem;
+      }
+      .eyebrow.inv { color: var(--accent); }
+
+      /* thick colored masthead rule — the Verge signal */
+      .topbar { height: 8px; background: var(--accent); }
+
+      .masthead {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 1.1rem 2rem; border-bottom: 2px solid var(--line);
+        position: sticky; top: 0; background: var(--paper); z-index: 30;
+      }
+      .brand {
+        font-family: "Archivo Expanded", "Archivo", sans-serif; font-weight: 900;
+        font-size: 1.5rem; letter-spacing: -.02em; display: inline-flex; align-items: center; gap: .55rem;
+      }
+      .brand-mark { display: block; }
+      .masthead nav { display: flex; gap: 1.6rem; align-items: center;
+        font-family: "IBM Plex Mono", monospace; font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; }
+      .masthead nav a:not(.nav-cta):hover { color: var(--accent-ink); text-decoration: underline; text-decoration-thickness: 2px; }
+      .nav-cta { background: var(--ink); color: var(--paper); padding: .55rem .9rem; }
+      .nav-cta:hover { background: var(--accent); color: var(--accent-ink); }
+
+      .btn {
+        display: inline-block; font-family: "IBM Plex Mono", monospace; font-weight: 600;
+        text-transform: uppercase; letter-spacing: .04em; font-size: .85rem;
+        padding: .95rem 1.5rem; border: 2px solid var(--ink); cursor: pointer;
+        transition: transform .12s ease, background .12s ease, color .12s ease;
+      }
+      .btn-primary { background: var(--ink); color: var(--paper); }
+      .btn-primary:hover { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); transform: translate(-2px,-2px); box-shadow: 4px 4px 0 var(--ink); }
+      .btn-ghost { background: var(--paper); color: var(--ink); }
+      .btn-ghost:hover { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+      /* HERO */
+      .hero {
+        display: grid; grid-template-columns: 1.4fr 1fr; gap: 2rem;
+        padding: 4.5rem 2rem 3.5rem; max-width: 1200px; margin: 0 auto; align-items: end;
+        border-bottom: 2px solid var(--line);
+      }
+      .hero h1 {
+        font-family: "Archivo Expanded", "Archivo", sans-serif; font-weight: 900;
+        font-size: clamp(2.8rem, 7vw, 5.5rem); line-height: .95; letter-spacing: -.03em;
+        margin: 0 0 1.5rem;
+      }
+      .lede { font-size: 1.25rem; color: var(--muted); max-width: 46ch; margin: 0 0 2rem; }
+      .lede strong { color: var(--ink); }
+      .hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; }
+      .hero-ecg {
+        border: 2px solid var(--line); background: var(--ink); color: var(--paper);
+        padding: 1.5rem; display: flex; flex-direction: column; justify-content: space-between; min-height: 220px;
+      }
+      .hero-ecg svg { width: 100%; height: 120px; }
+      .ecg-line { fill: none; stroke: var(--accent); stroke-width: 3;
+        stroke-dasharray: 1000; stroke-dashoffset: 1000; animation: draw 2.4s ease forwards .3s; }
+      @keyframes draw { to { stroke-dashoffset: 0; } }
+      .ecg-badge { font-family: "IBM Plex Mono", monospace; font-size: .78rem;
+        text-transform: uppercase; letter-spacing: .06em; color: var(--accent); }
+
+      /* SECTION HEADS */
+      .section-head { display: flex; align-items: baseline; gap: 1.5rem; padding: 0 2rem; max-width: 1200px; margin: 0 auto 2rem; }
+      .section-head h2 {
+        font-family: "Archivo", sans-serif; font-weight: 800; font-size: clamp(1.6rem, 3.5vw, 2.6rem);
+        letter-spacing: -.02em; margin: 0; white-space: nowrap;
+      }
+      .section-head .rule { flex: 1; height: 3px; background: var(--ink); }
+      .rule-link { margin-left: auto; font-family: "IBM Plex Mono", monospace; font-size: .82rem;
+        text-transform: uppercase; letter-spacing: .04em; }
+      .rule-link:hover { color: var(--accent-ink); }
+
+      /* FEATURE RIVER */
+      .river { padding: 3.5rem 0; }
+      .grid { max-width: 1200px; margin: 0 auto; padding: 0 2rem;
+        display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
+        border: 2px solid var(--line); }
+      .card { padding: 1.9rem; border-right: 2px solid var(--line); border-bottom: 2px solid var(--line);
+        transition: background .12s ease; }
+      .grid .card:nth-child(3n) { border-right: 0; }
+      .grid .card:nth-last-child(-n+3) { border-bottom: 0; }
+      .card:hover { background: var(--accent); }
+      .kicker { font-family: "IBM Plex Mono", monospace; font-size: .7rem; text-transform: uppercase;
+        letter-spacing: .1em; color: var(--muted); }
+      .card:hover .kicker { color: var(--accent-ink); }
+      .card h3 { font-family: "Archivo", sans-serif; font-weight: 800; font-size: 1.3rem;
+        letter-spacing: -.01em; margin: .5rem 0 .6rem; }
+      .card p { color: var(--muted); margin: 0; font-size: .98rem; }
+      .card:hover p, .card:hover h3 { color: var(--ink); }
+
+      /* COMPLIANCE CALLOUT */
+      .callout { background: var(--ink); color: var(--paper); padding: 5rem 2rem; }
+      .callout > * { max-width: 900px; margin-left: auto; margin-right: auto; }
+      .callout blockquote {
+        font-family: "Archivo Expanded", "Archivo", sans-serif; font-weight: 900;
+        font-size: clamp(2rem, 5.5vw, 4rem); line-height: 1; letter-spacing: -.03em; margin: 0 0 1.5rem;
+      }
+      .callout blockquote em { background: var(--accent); }
+      .callout-body { font-size: 1.2rem; color: #c9c9c2; max-width: 60ch; }
+
+      /* PULSE */
+      .pulse { padding: 3.5rem 0 4.5rem; background: var(--paper-2); border-top: 2px solid var(--line); }
+      .posts { max-width: 1200px; margin: 0 auto; padding: 0 2rem;
+        display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 0; border: 2px solid var(--line); background: var(--paper); }
+      .post { padding: 1.6rem; border-right: 2px solid var(--line); display: flex; flex-direction: column; gap: .6rem;
+        transition: background .12s ease; }
+      .post:last-child { border-right: 0; }
+      .post-lead { grid-row: span 1; }
+      .post-lead h3 { font-size: 1.8rem; }
+      .post:hover { background: var(--accent); }
+      .post-tag { font-family: "IBM Plex Mono", monospace; font-size: .68rem; text-transform: uppercase;
+        letter-spacing: .1em; color: var(--accent-ink); background: var(--accent); align-self: start; padding: .15rem .45rem; }
+      .post:hover .post-tag { background: var(--ink); color: var(--accent); }
+      .post h3 { font-family: "Archivo", sans-serif; font-weight: 800; font-size: 1.15rem; letter-spacing: -.01em; margin: 0; line-height: 1.15; }
+      .post-meta { font-family: "IBM Plex Mono", monospace; font-size: .72rem; color: var(--muted); margin-top: auto; }
+      .post:hover .post-meta { color: var(--accent-ink); }
+
+      /* DEMO */
+      .demo { max-width: 1200px; margin: 0 auto; padding: 5rem 2rem;
+        display: grid; grid-template-columns: 1fr 1fr; gap: 3.5rem; align-items: start;
+        border-top: 2px solid var(--line); }
+      .demo h2 { font-family: "Archivo Expanded","Archivo",sans-serif; font-weight: 900;
+        font-size: clamp(2rem, 4vw, 3rem); letter-spacing: -.02em; margin: 0 0 1rem; }
+      .demo-copy p { font-size: 1.1rem; color: var(--muted); }
+      .demo-copy a { color: var(--accent-ink); font-weight: 600; border-bottom: 2px solid var(--accent); }
+      .demo-form { display: grid; gap: 1rem; border: 2px solid var(--line); padding: 1.8rem; background: var(--paper-2); }
+      .demo-form label { display: grid; gap: .35rem; font-family: "IBM Plex Mono", monospace;
+        font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+      .demo-form input, .demo-form textarea {
+        font-family: "IBM Plex Sans", sans-serif; font-size: 1rem; padding: .75rem .8rem;
+        border: 2px solid var(--line); background: var(--paper); }
+      .demo-form input:focus, .demo-form textarea:focus { outline: 3px solid var(--accent); outline-offset: 0; }
+      .demo-form button { margin-top: .5rem; justify-self: start; }
+
+      /* FOOTER */
+      .footer { border-top: 8px solid var(--accent); background: var(--ink); color: var(--paper);
+        display: flex; justify-content: space-between; flex-wrap: wrap; gap: 2rem; padding: 3rem 2rem; }
+      .footer .brand { font-family: "Archivo Expanded","Archivo",sans-serif; font-weight: 900; font-size: 1.4rem; }
+      .footer p { color: #9a9a92; margin: .5rem 0 0; }
+      .footer-links { display: flex; flex-direction: column; gap: .6rem; align-items: flex-end;
+        font-family: "IBM Plex Mono", monospace; font-size: .85rem; }
+      .footer-links a:hover { color: var(--accent); }
+
+      /* WHATSAPP FLOAT */
+      .wa-float { position: fixed; bottom: 1.5rem; right: 1.5rem; width: 58px; height: 58px;
+        background: #25d366; color: #fff; border: 2px solid var(--ink);
+        display: grid; place-items: center; box-shadow: 4px 4px 0 var(--ink); z-index: 40; }
+      .wa-float:hover { transform: translate(-2px,-2px); box-shadow: 6px 6px 0 var(--ink); }
+
+      @media (prefers-reduced-motion: reduce) {
+        .ecg-line, .btn, .wa-float { animation: none !important; transition: none !important; }
+        .ecg-line { stroke-dashoffset: 0; }
+      }
+      @media (max-width: 900px) {
+        .hero { grid-template-columns: 1fr; align-items: start; }
+        .grid { grid-template-columns: 1fr 1fr; }
+        .grid .card:nth-child(3n) { border-right: 2px solid var(--line); }
+        .grid .card:nth-child(2n) { border-right: 0; }
+        .posts { grid-template-columns: 1fr 1fr; }
+        .demo { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 600px) {
+        .masthead nav a:not(.nav-cta) { display: none; }
+        .grid, .posts { grid-template-columns: 1fr; }
+        .grid .card, .posts .post { border-right: 0 !important; border-bottom: 2px solid var(--line); }
+        .section-head { flex-wrap: wrap; }
+      }
+    </style>
+  </body>
+</html>

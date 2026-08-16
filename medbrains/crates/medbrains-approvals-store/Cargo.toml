@@ -1,0 +1,23 @@
+[package]
+name = "medbrains-approvals-store"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+# Persistence for the approvals platform.
+#
+# Depends on the pure core for the rules and on sqlx for the rows, and on no
+# web framework and no domain crate. Migrations live in `medbrains-db` with
+# every other migration — there is one migrations directory in this workspace,
+# embedded at compile time.
+[dependencies]
+medbrains-approvals-core = { path = "../medbrains-approvals-core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

@@ -5,6 +5,7 @@ edition = "2024"
 rust-version = "1.85"
 
 [dependencies]
+medbrains-api-keys = { path = "../medbrains-api-keys" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-crypto = { path = "../medbrains-crypto" }

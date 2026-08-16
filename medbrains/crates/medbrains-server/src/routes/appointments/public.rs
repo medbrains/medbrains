@@ -1,6 +1,6 @@
 use axum::{
-    extract::{Query, State},
     Json,
+    extract::{Query, State},
 };
 use chrono::{Datelike, Duration, NaiveTime, Utc};
 use medbrains_core::appointment::{Appointment, AppointmentStatus, AvailableSlot, DoctorSchedule};
@@ -10,9 +10,8 @@ use crate::{error::AppError, event_tokens, state::AppState};
 
 use super::{
     KioskCheckinRequest, KioskCheckinResponse, PublicBookableDoctor, PublicBookingDirectory,
-    PublicBookingRequest,
-    PublicBookingResponse, PublicDirectoryQuery, PublicSlotsQuery, PublicTokenLink,
-    PublicTokenStatus,
+    PublicBookingRequest, PublicBookingResponse, PublicDirectoryQuery, PublicSlotsQuery,
+    PublicTokenLink, PublicTokenStatus,
 };
 
 /// How long a patient's status link stays live.

@@ -2,7 +2,7 @@ use axum::{
     extract::{Request, State},
     http::header::AUTHORIZATION,
     middleware::Next,
-    response::Response,
+    response::{IntoResponse, Response},
 };
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
 use serde::{Deserialize, Serialize};
@@ -55,7 +55,23 @@ pub struct Claims {
 pub enum AuthMethod {
     Cookie,
     Bearer,
+    /// A machine credential. Like `Bearer` it carries no cookie and so needs
+    /// no CSRF check; unlike it, there is no person behind the request.
+    ApiKey,
 }
+
+/// Which API key authenticated this request.
+///
+/// A request extension rather than a field on `Claims`, because it is not a
+/// claim: it is never encoded into a token and never survives the request. A
+/// JWT carrying it would be a key that outlived its own revocation.
+///
+/// `Claims.sub` already names the key's service account, which is what the
+/// ninety-nine `created_by` foreign keys need. This is the extra step — which
+/// *credential* acted, so a leak is traced to one key rather than to the
+/// identity every key of that integration shares.
+#[derive(Debug, Clone, Copy)]
+pub struct ApiKeyId(pub Uuid);
 
 /// Auth middleware — tries cookie-based auth first, falls back to Bearer token.
 /// Injects `Claims` and `AuthMethod` into request extensions.
@@ -88,6 +104,47 @@ pub async fn auth_middleware(
         .get(AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "));
+
+    // Try 2a: the bearer value is an API key, not a token.
+    //
+    // Checked before JWT decoding because a key is not a JWT and would fail
+    // that decode with `Unauthorized` — a correct-looking answer that would
+    // send an integration author hunting for a malformed token.
+    if let Some(secret) = bearer_token.filter(|value| medbrains_api_keys::looks_like_key(value)) {
+        let (claims, key_id) = super::api_key::authenticate(&state.db, secret).await?;
+        let method = request.method().to_string();
+        let path = request.uri().path().to_owned();
+        let tenant_id = claims.tenant_id;
+
+        // The session surface is refused here rather than inside `authenticate`
+        // so that the refusal still reaches `record_usage` below. A key
+        // probing endpoints it has no business calling is the clearest sign
+        // something is wrong with it, and it would otherwise leave no trace.
+        let response = if super::api_key::is_session_only(&path) {
+            AppError::ForbiddenReason(
+                "This endpoint manages a person's session and cannot be called with an API key."
+                    .to_owned(),
+            )
+            .into_response()
+        } else {
+            request.extensions_mut().insert(AuthMethod::ApiKey);
+            request.extensions_mut().insert(ApiKeyId(key_id));
+            request.extensions_mut().insert(claims);
+            next.run(request).await
+        };
+        // After the response, so the recorded status is the real one. A key
+        // that is 403ing repeatedly is the signal that matters most here.
+        super::api_key::record_usage(
+            &state.db,
+            tenant_id,
+            key_id,
+            &method,
+            &path,
+            response.status().as_u16(),
+        )
+        .await;
+        return Ok(response);
+    }
 
     if let Some(token) = bearer_token {
         let mut claims = decode_and_validate(token, &state.jwt_decoding_key)?;

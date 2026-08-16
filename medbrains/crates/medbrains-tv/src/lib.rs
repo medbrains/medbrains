@@ -1349,7 +1349,7 @@ pub async fn get_pharmacy_queue(
         FROM pharmacy_orders po
         WHERE po.tenant_id = $1
           AND po.status = 'dispensed'
-          AND COALESCE(po.dispensed_at, po.updated_at)::date = CURRENT_DATE
+          AND (COALESCE(po.dispensed_at, po.updated_at) >= CURRENT_DATE AND COALESCE(po.dispensed_at, po.updated_at) < CURRENT_DATE + 1)
         ORDER BY COALESCE(po.dispensed_at, po.updated_at) DESC
         LIMIT 20
         ",
@@ -1380,21 +1380,21 @@ pub async fn get_pharmacy_queue(
             FROM pharmacy_orders po
             WHERE po.tenant_id = $1
               AND po.status = 'dispensed'
-              AND COALESCE(po.dispensed_at, po.updated_at)::date = CURRENT_DATE
+              AND (COALESCE(po.dispensed_at, po.updated_at) >= CURRENT_DATE AND COALESCE(po.dispensed_at, po.updated_at) < CURRENT_DATE + 1)
           )::bigint AS ready_count,
           (
             SELECT COUNT(*)
             FROM pharmacy_orders po
             WHERE po.tenant_id = $1
               AND po.status = 'dispensed'
-              AND COALESCE(po.dispensed_at, po.updated_at)::date = CURRENT_DATE
+              AND (COALESCE(po.dispensed_at, po.updated_at) >= CURRENT_DATE AND COALESCE(po.dispensed_at, po.updated_at) < CURRENT_DATE + 1)
           )::bigint AS dispensed_today,
           (
             SELECT FLOOR(EXTRACT(EPOCH FROM AVG(COALESCE(po.dispensed_at, po.updated_at) - po.created_at)) / 60)::int
             FROM pharmacy_orders po
             WHERE po.tenant_id = $1
               AND po.status = 'dispensed'
-              AND COALESCE(po.dispensed_at, po.updated_at)::date = CURRENT_DATE
+              AND (COALESCE(po.dispensed_at, po.updated_at) >= CURRENT_DATE AND COALESCE(po.dispensed_at, po.updated_at) < CURRENT_DATE + 1)
           ) AS avg_wait_minutes
         ",
     )
@@ -1755,7 +1755,7 @@ pub async fn get_billing_queue(
         FROM patient_advances
         WHERE tenant_id = $1
           AND status::text = 'active'
-          AND created_at::date = CURRENT_DATE
+          AND (created_at >= CURRENT_DATE AND created_at < CURRENT_DATE + 1)
         ORDER BY created_at DESC
         LIMIT 30
         ",

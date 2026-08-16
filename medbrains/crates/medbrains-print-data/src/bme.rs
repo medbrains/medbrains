@@ -3,7 +3,7 @@
 //! Phase 5: AMC Contracts, Calibration, Breakdown, History, MGPS, Water, DG/UPS, Fire Inspection.
 
 use axum::{
-    Json,
+    Extension, Json,
     extract::{Path, State},
 };
 use axum::routing::get;
@@ -11,6 +11,7 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use medbrains_core::permissions;
 use medbrains_core::print_data::{
     AmcContractPrintData, BatteryStatus, BreakdownEvent, CalibrationCertificatePrintData,
     CalibrationEvent, CalibrationParameter, CylinderBank, DgUpsParameters, DgUpsRunLogPrintData,
@@ -23,6 +24,8 @@ use medbrains_core::print_data::{
 };
 
 use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
 // ── AMC Contract Summary ──────────────────────────────────────────────────────
@@ -30,8 +33,11 @@ use medbrains_server_core::state::AppState;
 /// GET /print-data/amc-contract/{contract_id}
 pub async fn get_amc_contract_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(contract_id): Path<Uuid>,
 ) -> Result<Json<AmcContractPrintData>, AppError> {
+    require_permission(&claims, permissions::bme::contracts::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -174,8 +180,11 @@ pub async fn get_amc_contract_print_data(
 /// GET /print-data/calibration-certificate/{calibration_id}
 pub async fn get_calibration_certificate_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(calibration_id): Path<Uuid>,
 ) -> Result<Json<CalibrationCertificatePrintData>, AppError> {
+    require_permission(&claims, permissions::bme::calibration::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -280,8 +289,11 @@ pub async fn get_calibration_certificate_print_data(
 /// GET /print-data/equipment-breakdown/{breakdown_id}
 pub async fn get_equipment_breakdown_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(breakdown_id): Path<Uuid>,
 ) -> Result<Json<EquipmentBreakdownReportPrintData>, AppError> {
+    require_permission(&claims, permissions::bme::breakdowns::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -384,8 +396,11 @@ pub async fn get_equipment_breakdown_print_data(
 /// GET /print-data/equipment-history/{equipment_id}
 pub async fn get_equipment_history_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(equipment_id): Path<Uuid>,
 ) -> Result<Json<EquipmentHistoryCardPrintData>, AppError> {
+    require_permission(&claims, permissions::bme::equipment::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -502,8 +517,13 @@ pub async fn get_equipment_history_print_data(
 /// GET /print-data/mgps-log/{date}/{shift}
 pub async fn get_mgps_log_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path((date, shift)): Path<(String, String)>,
 ) -> Result<Json<MgpsDailyLogPrintData>, AppError> {
+    // Medical gas pipeline system — a facilities utility, not biomedical
+    // equipment, despite sitting in this file.
+    require_permission(&claims, permissions::facilities::gas::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     let log_date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
@@ -594,8 +614,11 @@ pub async fn get_mgps_log_print_data(
 /// GET /print-data/water-quality/{test_id}
 pub async fn get_water_quality_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(test_id): Path<Uuid>,
 ) -> Result<Json<WaterQualityTestPrintData>, AppError> {
+    require_permission(&claims, permissions::facilities::water::LIST)?;
+
     let pool: &PgPool = &state.db;
     let hospital = get_hospital_info(pool).await?;
 
@@ -663,8 +686,12 @@ pub async fn get_water_quality_print_data(
 /// GET /print-data/dg-ups-log/{equipment_id}/{date}
 pub async fn get_dg_ups_log_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path((equipment_id, date)): Path<(Uuid, String)>,
 ) -> Result<Json<DgUpsRunLogPrintData>, AppError> {
+    // Diesel generator and UPS logs are the energy record.
+    require_permission(&claims, permissions::facilities::energy::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     let log_date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
@@ -767,8 +794,11 @@ pub async fn get_dg_ups_log_print_data(
 /// GET /print-data/fire-inspection/{inspection_id}
 pub async fn get_fire_inspection_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(inspection_id): Path<Uuid>,
 ) -> Result<Json<FireEquipmentInspectionPrintData>, AppError> {
+    require_permission(&claims, permissions::facilities::fire::LIST)?;
+
     let pool: &PgPool = &state.db;
     let hospital = get_hospital_info(pool).await?;
 
@@ -869,8 +899,13 @@ pub async fn get_fire_inspection_print_data(
 /// GET /print-data/materiovigilance/{report_id}
 pub async fn get_materiovigilance_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(report_id): Path<Uuid>,
 ) -> Result<Json<MateriovigilanceReportPrintData>, AppError> {
+    // Device adverse-event reporting is a regulatory submission, so it is
+    // guarded as one rather than as equipment maintenance.
+    require_permission(&claims, permissions::regulatory::materiovigilance::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -971,8 +1006,11 @@ pub async fn get_materiovigilance_print_data(
 /// GET /print-data/fire-mock-drill/{drill_id}
 pub async fn get_fire_mock_drill_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(drill_id): Path<Uuid>,
 ) -> Result<Json<FireMockDrillReportPrintData>, AppError> {
+    require_permission(&claims, permissions::facilities::fire::LIST)?;
+
     let pool: &PgPool = &state.db;
     let hospital = get_hospital_info(pool).await?;
 

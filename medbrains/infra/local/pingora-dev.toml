@@ -88,6 +88,36 @@ retry_after_seconds = 5
 cache_control = "no-store"
 allowed_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 
+# Matching is first-match-wins, so these two sit above the catch-all /ws below.
+#
+# The backend serves /ws/notifications, /ws/queue and /ws/queue/{department}
+# on 3000 — they are ordinary app websockets, nothing to do with device sync.
+# A single /ws -> 7811 rule sent them all to the edge hub, which does not even
+# route by path, so notifications failed with a 503 whenever no edge appliance
+# was running. On a dev machine that is always.
+[[edge_policies]]
+prefix = "/ws/notifications"
+class = "websocket"
+upstream = "127.0.0.1:3000"
+body_limit_bytes = 1048576
+upstream_total_timeout_ms = 3600000
+upstream_read_timeout_ms = 3600000
+retry_after_seconds = 5
+cache_control = "no-store"
+allowed_methods = ["GET", "OPTIONS"]
+
+[[edge_policies]]
+prefix = "/ws/queue"
+class = "websocket"
+upstream = "127.0.0.1:3000"
+body_limit_bytes = 1048576
+upstream_total_timeout_ms = 3600000
+upstream_read_timeout_ms = 3600000
+retry_after_seconds = 5
+cache_control = "no-store"
+allowed_methods = ["GET", "OPTIONS"]
+
+# Everything else under /ws is device sync, which the edge appliance serves.
 [[edge_policies]]
 prefix = "/ws"
 class = "websocket"

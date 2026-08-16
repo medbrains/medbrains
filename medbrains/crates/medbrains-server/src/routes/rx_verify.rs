@@ -194,6 +194,15 @@ pub async fn issue_verify_link(
     axum::Extension(claims): axum::Extension<medbrains_server_core::middleware::auth::Claims>,
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<VerifyLink>, AppError> {
+    // Minting a verify link exposes a prescription to whoever holds the link.
+    // Scoped to the encounter permission rather than a pharmacy one: the issuer
+    // is the clinic side, and it was previously any authenticated user in the
+    // tenant, for any encounter id.
+    medbrains_server_core::middleware::authorization::require_permission(
+        &claims,
+        medbrains_core::permissions::opd::visit::UPDATE,
+    )?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 

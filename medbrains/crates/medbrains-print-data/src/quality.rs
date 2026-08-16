@@ -1,10 +1,10 @@
 //! Print-data endpoints — quality & safety forms.
 
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use axum::routing::get;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -55,7 +55,11 @@ pub async fn get_incident_report_print_data(
     Extension(claims): Extension<Claims>,
     Path(incident_id): Path<Uuid>,
 ) -> Result<Json<IncidentReportPrintData>, AppError> {
-    require_permission(&claims, permissions::admin::roles::LIST)?;
+    // A patient-safety incident report, including `patient_involved`. It was
+    //     // gated on `admin.roles.list` — the permission to read the role list —
+    //     // which let anyone with a benign admin read print it, and could block the
+    //     // quality officer whose job it is.
+    require_permission(&claims, permissions::quality::incidents::LIST)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -197,7 +201,8 @@ pub async fn get_rca_template_print_data(
     Extension(claims): Extension<Claims>,
     Path(incident_id): Path<Uuid>,
 ) -> Result<Json<RcaTemplatePrintData>, AppError> {
-    require_permission(&claims, permissions::admin::roles::LIST)?;
+    // Root-cause analysis of an incident, so it follows the incident permission.
+    require_permission(&claims, permissions::quality::incidents::LIST)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -435,7 +440,7 @@ pub async fn get_capa_form_print_data(
     Extension(claims): Extension<Claims>,
     Path(capa_id): Path<Uuid>,
 ) -> Result<Json<CapaFormPrintData>, AppError> {
-    require_permission(&claims, permissions::admin::roles::LIST)?;
+    require_permission(&claims, permissions::quality::capa::LIST)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

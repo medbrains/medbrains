@@ -40,7 +40,7 @@ pub async fn patient_flow_snapshot(
     let row = sqlx::query_as::<_, PatientFlowSnapshot>(
         "SELECT \
            (SELECT COUNT(*) FROM patients WHERE tenant_id = $1 \
-            AND created_at::date = CURRENT_DATE) AS registered_today, \
+            AND (created_at >= CURRENT_DATE AND created_at < CURRENT_DATE + 1)) AS registered_today, \
            (SELECT COUNT(*) FROM opd_queues WHERE tenant_id = $1 \
             AND status::text = 'waiting' AND queue_date = CURRENT_DATE) AS opd_waiting, \
            (SELECT COUNT(*) FROM opd_queues WHERE tenant_id = $1 \
@@ -56,7 +56,7 @@ pub async fn patient_flow_snapshot(
             AND expected_discharge_date <= CURRENT_DATE + INTERVAL '48 hours') \
             AS pending_discharge, \
            (SELECT COUNT(*) FROM admissions WHERE tenant_id = $1 \
-            AND discharged_at::date = CURRENT_DATE) AS discharged_today",
+            AND (discharged_at >= CURRENT_DATE AND discharged_at < CURRENT_DATE + 1)) AS discharged_today",
     )
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)

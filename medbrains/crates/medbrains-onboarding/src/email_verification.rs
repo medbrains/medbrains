@@ -5,8 +5,8 @@
 //! endpoint resolves it globally then sets the tenant RLS context for the
 //! `users` update.
 
+use axum::routing::post;
 use axum::{Extension, Json, extract::State};
-use axum::routing::{post};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
@@ -60,14 +60,18 @@ pub async fn issue(
     .execute(&mut **tx)
     .await?;
 
-    let link = format!("{}/verify-email?token={raw}", verify_base.trim_end_matches('/'));
+    let link = format!(
+        "{}/verify-email?token={raw}",
+        verify_base.trim_end_matches('/')
+    );
     let html = format!(
         "<p>Welcome to MedBrains.</p>\
          <p>Confirm your email address to secure your account:</p>\
          <p><a href=\"{link}\">Verify email</a></p>\
          <p>This link expires in 48 hours.</p>"
     );
-    let text = format!("Confirm your MedBrains email address: {link}\n(This link expires in 48 hours.)");
+    let text =
+        format!("Confirm your MedBrains email address: {link}\n(This link expires in 48 hours.)");
 
     medbrains_outbox::queue::queue_in_tx(
         tx,
@@ -164,12 +168,6 @@ pub async fn resend(
 /// Email verification routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/auth/verify-email",
-            post(verify_email),
-        )
-        .route(
-            "/api/auth/resend-verification",
-            post(resend),
-        )
+        .route("/api/auth/verify-email", post(verify_email))
+        .route("/api/auth/resend-verification", post(resend))
 }

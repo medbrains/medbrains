@@ -38,6 +38,7 @@ export * from "./additional-consent-print";
 export * from "./admin-forms";
 export * from "./ambulance-fleet";
 export * from "./analytics-dashboards";
+export * from "./approvals";
 export type {
   BedBoardSignalPhase,
   BedBoardSignalShape,
@@ -143,6 +144,7 @@ export {
   resolveClinicalJourneyActions,
   summarizeClinicalJourneyActions,
 } from "./event-actions.js";
+export * from "./field-access-catalogue";
 export * from "./field-mapping";
 export * from "./form-builder";
 export * from "./form-master";
@@ -222,10 +224,9 @@ export {
 } from "./patient-journey-mobile-targets.js";
 export { patientJourneyActionRoute } from "./patient-journey-routes.js";
 export * from "./patient-registration";
-export type { PermissionDef, PermissionGroup } from "./permissions.js";
+export type { PermissionDef } from "./permissions.js";
 export {
-  buildPermissionTree,
-  isValidPermissionCode,
+
   P,
   PERMISSIONS,
   ROLE_TEMPLATES,
@@ -7912,3 +7913,58 @@ export interface PeerRosterDoc {
   issued_at: number;
   peers: PeerRosterEntry[];
 }
+
+// ── API keys ────────────────────────────────────────────────────────────────
+//
+// A machine credential. Not a user: it carries an explicit permission list
+// rather than a role, so it cannot widen when a role does.
+
+export interface ApiKeySummary {
+  id: string;
+  name: string;
+  description: string | null;
+  /** The visible leading characters, e.g. `mb_live_a3f2`. Never the secret. */
+  key_prefix: string;
+  permissions: string[];
+  expires_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+  /** The human who issued it. A machine action traces to a key, the key to a person. */
+  created_by_name: string | null;
+}
+
+/**
+ * The only response that ever contains the secret.
+ *
+ * There is no endpoint that returns it again — only a hash is stored. The UI
+ * must show it once and say so plainly, because the alternative is a user who
+ * closes the dialog and files a support ticket that cannot be answered.
+ */
+export interface CreatedApiKey {
+  id: string;
+  secret: string;
+  prefix: string;
+  name: string;
+  permissions: string[];
+  expires_at: string;
+  /** Username of the service account this key acts as, as it will appear in audit trails. */
+  acts_as: string;
+}
+
+export interface CreateApiKeyInput {
+  name: string;
+  description?: string;
+  permissions: string[];
+  expires_in_days?: number;
+}
+
+export interface ApiKeyUsageRow {
+  method: string;
+  path: string;
+  status_code: number;
+  occurred_at: string;
+}
+
+export type { PermissionGroup } from "./permission-helpers";
+export { buildPermissionTree, isValidPermissionCode } from "./permission-helpers";

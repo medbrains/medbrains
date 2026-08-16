@@ -1540,6 +1540,33 @@ pub mod chronic {
     }
 }
 
+/// The clinical knowledge base — drug monographs, protocols, notifiable-disease
+/// reference. Seeded clinical content, never patient data.
+///
+/// These existed only in the TypeScript catalogue, so `useRequirePermission`
+/// on `/clinical-kb` matched a code the server had never defined and redirected
+/// every non-bypass user away from the page.
+pub mod ckb {
+    /// Open the clinical knowledge base.
+    pub const VIEW: &str = "ckb.view";
+
+    pub mod reports {
+        /// List knowledge-base reports.
+        pub const LIST: &str = "ckb.reports.list";
+        /// Create and edit knowledge-base reports.
+        pub const MANAGE: &str = "ckb.reports.manage";
+    }
+}
+
+/// Remote access for staff working off-site.
+///
+/// Same story as `ckb` — `/remote-access` guarded on `vpn.enroll`, which no
+/// Rust constant defined, so the page was unreachable.
+pub mod vpn {
+    /// Enrol this device for remote access.
+    pub const ENROLL: &str = "vpn.enroll";
+}
+
 pub mod admin {
     pub mod users {
         pub const LIST: &str = "admin.users.list";
@@ -1548,6 +1575,37 @@ pub mod admin {
         pub const UPDATE: &str = "admin.users.update";
         pub const DELETE: &str = "admin.users.delete";
         pub const FORCE_LOGOUT: &str = "admin.users.force_logout";
+    }
+
+    /// Oversight of the approvals platform.
+    ///
+    /// Without this you see an approval request only if you raised it, are an
+    /// approver on it, or it is about you. That is the default because a
+    /// request names what somebody asked for — a role, a permission, leave —
+    /// and the queue is a directory of who wanted what.
+    pub mod approvals {
+        /// See every request in the tenant, not just your own.
+        pub const OVERSEE: &str = "admin.approvals.oversee";
+    }
+
+    /// Machine credentials for the API.
+    ///
+    /// Separate from `admin.users` on purpose. A key is not a user and issuing
+    /// one is not the same decision as creating a person: whoever can mint a
+    /// key can mint a credential that outlives their own account, so the grant
+    /// is its own thing rather than a side effect of user administration.
+    ///
+    /// There is no UPDATE. A key's permissions are fixed at creation — being
+    /// able to widen one silently is exactly the property the explicit
+    /// allowlist exists to prevent. Change the scope by issuing a new key and
+    /// revoking the old one, which leaves a trail.
+    pub mod api_keys {
+        pub const LIST: &str = "admin.api_keys.list";
+        pub const CREATE: &str = "admin.api_keys.create";
+        pub const REVOKE: &str = "admin.api_keys.revoke";
+        /// Reading what a key actually did — a forensic surface, so it is
+        /// grantable to an auditor who cannot mint or revoke anything.
+        pub const VIEW_USAGE: &str = "admin.api_keys.view_usage";
     }
 
     /// Sprint A: per-tenant operating mode flip (`normal/degraded/read_only`).

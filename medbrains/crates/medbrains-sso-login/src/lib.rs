@@ -594,8 +594,18 @@ async fn federate_user(
         }
         None => {
             let linked = match identity.email.as_deref() {
+                // Service accounts are not claimable.
+                //
+                // This branch adopts an existing local account when the IdP
+                // asserts its email, which is the right behaviour for a person
+                // moving to SSO. For an API key's identity it is a takeover:
+                // the UPDATE below sets `idp_id` and a role from the IdP, so
+                // anyone able to assert that address at the IdP would turn a
+                // machine identity into their own login — and every row the
+                // key had written would now belong to them.
                 Some(email) => sqlx::query_scalar::<_, Uuid>(
-                    "SELECT id FROM users WHERE lower(email) = lower($1) AND idp_id IS NULL",
+                    "SELECT id FROM users WHERE lower(email) = lower($1) AND idp_id IS NULL \
+                     AND is_service_account = false",
                 )
                 .bind(email)
                 .fetch_optional(&mut **tx)

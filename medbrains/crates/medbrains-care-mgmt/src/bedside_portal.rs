@@ -199,13 +199,13 @@ pub async fn get_daily_schedule(
                   COALESCE(drug_name, 'Medication') AS description, \
                   status::text AS status \
            FROM ipd_medication_administration WHERE admission_id = $1 \
-                AND scheduled_at::date = CURRENT_DATE \
+                AND (scheduled_at >= CURRENT_DATE AND scheduled_at < CURRENT_DATE + 1) \
            UNION ALL \
            SELECT 'nursing_task' AS event_type, scheduled_at, \
                   COALESCE(task_description, 'Nursing Task') AS description, \
                   status::text AS status \
            FROM nursing_tasks WHERE admission_id = $1 \
-                AND scheduled_at::date = CURRENT_DATE \
+                AND (scheduled_at >= CURRENT_DATE AND scheduled_at < CURRENT_DATE + 1) \
            UNION ALL \
            SELECT 'meal' AS event_type, start_date::timestamptz AS scheduled_at, \
                   ('Diet: ' || diet_type::text) AS description, \

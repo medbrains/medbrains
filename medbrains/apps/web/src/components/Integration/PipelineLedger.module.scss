@@ -6,7 +6,7 @@
   gap: 12px;
   padding: 12px 20px;
   border-bottom: 1px solid var(--mb-border);
-  background: var(--mb-bg-content);
+  background: var(--mb-bg-default);
 }
 
 .searchWrap {
@@ -20,7 +20,7 @@
   justify-content: space-between;
   padding: 10px 20px;
   border-top: 1px solid var(--mb-border);
-  background: var(--mb-bg-content);
+  background: var(--mb-bg-default);
   font: 500 11px/1 var(--font-mono);
   letter-spacing: 0.06em;
   color: var(--mb-text-muted);
@@ -39,7 +39,7 @@
   color: var(--mb-text-muted);
   text-align: left;
   padding: 10px 14px;
-  background: var(--mb-bg-content);
+  background: var(--mb-bg-default);
   border-bottom: 1px solid var(--mb-border);
   position: sticky;
   top: 0;
@@ -57,7 +57,7 @@
 }
 
 .ledgerTable tbody tr:hover {
-  background: var(--mb-bg-content);
+  background: var(--mb-bg-default);
 }
 
 .ledgerTable tbody td {
@@ -123,7 +123,7 @@
   padding: 4px 8px;
   border: 1px solid var(--mb-border);
   border-radius: 0;
-  background: white;
+  background: var(--mb-bg-default, #fff);
   white-space: nowrap;
 }
 
@@ -198,7 +198,7 @@
   }
 
   &.danger:hover {
-    background: #fde6ea;
+    background: var(--mb-danger-bg, #fde6ea);
     color: var(--mb-danger-accent);
   }
 }

@@ -274,7 +274,10 @@ pub async fn book_appointment(
         .bind(claims.tenant_id)
         .fetch_one(&mut *tx)
         .await?;
-        let summary = format!("{patient_name} — {} {}", appt.appointment_date, appt.slot_start);
+        let summary = format!(
+            "{patient_name} — {} {}",
+            appt.appointment_date, appt.slot_start
+        );
         create_notification(
             &mut tx,
             claims.tenant_id,

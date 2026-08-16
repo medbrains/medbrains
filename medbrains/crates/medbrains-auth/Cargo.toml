@@ -26,3 +26,7 @@ axum-extra = { version = "0.10", features = ["cookie"] }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+# The DB-backed half of tests/service_accounts_cannot_log_in.rs needs a runtime.
+tokio = { workspace = true }

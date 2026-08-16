@@ -1,0 +1,24 @@
+[package]
+name = "medbrains-snomed"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+# SNOMED CT via a FHIR R4 terminology server.
+#
+# Built against FHIR terminology operations rather than any one server's native
+# API, so it works against Snowstorm, Snowstorm Lite, Ontoserver or a national
+# endpoint — and because it is the same FHIR R4 surface ABDM M2/M3 requires,
+# the client gets reused rather than thrown away.
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+reqwest = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+[lints]
+workspace = true
