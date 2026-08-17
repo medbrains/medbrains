@@ -1383,6 +1383,21 @@ pub mod specialty {
             pub const LIST: &str = "specialty.maternity.newborn.list";
             pub const CREATE: &str = "specialty.maternity.newborn.create";
         }
+        /// Postnatal records are the mother's recovery, not the baby's care.
+        /// They were reached through the newborn permission, which quietly
+        /// granted every clinician recording infant observations the right to
+        /// write the mother's postnatal chart.
+        pub mod postnatal {
+            /// View postnatal records.
+            ///
+            /// The mother's recovery after delivery — fundal height, lochia,
+            /// perineal healing, breastfeeding and mood observations.
+            pub const LIST: &str = "specialty.maternity.postnatal.list";
+            /// Record a postnatal visit.
+            ///
+            /// Adds an observation to the mother's postnatal chart.
+            pub const CREATE: &str = "specialty.maternity.postnatal.create";
+        }
     }
 
     pub mod ophthalmology {

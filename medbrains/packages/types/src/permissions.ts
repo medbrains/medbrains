@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 897 permissions, one per constant in the Rust source. */
+/** 899 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -3542,6 +3542,18 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "specialty.maternity.newborn.create",
     label: "Create Newborn Record",
     description: "Register newborn records",
+    module: "specialty",
+  },
+  {
+    code: "specialty.maternity.postnatal.list",
+    label: "View postnatal records",
+    description: "The mother's recovery after delivery — fundal height, lochia, perineal healing, breastfeeding and mood observations.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.maternity.postnatal.create",
+    label: "Record a postnatal visit",
+    description: "Adds an observation to the mother's postnatal chart.",
     module: "specialty",
   },
   {
@@ -7915,6 +7927,12 @@ export const P = {
       },
       NEWBORN_CREATE: "specialty.maternity.newborn.create",
       NEWBORN_LIST: "specialty.maternity.newborn.list",
+      POSTNATAL: {
+        CREATE: "specialty.maternity.postnatal.create",
+        LIST: "specialty.maternity.postnatal.list",
+      },
+      POSTNATAL_CREATE: "specialty.maternity.postnatal.create",
+      POSTNATAL_LIST: "specialty.maternity.postnatal.list",
       REGISTRATIONS: {
         CREATE: "specialty.maternity.registrations.create",
         LIST: "specialty.maternity.registrations.list",
@@ -7928,6 +7946,8 @@ export const P = {
     MATERNITY_LABOR_LIST: "specialty.maternity.labor.list",
     MATERNITY_NEWBORN_CREATE: "specialty.maternity.newborn.create",
     MATERNITY_NEWBORN_LIST: "specialty.maternity.newborn.list",
+    MATERNITY_POSTNATAL_CREATE: "specialty.maternity.postnatal.create",
+    MATERNITY_POSTNATAL_LIST: "specialty.maternity.postnatal.list",
     MATERNITY_REGISTRATIONS_CREATE: "specialty.maternity.registrations.create",
     MATERNITY_REGISTRATIONS_LIST: "specialty.maternity.registrations.list",
     OPHTHALMOLOGY: {
@@ -8329,6 +8349,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.MATERNITY.LABOR.LIST,
       P.SPECIALTY.MATERNITY.NEWBORN.CREATE,
       P.SPECIALTY.MATERNITY.NEWBORN.LIST,
+      P.SPECIALTY.MATERNITY.POSTNATAL.CREATE,
+      P.SPECIALTY.MATERNITY.POSTNATAL.LIST,
       P.SPECIALTY.MATERNITY.REGISTRATIONS.CREATE,
       P.SPECIALTY.MATERNITY.REGISTRATIONS.LIST,
       P.SPECIALTY.OTHER.DIALYSIS.LIST,
@@ -8478,6 +8500,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.MATERNITY.ANC.LIST,
       P.SPECIALTY.MATERNITY.LABOR.LIST,
       P.SPECIALTY.MATERNITY.NEWBORN.LIST,
+      P.SPECIALTY.MATERNITY.POSTNATAL.LIST,
       P.SPECIALTY.MATERNITY.REGISTRATIONS.LIST,
       P.SPECIALTY.OTHER.RECORDS.LIST,
       P.SPECIALTY.PALLIATIVE.DNR.LIST,

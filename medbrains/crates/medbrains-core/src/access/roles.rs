@@ -186,6 +186,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::specialty::maternity::labor::CREATE,
             permissions::specialty::maternity::newborn::LIST,
             permissions::specialty::maternity::newborn::CREATE,
+            permissions::specialty::maternity::postnatal::LIST,
+            permissions::specialty::maternity::postnatal::CREATE,
             permissions::specialty::other::templates::LIST,
             permissions::specialty::other::records::LIST,
             permissions::specialty::other::records::CREATE,
@@ -324,6 +326,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::specialty::maternity::anc::LIST,
             permissions::specialty::maternity::labor::LIST,
             permissions::specialty::maternity::newborn::LIST,
+            permissions::specialty::maternity::postnatal::LIST,
             permissions::specialty::other::records::LIST,
             // Documents
             permissions::documents::templates::LIST,

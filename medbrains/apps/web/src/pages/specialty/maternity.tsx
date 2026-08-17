@@ -135,6 +135,14 @@ export function MaternityPage() {
   useRequirePermission(P.SPECIALTY.MATERNITY.REGISTRATIONS_LIST);
   const qc = useQueryClient();
   const canCreate = useHasPermission(P.SPECIALTY.MATERNITY.REGISTRATIONS_CREATE);
+  // The page guard is `registrations.list`; each tab reads a different record
+  // type behind its own permission. Without these the page fetches all four
+  // regardless, so a user who may see registrations still issues requests the
+  // server will refuse — and the tab promises data that never arrives.
+  const canViewAnc = useHasPermission(P.SPECIALTY.MATERNITY.ANC_LIST);
+  const canViewLabor = useHasPermission(P.SPECIALTY.MATERNITY.LABOR_LIST);
+  const canViewNewborn = useHasPermission(P.SPECIALTY.MATERNITY.NEWBORN_LIST);
+  const canViewPostnatal = useHasPermission(P.SPECIALTY.MATERNITY.POSTNATAL_LIST);
 
   const [tab, setTab] = useState<string | null>("registrations");
   const [regOpen, regHandlers] = useDisclosure(false);
@@ -149,22 +157,22 @@ export function MaternityPage() {
   const { data: ancVisits = [] } = useQuery({
     queryKey: ["anc-visits", selectedRegId],
     queryFn: () => specialtyService.listAncVisits(selectedRegId ?? ""),
-    enabled: !!selectedRegId,
+    enabled: !!selectedRegId && canViewAnc,
   });
   const { data: laborRecords = [] } = useQuery({
     queryKey: ["labor-records", selectedRegId],
     queryFn: () => specialtyService.listLaborRecords(selectedRegId ?? ""),
-    enabled: !!selectedRegId,
+    enabled: !!selectedRegId && canViewLabor,
   });
   const { data: newborns = [] } = useQuery({
     queryKey: ["newborns", selectedLaborId],
     queryFn: () => specialtyService.listNewborns(selectedLaborId ?? ""),
-    enabled: !!selectedLaborId,
+    enabled: !!selectedLaborId && canViewNewborn,
   });
   const { data: postnatal = [] } = useQuery({
     queryKey: ["postnatal", selectedRegId],
     queryFn: () => specialtyService.listPostnatalRecords(selectedRegId ?? ""),
-    enabled: !!selectedRegId,
+    enabled: !!selectedRegId && canViewPostnatal,
   });
 
   const [regForm, setRegForm] = useState<CreateMaternityRegistrationRequest>({
@@ -423,9 +431,11 @@ export function MaternityPage() {
       <Tabs value={tab} onChange={setTab} mt="md">
         <Tabs.List>
           <Tabs.Tab value="registrations">Registrations</Tabs.Tab>
-          <Tabs.Tab value="anc">ANC Visits</Tabs.Tab>
-          <Tabs.Tab value="labor">Labor & Delivery</Tabs.Tab>
-          <Tabs.Tab value="newborn">Newborn & Postnatal</Tabs.Tab>
+          {canViewAnc && <Tabs.Tab value="anc">ANC Visits</Tabs.Tab>}
+          {canViewLabor && <Tabs.Tab value="labor">Labor & Delivery</Tabs.Tab>}
+          {(canViewNewborn || canViewPostnatal) && (
+            <Tabs.Tab value="newborn">Newborn & Postnatal</Tabs.Tab>
+          )}
         </Tabs.List>
         <Tabs.Panel value="registrations" pt="md">
           <DataTable
