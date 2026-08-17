@@ -200,6 +200,12 @@ pub async fn create_assignment(
 ) -> Result<(StatusCode, Json<CaseAssignment>), AppError> {
     require_permission(&claims, permissions::case_mgmt::assignments::CREATE)?;
 
+    // Only a caller-supplied id is available here — the route carries none. This
+    // still prevents creating a record against an unreachable patient, but it is
+    // weaker than a route-derived check: the caller picks the subject.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -327,6 +333,12 @@ pub async fn auto_assign(
     Json(body): Json<AutoAssignRequest>,
 ) -> Result<(StatusCode, Json<CaseAssignment>), AppError> {
     require_permission(&claims, permissions::case_mgmt::assignments::CREATE)?;
+
+    // Only a caller-supplied id is available here — the route carries none. This
+    // still prevents creating a record against an unreachable patient, but it is
+    // weaker than a route-derived check: the caller picks the subject.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

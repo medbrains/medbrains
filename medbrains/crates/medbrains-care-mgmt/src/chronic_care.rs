@@ -633,6 +633,12 @@ pub async fn create_enrollment(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::chronic::enrollments::CREATE)?;
 
+    // Only a caller-supplied id is available here — the route carries none. This
+    // still prevents creating a record against an unreachable patient, but it is
+    // weaker than a route-derived check: the caller picks the subject.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -940,6 +946,12 @@ pub async fn create_timeline_event(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::chronic::timeline::CREATE)?;
 
+    // Only a caller-supplied id is available here — the route carries none. This
+    // still prevents creating a record against an unreachable patient, but it is
+    // weaker than a route-derived check: the caller picks the subject.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1025,6 +1037,12 @@ pub async fn record_adherence(
     Json(body): Json<RecordAdherenceRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::chronic::adherence::CREATE)?;
+
+    // Only a caller-supplied id is available here — the route carries none. This
+    // still prevents creating a record against an unreachable patient, but it is
+    // weaker than a route-derived check: the caller picks the subject.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1140,6 +1158,11 @@ pub async fn list_outcome_targets(
 ) -> Result<Json<Vec<OutcomeTargetRow>>, AppError> {
     require_permission(&claims, permissions::chronic::outcomes::VIEW)?;
 
+    // The route names the patient; holding the module permission is not the same
+    // as being on this patient's care team.
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
+        .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1163,6 +1186,12 @@ pub async fn create_outcome_target(
     Json(body): Json<CreateOutcomeTargetRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::chronic::outcomes::CREATE)?;
+
+    // Only a caller-supplied id is available here — the route carries none. This
+    // still prevents creating a record against an unreachable patient, but it is
+    // weaker than a route-derived check: the caller picks the subject.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1227,6 +1256,11 @@ pub async fn outcome_dashboard(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<OutcomeDashboardResponse>, AppError> {
     require_permission(&claims, permissions::chronic::outcomes::VIEW)?;
+
+    // The route names the patient; holding the module permission is not the same
+    // as being on this patient's care team.
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1358,6 +1392,11 @@ pub async fn list_interaction_alerts(
 ) -> Result<Json<Vec<InteractionAlertRow>>, AppError> {
     require_permission(&claims, permissions::chronic::timeline::VIEW)?;
 
+    // The route names the patient; holding the module permission is not the same
+    // as being on this patient's care team.
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
+        .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1383,6 +1422,11 @@ pub async fn check_polypharmacy(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<InteractionAlertRow>>, AppError> {
     require_permission(&claims, permissions::chronic::timeline::VIEW)?;
+
+    // The route names the patient; holding the module permission is not the same
+    // as being on this patient's care team.
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1514,6 +1558,11 @@ pub async fn treatment_summary(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<TreatmentSummaryResponse>, AppError> {
     require_permission(&claims, permissions::chronic::timeline::VIEW)?;
+
+    // The route names the patient; holding the module permission is not the same
+    // as being on this patient's care team.
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

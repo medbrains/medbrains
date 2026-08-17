@@ -136,6 +136,12 @@ pub async fn create_session(
 ) -> Result<Json<BedsideSession>, AppError> {
     require_permission(&claims, permissions::bedside::sessions::MANAGE)?;
 
+    // Only a caller-supplied id is available here — the route carries none. This
+    // still prevents creating a record against an unreachable patient, but it is
+    // weaker than a route-derived check: the caller picks the subject.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -399,6 +405,12 @@ pub async fn create_nurse_request(
 ) -> Result<Json<BedsideNurseRequest>, AppError> {
     require_permission(&claims, permissions::bedside::REQUEST)?;
 
+    // Authorize the admission the ROUTE names, not body.patient_id — the body is
+    // caller-supplied, so authorizing on it would let the caller choose the
+    // subject of its own check.
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -590,6 +602,12 @@ pub async fn record_video_view(
 ) -> Result<Json<BedsideEducationView>, AppError> {
     require_permission(&claims, permissions::bedside::VIEW)?;
 
+    // Authorize the admission the ROUTE names, not body.patient_id — the body is
+    // caller-supplied, so authorizing on it would let the caller choose the
+    // subject of its own check.
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -623,6 +641,12 @@ pub async fn submit_feedback(
     Json(body): Json<SubmitFeedbackRequest>,
 ) -> Result<Json<BedsideRealtimeFeedback>, AppError> {
     require_permission(&claims, permissions::bedside::feedback::CREATE)?;
+
+    // Authorize the admission the ROUTE names, not body.patient_id — the body is
+    // caller-supplied, so authorizing on it would let the caller choose the
+    // subject of its own check.
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
