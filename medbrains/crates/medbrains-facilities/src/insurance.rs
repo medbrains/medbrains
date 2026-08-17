@@ -326,13 +326,21 @@ pub async fn list_verifications(
 ) -> Result<Json<Vec<InsuranceVerification>>, AppError> {
     require_permission(&claims, permissions::insurance::verification::LIST)?;
 
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    // Dual-mode: with ?patient_id it is one patient's records, without it it is
+    // every patient's. Both resolve to a set of permitted ids so the dangerous
+    // mode cannot be left open while the safe one looks guarded.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, q.patient_id).await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows: Vec<InsuranceVerification> = sqlx::query_as(
         "SELECT * FROM insurance_verifications \
          WHERE tenant_id = $1 \
-           AND ($2::uuid IS NULL OR patient_id = $2) \
+           AND ($2::uuid[] IS NULL OR patient_id = ANY($2)) \
            AND ($3::text IS NULL OR status::text = $3) \
            AND ($4::date IS NULL OR created_at::date >= $4) \
            AND ($5::date IS NULL OR created_at::date <= $5) \
@@ -340,7 +348,7 @@ pub async fn list_verifications(
          LIMIT 200",
     )
     .bind(claims.tenant_id)
-    .bind(q.patient_id)
+    .bind(permitted_patients.as_deref())
     .bind(&q.status)
     .bind(q.from_date)
     .bind(q.to_date)
@@ -407,13 +415,21 @@ pub async fn list_prior_auths(
 ) -> Result<Json<Vec<PriorAuthRequest>>, AppError> {
     require_permission(&claims, permissions::insurance::prior_auth::LIST)?;
 
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    // Dual-mode: with ?patient_id it is one patient's records, without it it is
+    // every patient's. Both resolve to a set of permitted ids so the dangerous
+    // mode cannot be left open while the safe one looks guarded.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, q.patient_id).await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows: Vec<PriorAuthRequest> = sqlx::query_as(
         "SELECT * FROM prior_auth_requests \
          WHERE tenant_id = $1 \
-           AND ($2::uuid IS NULL OR patient_id = $2) \
+           AND ($2::uuid[] IS NULL OR patient_id = ANY($2)) \
            AND ($3::text IS NULL OR status::text = $3) \
            AND ($4::text IS NULL OR urgency::text = $4) \
            AND ($5::date IS NULL OR created_at::date >= $5) \
@@ -422,7 +438,7 @@ pub async fn list_prior_auths(
          LIMIT 200",
     )
     .bind(claims.tenant_id)
-    .bind(q.patient_id)
+    .bind(permitted_patients.as_deref())
     .bind(&q.status)
     .bind(&q.urgency)
     .bind(q.from_date)

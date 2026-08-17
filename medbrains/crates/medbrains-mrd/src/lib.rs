@@ -281,18 +281,26 @@ pub async fn list_records(
 ) -> Result<Json<Vec<MrdMedicalRecord>>, AppError> {
     require_permission(&claims, permissions::mrd::records::LIST)?;
 
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    // Dual-mode: with ?patient_id it is one patient's records, without it it is
+    // every patient's. Both resolve to a set of permitted ids so the dangerous
+    // mode cannot be left open while the safe one looks guarded.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, q.patient_id).await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
     let rows = sqlx::query_as::<_, MrdMedicalRecord>(
         "SELECT * FROM mrd_medical_records \
-         WHERE ($1::uuid IS NULL OR patient_id = $1) \
+         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
            AND ($2::text IS NULL OR status::text = $2) \
            AND ($3::text IS NULL OR record_type = $3) \
          ORDER BY created_at DESC LIMIT 500",
     )
-    .bind(q.patient_id)
+    .bind(permitted_patients.as_deref())
     .bind(q.status)
     .bind(q.record_type)
     .fetch_all(&mut *tx)
@@ -1323,6 +1331,14 @@ pub async fn list_case_sheet_packets(
 ) -> Result<Json<Vec<MrdCaseSheetPacket>>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::VIEW)?;
 
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    // Dual-mode: with ?patient_id it is one patient's records, without it it is
+    // every patient's. Both resolve to a set of permitted ids so the dangerous
+    // mode cannot be left open while the safe one looks guarded.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, q.patient_id).await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1340,7 +1356,7 @@ pub async fn list_case_sheet_packets(
     .bind(claims.tenant_id)
     .bind(q.status)
     .bind(q.packet_type)
-    .bind(q.patient_id)
+    .bind(permitted_patients.as_deref())
     .bind(q.encounter_id)
     .bind(q.admission_id)
     .fetch_all(&mut *tx)

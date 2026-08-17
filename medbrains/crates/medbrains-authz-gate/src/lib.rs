@@ -300,3 +300,41 @@ pub async fn visible_patient_ids(
         }
     }
 }
+
+/// Resolve an *optional* patient filter into the set of ids a query may return.
+///
+/// Many list handlers are dual-mode:
+///
+/// ```sql
+/// AND ($2::uuid IS NULL OR patient_id = $2)
+/// ```
+///
+/// With `?patient_id=X` they return one patient's records; **without it they
+/// return every patient's**. Guarding only the `Some` case makes the safe mode
+/// safer and leaves the dangerous one open — while a coverage report counts the
+/// handler fixed, because it now calls a check.
+///
+/// So both modes resolve to the same thing — a set of permitted ids:
+///
+/// - `Some(id)` → authorize that patient, then the set is just that one.
+/// - `None` → the caller's whole visible set.
+/// - bypass role → `None`, meaning no filter at all.
+///
+/// Callers replace the predicate with one that takes an array:
+///
+/// ```sql
+/// AND ($2::uuid[] IS NULL OR patient_id = ANY($2))
+/// ```
+pub async fn patient_filter(
+    state: &AppState,
+    claims: &Claims,
+    requested: Option<Uuid>,
+) -> Result<Option<Vec<Uuid>>, AppError> {
+    match requested {
+        Some(id) => {
+            require_patient_access(state, claims, id).await?;
+            Ok(Some(vec![id]))
+        }
+        None => visible_patient_ids(state, claims).await,
+    }
+}

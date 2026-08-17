@@ -182,6 +182,14 @@ pub async fn list_tele_consultations(
 ) -> Result<Json<Vec<TeleConsultationListItem>>, AppError> {
     require_permission(&claims, permissions::opd::queue::VIEW)?;
 
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    // Dual-mode: with ?patient_id it is one patient's records, without it it is
+    // every patient's. Both resolve to a set of permitted ids so the dangerous
+    // mode cannot be left open while the safe one looks guarded.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, q.patient_id).await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -193,13 +201,13 @@ pub async fn list_tele_consultations(
          WHERE tenant_id = $1 \
            AND ($2::text IS NULL OR status = $2) \
            AND ($3::uuid IS NULL OR doctor_id = $3) \
-           AND ($4::uuid IS NULL OR patient_id = $4) \
+           AND ($4::uuid[] IS NULL OR patient_id = ANY($4)) \
          ORDER BY scheduled_at DESC NULLS LAST, created_at DESC LIMIT 500",
     )
     .bind(claims.tenant_id)
     .bind(q.status.as_deref().map(str::trim).filter(|s| !s.is_empty()))
     .bind(q.doctor_id)
-    .bind(q.patient_id)
+    .bind(permitted_patients.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 

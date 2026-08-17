@@ -55,6 +55,11 @@ pub async fn list_mds_assessments(
     Query(q): Query<PatientQuery>,
 ) -> Result<Json<Vec<MdsAssessment>>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, MdsAssessment>(&format!(
@@ -172,6 +177,11 @@ pub async fn list_ltc_medications(
     Query(q): Query<PatientQuery>,
 ) -> Result<Json<Vec<LtcMedication>>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, LtcMedication>(&format!(
@@ -320,6 +330,11 @@ pub async fn list_rehab_progress(
     Query(q): Query<PatientQuery>,
 ) -> Result<Json<Vec<RehabProgress>>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, RehabProgress>(&format!(
@@ -398,6 +413,11 @@ pub async fn list_family_messages(
     Query(q): Query<PatientQuery>,
 ) -> Result<Json<Vec<FamilyMessage>>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, FamilyMessage>(&format!(
@@ -524,6 +544,11 @@ pub async fn list_readmission_risk(
     Query(q): Query<PatientQuery>,
 ) -> Result<Json<Vec<ReadmissionRisk>>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ReadmissionRisk>(&format!(
@@ -620,6 +645,11 @@ pub async fn list_home_care_referrals(
     Query(q): Query<PatientQuery>,
 ) -> Result<Json<Vec<HomeCareReferral>>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, HomeCareReferral>(&format!(
@@ -737,6 +767,11 @@ pub async fn list_snf_admissions(
     Query(q): Query<PatientQuery>,
 ) -> Result<Json<Vec<SnfAdmission>>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, SnfAdmission>(&format!(

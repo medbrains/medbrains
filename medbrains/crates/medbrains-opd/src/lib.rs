@@ -1438,6 +1438,12 @@ pub async fn start_consultation(
 
     let q = q.ok_or(AppError::NotFound)?;
 
+    // Guarded after the row is fetched: the route carries a queue id, and the
+    // encounter it belongs to is only known once that row is read. `q` here is
+    // the fetched row, not a query extractor.
+    medbrains_authz_gate::require_encounter_access(&state, &claims, q.encounter_id)
+        .await?;
+
     // Update encounter status to in_progress
     sqlx::query(
         "UPDATE encounters SET status = 'in_progress'::encounter_status, updated_at = now() \
@@ -1491,6 +1497,12 @@ pub async fn complete_queue_entry(
     .await?;
 
     let q = q.ok_or(AppError::NotFound)?;
+
+    // Guarded after the row is fetched: the route carries a queue id, and the
+    // encounter it belongs to is only known once that row is read. `q` here is
+    // the fetched row, not a query extractor.
+    medbrains_authz_gate::require_encounter_access(&state, &claims, q.encounter_id)
+        .await?;
 
     sqlx::query(
         "UPDATE encounters SET status = 'completed'::encounter_status, updated_at = now() \
@@ -1645,6 +1657,12 @@ pub async fn mark_no_show(
     .await?;
 
     let q = q.ok_or(AppError::NotFound)?;
+
+    // Guarded after the row is fetched: the route carries a queue id, and the
+    // encounter it belongs to is only known once that row is read. `q` here is
+    // the fetched row, not a query extractor.
+    medbrains_authz_gate::require_encounter_access(&state, &claims, q.encounter_id)
+        .await?;
 
     sqlx::query(
         "UPDATE encounters SET status = 'cancelled'::encounter_status, updated_at = now() \
@@ -4302,6 +4320,11 @@ pub async fn check_duplicate_orders(
         ],
     )?;
 
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
+        .await?;
+
     let hours = q.hours.unwrap_or(24);
 
     let mut tx = state.db.begin().await?;
@@ -4965,6 +4988,14 @@ pub async fn list_reminders(
     Query(q): Query<ListRemindersQuery>,
 ) -> Result<Json<Vec<PatientReminder>>, AppError> {
     require_permission(&claims, permissions::opd::reminders::LIST)?;
+
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    // Dual-mode: with ?patient_id it is one patient's records, without it it is
+    // every patient's. Both resolve to a set of permitted ids so the dangerous
+    // mode cannot be left open while the safe one looks guarded.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, q.patient_id).await?;
     if q.patient_id.is_some() {
         require_permission(&claims, permissions::patients::VIEW)?;
     }
@@ -4983,7 +5014,7 @@ pub async fn list_reminders(
     )
     .bind(claims.tenant_id)
     .bind(claims.sub)
-    .bind(q.patient_id)
+    .bind(permitted_patients.as_deref())
     .bind(&q.status)
     .bind(q.from_date)
     .bind(q.to_date)

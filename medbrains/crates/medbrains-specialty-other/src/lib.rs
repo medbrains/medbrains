@@ -1191,7 +1191,7 @@ pub async fn list_dialysis_sessions(
 
     let rows = sqlx::query_as::<_, DialysisSession>(
         "SELECT * FROM dialysis_sessions \
-         WHERE ($1::uuid IS NULL OR patient_id = $1) \
+         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
          ORDER BY session_date DESC LIMIT 200",
     )
     .bind(params.patient_id)
@@ -1337,7 +1337,7 @@ pub async fn list_chemo_protocols(
 
     let rows = sqlx::query_as::<_, ChemoProtocol>(
         "SELECT * FROM chemo_protocols \
-         WHERE ($1::uuid IS NULL OR patient_id = $1) \
+         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
          AND ($2::text IS NULL OR status = $2) \
          ORDER BY cycle_date DESC LIMIT 200",
     )
@@ -1586,6 +1586,14 @@ pub async fn list_cancer_stagings(
     Query(q): Query<StagingQuery>,
 ) -> Result<Json<Vec<CancerStaging>>, AppError> {
     require_permission(&claims, permissions::specialty::other::oncology::LIST)?;
+
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    // Dual-mode: with ?patient_id it is one patient's records, without it it is
+    // every patient's. Both resolve to a set of permitted ids so the dangerous
+    // mode cannot be left open while the safe one looks guarded.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, q.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1597,11 +1605,11 @@ pub async fn list_cancer_stagings(
         .await?;
     let rows = sqlx::query_as::<_, CancerStaging>(
         "SELECT * FROM cancer_stagings \
-         WHERE tenant_id = $1 AND ($2::uuid IS NULL OR patient_id = $2) \
+         WHERE tenant_id = $1 AND ($2::uuid[] IS NULL OR patient_id = ANY($2)) \
          ORDER BY created_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
-    .bind(q.patient_id)
+    .bind(permitted_patients.as_deref())
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -1665,6 +1673,14 @@ pub async fn list_radiation_sessions(
     Query(q): Query<StagingQuery>,
 ) -> Result<Json<Vec<RadiationSession>>, AppError> {
     require_permission(&claims, permissions::specialty::other::oncology::LIST)?;
+
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    // Dual-mode: with ?patient_id it is one patient's records, without it it is
+    // every patient's. Both resolve to a set of permitted ids so the dangerous
+    // mode cannot be left open while the safe one looks guarded.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, q.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1676,11 +1692,11 @@ pub async fn list_radiation_sessions(
         .await?;
     let rows = sqlx::query_as::<_, RadiationSession>(
         "SELECT * FROM radiation_sessions \
-         WHERE tenant_id = $1 AND ($2::uuid IS NULL OR patient_id = $2) \
+         WHERE tenant_id = $1 AND ($2::uuid[] IS NULL OR patient_id = ANY($2)) \
          ORDER BY created_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
-    .bind(q.patient_id)
+    .bind(permitted_patients.as_deref())
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
