@@ -301,17 +301,34 @@ def render(entries: list[dict], legacy_paths: dict[str, list[list[str]]], roles:
         rest = [p.upper() for p in path[1:]]
 
         flat_key = "_".join(segments[1:]) if len(segments) > 1 else segments[0]
-        place([top, flat_key], entry["code"])
+        shapes = [[top, flat_key]]
 
         # A third shape, used by the specialty modules:
         # `specialty.psychiatry.patients.list` -> P.SPECIALTY.PSYCHIATRY.PATIENTS_LIST
         # i.e. top, second segment, then everything after it joined.
         if len(segments) >= 4:
-            place([top, segments[1], "_".join(segments[2:])], entry["code"])
+            shapes.append([top, segments[1], "_".join(segments[2:])])
 
         # nested: TOP.REST.CONST — only when there is a middle segment
         if rest:
-            place([top, *rest, entry["const"]], entry["code"])
+            shapes.append([top, *rest, entry["const"]])
+
+        # A code with no legacy path is new, and `canonical` takes whichever
+        # shape is placed first — so this order decides what ROLE_TEMPLATES
+        # emits. Put the nested shape first for new codes, because that is what
+        # the *next* run would choose: the tree is written sorted, `LTC` sorts
+        # before `LTC_FAMILY_CREATE`, so on a second run the nested path is the
+        # first legacy path read back and wins.
+        #
+        # Without this the generator is not a fixed point. Adding a permission
+        # emitted flat references, and only a second run switched them to
+        # nested — so one generate left `--check` failing, which cost two
+        # rounds of chasing a gate that was reporting the truth.
+        if rest and entry["code"] not in legacy_paths:
+            shapes.insert(0, shapes.pop())
+
+        for shape in shapes:
+            place(shape, entry["code"])
 
     if collisions:
         raise SystemExit("key collisions — two permissions want the same P path:\n  "
