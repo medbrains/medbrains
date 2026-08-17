@@ -139,6 +139,15 @@ const PHI_LIST_PREFIXES: &[&str] = &[
     "/api/mrd/records",
     "/api/emergency/cases",
     "/api/billing/invoices",
+    // The access-control registers. Reading these is itself a privileged act:
+    // /api/sensitive-patients lists every VIP and restricted patient with the
+    // reason each was flagged, and /api/break-glass lists who has invoked
+    // emergency access. RFC §11 requires audit reads to be audited — privacy
+    // officers are subject to review too. The detail routes were already
+    // covered by `path_is_detail_route`; the list routes were not.
+    "/api/sensitive-patients",
+    "/api/break-glass",
+    "/api/access-alerts",
 ];
 
 fn path_is_phi_list(path: &str) -> bool {

@@ -9,7 +9,7 @@
        mobile-staff-android mobile-staff-prebuild mobile-staff-typecheck \
        check check-backend check-frontend lint check-api check-sqlx prepare-sqlx guard-sqlx-nonprod \
        check-ui-api check-types check-ui-seam check-raw-html check-secrets check-all \
-       check-field-classes check-authz-collapse check-relation-parity check-parent-id-scoping authz-ledger \
+       check-field-classes check-authz-collapse check-relation-parity check-parent-id-scoping check-phi-audit-coverage authz-ledger \
        check-rls check-sharing check-authz-posture check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-tenant-leak check-runtime-sqlx check-audit check-tracing \
        check-migration-headers \
        check-region-pinning check-no-card-logging check-egress-allowlist check-cert-readiness check-encryption-at-rest check-redaction-masking \
@@ -336,6 +336,9 @@ check-parent-id-scoping: ## Ban nested routes that discard their parent id
 
 check-relation-parity: ## Verify schema.zed and the Relation enum name the same relations
 	python3 scripts/check_relation_parity.py
+
+check-phi-audit-coverage: ## Verify every PHI list route is audited
+	python3 scripts/check_phi_audit_coverage.py
 
 check-field-classes: ## Verify every redactable field declares a DataClass
 	python3 scripts/check_field_classes.py
