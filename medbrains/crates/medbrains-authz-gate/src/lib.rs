@@ -36,7 +36,7 @@ async fn require_object_view(
     object_type: &str,
     object_id: Uuid,
 ) -> Result<(), AppError> {
-    let ctx = crate::middleware::authorization::authz_context(claims);
+    let ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
     let outcome = outcome_of(
         state
             .authz
@@ -187,7 +187,7 @@ pub async fn require_patient_access(
     claims: &Claims,
     patient_id: Uuid,
 ) -> Result<(), AppError> {
-    let ctx = crate::middleware::authorization::authz_context(claims);
+    let ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
 
     // Fast path: a direct or implied grant on the patient itself
     // (owner/attending/viewer/dept_member/group_member). Common case, 0 SQL.

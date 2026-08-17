@@ -768,7 +768,7 @@ pub async fn collect_sample(
     require_permission(&claims, permissions::lab::results::CREATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -864,7 +864,7 @@ pub async fn start_processing(
     require_permission(&claims, permissions::lab::results::CREATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -900,7 +900,7 @@ pub async fn complete_order(
     require_permission(&claims, permissions::lab::results::CREATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -1014,7 +1014,7 @@ pub async fn verify_results(
     require_permission(&claims, permissions::lab::results::UPDATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -1113,7 +1113,7 @@ pub async fn cancel_order(
     require_permission(&claims, permissions::lab::orders::CREATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -1273,7 +1273,7 @@ pub async fn add_results(
     require_permission(&claims, permissions::lab::results::CREATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -1526,7 +1526,7 @@ pub async fn list_results(
     require_permission(&claims, permissions::lab::orders::VIEW)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -1891,7 +1891,7 @@ pub async fn reject_sample(
     require_permission(&claims, permissions::lab::results::CREATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -1949,7 +1949,7 @@ pub async fn amend_result(
     require_permission(&claims, permissions::lab::results::AMEND)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -2119,7 +2119,7 @@ pub async fn list_amendments(
     require_permission(&claims, permissions::lab::orders::VIEW)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -2243,7 +2243,7 @@ pub async fn update_report_status(
     require_permission(&claims, permissions::lab::results::UPDATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -2280,7 +2280,7 @@ pub async fn lock_report(
     require_permission(&claims, permissions::lab::results::UPDATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -2892,7 +2892,7 @@ pub async fn add_on_test(
     require_permission(&claims, permissions::lab::orders::CREATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -4557,7 +4557,7 @@ pub async fn get_order_crossmatch(
     require_permission(&claims, permissions::lab::orders::LIST)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,

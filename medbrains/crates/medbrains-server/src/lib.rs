@@ -32,9 +32,10 @@ pub mod storage_archive;
 // Shared server foundation — moved to `medbrains-server-core` and re-exported here
 // so `crate::error`, `crate::state`, `crate::middleware`, … keep resolving across
 // the ~189 route modules.
+pub use medbrains_authz_gate as authz_patient;
 pub use medbrains_workflow::{events, orchestration};
 pub use medbrains_server_core::{
     clinical_credential,
-    authz_patient, config, error, hospital_time, middleware, oauth, pagination, s3_presign,
+    config, error, hospital_time, middleware, oauth, pagination, s3_presign,
     signing, state, tenant_config, validation,
 };

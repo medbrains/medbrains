@@ -2573,7 +2573,7 @@ pub async fn get_prescription(
     )?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -3128,7 +3128,7 @@ pub async fn update_prescription(
     )?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -3734,7 +3734,7 @@ pub async fn void_certificate(
     require_permission(&claims, permissions::opd::certificates::VOID)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -4222,7 +4222,7 @@ pub async fn cancel_procedure_order(
     require_permission(&claims, permissions::opd::procedures::CANCEL)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,

@@ -838,7 +838,7 @@ pub async fn get_invoice(
     require_any_permission(&claims, BILLING_INVOICE_WORKSPACE_PERMISSIONS)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -914,7 +914,7 @@ pub async fn update_invoice(
     require_permission(&claims, permissions::billing::invoices::UPDATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -979,7 +979,7 @@ pub async fn add_invoice_item(
     require_permission(&claims, permissions::billing::invoices::UPDATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -1211,7 +1211,7 @@ pub async fn issue_invoice(
     require_permission(&claims, permissions::billing::invoices::UPDATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -1302,7 +1302,7 @@ pub async fn cancel_invoice(
     require_permission(&claims, permissions::billing::invoices::CANCEL)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -1346,7 +1346,7 @@ pub async fn close_zero_invoice(
     require_permission(&claims, permissions::billing::payments::CREATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -1410,7 +1410,7 @@ pub async fn record_payment(
     require_permission(&claims, permissions::billing::payments::CREATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -1595,7 +1595,7 @@ pub async fn list_payments(
     require_any_permission(&claims, BILLING_INVOICE_WORKSPACE_PERMISSIONS)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -1669,7 +1669,7 @@ pub async fn list_receipts(
     require_any_permission(&claims, BILLING_RECEIPT_CONTEXT_PERMISSIONS)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -1704,7 +1704,7 @@ pub async fn generate_receipt(
     require_permission(&claims, permissions::billing::receipts::PRINT)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -2148,7 +2148,7 @@ pub async fn clone_invoice(
     require_permission(&claims, permissions::billing::invoices::CREATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,

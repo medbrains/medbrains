@@ -3167,7 +3167,7 @@ pub async fn update_mar_round(
     )?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -3218,7 +3218,7 @@ pub async fn verify_mar_barcode(
     )?;
 
     // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see authz_patient::links.
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
