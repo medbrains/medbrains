@@ -23,7 +23,7 @@ use axum::routing::{get,post,put};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::{is_bypass_role, require_any_permission, require_permission};
-use medbrains_server_core::notifications::{NewNotification, create_notification};
+use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::state::AppState;
 
 // ══════════════════════════════════════════════════════════
@@ -1093,7 +1093,7 @@ pub async fn verify_results(
 
     tx.commit().await?;
     if let Some(ref o) = order {
-        medbrains_server_core::notifications::publish_surface_board_signal(
+        medbrains_notifications::publish_surface_board_signal(
             &state,
             claims.tenant_id,
             "lab",
@@ -1505,7 +1505,7 @@ pub async fn add_results(
     // Post-commit: nudge the lab board so a posted result shows up when it is
     // posted, not up to ten seconds later on the next poll.
     if !results.is_empty() {
-        medbrains_server_core::notifications::publish_surface_board_signal(
+        medbrains_notifications::publish_surface_board_signal(
             &state,
             claims.tenant_id,
             "lab",

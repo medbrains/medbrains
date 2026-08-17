@@ -33,7 +33,7 @@ use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::{require_any_permission, require_permission};
 use medbrains_server_core::middleware::field_access;
-use medbrains_server_core::notifications::{NewNotification, create_notification};
+use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::state::AppState;
 
 const OPD_ENCOUNTER_WORKSPACE_PERMISSIONS: &[&str] = &[
@@ -1377,7 +1377,7 @@ const QUEUE_CHANGED_SIGNAL: &str = "opd.queue.changed";
 
 /// Nudge a department's boards after a queue transition commits.
 fn signal_queue_changed(state: &AppState, claims: &Claims, queue: &OpdQueue) {
-    medbrains_server_core::notifications::publish_board_signal(
+    medbrains_notifications::publish_board_signal(
         state,
         claims.tenant_id,
         queue.department_id,
@@ -1785,7 +1785,7 @@ pub async fn create_vital(
     // Post-commit: nudge the department's open screens so the waiting list
     // reflects the new vitals without waiting for its next poll.
     if let Some(department_id) = department_id {
-        medbrains_server_core::notifications::publish_board_signal(
+        medbrains_notifications::publish_board_signal(
             &state,
             claims.tenant_id,
             department_id,

@@ -834,7 +834,7 @@ pub async fn create_visit(
 /// see who is waiting and how sick they are, and a newly-arrived or re-triaged
 /// patient must appear on it now.
 fn signal_triage_board(state: &AppState, claims: &Claims, kind: &str, visit_id: Uuid) {
-    medbrains_server_core::notifications::publish_surface_board_signal(
+    medbrains_notifications::publish_surface_board_signal(
         state,
         claims.tenant_id,
         "emergency",

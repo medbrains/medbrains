@@ -1,0 +1,25 @@
+[package]
+name = "medbrains-notifications"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+# The notification feature: HTTP handlers, WebSocket upgrade, fan-out.
+#
+# `notification_hub` deliberately stays in medbrains-server-core. It is a pure
+# leaf — broadcast channels and topic helpers, zero internal references — and
+# AppState holds it, so moving it would mean AppState surgery to relocate a type
+# that has no dependencies and rarely changes. The feature is what churns, and
+# the feature is what leaves.
+[dependencies]
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-db = { path = "../medbrains-db" }
+axum = { workspace = true }
+tokio = { workspace = true }
+futures = { workspace = true }
+sqlx = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }

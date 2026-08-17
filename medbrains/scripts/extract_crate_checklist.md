@@ -16,12 +16,44 @@ reference form the previous pass could not see.
    never appears as a contiguous string. Search for the bare module name inside
    `use ... { ... }` blocks.
 
+   **Two shapes, and the second defeats naive regex.** A bare entry
+   (`notifications,`) is easy. A *nested* entry is not:
+
+       use medbrains_server_core::{
+           error::AppError,
+           middleware::{ auth::Claims, authorization::{...} },   <- nested
+           notifications::{NewNotification, create_notification},
+           state::AppState,
+       };
+
+   `\{[^}]*?notifications` stops dead at the first `}` of the nested group and
+   reports no match — which is exactly what happened, and the build found it
+   instead. **Regex cannot parse nested braces.** Walk the block counting depth
+   from the opening `{` until it returns to zero, then search inside it.
+
 Also: a `pub use` is a **re-export** other crates may rely on. Removing it
 breaks them silently at their call sites, not here — keep it pointing at the new
 crate (`pub use medbrains_authz_gate as authz_patient;`) unless every consumer
 is updated in the same pass.
 
-4. **Missing dependencies** — not a reference problem at all.
+4. **A re-export chain that hides the crate name.**
+   `medbrains-server` had `pub use medbrains_server_core::notifications;`, so
+   downstream code says `crate::routes::notifications::…` — which mentions
+   neither the old crate nor the new one. Invisible to every grep above; only
+   the compiler finds it.
+
+   Worse, the naive rewrite makes it *silently wrong*:
+
+       pub use medbrains_server_core::notifications;   ->
+       pub use medbrains_notifications;                 <- renames the export!
+
+   The module was exported as `notifications`; now it is exported as
+   `medbrains_notifications`, and every `routes::notifications::…` breaks.
+   **Preserve the exported name:** `pub use medbrains_notifications as
+   notifications;`. The same latent bug was sitting in the nabh move and
+   compiled only because nothing happened to reference `routes::nabh_evidence`.
+
+5. **Missing dependencies** — not a reference problem at all.
    The moved code uses crates the *old* crate declared and the new one does
    not: `medbrains_crypto`, `reqwest`, `url`. Nothing in the source changes,
    so no rewrite pass can find it — the file is correct and simply cannot

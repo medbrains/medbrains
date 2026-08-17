@@ -34,7 +34,7 @@ use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::{is_bypass_role, require_any_permission, require_permission};
 use medbrains_server_core::middleware::field_access;
-use medbrains_server_core::notifications::{NewNotification, create_notification};
+use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::state::AppState;
 use medbrains_core::form::FieldAccessLevel;
 
@@ -3039,7 +3039,7 @@ pub async fn dispense_order(
 
     // Post-commit: the pharmacy board shows what is ready for handover, so a
     // dispensed order should leave it immediately rather than on the next poll.
-    medbrains_server_core::notifications::publish_surface_board_signal(
+    medbrains_notifications::publish_surface_board_signal(
         &state,
         claims.tenant_id,
         "pharmacy",

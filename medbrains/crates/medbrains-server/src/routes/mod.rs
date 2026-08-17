@@ -10,7 +10,7 @@ pub mod health;
 pub mod nhcx_onboarding;
 pub mod portal;
 pub mod rx_verify;
-pub use medbrains_nabh;
+pub use medbrains_nabh as nabh_evidence;
 // scheduling routes moved to the medbrains-scheduling leaf; re-exported so
 // reports.rs (which reuses scheduling helpers) keeps resolving crate::routes::scheduling.
 pub use medbrains_identity::sso;
@@ -18,8 +18,8 @@ pub use medbrains_platform::ckb;
 pub use medbrains_print_data::billing as print_data_billing;
 pub use medbrains_print_data::clinical as print_data_clinical;
 pub use medbrains_scheduling::scheduling;
-pub use medbrains_server_core::notifications;
-pub use medbrains_server_core::signed_documents;
+pub use medbrains_notifications as notifications;
+pub use medbrains_signing::signed_documents;
 pub use medbrains_server_core::step_up;
 pub use medbrains_telehealth::cds;
 // order_basket reaches diet's order-creation helper via super::diet

@@ -938,7 +938,7 @@ pub async fn update_order_status(
     if is_completed {
         // Post-commit: the radiology board tracks what is still pending, so a
         // completed study should drop off it immediately.
-        medbrains_server_core::notifications::publish_surface_board_signal(
+        medbrains_notifications::publish_surface_board_signal(
             &state,
             claims.tenant_id,
             "radiology",
@@ -1168,10 +1168,10 @@ pub async fn create_report(
         .fetch_one(&mut *tx)
         .await?;
         let snippet: String = finding.chars().take(140).collect();
-        medbrains_server_core::notifications::create_notification(
+        medbrains_notifications::create_notification(
             &mut tx,
             claims.tenant_id,
-            medbrains_server_core::notifications::NewNotification {
+            medbrains_notifications::NewNotification {
                 user_id: recipient,
                 kind: "danger",
                 title: "Critical imaging finding",
@@ -1303,10 +1303,10 @@ pub async fn verify_report(
     .fetch_one(&mut *tx)
     .await?;
     if recipient != claims.sub {
-        medbrains_server_core::notifications::create_notification(
+        medbrains_notifications::create_notification(
             &mut tx,
             claims.tenant_id,
-            medbrains_server_core::notifications::NewNotification {
+            medbrains_notifications::NewNotification {
                 user_id: recipient,
                 kind: "info",
                 title: "Imaging report ready",

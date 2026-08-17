@@ -6,6 +6,7 @@ members = [
     "crates/medbrains-authz-gate",
     "crates/medbrains-nabh",
     "crates/medbrains-signing",
+    "crates/medbrains-notifications",
     "crates/medbrains-approvals-core",
     "crates/medbrains-approvals-store",
     "crates/medbrains-approvals",
