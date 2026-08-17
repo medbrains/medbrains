@@ -1,6 +1,8 @@
 // Long-term-care FamilyPanel — split from long-term-care.tsx (pure move).
 
 import { Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Badge, Button, toast } from "@/components/ui";
@@ -8,7 +10,10 @@ import { longTermCareService } from "@/services/longTermCare.service";
 
 const MSG_TYPES = ["care_update", "visit_request", "general"];
 
-export function FamilyPanel({ patientId, canManage }: { patientId: string; canManage: boolean }) {
+export function FamilyPanel({ patientId }: { patientId: string }) {
+  const canView = useHasPermission(P.SPECIALTY.LTC.FAMILY_LIST);
+  const canCreate = useHasPermission(P.SPECIALTY.LTC.FAMILY_CREATE);
+  const canUpdate = useHasPermission(P.SPECIALTY.LTC.FAMILY_UPDATE);
   const qc = useQueryClient();
   const [type, setType] = useState<string | null>("care_update");
   const [direction, setDirection] = useState<string | null>("to_family");
@@ -19,6 +24,7 @@ export function FamilyPanel({ patientId, canManage }: { patientId: string; canMa
   const { data = [] } = useQuery({
     queryKey: ["family-messages", patientId],
     queryFn: () => longTermCareService.listFamilyMessages(patientId),
+    enabled: canView,
   });
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ["family-messages", patientId] });
@@ -53,7 +59,7 @@ export function FamilyPanel({ patientId, canManage }: { patientId: string; canMa
       <Text fw={600} size="sm">
         Family communication
       </Text>
-      {canManage && (
+      {canCreate && (
         <>
           <Group grow>
             <Select
@@ -114,7 +120,7 @@ export function FamilyPanel({ patientId, canManage }: { patientId: string; canMa
                 {new Date(m.created_at).toLocaleString()}
               </Text>
             </Stack>
-            {canManage && m.status !== "actioned" && (
+            {canUpdate && m.status !== "actioned" && (
               <Button
                 size="xs"
                 tone="ghost"

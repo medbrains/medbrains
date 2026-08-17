@@ -1,6 +1,8 @@
 // Long-term-care RehabPanel — split from long-term-care.tsx (pure move).
 
 import { Group, NumberInput, Select, Stack, Text, TextInput } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Badge, Button, toast } from "@/components/ui";
@@ -8,7 +10,9 @@ import { longTermCareService } from "@/services/longTermCare.service";
 
 const THERAPY_TYPES = ["physiotherapy", "occupational", "speech"];
 
-export function RehabPanel({ patientId, canManage }: { patientId: string; canManage: boolean }) {
+export function RehabPanel({ patientId }: { patientId: string }) {
+  const canView = useHasPermission(P.SPECIALTY.LTC.REHAB_LIST);
+  const canCreate = useHasPermission(P.SPECIALTY.LTC.REHAB_CREATE);
   const qc = useQueryClient();
   const [type, setType] = useState<string | null>("physiotherapy");
   const [goal, setGoal] = useState("");
@@ -18,6 +22,7 @@ export function RehabPanel({ patientId, canManage }: { patientId: string; canMan
   const { data = [] } = useQuery({
     queryKey: ["rehab", patientId],
     queryFn: () => longTermCareService.listRehabProgress(patientId),
+    enabled: canView,
   });
   const add = useMutation({
     mutationFn: () =>
@@ -43,7 +48,7 @@ export function RehabPanel({ patientId, canManage }: { patientId: string; canMan
       <Text fw={600} size="sm">
         Rehabilitation progress
       </Text>
-      {canManage && (
+      {canCreate && (
         <>
           <Group grow>
             <Select

@@ -1327,6 +1327,77 @@ pub mod specialty {
         }
     }
 
+    /// Long-term and post-acute care — nursing-home residents, skilled
+    /// nursing facility stays, home-care referrals and the family channel.
+    ///
+    /// The whole module ran on `ipd.nursing_assessment` before this, so
+    /// recording one ward observation carried the right to read a resident's
+    /// family messages and open a skilled-nursing admission, while an LTC
+    /// coordinator could not be granted either without IPD nursing rights.
+    pub mod ltc {
+        pub mod mds {
+            /// View MDS assessments.
+            ///
+            /// The Minimum Data Set — the standardised functional, cognitive
+            /// and clinical assessment of a long-term care resident.
+            pub const LIST: &str = "specialty.ltc.mds.list";
+            /// Start an MDS assessment.
+            pub const CREATE: &str = "specialty.ltc.mds.create";
+            /// Complete an MDS assessment.
+            ///
+            /// Signs the assessment off; it drives the resident's care plan
+            /// and reimbursement category, so completing is not editing.
+            pub const COMPLETE: &str = "specialty.ltc.mds.complete";
+        }
+        pub mod medications {
+            /// View long-term medications.
+            pub const LIST: &str = "specialty.ltc.medications.list";
+            /// Add a long-term medication.
+            pub const CREATE: &str = "specialty.ltc.medications.create";
+            /// Refill or amend a long-term medication.
+            pub const UPDATE: &str = "specialty.ltc.medications.update";
+        }
+        pub mod rehab {
+            /// View rehabilitation progress.
+            pub const LIST: &str = "specialty.ltc.rehab.list";
+            /// Record rehabilitation progress.
+            pub const CREATE: &str = "specialty.ltc.rehab.create";
+        }
+        pub mod family {
+            /// View family messages.
+            ///
+            /// Correspondence between a resident's relatives and the care
+            /// team — read by families, so treated as resident-identifying.
+            pub const LIST: &str = "specialty.ltc.family.list";
+            /// Post a family message.
+            pub const CREATE: &str = "specialty.ltc.family.create";
+            /// Edit or withdraw a family message.
+            pub const UPDATE: &str = "specialty.ltc.family.update";
+        }
+        pub mod readmission {
+            /// View readmission risk assessments.
+            pub const LIST: &str = "specialty.ltc.readmission.list";
+            /// Assess readmission risk.
+            pub const CREATE: &str = "specialty.ltc.readmission.create";
+        }
+        pub mod home_care {
+            /// View home-care referrals.
+            pub const LIST: &str = "specialty.ltc.home_care.list";
+            /// Refer a resident to home care.
+            pub const CREATE: &str = "specialty.ltc.home_care.create";
+            /// Update a home-care referral.
+            pub const UPDATE: &str = "specialty.ltc.home_care.update";
+        }
+        pub mod snf {
+            /// View skilled nursing facility admissions.
+            pub const LIST: &str = "specialty.ltc.snf.list";
+            /// Admit a resident to a skilled nursing facility.
+            pub const CREATE: &str = "specialty.ltc.snf.create";
+            /// Update a skilled nursing facility admission.
+            pub const UPDATE: &str = "specialty.ltc.snf.update";
+        }
+    }
+
     pub mod pmr {
         pub mod plans {
             pub const LIST: &str = "specialty.pmr.plans.list";

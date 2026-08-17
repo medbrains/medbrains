@@ -110,6 +110,24 @@ pub enum ParentKind {
     Via(&'static ParentLink),
 }
 
+impl ParentLink {
+    /// A table that carries `patient_id` itself — by far the commonest shape.
+    ///
+    /// Spelling out three fields for each of these buried the links that are
+    /// actually worth reading, which are the ones whose column choice was a
+    /// decision: `LABOR_RECORD` avoiding a nullable `admission_id`, `NEWBORN`
+    /// avoiding a nullable `mother_id`, `PRESCRIPTION` hanging off an
+    /// encounter rather than a patient.
+    #[must_use]
+    pub const fn on_patient(table: &'static str) -> Self {
+        Self {
+            table,
+            column: "patient_id",
+            parent: ParentKind::Patient,
+        }
+    }
+}
+
 /// How many links a chain may follow before it is treated as a bug.
 ///
 /// The chain is built from `&'static` constants, so a cycle would have to be
@@ -127,26 +145,14 @@ pub mod links {
         column: "encounter_id",
         parent: ParentKind::Encounter,
     };
-    pub const MEDICAL_CERTIFICATE: ParentLink = ParentLink {
-        table: "medical_certificates",
-        column: "patient_id",
-        parent: ParentKind::Patient,
-    };
-    pub const PROCEDURE_ORDER: ParentLink = ParentLink {
-        table: "procedure_orders",
-        column: "patient_id",
-        parent: ParentKind::Patient,
-    };
+    pub const MEDICAL_CERTIFICATE: ParentLink = ParentLink::on_patient("medical_certificates");
+    pub const PROCEDURE_ORDER: ParentLink = ParentLink::on_patient("procedure_orders");
     pub const MAR_ENTRY: ParentLink = ParentLink {
         table: "ipd_medication_administration",
         column: "admission_id",
         parent: ParentKind::Admission,
     };
-    pub const LAB_ORDER: ParentLink = ParentLink {
-        table: "lab_orders",
-        column: "patient_id",
-        parent: ParentKind::Patient,
-    };
+    pub const LAB_ORDER: ParentLink = ParentLink::on_patient("lab_orders");
     pub const INVOICE: ParentLink = ParentLink {
         table: "invoices",
         column: "patient_id",
@@ -155,23 +161,12 @@ pub mod links {
     /// Also guards `dental_chart_entries`, whose `exam_id` is this table's `id`
     /// — the tooth-wise chart hangs off the exam, so authorizing the exam
     /// authorizes its entries without a second hop.
-    pub const DENTAL_EXAM: ParentLink = ParentLink {
-        table: "dental_exams",
-        column: "patient_id",
-        parent: ParentKind::Patient,
-    };
-    pub const OPHTHO_EXAM: ParentLink = ParentLink {
-        table: "ophtho_exams",
-        column: "patient_id",
-        parent: ParentKind::Patient,
-    };
+    pub const DENTAL_EXAM: ParentLink = ParentLink::on_patient("dental_exams");
+    pub const OPHTHO_EXAM: ParentLink = ParentLink::on_patient("ophtho_exams");
 
     /// The mother. Maternity's own records name a registration, never her.
-    pub const MATERNITY_REGISTRATION: ParentLink = ParentLink {
-        table: "maternity_registrations",
-        column: "patient_id",
-        parent: ParentKind::Patient,
-    };
+    pub const MATERNITY_REGISTRATION: ParentLink =
+        ParentLink::on_patient("maternity_registrations");
     /// A labor record carries `admission_id` too, but it is nullable — a birth
     /// that never became an admission would authorize as "no such record".
     /// The registration is always present, so the chain goes through it.
@@ -189,11 +184,7 @@ pub mod links {
         parent: ParentKind::Via(&LABOR_RECORD),
     };
     /// Psychiatric records key on their own patient row, not the patient id.
-    pub const PSYCH_PATIENT: ParentLink = ParentLink {
-        table: "psych_patients",
-        column: "patient_id",
-        parent: ParentKind::Patient,
-    };
+    pub const PSYCH_PATIENT: ParentLink = ParentLink::on_patient("psych_patients");
     /// Restraint and seclusion episodes — reviewable events under the Mental
     /// Healthcare Act, addressed by their own id once created.
     pub const PSYCH_RESTRAINT: ParentLink = ParentLink {
@@ -206,6 +197,14 @@ pub mod links {
         column: "psych_patient_id",
         parent: ParentKind::Via(&PSYCH_PATIENT),
     };
+
+    /// Long-term care. Every one of these tables carries the resident's
+    /// `patient_id` directly, so each is a one-liner.
+    pub const LTC_MDS_ASSESSMENT: ParentLink = ParentLink::on_patient("mds_assessments");
+    pub const LTC_MEDICATION: ParentLink = ParentLink::on_patient("long_term_medications");
+    pub const LTC_FAMILY_MESSAGE: ParentLink = ParentLink::on_patient("family_messages");
+    pub const LTC_HOME_CARE_REFERRAL: ParentLink = ParentLink::on_patient("home_care_referrals");
+    pub const LTC_SNF_ADMISSION: ParentLink = ParentLink::on_patient("snf_admissions");
 }
 
 /// Resolve a child row to its parent, then authorize the parent.

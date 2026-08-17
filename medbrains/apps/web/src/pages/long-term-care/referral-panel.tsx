@@ -1,6 +1,8 @@
 // Long-term-care ReferralPanel — split from long-term-care.tsx (pure move).
 
 import { Group, Select, Stack, Text, TextInput } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { BadgeTone } from "@/components/ui";
@@ -17,7 +19,10 @@ const REFERRAL_TYPES = [
 ];
 const REFERRAL_STATUS = ["pending", "accepted", "scheduled", "declined", "completed"];
 
-export function ReferralPanel({ patientId, canManage }: { patientId: string; canManage: boolean }) {
+export function ReferralPanel({ patientId }: { patientId: string }) {
+  const canView = useHasPermission(P.SPECIALTY.LTC.HOME_CARE_LIST);
+  const canCreate = useHasPermission(P.SPECIALTY.LTC.HOME_CARE_CREATE);
+  const canUpdate = useHasPermission(P.SPECIALTY.LTC.HOME_CARE_UPDATE);
   const qc = useQueryClient();
   const [type, setType] = useState<string | null>("nursing");
   const [reason, setReason] = useState("");
@@ -26,6 +31,7 @@ export function ReferralPanel({ patientId, canManage }: { patientId: string; can
   const { data = [] } = useQuery({
     queryKey: ["referrals", patientId],
     queryFn: () => longTermCareService.listHomeCareReferrals(patientId),
+    enabled: canView,
   });
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ["referrals", patientId] });
@@ -65,7 +71,7 @@ export function ReferralPanel({ patientId, canManage }: { patientId: string; can
       <Text fw={600} size="sm">
         Home care referrals
       </Text>
-      {canManage && (
+      {canCreate && (
         <>
           <Group grow>
             <Select
@@ -106,7 +112,7 @@ export function ReferralPanel({ patientId, canManage }: { patientId: string; can
                 {r.provider ? ` · ${r.provider}` : ""}
               </Text>
             </Group>
-            {canManage && (
+            {canUpdate && (
               <Select
                 size="xs"
                 w={130}

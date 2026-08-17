@@ -294,6 +294,34 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::ipd::io_chart::CREATE,
             permissions::ipd::nursing_assessment::LIST,
             permissions::ipd::nursing_assessment::CREATE,
+            // Long-term care ran on the two codes above, and the nurse was the
+            // only built-in role holding them. Granting the whole LTC family
+            // here keeps effective access exactly as it was.
+            //
+            // Worth a clinical decision separately: no doctor role can
+            // complete an MDS assessment or sign a home-care referral today,
+            // and `case_manager` — whose job these referrals are — cannot see
+            // them either. Both follow from the borrowed permission, not from
+            // anyone deciding it.
+            permissions::specialty::ltc::mds::LIST,
+            permissions::specialty::ltc::mds::CREATE,
+            permissions::specialty::ltc::mds::COMPLETE,
+            permissions::specialty::ltc::medications::LIST,
+            permissions::specialty::ltc::medications::CREATE,
+            permissions::specialty::ltc::medications::UPDATE,
+            permissions::specialty::ltc::rehab::LIST,
+            permissions::specialty::ltc::rehab::CREATE,
+            permissions::specialty::ltc::family::LIST,
+            permissions::specialty::ltc::family::CREATE,
+            permissions::specialty::ltc::family::UPDATE,
+            permissions::specialty::ltc::readmission::LIST,
+            permissions::specialty::ltc::readmission::CREATE,
+            permissions::specialty::ltc::home_care::LIST,
+            permissions::specialty::ltc::home_care::CREATE,
+            permissions::specialty::ltc::home_care::UPDATE,
+            permissions::specialty::ltc::snf::LIST,
+            permissions::specialty::ltc::snf::CREATE,
+            permissions::specialty::ltc::snf::UPDATE,
             permissions::ipd::care_plans::LIST,
             permissions::ipd::care_plans::CREATE,
             permissions::ipd::handover::LIST,

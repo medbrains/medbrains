@@ -1,19 +1,17 @@
 // Long-term-care ReadmissionRiskPanel — split from long-term-care.tsx (pure move).
 
 import { Group, NumberInput, Stack, Text } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { BadgeTone } from "@/components/ui";
 import { Badge, Button, toast } from "@/components/ui";
 import { longTermCareService } from "@/services/longTermCare.service";
 
-export function ReadmissionRiskPanel({
-  patientId,
-  canManage,
-}: {
-  patientId: string;
-  canManage: boolean;
-}) {
+export function ReadmissionRiskPanel({ patientId }: { patientId: string }) {
+  const canView = useHasPermission(P.SPECIALTY.LTC.READMISSION_LIST);
+  const canCreate = useHasPermission(P.SPECIALTY.LTC.READMISSION_CREATE);
   const qc = useQueryClient();
   const [los, setLos] = useState<number | "">("");
   const [acuity, setAcuity] = useState<number | "">("");
@@ -23,6 +21,7 @@ export function ReadmissionRiskPanel({
   const { data = [] } = useQuery({
     queryKey: ["readmission-risk", patientId],
     queryFn: () => longTermCareService.listReadmissionRisk(patientId),
+    enabled: canView,
   });
   const n = (x: number | "") => (typeof x === "number" ? x : 0);
   const assess = useMutation({
@@ -52,7 +51,7 @@ export function ReadmissionRiskPanel({
       <Text fw={600} size="sm">
         Readmission risk (LACE)
       </Text>
-      {canManage && (
+      {canCreate && (
         <>
           <Group grow>
             <NumberInput

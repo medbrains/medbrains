@@ -54,7 +54,7 @@ pub async fn list_mds_assessments(
     Extension(claims): Extension<Claims>,
     Query(q): Query<PatientQuery>,
 ) -> Result<Json<Vec<MdsAssessment>>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+    require_permission(&claims, permissions::specialty::ltc::mds::LIST)?;
 
     // The id arrives on the query string rather than the path, so the route map
     // reads as unscoped. It is still a per-record read and needs a per-record check.
@@ -93,7 +93,12 @@ pub async fn create_mds_assessment(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateMdsRequest>,
 ) -> Result<Json<MdsAssessment>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    require_permission(&claims, permissions::specialty::ltc::mds::CREATE)?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops the record
+    // being filed against a resident outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     if let Some(t) = &body.assessment_type {
         if !MDS_TYPES.contains(&t.as_str()) {
             return Err(AppError::BadRequest("Invalid assessment type".to_owned()));
@@ -131,7 +136,14 @@ pub async fn complete_mds_assessment(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<MdsAssessment>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    require_permission(&claims, permissions::specialty::ltc::mds::COMPLETE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LTC_MDS_ASSESSMENT,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, MdsAssessment>(&format!(
@@ -176,7 +188,7 @@ pub async fn list_ltc_medications(
     Extension(claims): Extension<Claims>,
     Query(q): Query<PatientQuery>,
 ) -> Result<Json<Vec<LtcMedication>>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+    require_permission(&claims, permissions::specialty::ltc::medications::LIST)?;
 
     // The id arrives on the query string rather than the path, so the route map
     // reads as unscoped. It is still a per-record read and needs a per-record check.
@@ -213,7 +225,12 @@ pub async fn add_ltc_medication(
     Extension(claims): Extension<Claims>,
     Json(body): Json<AddLtcMedicationRequest>,
 ) -> Result<Json<LtcMedication>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    require_permission(&claims, permissions::specialty::ltc::medications::CREATE)?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops the record
+    // being filed against a resident outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     if body.drug_name.trim().is_empty() {
         return Err(AppError::BadRequest("Drug name is required".to_owned()));
     }
@@ -251,7 +268,14 @@ pub async fn refill_ltc_medication(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<LtcMedication>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    require_permission(&claims, permissions::specialty::ltc::medications::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LTC_MEDICATION,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, LtcMedication>(&format!(
@@ -282,7 +306,14 @@ pub async fn update_ltc_medication(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateLtcMedicationRequest>,
 ) -> Result<Json<LtcMedication>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    require_permission(&claims, permissions::specialty::ltc::medications::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LTC_MEDICATION,
+        id,
+    )
+    .await?;
     if let Some(s) = &body.status {
         if !["active", "paused", "discontinued"].contains(&s.as_str()) {
             return Err(AppError::BadRequest("Invalid status".to_owned()));
@@ -329,7 +360,7 @@ pub async fn list_rehab_progress(
     Extension(claims): Extension<Claims>,
     Query(q): Query<PatientQuery>,
 ) -> Result<Json<Vec<RehabProgress>>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+    require_permission(&claims, permissions::specialty::ltc::rehab::LIST)?;
 
     // The id arrives on the query string rather than the path, so the route map
     // reads as unscoped. It is still a per-record read and needs a per-record check.
@@ -364,7 +395,12 @@ pub async fn add_rehab_progress(
     Extension(claims): Extension<Claims>,
     Json(body): Json<AddRehabRequest>,
 ) -> Result<Json<RehabProgress>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    require_permission(&claims, permissions::specialty::ltc::rehab::CREATE)?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops the record
+    // being filed against a resident outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     if !["physiotherapy", "occupational", "speech"].contains(&body.therapy_type.as_str()) {
         return Err(AppError::BadRequest("Invalid therapy type".to_owned()));
     }
@@ -412,7 +448,7 @@ pub async fn list_family_messages(
     Extension(claims): Extension<Claims>,
     Query(q): Query<PatientQuery>,
 ) -> Result<Json<Vec<FamilyMessage>>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+    require_permission(&claims, permissions::specialty::ltc::family::LIST)?;
 
     // The id arrives on the query string rather than the path, so the route map
     // reads as unscoped. It is still a per-record read and needs a per-record check.
@@ -448,7 +484,12 @@ pub async fn post_family_message(
     Extension(claims): Extension<Claims>,
     Json(body): Json<PostFamilyMessageRequest>,
 ) -> Result<Json<FamilyMessage>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    require_permission(&claims, permissions::specialty::ltc::family::CREATE)?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops the record
+    // being filed against a resident outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     if body.body.trim().is_empty() {
         return Err(AppError::BadRequest("Message body is required".to_owned()));
     }
@@ -486,7 +527,14 @@ pub async fn update_family_message(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateFamilyMessageRequest>,
 ) -> Result<Json<FamilyMessage>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    require_permission(&claims, permissions::specialty::ltc::family::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LTC_FAMILY_MESSAGE,
+        id,
+    )
+    .await?;
     if !["sent", "read", "actioned"].contains(&body.status.as_str()) {
         return Err(AppError::BadRequest("Invalid status".to_owned()));
     }
@@ -543,7 +591,7 @@ pub async fn list_readmission_risk(
     Extension(claims): Extension<Claims>,
     Query(q): Query<PatientQuery>,
 ) -> Result<Json<Vec<ReadmissionRisk>>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+    require_permission(&claims, permissions::specialty::ltc::readmission::LIST)?;
 
     // The id arrives on the query string rather than the path, so the route map
     // reads as unscoped. It is still a per-record read and needs a per-record check.
@@ -579,7 +627,12 @@ pub async fn assess_readmission_risk(
     Extension(claims): Extension<Claims>,
     Json(body): Json<AssessRiskRequest>,
 ) -> Result<Json<ReadmissionRisk>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    require_permission(&claims, permissions::specialty::ltc::readmission::CREATE)?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops the record
+    // being filed against a resident outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     let total =
         body.length_of_stay + body.acuity_score + body.comorbidity_score + body.ed_visits;
     let level = risk_band(total);
@@ -644,7 +697,7 @@ pub async fn list_home_care_referrals(
     Extension(claims): Extension<Claims>,
     Query(q): Query<PatientQuery>,
 ) -> Result<Json<Vec<HomeCareReferral>>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+    require_permission(&claims, permissions::specialty::ltc::home_care::LIST)?;
 
     // The id arrives on the query string rather than the path, so the route map
     // reads as unscoped. It is still a per-record read and needs a per-record check.
@@ -679,7 +732,12 @@ pub async fn create_home_care_referral(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateReferralRequest>,
 ) -> Result<Json<HomeCareReferral>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    require_permission(&claims, permissions::specialty::ltc::home_care::CREATE)?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops the record
+    // being filed against a resident outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     if !["nursing", "wound_care", "physiotherapy", "occupational", "speech", "general"]
         .contains(&body.referral_type.as_str())
     {
@@ -717,7 +775,14 @@ pub async fn update_home_care_referral(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateReferralRequest>,
 ) -> Result<Json<HomeCareReferral>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    require_permission(&claims, permissions::specialty::ltc::home_care::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LTC_HOME_CARE_REFERRAL,
+        id,
+    )
+    .await?;
     if !["pending", "accepted", "scheduled", "declined", "completed"]
         .contains(&body.status.as_str())
     {
@@ -766,7 +831,7 @@ pub async fn list_snf_admissions(
     Extension(claims): Extension<Claims>,
     Query(q): Query<PatientQuery>,
 ) -> Result<Json<Vec<SnfAdmission>>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+    require_permission(&claims, permissions::specialty::ltc::snf::LIST)?;
 
     // The id arrives on the query string rather than the path, so the route map
     // reads as unscoped. It is still a per-record read and needs a per-record check.
@@ -803,7 +868,12 @@ pub async fn create_snf_admission(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateSnfRequest>,
 ) -> Result<Json<SnfAdmission>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    require_permission(&claims, permissions::specialty::ltc::snf::CREATE)?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops the record
+    // being filed against a resident outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     if let Some(s) = &body.source {
         if !["hospital_discharge", "direct", "transfer"].contains(&s.as_str()) {
             return Err(AppError::BadRequest("Invalid source".to_owned()));
@@ -851,7 +921,14 @@ pub async fn update_snf_admission(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateSnfRequest>,
 ) -> Result<Json<SnfAdmission>, AppError> {
-    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    require_permission(&claims, permissions::specialty::ltc::snf::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LTC_SNF_ADMISSION,
+        id,
+    )
+    .await?;
     if !["admitted", "discharged", "transferred"].contains(&body.status.as_str()) {
         return Err(AppError::BadRequest("Invalid status".to_owned()));
     }
