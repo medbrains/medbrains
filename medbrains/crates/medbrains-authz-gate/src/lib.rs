@@ -75,7 +75,7 @@ pub async fn require_admission_access(
 /// resolve the parent, then authorize it — and writing them by hand produces a
 /// different SQL string per module, each with its own chance of forgetting the
 /// tenant predicate.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ParentLink {
     /// Table holding the child row. A `&'static str` on purpose: this is
     /// interpolated into the statement, so it must never be caller-supplied.
@@ -100,7 +100,22 @@ pub enum ParentKind {
     /// it would let anyone on a recent encounter's care team read the bill.
     /// Matches the rule already applied to `list_patient_invoices`.
     PatientDirect,
+    /// The parent is itself a child row — resolve one more hop.
+    ///
+    /// A newborn hangs off a labor record, which hangs off a maternity
+    /// registration, which finally names the mother. Without this the choice is
+    /// a hand-written two-statement lookup per handler, which is how each
+    /// module ends up with its own subtly different version of the tenant
+    /// predicate.
+    Via(&'static ParentLink),
 }
+
+/// How many links a chain may follow before it is treated as a bug.
+///
+/// The chain is built from `&'static` constants, so a cycle would have to be
+/// written deliberately — but an unbounded loop over database round trips is
+/// not something to leave to authorship discipline.
+const MAX_HOPS: usize = 4;
 
 /// The links in use. Adding a row here is the whole cost of guarding a new
 /// child resource.
@@ -150,6 +165,47 @@ pub mod links {
         column: "patient_id",
         parent: ParentKind::Patient,
     };
+
+    /// The mother. Maternity's own records name a registration, never her.
+    pub const MATERNITY_REGISTRATION: ParentLink = ParentLink {
+        table: "maternity_registrations",
+        column: "patient_id",
+        parent: ParentKind::Patient,
+    };
+    /// A labor record carries `admission_id` too, but it is nullable — a birth
+    /// that never became an admission would authorize as "no such record".
+    /// The registration is always present, so the chain goes through it.
+    pub const LABOR_RECORD: ParentLink = ParentLink {
+        table: "labor_records",
+        column: "registration_id",
+        parent: ParentKind::Via(&MATERNITY_REGISTRATION),
+    };
+    /// Through `labor_id` rather than the denormalised `mother_id` beside it:
+    /// `mother_id` is nullable, so a legacy row without one would authorize as
+    /// "no such newborn". `labor_id` is NOT NULL and reaches the same mother.
+    pub const NEWBORN: ParentLink = ParentLink {
+        table: "newborn_records",
+        column: "labor_id",
+        parent: ParentKind::Via(&LABOR_RECORD),
+    };
+    /// Psychiatric records key on their own patient row, not the patient id.
+    pub const PSYCH_PATIENT: ParentLink = ParentLink {
+        table: "psych_patients",
+        column: "patient_id",
+        parent: ParentKind::Patient,
+    };
+    /// Restraint and seclusion episodes — reviewable events under the Mental
+    /// Healthcare Act, addressed by their own id once created.
+    pub const PSYCH_RESTRAINT: ParentLink = ParentLink {
+        table: "psych_seclusion_restraint",
+        column: "psych_patient_id",
+        parent: ParentKind::Via(&PSYCH_PATIENT),
+    };
+    pub const PSYCH_MHRB_NOTIFICATION: ParentLink = ParentLink {
+        table: "psych_mhrb_notifications",
+        column: "psych_patient_id",
+        parent: ParentKind::Via(&PSYCH_PATIENT),
+    };
 }
 
 /// Resolve a child row to its parent, then authorize the parent.
@@ -166,29 +222,55 @@ pub async fn require_access_via(
     link: ParentLink,
     child_id: Uuid,
 ) -> Result<(), AppError> {
-    // `table` and `column` are `&'static str` from `links` above — never from a
-    // request — so this interpolation cannot carry caller input.
-    let sql = format!(
-        "SELECT {} FROM {} WHERE id = $1 AND tenant_id = $2",
-        link.column, link.table
-    );
-    let parent_id: Option<Uuid> = sqlx::query_scalar(&sql)
-        .bind(child_id)
-        .bind(claims.tenant_id)
-        .fetch_optional(&state.db)
-        .await?
-        .flatten();
+    let mut link = link;
+    let mut id = child_id;
 
-    let Some(parent_id) = parent_id else {
-        return Err(AppError::NotFound);
-    };
+    // Iterative rather than recursive: `Via` would otherwise need a boxed
+    // future, and the loop makes the hop bound something a reader can see.
+    for _ in 0..MAX_HOPS {
+        // `table` and `column` are `&'static str` from `links` above — never
+        // from a request — so this interpolation cannot carry caller input.
+        let sql = format!(
+            "SELECT {} FROM {} WHERE id = $1 AND tenant_id = $2",
+            link.column, link.table
+        );
+        let parent_id: Option<Uuid> = sqlx::query_scalar(&sql)
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&state.db)
+            .await?
+            .flatten();
 
-    match link.parent {
-        ParentKind::Encounter => require_encounter_access(state, claims, parent_id).await,
-        ParentKind::Admission => require_admission_access(state, claims, parent_id).await,
-        ParentKind::Patient => require_patient_access(state, claims, parent_id).await,
-        ParentKind::PatientDirect => require_object_view(state, claims, "patient", parent_id).await,
+        let Some(parent_id) = parent_id else {
+            return Err(AppError::NotFound);
+        };
+
+        match link.parent {
+            ParentKind::Encounter => {
+                return require_encounter_access(state, claims, parent_id).await;
+            }
+            ParentKind::Admission => {
+                return require_admission_access(state, claims, parent_id).await;
+            }
+            ParentKind::Patient => {
+                return require_patient_access(state, claims, parent_id).await;
+            }
+            ParentKind::PatientDirect => {
+                return require_object_view(state, claims, "patient", parent_id).await;
+            }
+            ParentKind::Via(next) => {
+                link = *next;
+                id = parent_id;
+            }
+        }
     }
+
+    // A chain longer than the bound is a mistake in `links`, not a refusal, and
+    // must not be reported as one — the same reason an authorization fault
+    // answers 503 rather than 404.
+    Err(AppError::ServiceUnavailable(
+        "authorization link chain exceeded its hop limit".to_owned(),
+    ))
 }
 
 /// Gate a per-patient read/write on graph reachability. Returns `NotFound`
