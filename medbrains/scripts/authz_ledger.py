@@ -122,7 +122,12 @@ def audit_module(paths: list[str]) -> dict:
                 continue
             if AUTHZ_NEARBY.search("\n".join(lines[max(0, i - 8): i + 1])):
                 collapses.append(f"{os.path.relpath(path, ROOT)}:{i + 1}")
-        for name, body in split_handlers(text):
+        for name, raw_body in split_handlers(text):
+            # Strip comments before matching. A handler was scoring as
+            # record-checked because a COMMENT mentioned `authz_patient::links`;
+            # renaming that comment during the crate split dropped the repo-wide
+            # count by 9, which is how the false positive surfaced at all.
+            body = re.sub(r"//[^\n]*", "", raw_body)
             handlers += 1
             if PERMISSION_CHECK.search(body):
                 permissioned += 1

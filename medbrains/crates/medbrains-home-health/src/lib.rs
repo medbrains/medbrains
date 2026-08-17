@@ -52,6 +52,12 @@ pub async fn list_home_meds(
     Query(q): Query<HomeMedQuery>,
 ) -> Result<Json<Vec<HomeMedAdministration>>, AppError> {
     require_permission(&claims, permissions::ipd::mar::LIST)?;
+
+    // The patient id arrives on the query string rather than the path, which is
+    // why the route map read as "no path parameter". It is still a per-patient
+    // read, so it needs a per-patient check — not list filtering.
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, HomeMedAdministration>(&format!(
@@ -180,6 +186,12 @@ pub async fn list_escalations(
     Query(q): Query<HomeMedQuery>,
 ) -> Result<Json<Vec<HomeEscalation>>, AppError> {
     require_permission(&claims, permissions::ipd::mar::LIST)?;
+
+    // The patient id arrives on the query string rather than the path, which is
+    // why the route map read as "no path parameter". It is still a per-patient
+    // read, so it needs a per-patient check — not list filtering.
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, HomeEscalation>(&format!(
@@ -297,6 +309,12 @@ pub async fn list_progress_notes(
     Query(q): Query<HomeMedQuery>,
 ) -> Result<Json<Vec<HomeProgressNote>>, AppError> {
     require_permission(&claims, permissions::ipd::mar::LIST)?;
+
+    // The patient id arrives on the query string rather than the path, which is
+    // why the route map read as "no path parameter". It is still a per-patient
+    // read, so it needs a per-patient check — not list filtering.
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, HomeProgressNote>(&format!(
@@ -380,6 +398,12 @@ pub async fn list_discharge_program(
     Query(q): Query<HomeMedQuery>,
 ) -> Result<Json<Vec<HomeDischargeItem>>, AppError> {
     require_permission(&claims, permissions::ipd::mar::LIST)?;
+
+    // The patient id arrives on the query string rather than the path, which is
+    // why the route map read as "no path parameter". It is still a per-patient
+    // read, so it needs a per-patient check — not list filtering.
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, HomeDischargeItem>(&format!(
@@ -698,6 +722,12 @@ pub async fn list_remote_vitals(
     Query(q): Query<HomeMedQuery>,
 ) -> Result<Json<Vec<RemoteVitalReading>>, AppError> {
     require_permission(&claims, permissions::ipd::mar::LIST)?;
+
+    // The patient id arrives on the query string rather than the path, which is
+    // why the route map read as "no path parameter". It is still a per-patient
+    // read, so it needs a per-patient check — not list filtering.
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, RemoteVitalReading>(&format!(
@@ -781,6 +811,12 @@ pub async fn list_home_care_packages(
     Query(q): Query<HomeMedQuery>,
 ) -> Result<Json<Vec<HomeCarePackage>>, AppError> {
     require_permission(&claims, permissions::ipd::mar::LIST)?;
+
+    // The patient id arrives on the query string rather than the path, which is
+    // why the route map read as "no path parameter". It is still a per-patient
+    // read, so it needs a per-patient check — not list filtering.
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, HomeCarePackage>(&format!(
@@ -946,6 +982,12 @@ pub async fn list_caregiver_education(
     Query(q): Query<HomeMedQuery>,
 ) -> Result<Json<Vec<CaregiverEducation>>, AppError> {
     require_permission(&claims, permissions::ipd::mar::LIST)?;
+
+    // The patient id arrives on the query string rather than the path, which is
+    // why the route map read as "no path parameter". It is still a per-patient
+    // read, so it needs a per-patient check — not list filtering.
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, CaregiverEducation>(&format!(
@@ -1032,6 +1074,12 @@ pub async fn list_hospice_enrollments(
     Query(q): Query<HomeMedQuery>,
 ) -> Result<Json<Vec<HospiceEnrollment>>, AppError> {
     require_permission(&claims, permissions::ipd::mar::LIST)?;
+
+    // The patient id arrives on the query string rather than the path, which is
+    // why the route map read as "no path parameter". It is still a per-patient
+    // read, so it needs a per-patient check — not list filtering.
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, HospiceEnrollment>(&format!(
@@ -1184,6 +1232,12 @@ pub async fn list_advance_directives(
     Query(q): Query<HomeMedQuery>,
 ) -> Result<Json<Vec<AdvanceDirective>>, AppError> {
     require_permission(&claims, permissions::ipd::mar::LIST)?;
+
+    // The patient id arrives on the query string rather than the path, which is
+    // why the route map read as "no path parameter". It is still a per-patient
+    // read, so it needs a per-patient check — not list filtering.
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, AdvanceDirective>(&format!(
@@ -1307,6 +1361,12 @@ pub async fn list_bereavement(
     Query(q): Query<HomeMedQuery>,
 ) -> Result<Json<Vec<BereavementFollowup>>, AppError> {
     require_permission(&claims, permissions::ipd::mar::LIST)?;
+
+    // The patient id arrives on the query string rather than the path, which is
+    // why the route map read as "no path parameter". It is still a per-patient
+    // read, so it needs a per-patient check — not list filtering.
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, BereavementFollowup>(&format!(

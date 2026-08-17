@@ -261,3 +261,42 @@ pub async fn require_patient_access(
 
     collapse(any([direct, reachable]))
 }
+
+/// The set of patients this caller may see, for constraining a list query.
+///
+/// `None` means "no constraint" — a bypass role sees every row in the tenant,
+/// and adding a filter for them would be both wrong and slow. `Some(ids)` is the
+/// visible set, which callers apply as `patient_id = ANY($n::uuid[])`.
+///
+/// This exists because a per-record check cannot help a list endpoint: there is
+/// no id in the request to check. Guarding lists is a different mechanism, and
+/// it is the one that caps every module's conformance — `home_health` has 20 of
+/// 30 handlers with no path parameter at all.
+///
+/// An unanswerable set is a 503, never an empty `Vec`. A list that renders an
+/// outage as emptiness tells a nurse the ward is empty, and that is a statement
+/// about the ward rather than about the system.
+pub async fn visible_patient_ids(
+    state: &AppState,
+    claims: &Claims,
+) -> Result<Option<Vec<Uuid>>, AppError> {
+    let ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
+    if ctx.is_bypass {
+        return Ok(None);
+    }
+    match state
+        .authz
+        .list_accessible(&ctx, "patient", medbrains_authz::Relation::Viewer)
+        .await
+    {
+        Ok(ids) => Ok(Some(ids)),
+        Err(err) => {
+            tracing::error!(target: "authz", error = %err, user = %ctx.user_id,
+                "list_accessible(patient) failed — refusing the list rather than \
+                 returning an empty one");
+            Err(AppError::ServiceUnavailable(
+                "authorization backend unavailable".to_owned(),
+            ))
+        }
+    }
+}
