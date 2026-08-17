@@ -769,7 +769,7 @@ pub async fn create_biowaste(
     .fetch_one(&mut *tx)
     .await?;
 
-    medbrains_server_core::nabh_evidence::mirror_biowaste_record(&mut tx, claims.tenant_id, row.id).await?;
+    medbrains_nabh::mirror_biowaste_record(&mut tx, claims.tenant_id, row.id).await?;
     queue_biowaste_event(&mut tx, &claims, &row).await?;
 
     tx.commit().await?;

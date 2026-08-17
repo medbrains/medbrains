@@ -4,6 +4,7 @@ members = [
     "crates/medbrains-server",
     "crates/medbrains-core",
     "crates/medbrains-authz-gate",
+    "crates/medbrains-nabh",
     "crates/medbrains-approvals-core",
     "crates/medbrains-approvals-store",
     "crates/medbrains-approvals",

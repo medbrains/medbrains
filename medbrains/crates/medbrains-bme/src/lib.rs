@@ -777,7 +777,7 @@ pub async fn create_work_order(
     .await?;
 
     if let Some(breakdown_id) = row.breakdown_id {
-        medbrains_server_core::nabh_evidence::mirror_bme_breakdown(&mut tx, claims.tenant_id, breakdown_id)
+        medbrains_nabh::mirror_bme_breakdown(&mut tx, claims.tenant_id, breakdown_id)
             .await?;
     }
 
@@ -1222,7 +1222,7 @@ pub async fn create_breakdown(
     .fetch_one(&mut *tx)
     .await?;
 
-    medbrains_server_core::nabh_evidence::mirror_bme_breakdown(&mut tx, claims.tenant_id, row.id).await?;
+    medbrains_nabh::mirror_bme_breakdown(&mut tx, claims.tenant_id, row.id).await?;
     queue_bme_downtime_event(&mut tx, &claims, &row).await?;
 
     tx.commit().await?;
@@ -1279,7 +1279,7 @@ pub async fn update_breakdown_status(
     .fetch_one(&mut *tx)
     .await?;
 
-    medbrains_server_core::nabh_evidence::mirror_bme_breakdown(&mut tx, claims.tenant_id, row.id).await?;
+    medbrains_nabh::mirror_bme_breakdown(&mut tx, claims.tenant_id, row.id).await?;
     queue_bme_downtime_event(&mut tx, &claims, &row).await?;
 
     tx.commit().await?;

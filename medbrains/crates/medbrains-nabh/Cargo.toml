@@ -1,0 +1,17 @@
+[package]
+name = "medbrains-nabh"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+# NABH accreditation evidence collection — a domain feature, not framework.
+#
+# It lived in medbrains-server-core, which 102 of 127 crates depend on, so
+# every edit to it recompiled the hub for all of them. It imports sqlx, uuid
+# and AppError; AppState never mentions it. Sitting above server-core rather
+# than inside it costs one dependency edge and stops 10 consumers' worth of
+# compliance code from dirtying everyone else's build.
+[dependencies]
+medbrains-server-core = { path = "../medbrains-server-core" }
+sqlx = { workspace = true }
+uuid = { workspace = true }

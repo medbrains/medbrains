@@ -10,7 +10,7 @@ pub mod health;
 pub mod nhcx_onboarding;
 pub mod portal;
 pub mod rx_verify;
-pub use medbrains_server_core::nabh_evidence;
+pub use medbrains_nabh;
 // scheduling routes moved to the medbrains-scheduling leaf; re-exported so
 // reports.rs (which reuses scheduling helpers) keeps resolving crate::routes::scheduling.
 pub use medbrains_identity::sso;

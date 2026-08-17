@@ -202,7 +202,7 @@ pub async fn start_code_blue(
     .fetch_one(&mut *tx)
     .await?;
 
-    medbrains_server_core::nabh_evidence::mirror_code_blue_started(
+    medbrains_nabh::mirror_code_blue_started(
         &mut tx,
         claims.tenant_id,
         claims.sub,
@@ -302,14 +302,14 @@ pub async fn end_code_blue(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    medbrains_server_core::nabh_evidence::mirror_code_blue_started(
+    medbrains_nabh::mirror_code_blue_started(
         &mut tx,
         claims.tenant_id,
         claims.sub,
         row.id,
     )
     .await?;
-    medbrains_server_core::nabh_evidence::mirror_code_blue_ended(&mut tx, claims.tenant_id, row.id).await?;
+    medbrains_nabh::mirror_code_blue_ended(&mut tx, claims.tenant_id, row.id).await?;
     let mut event = ClinicalEventEnvelope::new(
         claims.tenant_id,
         ClinicalEventName::EmergencyCodeBlueCompleted,

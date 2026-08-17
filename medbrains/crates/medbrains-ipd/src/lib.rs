@@ -2792,7 +2792,7 @@ pub async fn create_assessment(
     .await?;
 
     if body.assessment_type == "braden_scale" {
-        medbrains_server_core::nabh_evidence::mirror_pressure_ulcer_from_ipd_assessment(
+        medbrains_nabh::mirror_pressure_ulcer_from_ipd_assessment(
             &mut tx,
             claims.tenant_id,
             row.id,

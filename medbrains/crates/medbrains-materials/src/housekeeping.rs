@@ -1139,7 +1139,7 @@ pub async fn create_sharp_replacement(
     .fetch_one(&mut *tx)
     .await?;
 
-    medbrains_server_core::nabh_evidence::mirror_biowaste_record(&mut tx, claims.tenant_id, row.id).await?;
+    medbrains_nabh::mirror_biowaste_record(&mut tx, claims.tenant_id, row.id).await?;
     let event = ClinicalEventEnvelope::new(
         claims.tenant_id,
         ClinicalEventName::HousekeepingBmwDisposalRecorded,

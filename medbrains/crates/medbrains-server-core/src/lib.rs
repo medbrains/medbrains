@@ -9,7 +9,6 @@ pub mod clinical_credential;
 pub mod error;
 pub mod hospital_time;
 pub mod middleware;
-pub mod nabh_evidence;
 pub mod notifications;
 pub mod oauth;
 pub mod pagination;

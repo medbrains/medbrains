@@ -935,7 +935,7 @@ pub async fn record_reaction(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    medbrains_server_core::nabh_evidence::mirror_transfusion_reaction(&mut tx, claims.tenant_id, record.id)
+    medbrains_nabh::mirror_transfusion_reaction(&mut tx, claims.tenant_id, record.id)
         .await?;
     let event = ClinicalEventEnvelope::new(
         claims.tenant_id,

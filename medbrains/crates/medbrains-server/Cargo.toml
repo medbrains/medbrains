@@ -11,6 +11,7 @@ medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-seed = { path = "../medbrains-seed" }
 medbrains-authz-gate = { path = "../medbrains-authz-gate" }
+medbrains-nabh = { path = "../medbrains-nabh" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-server-services = { path = "../medbrains-server-services" }
 medbrains-custom-code = { path = "../medbrains-custom-code" }

@@ -853,7 +853,7 @@ pub async fn create_incident(
     if matches!(body.severity, IncidentSeverity::Sentinel)
         || body.incident_type.to_lowercase().contains("sentinel")
     {
-        medbrains_server_core::nabh_evidence::mirror_sentinel_incident(
+        medbrains_nabh::mirror_sentinel_incident(
             &mut tx,
             claims.tenant_id,
             claims.sub,
@@ -862,7 +862,7 @@ pub async fn create_incident(
         .await?;
     }
     if body.incident_type.to_lowercase().contains("fall") {
-        medbrains_server_core::nabh_evidence::mirror_fall_incident(
+        medbrains_nabh::mirror_fall_incident(
             &mut tx,
             claims.tenant_id,
             claims.sub,
