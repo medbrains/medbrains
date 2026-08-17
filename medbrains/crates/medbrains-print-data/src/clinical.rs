@@ -771,7 +771,7 @@ pub async fn get_discharge_print_data(
     .await?;
 
     // Fetch signatures (primary + co-signers) for the discharge summary.
-    let sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
+    let sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "discharge_summary",
@@ -1208,7 +1208,7 @@ pub async fn get_treatment_chart_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
-    let chart_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
+    let chart_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "other",
@@ -1235,7 +1235,7 @@ pub async fn get_treatment_chart_print_data(
         iv_fluids,
         stat_orders,
         treating_doctor: row.treating_doctor,
-        signatures: medbrains_server_core::signed_documents::to_print_signatures(chart_sigs),
+        signatures: medbrains_signing::signed_documents::to_print_signatures(chart_sigs),
     }))
 }
 
@@ -1363,7 +1363,7 @@ pub async fn get_transfer_summary_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
-    let transfer_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
+    let transfer_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "discharge_summary",
@@ -1399,7 +1399,7 @@ pub async fn get_transfer_summary_print_data(
         receiving_doctor: row.receiving_doctor,
         transferring_nurse: row.transferring_nurse,
         receiving_nurse: row.receiving_nurse,
-        signatures: medbrains_server_core::signed_documents::to_print_signatures(transfer_sigs),
+        signatures: medbrains_signing::signed_documents::to_print_signatures(transfer_sigs),
     }))
 }
 
@@ -1818,7 +1818,7 @@ pub async fn get_opd_prescription_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
-    let sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
+    let sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "prescription",
@@ -2024,7 +2024,7 @@ pub async fn get_lab_report_full_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
-    let lab_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
+    let lab_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "lab_report",
@@ -2353,7 +2353,7 @@ pub async fn get_radiology_report_full_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
-    let rad_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
+    let rad_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "radiology_report",
@@ -2555,7 +2555,7 @@ pub async fn get_death_certificate_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
-    let death_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
+    let death_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "death_certificate",

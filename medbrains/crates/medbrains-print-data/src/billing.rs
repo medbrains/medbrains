@@ -1473,7 +1473,7 @@ pub async fn get_insurance_preauth_print_data(
 
     let h_name = hospital_name(&mut tx, claims.tenant_id).await?;
 
-    let preauth_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
+    let preauth_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "other",
@@ -1506,7 +1506,7 @@ pub async fn get_insurance_preauth_print_data(
         treating_doctor: row.treating_doctor,
         contact_number: row.contact_number,
         hospital_name: h_name,
-        signatures: medbrains_server_core::signed_documents::to_print_signatures(preauth_sigs),
+        signatures: medbrains_signing::signed_documents::to_print_signatures(preauth_sigs),
     }))
 }
 
@@ -1588,7 +1588,7 @@ pub async fn get_cashless_claim_print_data(
 
     let h_name = hospital_name(&mut tx, claims.tenant_id).await?;
 
-    let claim_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
+    let claim_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "other",
@@ -1617,7 +1617,7 @@ pub async fn get_cashless_claim_print_data(
         claim_status: row.status,
         treating_doctor: row.treating_doctor,
         hospital_name: h_name,
-        signatures: medbrains_server_core::signed_documents::to_print_signatures(claim_sigs),
+        signatures: medbrains_signing::signed_documents::to_print_signatures(claim_sigs),
     }))
 }
 
@@ -2294,7 +2294,7 @@ pub async fn get_insurance_claim_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
-    let claim_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
+    let claim_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "other",
@@ -2355,7 +2355,7 @@ pub async fn get_insurance_claim_print_data(
         hospital_address: tenant.2,
         hospital_empanelment_number: tenant.3,
         hospital_logo_url: tenant.1,
-        signatures: medbrains_server_core::signed_documents::to_print_signatures(claim_sigs),
+        signatures: medbrains_signing::signed_documents::to_print_signatures(claim_sigs),
     }))
 }
 
