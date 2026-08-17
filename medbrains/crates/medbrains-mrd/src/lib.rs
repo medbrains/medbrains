@@ -518,10 +518,13 @@ pub async fn issue_record(
 pub async fn return_record(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path((_record_id, movement_id)): Path<(Uuid, Uuid)>,
+    Path((record_id, movement_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<MrdRecordMovement>, AppError> {
     require_permission(&claims, permissions::mrd::records::MANAGE)?;
 
+    // The URL names a parent; scope the statement by it so it cannot address a
+    // child under the wrong one. Without this the parent segment is decorative
+    // and the audit row names a record the write never touched.
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -529,9 +532,10 @@ pub async fn return_record(
     let row = sqlx::query_as::<_, MrdRecordMovement>(
         "UPDATE mrd_record_movements SET \
            returned_at = now(), status = 'returned' \
-         WHERE id = $1 RETURNING *",
+         WHERE id = $1 AND medical_record_id = $2 RETURNING *",
     )
     .bind(movement_id)
+    .bind(record_id)
     .fetch_one(&mut *tx)
     .await?;
 

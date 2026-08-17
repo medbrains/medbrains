@@ -1090,15 +1090,21 @@ pub async fn add_output_signature(
 pub async fn delete_output_signature(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path((_output_id, sig_id)): Path<(Uuid, Uuid)>,
+    Path((output_id, sig_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::documents::GENERATE)?;
 
+    // The URL names a parent; scope the statement by it so it cannot address a
+    // child under the wrong one. Without this the parent segment is decorative
+    // and the audit row names a record the write never touched.
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    sqlx::query("DELETE FROM document_output_signatures WHERE id = $1")
+    sqlx::query(
+        "DELETE FROM document_output_signatures WHERE id = $1 AND document_output_id = $2",
+    )
         .bind(sig_id)
+        .bind(output_id)
         .execute(&mut *tx)
         .await?;
 

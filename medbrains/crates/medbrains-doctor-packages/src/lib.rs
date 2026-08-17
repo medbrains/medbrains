@@ -291,15 +291,19 @@ pub async fn add_inclusion(
 pub async fn remove_inclusion(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path((_pid, iid)): Path<(Uuid, Uuid)>,
+    Path((pid, iid)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::admin::doctor_packages::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let n = sqlx::query("DELETE FROM doctor_package_inclusions WHERE id = $1 AND tenant_id = $2")
+    // The URL names a parent; scope the statement by it so it cannot address a
+    // child under the wrong one. Without this the parent segment is decorative
+    // and the audit row names a record the write never touched.
+    let n = sqlx::query("DELETE FROM doctor_package_inclusions WHERE id = $1 AND tenant_id = $2 AND package_id = $3")
         .bind(iid)
         .bind(claims.tenant_id)
+        .bind(pid)
         .execute(&mut *tx)
         .await?;
     tx.commit().await?;

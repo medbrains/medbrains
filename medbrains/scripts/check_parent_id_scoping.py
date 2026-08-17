@@ -46,7 +46,25 @@ DISCARDED_PARENT = re.compile(r"Path\(\(\s*(_\w+)\s*,")
 HANDLER = re.compile(r"pub async fn (\w+)\s*\(")
 
 # Reviewed and deliberately allowed, with the reason.
-ACCEPTED: dict[str, str] = {}
+#
+# These three discard the URL's admission id and then resolve the device's
+# ACTUAL admission from the database before authorizing it:
+#
+#     SELECT admission_id FROM icu_devices WHERE id = $1 AND tenant_id = $2
+#     require_admission_access(&state, &claims, admission_id).await?;
+#
+# That is stronger than scoping by the URL, because it authorizes the real
+# owner rather than trusting a path segment. This checker cannot see that —
+# it detects a discarded parent, not what the handler does instead — so the
+# exemption is recorded here rather than the code being changed to satisfy it.
+ACCEPTED: dict[str, str] = {
+    "crates/medbrains-facilities/src/icu.rs::remove_device":
+        "resolves the device's real admission and authorizes that",
+    "crates/medbrains-facilities/src/icu.rs::list_bundle_checks":
+        "resolves the device's real admission and authorizes that",
+    "crates/medbrains-facilities/src/icu.rs::create_bundle_check":
+        "resolves the device's real admission and authorizes that",
+}
 
 
 def offenders() -> list[tuple[str, int, str, str]]:
