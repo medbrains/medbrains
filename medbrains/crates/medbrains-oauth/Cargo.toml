@@ -12,6 +12,9 @@ axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
+medbrains-crypto = { path = "../medbrains-crypto" }
+reqwest = { workspace = true }
+url = { workspace = true }
 sqlx = { workspace = true }
 chrono = { workspace = true }
 

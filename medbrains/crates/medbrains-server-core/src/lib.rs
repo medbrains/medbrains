@@ -10,7 +10,6 @@ pub mod error;
 pub mod hospital_time;
 pub mod middleware;
 pub mod notifications;
-pub mod oauth;
 pub mod pagination;
 pub mod notification_hub;
 pub mod permissions;
