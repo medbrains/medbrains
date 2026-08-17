@@ -52,13 +52,32 @@ PERMISSION_CHECK = re.compile(
 )
 # Per-record checks likewise. `ensure_*_belongs_to_tenant` is NOT one of these —
 # tenant scoping is RLS's job and does not establish a care relationship.
+#
+# This list must include every helper the gate crate exports, and it did not:
+# `require_access_via` (31 sites) and `patient_filter`/`visible_patient_ids`
+# (12 sites) were missing, so handlers guarded through a parent link or a
+# permitted-id set scored as unguarded. The instrument that ranks the sweep was
+# under-reporting exactly the guards this sweep installs — `list_dental_exams`
+# was flagged as a gap while holding a `patient_filter` call put there in an
+# earlier pass. When a helper is added to medbrains-authz-gate, add it here.
 RECORD_CHECK = re.compile(
     r"require_patient_access|require_encounter_access|require_admission_access|"
+    r"require_access_via|patient_filter|visible_patient_ids|"
     r"require_patient_viewer|require_object_view|require_patient\b|"
     r"ensure_invoice_view_access|ensure_invoice_workspace_access|"
     r"\.authz\b|authz_patient::"
 )
 COLLAPSE = re.compile(r"unwrap_or\(false\)|unwrap_or_default\(\)|\.is_ok\(\)|\.is_err\(\)")
+
+# The gate owns the reviewed-exception list; read it rather than keeping a
+# second copy. Printing a raw count of 1 next to a gate that passes reads as a
+# violation the gate is missing, and costs a re-investigation of a site whose
+# decision was already recorded — which is what it cost the first time.
+try:
+    from check_authz_collapse import ACCEPTED as REVIEWED_COLLAPSES
+except ImportError:  # run from outside scripts/
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from check_authz_collapse import ACCEPTED as REVIEWED_COLLAPSES
 AUTHZ_NEARBY = re.compile(r"\.authz\b|list_accessible|bulk_check|require_\w*_access")
 # A handler touching these is handling patient data.
 PHI = re.compile(
@@ -121,7 +140,9 @@ def audit_module(paths: list[str]) -> dict:
             if not (stripped.startswith(".") or ".await" in line):
                 continue
             if AUTHZ_NEARBY.search("\n".join(lines[max(0, i - 8): i + 1])):
-                collapses.append(f"{os.path.relpath(path, ROOT)}:{i + 1}")
+                site = f"{os.path.relpath(path, ROOT)}:{i + 1}"
+                if site not in REVIEWED_COLLAPSES:
+                    collapses.append(site)
         for name, raw_body in split_handlers(text):
             # Strip comments before matching. A handler was scoring as
             # record-checked because a COMMENT mentioned `authz_patient::links`;
