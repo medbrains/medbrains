@@ -67,6 +67,15 @@ pub async fn get_ophtho_exam(
     Path(id): Path<Uuid>,
 ) -> Result<Json<OphthoExam>, AppError> {
     require_permission(&claims, permissions::specialty::ophthalmology::exams::LIST)?;
+    // The URL names an exam, not a patient. Resolve the exam's patient and
+    // authorize that — the care relationship is one hop away.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::OPHTHO_EXAM,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -115,6 +124,10 @@ pub async fn create_ophtho_exam(
     Json(body): Json<CreateExamRequest>,
 ) -> Result<Json<OphthoExam>, AppError> {
     require_permission(&claims, permissions::specialty::ophthalmology::exams::CREATE)?;
+    // No route-derived id exists here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check — the caller picks who gets
+    // checked — but it stops an exam being filed against an unreachable patient.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -175,6 +188,13 @@ pub async fn update_ophtho_exam(
     Json(body): Json<UpdateExamRequest>,
 ) -> Result<Json<OphthoExam>, AppError> {
     require_permission(&claims, permissions::specialty::ophthalmology::exams::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::OPHTHO_EXAM,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,

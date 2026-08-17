@@ -137,6 +137,19 @@ pub mod links {
         column: "patient_id",
         parent: ParentKind::PatientDirect,
     };
+    /// Also guards `dental_chart_entries`, whose `exam_id` is this table's `id`
+    /// — the tooth-wise chart hangs off the exam, so authorizing the exam
+    /// authorizes its entries without a second hop.
+    pub const DENTAL_EXAM: ParentLink = ParentLink {
+        table: "dental_exams",
+        column: "patient_id",
+        parent: ParentKind::Patient,
+    };
+    pub const OPHTHO_EXAM: ParentLink = ParentLink {
+        table: "ophtho_exams",
+        column: "patient_id",
+        parent: ParentKind::Patient,
+    };
 }
 
 /// Resolve a child row to its parent, then authorize the parent.

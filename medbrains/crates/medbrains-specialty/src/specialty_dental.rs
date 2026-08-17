@@ -62,6 +62,15 @@ pub async fn get_dental_exam(
     Path(id): Path<Uuid>,
 ) -> Result<Json<DentalExam>, AppError> {
     require_permission(&claims, permissions::specialty::dental::exams::LIST)?;
+    // The URL names an exam, not a patient. Resolve the exam's patient and
+    // authorize that — the care relationship is one hop away.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::DENTAL_EXAM,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -95,6 +104,11 @@ pub async fn create_dental_exam(
     Json(body): Json<CreateExamRequest>,
 ) -> Result<Json<DentalExam>, AppError> {
     require_permission(&claims, permissions::specialty::dental::exams::CREATE)?;
+    // No route-derived id exists here, so the subject of the check is the id the
+    // caller sent. That is weaker than a route-derived check — the caller picks
+    // who gets checked — but it still stops an exam being filed against a
+    // patient outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -136,6 +150,13 @@ pub async fn update_dental_exam(
     Json(body): Json<UpdateExamRequest>,
 ) -> Result<Json<DentalExam>, AppError> {
     require_permission(&claims, permissions::specialty::dental::exams::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::DENTAL_EXAM,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -168,6 +189,16 @@ pub async fn list_chart_entries(
     Path(exam_id): Path<Uuid>,
 ) -> Result<Json<Vec<DentalChartEntry>>, AppError> {
     require_permission(&claims, permissions::specialty::dental::chart::LIST)?;
+    // The chart hangs off the exam, so authorizing the exam authorizes its
+    // entries. Nothing here names a patient — that is why the ledger's PHI
+    // heuristic did not flag this handler at all.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::DENTAL_EXAM,
+        exam_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -202,6 +233,13 @@ pub async fn create_chart_entry(
     Json(body): Json<CreateChartEntryRequest>,
 ) -> Result<Json<DentalChartEntry>, AppError> {
     require_permission(&claims, permissions::specialty::dental::chart::CREATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::DENTAL_EXAM,
+        exam_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "dental")
         .await?;
     if body.tooth_number.trim().is_empty() || body.condition.trim().is_empty() {
