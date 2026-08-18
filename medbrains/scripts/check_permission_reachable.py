@@ -89,6 +89,38 @@ def main() -> int:
 
     granted = codes_in(open(ROLES, encoding="utf-8").read(), paths, known)
 
+    # The web app counts too. A code used only there is not "unguarded" — it is
+    # gating a control while some *other* code guards the call, which is its own
+    # defect (rule 7: the control's gate must match what its call requires).
+    # Scanning only Rust made `procurement.performance.view` look inert when the
+    # vendor-performance tab was gating on it and the endpoint was asking for
+    # `procurement.vendors.list` instead.
+    ui_only: set[str] = set()
+    web = os.path.join(ROOT, "apps", "web", "src")
+    if os.path.isdir(web):
+        for dirpath, dirs, files in os.walk(web):
+            dirs[:] = [d for d in dirs if d not in ("node_modules", "dist")]
+            for name in files:
+                if not name.endswith((".ts", ".tsx")):
+                    continue
+                try:
+                    text = open(os.path.join(dirpath, name), encoding="utf-8", errors="replace").read()
+                except OSError:
+                    continue
+                for code in known:
+                    if code in ui_only:
+                        continue
+                    segments = [seg.upper() for seg in code.split(".")]
+                    accessors = {
+                        f"P.{segments[0]}." + ".".join(segments[1:]),
+                        f"P.{segments[0]}." + "_".join(segments[1:]),
+                        f'"{code}"',
+                    }
+                    if len(segments) >= 4:
+                        accessors.add(f"P.{segments[0]}.{segments[1]}." + "_".join(segments[2:]))
+                    if any(a in text for a in accessors):
+                        ui_only.add(code)
+
     guarded: set[str] = set()
     for dirpath, dirs, files in os.walk(CRATES):
         dirs[:] = [d for d in dirs if d != "target"]
@@ -106,18 +138,23 @@ def main() -> int:
                 continue
 
     unreachable = sorted(guarded - granted)
-    inert = sorted(granted - guarded)
-    orphan = sorted(known - granted - guarded)
+    # A code the UI uses but no Rust guard checks: the button is hidden and the
+    # endpoint is protected by something else, or by nothing.
+    ui_gate_only = sorted((ui_only - guarded) & granted)
+    inert = sorted(granted - guarded - ui_only)
+    orphan = sorted(known - granted - guarded - ui_only)
 
     print(f"catalogue {len(known)}   granted {len(granted)}   guarded {len(guarded)}\n")
     print(f"  guarded, never granted : {len(unreachable):>4}   403 for every non-bypass caller")
     print(f"  granted, never guarded : {len(inert):>4}   a switch that changes nothing")
+    print(f"  gated in the UI only   : {len(ui_gate_only):>4}   hidden button, unprotected call")
     print(f"  neither                : {len(orphan):>4}   dead or never wired")
 
     if args.detail:
         for title, group in (
             ("GUARDED, NEVER GRANTED", unreachable),
             ("GRANTED, NEVER GUARDED", inert),
+            ("GATED IN THE UI ONLY", ui_gate_only),
             ("ORPHANED", orphan),
         ):
             if not group:
