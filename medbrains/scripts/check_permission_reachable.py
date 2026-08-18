@@ -44,6 +44,17 @@ CRATES = os.path.join(ROOT, "crates")
 CATALOGUE = os.path.join(CRATES, "medbrains-core", "src", "permissions.rs")
 ROLES = os.path.join(CRATES, "medbrains-core", "src", "access", "roles.rs")
 
+# Files that list permission codes without enforcing any of them. Counting these
+# as guards would make every constant look enforced. Measured before adding:
+# excluding them changes nothing today — no code is referenced ONLY here — but a
+# seed or a regenerated load test should not be able to quietly inflate the
+# count later. The sibling check (scripts/check_permission_enforcement.py at the
+# repo root, which owns the UI-gate-vs-backend axis) excludes the same set.
+ENUMERATORS = (
+    "medbrains-loadtest/src/generated.rs",
+    "medbrains-seed/src",
+)
+
 # Orphans that have been read, with what they turned out to be. Without this the
 # list gets re-triaged every time somebody runs the report, and the temptation is
 # to delete on sight — which would be wrong for every entry below.
@@ -177,6 +188,8 @@ def main() -> int:
                 continue
             path = os.path.join(dirpath, name)
             if os.path.abspath(path) in (os.path.abspath(CATALOGUE), os.path.abspath(ROLES)):
+                continue
+            if any(e in os.path.relpath(path, ROOT) for e in ENUMERATORS):
                 continue
             try:
                 guarded |= codes_in(
