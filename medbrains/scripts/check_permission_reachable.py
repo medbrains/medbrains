@@ -44,6 +44,54 @@ CRATES = os.path.join(ROOT, "crates")
 CATALOGUE = os.path.join(CRATES, "medbrains-core", "src", "permissions.rs")
 ROLES = os.path.join(CRATES, "medbrains-core", "src", "access", "roles.rs")
 
+# Orphans that have been read, with what they turned out to be. Without this the
+# list gets re-triaged every time somebody runs the report, and the temptation is
+# to delete on sight — which would be wrong for every entry below.
+#
+# The MAR case is why they get read at all: `nurse.mar.hold` looked exactly like
+# dead vocabulary and was in fact an enforcement gap, so "unused" is a question,
+# not an answer.
+ORPHAN_VERDICTS: dict[str, str] = {
+    # 23 NABH register codes. The registers are real, but they are populated by
+    # mirroring from the clinical modules — `mirror_pressure_ulcer_from_ipd_assessment`
+    # writes `nabh_pressure_ulcer_assessments` from an IPD assessment — so the
+    # CRUD surface these codes describe was never built. Only
+    # `quality.pressure_ulcer.list` is referenced anywhere, and that is a report
+    # definition, not a route.
+    "quality.": "NABH registers are mirrored from clinical modules; no CRUD routes exist",
+    # Write codes whose modules expose only GET routes.
+    "devices.catalog.manage": "no write route; /api/devices/catalog is GET-only",
+    "devices.agents.manage": "no write route; /api/devices/agents is GET-only",
+    "devices.messages.retry": "no route",
+    "admin.outbox.": "no routes",
+    "nurse.profile.manage": "no route",
+    "nurse.shift.manage": "no route",
+    "ipd.waitlist.manage": "no route",
+    "ot.implants.list": "no route",
+    "pharmacy.returns.manage": "no route",
+    "clinical.order_basket.view_audit": "no route",
+    # Superseded, and worth distinguishing from rot: `update_followup` guards per
+    # field group — recording an outcome needs `camp.followups.outcome`, recording
+    # a conversion needs `camp.followups.convert`, and neither is a 400. The coarse
+    # `manage` code was refactored away. That is the discipline this whole report
+    # argues for, not a defect.
+    "camp.followups.manage": "superseded by the finer outcome/convert codes",
+    # Read codes whose module already reads under `.list`.
+    "admin.users.view": "redundant; the admin surface reads under `.list`",
+    "admin.roles.view": "redundant; the admin surface reads under `.list`",
+    "admin.doctors.delete": "no route",
+}
+
+
+def orphan_verdict(code: str) -> str:
+    """Longest-prefix match, so a whole module can be answered in one entry."""
+    best = ""
+    for key, verdict in ORPHAN_VERDICTS.items():
+        if code.startswith(key) and len(key) > len(best):
+            best, answer = key, verdict
+    return answer if best else ""
+
+
 MOD = re.compile(r"pub mod (\w+)\s*\{")
 CONST = re.compile(r'pub const ([A-Z_0-9]+): &str = "([a-z0-9_.]+)"')
 USE = re.compile(r"permissions::([a-z_0-9:]+)::([A-Z_0-9]+)")
@@ -161,7 +209,8 @@ def main() -> int:
                 continue
             print(f"\n=== {title} ({len(group)})")
             for code in group:
-                print(f"   {code}")
+                verdict = orphan_verdict(code) if title == "ORPHANED" else ""
+                print(f"   {code}" + (f"   — {verdict}" if verdict else ""))
     else:
         for title, group in (
             ("guarded, never granted", unreachable),
