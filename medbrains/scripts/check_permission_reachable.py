@@ -83,10 +83,13 @@ ORPHAN_VERDICTS: dict[str, str] = {
     "clinical.order_basket.view_audit": "no route",
     # Superseded, and worth distinguishing from rot: `update_followup` guards per
     # field group — recording an outcome needs `camp.followups.outcome`, recording
-    # a conversion needs `camp.followups.convert`, and neither is a 400. The coarse
-    # `manage` code was refactored away. That is the discipline this whole report
-    # argues for, not a defect.
-    "camp.followups.manage": "superseded by the finer outcome/convert codes",
+    # a conversion needs `camp.followups.convert`, and neither is a 400; scheduling
+    # is a third code again. The coarse `manage` was refactored away. That is the
+    # discipline this whole report argues for, not a defect — and the sibling check
+    # at the repo root reached the same conclusion from the other side: the UI still
+    # gated on `manage`, which no role grants, so a camp coordinator holding the
+    # real permissions saw an empty actions column until it was fixed.
+    "camp.followups.manage": "superseded by followups.schedule/outcome/convert",
     # Read codes whose module already reads under `.list`.
     "admin.users.view": "redundant; the admin surface reads under `.list`",
     "admin.roles.view": "redundant; the admin surface reads under `.list`",
