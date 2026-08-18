@@ -38,8 +38,14 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CRATES = os.path.join(ROOT, "crates")
 
+# `unwrap_or_default()` was the only shape this caught for its first two weeks,
+# which left seventeen sites invisible — `.unwrap_or(0)` on a `COUNT`, and
+# `.unwrap_or(None)` on a lookup. A zero from a count is arguably worse than an
+# empty list: a list can be read as "nothing yet", but a compliance report that
+# says 0 infections is making a claim.
 COLLAPSE = re.compile(
-    r"\.fetch_(?:all|optional|one)\([^)]*\)\s*\n\s*\.await\s*\n\s*\.unwrap_or_default\(\)"
+    r"\.fetch_(?:all|optional|one)\([^)]*\)\s*\n\s*\.await\s*\n\s*"
+    r"\.unwrap_or(?:_default\(\)|\(\s*(?:None|false|0|Decimal::ZERO)\s*\))"
 )
 
 # Reviewed and deliberately left degrading, with the reason.
@@ -59,9 +65,29 @@ ACCEPTED: dict[str, str] = {
         "demo data generator — as above",
     "crates/medbrains-server/src/services/simulator/mod.rs::pick_modalities":
         "demo data generator — as above",
+    # The module-entitlement gate fails open ON PURPOSE and says so in its own
+    # docstring: an absent `module_config` row means enabled, so a transient
+    # database fault never takes a live clinical module offline. A licensing
+    # gate erring towards "the hospital keeps working" is a business risk, not
+    # a safety one — the opposite trade to a clinical read, and the right one.
+    "crates/medbrains-server-core/src/middleware/entitlement.rs::require_module_enabled":
+        "licensing gate; documented fail-open so a fault cannot black out a live module",
+    # Drives the read-only/maintenance banner. Unknown means normal operation.
+    "crates/medbrains-server-core/src/middleware/system_state.rs::fetch_mode":
+        "system-mode probe; returns no Result, and unknown means normal operation",
+    # Background push to the TV queue boards, and the demo pacer. Neither
+    # answers a clinician and neither has a Result to propagate into.
+    "crates/medbrains-tv/src/lib.rs::broadcast_queue_update":
+        "background board broadcast; no Result to propagate",
+    "crates/medbrains-server/src/services/simulator/pacer.rs::produced_today":
+        "demo pacer; developer tooling, not a clinical read",
 }
 
-FN = re.compile(r"(?:pub )?(?:async )?fn (\w+)")
+# `[^{]*` so the captured text includes the RETURN TYPE. Without it the match
+# stopped at the name, `"Result" in signature` was always false, and every
+# site was reported as "fn returns no Result" — including handlers that
+# plainly return one, which would talk a reader out of the `?` that fixes it.
+FN = re.compile(r"(?:pub )?(?:async )?fn (\w+)[^{]*")
 
 
 def offenders() -> list[tuple[str, int, str, bool]]:

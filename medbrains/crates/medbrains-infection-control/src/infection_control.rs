@@ -1772,8 +1772,7 @@ pub async fn monthly_surveillance_report(
     .bind(from)
     .bind(to)
     .fetch_one(&mut *tx)
-    .await
-    .unwrap_or(0);
+    .await?;
 
     // Hand hygiene compliance average
     let hygiene_compliance: Option<f64> = sqlx::query_scalar(
@@ -1814,8 +1813,7 @@ pub async fn monthly_surveillance_report(
     .bind(from)
     .bind(to)
     .fetch_one(&mut *tx)
-    .await
-    .unwrap_or(0);
+    .await?;
 
     // Active outbreaks
     let active_outbreaks: i64 = sqlx::query_scalar(
@@ -1825,8 +1823,7 @@ pub async fn monthly_surveillance_report(
     )
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
-    .await
-    .unwrap_or(0);
+    .await?;
 
     // Needle-stick incidents count
     let needle_stick_count: i64 = sqlx::query_scalar(
@@ -1839,8 +1836,7 @@ pub async fn monthly_surveillance_report(
     .bind(from)
     .bind(to)
     .fetch_one(&mut *tx)
-    .await
-    .unwrap_or(0);
+    .await?;
 
     tx.commit().await?;
 

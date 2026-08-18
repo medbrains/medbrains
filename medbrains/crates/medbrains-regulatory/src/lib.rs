@@ -334,16 +334,14 @@ pub async fn dashboard(
     )
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
-    .await
-    .unwrap_or(0);
+    .await?;
 
     // Checklist counts
     let total_checklists: i64 =
         sqlx::query_scalar("SELECT COUNT(*) FROM compliance_checklists WHERE tenant_id = $1")
             .bind(claims.tenant_id)
             .fetch_one(&mut *tx)
-            .await
-            .unwrap_or(0);
+            .await?;
 
     let compliant_checklists: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM compliance_checklists \
@@ -351,8 +349,7 @@ pub async fn dashboard(
     )
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
-    .await
-    .unwrap_or(0);
+    .await?;
 
     // License expiry within 90 days
     let license_expiring_soon: i64 = sqlx::query_scalar(
@@ -363,8 +360,7 @@ pub async fn dashboard(
     )
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
-    .await
-    .unwrap_or(0);
+    .await?;
 
     tx.commit().await?;
 
@@ -1314,8 +1310,7 @@ pub async fn pcpndt_quarterly_summary(
     )
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
-    .await
-    .unwrap_or(0);
+    .await?;
 
     tx.commit().await?;
 

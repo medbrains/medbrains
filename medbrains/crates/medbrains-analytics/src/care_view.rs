@@ -272,15 +272,13 @@ pub async fn ward_patient_grid(
         )
         .bind(ward_id)
         .fetch_one(&mut *tx)
-        .await
-        .unwrap_or(0)
+        .await?
     } else {
         sqlx::query_scalar::<_, i64>(
             "SELECT COUNT(*) FROM ward_bed_mappings WHERE is_active = true",
         )
         .fetch_one(&mut *tx)
-        .await
-        .unwrap_or(0)
+        .await?
     };
 
     let occupied = i64::try_from(patients.len()).unwrap_or(0);

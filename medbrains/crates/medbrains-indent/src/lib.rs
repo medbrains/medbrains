@@ -514,8 +514,7 @@ pub async fn submit_requisition(
         sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM indent_items WHERE requisition_id = $1")
             .bind(req.id)
             .fetch_one(&state.db)
-            .await
-            .unwrap_or(0);
+            .await?;
 
     let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
         &state.db,

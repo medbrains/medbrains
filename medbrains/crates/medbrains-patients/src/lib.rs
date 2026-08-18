@@ -4591,8 +4591,7 @@ pub async fn get_patient_context(
         .bind(id)
         .bind(claims.tenant_id)
         .fetch_one(&mut *tx)
-        .await
-        .unwrap_or(Decimal::ZERO)
+        .await?
     };
 
     // ── Next of kin (prefer is_next_of_kin, fallback to is_emergency_contact, then priority asc) ──
