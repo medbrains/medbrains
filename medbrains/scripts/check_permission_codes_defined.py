@@ -32,6 +32,12 @@ It resolves a guard's argument when the argument is a literal or a local
 `const`, and reports any resulting code that `permissions.rs` does not define.
 A `permissions::…` path needs no check — the compiler already did it, which is
 exactly why the typed constants are the right way to write these.
+
+The web app is checked the same way. `useRequirePermission("abdm.hfr.view")`
+had the same defect from the other side: the page hid its control while the
+route refused the call, so the screen looked deliberately restricted rather
+than broken. TypeScript cannot catch it either — a string literal satisfies
+`string`. Use `P.MODULE.ACTION` and the compiler does the work.
 """
 
 from __future__ import annotations
@@ -90,9 +96,41 @@ def offenders(catalogue: set[str]) -> list[tuple[str, int, str, str]]:
     return found
 
 
+WEB = os.path.join(ROOT, "apps", "web", "src")
+HOOK = re.compile(
+    r"(?:useRequirePermission|useHasPermission|useHasAllPermissions|useHasAnyPermission)"
+    r'\(\s*\[?\s*((?:"[a-z0-9_.]+"\s*,?\s*)+)'
+)
+
+
+def web_offenders(catalogue: set[str]) -> list[tuple[str, int, str, str]]:
+    """Raw permission strings in the web app that the catalogue does not define."""
+    found: list[tuple[str, int, str, str]] = []
+    if not os.path.isdir(WEB):
+        return found
+    for dirpath, dirs, files in os.walk(WEB):
+        dirs[:] = [d for d in dirs if d not in ("node_modules", "dist")]
+        for name in files:
+            if not name.endswith((".ts", ".tsx")):
+                continue
+            path = os.path.join(dirpath, name)
+            rel = os.path.relpath(path, ROOT)
+            try:
+                text = open(path, encoding="utf-8", errors="replace").read()
+            except OSError:
+                continue
+            for match in HOOK.finditer(text):
+                for code in re.findall(r'"([a-z0-9_.]+)"', match.group(1)):
+                    if code in catalogue:
+                        continue
+                    line = text[: match.start()].count("\n") + 1
+                    found.append((rel, line, code, "web literal"))
+    return found
+
+
 def main() -> int:
     catalogue = defined_codes()
-    found = offenders(catalogue)
+    found = offenders(catalogue) + web_offenders(catalogue)
 
     if not found:
         print(f"✓ every guarded permission code is defined ({len(catalogue)} in the catalogue)")
@@ -105,9 +143,11 @@ def main() -> int:
     print(
         "\nDefine it in crates/medbrains-core/src/permissions.rs with a `///` doc\n"
         "comment, grant it to the roles that need it in access/roles.rs, regenerate\n"
-        "the catalogue, and reference the constant rather than the string. Until\n"
-        "then this guard returns 403 to every caller who is not a bypass role, and\n"
-        "no administrator can grant their way past it."
+        "the catalogue, and reference the constant rather than the string — in Rust\n"
+        "`permissions::module::ACTION`, in the web app `P.MODULE.ACTION`. Until then\n"
+        "this guard returns 403 to every caller who is not a bypass role, no\n"
+        "administrator can grant their way past it, and a `web literal` offender\n"
+        "additionally hides the control so the screen looks restricted, not broken."
     )
     return 1
 

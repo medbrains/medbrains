@@ -3025,6 +3025,25 @@ async fn administer_mar_dose_in_tx(
     Ok(row)
 }
 
+/// A held or refused dose is not the same act as giving one.
+///
+/// `nurse.mar.hold` and `nurse.mar.refuse` existed, were granted to the nurse
+/// role, and were checked by nothing: both MAR update paths accept any
+/// `MarStatus` — including `Held` and `Refused` — behind `ipd.mar.update` or
+/// `nurse.mar.administer`. Withholding a scheduled medication is a clinical
+/// decision with its own rationale, and the permission that says so was
+/// decorative.
+///
+/// No built-in role changes: `nurse` already holds all four codes, so this
+/// only binds a custom role granted `administer` without `hold`.
+fn require_mar_status_permission(claims: &Claims, status: &str) -> Result<(), AppError> {
+    match status.trim().to_ascii_lowercase().as_str() {
+        "held" => require_permission(claims, permissions::nurse::mar::HOLD),
+        "refused" => require_permission(claims, permissions::nurse::mar::REFUSE),
+        _ => Ok(()),
+    }
+}
+
 pub async fn update_mar(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -3032,6 +3051,7 @@ pub async fn update_mar(
     Json(body): Json<UpdateMarRequest>,
 ) -> Result<Json<IpdMedicationAdministration>, AppError> {
     require_permission(&claims, permissions::ipd::mar::UPDATE)?;
+    require_mar_status_permission(&claims, &body.status)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3164,6 +3184,7 @@ pub async fn update_mar_round(
         &claims,
         &[permissions::ipd::mar::UPDATE, permissions::nurse::mar::ADMINISTER],
     )?;
+    require_mar_status_permission(&claims, &body.status)?;
 
     // The URL names a child record; the care relationship is one hop away on
     // its parent. Resolve then authorize — see medbrains_authz_gate::links.
