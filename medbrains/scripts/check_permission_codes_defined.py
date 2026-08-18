@@ -128,13 +128,61 @@ def web_offenders(catalogue: set[str]) -> list[tuple[str, int, str, str]]:
     return found
 
 
+def literal_guards() -> list[tuple[str, int, str]]:
+    """Rust guards passing a bare string where a constant belongs.
+
+    A literal that happens to name a real permission is not an outage today, but
+    it is the shape every outage in this sweep arrived in: a typo in a `&str` is
+    a silent 403 for everyone, while a typo in `permissions::module::ACTION` does
+    not compile. The count is zero, so it is worth holding at zero.
+
+    Only literals are reported. A guard whose argument is a variable or an
+    expression is left alone — that is a deliberate dynamic check, not a typo
+    waiting to happen.
+    """
+    found: list[tuple[str, int, str]] = []
+    for dirpath, dirs, files in os.walk(CRATES):
+        dirs[:] = [d for d in dirs if d != "target"]
+        for name in files:
+            if not name.endswith(".rs"):
+                continue
+            path = os.path.join(dirpath, name)
+            rel = os.path.relpath(path, ROOT)
+            if rel.endswith("medbrains-core/src/permissions.rs"):
+                continue
+            try:
+                text = open(path, encoding="utf-8", errors="replace").read()
+            except OSError:
+                continue
+            for match in GUARD.finditer(text):
+                arg = match.group(1).strip().rstrip(",")
+                if not arg.startswith('"'):
+                    continue
+                found.append((rel, text[: match.start()].count("\n") + 1, arg.strip('"')))
+    return found
+
+
 def main() -> int:
     catalogue = defined_codes()
     found = offenders(catalogue) + web_offenders(catalogue)
+    literals = literal_guards()
 
-    if not found:
+    if not found and not literals:
         print(f"✓ every guarded permission code is defined ({len(catalogue)} in the catalogue)")
+        print("✓ no Rust guard passes a bare string instead of a constant")
         return 0
+
+    if literals:
+        print(f"{len(literals)} Rust guard(s) pass a bare string where a constant belongs:\n")
+        for rel, line, code in sorted(literals):
+            print(f"   {rel}:{line}\n      \"{code}\"")
+        print(
+            "\nUse `permissions::module::ACTION`. A typo in a literal is a silent 403\n"
+            "for every caller; a typo in a constant does not compile. If the argument\n"
+            "genuinely has to be dynamic, pass a variable — only literals are flagged.\n"
+        )
+        if not found:
+            return 1
 
     print(f"{len(found)} guard(s) check a permission that does not exist:\n")
     for rel, line, code, how in sorted(found):
