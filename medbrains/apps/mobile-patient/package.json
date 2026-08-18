@@ -2,7 +2,7 @@
   "name": "@medbrains/mobile-patient",
   "private": true,
   "version": "0.1.0",
-  "description": "MedBrains Patient — generated from medbrains-create-mobile-app, variant: patient",
+  "description": "MedBrains Patient \u2014 generated from medbrains-create-mobile-app, variant: patient",
   "main": "index.js",
   "scripts": {
     "start": "expo start",
@@ -12,7 +12,8 @@
     "build:dev:ios": "eas build --profile development --platform ios",
     "build:dev:android": "eas build --profile development --platform android",
     "typecheck": "tsc --noEmit",
-    "lint": "biome check src/"
+    "lint": "biome check src/",
+    "test": "vitest run"
   },
   "dependencies": {
     "@medbrains/api": "workspace:*",
@@ -38,6 +39,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.6",
     "@types/react": "~19.1.10",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.5"
   }
 }
