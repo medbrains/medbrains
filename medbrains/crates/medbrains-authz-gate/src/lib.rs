@@ -205,6 +205,22 @@ pub mod links {
     pub const LTC_FAMILY_MESSAGE: ParentLink = ParentLink::on_patient("family_messages");
     pub const LTC_HOME_CARE_REFERRAL: ParentLink = ParentLink::on_patient("home_care_referrals");
     pub const LTC_SNF_ADMISSION: ParentLink = ParentLink::on_patient("snf_admissions");
+
+    /// Rehabilitation, palliative care, dialysis and oncology.
+    pub const REHAB_PLAN: ParentLink = ParentLink::on_patient("rehab_plans");
+    pub const REHAB_SESSION: ParentLink = ParentLink {
+        table: "rehab_sessions",
+        column: "plan_id",
+        parent: ParentKind::Via(&REHAB_PLAN),
+    };
+    pub const DNR_ORDER: ParentLink = ParentLink::on_patient("dnr_orders");
+    pub const DIALYSIS_SESSION: ParentLink = ParentLink::on_patient("dialysis_sessions");
+    pub const CHEMO_PROTOCOL: ParentLink = ParentLink::on_patient("chemo_protocols");
+
+    /// Interventional. The cath and endoscopy procedure rows carry the patient;
+    /// everything recorded during a procedure hangs off the procedure.
+    pub const CATH_PROCEDURE: ParentLink = ParentLink::on_patient("cath_procedures");
+    pub const ENDOSCOPY_PROCEDURE: ParentLink = ParentLink::on_patient("endoscopy_procedures");
 }
 
 /// Resolve a child row to its parent, then authorize the parent.
