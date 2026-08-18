@@ -107,6 +107,20 @@ const MODULES: &[(&str, &str, &str, &str, &[&str])] = &[
         "available",
         &[],
     ),
+    // Seeded DISABLED on purpose: the patient companion ships hidden and an
+    // operator opens it. `require_module_enabled` blocks only on an explicit
+    // `disabled` — an absent row means enabled — so silence here would give
+    // every new tenant a Health tab nobody licensed. Migration 0974 does the
+    // same for tenants that already exist.
+    //
+    // Not `coming_soon`: that status reads right and enforces nothing.
+    (
+        "companion",
+        "Patient Companion",
+        "Daily health companion in the patient app — medication adherence, observations and connected bands",
+        "disabled",
+        &["registration"],
+    ),
 ];
 
 /// Seed module configuration for the DEFAULT tenant.

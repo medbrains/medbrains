@@ -473,3 +473,46 @@ pub async fn portal_appointments(
     tx.commit().await?;
     Ok(Json(rows))
 }
+
+/// What the patient app is allowed to show, beyond the record itself.
+#[derive(Debug, Serialize)]
+pub struct PortalEntitlements {
+    /// The tenant has licensed the daily companion.
+    pub companion: bool,
+}
+
+/// `GET /api/portal/entitlements`
+///
+/// The patient app asks this to decide whether the Health tab exists. It is a
+/// portal route rather than a reuse of the staff entitlement middleware
+/// because a patient token carries no `role` and no permissions — the two
+/// populations are mutually undecodable by design, and a staff-shaped check
+/// could not run here even if it were appropriate.
+///
+/// # Why this fails CLOSED and `require_module_enabled` fails open
+///
+/// The staff gate treats an absent `module_config` row as *enabled*, so a
+/// transient fault can never black out a live clinical module. That is the
+/// right trade for a module a hospital already runs.
+///
+/// It is the wrong trade here. An unknown must not put a Health tab in front
+/// of a patient whose hospital never licensed the companion — a feature nobody
+/// agreed to sell is harder to withdraw than one that was briefly missing. So
+/// a missing row, an unreadable status and a database error all resolve to
+/// `false`, and `?` is deliberately not used on the read.
+pub async fn portal_entitlements(
+    State(state): State<AppState>,
+    Extension(claims): Extension<PatientClaims>,
+) -> Result<Json<PortalEntitlements>, AppError> {
+    let status: Option<String> = sqlx::query_scalar(
+        "SELECT status::text FROM module_config WHERE tenant_id = $1 AND code = 'companion'",
+    )
+    .bind(claims.tenant_id)
+    .fetch_optional(&state.db)
+    .await
+    .unwrap_or(None);
+
+    Ok(Json(PortalEntitlements {
+        companion: status.as_deref() == Some("enabled"),
+    }))
+}

@@ -736,6 +736,7 @@ pub fn build_router(state: AppState) -> Router {
             get(portal::portal_prescriptions),
         )
         .route("/api/portal/appointments", get(portal::portal_appointments))
+        .route("/api/portal/entitlements", get(portal::portal_entitlements))
         .layer(from_fn_with_state(state.clone(), portal::require_patient));
 
     // ── Reminder config — protected, must run through the same auth +

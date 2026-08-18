@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { getPortalEntitlements } from "../api/portal.js";
 import type { CompanionAccess } from "./companion-access.js";
 import { HIDDEN, resolveCompanionAccess } from "./companion-access.js";
 
@@ -21,15 +22,24 @@ export function useCompanionAccess(): CompanionAccess {
 
   useEffect(() => {
     let cancelled = false;
-    // Nothing to ask yet. When the lookups land they resolve independently and
-    // each may fail on its own; a failure must leave its door closed rather
-    // than open the tab, which is what `resolveCompanionAccess` already does
-    // with `undefined`.
-    void Promise.resolve({}).then((entitlement) => {
-      if (!cancelled) {
-        setAccess(resolveCompanionAccess(entitlement));
-      }
-    });
+
+    /**
+     * A rejected request leaves the door `undefined`, not `false`, and either
+     * keeps the tab shut — the distinction matters for the other two doors,
+     * which resolve independently and must not be closed by this one's failure.
+     *
+     * A patient with no hospital gets a rejection here every time. That is the
+     * expected path for a self-serve user, not an error worth surfacing.
+     */
+    void getPortalEntitlements()
+      .then((entitlements) => ({ licensedByHospital: entitlements.companion }))
+      .catch(() => ({}))
+      .then((entitlement) => {
+        if (!cancelled) {
+          setAccess(resolveCompanionAccess(entitlement));
+        }
+      });
+
     return () => {
       cancelled = true;
     };
