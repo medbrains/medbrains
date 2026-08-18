@@ -17,6 +17,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import {
   IconCheck,
   IconPlug,
@@ -181,8 +182,8 @@ const MODULE_TONE: Record<string, BadgeTone> = {
 // ── Main Page ──────────────────────────────────────────────────
 
 export function DevicesPage() {
-  useRequirePermission("devices.list");
-  const canCreate = useHasPermission("devices.create");
+  useRequirePermission(P.DEVICES.LIST);
+  const canCreate = useHasPermission(P.DEVICES.CREATE);
 
   const [wizardOpened, { open: openWizard, close: closeWizard }] = useDisclosure(false);
 

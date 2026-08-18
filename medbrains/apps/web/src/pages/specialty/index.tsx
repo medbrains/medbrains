@@ -1,5 +1,6 @@
 import { Card, SimpleGrid, Text, ThemeIcon, UnstyledButton } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import {
   IconBabyCarriage,
   IconBrain,
@@ -73,7 +74,7 @@ const SPECIALTIES = [
 ];
 
 export function SpecialtyIndexPage() {
-  useRequirePermission("specialty.cath_lab.procedures.list");
+  useRequirePermission(P.SPECIALTY.CATH_LAB.PROCEDURES_LIST);
   const navigate = useNavigate();
 
   return (

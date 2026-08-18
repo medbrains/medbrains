@@ -18,6 +18,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreateDltTemplateRequest, DltTemplate } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconCheck, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -53,7 +54,7 @@ function dltPayload(form: Partial<CreateDltTemplateRequest>): CreateDltTemplateR
 
 export function DltTab() {
   const qc = useQueryClient();
-  const canManage = useHasPermission("communications.dlt.manage");
+  const canManage = useHasPermission(P.COMMUNICATIONS.DLT.MANAGE);
   const [opened, { open, close }] = useDisclosure(false);
   const [form, setForm] = useState<Partial<CreateDltTemplateRequest>>({
     category: "transactional",

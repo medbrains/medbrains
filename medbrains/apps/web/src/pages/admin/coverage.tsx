@@ -6,6 +6,7 @@ import { Group, Modal, Select, Stack, Switch, Text, Textarea } from "@mantine/co
 import { DateTimePicker } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { P } from "@medbrains/types";
 import { IconPlus, IconTrash, IconUserCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -33,7 +34,7 @@ function coverageStatus(row: { start_at: string; end_at: string }): string {
 }
 
 export function AdminCoveragePage() {
-  useRequirePermission("admin.coverage.list");
+  useRequirePermission(P.ADMIN.COVERAGE.LIST);
   const queryClient = useQueryClient();
   const [createOpen, createHandlers] = useDisclosure(false);
   const [activeOnly, setActiveOnly] = useState(true);

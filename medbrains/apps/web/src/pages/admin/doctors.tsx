@@ -44,6 +44,7 @@ import type {
   SetupUser,
   SignatureCredential,
 } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconCircleCheck,
@@ -66,7 +67,7 @@ import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminDoctorsService } from "@/services/adminDoctors.service";
 
 export function AdminDoctorsPage() {
-  useRequirePermission("admin.doctors.list");
+  useRequirePermission(P.ADMIN.DOCTORS.LIST);
 
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");

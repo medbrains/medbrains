@@ -2,6 +2,7 @@ import { Group, Modal, NumberInput, Stack, Textarea, TextInput } from "@mantine/
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { Testimonial } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconPlus, IconStar } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -80,8 +81,8 @@ function CreateTestimonialModal({ opened, onClose }: { opened: boolean; onClose:
 }
 
 export function TestimonialsPage() {
-  useRequirePermission("specialty.health_packages.list");
-  const canManage = useHasPermission("specialty.health_packages.manage");
+  useRequirePermission(P.SPECIALTY.HEALTH_PACKAGES.LIST);
+  const canManage = useHasPermission(P.SPECIALTY.HEALTH_PACKAGES.MANAGE);
   const qc = useQueryClient();
   const [modalOpen, modal] = useDisclosure(false);
 

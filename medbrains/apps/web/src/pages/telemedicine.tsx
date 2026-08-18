@@ -75,7 +75,7 @@ export function TelemedicinePage() {
   const [triageId, setTriageId] = useState<string | null>(null);
   const [settingsOpen, settings] = useDisclosure(false);
   const [researchOpen, research] = useDisclosure(false);
-  const canManageSettings = useHasPermission("admin.settings.general.manage");
+  const canManageSettings = useHasPermission(P.ADMIN.SETTINGS.GENERAL_MANAGE);
 
   const {
     data: consults = [],
