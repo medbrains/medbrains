@@ -168,6 +168,13 @@ pub async fn end_session(
     Path(id): Path<Uuid>,
 ) -> Result<Json<BedsideSession>, AppError> {
     require_permission(&claims, permissions::bedside::sessions::MANAGE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::BEDSIDE_SESSION,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -194,6 +201,10 @@ pub async fn get_daily_schedule(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<DailyScheduleItem>>, AppError> {
     require_permission(&claims, permissions::bedside::VIEW)?;
+    // The tablet reads by admission id from the URL. Nothing else scoped
+    // this: `bedside.view` reached any admission in the tenant.
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -222,8 +233,7 @@ pub async fn get_daily_schedule(
     )
     .bind(admission_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -250,6 +260,8 @@ pub async fn get_medications(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<MedicationItem>>, AppError> {
     require_permission(&claims, permissions::bedside::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -262,8 +274,7 @@ pub async fn get_medications(
     )
     .bind(admission_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -289,6 +300,8 @@ pub async fn get_vitals(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<VitalReading>>, AppError> {
     require_permission(&claims, permissions::bedside::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -303,8 +316,7 @@ pub async fn get_vitals(
     )
     .bind(admission_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -331,6 +343,8 @@ pub async fn get_lab_results(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<LabResultItem>>, AppError> {
     require_permission(&claims, permissions::bedside::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -348,8 +362,7 @@ pub async fn get_lab_results(
     )
     .bind(admission_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -374,6 +387,8 @@ pub async fn get_diet_order(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<DietOrderItem>>, AppError> {
     require_permission(&claims, permissions::bedside::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -386,8 +401,7 @@ pub async fn get_diet_order(
     )
     .bind(admission_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -439,6 +453,8 @@ pub async fn list_nurse_requests(
     Query(params): Query<ListNurseRequestsQuery>,
 ) -> Result<Json<Vec<BedsideNurseRequest>>, AppError> {
     require_permission(&claims, permissions::bedside::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -465,6 +481,13 @@ pub async fn update_request_status(
     Json(body): Json<UpdateRequestStatusPayload>,
 ) -> Result<Json<BedsideNurseRequest>, AppError> {
     require_permission(&claims, permissions::bedside::sessions::MANAGE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::BEDSIDE_NURSE_REQUEST,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -498,6 +521,7 @@ pub async fn list_videos(
     Query(params): Query<ListVideosQuery>,
 ) -> Result<Json<Vec<BedsideEducationVideo>>, AppError> {
     require_permission(&claims, permissions::bedside::videos::LIST)?;
+    // Patient education content, not a patient record.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -522,6 +546,7 @@ pub async fn create_video(
     Json(body): Json<CreateVideoRequest>,
 ) -> Result<Json<BedsideEducationVideo>, AppError> {
     require_permission(&claims, permissions::bedside::videos::MANAGE)?;
+    // Patient education content, not a patient record.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -558,6 +583,7 @@ pub async fn update_video(
     Json(body): Json<UpdateVideoRequest>,
 ) -> Result<Json<BedsideEducationVideo>, AppError> {
     require_permission(&claims, permissions::bedside::videos::MANAGE)?;
+    // Patient education content, not a patient record.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -680,6 +706,8 @@ pub async fn list_feedback(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<BedsideRealtimeFeedback>>, AppError> {
     require_permission(&claims, permissions::bedside::feedback::LIST)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

@@ -24,6 +24,7 @@ use medbrains_server_core::{
 
 #[derive(Debug, Deserialize)]
 pub struct ListAssignmentsQuery {
+    pub patient_id: Option<Uuid>,
     pub case_manager_id: Option<Uuid>,
     pub status: Option<String>,
     pub priority: Option<String>,
@@ -65,6 +66,7 @@ pub struct AutoAssignRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct ListBarriersQuery {
+    pub patient_id: Option<Uuid>,
     pub case_assignment_id: Option<Uuid>,
     pub barrier_type: Option<String>,
     pub is_resolved: Option<bool>,
@@ -93,6 +95,7 @@ pub struct UpdateBarrierRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct ListReferralsQuery {
+    pub patient_id: Option<Uuid>,
     pub case_assignment_id: Option<Uuid>,
     pub referral_type: Option<String>,
     pub status: Option<String>,
@@ -171,6 +174,9 @@ pub async fn list_assignments(
     Query(params): Query<ListAssignmentsQuery>,
 ) -> Result<Json<Vec<CaseAssignment>>, AppError> {
     require_permission(&claims, permissions::case_mgmt::assignments::LIST)?;
+    // Unscoped before this: every case assignment in the tenant.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -180,11 +186,13 @@ pub async fn list_assignments(
          WHERE ($1::uuid IS NULL OR case_manager_id = $1) \
          AND ($2::text IS NULL OR status::text = $2) \
          AND ($3::text IS NULL OR priority = $3) \
+         AND ($4::uuid[] IS NULL OR patient_id = ANY($4)) \
          ORDER BY created_at DESC LIMIT 200",
     )
     .bind(params.case_manager_id)
     .bind(&params.status)
     .bind(&params.priority)
+    .bind(permitted_patients.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 
@@ -244,6 +252,13 @@ pub async fn get_assignment(
     Path(id): Path<Uuid>,
 ) -> Result<Json<CaseAssignment>, AppError> {
     require_permission(&claims, permissions::case_mgmt::assignments::LIST)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CASE_ASSIGNMENT,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -266,6 +281,13 @@ pub async fn update_assignment(
     Json(body): Json<UpdateAssignmentRequest>,
 ) -> Result<Json<CaseAssignment>, AppError> {
     require_permission(&claims, permissions::case_mgmt::assignments::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CASE_ASSIGNMENT,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -305,6 +327,7 @@ pub async fn caseload_summary(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<CaseloadRow>>, AppError> {
     require_permission(&claims, permissions::case_mgmt::assignments::LIST)?;
+    // Aggregate over the caller's own caseload; no row is returned.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -408,6 +431,10 @@ pub async fn list_barriers(
     Query(params): Query<ListBarriersQuery>,
 ) -> Result<Json<Vec<DischargeBarrier>>, AppError> {
     require_permission(&claims, permissions::case_mgmt::barriers::LIST)?;
+    // `discharge_barriers` carries no patient of its own, so the filter goes
+    // through the case assignment it hangs off. Unscoped before this.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -417,11 +444,14 @@ pub async fn list_barriers(
          WHERE ($1::uuid IS NULL OR case_assignment_id = $1) \
          AND ($2::text IS NULL OR barrier_type::text = $2) \
          AND ($3::bool IS NULL OR is_resolved = $3) \
+         AND ($4::uuid[] IS NULL OR case_assignment_id IN ( \
+               SELECT id FROM case_assignments WHERE patient_id = ANY($4))) \
          ORDER BY created_at DESC LIMIT 200",
     )
     .bind(params.case_assignment_id)
     .bind(&params.barrier_type)
     .bind(params.is_resolved)
+    .bind(permitted_patients.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 
@@ -436,6 +466,16 @@ pub async fn create_barrier(
     Json(body): Json<CreateBarrierRequest>,
 ) -> Result<(StatusCode, Json<DischargeBarrier>), AppError> {
     require_permission(&claims, permissions::case_mgmt::barriers::MANAGE)?;
+    // The assignment id comes from the body, so the caller picks the
+    // subject of its own check — weaker than a route-derived id, but it
+    // still stops a row being filed under an unreachable assignment.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CASE_ASSIGNMENT,
+        body.case_assignment_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -473,6 +513,13 @@ pub async fn update_barrier(
     Json(body): Json<UpdateBarrierRequest>,
 ) -> Result<Json<DischargeBarrier>, AppError> {
     require_permission(&claims, permissions::case_mgmt::barriers::MANAGE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::DISCHARGE_BARRIER,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -530,6 +577,9 @@ pub async fn list_referrals(
     Query(params): Query<ListReferralsQuery>,
 ) -> Result<Json<Vec<CaseReferral>>, AppError> {
     require_permission(&claims, permissions::case_mgmt::referrals::LIST)?;
+    // Same shape as barriers: filtered through the case assignment.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -539,11 +589,14 @@ pub async fn list_referrals(
          WHERE ($1::uuid IS NULL OR case_assignment_id = $1) \
          AND ($2::text IS NULL OR referral_type = $2) \
          AND ($3::text IS NULL OR status = $3) \
+         AND ($4::uuid[] IS NULL OR case_assignment_id IN ( \
+               SELECT id FROM case_assignments WHERE patient_id = ANY($4))) \
          ORDER BY created_at DESC LIMIT 200",
     )
     .bind(params.case_assignment_id)
     .bind(&params.referral_type)
     .bind(&params.status)
+    .bind(permitted_patients.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 
@@ -558,6 +611,16 @@ pub async fn create_referral(
     Json(body): Json<CreateReferralRequest>,
 ) -> Result<(StatusCode, Json<CaseReferral>), AppError> {
     require_permission(&claims, permissions::case_mgmt::referrals::MANAGE)?;
+    // The assignment id comes from the body, so the caller picks the
+    // subject of its own check — weaker than a route-derived id, but it
+    // still stops a row being filed under an unreachable assignment.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CASE_ASSIGNMENT,
+        body.case_assignment_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -594,6 +657,13 @@ pub async fn update_referral(
     Json(body): Json<UpdateReferralRequest>,
 ) -> Result<Json<CaseReferral>, AppError> {
     require_permission(&claims, permissions::case_mgmt::referrals::MANAGE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CASE_REFERRAL,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -633,6 +703,7 @@ pub async fn disposition_analytics(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<DispositionRow>>, AppError> {
     require_permission(&claims, permissions::case_mgmt::analytics::VIEW)?;
+    // Aggregate counts only, no patient row leaves this handler.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -659,6 +730,7 @@ pub async fn barrier_analytics(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<BarrierAnalyticsRow>>, AppError> {
     require_permission(&claims, permissions::case_mgmt::analytics::VIEW)?;
+    // Aggregate counts only, no patient row leaves this handler.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -687,6 +759,7 @@ pub async fn outcome_analytics(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<OutcomeAnalytics>, AppError> {
     require_permission(&claims, permissions::case_mgmt::analytics::VIEW)?;
+    // Aggregate counts only, no patient row leaves this handler.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

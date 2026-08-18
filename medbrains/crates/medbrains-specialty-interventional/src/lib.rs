@@ -1083,7 +1083,7 @@ pub async fn create_biopsy_specimen(
     Ok(Json(row))
 }
 
-/// specialty_interventional routes.
+/// `specialty_interventional` routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route(

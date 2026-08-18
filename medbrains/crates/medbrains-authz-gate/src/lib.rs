@@ -221,6 +221,34 @@ pub mod links {
     /// everything recorded during a procedure hangs off the procedure.
     pub const CATH_PROCEDURE: ParentLink = ParentLink::on_patient("cath_procedures");
     pub const ENDOSCOPY_PROCEDURE: ParentLink = ParentLink::on_patient("endoscopy_procedures");
+
+    /// Bedside portal — the tablet at the patient's bed.
+    pub const BEDSIDE_SESSION: ParentLink = ParentLink::on_patient("bedside_sessions");
+    pub const BEDSIDE_NURSE_REQUEST: ParentLink =
+        ParentLink::on_patient("bedside_nurse_requests");
+
+    /// Case management. Barriers and referrals carry no patient of their own —
+    /// they hang off the case assignment, which is where the patient lives.
+    pub const CASE_ASSIGNMENT: ParentLink = ParentLink::on_patient("case_assignments");
+    pub const DISCHARGE_BARRIER: ParentLink = ParentLink {
+        table: "discharge_barriers",
+        column: "case_assignment_id",
+        parent: ParentKind::Via(&CASE_ASSIGNMENT),
+    };
+    pub const CASE_REFERRAL: ParentLink = ParentLink {
+        table: "case_referrals",
+        column: "case_assignment_id",
+        parent: ParentKind::Via(&CASE_ASSIGNMENT),
+    };
+
+    /// Chronic care. `adherence_records`, `patient_outcome_targets` and
+    /// `polypharmacy_interaction_alerts` all carry `patient_id` NOT NULL
+    /// alongside a nullable `enrollment_id`, so they resolve on the patient
+    /// directly rather than through the enrollment.
+    pub const CHRONIC_ENROLLMENT: ParentLink = ParentLink::on_patient("chronic_enrollments");
+    pub const OUTCOME_TARGET: ParentLink = ParentLink::on_patient("patient_outcome_targets");
+    pub const POLYPHARMACY_ALERT: ParentLink =
+        ParentLink::on_patient("polypharmacy_interaction_alerts");
 }
 
 /// Resolve a child row to its parent, then authorize the parent.
