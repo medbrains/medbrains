@@ -249,6 +249,131 @@ pub mod links {
     pub const OUTCOME_TARGET: ParentLink = ParentLink::on_patient("patient_outcome_targets");
     pub const POLYPHARMACY_ALERT: ParentLink =
         ParentLink::on_patient("polypharmacy_interaction_alerts");
+
+    /// Printed documents. Each names the record it renders, not the patient,
+    /// so every print endpoint needs the hop.
+    pub const OT_BOOKING: ParentLink = ParentLink::on_patient("ot_bookings");
+    pub const SURGERY: ParentLink = ParentLink::on_patient("surgeries");
+    pub const APPOINTMENT: ParentLink = ParentLink::on_patient("appointments");
+    pub const DPDP_CONSENT: ParentLink = ParentLink::on_patient("dpdp_consents");
+    pub const PROCEDURE_CONSENT: ParentLink = ParentLink::on_patient("procedure_consents");
+    pub const RADIOLOGY_ORDER: ParentLink = ParentLink::on_patient("radiology_orders");
+    pub const RESTRAINT_DOCUMENTATION: ParentLink =
+        ParentLink::on_patient("restraint_documentation");
+    /// A medico-legal case: assault, accident, poisoning, custodial injury.
+    pub const MLC_CASE: ParentLink = ParentLink::on_patient("mlc_cases");
+    pub const MLC_POLICE_INTIMATION: ParentLink = ParentLink {
+        table: "mlc_police_intimations",
+        column: "mlc_case_id",
+        parent: ParentKind::Via(&MLC_CASE),
+    };
+    pub const PATIENT_EDUCATION: ParentLink = ParentLink::on_patient("patient_education");
+
+    /// Money. These chain to `INVOICE`, which is `PatientDirect` — a receipt
+    /// is not clinical, and treating a patient must not reach their bill.
+    pub const PAYMENT: ParentLink = ParentLink {
+        table: "payments",
+        column: "invoice_id",
+        parent: ParentKind::Via(&INVOICE),
+    };
+    pub const REFUND: ParentLink = ParentLink {
+        table: "refunds",
+        column: "invoice_id",
+        parent: ParentKind::Via(&INVOICE),
+    };
+    pub const CREDIT_NOTE: ParentLink = ParentLink {
+        table: "credit_notes",
+        column: "invoice_id",
+        parent: ParentKind::Via(&INVOICE),
+    };
+    /// `insurance_claims.patient_id` is NOT NULL, so this needs no hop — but it
+    /// is `PatientDirect` for the same reason the rest of this group is.
+    pub const INSURANCE_CLAIM: ParentLink = ParentLink {
+        table: "insurance_claims",
+        column: "patient_id",
+        parent: ParentKind::PatientDirect,
+    };
+
+    /// Sometimes-clinical records — use with `require_access_via_optional`.
+    /// Their `patient_id` is nullable because an incident can involve staff or
+    /// equipment and no patient at all.
+    pub const INCIDENT_REPORT: ParentLink = ParentLink::on_patient("incident_reports");
+    pub const ADR_REPORT: ParentLink = ParentLink::on_patient("adr_reports");
+    pub const MATERIOVIGILANCE_REPORT: ParentLink =
+        ParentLink::on_patient("materiovigilance_reports");
+    /// A root-cause analysis hangs off the incident it investigates, and that
+    /// link is itself nullable — an RCA can be opened before one is filed.
+    pub const RCA_REPORT: ParentLink = ParentLink {
+        table: "rca_reports",
+        column: "incident_id",
+        parent: ParentKind::Via(&INCIDENT_REPORT),
+    };
+
+    /// An emergency visit. `er_discharge_summaries.er_visit_id` is NOT NULL and
+    /// `er_visits.patient_id` is NOT NULL, so this chain is total.
+    pub const ER_VISIT: ParentLink = ParentLink::on_patient("er_visits");
+    pub const ER_DISCHARGE_SUMMARY: ParentLink = ParentLink {
+        table: "er_discharge_summaries",
+        column: "er_visit_id",
+        parent: ParentKind::Via(&ER_VISIT),
+    };
+}
+
+/// Resolve a child row to its parent — but treat a null parent as "not about a
+/// patient" rather than as a refusal.
+///
+/// Some records are only sometimes clinical. An incident report may concern a
+/// needlestick, a fall, or a lift that trapped an engineer; an adverse-drug
+/// report may be filed against a batch with no patient named; a
+/// materiovigilance report may be about a device that failed on the shelf.
+/// Their `patient_id` is nullable **because that is correct**, not because the
+/// schema is sloppy.
+///
+/// `require_access_via` cannot express this: it answers `NotFound` for a null
+/// parent, which would hide every non-clinical incident report from everyone.
+/// Using it here would have been the same mistake as a nullable parent column —
+/// a fault-shaped answer to a question that has a real answer.
+///
+/// A missing child row is still `NotFound`. Only a **present row with no
+/// patient** passes, and it passes because the permission check the caller
+/// already made is the whole of the authorization it needs.
+pub async fn require_access_via_optional(
+    state: &AppState,
+    claims: &Claims,
+    link: ParentLink,
+    child_id: Uuid,
+) -> Result<(), AppError> {
+    let sql = format!(
+        "SELECT {} FROM {} WHERE id = $1 AND tenant_id = $2",
+        link.column, link.table
+    );
+    // Two levels of `Option`: the outer is "no such row", the inner is "row
+    // exists, column is null". They mean different things and must not be
+    // flattened together the way `require_access_via` flattens them.
+    let row: Option<Option<Uuid>> = sqlx::query_scalar(&sql)
+        .bind(child_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&state.db)
+        .await?;
+
+    match row {
+        None => Err(AppError::NotFound),
+        Some(None) => Ok(()),
+        Some(Some(parent_id)) => match link.parent {
+            ParentKind::Encounter => require_encounter_access(state, claims, parent_id).await,
+            ParentKind::Admission => require_admission_access(state, claims, parent_id).await,
+            ParentKind::Patient => require_patient_access(state, claims, parent_id).await,
+            ParentKind::PatientDirect => {
+                require_object_view(state, claims, "patient", parent_id).await
+            }
+            // A chained link whose first hop is optional is not a shape that has
+            // come up, and guessing at its meaning would be worse than refusing
+            // to compile it.
+            ParentKind::Via(_) => Err(AppError::ServiceUnavailable(
+                "optional access check does not support chained links".to_owned(),
+            )),
+        },
+    }
 }
 
 /// Resolve a child row to its parent, then authorize the parent.
