@@ -255,6 +255,27 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::lms::courses::LIST,
             permissions::lms::certificates::LIST,
             permissions::abdm::abha::VIEW,
+            // Intensive care. No built-in role named a single `icu.*` code, so
+            // every ICU endpoint answered 403 to the staff who use it — an ICU
+            // nurse could not record a ventilator setting. Granted on the
+            // operator's decision (2026-08-18).
+            permissions::icu::devices::LIST,
+            permissions::icu::devices::MANAGE,
+            permissions::icu::flowsheets::LIST,
+            permissions::icu::flowsheets::CREATE,
+            permissions::icu::neonatal::LIST,
+            permissions::icu::neonatal::CREATE,
+            permissions::icu::nutrition::LIST,
+            permissions::icu::nutrition::CREATE,
+            permissions::icu::scores::LIST,
+            permissions::icu::scores::CREATE,
+            permissions::icu::ventilator::LIST,
+            permissions::icu::ventilator::CREATE,
+            // Bedside: read-only for doctors. Managing sessions, answering
+            // requests and curating education video are nursing work.
+            permissions::bedside::VIEW,
+            permissions::bedside::sessions::LIST,
+            permissions::bedside::feedback::LIST,
         ],
     },
     BuiltInRole {
@@ -430,6 +451,33 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::nurse::equipment::RECORD,
             permissions::mrd::forms::VIEW,
             permissions::mrd::forms::MANAGE,
+            // Intensive care. No built-in role named a single `icu.*` code, so
+            // every ICU endpoint answered 403 to the staff who use it — an ICU
+            // nurse could not record a ventilator setting. Granted on the
+            // operator's decision (2026-08-18).
+            permissions::icu::devices::LIST,
+            permissions::icu::devices::MANAGE,
+            permissions::icu::flowsheets::LIST,
+            permissions::icu::flowsheets::CREATE,
+            permissions::icu::neonatal::LIST,
+            permissions::icu::neonatal::CREATE,
+            permissions::icu::nutrition::LIST,
+            permissions::icu::nutrition::CREATE,
+            permissions::icu::scores::LIST,
+            permissions::icu::scores::CREATE,
+            permissions::icu::ventilator::LIST,
+            permissions::icu::ventilator::CREATE,
+            // The bedside tablet. Same story as ICU: guarded everywhere,
+            // granted nowhere, so the whole portal was administrator-only.
+            // That is also why its read-any-admission defect went unnoticed.
+            permissions::bedside::VIEW,
+            permissions::bedside::REQUEST,
+            permissions::bedside::sessions::LIST,
+            permissions::bedside::sessions::MANAGE,
+            permissions::bedside::feedback::LIST,
+            permissions::bedside::feedback::CREATE,
+            permissions::bedside::videos::LIST,
+            permissions::bedside::videos::MANAGE,
         ],
     },
     BuiltInRole {
