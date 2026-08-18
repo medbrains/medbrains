@@ -2278,3 +2278,28 @@ pub mod pharmacy_finance {
         pub const VIEW: &str = "pharmacy_finance.finance_reports.view";
     }
 }
+
+/// ABDM — Ayushman Bharat Digital Mission, India's national health-ID and
+/// facility-registry integration.
+///
+/// These four codes lived as `const … : &str` inside the route files, which
+/// meant `require_permission` compared against a string no role could ever
+/// hold: every non-bypass caller got 403, and no administrator could grant
+/// access, because the codes never reached the catalogue the admin UI renders.
+/// The frontend guarded on the same literal, so the control was hidden too.
+pub mod abdm {
+    pub mod abha {
+        /// View a patient's ABHA health ID.
+        pub const VIEW: &str = "abdm.abha.view";
+        /// Create or link a patient's ABHA health ID.
+        pub const MANAGE: &str = "abdm.abha.manage";
+    }
+    pub mod hfr {
+        /// View this facility's Health Facility Registry entry.
+        pub const VIEW: &str = "abdm.hfr.view";
+        /// Register or update the facility in the Health Facility Registry.
+        ///
+        /// A facility-level administrative act, not a clinical one.
+        pub const REGISTER: &str = "abdm.hfr.register";
+    }
+}

@@ -254,6 +254,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::lms::quizzes::ATTEMPT,
             permissions::lms::courses::LIST,
             permissions::lms::certificates::LIST,
+            permissions::abdm::abha::VIEW,
         ],
     },
     BuiltInRole {
@@ -487,6 +488,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // Health packages are sold at the front desk; the codes existed
             // only as bare strings, so nobody could be granted them.
             permissions::specialty::health_packages::LIST,
+            // ABDM health IDs are created at the registration desk. These codes
+            // were consts inside the route file, so nobody could hold them.
+            permissions::abdm::abha::VIEW,
+            permissions::abdm::abha::MANAGE,
         ],
     },
     BuiltInRole {
@@ -1172,6 +1177,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::front_office::passes::MANAGE,
             permissions::front_office::queue::LIST,
             permissions::front_office::enquiry::LIST,
+            permissions::abdm::abha::VIEW,
+            permissions::abdm::abha::MANAGE,
         ],
     },
     BuiltInRole {

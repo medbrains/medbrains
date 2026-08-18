@@ -49,15 +49,13 @@ pub struct HfrRegisterRequest {
     pub specializations: Vec<String>,
 }
 
-const ABDM_HFR_VIEW: &str = "abdm.hfr.view";
-const ABDM_HFR_REGISTER: &str = "abdm.hfr.register";
 
 pub async fn register(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<HfrRegisterRequest>,
 ) -> Result<Json<HfrRegistration>, AppError> {
-    require_permission(&claims, ABDM_HFR_REGISTER)?;
+    require_permission(&claims, medbrains_core::permissions::abdm::hfr::REGISTER)?;
     if body.pincode.len() != 6 || !body.pincode.chars().all(|c| c.is_ascii_digit()) {
         return Err(AppError::BadRequest("pincode must be 6 digits".into()));
     }
@@ -101,7 +99,7 @@ pub async fn list_registrations(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<HfrRegistration>>, AppError> {
-    require_permission(&claims, ABDM_HFR_VIEW)?;
+    require_permission(&claims, medbrains_core::permissions::abdm::hfr::VIEW)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, HfrRegistration>(
@@ -127,7 +125,7 @@ pub async fn get_tenant_facility(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<TenantFacility>, AppError> {
-    require_permission(&claims, ABDM_HFR_VIEW)?;
+    require_permission(&claims, medbrains_core::permissions::abdm::hfr::VIEW)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, TenantFacility>(

@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 923 permissions, one per constant in the Rust source. */
+/** 927 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5617,6 +5617,31 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "View pharmacy finance reports (margins, P&L)",
     module: "pharmacy_finance",
   },
+  // abdm
+  {
+    code: "abdm.abha.view",
+    label: "View a patient's ABHA health ID",
+    description: "View a patient's ABHA health ID",
+    module: "abdm",
+  },
+  {
+    code: "abdm.abha.manage",
+    label: "Create or link a patient's ABHA health ID",
+    description: "Create or link a patient's ABHA health ID",
+    module: "abdm",
+  },
+  {
+    code: "abdm.hfr.view",
+    label: "View Hfr",
+    description: "View this facility's Health Facility Registry entry.",
+    module: "abdm",
+  },
+  {
+    code: "abdm.hfr.register",
+    label: "Register Hfr",
+    description: "Register or update the facility in the Health Facility Registry. A facility-level administrative act, not a clinical one.",
+    module: "abdm",
+  },
 ];
 
 /**
@@ -5624,6 +5649,20 @@ export const PERMISSIONS: PermissionDef[] = [
  * so a renamed permission is a type error instead of a silent no-op.
  */
 export const P = {
+  ABDM: {
+    ABHA: {
+      MANAGE: "abdm.abha.manage",
+      VIEW: "abdm.abha.view",
+    },
+    ABHA_MANAGE: "abdm.abha.manage",
+    ABHA_VIEW: "abdm.abha.view",
+    HFR: {
+      REGISTER: "abdm.hfr.register",
+      VIEW: "abdm.hfr.view",
+    },
+    HFR_REGISTER: "abdm.hfr.register",
+    HFR_VIEW: "abdm.hfr.view",
+  },
   ADMIN: {
     API_KEYS: {
       CREATE: "admin.api_keys.create",
@@ -8408,6 +8447,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   doctor: {
     label: "Doctor",
     permissions: [
+      P.ABDM.ABHA.VIEW,
       P.AUDIT.BREAK_GLASS_START,
       P.CARE_VIEW.DISCHARGE_TRACKER,
       P.CARE_VIEW.VIEW,
@@ -8767,6 +8807,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   receptionist: {
     label: "Receptionist",
     permissions: [
+      P.ABDM.ABHA.MANAGE,
+      P.ABDM.ABHA.VIEW,
       P.ADMIN.DOCTOR_PACKAGES.LIST,
       P.BILLING.INVOICES.CANCEL,
       P.BILLING.INVOICES.CREATE,
@@ -9410,6 +9452,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   front_office_staff: {
     label: "Front Office Staff",
     permissions: [
+      P.ABDM.ABHA.MANAGE,
+      P.ABDM.ABHA.VIEW,
       P.DASHBOARD.VIEW,
       P.FRONT_OFFICE.ENQUIRY.LIST,
       P.FRONT_OFFICE.PASSES.LIST,
