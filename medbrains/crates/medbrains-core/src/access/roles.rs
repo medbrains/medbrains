@@ -276,6 +276,55 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::bedside::VIEW,
             permissions::bedside::sessions::LIST,
             permissions::bedside::feedback::LIST,
+            // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
+            // Granted on the operator's decision, 2026-08-18.
+            permissions::order_basket::DRAFT,
+            permissions::order_basket::SIGN,
+            permissions::emergency::mass_casualty::CLOSE,
+            permissions::emergency::mass_casualty::CREATE,
+            permissions::emergency::mass_casualty::UPDATE,
+            permissions::ipd::discharge_summary::FINALIZE,
+            permissions::opd::schedule::LIST,
+            permissions::opd::schedule::MANAGE,
+            permissions::ot::anesthesia::CREATE,
+            permissions::ot::anesthesia::LIST,
+            permissions::ot::case_records::CREATE,
+            permissions::ot::case_records::LIST,
+            permissions::ot::postop::CREATE,
+            permissions::ot::postop::LIST,
+            permissions::ot::preferences::LIST,
+            permissions::ot::preferences::MANAGE,
+            permissions::ot::reports::VIEW,
+            permissions::ot::safety_checklist::CREATE,
+            permissions::patients::notes::EDIT,
+            permissions::patients::notes::VIEW,
+            permissions::radiology::orders::CANCEL,
+            permissions::radiology::orders::CREATE,
+            permissions::radiology::reports::CREATE,
+            permissions::radiology::reports::VERIFY,
+            permissions::specialty::cath_lab::devices::MANAGE,
+            permissions::specialty::cath_lab::stemi::MANAGE,
+            permissions::specialty::dental::chart::CREATE,
+            permissions::specialty::dental::chart::LIST,
+            permissions::specialty::dental::exams::CREATE,
+            permissions::specialty::dental::exams::LIST,
+            permissions::specialty::dental::exams::UPDATE,
+            permissions::specialty::endoscopy::reprocessing::LIST,
+            permissions::specialty::endoscopy::reprocessing::MANAGE,
+            permissions::specialty::endoscopy::scopes::MANAGE,
+            permissions::specialty::ophthalmology::exams::CREATE,
+            permissions::specialty::ophthalmology::exams::LIST,
+            permissions::specialty::ophthalmology::exams::UPDATE,
+            permissions::specialty::other::dialysis::MANAGE,
+            permissions::specialty::other::oncology::CREATE,
+            permissions::specialty::other::oncology::LIST,
+            permissions::specialty::other::templates::MANAGE,
+            permissions::specialty::palliative::dnr::MANAGE,
+            permissions::specialty::palliative::mortuary::MANAGE,
+            permissions::specialty::palliative::nucmed::MANAGE,
+            permissions::specialty::pmr::psychometric::LIST,
+            permissions::specialty::pmr::psychometric::MANAGE,
+            permissions::specialty::psychiatry::restraint::MANAGE,
         ],
     },
     BuiltInRole {
@@ -478,6 +527,38 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::bedside::feedback::CREATE,
             permissions::bedside::videos::LIST,
             permissions::bedside::videos::MANAGE,
+            // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
+            // Granted on the operator's decision, 2026-08-18.
+            permissions::emergency::mass_casualty::CLOSE,
+            permissions::emergency::mass_casualty::CREATE,
+            permissions::emergency::mass_casualty::UPDATE,
+            permissions::nurse::handoff_entries::RECORD,
+            permissions::nurse::handoff_entries::VIEW,
+            permissions::nurse::shift_notes::EDIT,
+            permissions::nurse::shift_notes::VIEW,
+            permissions::patients::notes::EDIT,
+            permissions::patients::notes::VIEW,
+            permissions::specialty::cath_lab::devices::MANAGE,
+            permissions::specialty::cath_lab::stemi::MANAGE,
+            permissions::specialty::dental::chart::CREATE,
+            permissions::specialty::dental::chart::LIST,
+            permissions::specialty::dental::exams::CREATE,
+            permissions::specialty::dental::exams::LIST,
+            permissions::specialty::dental::exams::UPDATE,
+            permissions::specialty::endoscopy::reprocessing::LIST,
+            permissions::specialty::endoscopy::reprocessing::MANAGE,
+            permissions::specialty::endoscopy::scopes::MANAGE,
+            permissions::specialty::ophthalmology::exams::CREATE,
+            permissions::specialty::ophthalmology::exams::LIST,
+            permissions::specialty::ophthalmology::exams::UPDATE,
+            permissions::specialty::other::dialysis::MANAGE,
+            permissions::specialty::other::oncology::CREATE,
+            permissions::specialty::other::oncology::LIST,
+            permissions::specialty::other::templates::MANAGE,
+            permissions::specialty::palliative::mortuary::MANAGE,
+            permissions::specialty::palliative::nucmed::MANAGE,
+            permissions::specialty::pmr::psychometric::LIST,
+            permissions::specialty::pmr::psychometric::MANAGE,
         ],
     },
     BuiltInRole {
@@ -578,6 +659,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::lms::quizzes::ATTEMPT,
             permissions::lms::courses::LIST,
             permissions::lms::certificates::LIST,
+            // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
+            // Granted on the operator's decision, 2026-08-18.
+            permissions::lab::dispatch::MANAGE,
         ],
     },
     BuiltInRole {
@@ -656,6 +740,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::pharmacy_finance::free_dispensing::VIEW,
             permissions::pharmacy_finance::supplier_payments::VIEW,
             permissions::pharmacy_finance::finance_reports::VIEW,
+            // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
+            // Granted on the operator's decision, 2026-08-18.
+            permissions::pharmacy_finance::cashier_audit::VIEW,
+            permissions::pharmacy_finance::supplier_payments::MANAGE,
         ],
     },
     BuiltInRole {
@@ -743,6 +831,12 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // Health packages are priced and billed here.
             permissions::specialty::health_packages::LIST,
             permissions::specialty::health_packages::MANAGE,
+            // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
+            // Granted on the operator's decision, 2026-08-18.
+            permissions::billing::concessions::CREATE,
+            permissions::billing::concessions::LIST,
+            permissions::pharmacy_finance::cashier_audit::VIEW,
+            permissions::pharmacy_finance::supplier_payments::MANAGE,
         ],
     },
     BuiltInRole {
@@ -878,6 +972,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::lms::certificates::LIST,
             permissions::lms::certificates::CREATE,
             permissions::lms::compliance::VIEW,
+            // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
+            // Granted on the operator's decision, 2026-08-18.
+            permissions::assets::ISSUE,
+            permissions::assets::LIST,
+            permissions::assets::MANAGE,
+            permissions::assets::RESERVE,
+            permissions::assets::RETURN,
         ],
     },
     BuiltInRole {
@@ -1064,6 +1165,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::scheduling::overbooking::MANAGE,
             permissions::scheduling::analytics::VIEW,
             permissions::scheduling::AUTO_FILL_MANAGE,
+            // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
+            // Granted on the operator's decision, 2026-08-18.
+            permissions::opd::schedule::LIST,
+            permissions::opd::schedule::MANAGE,
         ],
     },
     BuiltInRole {
@@ -1123,6 +1228,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::diet::kitchen::LIST,
             permissions::diet::inventory::LIST,
             permissions::diet::inventory::MANAGE,
+            // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
+            // Granted on the operator's decision, 2026-08-18.
+            permissions::diet::audits::CREATE,
+            permissions::diet::audits::LIST,
         ],
     },
     BuiltInRole {
@@ -1138,6 +1247,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::security::patient_safety::LIST,
             permissions::front_office::visitors::LIST,
             permissions::front_office::passes::LIST,
+            // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
+            // Granted on the operator's decision, 2026-08-18.
+            permissions::security::access::MANAGE,
+            permissions::security::cctv::MANAGE,
+            permissions::security::debriefs::CREATE,
+            permissions::security::incidents::UPDATE,
+            permissions::security::patient_safety::MANAGE,
         ],
     },
     BuiltInRole {
@@ -1154,6 +1270,26 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::bme::calibration::LIST,
             permissions::bme::calibration::MANAGE,
             permissions::bme::contracts::LIST,
+            // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
+            // Granted on the operator's decision, 2026-08-18.
+            permissions::assets::ISSUE,
+            permissions::assets::LIST,
+            permissions::assets::MANAGE,
+            permissions::assets::RESERVE,
+            permissions::assets::RETURN,
+            permissions::devices::agents::LIST,
+            permissions::devices::catalog::LIST,
+            permissions::devices::CREATE,
+            permissions::devices::INGEST,
+            permissions::devices::LIST,
+            permissions::devices::messages::VIEW,
+            permissions::devices::pairing::PAIRED_LIST,
+            permissions::devices::pairing::PAIRED_REVOKE,
+            permissions::devices::pairing::ROSTER_READ,
+            permissions::devices::pairing::TOKEN_CREATE,
+            permissions::devices::TEST,
+            permissions::devices::UPDATE,
+            permissions::devices::VIEW,
         ],
     },
     BuiltInRole {
@@ -1167,6 +1303,13 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::ambulance::trips::LIST,
             permissions::ambulance::trips::CREATE,
             permissions::ambulance::trips::UPDATE,
+            // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
+            // Granted on the operator's decision, 2026-08-18.
+            permissions::ambulance::drivers::MANAGE,
+            permissions::ambulance::fleet::CREATE,
+            permissions::ambulance::fleet::UPDATE,
+            permissions::ambulance::maintenance::LIST,
+            permissions::ambulance::maintenance::MANAGE,
         ],
     },
     BuiltInRole {
@@ -1178,6 +1321,12 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::radiology::orders::LIST,
             permissions::radiology::orders::VIEW,
             permissions::radiology::modalities::MANAGE,
+            // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
+            // Granted on the operator's decision, 2026-08-18.
+            permissions::radiology::orders::CANCEL,
+            permissions::radiology::orders::CREATE,
+            permissions::radiology::reports::CREATE,
+            permissions::radiology::reports::VERIFY,
         ],
     },
     BuiltInRole {
@@ -1194,6 +1343,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::cssd::sterilization::CREATE,
             permissions::cssd::issuance::LIST,
             permissions::cssd::issuance::CREATE,
+            // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
+            // Granted on the operator's decision, 2026-08-18.
+            permissions::cssd::equipment::LIST,
+            permissions::cssd::equipment::MANAGE,
         ],
     },
     BuiltInRole {
@@ -1227,6 +1380,24 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::front_office::enquiry::LIST,
             permissions::abdm::abha::VIEW,
             permissions::abdm::abha::MANAGE,
+            // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
+            // Granted on the operator's decision, 2026-08-18.
+            permissions::communications::alerts::CREATE,
+            permissions::communications::alerts::LIST,
+            permissions::communications::alerts::MANAGE,
+            permissions::communications::clinical::ACKNOWLEDGE,
+            permissions::communications::clinical::CREATE,
+            permissions::communications::clinical::LIST,
+            permissions::communications::complaints::CREATE,
+            permissions::communications::complaints::LIST,
+            permissions::communications::complaints::MANAGE,
+            permissions::communications::config::MANAGE,
+            permissions::communications::dlt::LIST,
+            permissions::communications::dlt::MANAGE,
+            permissions::communications::feedback::CREATE,
+            permissions::communications::feedback::LIST,
+            permissions::communications::messages::CREATE,
+            permissions::communications::messages::LIST,
         ],
     },
     BuiltInRole {
@@ -1243,6 +1414,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::infection_control::biowaste::CREATE,
             permissions::infection_control::hygiene::LIST,
             permissions::infection_control::hygiene::CREATE,
+            // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
+            // Granted on the operator's decision, 2026-08-18.
+            permissions::infection_control::outbreak::CREATE,
+            permissions::infection_control::outbreak::LIST,
+            permissions::infection_control::outbreak::UPDATE,
         ],
     },
     BuiltInRole {
@@ -1262,6 +1438,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::procurement::payments::LIST,
             permissions::procurement::payments::MANAGE,
             permissions::procurement::PERFORMANCE_VIEW,
+            // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
+            // Granted on the operator's decision, 2026-08-18.
+            permissions::procurement::rate_contracts::LIST,
+            permissions::procurement::rate_contracts::MANAGE,
+            permissions::procurement::stores::MANAGE,
         ],
     },
     BuiltInRole {
@@ -1280,6 +1461,21 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::procurement::grn::LIST,
             permissions::procurement::grn::CREATE,
             permissions::procurement::stores::LIST,
+            // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
+            // Granted on the operator's decision, 2026-08-18.
+            permissions::indent::ANALYTICS_VIEW,
+            permissions::indent::CONDEMNATION_LIST,
+            permissions::indent::CONDEMNATION_MANAGE,
+            permissions::indent::IMPLANTS_LIST,
+            permissions::indent::IMPLANTS_MANAGE,
+            permissions::inventory::DISPOSE,
+            permissions::inventory::VIEW,
+            permissions::storage::policies::LIST,
+            permissions::storage::policies::MANAGE,
+            permissions::storage::RESTORE,
+            permissions::storage::SWEEP_TRIGGER,
+            permissions::storage::transitions::LIST,
+            permissions::storage::usage::VIEW,
         ],
     },
     BuiltInRole {
@@ -1296,6 +1492,12 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::hr::attendance::LIST,
             permissions::hr::attendance::MANAGE,
             permissions::hr::leave::LIST,
+            // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
+            // Granted on the operator's decision, 2026-08-18.
+            permissions::hr::payroll::runs::CREATE,
+            permissions::hr::payroll::runs::LIST,
+            permissions::hr::payroll::structures::LIST,
+            permissions::hr::payroll::structures::MANAGE,
         ],
     },
     BuiltInRole {
@@ -1356,6 +1558,18 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::ot::preop::LIST,
             permissions::ot::preop::CREATE,
             permissions::ot::safety_checklist::LIST,
+            // Guarded by handlers that exist, granted to no role until now — the same gap as ICU.
+            // Granted on the operator's decision, 2026-08-18.
+            permissions::ot::anesthesia::CREATE,
+            permissions::ot::anesthesia::LIST,
+            permissions::ot::case_records::CREATE,
+            permissions::ot::case_records::LIST,
+            permissions::ot::postop::CREATE,
+            permissions::ot::postop::LIST,
+            permissions::ot::preferences::LIST,
+            permissions::ot::preferences::MANAGE,
+            permissions::ot::reports::VIEW,
+            permissions::ot::safety_checklist::CREATE,
         ],
     },
 ];
