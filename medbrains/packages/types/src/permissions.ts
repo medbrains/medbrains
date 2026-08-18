@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 918 permissions, one per constant in the Rust source. */
+/** 923 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -3506,6 +3506,36 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "specialty.ltc.snf.update",
     label: "Update a skilled nursing facility admission",
     description: "Update a skilled nursing facility admission",
+    module: "specialty",
+  },
+  {
+    code: "specialty.clinical_trials.list",
+    label: "View trials and their participants",
+    description: "View trials and their participants",
+    module: "specialty",
+  },
+  {
+    code: "specialty.clinical_trials.create",
+    label: "Create Clinical Trials",
+    description: "Register trials, consents, visits and adverse events.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.clinical_trials.unblind",
+    label: "Break a randomisation blind",
+    description: "Unblinding is a controlled act: it ends the masking for that participant and must be justified and auditable. It was gated on `create` — the same code as scheduling a visit.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.health_packages.list",
+    label: "View health packages",
+    description: "View health packages",
+    module: "specialty",
+  },
+  {
+    code: "specialty.health_packages.manage",
+    label: "Create and price health packages",
+    description: "Create and price health packages",
     module: "specialty",
   },
   {
@@ -7975,6 +8005,14 @@ export const P = {
     CATH_LAB_PROCEDURES_LIST: "specialty.cath_lab.procedures.list",
     CATH_LAB_STEMI_LIST: "specialty.cath_lab.stemi.list",
     CATH_LAB_STEMI_MANAGE: "specialty.cath_lab.stemi.manage",
+    CLINICAL_TRIALS: {
+      CREATE: "specialty.clinical_trials.create",
+      LIST: "specialty.clinical_trials.list",
+      UNBLIND: "specialty.clinical_trials.unblind",
+    },
+    CLINICAL_TRIALS_CREATE: "specialty.clinical_trials.create",
+    CLINICAL_TRIALS_LIST: "specialty.clinical_trials.list",
+    CLINICAL_TRIALS_UNBLIND: "specialty.clinical_trials.unblind",
     DENTAL: {
       CHART: {
         CREATE: "specialty.dental.chart.create",
@@ -8022,6 +8060,12 @@ export const P = {
     ENDOSCOPY_REPROCESSING_MANAGE: "specialty.endoscopy.reprocessing.manage",
     ENDOSCOPY_SCOPES_LIST: "specialty.endoscopy.scopes.list",
     ENDOSCOPY_SCOPES_MANAGE: "specialty.endoscopy.scopes.manage",
+    HEALTH_PACKAGES: {
+      LIST: "specialty.health_packages.list",
+      MANAGE: "specialty.health_packages.manage",
+    },
+    HEALTH_PACKAGES_LIST: "specialty.health_packages.list",
+    HEALTH_PACKAGES_MANAGE: "specialty.health_packages.manage",
     LTC: {
       FAMILY: {
         CREATE: "specialty.ltc.family.create",
@@ -8527,6 +8571,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.CATH_LAB.PROCEDURES.CREATE,
       P.SPECIALTY.CATH_LAB.PROCEDURES.LIST,
       P.SPECIALTY.CATH_LAB.STEMI.LIST,
+      P.SPECIALTY.CLINICAL_TRIALS.CREATE,
+      P.SPECIALTY.CLINICAL_TRIALS.LIST,
       P.SPECIALTY.ENDOSCOPY.PROCEDURES.CREATE,
       P.SPECIALTY.ENDOSCOPY.PROCEDURES.LIST,
       P.SPECIALTY.ENDOSCOPY.SCOPES.LIST,
@@ -8765,6 +8811,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENTS.LIST,
       P.PATIENTS.UPDATE,
       P.PATIENTS.VIEW,
+      P.SPECIALTY.HEALTH_PACKAGES.LIST,
     ],
   },
   lab_technician: {
@@ -8945,6 +8992,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PATIENT_PACKAGES.VIEW,
       P.PATIENTS.LIST,
       P.PATIENTS.VIEW,
+      P.SPECIALTY.HEALTH_PACKAGES.LIST,
+      P.SPECIALTY.HEALTH_PACKAGES.MANAGE,
     ],
   },
   housekeeping_staff: {
@@ -9172,6 +9221,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.REGULATORY.MATERIOVIGILANCE.LIST,
       P.REGULATORY.PCPNDT.CREATE,
       P.REGULATORY.PCPNDT.LIST,
+      P.SPECIALTY.CLINICAL_TRIALS.LIST,
     ],
   },
   occ_health_officer: {

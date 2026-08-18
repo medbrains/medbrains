@@ -1398,6 +1398,34 @@ pub mod specialty {
         }
     }
 
+    /// Clinical trials — a hospital research department's studies.
+    ///
+    /// These codes were checked as bare string literals with no definition
+    /// anywhere, so no role could hold them and `require_permission` refused
+    /// every non-bypass caller. The whole module worked for `super_admin` and
+    /// `hospital_admin` only, and no administrator could grant it, because it
+    /// never appeared in the catalogue the admin UI renders.
+    pub mod clinical_trials {
+        /// View trials and their participants.
+        pub const LIST: &str = "specialty.clinical_trials.list";
+        /// Register trials, consents, visits and adverse events.
+        pub const CREATE: &str = "specialty.clinical_trials.create";
+        /// Break a randomisation blind.
+        ///
+        /// Unblinding is a controlled act: it ends the masking for that
+        /// participant and must be justified and auditable. It was gated on
+        /// `create` — the same code as scheduling a visit.
+        pub const UNBLIND: &str = "specialty.clinical_trials.unblind";
+    }
+
+    /// Health packages — priced bundles sold at the front desk.
+    pub mod health_packages {
+        /// View health packages.
+        pub const LIST: &str = "specialty.health_packages.list";
+        /// Create and price health packages.
+        pub const MANAGE: &str = "specialty.health_packages.manage";
+    }
+
     pub mod pmr {
         pub mod plans {
             pub const LIST: &str = "specialty.pmr.plans.list";

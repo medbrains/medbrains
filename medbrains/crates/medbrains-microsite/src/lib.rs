@@ -43,7 +43,7 @@ pub async fn list_health_packages(
     Extension(claims): Extension<Claims>,
     Query(q): Query<PackageQuery>,
 ) -> Result<Json<Vec<HealthPackage>>, AppError> {
-    require_permission(&claims, "specialty.health_packages.list")?;
+    require_permission(&claims, permissions::specialty::health_packages::LIST)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, HealthPackage>(&format!(
@@ -77,7 +77,7 @@ pub async fn create_health_package(
     Extension(claims): Extension<Claims>,
     Json(body): Json<UpsertPackageRequest>,
 ) -> Result<Json<HealthPackage>, AppError> {
-    require_permission(&claims, "specialty.health_packages.manage")?;
+    require_permission(&claims, permissions::specialty::health_packages::MANAGE)?;
     if body.name.trim().is_empty() {
         return Err(AppError::BadRequest("Package name is required".to_owned()));
     }
@@ -111,7 +111,7 @@ pub async fn update_health_package(
     Path(id): Path<Uuid>,
     Json(body): Json<UpsertPackageRequest>,
 ) -> Result<Json<HealthPackage>, AppError> {
-    require_permission(&claims, "specialty.health_packages.manage")?;
+    require_permission(&claims, permissions::specialty::health_packages::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, HealthPackage>(&format!(
@@ -143,7 +143,7 @@ pub async fn delete_health_package(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, "specialty.health_packages.manage")?;
+    require_permission(&claims, permissions::specialty::health_packages::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let done = sqlx::query_scalar::<_, Uuid>(
@@ -172,7 +172,7 @@ pub async fn book_health_package(
     Path(id): Path<Uuid>,
     Json(body): Json<BookPackageRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, "specialty.health_packages.manage")?;
+    require_permission(&claims, permissions::specialty::health_packages::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -255,7 +255,7 @@ pub async fn list_testimonials(
     Extension(claims): Extension<Claims>,
     Query(q): Query<TestimonialQuery>,
 ) -> Result<Json<Vec<Testimonial>>, AppError> {
-    require_permission(&claims, "specialty.health_packages.list")?;
+    require_permission(&claims, permissions::specialty::health_packages::LIST)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, Testimonial>(&format!(
@@ -285,7 +285,7 @@ pub async fn create_testimonial(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateTestimonialRequest>,
 ) -> Result<Json<Testimonial>, AppError> {
-    require_permission(&claims, "specialty.health_packages.manage")?;
+    require_permission(&claims, permissions::specialty::health_packages::MANAGE)?;
     if body.patient_name.trim().is_empty() || body.body.trim().is_empty() {
         return Err(AppError::BadRequest("Name and review text are required".to_owned()));
     }
@@ -322,7 +322,7 @@ pub async fn moderate_testimonial(
     Path(id): Path<Uuid>,
     Json(body): Json<ModerateTestimonialRequest>,
 ) -> Result<Json<Testimonial>, AppError> {
-    require_permission(&claims, "specialty.health_packages.manage")?;
+    require_permission(&claims, permissions::specialty::health_packages::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, Testimonial>(&format!(
@@ -363,7 +363,7 @@ pub async fn list_seo_settings(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<SeoSetting>>, AppError> {
-    require_permission(&claims, "specialty.health_packages.list")?;
+    require_permission(&claims, permissions::specialty::health_packages::LIST)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, SeoSetting>(&format!(
@@ -392,7 +392,7 @@ pub async fn upsert_seo_setting(
     Extension(claims): Extension<Claims>,
     Json(body): Json<UpsertSeoRequest>,
 ) -> Result<Json<SeoSetting>, AppError> {
-    require_permission(&claims, "specialty.health_packages.manage")?;
+    require_permission(&claims, permissions::specialty::health_packages::MANAGE)?;
     if body.page_slug.trim().is_empty() {
         return Err(AppError::BadRequest("Page slug is required".to_owned()));
     }
@@ -441,7 +441,7 @@ pub async fn list_site_domains(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<SiteDomain>>, AppError> {
-    require_permission(&claims, "specialty.health_packages.list")?;
+    require_permission(&claims, permissions::specialty::health_packages::LIST)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, SiteDomain>(&format!(
@@ -466,7 +466,7 @@ pub async fn add_site_domain(
     Extension(claims): Extension<Claims>,
     Json(body): Json<AddDomainRequest>,
 ) -> Result<Json<SiteDomain>, AppError> {
-    require_permission(&claims, "specialty.health_packages.manage")?;
+    require_permission(&claims, permissions::specialty::health_packages::MANAGE)?;
     if body.domain.trim().is_empty() {
         return Err(AppError::BadRequest("Domain is required".to_owned()));
     }
@@ -492,7 +492,7 @@ pub async fn verify_site_domain(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<SiteDomain>, AppError> {
-    require_permission(&claims, "specialty.health_packages.manage")?;
+    require_permission(&claims, permissions::specialty::health_packages::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, SiteDomain>(&format!(
@@ -523,7 +523,7 @@ pub async fn get_microsite_config(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<MicrositeConfig>, AppError> {
-    require_permission(&claims, "specialty.health_packages.list")?;
+    require_permission(&claims, permissions::specialty::health_packages::LIST)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, MicrositeConfig>(
@@ -557,7 +557,7 @@ pub async fn update_microsite_config(
     Extension(claims): Extension<Claims>,
     Json(body): Json<UpdateConfigRequest>,
 ) -> Result<Json<MicrositeConfig>, AppError> {
-    require_permission(&claims, "specialty.health_packages.manage")?;
+    require_permission(&claims, permissions::specialty::health_packages::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, MicrositeConfig>(

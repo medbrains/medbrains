@@ -188,6 +188,18 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::specialty::maternity::newborn::CREATE,
             permissions::specialty::maternity::postnatal::LIST,
             permissions::specialty::maternity::postnatal::CREATE,
+            // Clinical trials had no grantable permission at all — the codes
+            // were bare strings defined nowhere, so `require_permission`
+            // refused every non-bypass caller and the module worked for
+            // super_admin and hospital_admin only. Investigators are
+            // clinicians, so the doctor role is where the capability belongs.
+            //
+            // UNBLIND is deliberately NOT granted here. Breaking a
+            // randomisation blind is a controlled act with its own
+            // justification and audit trail, and who may perform it is a
+            // governance decision for this hospital, not a default.
+            permissions::specialty::clinical_trials::LIST,
+            permissions::specialty::clinical_trials::CREATE,
             permissions::specialty::other::templates::LIST,
             permissions::specialty::other::records::LIST,
             permissions::specialty::other::records::CREATE,
@@ -472,6 +484,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::lms::quizzes::ATTEMPT,
             permissions::lms::courses::LIST,
             permissions::lms::certificates::LIST,
+            // Health packages are sold at the front desk; the codes existed
+            // only as bare strings, so nobody could be granted them.
+            permissions::specialty::health_packages::LIST,
         ],
     },
     BuiltInRole {
@@ -672,6 +687,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::lms::quizzes::ATTEMPT,
             permissions::lms::courses::LIST,
             permissions::lms::certificates::LIST,
+            // Health packages are priced and billed here.
+            permissions::specialty::health_packages::LIST,
+            permissions::specialty::health_packages::MANAGE,
         ],
     },
     BuiltInRole {
@@ -925,6 +943,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::lms::courses::LIST,
             permissions::lms::certificates::LIST,
             permissions::lms::compliance::VIEW,
+            // Trial oversight: view only. Registering a trial and breaking a
+            // blind both stay elsewhere.
+            permissions::specialty::clinical_trials::LIST,
         ],
     },
     BuiltInRole {
