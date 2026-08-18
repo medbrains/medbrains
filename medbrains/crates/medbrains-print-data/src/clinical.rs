@@ -2343,8 +2343,7 @@ pub async fn get_radiology_report_full_print_data(
     .bind(order_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let tenant = sqlx::query_as::<_, (String, Option<String>)>(
         "SELECT name, logo_url FROM tenants WHERE id = $1",
@@ -2545,8 +2544,7 @@ pub async fn get_death_certificate_print_data(
     .bind(patient_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let tenant = sqlx::query_as::<_, (String, Option<String>, Option<String>)>(
         "SELECT name, logo_url, address_line1 FROM tenants WHERE id = $1",
@@ -2753,8 +2751,7 @@ pub async fn get_ot_register_print_data(
     .bind(ot_id)
     .bind(register_date)
     .fetch_all(pool)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let mut elective = 0;
     let mut emergency = 0;

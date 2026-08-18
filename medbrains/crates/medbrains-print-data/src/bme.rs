@@ -103,8 +103,7 @@ pub async fn get_amc_contract_print_data(
     )
     .bind(contract_id)
     .fetch_all(pool)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let equipment_covered: Vec<EquipmentCoverage> = if equipment.is_empty() {
         vec![EquipmentCoverage {

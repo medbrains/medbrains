@@ -270,8 +270,7 @@ pub async fn dashboard(
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let accreditation_scores: Vec<AccreditationScore> = acc_rows
         .iter()
@@ -304,8 +303,7 @@ pub async fn dashboard(
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let department_scores: Vec<DepartmentComplianceScore> = dept_rows
         .into_iter()
@@ -327,8 +325,7 @@ pub async fn dashboard(
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
-        .await
-        .unwrap_or_default();
+        .await?;
 
     // Overdue count
     let overdue_items: i64 = sqlx::query_scalar(
@@ -440,8 +437,7 @@ pub async fn dashboard_gaps(
         )
         .bind(row.id)
         .fetch_all(&mut *tx)
-        .await
-        .unwrap_or_default();
+        .await?;
 
         gaps.push(ComplianceGap {
             checklist_id: row.id,

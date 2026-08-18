@@ -2275,8 +2275,7 @@ pub async fn discharge_patient(
     .bind(admission.encounter_id)
     .bind(claims.tenant_id)
     .fetch_one(&state.db)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
         &state.db,

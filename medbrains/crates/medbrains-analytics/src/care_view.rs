@@ -482,8 +482,7 @@ pub async fn handover_summary(
         )
         .bind(bp.admission_id)
         .fetch_all(&mut *tx)
-        .await
-        .unwrap_or_default();
+        .await?;
 
         // Pending meds
         let pending_meds: Vec<String> = sqlx::query_scalar(
@@ -494,8 +493,7 @@ pub async fn handover_summary(
         )
         .bind(bp.admission_id)
         .fetch_all(&mut *tx)
-        .await
-        .unwrap_or_default();
+        .await?;
 
         // Active clinical docs
         let active_docs: Vec<String> = sqlx::query_scalar(
@@ -505,8 +503,7 @@ pub async fn handover_summary(
         )
         .bind(bp.admission_id)
         .fetch_all(&mut *tx)
-        .await
-        .unwrap_or_default();
+        .await?;
 
         patients.push(HandoverSummaryPatient {
             admission_id: bp.admission_id,

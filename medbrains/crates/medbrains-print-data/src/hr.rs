@@ -646,8 +646,7 @@ pub async fn get_staff_credentials_print_data(
     )
     .bind(employee_id)
     .fetch_all(pool)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let credentials: Vec<CredentialDetail> = if creds.is_empty() {
         // Sample credentials if none exist
@@ -769,8 +768,7 @@ pub async fn get_visitor_register_print_data(
     )
     .bind(register_date)
     .fetch_all(pool)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let entries: Vec<VisitorEntry> = if visitors.is_empty() {
         // Sample entries if none exist

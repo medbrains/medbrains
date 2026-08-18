@@ -745,8 +745,7 @@ pub async fn get_discharge_checklist_print_data(
     .bind(admission_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     tx.commit().await?;
 
