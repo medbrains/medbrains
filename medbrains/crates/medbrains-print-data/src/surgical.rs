@@ -52,6 +52,8 @@ pub async fn get_case_sheet_cover_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<CaseSheetCoverPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -175,6 +177,8 @@ pub async fn get_preop_assessment_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<PreopAssessmentPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -336,6 +340,13 @@ pub async fn get_surgical_safety_checklist_print_data(
     Path(surgery_id): Path<Uuid>,
 ) -> Result<Json<SurgicalSafetyChecklistPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::SURGERY,
+        surgery_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -456,6 +467,13 @@ pub async fn get_anesthesia_record_print_data(
     Path(surgery_id): Path<Uuid>,
 ) -> Result<Json<AnesthesiaRecordPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::SURGERY,
+        surgery_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -667,6 +685,13 @@ pub async fn get_operation_notes_print_data(
     Path(surgery_id): Path<Uuid>,
 ) -> Result<Json<OperationNotesPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::SURGERY,
+        surgery_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -803,6 +828,13 @@ pub async fn get_postop_orders_print_data(
     Path(surgery_id): Path<Uuid>,
 ) -> Result<Json<PostopOrdersPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::SURGERY,
+        surgery_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -972,6 +1004,9 @@ pub async fn get_transfusion_monitoring_print_data(
     Path(transfusion_id): Path<Uuid>,
 ) -> Result<Json<TransfusionMonitoringPrintData>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
+    // Not guarded: `transfusions` has only a NULLABLE `admission_id` and no
+    // patient column, so a parent link would authorize a row with a null
+    // parent as "no such record". Needs a NOT NULL owner in the schema.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

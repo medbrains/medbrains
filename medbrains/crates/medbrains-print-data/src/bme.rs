@@ -904,6 +904,14 @@ pub async fn get_materiovigilance_print_data(
     // Device adverse-event reporting is a regulatory submission, so it is
     // guarded as one rather than as equipment maintenance.
     require_permission(&claims, permissions::regulatory::materiovigilance::LIST)?;
+    // Optional parent: this record is only sometimes about a patient.
+    medbrains_authz_gate::require_access_via_optional(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MATERIOVIGILANCE_REPORT,
+        report_id,
+    )
+    .await?;
 
     let pool: &PgPool = &state.db;
 

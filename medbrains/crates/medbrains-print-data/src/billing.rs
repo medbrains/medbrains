@@ -104,6 +104,13 @@ pub async fn get_receipt_print_data(
     let is_reprint = prior_print_count > 0;
     if is_reprint {
         require_permission(&claims, permissions::billing::receipts::REPRINT)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PAYMENT,
+        payment_id,
+    )
+    .await?;
         if reprint_reason.is_none_or(|value| value.len() < 5) {
             return Err(AppError::BadRequest(
                 "reprint reason is required after the first receipt print".to_owned(),
@@ -282,6 +289,13 @@ pub async fn get_estimate_print_data(
 ) -> Result<Json<EstimatePrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        invoice_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -368,6 +382,13 @@ pub async fn get_gst_invoice_print_data(
 ) -> Result<Json<GstInvoicePrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        invoice_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -470,6 +491,13 @@ pub async fn get_opd_bill_print_data(
 ) -> Result<Json<OpdBillPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        invoice_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -601,6 +629,8 @@ pub async fn get_ipd_interim_bill_print_data(
 ) -> Result<Json<IpdInterimBillPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -797,6 +827,13 @@ pub async fn get_ipd_final_bill_print_data(
 ) -> Result<Json<IpdFinalBillPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        invoice_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -983,6 +1020,8 @@ pub async fn get_admission_consolidated_bill_print_data(
 ) -> Result<Json<IpdFinalBillPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1171,6 +1210,8 @@ pub async fn get_no_dues_certificate_print_data(
 ) -> Result<Json<NoDuesCertificatePrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1253,6 +1294,13 @@ pub async fn get_advance_receipt_print_data(
 ) -> Result<Json<AdvanceReceiptPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PAYMENT,
+        payment_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1330,6 +1378,13 @@ pub async fn get_refund_receipt_print_data(
 ) -> Result<Json<RefundReceiptPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::REFUND,
+        refund_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1414,6 +1469,7 @@ pub async fn get_insurance_preauth_print_data(
 ) -> Result<Json<InsurancePreauthPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    // Not guarded: `preauth_requests` does not exist in the schema.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1539,6 +1595,13 @@ pub async fn get_cashless_claim_print_data(
 ) -> Result<Json<CashlessClaimPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INSURANCE_CLAIM,
+        claim_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1643,6 +1706,7 @@ pub async fn get_package_estimate_print_data(
 ) -> Result<Json<PackageEstimatePrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    // Not guarded: `package_estimates` does not exist in the schema.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1867,6 +1931,13 @@ pub async fn get_credit_note_print_data(
 ) -> Result<Json<CreditNotePrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CREDIT_NOTE,
+        credit_note_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2021,6 +2092,9 @@ pub async fn get_package_bill_print_data(
 ) -> Result<Json<PackageBillPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    // Not guarded: `package_bills.patient_id` and `.admission_id` are both
+    // NULLABLE, so neither can be a parent column — a row with a null would
+    // authorize as "no such record" rather than being refused on its merits.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2205,6 +2279,13 @@ pub async fn get_insurance_claim_print_data(
 ) -> Result<Json<InsuranceClaimPrintData>, AppError> {
     require_permission(&claims, permissions::insurance::prior_auth::LIST)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INSURANCE_CLAIM,
+        claim_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2403,6 +2484,8 @@ pub async fn get_tds_certificate_print_data(
     Path(tds_id): Path<Uuid>,
 ) -> Result<Json<TdsCertificatePrintData>, AppError> {
     require_permission(&claims, permissions::billing::tds::LIST)?;
+    // A tax-deduction certificate for a deductee, not a patient record;
+    // `tds_certificates` has no patient column.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

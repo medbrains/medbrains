@@ -337,6 +337,8 @@ pub async fn get_ama_form_print_data(
 ) -> Result<Json<AmaFormPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -484,6 +486,13 @@ pub async fn get_mlc_register_print_data(
 ) -> Result<Json<MlcRegisterPrintData>, AppError> {
     require_any_permission(&claims, MLC_PRINT_CONTEXT_PERMISSIONS)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MLC_CASE,
+        case_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -642,6 +651,13 @@ pub async fn get_mlc_police_intimation_print_data(
 ) -> Result<Json<MlcPoliceIntimationPrintData>, AppError> {
     require_any_permission(&claims, MLC_POLICE_INTIMATION_PRINT_CONTEXT_PERMISSIONS)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MLC_POLICE_INTIMATION,
+        intimation_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -766,6 +782,7 @@ pub async fn get_wound_certificate_print_data(
 ) -> Result<Json<WoundCertificatePrintData>, AppError> {
     require_permission(&claims, permissions::emergency::mlc::LIST)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    // Not guarded: `wound_certificates` does not exist in the schema.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -928,6 +945,9 @@ pub async fn get_age_estimation_print_data(
 ) -> Result<Json<AgeEstimationPrintData>, AppError> {
     require_permission(&claims, permissions::emergency::mlc::LIST)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    // Not guarded: `age_estimations` carries no patient, admission or
+    // encounter column, so there is nothing to resolve a care relationship
+    // through. Permission-gated only until the schema links it.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1090,6 +1110,7 @@ pub async fn get_death_declaration_print_data(
 ) -> Result<Json<DeathDeclarationPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    // Not guarded: `death_declarations` does not exist in the schema.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1223,6 +1244,13 @@ pub async fn get_mlc_documentation_print_data(
 ) -> Result<Json<MlcDocumentationPrintData>, AppError> {
     require_any_permission(&claims, MLC_PRINT_CONTEXT_PERMISSIONS)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MLC_CASE,
+        case_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

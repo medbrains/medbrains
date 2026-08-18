@@ -393,6 +393,8 @@ pub async fn list_by_admission(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<UtilizationReview>>, AppError> {
     require_permission(&claims, permissions::ur::reviews::LIST)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;

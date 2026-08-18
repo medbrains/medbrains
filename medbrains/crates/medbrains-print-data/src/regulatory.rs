@@ -1143,6 +1143,9 @@ pub async fn get_death_register_print_data(
     Path(period): Path<String>,
 ) -> Result<Json<DeathRegisterPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
+    // Deliberately unfiltered: a statutory death register lists every death in
+    // the period. Narrowing it to the caller's own patients would make the
+    // document wrong as a register, so it stays permission-gated.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1250,6 +1253,8 @@ pub async fn get_mlc_register_summary_print_data(
     Path(period): Path<String>,
 ) -> Result<Json<MlcRegisterSummaryPrintData>, AppError> {
     require_permission(&claims, permissions::emergency::mlc::LIST)?;
+    // Deliberately unfiltered, as the death register above: a medico-legal
+    // register is a statutory summary of the period, not a per-patient read.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
