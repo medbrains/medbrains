@@ -28,6 +28,7 @@ use medbrains_server_core::state::AppState;
 
 #[derive(Debug, Deserialize)]
 pub struct ListRehabPlansQuery {
+    pub patient_id: Option<Uuid>,
     pub discipline: Option<String>,
     pub status: Option<String>,
 }
@@ -87,6 +88,7 @@ pub struct CreatePsychometricRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct ListDnrQuery {
+    pub patient_id: Option<Uuid>,
     pub status: Option<String>,
 }
 
@@ -294,6 +296,10 @@ pub async fn list_rehab_plans(
     Query(params): Query<ListRehabPlansQuery>,
 ) -> Result<Json<Vec<RehabPlan>>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::plans::LIST)?;
+    // Unscoped before this: every rehabilitation plan in the tenant.
+    // Dual-mode via ?patient_id.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -304,10 +310,12 @@ pub async fn list_rehab_plans(
         "SELECT * FROM rehab_plans \
          WHERE ($1::text IS NULL OR discipline::text = $1) \
          AND ($2::text IS NULL OR status = $2) \
+         AND ($3::uuid[] IS NULL OR patient_id = ANY($3)) \
          ORDER BY created_at DESC LIMIT 200",
     )
     .bind(&params.discipline)
     .bind(&params.status)
+    .bind(permitted_patients.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 
@@ -321,6 +329,11 @@ pub async fn create_rehab_plan(
     Json(body): Json<CreateRehabPlanRequest>,
 ) -> Result<Json<RehabPlan>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::plans::CREATE)?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops the record
+    // being filed against a patient outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -359,6 +372,13 @@ pub async fn list_rehab_sessions(
     Path(plan_id): Path<Uuid>,
 ) -> Result<Json<Vec<RehabSession>>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::sessions::LIST)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::REHAB_PLAN,
+        plan_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -383,6 +403,13 @@ pub async fn create_rehab_session(
     Json(body): Json<CreateRehabSessionRequest>,
 ) -> Result<Json<RehabSession>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::sessions::CREATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::REHAB_PLAN,
+        plan_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -419,11 +446,21 @@ pub async fn create_rehab_session(
 
 // ── Audiology ────────────────────────────────────────────
 
+#[derive(Debug, Deserialize)]
+pub struct ListAudiologyQuery {
+    pub patient_id: Option<Uuid>,
+}
+
 pub async fn list_audiology_tests(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(params): Query<ListAudiologyQuery>,
 ) -> Result<Json<Vec<AudiologyTest>>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::audiology::LIST)?;
+    // Unscoped before this: every row in the tenant. Dual-mode — one patient
+    // with ?patient_id, otherwise the set the caller may see.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -431,8 +468,11 @@ pub async fn list_audiology_tests(
         .await?;
 
     let rows = sqlx::query_as::<_, AudiologyTest>(
-        "SELECT * FROM audiology_tests ORDER BY test_date DESC LIMIT 200",
+        "SELECT * FROM audiology_tests \
+         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         ORDER BY test_date DESC LIMIT 200",
     )
+    .bind(permitted_patients.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 
@@ -446,6 +486,11 @@ pub async fn create_audiology_test(
     Json(body): Json<CreateAudiologyTestRequest>,
 ) -> Result<Json<AudiologyTest>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::audiology::CREATE)?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops the record
+    // being filed against a patient outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -480,11 +525,21 @@ pub async fn create_audiology_test(
 
 // ── Psychometric Tests ───────────────────────────────────
 
+#[derive(Debug, Deserialize)]
+pub struct ListPsychometricQuery {
+    pub patient_id: Option<Uuid>,
+}
+
 pub async fn list_psychometric_tests(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(params): Query<ListPsychometricQuery>,
 ) -> Result<Json<Vec<PsychometricTest>>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::psychometric::LIST)?;
+    // Unscoped before this: every row in the tenant. Dual-mode — one patient
+    // with ?patient_id, otherwise the set the caller may see.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -492,8 +547,11 @@ pub async fn list_psychometric_tests(
         .await?;
 
     let rows = sqlx::query_as::<_, PsychometricTest>(
-        "SELECT * FROM psychometric_tests ORDER BY test_date DESC LIMIT 200",
+        "SELECT * FROM psychometric_tests \
+         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         ORDER BY test_date DESC LIMIT 200",
     )
+    .bind(permitted_patients.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 
@@ -507,6 +565,11 @@ pub async fn create_psychometric_test(
     Json(body): Json<CreatePsychometricRequest>,
 ) -> Result<Json<PsychometricTest>, AppError> {
     require_permission(&claims, permissions::specialty::pmr::psychometric::MANAGE)?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops the record
+    // being filed against a patient outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "pmr")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -544,6 +607,11 @@ pub async fn list_dnr_orders(
     Query(params): Query<ListDnrQuery>,
 ) -> Result<Json<Vec<DnrOrder>>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::dnr::LIST)?;
+    // A do-not-resuscitate register, unscoped before this: which patients in
+    // the hospital hold an end-of-life decision, to anyone holding the module
+    // permission. Dual-mode via ?patient_id.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -557,9 +625,11 @@ pub async fn list_dnr_orders(
     let rows = sqlx::query_as::<_, DnrOrder>(
         "SELECT * FROM dnr_orders \
          WHERE ($1::text IS NULL OR status::text = $1) \
+         AND ($2::uuid[] IS NULL OR patient_id = ANY($2)) \
          ORDER BY created_at DESC LIMIT 200",
     )
     .bind(&params.status)
+    .bind(permitted_patients.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 
@@ -591,6 +661,11 @@ pub async fn create_dnr_order(
     Json(body): Json<CreateDnrRequest>,
 ) -> Result<Json<DnrOrder>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::dnr::MANAGE)?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops the record
+    // being filed against a patient outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -633,6 +708,13 @@ pub async fn revoke_dnr_order(
     Json(body): Json<RevokeDnrRequest>,
 ) -> Result<Json<DnrOrder>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::dnr::MANAGE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::DNR_ORDER,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -660,11 +742,21 @@ pub async fn revoke_dnr_order(
 
 // ── Pain Assessment ──────────────────────────────────────
 
+#[derive(Debug, Deserialize)]
+pub struct ListPainQuery {
+    pub patient_id: Option<Uuid>,
+}
+
 pub async fn list_pain_assessments(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(params): Query<ListPainQuery>,
 ) -> Result<Json<Vec<PainAssessment>>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::pain::LIST)?;
+    // Unscoped before this: every row in the tenant. Dual-mode — one patient
+    // with ?patient_id, otherwise the set the caller may see.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -676,8 +768,11 @@ pub async fn list_pain_assessments(
         .await?;
 
     let rows = sqlx::query_as::<_, PainAssessment>(
-        "SELECT * FROM pain_assessments ORDER BY assessed_at DESC LIMIT 200",
+        "SELECT * FROM pain_assessments \
+         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         ORDER BY assessed_at DESC LIMIT 200",
     )
+    .bind(permitted_patients.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 
@@ -691,6 +786,11 @@ pub async fn create_pain_assessment(
     Json(body): Json<CreatePainAssessmentRequest>,
 ) -> Result<Json<PainAssessment>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::pain::CREATE)?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops the record
+    // being filed against a patient outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -736,6 +836,12 @@ pub async fn list_mortuary_records(
     Query(params): Query<ListMortuaryQuery>,
 ) -> Result<Json<Vec<MortuaryRecord>>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::mortuary::LIST)?;
+    // No per-record check is possible: `mortuary_records` has no patient_id.
+    // It keys on a body receipt number and stores `deceased_name` and the
+    // rest as free text, so a body is never joined to the patient who was
+    // admitted. That is a schema gap, not an omission here — until the
+    // column exists, cause of death and post-mortem findings are protected
+    // by the module permission alone.
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -893,6 +999,8 @@ pub async fn list_nuclear_sources(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<NuclearMedSource>>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::nucmed::LIST)?;
+    // Radioactive source inventory under AERB licensing — stock, not a
+    // patient record. Permission-gated only, deliberately.
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -951,11 +1059,21 @@ pub async fn create_nuclear_source(
     Ok(Json(row))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ListNuclearAdminQuery {
+    pub patient_id: Option<Uuid>,
+}
+
 pub async fn list_nuclear_administrations(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(params): Query<ListNuclearAdminQuery>,
 ) -> Result<Json<Vec<NuclearMedAdministration>>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::nucmed::LIST)?;
+    // Unscoped before this: every row in the tenant. Dual-mode — one patient
+    // with ?patient_id, otherwise the set the caller may see.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -967,8 +1085,11 @@ pub async fn list_nuclear_administrations(
         .await?;
 
     let rows = sqlx::query_as::<_, NuclearMedAdministration>(
-        "SELECT * FROM nuclear_med_administrations ORDER BY administered_at DESC LIMIT 200",
+        "SELECT * FROM nuclear_med_administrations \
+         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         ORDER BY administered_at DESC LIMIT 200",
     )
+    .bind(permitted_patients.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 
@@ -997,6 +1118,11 @@ pub async fn create_nuclear_administration(
     Json(body): Json<CreateNuclearAdminRequest>,
 ) -> Result<Json<NuclearMedAdministration>, AppError> {
     require_permission(&claims, permissions::specialty::palliative::nucmed::CREATE)?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops the record
+    // being filed against a patient outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1053,6 +1179,7 @@ pub async fn list_specialty_templates(
     Query(params): Query<ListTemplatesQuery>,
 ) -> Result<Json<Vec<SpecialtyTemplate>>, AppError> {
     require_permission(&claims, permissions::specialty::other::templates::LIST)?;
+    // Master templates. No patient data.
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1110,11 +1237,21 @@ pub async fn create_specialty_template(
     Ok(Json(row))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ListSpecialtyRecordsQuery {
+    pub patient_id: Option<Uuid>,
+}
+
 pub async fn list_specialty_records(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(params): Query<ListSpecialtyRecordsQuery>,
 ) -> Result<Json<Vec<SpecialtyRecord>>, AppError> {
     require_permission(&claims, permissions::specialty::other::records::LIST)?;
+    // Unscoped before this: every row in the tenant. Dual-mode — one patient
+    // with ?patient_id, otherwise the set the caller may see.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1126,8 +1263,11 @@ pub async fn list_specialty_records(
         .await?;
 
     let rows = sqlx::query_as::<_, SpecialtyRecord>(
-        "SELECT * FROM specialty_records ORDER BY recorded_at DESC LIMIT 200",
+        "SELECT * FROM specialty_records \
+         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
+         ORDER BY recorded_at DESC LIMIT 200",
     )
+    .bind(permitted_patients.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 
@@ -1141,6 +1281,11 @@ pub async fn create_specialty_record(
     Json(body): Json<CreateRecordRequest>,
 ) -> Result<Json<SpecialtyRecord>, AppError> {
     require_permission(&claims, permissions::specialty::other::records::CREATE)?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops the record
+    // being filed against a patient outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1208,6 +1353,11 @@ pub async fn create_dialysis_session(
     Json(body): Json<CreateDialysisRequest>,
 ) -> Result<Json<CreateDialysisResponse>, AppError> {
     require_permission(&claims, permissions::specialty::other::dialysis::MANAGE)?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops the record
+    // being filed against a patient outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1279,6 +1429,13 @@ pub async fn update_dialysis_session(
     Json(body): Json<UpdateDialysisRequest>,
 ) -> Result<Json<DialysisSession>, AppError> {
     require_permission(&claims, permissions::specialty::other::dialysis::MANAGE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::DIALYSIS_SESSION,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1356,6 +1513,11 @@ pub async fn create_chemo_protocol(
     Json(body): Json<CreateChemoRequest>,
 ) -> Result<Json<ChemoProtocol>, AppError> {
     require_permission(&claims, permissions::specialty::other::records::CREATE)?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops the record
+    // being filed against a patient outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1535,6 +1697,13 @@ pub async fn update_chemo_protocol(
     Json(body): Json<UpdateChemoRequest>,
 ) -> Result<Json<ChemoProtocol>, AppError> {
     require_permission(&claims, permissions::specialty::other::records::CREATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CHEMO_PROTOCOL,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1635,6 +1804,11 @@ pub async fn create_cancer_staging(
     Json(body): Json<CreateStagingRequest>,
 ) -> Result<Json<CancerStaging>, AppError> {
     require_permission(&claims, permissions::specialty::other::oncology::CREATE)?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops the record
+    // being filed against a patient outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1721,6 +1895,11 @@ pub async fn create_radiation_session(
     Json(body): Json<CreateRadiationRequest>,
 ) -> Result<Json<RadiationSession>, AppError> {
     require_permission(&claims, permissions::specialty::other::oncology::CREATE)?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops the record
+    // being filed against a patient outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,

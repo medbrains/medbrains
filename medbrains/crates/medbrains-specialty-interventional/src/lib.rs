@@ -812,6 +812,9 @@ pub async fn list_scopes(
     Query(params): Query<ListScopesQuery>,
 ) -> Result<Json<Vec<EndoscopyScope>>, AppError> {
     require_permission(&claims, permissions::specialty::endoscopy::scopes::LIST)?;
+    // Endoscope inventory — equipment, not a patient record. The
+    // reprocessing log below hangs off a scope for the same reason.
+    // Permission-gated only, deliberately.
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
