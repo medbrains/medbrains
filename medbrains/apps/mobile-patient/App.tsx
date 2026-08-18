@@ -20,11 +20,18 @@ import {
 import { apiConfig } from "./src/api/config";
 import { Navigator } from "./src/navigator";
 import { PatientLoginGate } from "./src/login-gate";
-import { MODULES } from "./src/modules";
+import { useCompanionAccess } from "./src/health/use-companion-access.js";
+import { modulesFor } from "./src/modules";
 
 const theme = buildDeviceTheme("light");
 
 export default function App() {
+  /**
+   * Starts hidden. The Health tab appears only once an entitlement says the
+   * companion is open — see `use-companion-access.ts`.
+   */
+  const access = useCompanionAccess();
+
   return (
     <SafeAreaProvider>
       <PaperProvider theme={theme}>
@@ -33,7 +40,7 @@ export default function App() {
           <NotificationBridge apiBase={apiConfig.baseUrl} surface="Mobile-Patient" />
           <Shell
             variant="patient"
-            modules={MODULES}
+            modules={modulesFor(access)}
             secretStore={apiConfig.store}
             cachePath="medbrains-cache"
             Navigator={Navigator}
