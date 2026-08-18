@@ -1,7 +1,9 @@
 # RFC-MODULE: Patient Companion — standalone health app, hospital link later, device last
 
 **Status:** Planning. No code yet.
-**Decisions taken (operator, 2026-08-18):** standalone first with a record-link seam; **wellness-only** for v1; built in this monorepo under AGPL.
+**Decisions taken (operator, 2026-08-18):** standalone first with a record-link seam; **wellness-only** for v1;
+built in this monorepo under AGPL; ships to **both** self-serve users and hospital patients; **both light and
+dark themes**; built inside `apps/mobile-patient` rather than a new app.
 **Reference product:** [Helix](https://www.projecthelix.app/) — Apple Watch/iPhone fitness intelligence. Morning readiness score, per-muscle recovery, an AI coach that "answers with your actual numbers", runs phone-local with no backend.
 
 ---
@@ -79,19 +81,77 @@ Local-first, sync optional. Unlinked, nothing leaves the phone — which is also
 
 ---
 
-## 6. Phases
+## 6. Two audiences, one app
 
-| Phase | Deliverable | Regulatory | New backend |
-|---|---|---|---|
-| **1. Standalone** | Daily brief, goals, medication reminders, manual vitals/symptom log, trends, education. Sells on its own. | Wellness | None — phone-local |
-| **2. Link + wearable** | `RecordSource` = MedBrains portal (reuses the six existing modules) and HealthKit/Health Connect. "Your record, explained." | Wellness | Portal API already exists |
-| **3. Device** | Our hardware over the existing ingest path | **Decide SaMD here** | `medbrains-bridge` |
+The operator's call: this ships to **both** self-serve users and hospital patients. They are not the same person and the app must not pretend they are.
 
-Phase 1 has to stand alone commercially. If it does not, phases 2–3 are subsidising a product nobody wanted.
+| | Self-serve | Hospital patient |
+|---|---|---|
+| How they arrive | App store, found via content | Hospital hands them the app |
+| Identity | Local, no account needed | OTP against the tenant portal — **exists today** |
+| Their record | What they type + wearable | Their actual chart, plus what they type |
+| What the daily loop says | "You vs you", personal baselines | Same, plus "your doctor set this target" |
+| Who pays | Them | The hospital |
+
+The existing six modules (appointments, bills, consent, family-share, lab-reports, prescriptions) already serve the hospital patient. What neither audience has is a **reason to open the app on a day nothing is scheduled**. That is the daily loop, and it is phase 1 for both.
+
+**Theme: both light and dark**, also the operator's call. Helix, Whoop and Oura are dark because a consumer health app is opened at 6am and 11pm. `buildDeviceTheme` already supports both. This contradicts CLAUDE.md's "Light theme only", which is written for the clinical web surface — **that rule needs scoping to the staff/web surfaces explicitly**, or this app is permanent drift. Amend it as part of phase 1, do not just diverge.
 
 ---
 
-## 7. Device path — finish what exists, do not invent it
+## 7. What to take from the reference, and what to leave
+
+Their information design is excellent and is not the protectable part. Their naming and their fitness domain are theirs.
+
+**Take — interaction and information design:**
+- One hero number with a **one-sentence verdict** in plain language. Not a dashboard of twelve numbers.
+- **Baseline and confidence chips** ("Established", "84-day baseline"). The app says how much it trusts itself, which is the honest version of a score.
+- **"You vs you"** — personal rolling baselines rather than population percentiles. Correct for health as well as fitness, and it dodges the "am I normal" trap that invites diagnosis.
+- Dense dark cards, each a single idea, each tappable into detail.
+- Bottom tabs, four plus an AI entry point.
+
+**Take — the calculator set.** Thirty-five tools, and a dozen are genuinely clinical and built on published formulas anyone may implement: **CKD-EPI 2021** (eGFR), **Du Bois / Mosteller** (body surface area), **Devine** (ideal weight), **Mifflin-St Jeor** (BMR), **Karvonen** (target heart rate), BMI, due date, ovulation, sleep debt. For a hospital patient with kidney disease, their own eGFR trend is genuinely useful. **They need triaging first** (§3): a BMI calculator is reference; an eGFR result is a clinical interpretation and must be framed as "what your last lab said", never "your kidney function is X".
+
+**Leave:**
+- Their naming — Training Lab, VO₂MAX Lab, Energy Schedule, Load Balance are their product's trade dress.
+- Muscle recovery maps, strain, training programmes. That is a fitness app; it is not what a hospital gives a patient.
+- The comparison-blog engine (~83 posts of "WHOOP vs Oura"). That is *their* acquisition model for a no-backend consumer app. Ours is a hospital handing out the app plus condition-led content, which is a different funnel.
+
+---
+
+## 8. Phases
+
+**Phase 0 — foundation. Done.**
+`src/health/`: record types, `RecordSource` seam, phone-local store, merge policy and history cap under test.
+
+**Phase 1 — the daily loop.** The reason to open the app on a quiet day.
+- `Today` screen: hero ring, one-line verdict, baseline/confidence chip, cards for the day's medications, latest observations, next appointment.
+- Manual entry: medications with reminder times, observations with explicit units.
+- Adherence: taken / skipped / missed, and a streak built from it.
+- **Both themes**, and the CLAUDE.md amendment that makes dark legitimate here.
+- Works with no hospital. For a linked patient the same screen is fed by their chart.
+- Exit criterion: a person with no hospital finds it worth opening daily.
+
+**Phase 2 — trends and the content engine.**
+- Trends tab: per-observation charts against personal baselines, `@mantine/charts` equivalent for RN.
+- Calculators, triaged per §3 — reference tools ship, clinical-interpretation tools ship only with framing.
+- Condition-led guides (hypertension, diabetes, pregnancy) rather than gear comparisons.
+- This is the self-serve acquisition surface and the hospital's patient-education surface at once.
+
+**Phase 3 — deepen the link.** The portal API already exists; this is about the daily loop consuming it.
+- `PortalSource` implements `RecordSource` over the existing six modules.
+- The clinician's care plan becomes the app's goals — the single biggest advantage over any consumer product.
+- Login gate inverts: hospital-optional rather than hospital-required.
+
+**Phase 4 — wearable.** HealthKit / Health Connect as a `RecordSource`. Decide Expo-vs-bare first (§2.2).
+
+**Phase 5 — device.** Ours, over `medbrains-bridge`. **Decide the SaMD question here** (§3).
+
+Phases 1–2 must stand alone commercially. If they do not, 3–5 are subsidising a product nobody wanted.
+
+---
+
+## 9. Device path — finish what exists, do not invent it
 
 `medbrains-bridge` already does HL7 ingest: `hl7_listener.rs`, `ingest.rs`, `buffer.rs`, `heartbeat.rs`, `transport/`. It posts to `/api/device-ingest/{module}`.
 
@@ -101,7 +161,7 @@ Note the bridge is **biomedical HL7 kit**, not consumer wearables. Different pip
 
 ---
 
-## 8. What to reuse, and what not to
+## 10. What to reuse, and what not to
 
 **Reuse:** `@medbrains/types` (Zod + TS contracts), `@medbrains/api`, `@medbrains/ui-mobile`, the Carbon design tokens, the portal API surface, `expo-secure-store`/`local-authentication` patterns already working in this app.
 
@@ -109,9 +169,11 @@ Note the bridge is **biomedical HL7 kit**, not consumer wearables. Different pip
 
 ---
 
-## 9. Open questions
+## 11. Open questions
 
-1. **Expo or bare RN** for this app (§2.2) — blocks phase 2, not phase 1.
+1. **Expo or bare RN** for this app (§2.2) — blocks phase 4, not phase 1.
 2. **Pricing.** Helix does not publish one. Subscription, one-off, or hardware-subsidised?
-3. **India first?** ABDM/ABHA is already integrated (`abdm.abha.*` permissions exist and are now grantable) — a standalone app that can pull a real ABHA record is a materially stronger phase-2 story than a hospital link alone.
+3. **India first?** ABDM/ABHA is already integrated (`abdm.abha.*` permissions exist and are now grantable) — a standalone app that can pull a real ABHA record is a materially stronger phase-3 story than a single hospital link.
+5. **Which calculators ship, and how framed.** Thirty-five exist in the reference; a dozen are clinically useful and built on published formulas. eGFR via CKD-EPI is the sharp case: useful to a renal patient, and one careless sentence away from being a diagnosis.
+6. **CLAUDE.md amendment for the theme rule** (§6) — scope "light theme only" to the web/staff surfaces, or this app is drift rather than a decision.
 4. **Who owns the refusal list** (§3) — it needs a clinician's sign-off, not an engineer's judgement.
