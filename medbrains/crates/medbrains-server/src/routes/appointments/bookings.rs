@@ -141,6 +141,11 @@ pub async fn book_appointment(
     Json(body): Json<BookAppointmentRequest>,
 ) -> Result<Json<Appointment>, AppError> {
     require_permission(&claims, permissions::opd::appointment::CREATE)?;
+    // The body names the patient this appointment is for. The deceased check
+    // below already reads that patient's record; without this, holding
+    // opd.appointment.create was enough to book against anyone in the tenant
+    // and learn from the response whether they are alive.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
