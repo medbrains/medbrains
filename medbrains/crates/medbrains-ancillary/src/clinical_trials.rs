@@ -237,7 +237,18 @@ pub async fn screen_candidates(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<TrialCandidate>>, AppError> {
-    require_permission(&claims, permissions::specialty::clinical_trials::LIST)?;
+    // Screening is not listing, and this is the one endpoint in the module that
+    // reaches OUTSIDE the trial. It searches every patient in the tenant by the
+    // trial's ICD codes and returns their names, so run against an HIV or a
+    // psychiatric protocol it produces a named list of the people carrying that
+    // diagnosis. `list` — which every trial user holds — was the only thing
+    // standing in front of it.
+    //
+    // Both codes, not either: the new one says the caller may screen, and
+    // `patients.view` says they may know who a patient is. The result set is
+    // both facts at once.
+    require_permission(&claims, permissions::specialty::clinical_trials::SCREEN)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let trial = sqlx::query_as::<_, ClinicalTrial>(&format!(

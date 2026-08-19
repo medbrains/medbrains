@@ -1416,6 +1416,14 @@ pub mod specialty {
         /// participant and must be justified and auditable. It was gated on
         /// `create` — the same code as scheduling a visit.
         pub const UNBLIND: &str = "specialty.clinical_trials.unblind";
+        /// Screen the patient population for trial candidates.
+        ///
+        /// Screening is not listing. It searches every patient in the tenant by
+        /// diagnosis code and returns their names, so running it against a
+        /// trial's ICD codes produces a named list of the people who carry that
+        /// diagnosis — the disclosure is the diagnosis, not the trial. It was
+        /// gated on `list`, which every trial user holds.
+        pub const SCREEN: &str = "specialty.clinical_trials.screen";
     }
 
     /// Health packages — priced bundles sold at the front desk.

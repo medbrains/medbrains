@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 927 permissions, one per constant in the Rust source. */
+/** 928 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -3524,6 +3524,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "specialty.clinical_trials.unblind",
     label: "Break a randomisation blind",
     description: "Unblinding is a controlled act: it ends the masking for that participant and must be justified and auditable. It was gated on `create` — the same code as scheduling a visit.",
+    module: "specialty",
+  },
+  {
+    code: "specialty.clinical_trials.screen",
+    label: "Screen Clinical Trials",
+    description: "Screen the patient population for trial candidates. Screening is not listing. It searches every patient in the tenant by diagnosis code and returns their names, so running it against a trial's ICD codes produces a named list of the people who carry that diagnosis — the disclosure is the diagnosis, not the trial. It was gated on `list`, which every trial user holds.",
     module: "specialty",
   },
   {
@@ -8047,10 +8053,12 @@ export const P = {
     CLINICAL_TRIALS: {
       CREATE: "specialty.clinical_trials.create",
       LIST: "specialty.clinical_trials.list",
+      SCREEN: "specialty.clinical_trials.screen",
       UNBLIND: "specialty.clinical_trials.unblind",
     },
     CLINICAL_TRIALS_CREATE: "specialty.clinical_trials.create",
     CLINICAL_TRIALS_LIST: "specialty.clinical_trials.list",
+    CLINICAL_TRIALS_SCREEN: "specialty.clinical_trials.screen",
     CLINICAL_TRIALS_UNBLIND: "specialty.clinical_trials.unblind",
     DENTAL: {
       CHART: {
@@ -8654,6 +8662,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.SPECIALTY.CATH_LAB.STEMI.MANAGE,
       P.SPECIALTY.CLINICAL_TRIALS.CREATE,
       P.SPECIALTY.CLINICAL_TRIALS.LIST,
+      P.SPECIALTY.CLINICAL_TRIALS.SCREEN,
       P.SPECIALTY.DENTAL.CHART.CREATE,
       P.SPECIALTY.DENTAL.CHART.LIST,
       P.SPECIALTY.DENTAL.EXAMS.CREATE,

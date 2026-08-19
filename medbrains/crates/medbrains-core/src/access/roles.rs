@@ -200,6 +200,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             // governance decision for this hospital, not a default.
             permissions::specialty::clinical_trials::LIST,
             permissions::specialty::clinical_trials::CREATE,
+            permissions::specialty::clinical_trials::SCREEN,
             permissions::specialty::other::templates::LIST,
             permissions::specialty::other::records::LIST,
             permissions::specialty::other::records::CREATE,
