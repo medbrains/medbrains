@@ -16,10 +16,15 @@ import { otService } from "@/services/ot.service";
 export function CaseRecordTab({ bookingId }: { bookingId: string }) {
   const queryClient = useQueryClient();
   const canCreate = useHasPermission(P.OT.CASE_RECORDS_CREATE);
+  // The tab holds only the create code; reading the record carries its
+  // own. Refused, the fetch returns nothing and the panel below renders
+  // as though the record does not exist.
+  const canView = useHasPermission(P.OT.CASE_RECORDS_LIST);
 
   const { data: record = null, isLoading } = useQuery<OtCaseRecord | null>({
     queryKey: ["ot-case-record", bookingId],
     queryFn: () => otService.getCaseRecord(bookingId),
+    enabled: canView,
   });
 
   const {
@@ -127,7 +132,7 @@ export function CaseRecordTab({ bookingId }: { bookingId: string }) {
   if (!canCreate)
     return (
       <Text c="dimmed" size="sm">
-        No case record yet.
+        {canView ? "No case record yet." : "You do not have permission to view the case record."}
       </Text>
     );
 
