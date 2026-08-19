@@ -5,7 +5,9 @@ import { Checkbox, Group, Select, Stack, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { IpdNursingTaskFormInput } from "@medbrains/schemas";
 import { ipdNursingTaskFormSchema } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
 import type { CreateNursingTaskRequest, NursingTask } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
@@ -19,15 +21,12 @@ import {
 } from "@/forms/ipd.form";
 import { ipdService } from "@/services/ipd.service";
 
-export function OverviewTab({
-  admissionId,
-  tasks,
-  canCreate,
-}: {
-  admissionId: string;
-  tasks: NursingTask[];
-  canCreate: boolean;
-}) {
+export function OverviewTab({ admissionId, tasks }: { admissionId: string; tasks: NursingTask[] }) {
+  // Nursing tasks are created and ticked off under their own permission.
+  // Gating this on the admitting clerk's `ipd.admissions.create` let a
+  // checkbox flip on screen and 403 on the wire — a task that reads as
+  // done and was never recorded as done.
+  const canRecord = useHasPermission(P.IPD.NURSING_ASSESSMENT_CREATE);
   const queryClient = useQueryClient();
   const [formOpened, formHandlers] = useDisclosure(false);
   const {
@@ -68,7 +67,7 @@ export function OverviewTab({
 
   return (
     <Stack>
-      {canCreate && (
+      {canRecord && (
         <Group>
           <Button
             tone="primary"
@@ -130,7 +129,7 @@ export function OverviewTab({
               <Checkbox
                 checked={t.is_completed}
                 onChange={() => toggleMutation.mutate({ taskId: t.id, completed: !t.is_completed })}
-                disabled={!canCreate}
+                disabled={!canRecord}
               />
             ),
           },

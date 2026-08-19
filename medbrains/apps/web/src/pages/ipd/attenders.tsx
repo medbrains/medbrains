@@ -5,7 +5,9 @@ import { Checkbox, Group, Select, Stack, Text, Textarea, TextInput } from "@mant
 import { useDisclosure } from "@mantine/hooks";
 import type { IpdAttenderFormInput } from "@medbrains/schemas";
 import { ipdAttenderFormSchema } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
 import type { AdmissionAttender } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
@@ -18,13 +20,11 @@ import {
 import { confirmDestructive } from "@/lib/confirm-destructive";
 import { ipdService } from "@/services/ipd.service";
 
-export function AttendersTab({
-  admissionId,
-  canCreate,
-}: {
-  admissionId: string;
-  canCreate: boolean;
-}) {
+export function AttendersTab({ admissionId }: { admissionId: string }) {
+  // Adding or removing an attender is its own permission — holding
+  // `ipd.admissions.create` does not carry it, so ask for the code the
+  // server will actually check rather than inheriting the admitting gate.
+  const canManage = useHasPermission(P.IPD.ATTENDERS_MANAGE);
   const queryClient = useQueryClient();
   const [formOpened, formHandlers] = useDisclosure(false);
   const {
@@ -60,7 +60,7 @@ export function AttendersTab({
 
   return (
     <Stack>
-      {canCreate && (
+      {canManage && (
         <Button
           tone="primary"
           size="xs"
@@ -179,7 +179,7 @@ export function AttendersTab({
                 )}
               </Table.Td>
               <Table.Td>
-                {canCreate && (
+                {canManage && (
                   <IconButton
                     tone="danger"
                     aria-label="Delete attender"

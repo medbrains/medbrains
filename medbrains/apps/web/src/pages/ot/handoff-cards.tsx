@@ -21,6 +21,7 @@ interface OtHandoffCardProps {
   title: string;
   template: OtHandoffItem[];
   queryKey: string;
+  canView: boolean;
   canEdit: boolean;
   receiverLabel: string;
   confirmLabel: string;
@@ -76,6 +77,7 @@ function OtHandoffCard({
   title,
   template,
   queryKey,
+  canView,
   canEdit,
   receiverLabel,
   confirmLabel,
@@ -90,6 +92,7 @@ function OtHandoffCard({
   const { data: handoff } = useQuery({
     queryKey: [queryKey, bookingId],
     queryFn: () => fetchHandoff(bookingId),
+    enabled: canView,
   });
   const { data: users = [] } = useQuery({
     queryKey: ["setup-users"],
@@ -134,8 +137,8 @@ function OtHandoffCard({
     <Card withBorder padding="sm">
       <Group justify="space-between">
         <Text fw={600}>{title}</Text>
-        <Badge tone={completed ? "success" : "warning"} size="sm">
-          {completed ? "Handed off" : "Pending"}
+        <Badge tone={canView ? (completed ? "success" : "warning") : "neutral"} size="sm">
+          {canView ? (completed ? "Handed off" : "Pending") : "Not visible to you"}
         </Badge>
       </Group>
       {completed && handoff?.completed_at && (
@@ -143,18 +146,28 @@ function OtHandoffCard({
           Handed off at {new Date(handoff.completed_at).toLocaleString()}
         </Text>
       )}
+      {!canView && (
+        // Without the read permission the fetch never happens, and the blank
+        // template would otherwise render as a checklist with every safety
+        // item unticked — a completed handoff shown as "Pending", consent
+        // unverified and site unmarked. Say nothing rather than say that.
+        <Text size="sm" c="dimmed" mt="xs">
+          You do not have permission to view this handoff record.
+        </Text>
+      )}
       <Stack gap="xs" mt="xs">
-        {effectiveItems.map((item) => (
-          <Checkbox
-            key={item.key}
-            label={item.label}
-            checked={item.checked}
-            disabled={!canEdit || completed}
-            onChange={() => toggle(item.key)}
-            size="xs"
-          />
-        ))}
-        {canEdit && !completed && (
+        {canView &&
+          effectiveItems.map((item) => (
+            <Checkbox
+              key={item.key}
+              label={item.label}
+              checked={item.checked}
+              disabled={!canEdit || completed}
+              onChange={() => toggle(item.key)}
+              size="xs"
+            />
+          ))}
+        {canView && canEdit && !completed && (
           <>
             <Select
               label={receiverLabel}
@@ -182,6 +195,7 @@ function OtHandoffCard({
 }
 
 export function PostopHandoffCard({ bookingId }: { bookingId: string }) {
+  const canView = useHasPermission(P.OT.POSTOP_LIST);
   const canEdit = useHasPermission(P.OT.POSTOP_CREATE);
   return (
     <OtHandoffCard
@@ -189,6 +203,7 @@ export function PostopHandoffCard({ bookingId }: { bookingId: string }) {
       title="OT → PACU / ward handoff"
       template={POSTOP_HANDOFF_TEMPLATE}
       queryKey="ot-postop-handoff"
+      canView={canView}
       canEdit={canEdit}
       receiverLabel="Received by (PACU / ward nurse)"
       confirmLabel="Confirm handoff"
@@ -200,6 +215,7 @@ export function PostopHandoffCard({ bookingId }: { bookingId: string }) {
 }
 
 export function PreopHandoffCard({ bookingId }: { bookingId: string }) {
+  const canView = useHasPermission(P.OT.PREOP_LIST);
   const canEdit = useHasPermission(P.OT.PREOP_CREATE);
   return (
     <OtHandoffCard
@@ -207,6 +223,7 @@ export function PreopHandoffCard({ bookingId }: { bookingId: string }) {
       title="Ward → OT send-off"
       template={PREOP_HANDOFF_TEMPLATE}
       queryKey="ot-preop-handoff"
+      canView={canView}
       canEdit={canEdit}
       receiverLabel="Received by (OT nurse)"
       confirmLabel="Confirm send-off to OT"

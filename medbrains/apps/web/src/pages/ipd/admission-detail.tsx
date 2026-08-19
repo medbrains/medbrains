@@ -593,7 +593,7 @@ export function AdmissionDetail({
 
           <Grid.Col span={{ base: 12, md: 9, lg: 7 }} className={classes.workspaceMain}>
             <Tabs.Panel value="overview" pt="md">
-              <OverviewTab admissionId={admissionId} tasks={detail.tasks} canCreate={canCreate} />
+              <OverviewTab admissionId={admissionId} tasks={detail.tasks} />
             </Tabs.Panel>
             <Tabs.Panel value="notes" pt="md">
               <ProgressNotesTab admissionId={admissionId} />
@@ -620,7 +620,7 @@ export function AdmissionDetail({
               <NursingTab admissionId={admissionId} />
             </Tabs.Panel>
             <Tabs.Panel value="attenders" pt="md">
-              <AttendersTab admissionId={admissionId} canCreate={canCreate} />
+              <AttendersTab admissionId={admissionId} />
             </Tabs.Panel>
             <Tabs.Panel value="clinical-docs" pt="md">
               <ClinicalDocsTab admissionId={admissionId} />
