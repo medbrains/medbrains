@@ -14,8 +14,15 @@
 //! and a readmission rate computed over a subset is a different rate. The number
 //! would still be presented as the hospital's.
 //!
-//! `analytics.view` is the control, held by Doctor, Pharmacist, Quality Officer,
-//! Case Manager and Scheduling Admin.
+//! `analytics.view` is the control — and it is granted to NO built-in role, so
+//! every handler here is bypass-only today. An earlier version of this note
+//! claimed five roles held it; that was a substring match picking up
+//! `pharmacy.analytics.view`, `order_sets.analytics.view`,
+//! `case_mgmt.analytics.view` and `scheduling.analytics.view`, which are
+//! different permissions. The reports page and two navigation entries gate on
+//! the top-level code, so the KPI suite is unreachable for every non-bypass
+//! user. Recorded rather than granted: who owns hospital-level analytics is a
+//! decision, not a repair.
 
 use axum::routing::get;
 use axum::{

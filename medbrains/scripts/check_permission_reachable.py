@@ -62,6 +62,72 @@ ENUMERATORS = (
 # The MAR case is why they get read at all: `nurse.mar.hold` looked exactly like
 # dead vocabulary and was in fact an enforcement gap, so "unused" is a question,
 # not an answer.
+# Guarded-never-granted codes that are ungranted ON PURPOSE.
+#
+# The count alone is unreadable — 109 sounds like 109 defects and it is not.
+# Three of them WERE defects this sweep (`settings.modules.manage` on the
+# tenant-settings read and on the print templates, `admin.security.manage` on
+# the incident register), each locking a real role out of its own job. The rest
+# split into two kinds, and separating them is the whole point of this list.
+DELIBERATE_UNGRANTED: dict[str, str] = {
+    # Controlled acts held at bypass-only by an explicit operator decision.
+    # Granting any of these is a governance choice for the hospital, not a repair.
+    "billing.write_off.approve": "controlled act — operator holds it bypass-only",
+    "billing.concessions.approve": "controlled act — operator holds it bypass-only",
+    "pharmacy_finance.free_dispensing.approve": "controlled act — operator holds it bypass-only",
+    "inventory.approve": "controlled act — operator holds it bypass-only",
+    "retrospective.approve": "controlled act — operator holds it bypass-only",
+    "patients.delete": "controlled act — deleting a patient record",
+    "specialty.clinical_trials.unblind": "controlled act — breaking a randomisation blind",
+    "specialty.psychiatry.mhrb.manage": "controlled act — mental health review board",
+}
+
+# Guarded-never-granted codes where a whole feature is bypass-only, and no
+# built-in role can reach it. NOT necessarily defects — several of these are
+# modules a hospital enables per deployment — but each is a grant DECISION
+# somebody has to make, and until they do the feature is invisible in practice.
+#
+# The sharpest are the ones whose sibling READ is granted and whose WRITE is
+# not: `front_office.queue.list` belongs to Receptionist and Front Office Staff
+# while `.manage` belongs to nobody, and `consent.templates.list` belongs to
+# Doctor and Audit Officer while create/update/delete belong to nobody. Those
+# roles open the screen and can do nothing on it.
+NEEDS_A_GRANT_DECISION: dict[str, str] = {
+    "analytics.view": "the entire KPI suite — 23 handlers, plus two nav entries and the reports page",
+    "analytics.export": "as above, the export half",
+    "front_office.queue.manage": "`.list` IS granted to Receptionist and Front Office Staff",
+    "consent.templates.create": "`.list` IS granted to Doctor and Audit Officer",
+    "consent.templates.update": "as above",
+    "consent.templates.delete": "as above",
+    "consent.signatures.manage": "consent signature administration",
+    "doctor.signature.co_sign": "Doctor holds `signature.sign` and `.verify` but not co-sign",
+    "command_center.view": "the command centre, and its four sibling codes",
+    "command_center.alerts.manage": "command centre",
+    "command_center.discharge.view": "command centre",
+    "command_center.transport.list": "command centre",
+    "command_center.transport.manage": "command centre",
+    "ckb.view": "clinical knowledge base, and its two report codes",
+    "ckb.reports.list": "clinical knowledge base",
+    "ckb.reports.manage": "clinical knowledge base",
+    "integration.create": "integration management, four codes",
+    "integration.update": "integration management",
+    "integration.delete": "integration management",
+    "integration.execute": "integration management",
+    "abdm.hfr.register": "ABDM health facility registry",
+    "abdm.hfr.view": "ABDM health facility registry",
+    "retrospective.list": "retrospective coding review",
+    "retrospective.settings": "retrospective coding review",
+    "documents.printers.list": "printer administration",
+    "documents.printers.manage": "printer administration",
+    "documents.templates.delete": "document template deletion",
+    "camp.assets.manage": "camp asset management",
+    "chronic.programs.create": "chronic care programme creation",
+    "devices.delete": "device deletion",
+    "lms.courses.delete": "course deletion",
+    "quality.pressure_ulcer.list": "NABH pressure-ulcer register read",
+    "vpn.enroll": "VPN enrolment",
+}
+
 ORPHAN_VERDICTS: dict[str, str] = {
     # 23 NABH register codes. The registers are real, but they are populated by
     # mirroring from the clinical modules — `mirror_pressure_ulcer_from_ipd_assessment`
@@ -209,7 +275,13 @@ def main() -> int:
     orphan = sorted(known - granted - guarded - ui_only)
 
     print(f"catalogue {len(known)}   granted {len(granted)}   guarded {len(guarded)}\n")
+    reviewed = [c for c in unreachable if c in DELIBERATE_UNGRANTED]
+    pending = [c for c in unreachable if c in NEEDS_A_GRANT_DECISION]
+    unclassified = [c for c in unreachable if c not in DELIBERATE_UNGRANTED and c not in NEEDS_A_GRANT_DECISION]
     print(f"  guarded, never granted : {len(unreachable):>4}   403 for every non-bypass caller")
+    print(f"      · deliberate       : {len(reviewed):>4}   controlled acts, held bypass-only on purpose")
+    print(f"      · needs a decision : {len(pending):>4}   a whole feature no built-in role can reach")
+    print(f"      · unclassified     : {len(unclassified):>4}   mostly admin.* — read them before granting")
     print(f"  granted, never guarded : {len(inert):>4}   a switch that changes nothing")
     print(f"  gated in the UI only   : {len(ui_gate_only):>4}   hidden button, unprotected call")
     print(f"  neither                : {len(orphan):>4}   dead or never wired")
@@ -225,7 +297,14 @@ def main() -> int:
                 continue
             print(f"\n=== {title} ({len(group)})")
             for code in group:
-                verdict = orphan_verdict(code) if title == "ORPHANED" else ""
+                if title == "ORPHANED":
+                    verdict = orphan_verdict(code)
+                elif code in DELIBERATE_UNGRANTED:
+                    verdict = f"DELIBERATE — {DELIBERATE_UNGRANTED[code]}"
+                elif code in NEEDS_A_GRANT_DECISION:
+                    verdict = f"NEEDS A DECISION — {NEEDS_A_GRANT_DECISION[code]}"
+                else:
+                    verdict = ""
                 print(f"   {code}" + (f"   — {verdict}" if verdict else ""))
     else:
         for title, group in (
