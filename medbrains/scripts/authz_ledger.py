@@ -66,7 +66,18 @@ RECORD_CHECK = re.compile(
     r"patient_filter|visible_patient_ids|"
     r"require_patient_viewer|require_object_view|require_patient\b|"
     r"ensure_invoice_view_access|ensure_invoice_workspace_access|"
-    r"\.authz\b|authz_patient::"
+    r"\.authz\b|authz_patient::|"
+    # The patient portal's form, and the strongest one there is: the patient id
+    # is bound from the TOKEN, never from the request, so there is no id a caller
+    # could substitute. Every portal data endpoint does this and every one of
+    # them scored as unguarded, which would have invited somebody to "fix" it by
+    # bolting a staff-shaped guard onto a handler that cannot be tricked.
+    r"claims\.pid\b|"
+    # The kiosk's form of the same thing: the subject is unsealed from a signed
+    # token, and the tenant with it, so a request cannot name a record the token
+    # does not already carry. `kiosk_checkin` and `public_token_status` are
+    # unauthenticated ON PURPOSE — the check is the seal, not a permission.
+    r"open_event_token"
 )
 COLLAPSE = re.compile(r"unwrap_or\(false\)|unwrap_or_default\(\)|\.is_ok\(\)|\.is_err\(\)")
 

@@ -81,6 +81,14 @@ ACCEPTED: dict[str, str] = {
         "background board broadcast; no Result to propagate",
     "crates/medbrains-server/src/services/simulator/pacer.rs::produced_today":
         "demo pacer; developer tooling, not a clinical read",
+    # The mirror image of the entitlement gate above, and deliberately so — its
+    # own doc comment argues the case. This one faces the PATIENT, where the
+    # failure directions are not symmetric: showing a companion feature the
+    # hospital never bought is harder to withdraw than one that was briefly
+    # missing, so a missing row, an unreadable status and a database error all
+    # resolve to `false`. It gates a wellness add-on, not a clinical read.
+    "crates/medbrains-server/src/routes/portal.rs::portal_entitlements":
+        "patient-facing entitlement; documented fail-CLOSED for a non-clinical add-on",
 }
 
 # `[^{]*` so the captured text includes the RETURN TYPE. Without it the match

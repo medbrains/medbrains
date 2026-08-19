@@ -202,6 +202,12 @@ pub async fn issue_verify_link(
         &claims,
         medbrains_core::permissions::opd::visit::UPDATE,
     )?;
+    // …and the permission alone was still not enough. It said the caller may
+    // update visits SOMEWHERE; it did not say they may see THIS encounter. The
+    // link this mints is public — whoever holds it reads the prescription
+    // without authenticating — so issuing one for an encounter you have no
+    // relationship with is a disclosure, not a lookup.
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
