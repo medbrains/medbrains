@@ -174,6 +174,32 @@ def split_handlers(text: str) -> list[tuple[str, str]]:
     return out
 
 
+LOCAL_FN = re.compile(r"^(?:pub(?:\([^)]*\))?\s+)?fn (\w+)\s*\(", re.M)
+
+
+def local_guard_wrappers(text: str) -> re.Pattern | None:
+    """Calls to a file-local wrapper that itself checks a permission.
+
+    `medbrains-tv` gates eleven handlers through a two-line `require(claims,
+    perm)` helper that maps `AppError::Forbidden` into that module's older
+    `(StatusCode, String)` shape. None of the wrapper's callers mention
+    `require_permission` or `permissions::`, so the module scored 0 of 13
+    permissioned when in fact only the queue-board reads are open — and the
+    sweep spent a tick chasing a hole that was already closed.
+
+    Match the wrapper by what it does, not by its name.
+    """
+    marks = [(m.group(1), m.start()) for m in LOCAL_FN.finditer(text)]
+    names = []
+    for i, (name, start) in enumerate(marks):
+        end = marks[i + 1][1] if i + 1 < len(marks) else len(text)
+        if PERMISSION_CHECK.search(text[start:end]):
+            names.append(name)
+    if not names:
+        return None
+    return re.compile(r"\b(?:" + "|".join(sorted(set(names))) + r")\s*\(")
+
+
 def audit_module(paths: list[str]) -> dict:
     handlers = permissioned = phi = phi_with_record = 0
     collapses: list[str] = []
@@ -182,6 +208,7 @@ def audit_module(paths: list[str]) -> dict:
             text = open(path, encoding="utf-8", errors="replace").read()
         except OSError:
             continue
+        local_guard = local_guard_wrappers(text)
         lines = text.split("\n")
         for i, line in enumerate(lines):
             if not COLLAPSE.search(line):
@@ -200,7 +227,9 @@ def audit_module(paths: list[str]) -> dict:
             # count by 9, which is how the false positive surfaced at all.
             body = re.sub(r"//[^\n]*", "", raw_body)
             handlers += 1
-            if PERMISSION_CHECK.search(body):
+            if PERMISSION_CHECK.search(body) or (
+                local_guard is not None and local_guard.search(body)
+            ):
                 permissioned += 1
             if PHI.search(body):
                 phi += 1
