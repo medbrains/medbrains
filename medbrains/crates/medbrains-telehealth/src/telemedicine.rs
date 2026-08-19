@@ -294,6 +294,17 @@ pub async fn update_tele_status(
     Json(body): Json<UpdateTeleStatusRequest>,
 ) -> Result<Json<TeleConsultation>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    // Its two neighbours on this row — submit_triage and update_recording —
+    // already gate on the consultation. This one writes doctor_notes and a
+    // cancel_reason onto the same record and marks the session no-show or
+    // completed, so it needs the same hop to the patient.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::TELE_CONSULTATION,
+        id,
+    )
+    .await?;
 
     let status = body.status.trim();
     if !VALID_STATUSES.contains(&status) {

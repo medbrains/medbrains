@@ -1578,6 +1578,13 @@ pub async fn create_pg_logbook_entry(
     Json(body): Json<CreatePgLogbookRequest>,
 ) -> Result<Json<PgLogbookEntry>, AppError> {
     require_permission(&claims, permissions::opd::visit::CREATE)?;
+    // The resident chooses which encounter the entry hangs from. Left
+    // unchecked, any encounter id in the tenant could be logged as a case
+    // this resident took part in — a durable claim of participation in a
+    // patient's care, written by someone with no access to that care.
+    if let Some(encounter_id) = body.encounter_id {
+        medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1672,6 +1679,11 @@ pub async fn create_co_signature(
     Json(body): Json<CreateCoSignatureRequest>,
 ) -> Result<Json<CoSignatureRequest>, AppError> {
     require_permission(&claims, permissions::opd::visit::CREATE)?;
+    // encounter_id comes from the body. A co-signature request names a
+    // patient's encounter and an order on it, and lands in the approver's
+    // queue as a thing to sign — so the requester must hold access to the
+    // encounter they are asking someone else to countersign.
+    medbrains_authz_gate::require_encounter_access(&state, &claims, body.encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

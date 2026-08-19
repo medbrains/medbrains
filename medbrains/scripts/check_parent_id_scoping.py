@@ -58,6 +58,14 @@ HANDLER = re.compile(r"pub async fn (\w+)\s*\(")
 # it detects a discarded parent, not what the handler does instead — so the
 # exemption is recorded here rather than the code being changed to satisfy it.
 ACCEPTED: dict[str, str] = {
+    # These two are NotImplemented stubs (aaf32475 deleted their fabricated
+    # bodies). They discard the parent id because they address nothing at all —
+    # the fix is a data source, not a WHERE clause. Delete these entries when
+    # the handlers are implemented and they will be caught properly.
+    "crates/medbrains-print-data/src/bme.rs::get_mgps_log_print_data":
+        "NotImplemented stub — no query to scope",
+    "crates/medbrains-print-data/src/academic.rs::get_osce_scoring_sheet":
+        "NotImplemented stub — no query to scope",
     "crates/medbrains-facilities/src/icu.rs::remove_device":
         "resolves the device's real admission and authorizes that",
     "crates/medbrains-facilities/src/icu.rs::list_bundle_checks":

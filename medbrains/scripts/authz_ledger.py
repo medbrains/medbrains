@@ -66,7 +66,13 @@ RECORD_CHECK = re.compile(
     r"patient_filter|visible_patient_ids|"
     r"require_patient_viewer|require_object_view|require_patient\b|"
     r"ensure_invoice_view_access|ensure_invoice_workspace_access|"
-    r"\.authz\b|authz_patient::|"
+    # `.authz` is a handle, not a decision. `.check`, `.bulk_check` and
+    # `.list_accessible` ask SpiceDB a question; `.write_tuple` and `.grant_raw`
+    # MINT a relation. Matching the bare handle scored eight handlers as
+    # record-checked because they hand out access — `schedule_follow_up` copies
+    # any consultation by path id and writes the doctor a Viewer tuple on that
+    # patient, and was counted as guarded for doing so.
+    r"\.authz\s*\.(?:check|bulk_check|list_accessible)\b|authz_patient::|"
     # The patient portal's form, and the strongest one there is: the patient id
     # is bound from the TOKEN, never from the request, so there is no id a caller
     # could substitute. Every portal data endpoint does this and every one of
