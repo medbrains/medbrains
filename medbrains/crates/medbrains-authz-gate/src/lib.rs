@@ -278,6 +278,13 @@ pub mod links {
     pub const CASE_SHEET_PACKET: ParentLink =
         ParentLink::on_patient("mrd_case_sheet_packets");
 
+    /// Ward safety records, each keyed straight on the patient they concern.
+    pub const HYPOGLYCEMIA_EVENT: ParentLink =
+        ParentLink::on_patient("hypoglycemia_events");
+    pub const MED_RECONCILIATION: ParentLink =
+        ParentLink::on_patient("medication_reconciliations");
+    pub const SEPSIS_BUNDLE: ParentLink = ParentLink::on_patient("sepsis_hour1_bundles");
+
     pub const RADIOLOGY_ORDER: ParentLink = ParentLink::on_patient("radiology_orders");
 
     /// A report reaches its patient through the order it reports on.

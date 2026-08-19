@@ -138,6 +138,9 @@ pub async fn create_sepsis_bundle(
     Json(body): Json<CreateSepsisBundleRequest>,
 ) -> Result<Json<SepsisBundleView>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    // A sepsis bundle is an emergency treatment record on the named patient.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     let recognised_at = body.recognised_at.unwrap_or_else(Utc::now);
 
     let mut tx = state.db.begin().await?;
@@ -189,6 +192,14 @@ pub async fn update_sepsis_bundle(
     Json(body): Json<UpdateSepsisBundleRequest>,
 ) -> Result<Json<SepsisBundleView>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    // Sepsis hour-1 timings are the record of how fast somebody was treated.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::SEPSIS_BUNDLE,
+        id,
+    )
+    .await?;
     let now = Utc::now();
 
     let mut tx = state.db.begin().await?;
@@ -256,6 +267,9 @@ pub async fn list_sepsis_bundles(
     Query(params): Query<ListSepsisBundleQuery>,
 ) -> Result<Json<Vec<SepsisBundleView>>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+    // One patient's sepsis bundles — an empty list here reads as "no sepsis".
+    medbrains_authz_gate::require_patient_access(&state, &claims, params.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, SepsisBundle>(&format!(
