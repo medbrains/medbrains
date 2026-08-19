@@ -1,3 +1,14 @@
+//! Doctor schedules and the slot grid.
+//!
+//! `get_available_slots` carries no record check and needs none. It reads
+//! `appointments` only as `SELECT slot_start, COUNT(*) … GROUP BY slot_start`
+//! — how many bookings each slot already holds — and returns capacity, never
+//! a booking. The authorization ledger flags it because `appointments` is a
+//! linked table and its PHI scan counts any handler that touches one.
+//!
+//! If this ever returns who is booked rather than how many, it stops being a
+//! slot grid and needs the APPOINTMENT hop that bookings.rs uses.
+
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
