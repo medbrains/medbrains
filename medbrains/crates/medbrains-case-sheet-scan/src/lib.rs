@@ -48,6 +48,10 @@ pub async fn create_scan(
     Json(body): Json<CreateScanRequest>,
 ) -> Result<Json<CaseSheetScan>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::FILE)?;
+    // Two read paths in this file already call require_patient_access, so
+    // mrd_officer resolves against it; filing a chart for a patient is
+    // the same question as reading one.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if body.scan_image_url.trim().is_empty() {
         return Err(AppError::BadRequest("scan_image_url is required".to_owned()));
     }

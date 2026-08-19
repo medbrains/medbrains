@@ -1,4 +1,21 @@
 //! Nurse handoff (SBAR) + code blue + equipment checks.
+//!
+//! # Why start_code_blue takes no record check
+//!
+//! It writes `code_blue_events` against a NOT NULL `patient_id` from the body,
+//! under `nurse.code_blue.record`, held by `nurse`
+//! (`crates/medbrains-core/src/access/roles.rs`). This file checks the
+//! encounter on forty-six other paths and deliberately does not check here.
+//!
+//! A code blue is run by whoever is present when somebody arrests. That is
+//! routinely not the care team — it is the nearest nurse, and the first thing
+//! they do is call it, not look up whether the arrest is theirs to record.
+//! This is the emergency-override category, and in this repo emergency
+//! override has no other implementation: `break_glass_events` exists but no
+//! code path routes a code blue through it.
+//!
+//! **What retires this:** wiring the arrest into break-glass, so the override
+//! is recorded and reviewed rather than merely absent.
 
 use axum::{
     Extension, Json,

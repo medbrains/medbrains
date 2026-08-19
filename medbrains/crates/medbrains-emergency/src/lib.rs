@@ -1518,6 +1518,12 @@ pub async fn create_mlc_case(
     Json(body): Json<CreateMlcCaseRequest>,
 ) -> Result<Json<MlcCase>, AppError> {
     require_permission(&claims, permissions::emergency::mlc::CREATE)?;
+    // emergency.mlc.create is held by doctor, and a doctor filing a
+    // medico-legal case is filing it on a patient in front of them. The
+    // read paths for this register were guarded in a5fb895d; the entry
+    // that creates it was not. This crate checks on twenty-six other
+    // paths.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,

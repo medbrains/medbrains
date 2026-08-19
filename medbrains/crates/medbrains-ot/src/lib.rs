@@ -1,4 +1,21 @@
 #![allow(clippy::too_many_lines)]
+//! Operation theatre — bookings, checklists, anaesthesia and handoffs.
+//!
+//! # Why create_booking takes no record check
+//!
+//! `ot.bookings.create` is held by `ot_staff`
+//! (`crates/medbrains-core/src/access/roles.rs`). Theatre scheduling is a
+//! departmental function that reaches every patient the surgeons list, and an
+//! OT scheduler holds no care relationship with any of them — the same
+//! exemption the theatre list itself already carries.
+//!
+//! The records that hang off a booking DO check: this crate calls
+//! `require_access_via` through the OT_BOOKING link on eight paths, so once a
+//! booking exists, reaching its anaesthesia record or its handoff is scoped.
+//! The root is the one thing the department is trusted to create.
+//!
+//! **What retires this:** a relation saying which lists an OT scheduler runs.
+
 
 use axum::{
     Extension, Json,
