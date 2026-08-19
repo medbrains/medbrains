@@ -775,7 +775,13 @@ pub async fn report_credit_aging(
             permissions::billing::credit::MANAGE,
         ],
     )?;
-    // Aggregate over outstanding balances. No patient row leaves this handler.
+    // Aggregate over outstanding balances, one row per patient on terms. The
+    // SELECT does concatenate a name, so what makes this safe is not the
+    // shape of the query but filter_credit_aging_row below, which blanks
+    // the identity unless the caller holds patients.view. Saying "no
+    // patient row leaves this handler" was not accurate; the accurate
+    // claim is that the identity does not, and it is a field control
+    // rather than a record check.
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
     let can_reveal_patient_identity = can_view_patient_identity(&claims);
 

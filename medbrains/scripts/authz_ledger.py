@@ -63,6 +63,12 @@ PERMISSION_CHECK = re.compile(
 RECORD_CHECK = re.compile(
     r"require_patient_access|require_encounter_access|require_admission_access|"
     r"require_access_via|require_access_via_optional|require_patient_billing_access|"
+    # `require_patient_billing_filter` is the list form of the billing check —
+    # `patient_filter` does not match it, because the name reads
+    # billing_filter. Two guarded billing lists scored as unchecked until
+    # this line existed, which is the same shape as the wrapper and span
+    # defects: a guard the detector could not see, reported as an absent one.
+    r"require_patient_billing_filter|"
     r"patient_filter|visible_patient_ids|"
     r"require_patient_viewer|require_object_view|require_patient\b|"
     r"ensure_invoice_view_access|ensure_invoice_workspace_access|"
