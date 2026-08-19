@@ -2091,6 +2091,15 @@ pub async fn get_package_bill_print_data(
     Path(package_id): Path<Uuid>,
 ) -> Result<Json<PackageBillPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    // Nullable patient: a package bill can be raised against a corporate
+    // account rather than a person. Optional form for the same reason.
+    medbrains_authz_gate::require_access_via_optional(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PACKAGE_BILL,
+        package_id,
+    )
+    .await?;
     require_permission(&claims, permissions::patients::VIEW)?;
     // Not guarded: `package_bills.patient_id` and `.admission_id` are both
     // NULLABLE, so neither can be a parent column — a row with a null would

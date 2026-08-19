@@ -288,6 +288,13 @@ pub mod links {
     /// A patient reminder — cancelling one stops an outreach to that person.
     pub const PATIENT_REMINDER: ParentLink = ParentLink::on_patient("patient_reminders");
 
+    /// A queue token and a package bill both have a NULLABLE `patient_id` — a
+    /// token can be issued before a patient is identified, and a package bill
+    /// can be raised against a corporate account. Use these with
+    /// `require_access_via_optional`, never `require_access_via`.
+    pub const QUEUE_TOKEN: ParentLink = ParentLink::on_patient("queue_tokens");
+    pub const PACKAGE_BILL: ParentLink = ParentLink::on_patient("package_bills");
+
     pub const RADIOLOGY_ORDER: ParentLink = ParentLink::on_patient("radiology_orders");
 
     /// A report reaches its patient through the order it reports on.

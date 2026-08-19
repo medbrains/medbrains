@@ -960,6 +960,16 @@ pub async fn get_token_slip_print_data(
     Path(token_id): Path<Uuid>,
 ) -> Result<Json<TokenSlipPrintData>, AppError> {
     require_permission(&claims, permissions::front_office::queue::LIST)?;
+    // The token's patient is nullable — a token can be issued before the
+    // person is identified — so the optional form: a missing token is
+    // NotFound, a token with no patient passes on the permission alone.
+    medbrains_authz_gate::require_access_via_optional(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::QUEUE_TOKEN,
+        token_id,
+    )
+    .await?;
     // Not guarded: `queue_tokens.patient_id` is NULLABLE — a walk-in token
     // exists before a patient is registered — so it cannot be a parent column.
 
