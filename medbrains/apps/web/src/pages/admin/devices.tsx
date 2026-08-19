@@ -334,6 +334,9 @@ function DeviceListTab() {
 // ── Adapter Catalog Tab ────────────────────────────────────────
 
 function CatalogTab() {
+  // The catalogue has its own code; `devices.list` opened the page, which is a
+  // different thing from reading the manufacturer master.
+  const canListCatalog = useHasPermission(P.DEVICES.CATALOG_LIST);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string | null>(null);
   const [protocol, setProtocol] = useState<string | null>(null);
@@ -351,6 +354,7 @@ function CatalogTab() {
   const { data: manufacturers } = useQuery({
     queryKey: ["devices", "manufacturers"],
     queryFn: () => adminDevicesService.listManufacturers(),
+    enabled: canListCatalog,
   });
 
   const categoryOptions = [
@@ -513,9 +517,11 @@ function CatalogTab() {
 // ── Bridge Agents Tab ──────────────────────────────────────────
 
 function AgentsTab() {
+  const canListAgents = useHasPermission(P.DEVICES.AGENTS_LIST);
   const { data: agents, isLoading } = useQuery({
     queryKey: ["devices", "agents"],
     queryFn: () => adminDevicesService.listBridgeAgents(),
+    enabled: canListAgents,
   });
 
   if (isLoading) return <Loader />;
@@ -630,6 +636,9 @@ interface RoutingRule {
 }
 
 function RoutingRulesTab() {
+  // Deleting a routing rule is `devices.update` — the page opened on
+  // `devices.list`, and Delete was offered to every reader.
+  const canUpdateDevices = useHasPermission(P.DEVICES.UPDATE);
   const queryClient = useQueryClient();
   const [addOpened, { open: openAdd, close: closeAdd }] = useDisclosure(false);
 
@@ -738,14 +747,16 @@ function RoutingRulesTab() {
                     </Badge>
                   </Table.Td>
                   <Table.Td>
-                    <Button
-                      tone="subtle-danger"
-                      size="xs"
-                      onClick={() => deleteMutation.mutate(r.id)}
-                      loading={deleteMutation.isPending}
-                    >
-                      Delete
-                    </Button>
+                    {canUpdateDevices && (
+                      <Button
+                        tone="subtle-danger"
+                        size="xs"
+                        onClick={() => deleteMutation.mutate(r.id)}
+                        loading={deleteMutation.isPending}
+                      >
+                        Delete
+                      </Button>
+                    )}
                   </Table.Td>
                 </Table.Tr>
               ))}

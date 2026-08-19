@@ -25,6 +25,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { AccessGroupFormInput, AccessGroupMemberFormInput } from "@medbrains/schemas";
 import { accessGroupFormSchema, accessGroupMemberFormSchema } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
 import { P, PERMISSIONS } from "@medbrains/types";
 import { IconPencil, IconPlus, IconTrash, IconUsers } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -58,6 +59,11 @@ const PERMISSION_OPTIONS = PERMISSIONS.map((permission) => ({
 
 export default function GroupsPage() {
   useRequirePermission(P.ADMIN.USERS.LIST);
+  // `admin.users.list` opens this page; it does not edit or deactivate a group.
+  // Both controls were ungated, so a user administrator with read-only access
+  // was shown Edit and Deactivate on every row.
+  const canUpdateUsers = useHasPermission(P.ADMIN.USERS.UPDATE);
+  const canDeleteUsers = useHasPermission(P.ADMIN.USERS.DELETE);
 
   const qc = useQueryClient();
   const [editTarget, setEditTarget] = useState<GroupRow | null>(null);
@@ -146,20 +152,24 @@ export default function GroupsPage() {
                       <IconUsers size={16} />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip label="Edit">
-                    <IconButton aria-label="Edit" tone="default" onClick={() => setEditTarget(g)}>
-                      <IconPencil size={16} />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip label="Deactivate">
-                    <IconButton
-                      aria-label="Deactivate"
-                      tone="danger"
-                      onClick={() => deleteMutation.mutate(g.id)}
-                    >
-                      <IconTrash size={16} />
-                    </IconButton>
-                  </Tooltip>
+                  {canUpdateUsers && (
+                    <Tooltip label="Edit">
+                      <IconButton aria-label="Edit" tone="default" onClick={() => setEditTarget(g)}>
+                        <IconPencil size={16} />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                  {canDeleteUsers && (
+                    <Tooltip label="Deactivate">
+                      <IconButton
+                        aria-label="Deactivate"
+                        tone="danger"
+                        onClick={() => deleteMutation.mutate(g.id)}
+                      >
+                        <IconTrash size={16} />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                 </Group>
               </Table.Td>
             </Table.Tr>
@@ -305,6 +315,9 @@ function GroupFormModal({
 // ── Inline members panel ────────────────────────────────────────────
 
 function GroupMembersPanel({ group, onClose }: { group: GroupRow; onClose: () => void }) {
+  // Removing a member is `admin.users.update`, the same code as editing the
+  // group — not the `admin.users.list` that opened the panel.
+  const canUpdateUsers = useHasPermission(P.ADMIN.USERS.UPDATE);
   const qc = useQueryClient();
   const form = useForm<AccessGroupMemberFormInput>({
     resolver: zodResolver(accessGroupMemberFormSchema),
@@ -444,14 +457,16 @@ function GroupMembersPanel({ group, onClose }: { group: GroupRow; onClose: () =>
                       {m.expires_at ? new Date(m.expires_at).toLocaleString() : "permanent"}
                     </Table.Td>
                     <Table.Td>
-                      <Button
-                        tone="subtle-danger"
-                        size="xs"
-                        onClick={() => removeMutation.mutate(m.user_id)}
-                        loading={removeMutation.isPending}
-                      >
-                        Remove
-                      </Button>
+                      {canUpdateUsers && (
+                        <Button
+                          tone="subtle-danger"
+                          size="xs"
+                          onClick={() => removeMutation.mutate(m.user_id)}
+                          loading={removeMutation.isPending}
+                        >
+                          Remove
+                        </Button>
+                      )}
                     </Table.Td>
                   </Table.Tr>
                 ))}
