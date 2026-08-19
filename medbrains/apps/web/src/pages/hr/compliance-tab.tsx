@@ -12,7 +12,9 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { useHasPermission } from "@medbrains/stores";
 import type { Appraisal, Employee, StatutoryRecord } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconCertificate, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -38,6 +40,10 @@ export function ComplianceTab({
   canManageCredentials: boolean;
   canManageAppraisal: boolean;
 }) {
+  // Statutory employment records are `hr.credentials.list` — a clinician's
+  // registration and licence history, not general HR data.
+  const canListCredentials = useHasPermission(P.HR.CREDENTIALS_LIST);
+
   const [subTab, setSubTab] = useState<string | null>("credentials");
   const [appraisalOpen, { open: openAppraisal, close: closeAppraisal }] = useDisclosure(false);
   const [statOpen, { open: openStat, close: closeStat }] = useDisclosure(false);
@@ -60,7 +66,7 @@ export function ComplianceTab({
   const { data: statutoryRecords = [], isLoading: statutoryLoading } = useQuery({
     queryKey: ["hr-statutory", statutoryEmpId],
     queryFn: () => hrService.listStatutoryRecords(statutoryEmpId),
-    enabled: statutoryEmpId.length > 0,
+    enabled: statutoryEmpId.length > 0 && canListCredentials,
   });
 
   const appraisalColumns: Column<Appraisal>[] = [

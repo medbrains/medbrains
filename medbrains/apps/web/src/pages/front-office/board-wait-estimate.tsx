@@ -8,6 +8,8 @@
 // Kept out of token-boards-tab.tsx, which is already 880 lines.
 
 import { Group, Stack, Text } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui";
@@ -19,6 +21,9 @@ interface BoardWaitEstimateProps {
 }
 
 export function BoardWaitEstimate({ isKiosk = false }: BoardWaitEstimateProps) {
+  // The wait estimate is derived from the live OPD queue.
+  const canViewQueue = useHasPermission(P.OPD.QUEUE_VIEW);
+
   const { t } = useTranslation("frontOffice");
 
   // The board is per surface rather than per department, so the estimate is the
@@ -27,6 +32,7 @@ export function BoardWaitEstimate({ isKiosk = false }: BoardWaitEstimateProps) {
   const { data: estimate } = useQuery({
     queryKey: ["opd-wait-estimate", "board"],
     queryFn: () => opdService.getWaitEstimate(),
+    enabled: canViewQueue,
     staleTime: 30_000,
   });
 

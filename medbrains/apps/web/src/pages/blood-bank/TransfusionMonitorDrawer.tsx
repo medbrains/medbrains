@@ -1,6 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Card, Divider, Drawer, Group, Stack, Text } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { TransfusionObservation } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -61,13 +63,17 @@ interface Props {
  *  / completion). The server flags an observation that suggests an acute reaction (fever or adverse
  *  signs) so the transfusion is stopped and worked up. */
 export function TransfusionMonitorDrawer({ transfusionId, onClose }: Props) {
+  // Transfusion observations are the vital-sign trace taken DURING a transfusion.
+  // An empty trace reads as "nobody monitored this patient".
+  const canListTransfusions = useHasPermission(P.BLOOD_BANK.TRANSFUSION_LIST);
+
   const qc = useQueryClient();
   const opened = transfusionId !== null;
 
   const { data: observations, isLoading } = useQuery({
     queryKey: ["blood-bank", "transfusion-observations", transfusionId],
     queryFn: () => bloodBankService.listTransfusionObservations(transfusionId ?? ""),
-    enabled: opened,
+    enabled: opened && canListTransfusions,
   });
 
   const {
