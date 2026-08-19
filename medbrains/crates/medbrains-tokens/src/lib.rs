@@ -1,6 +1,16 @@
 //! Unified multi-module token / queue system — issue, board, and advance
 //! ("call / serve / complete / no-show") for any module + scope, with live
 //! WebSocket push to displays (TV / web / mobile).
+//!
+//! # Why issue_token takes no record check
+//!
+//! `tokens.patient_id` is NULLABLE — a token can be handed to somebody not yet
+//! identified, which is what a queue at a front desk is for. The permission is
+//! `front_office.queue.manage`, and **no built-in role holds it**
+//! (`scripts/check_permission_reachable.py`), so the handler is bypass-only.
+//!
+//! **What retires this:** granting the code to a desk role. The token queue
+//! then becomes a way to ask whether a named person is here today.
 
 use axum::{
     Extension, Json,

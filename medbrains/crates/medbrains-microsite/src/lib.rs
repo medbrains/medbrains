@@ -174,6 +174,9 @@ pub async fn book_health_package(
     Json(body): Json<BookPackageRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::specialty::health_packages::MANAGE)?;
+    // Same act as patient_packages::subscribe, booked from the microsite.
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 

@@ -77,6 +77,11 @@ pub async fn subscribe(
     Json(body): Json<SubscribeRequest>,
 ) -> Result<Json<PatientPackageSubscription>, AppError> {
     require_permission(&claims, permissions::patient_packages::SUBSCRIBE)?;
+    // Subscribing a named patient to a package commits them to a price.
+    // The billing helper rather than the clinical one, for the reason
+    // er_fast_invoice gives: the payer relationship is its own question.
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 

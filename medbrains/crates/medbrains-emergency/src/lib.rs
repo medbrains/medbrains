@@ -714,6 +714,11 @@ pub async fn create_visit(
     Json(body): Json<CreateVisitRequest>,
 ) -> Result<Json<ErVisit>, AppError> {
     require_permission(&claims, permissions::emergency::visits::CREATE)?;
+    // No patient check, deliberately. emergency.visits.create is held by
+    // receptionist: this is the ER front door, and the relationship the check
+    // would look for is the one this handler exists to open. create_mlc_case
+    // below it IS checked, because filing a medico-legal case is a doctor's
+    // act on somebody already in front of them.
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,

@@ -1,4 +1,22 @@
 #![allow(clippy::too_many_lines)]
+//! Health camps — registrations, screenings, referrals.
+//!
+//! # Why create_registration takes no record check
+//!
+//! `camp_registrations.patient_id` is NULLABLE, and that is the point: a camp
+//! coordinator registers whoever walks up to the tent, most of whom are not
+//! patients of this hospital and some of whom never become one. The permission
+//! is `camp.registrations.create`, held by `camp_coordinator`
+//! (`crates/medbrains-core/src/access/roles.rs`).
+//!
+//! This is an establishing act. A care-relationship check would refuse
+//! everybody at the moment before the relationship exists.
+//!
+//! **What retires this:** the registration path writing a relation the way
+//! `opd::create_encounter` and `ipd::create_admission` do — they call
+//! `grant_raw` and name the treating department, which is the honest way to
+//! open a relationship rather than to assume one.
+
 // Structured camp-planning helpers staged in this file are scheduled for
 // wiring into the route layer in a follow-up. Suppress dead_code so the
 // in-progress scaffolding doesn't block CI.

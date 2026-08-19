@@ -236,6 +236,11 @@ pub async fn score_appointment(
     Json(body): Json<ScoreAppointmentRequest>,
 ) -> Result<(StatusCode, Json<NoshowPredictionScore>), AppError> {
     require_permission(&claims, permissions::scheduling::predictions::CREATE)?;
+    // A no-show risk score is a judgement recorded about a named person,
+    // and it persists whether or not the model behind it is real — this
+    // one is still a hash of the appointment id. Guarding the stub now
+    // means the path is not open on the day a real model replaces it.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -288,6 +293,9 @@ pub async fn score_batch(
     Json(body): Json<ScoreBatchRequest>,
 ) -> Result<(StatusCode, Json<Vec<NoshowPredictionScore>>), AppError> {
     require_permission(&claims, permissions::scheduling::predictions::CREATE)?;
+    // The batch carries many appointment ids but one patient_id, and every
+    // row it writes lands on that patient.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -405,6 +413,10 @@ pub async fn create_waitlist_entry(
     Json(body): Json<CreateWaitlistEntryRequest>,
 ) -> Result<(StatusCode, Json<SchedulingWaitlistEntry>), AppError> {
     require_permission(&claims, permissions::scheduling::waitlist::MANAGE)?;
+    // Same permission as create_recurring, which is guarded: putting a
+    // named patient on a waitlist with a stated reason is a record about
+    // them, not a slot.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
