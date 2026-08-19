@@ -319,6 +319,19 @@ pub mod links {
         parent: ParentKind::Via(&INVOICE),
     };
 
+    /// Home health. Care delivered in somebody's house is still care, so these
+    /// are `Patient` rather than `PatientDirect` — the visiting nurse reaches
+    /// the record the same way a ward nurse does.
+    pub const HOME_VISIT: ParentLink = ParentLink::on_patient("home_visits");
+    pub const HOME_MED_ADMINISTRATION: ParentLink =
+        ParentLink::on_patient("home_med_administrations");
+    pub const HOME_ESCALATION: ParentLink = ParentLink::on_patient("home_escalations");
+    pub const HOME_DISCHARGE_ITEM: ParentLink =
+        ParentLink::on_patient("home_discharge_program");
+    pub const HOSPICE_ENROLLMENT: ParentLink = ParentLink::on_patient("hospice_enrollments");
+    /// An advance directive — what a person wants done, and not done.
+    pub const ADVANCE_DIRECTIVE: ParentLink = ParentLink::on_patient("advance_directives");
+
     /// Sometimes-clinical records — use with `require_access_via_optional`.
     /// Their `patient_id` is nullable because an incident can involve staff or
     /// equipment and no patient at all.
