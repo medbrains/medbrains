@@ -1,6 +1,20 @@
 //! Release of Information (ROI). External parties request a patient's records;
 //! the MRD officer reviews/approves; every access is logged. Gated by the
 //! existing `mrd.records.*` permissions.
+//!
+//! # Why create_roi_request takes no record check
+//!
+//! It names the patient whose records are being requested. `mrd.records.list`
+//! is held by `mrd_officer` and `audit_officer`
+//! (`crates/medbrains-core/src/access/roles.rs`), and handling requests for
+//! patients nobody in medical records treats is the entire function.
+//!
+//! The disclosure itself is where the control belongs, and it is a separate
+//! act with its own approval. Logging that somebody asked is not disclosure.
+//!
+//! **What retires this:** granting `mrd.records.list` to a clinical role, at
+//! which point raising an ROI request becomes a way to confirm a named person
+//! is a patient here.
 
 use axum::{
     Extension, Json,

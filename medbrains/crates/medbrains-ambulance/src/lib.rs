@@ -1,4 +1,17 @@
 #![allow(clippy::too_many_lines)]
+//! Ambulance — trips, crews, vehicles.
+//!
+//! # Why create_trip takes no record check
+//!
+//! A trip names the patient being moved. `ambulance.*` is held by
+//! `ambulance_driver` (`crates/medbrains-core/src/access/roles.rs`), who is
+//! not on anybody's care team and whose job begins before one exists — an
+//! emergency retrieval is dispatched to a person the hospital has not admitted
+//! yet.
+//!
+//! **What retires this:** a relation binding a crew to the dispatch it is
+//! running, which would scope the trip without blocking the dispatch.
+
 
 use axum::{
     Extension, Json,

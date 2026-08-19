@@ -1,4 +1,16 @@
 #![allow(clippy::too_many_lines)]
+//! Housekeeping — bed turnaround, cleaning schedules, linen.
+//!
+//! # Why create_turnaround takes no record check
+//!
+//! It records a bed being cleaned between one patient and the next, naming the
+//! outgoing patient. `housekeeping.*` is held by `housekeeping_staff` and
+//! `facilities_manager` (`crates/medbrains-core/src/access/roles.rs`) — nobody
+//! who treats anyone. A care check would leave every bed unturnable.
+//!
+//! **What retires this:** the turnaround record growing anything clinical.
+//! Today it is a time, a room and a state.
+
 
 use axum::{
     Extension, Json,

@@ -111,6 +111,9 @@ ACCEPTED: dict[str, str] = {
     "crates/medbrains-pharmacy-finance/src/lib.rs::create_credit_note":
         "patient_id is optional; a credit note may be raised against stock "
         "returned by a ward rather than by a person",
+    "crates/medbrains-indent/src/lib.rs::record_consignment_usage":
+        "patient_id is optional; consignment stock moves without being used "
+        "on anybody",
     "crates/medbrains-blood-bank/src/lib.rs::create_billing":
         "patient_id is optional; a blood-bank billing line may be raised "
         "against stock rather than against a person",
