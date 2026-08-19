@@ -82,6 +82,14 @@ pub async fn add_discount(
     Json(body): Json<AddDiscountRequest>,
 ) -> Result<Json<InvoiceDiscount>, AppError> {
     require_permission(&claims, permissions::billing::invoices::UPDATE)?;
+    // The path names the invoice and the invoice names the patient.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        invoice_id,
+    )
+    .await?;
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
     validate_billing_amount_write_access(&restricted_fields)?;
 
@@ -126,6 +134,13 @@ pub async fn remove_discount(
     Path((invoice_id, discount_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::billing::invoices::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        invoice_id,
+    )
+    .await?;
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
     validate_billing_amount_write_access(&restricted_fields)?;
 

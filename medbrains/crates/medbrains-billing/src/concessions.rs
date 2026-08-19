@@ -369,6 +369,17 @@ pub async fn approve_concession(
     Path(id): Path<Uuid>,
 ) -> Result<Json<BillingConcession>, AppError> {
     require_permission(&claims, permissions::billing::concessions::APPROVE)?;
+    // BILLING_CONCESSION was defined for exactly this and never called.
+    // Approving a concession writes the discount onto the patient's
+    // invoice_items; billing.concessions.approve says the caller may
+    // approve concessions, not this patient's.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::BILLING_CONCESSION,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -435,6 +446,13 @@ pub async fn reject_concession(
     Path(id): Path<Uuid>,
 ) -> Result<Json<BillingConcession>, AppError> {
     require_permission(&claims, permissions::billing::concessions::APPROVE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::BILLING_CONCESSION,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

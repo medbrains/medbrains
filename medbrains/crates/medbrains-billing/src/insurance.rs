@@ -84,6 +84,16 @@ pub async fn get_insurance_claim(
     Path(id): Path<Uuid>,
 ) -> Result<Json<InsuranceClaim>, AppError> {
     require_permission(&claims, permissions::billing::corporate::LIST)?;
+    // A claim carries the patient's diagnosis and the treatment billed
+    // for. billing.corporate.list says the caller works corporate
+    // accounts, not that they may read this patient's claim.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INSURANCE_CLAIM,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -256,6 +266,13 @@ pub async fn update_insurance_claim(
     Json(body): Json<UpdateInsuranceClaimRequest>,
 ) -> Result<Json<InsuranceClaim>, AppError> {
     require_permission(&claims, permissions::billing::corporate::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INSURANCE_CLAIM,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -693,6 +710,13 @@ pub async fn get_dual_insurance_status(
     Path(invoice_id): Path<Uuid>,
 ) -> Result<Json<DualInsuranceResult>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        invoice_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -756,6 +780,14 @@ pub async fn generate_reimbursement_docs(
     Json(body): Json<ReimbursementDocsRequest>,
 ) -> Result<Json<InsuranceClaim>, AppError> {
     require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    // These two build the reimbursement pack that leaves the hospital.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INSURANCE_CLAIM,
+        claim_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -781,6 +813,13 @@ pub async fn update_reimbursement_docs(
     Json(body): Json<ReimbursementDocsRequest>,
 ) -> Result<Json<InsuranceClaim>, AppError> {
     require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INSURANCE_CLAIM,
+        claim_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
