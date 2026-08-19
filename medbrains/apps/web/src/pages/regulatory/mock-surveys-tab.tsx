@@ -16,12 +16,18 @@ import { checklistStatusColors } from "./shared";
 
 export function MockSurveysTab() {
   const canManage = useHasPermission(P.REGULATORY.CHECKLISTS_CREATE);
+  // Reading the surveys carries the list code, which the tab never held.
+  // Refused, the table renders empty and reads as a hospital that has run
+  // no mock surveys — the opposite of what an accreditation reviewer wants
+  // to conclude from this screen.
+  const canList = useHasPermission(P.REGULATORY.CHECKLISTS_LIST);
   const qc = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
 
   const { data: surveys = [], isLoading } = useQuery({
     queryKey: ["regulatory-mock-surveys"],
     queryFn: () => regulatoryService.listMockSurveys(),
+    enabled: canList,
   });
 
   const [form, setForm] = useState<CreateChecklistRequest>({

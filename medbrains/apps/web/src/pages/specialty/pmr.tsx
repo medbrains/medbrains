@@ -46,6 +46,8 @@ export function PmrPage() {
   useRequirePermission(P.SPECIALTY.PMR.PLANS_LIST);
   const qc = useQueryClient();
   const canPlan = useHasPermission(P.SPECIALTY.PMR.PLANS_CREATE);
+  // Recording a session is its own code; the tab held only the plan one.
+  const canRecordSession = useHasPermission(P.SPECIALTY.PMR.SESSIONS_CREATE);
   // Sessions are a separate read from plans, with their own code. An empty
   // session list reads as "this patient has attended no rehab".
   const canListSessions = useHasPermission(P.SPECIALTY.PMR.SESSIONS_LIST);
@@ -105,6 +107,9 @@ export function PmrPage() {
   });
 
   const openSession = () => {
+    if (!canRecordSession) {
+      return;
+    }
     setSessionForm(blankSession());
     sessionHandlers.open();
   };
