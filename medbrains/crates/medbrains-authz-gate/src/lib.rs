@@ -271,6 +271,13 @@ pub mod links {
     pub const APPOINTMENT: ParentLink = ParentLink::on_patient("appointments");
     pub const DPDP_CONSENT: ParentLink = ParentLink::on_patient("dpdp_consents");
     pub const PROCEDURE_CONSENT: ParentLink = ParentLink::on_patient("procedure_consents");
+    /// A case-sheet packet is the whole chart assembled for release.
+    ///
+    /// Keyed on `patient_id`, which is NOT NULL, rather than on the nullable
+    /// `encounter_id`/`admission_id` — a packet may be assembled from either.
+    pub const CASE_SHEET_PACKET: ParentLink =
+        ParentLink::on_patient("mrd_case_sheet_packets");
+
     pub const RADIOLOGY_ORDER: ParentLink = ParentLink::on_patient("radiology_orders");
 
     /// A report reaches its patient through the order it reports on.

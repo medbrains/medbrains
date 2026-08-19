@@ -316,6 +316,9 @@ pub async fn create_record(
     Json(body): Json<CreateRecordRequest>,
 ) -> Result<Json<MrdMedicalRecord>, AppError> {
     require_permission(&claims, permissions::mrd::records::CREATE)?;
+    // The body names the patient the record is opened on.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -579,6 +582,11 @@ pub async fn create_birth(
     Json(body): Json<CreateBirthRequest>,
 ) -> Result<Json<MrdBirthRegister>, AppError> {
     require_permission(&claims, permissions::mrd::births::CREATE)?;
+    // A birth register entry is statutory, and the register itself is rightly
+    // unfiltered — but CREATING one names a specific patient, and recording a
+    // birth against the wrong person is a legal document about the wrong life.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -697,6 +705,11 @@ pub async fn create_death(
     Json(body): Json<CreateDeathRequest>,
 ) -> Result<Json<MrdDeathRegister>, AppError> {
     require_permission(&claims, permissions::mrd::deaths::CREATE)?;
+    // As with births: reading the death register is statutory and stays open;
+    // recording a death against a named patient is not something
+    // `mrd.deaths.create` alone should authorise on ANY patient in the tenant.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1415,6 +1428,14 @@ pub async fn get_case_sheet_completeness(
     Path(packet_id): Path<Uuid>,
 ) -> Result<Json<MrdCaseSheetCompletenessResponse>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::VIEW)?;
+    // The path names the packet; the patient is one hop away on it.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CASE_SHEET_PACKET,
+        packet_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1884,6 +1905,10 @@ pub async fn generate_opd_case_sheet_packet(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<MrdCaseSheetPacket>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::GENERATE)?;
+    // A case-sheet packet is the WHOLE chart assembled for release — the single
+    // largest disclosure this system performs. `case_sheets.generate` said the
+    // caller may assemble packets, not whose.
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2041,6 +2066,8 @@ pub async fn generate_ipd_case_sheet_packet(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<MrdCaseSheetPacket>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::GENERATE)?;
+    // The admission's whole chart. As above.
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2181,6 +2208,20 @@ pub async fn print_case_sheet_packet(
     Path(id): Path<Uuid>,
     Json(body): Json<PrintCaseSheetPacketRequest>,
 ) -> Result<Json<MrdCaseSheetPacket>, AppError> {
+    // The FIRST print had no permission check at all — only reprints were
+    // guarded, and only on `case_sheets.reprint`. A case-sheet packet is the
+    // whole chart, so printing one was the largest disclosure in the system and
+    // any authenticated user in the tenant could perform it once per packet.
+    // `mrd.case_sheets.print` already existed and was simply never asked for.
+    require_permission(&claims, permissions::mrd::case_sheets::PRINT)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CASE_SHEET_PACKET,
+        id,
+    )
+    .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
