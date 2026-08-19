@@ -113,7 +113,7 @@ RE_CALL_GATE = re.compile(
     r'permission:\s*"([a-z0-9_.]+)"[^}]{0,400}?'
     r"(?:run|queryFn|mutationFn):[^\n]*?\.(\w+)\("
 )
-RE_CALL = re.compile(r"\b(?:\w+Service|apiClient|api)\.(\w+)\s*\(")
+RE_CALL = re.compile(r"\b(\w+Service|apiClient|api)\.(\w+)\s*\(")
 
 # Files that enumerate codes rather than enforce them.
 ENUMERATORS = ("medbrains-loadtest/src/generated.rs", "medbrains-seed/src")
@@ -159,26 +159,36 @@ SERVICES = os.path.join(WEB_SRC, "services")
 RE_ALIAS = re.compile(r"^\s*(\w+):\s*api\.(\w+)\s*,", re.M)
 
 
-def service_aliases() -> dict[str, str]:
-    """Service-layer local name -> the client method it actually calls.
+def service_aliases() -> dict[tuple[str, str], str]:
+    """(service object, local name) -> the client method it actually calls.
 
     `auditService.listModules` is `api.listAuditModules`, which is
     `/audit/modules` under `audit.view`. Matching the local name against
     client.ts instead found the unrelated `listModules` — `/setup/modules`
     under `admin.settings.modules.manage` — and reported both audit screens as
-    calling a permission no role holds. Four of the 26 renaming aliases in
-    services/ collide with a real client method this way.
+    calling a permission no role holds.
+
+    Keyed by the service object, not by the bare name: `homeHealthService`
+    renames `listProgressNotes` while `ipdService` passes the client method of
+    that name straight through, so a global map sent every IPD progress-note
+    call to the home-health route. Four of the 26 renaming aliases collide with
+    a real client method, and three of those four are also passed through
+    unrenamed by some other service.
     """
-    out: dict[str, str] = {}
+    out: dict[tuple[str, str], str] = {}
     if not os.path.isdir(SERVICES):
         return out
     for name in sorted(os.listdir(SERVICES)):
         if not name.endswith(".ts"):
             continue
         with open(os.path.join(SERVICES, name), encoding="utf-8") as fh:
-            for local, real in RE_ALIAS.findall(fh.read()):
-                if local != real:
-                    out.setdefault(local, real)
+            text = fh.read()
+        obj = re.search(r"export const (\w+)\s*=", text)
+        if not obj:
+            continue
+        for local, real in RE_ALIAS.findall(text):
+            if local != real:
+                out.setdefault((obj.group(1), local), real)
     return out
 
 
@@ -200,10 +210,11 @@ def method_to_path() -> dict[str, tuple[str, str]]:
         verb = RE_METHOD.search(text[m.start() : end])
         out.setdefault(prior[-1], (normalise(m.group(1)), verb.group(1) if verb else "GET"))
     # A page calls the service's name, not the client's. Where they differ the
-    # alias wins — the client entry of the same name belongs to someone else.
-    for local, real in service_aliases().items():
+    # alias wins, but only for calls through THAT service object — see
+    # `service_aliases`.
+    for (obj, local), real in service_aliases().items():
         if real in out:
-            out[local] = out[real]
+            out[f"{obj}.{local}"] = out[real]
     return out
 
 
@@ -359,7 +370,9 @@ def page_facts(known_codes: set[str]) -> dict[str, tuple[set[str], set[str]]]:
             rel = os.path.relpath(path, ROOT)
             text = open(path, encoding="utf-8", errors="replace").read()
 
-            calls_by_file[rel] = set(RE_CALL.findall(text))
+            # Keep the receiver: `ipdService.listProgressNotes` and
+            # `homeHealthService.listProgressNotes` are different routes.
+            calls_by_file[rel] = {f"{obj}.{m}" for obj, m in RE_CALL.findall(text)}
             gates: set[str] = set()
             for gm in RE_GATE.finditer(text):
                 for acc in RE_P_ACCESSOR.findall(gm.group(1)):
@@ -448,7 +461,9 @@ def main() -> int:
     resolved = 0
     for page, (calls, gates, per_call) in sorted(pages.items()):
         for call in sorted(calls):
-            route = methods.get(call)
+            # Prefer the service-qualified entry; fall back to the bare client
+            # method, which is what a pass-through service resolves to.
+            route = methods.get(call) or methods.get(call.split(".", 1)[1])
             if route is None:
                 continue
             required = perms_by_path.get(route)

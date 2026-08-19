@@ -1,7 +1,9 @@
 // IPD MarTab — split from ipd.tsx (pure move).
 
 import { Group, Stack, Text, Tooltip } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { IpdMedicationAdministration } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import type { BadgeTone } from "@/components/ui";
@@ -9,9 +11,14 @@ import { Badge, Table } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 
 export function MarTab({ admissionId }: { admissionId: string }) {
+  // The tab rides in on ipd.admissions.view; the medication administration record carries its own
+  // code. Refused, `data ?? []` renders an empty table that reads as a
+  // fact about the patient rather than about the reader.
+  const canViewMar = useHasPermission(P.IPD.MAR_LIST);
   const { data } = useQuery({
     queryKey: ["ipd-mar", admissionId],
     queryFn: () => ipdService.listMar(admissionId),
+    enabled: canViewMar,
   });
 
   const marStatusColors: Record<string, BadgeTone> = {
@@ -91,7 +98,9 @@ export function MarTab({ admissionId }: { admissionId: string }) {
       </Table>
       {rows.length === 0 && (
         <Text c="dimmed" size="sm">
-          No medication records yet.
+          {canViewMar
+            ? "No medication records yet."
+            : "You do not have permission to view this patient's medication administration record. This is not the same as nothing having been given."}
         </Text>
       )}
     </Stack>

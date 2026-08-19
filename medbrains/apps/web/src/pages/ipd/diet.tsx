@@ -1,16 +1,23 @@
 // IPD DietTab — split from ipd.tsx (pure move).
 
 import { Stack, Text } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { DietOrder } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import type { BadgeTone } from "@/components/ui";
 import { Badge, Table } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 
 export function DietTab({ admissionId }: { admissionId: string }) {
+  // The tab rides in on ipd.admissions.view; the diet orders carries its own
+  // code. Refused, `data ?? []` renders an empty table that reads as a
+  // fact about the patient rather than about the reader.
+  const canViewDiet = useHasPermission(P.DIET.ORDERS_LIST);
   const { data, isLoading } = useQuery({
     queryKey: ["ipd-diet-orders", admissionId],
     queryFn: () => ipdService.getAdmissionDietOrders(admissionId),
+    enabled: canViewDiet,
   });
 
   const rows = (data ?? []) as DietOrder[];
