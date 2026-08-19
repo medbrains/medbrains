@@ -99,6 +99,12 @@ pub async fn list_concessions(
             permissions::billing::concessions::APPROVE,
         ],
     )?;
+    // With ?patient_id this is one patient's concessions and that patient is
+    // checked. Without it, it was every concession in the tenant — a list of who
+    // had money written off, which finance may see and a ward clerk may not.
+    let permitted_patients =
+        medbrains_authz_gate::require_patient_billing_filter(&state, &claims, params.patient_id)
+            .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -116,6 +122,13 @@ pub async fn list_concessions(
     }
     if params.patient_id.is_some() {
         where_clauses.push(format!("patient_id = ${bind_idx}"));
+        bind_idx += 1;
+    }
+    // `None` means the caller may see everyone, so no clause is added at all —
+    // an empty array would be a different statement (nobody) and a NULL bind on
+    // a `= ANY` would drop every row.
+    if permitted_patients.is_some() {
+        where_clauses.push(format!("patient_id = ANY(${bind_idx})"));
         bind_idx += 1;
     }
 
@@ -138,6 +151,10 @@ pub async fn list_concessions(
     if let Some(pid) = params.patient_id {
         count_q = count_q.bind(pid);
         list_q = list_q.bind(pid);
+    }
+    if let Some(ref permitted) = permitted_patients {
+        count_q = count_q.bind(permitted.clone());
+        list_q = list_q.bind(permitted.clone());
     }
 
     list_q = list_q.bind(per_page).bind(offset);
@@ -164,6 +181,11 @@ pub async fn create_concession(
     Json(body): Json<CreateConcessionRequest>,
 ) -> Result<Json<BillingConcession>, AppError> {
     require_permission(&claims, permissions::billing::concessions::CREATE)?;
+    // Financial, so the direct grant rather than the clinical check — treating
+    // somebody does not entitle you to their bill. The id is caller-supplied,
+    // which is weaker than a path id but still refuses an unreachable patient.
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

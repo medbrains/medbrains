@@ -226,6 +226,11 @@ pub async fn create_enrollment(
     Json(body): Json<CreateEnrollmentRequest>,
 ) -> Result<Json<CorporateEnrollment>, AppError> {
     require_permission(&claims, permissions::billing::corporate::ENROLL)?;
+    // Financial, so the direct grant rather than the clinical check — treating
+    // somebody does not entitle you to their bill. The id is caller-supplied,
+    // which is weaker than a path id but still refuses an unreachable patient.
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -620,6 +625,9 @@ pub async fn list_credit_patients(
             permissions::billing::credit::MANAGE,
         ],
     )?;
+    // The credit ledger is a finance function: who is on terms and what they owe.
+    // Scoping it to the caller's own patients would make it unusable for the desk
+    // that chases the debt. `billing.*` is the control.
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
@@ -657,6 +665,11 @@ pub async fn create_credit_patient(
     Json(body): Json<CreateCreditPatientRequest>,
 ) -> Result<Json<CreditPatient>, AppError> {
     require_permission(&claims, permissions::billing::credit::MANAGE)?;
+    // Financial, so the direct grant rather than the clinical check — treating
+    // somebody does not entitle you to their bill. The id is caller-supplied,
+    // which is weaker than a path id but still refuses an unreachable patient.
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
+        .await?;
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
     validate_billing_amount_write_access(&restricted_fields)?;
 
@@ -696,6 +709,13 @@ pub async fn update_credit_patient(
     Json(body): Json<UpdateCreditPatientRequest>,
 ) -> Result<Json<CreditPatient>, AppError> {
     require_permission(&claims, permissions::billing::credit::MANAGE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CREDIT_PATIENT,
+        id,
+    )
+    .await?;
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
     if body.credit_limit.is_some() {
         validate_billing_amount_write_access(&restricted_fields)?;
@@ -746,6 +766,7 @@ pub async fn report_credit_aging(
             permissions::billing::credit::MANAGE,
         ],
     )?;
+    // Aggregate over outstanding balances. No patient row leaves this handler.
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
     let can_reveal_patient_identity = can_view_patient_identity(&claims);
 

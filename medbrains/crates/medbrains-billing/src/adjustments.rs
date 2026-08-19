@@ -511,6 +511,13 @@ pub async fn apply_credit_note(
     Json(body): Json<ApplyCreditNoteRequest>,
 ) -> Result<Json<CreditNote>, AppError> {
     require_permission(&claims, permissions::billing::credit::APPLY)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CREDIT_NOTE,
+        id,
+    )
+    .await?;
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
     validate_billing_amount_write_access(&restricted_fields)?;
 

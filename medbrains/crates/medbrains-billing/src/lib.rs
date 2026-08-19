@@ -1036,6 +1036,13 @@ pub async fn remove_invoice_item(
     Path((invoice_id, item_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::billing::invoices::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        invoice_id,
+    )
+    .await?;
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
     validate_billing_amount_write_access(&restricted_fields)?;
 
@@ -1831,6 +1838,9 @@ pub async fn trigger_auto_charge(
     Json(body): Json<ManualAutoChargeRequest>,
 ) -> Result<Json<ManualAutoChargeResponse>, AppError> {
     require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    // Driven by a completed lab order rather than a caller-named patient; the
+    // order's own endpoints carry the record check. Left as a permission-only
+    // hook so a billing sweep cannot silently stop charging for work done.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2637,6 +2647,8 @@ pub async fn check_billing_threshold(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<BillingThresholdStatus>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2709,6 +2721,7 @@ pub async fn get_scheme_rate_for_charge(
     Query(params): Query<SchemeRateQuery>,
 ) -> Result<Json<SchemeRateResult>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    // `tpa_rate_cards` is a price list. No patient data.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2770,6 +2783,11 @@ pub async fn er_fast_invoice(
             permissions::emergency::visits::UPDATE,
         ],
     )?;
+    // Financial, so the direct grant rather than the clinical check — treating
+    // somebody does not entitle you to their bill. The id is caller-supplied,
+    // which is weaker than a path id but still refuses an unreachable patient.
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

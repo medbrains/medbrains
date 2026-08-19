@@ -62,7 +62,8 @@ PERMISSION_CHECK = re.compile(
 # earlier pass. When a helper is added to medbrains-authz-gate, add it here.
 RECORD_CHECK = re.compile(
     r"require_patient_access|require_encounter_access|require_admission_access|"
-    r"require_access_via|require_access_via_optional|patient_filter|visible_patient_ids|"
+    r"require_access_via|require_access_via_optional|require_patient_billing_access|"
+    r"patient_filter|visible_patient_ids|"
     r"require_patient_viewer|require_object_view|require_patient\b|"
     r"ensure_invoice_view_access|ensure_invoice_workspace_access|"
     r"\.authz\b|authz_patient::"

@@ -293,6 +293,31 @@ pub mod links {
         column: "patient_id",
         parent: ParentKind::PatientDirect,
     };
+    /// Money a patient paid up front. `PatientDirect` with the rest of billing.
+    pub const PATIENT_ADVANCE: ParentLink = ParentLink {
+        table: "patient_advances",
+        column: "patient_id",
+        parent: ParentKind::PatientDirect,
+    };
+    /// A patient on credit terms — who owes, and how much they may run up.
+    pub const CREDIT_PATIENT: ParentLink = ParentLink {
+        table: "credit_patients",
+        column: "patient_id",
+        parent: ParentKind::PatientDirect,
+    };
+    /// A discount on a bill. Its `invoice_id` is nullable — a concession can be
+    /// granted before the invoice exists — so this hangs off the patient.
+    pub const BILLING_CONCESSION: ParentLink = ParentLink {
+        table: "billing_concessions",
+        column: "patient_id",
+        parent: ParentKind::PatientDirect,
+    };
+    /// A line on an invoice. Reaches the patient through the invoice.
+    pub const INVOICE_ITEM: ParentLink = ParentLink {
+        table: "invoice_items",
+        column: "invoice_id",
+        parent: ParentKind::Via(&INVOICE),
+    };
 
     /// Sometimes-clinical records — use with `require_access_via_optional`.
     /// Their `patient_id` is nullable because an incident can involve staff or
@@ -445,6 +470,44 @@ pub async fn require_access_via(
 /// (not `Forbidden`) so the endpoint is not an existence oracle. `super_admin`/
 /// `hospital_admin` short-circuit inside `check`. Composes on top of
 /// `require_permission` (role authority) + tenant RLS.
+/// Gate a **financial** read or write on a direct grant to the patient.
+///
+/// The billing counterpart to `require_patient_access`, and deliberately
+/// narrower: it does not follow the care team. Treating somebody does not
+/// entitle you to their bill, their advance balance or their credit terms, so
+/// reachability through a recent encounter — which is exactly what the clinical
+/// check allows — would be too much here.
+///
+/// Same distinction `ParentKind::PatientDirect` already makes for linked rows;
+/// this is it for an id that arrives in a request body.
+/// `patient_filter` for a **financial** list.
+///
+/// Same two modes as the clinical one — a named patient is checked and returned
+/// as a single-element set, no patient means the set the caller may see — but
+/// the per-patient decision is the direct grant rather than care-team
+/// reachability, for the reason in `require_patient_billing_access`.
+pub async fn require_patient_billing_filter(
+    state: &AppState,
+    claims: &Claims,
+    requested: Option<Uuid>,
+) -> Result<Option<Vec<Uuid>>, AppError> {
+    match requested {
+        Some(id) => {
+            require_patient_billing_access(state, claims, id).await?;
+            Ok(Some(vec![id]))
+        }
+        None => visible_patient_ids(state, claims).await,
+    }
+}
+
+pub async fn require_patient_billing_access(
+    state: &AppState,
+    claims: &Claims,
+    patient_id: Uuid,
+) -> Result<(), AppError> {
+    require_object_view(state, claims, "patient", patient_id).await
+}
+
 pub async fn require_patient_access(
     state: &AppState,
     claims: &Claims,

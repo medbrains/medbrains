@@ -107,6 +107,11 @@ pub async fn create_insurance_claim(
     Json(body): Json<CreateInsuranceClaimRequest>,
 ) -> Result<Json<InsuranceClaim>, AppError> {
     require_permission(&claims, permissions::billing::corporate::CREATE)?;
+    // Financial, so the direct grant rather than the clinical check — treating
+    // somebody does not entitle you to their bill. The id is caller-supplied,
+    // which is weaker than a path id but still refuses an unreachable patient.
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -581,6 +586,13 @@ pub async fn coordinate_dual_insurance(
     Path(invoice_id): Path<Uuid>,
 ) -> Result<Json<DualInsuranceResult>, AppError> {
     require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        invoice_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -802,6 +814,13 @@ pub async fn copay_calculation(
     Json(body): Json<CopayCalculationRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        body.invoice_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
