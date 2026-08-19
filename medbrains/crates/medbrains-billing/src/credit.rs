@@ -391,6 +391,15 @@ pub async fn create_write_off(
     Json(body): Json<CreateWriteOffRequest>,
 ) -> Result<Json<BadDebtWriteOff>, AppError> {
     require_permission(&claims, permissions::billing::write_off::CREATE)?;
+    // Writing off a named invoice. Approval is separately gated and
+    // enforces requester != approver; this is the request side.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        body.invoice_id,
+    )
+    .await?;
 
     let reason = body.reason.trim();
     if reason.len() < 3 {

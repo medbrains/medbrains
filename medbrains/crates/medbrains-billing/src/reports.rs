@@ -5,6 +5,15 @@
 //! writes. These are the aggregate questions finance asks of the transactions
 //! the rest of the crate records, and keeping them apart makes it obvious which
 //! handlers can change money and which can only count it.
+//!
+//! No handler here carries a record check and none should. The authorization
+//! ledger flags them because its PHI scan counts any handler touching a table
+//! the gate has a ParentLink for, and `invoices` is linked — which is right
+//! for a handler that returns an invoice and wrong for one that returns
+//! `sum(total)` grouped by month. They are the "aggregate" exemption.
+//!
+//! If a report is ever changed to emit a patient id, name or UHID it stops
+//! being an aggregate and needs `patient_filter`, not this note.
 
 use axum::{
     Extension, Json,
