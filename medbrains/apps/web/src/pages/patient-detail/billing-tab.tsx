@@ -1,7 +1,9 @@
 // PATIENT BillingTab — split from patient-detail.tsx (pure move).
 
 import { Card, Group, Loader, SimpleGrid, Stack, Text, Tooltip } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { AdmissionRow, PatientInvoiceRow } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconAlertTriangle, IconPrinter } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -19,6 +21,11 @@ const INVOICE_STATUS_COLORS: Record<string, BadgeTone> = {
 };
 
 export function BillingTab({ patientId }: { patientId: string }) {
+  // The per-invoice print pulls the full invoice through getInvoicePrintData,
+  // which is served under billing.invoices.view — a stricter code than the
+  // list this tab already shows. The ledger button below prints from the rows
+  // already fetched and needs nothing extra.
+  const canViewInvoice = useHasPermission(P.BILLING.INVOICES_VIEW);
   const [printingInvoiceId, setPrintingInvoiceId] = useState<string | null>(null);
   const [printingPatientLedger, setPrintingPatientLedger] = useState(false);
   const { data: invoices, isLoading } = useQuery({
@@ -306,15 +313,17 @@ export function BillingTab({ patientId }: { patientId: string }) {
                   <Text size="sm">{formatDate(inv.created_at)}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Tooltip label="Print invoice">
-                    <IconButton
-                      onClick={() => void handlePrintInvoice(inv.id)}
-                      loading={printingInvoiceId === inv.id}
-                      aria-label={`Print invoice ${inv.invoice_number}`}
-                    >
-                      <IconPrinter size={16} />
-                    </IconButton>
-                  </Tooltip>
+                  {canViewInvoice && (
+                    <Tooltip label="Print invoice">
+                      <IconButton
+                        onClick={() => void handlePrintInvoice(inv.id)}
+                        loading={printingInvoiceId === inv.id}
+                        aria-label={`Print invoice ${inv.invoice_number}`}
+                      >
+                        <IconPrinter size={16} />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                 </Table.Td>
               </Table.Tr>
             ))}

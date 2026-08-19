@@ -1,5 +1,5 @@
 import { Stack, Text, ThemeIcon, Title } from "@mantine/core";
-import { useOnboardingStore } from "@medbrains/stores";
+import { useHasPermission, useOnboardingStore } from "@medbrains/stores";
 import type {
   OnboardingBedType,
   OnboardingDepartment,
@@ -10,6 +10,7 @@ import type {
   OnboardingTaxCategory,
   OnboardingUser,
 } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconAlertTriangle, IconCheck, IconRocket } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
@@ -69,6 +70,12 @@ export function ReviewStep({ onBack }: Props) {
       navigate("/dashboard");
     },
   });
+
+  // onboardingSetup writes departments, settings and the tenant's whole
+  // shape, under admin.settings.modules.manage. The admin created at step 1
+  // is a bypass role; anyone else who walked into the wizard is stopped here
+  // rather than after the write is attempted.
+  const canCompleteSetup = useHasPermission(P.ADMIN.SETTINGS_MODULES_MANAGE);
 
   const enabledModules = Object.entries(moduleStatuses).filter(
     ([, status]) => status === "enabled",
@@ -289,6 +296,7 @@ export function ReviewStep({ onBack }: Props) {
           leftSection={<IconCheck size={16} />}
           onClick={() => setupMutation.mutate()}
           loading={setupMutation.isPending}
+          disabled={!canCompleteSetup}
         >
           Complete Setup & Launch
         </Button>

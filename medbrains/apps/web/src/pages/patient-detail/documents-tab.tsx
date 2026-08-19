@@ -24,6 +24,9 @@ import { formatDate } from "./shared";
 
 export function DetailDocumentsTab({ patientId }: { patientId: string }) {
   const canUpdate = useHasPermission(P.PATIENTS.UPDATE);
+  // Same split as the allergies tab: uploading is patients.update, deleting
+  // is patients.delete.
+  const canDelete = useHasPermission(P.PATIENTS.DELETE);
   const queryClient = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const {
@@ -116,7 +119,7 @@ export function DetailDocumentsTab({ patientId }: { patientId: string }) {
                     {formatDate(d.created_at)}
                   </Text>
                 </Table.Td>
-                {canUpdate && (
+                {canDelete && (
                   <Table.Td>
                     <IconButton
                       tone="danger"

@@ -1,6 +1,7 @@
 import { Stack, Switch, Text, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useOnboardingStore } from "@medbrains/stores";
+import { useHasPermission, useOnboardingStore } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import { IconCheck, IconDatabase } from "@tabler/icons-react";
 import { useState } from "react";
 import { Badge, Button } from "@/components/ui";
@@ -133,6 +134,10 @@ export function ModulesStep({ onNext, onBack }: Props) {
   const setModuleStatus = useOnboardingStore((s) => s.setModuleStatus);
   const [seeding, setSeeding] = useState<string | null>(null);
   const [seeded, setSeeded] = useState<Set<string>>(new Set());
+  // Seeding writes the tenant's master data. The admin created one step
+  // earlier is a bypass role and sees no difference; anyone else who reached
+  // the wizard gets a disabled button instead of a 403 after the click.
+  const canSeedMasters = useHasPermission(P.ADMIN.SETTINGS_MODULES_MANAGE);
 
   const getStatus = (code: string) => moduleStatuses[code] ?? "available";
 
@@ -231,7 +236,7 @@ export function ModulesStep({ onNext, onBack }: Props) {
                     mt={8}
                     leftSection={isSeeded ? <IconCheck size={14} /> : <IconDatabase size={14} />}
                     loading={seeding === mod.code}
-                    disabled={isSeeded}
+                    disabled={isSeeded || !canSeedMasters}
                     onClick={() => handleSeedMasters(mod.code)}
                   >
                     {isSeeded ? (
