@@ -1370,6 +1370,12 @@ pub async fn create_admission(
     Json(body): Json<CreateAdmissionRequest>,
 ) -> Result<Json<CreateAdmissionResponse>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::CREATE)?;
+    // No record check on body.patient_id, deliberately. Admitting is the act
+    // that CREATES the caller's relationship to the patient — requiring prior
+    // access would mean only someone already on the care team could admit,
+    // which is nobody at 3am in casualty. The grants below go to the named
+    // department and admitting doctor, never to the caller, so this cannot be
+    // used to give yourself access. Permission-scoped by necessity.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

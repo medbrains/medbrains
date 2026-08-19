@@ -1610,6 +1610,11 @@ pub async fn create_patient(
             medbrains_authz::Relation::Owner,
             medbrains_authz::Subject::User(claims.sub),
             None,
+            // Owner on a patient this call just created. There is no prior
+            // record to authorize against — registration is the act that
+            // brings the record into existence. Compare sync_camp_inbound,
+            // which used to read a device-supplied patient_id down this same
+            // path and hand out Owner on someone else's record.
             Some("patient_registered".to_owned()),
         )
         .await

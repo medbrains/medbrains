@@ -5245,11 +5245,23 @@ pub async fn sync_camp_inbound(
 
         match apply_camp_sync_event(&mut tx, &claims, body.camp_id, event).await {
             Ok(applied_event) => {
-                let patient_grant_id = applied_event
-                    .server_entities
-                    .get("patient_id")
-                    .and_then(Value::as_str)
-                    .and_then(|value| Uuid::parse_str(value).ok());
+                // Owner on a patient is the strongest relation there is, and it
+                // belongs only to the person whose registration CREATED that
+                // patient. `camp.opd.encounter.create` echoes the device's own
+                // `body.patient_id` back in server_entities, so reading the key
+                // unconditionally let a caller holding camp.list and
+                // opd.visit.create post one encounter event naming any patient
+                // UUID in the tenant and come out as Owner of that record.
+                // Take the id only from the branch that registered a patient.
+                let patient_grant_id = (applied_event.server_entity_type == "patient")
+                    .then(|| {
+                        applied_event
+                            .server_entities
+                            .get("patient_id")
+                            .and_then(Value::as_str)
+                            .and_then(|value| Uuid::parse_str(value).ok())
+                    })
+                    .flatten();
                 sqlx::query(
                     "UPDATE camp_sync_events SET \
                      status = 'applied', server_entity_type = $3, server_entity_id = $4, \

@@ -692,6 +692,10 @@ pub async fn create_invoice(
     Json(body): Json<CreateInvoiceRequest>,
 ) -> Result<Json<Invoice>, AppError> {
     require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    // No record check on body.patient_id, deliberately. Raising a bill is a
+    // front-desk act against whoever presents, and the only relation written
+    // below is Viewer on the invoice this call just created — scoped to the
+    // new row, never to the patient. Finance desk.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

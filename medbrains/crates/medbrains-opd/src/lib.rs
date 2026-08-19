@@ -744,6 +744,12 @@ pub async fn create_encounter(
     if body.appointment_id.is_some() {
         require_permission(&claims, permissions::opd::appointment::UPDATE)?;
     }
+    // No record check on body.patient_id, deliberately — opening a visit is
+    // what puts the patient in front of a clinician in the first place. The
+    // grants below name the treating department and attending doctor, not the
+    // caller. Contrast create_referral just below, which hands a department
+    // and a doctor of the requester's choosing access to a patient and does
+    // need the check. Permission-scoped by necessity.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3968,6 +3974,13 @@ pub async fn create_referral(
     Json(body): Json<CreateReferralRequest>,
 ) -> Result<Json<Referral>, AppError> {
     require_permission(&claims, permissions::opd::referrals::CREATE)?;
+    // Referring grants: the receiving department gets dept_member on this
+    // patient and the named doctor gets Viewer. Both come off the request
+    // body, so without this the checks below — which only prove the patient
+    // and encounter exist in the tenant — would let anyone holding
+    // opd.referrals.create hand a department and a doctor of their choosing
+    // access to a patient they have none of themselves.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let urgency = body.urgency.as_deref().unwrap_or("routine");
 
