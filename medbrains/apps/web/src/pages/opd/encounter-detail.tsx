@@ -3,7 +3,7 @@ import { nullOn404 } from "@medbrains/api";
 
 import { Card, Group, Menu, Modal, Stack, Tabs, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { useHasPermission, usePermissionStore } from "@medbrains/stores";
+import { useHasAnyPermission, useHasPermission, usePermissionStore } from "@medbrains/stores";
 import type {
   Consultation,
   Diagnosis,
@@ -201,9 +201,21 @@ export function EncounterDetail({
     queryKey: ["lab-catalog"],
     queryFn: () => opdService.listLabCatalog(),
   });
+  // hospital_name / address / phone feed the printed summary's
+  // letterhead. The tenant-settings read is served under admin.settings.read,
+  // which a prescriber need not hold — refused, `hospitalSettings` is empty,
+  // getSetting returns undefined for all three, and the prescription prints
+  // with no institutional identification on it. Whether that should block
+  // printing outright is a product call; this at least stops the fetch from
+  // being made by someone the server will refuse.
+  const canReadSettings = useHasAnyPermission([
+    P.ADMIN.SETTINGS_READ,
+    P.ADMIN.SETTINGS_GENERAL_MANAGE,
+  ]);
   const { data: hospitalSettings = [] } = useQuery({
     queryKey: ["tenant-settings", "general"],
     queryFn: () => opdService.getTenantSettings("general"),
+    enabled: canReadSettings,
     staleTime: 600_000,
   });
   const { data: mrdCaseSheetPackets = [] } = useQuery({
