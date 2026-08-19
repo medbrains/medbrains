@@ -1,3 +1,28 @@
+//! ── Why the ward worklists take no record check ──
+//!
+//! Five handlers here emit patient names — `ward_patient_grid`,
+//! `vitals_checklist`, `handover_summary`, `discharge_readiness` and
+//! `my_tasks` — so the "aggregate" exemption does not apply to any of them.
+//! They are not aggregates. They are worklists, and they are correct.
+//!
+//! The four ward views take a `ward_id` and run under `care_view.view`,
+//! `care_view.handover` and `care_view.discharge_tracker`. A nurse standing at
+//! a nursing station must see every patient on that ward: the bed grid, who is
+//! due vitals, what to hand over at shift change, who is ready to go home.
+//! Scoping those to a per-patient care relationship would empty the board the
+//! ward is staffed to read — the same reason the ER board, the theatre list,
+//! the maternity register and the front-desk diary stay unscoped. The ward IS
+//! the scope.
+//!
+//! `my_tasks` is narrower still and needs no ward: it binds `claims.sub` twice
+//! — `nursing_tasks.assigned_to = $1`, and the same predicate inside the
+//! medication-due correlation — so it returns the caller's own assignments and
+//! the patients attached to them. Self-service.
+//!
+//! If a handler here is ever changed to drop the `ward_id` filter, or to accept
+//! a ward the caller has no relationship to, this note stops applying and the
+//! list needs `patient_filter`.
+
 #![allow(clippy::too_many_lines)]
 
 use axum::{
