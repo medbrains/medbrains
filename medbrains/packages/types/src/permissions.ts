@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 929 permissions, one per constant in the Rust source. */
+/** 931 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -2798,6 +2798,13 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Update Bmw Disposal",
     module: "quality",
   },
+  // research
+  {
+    code: "research.triage_export",
+    label: "Export a de-identified research dataset",
+    description: "The triage research endpoints return aggregate performance and a 5,000-row de-identified extract — age banded, timing truncated to the ISO week, no name and no UHID. They ran on `opd.queue.view`, which the front desk holds to call the next patient, so anyone working a queue could pull the hospital's research corpus. Research use is a different act from care use even when the rows carry no direct identifier: free text and rare combinations re-identify.",
+    module: "research",
+  },
   // front_office
   {
     code: "front_office.visitors.list",
@@ -4294,6 +4301,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "admin.tv_displays.broadcast",
     label: "Broadcast Announcements",
     description: "Send announcements to TV displays",
+    module: "admin",
+  },
+  {
+    code: "admin.tv_displays.board",
+    label: "Read a queue or bed board",
+    description: "Distinct from `list`, which is the display *configuration*: this is the board's live contents — the waiting counts, the ER acuity mix, the bed availability and the per-department queue analytics that drive the screens on the wall. Seven board endpoints checked nothing at all, so any authenticated user in the tenant could read them, while the display and token handlers beside them had been gated in an earlier pass. Widening `list` to cover this would have handed the boards to everyone who may edit a screen's settings.",
     module: "admin",
   },
   {
@@ -5878,6 +5891,7 @@ export const P = {
     SYSTEM_STATE_VIEW: "admin.system_state.view",
     SYSTEM_VIEW: "admin.system.view",
     TV_DISPLAYS: {
+      BOARD: "admin.tv_displays.board",
       BROADCAST: "admin.tv_displays.broadcast",
       CREATE: "admin.tv_displays.create",
       DELETE: "admin.tv_displays.delete",
@@ -5885,6 +5899,7 @@ export const P = {
       TOKENS: "admin.tv_displays.tokens",
       UPDATE: "admin.tv_displays.update",
     },
+    TV_DISPLAYS_BOARD: "admin.tv_displays.board",
     TV_DISPLAYS_BROADCAST: "admin.tv_displays.broadcast",
     TV_DISPLAYS_CREATE: "admin.tv_displays.create",
     TV_DISPLAYS_DELETE: "admin.tv_displays.delete",
@@ -7956,6 +7971,9 @@ export const P = {
     },
     PCPNDT_CREATE: "regulatory.pcpndt.create",
     PCPNDT_LIST: "regulatory.pcpndt.list",
+  },
+  RESEARCH: {
+    TRIAGE_EXPORT: "research.triage_export",
   },
   RETROSPECTIVE: {
     APPROVE: "retrospective.approve",

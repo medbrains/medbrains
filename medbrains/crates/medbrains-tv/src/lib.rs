@@ -815,6 +815,11 @@ pub async fn get_queue_state(
     Extension(claims): Extension<Claims>,
     Path(department_id): Path<Uuid>,
 ) -> Result<Json<DepartmentQueueState>, (StatusCode, String)> {
+    // The board's live contents, not the screen's settings — see
+    // admin.tv_displays.board. These seven read endpoints checked nothing,
+    // while the display and token handlers beside them were gated in an
+    // earlier pass.
+    require(&claims, tv_displays::BOARD)?;
     let today = Utc::now().date_naive();
 
     // Get department name
@@ -1277,6 +1282,7 @@ pub async fn get_pharmacy_queue(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<PharmacyQueueDisplay>, (StatusCode, String)> {
+    require(&claims, tv_displays::BOARD)?;
     let mut tx = state
         .db
         .begin()
@@ -1472,8 +1478,10 @@ fn saturating_i64_to_i32(value: i64) -> i32 {
 /// Get lab sample collection queue display data.
 pub async fn get_lab_queue(
     State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    Extension(claims): Extension<Claims>,
 ) -> Result<Json<LabQueueDisplay>, (StatusCode, String)> {
+    // A stub today; gated now so it is not open when it is filled in.
+    require(&claims, tv_displays::BOARD)?;
     // Placeholder implementation - would query lab_orders table
     Ok(Json(LabQueueDisplay {
         current_tokens: vec![],
@@ -1492,9 +1500,11 @@ pub async fn get_lab_queue(
 /// Get radiology queue display data by modality (xray, ct, mri, usg).
 pub async fn get_radiology_queue(
     State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    Extension(claims): Extension<Claims>,
     Path(modality): Path<String>,
 ) -> Result<Json<RadiologyQueueDisplay>, (StatusCode, String)> {
+    // A stub today; gated now so it is not open when it is filled in.
+    require(&claims, tv_displays::BOARD)?;
     // Placeholder implementation - would query radiology_orders table
     Ok(Json(RadiologyQueueDisplay {
         modality: modality.to_uppercase(),
@@ -1515,6 +1525,7 @@ pub async fn get_er_queue(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<ErQueueDisplay>, (StatusCode, String)> {
+    require(&claims, tv_displays::BOARD)?;
     let mut tx = state
         .db
         .begin()
@@ -1682,6 +1693,7 @@ pub async fn get_billing_queue(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<BillingQueueDisplay>, (StatusCode, String)> {
+    require(&claims, tv_displays::BOARD)?;
     let mut tx = state
         .db
         .begin()
@@ -1811,6 +1823,7 @@ pub async fn get_bed_availability(
     Extension(claims): Extension<Claims>,
     Path(ward_type): Path<String>,
 ) -> Result<Json<BedAvailabilityDisplay>, (StatusCode, String)> {
+    require(&claims, tv_displays::BOARD)?;
     let ward_type = normalise_tv_ward_type(&ward_type);
     let mut tx = state
         .db
@@ -1960,6 +1973,7 @@ pub async fn get_queue_analytics(
     Extension(claims): Extension<Claims>,
     Path(department_id): Path<Uuid>,
 ) -> Result<Json<QueueAnalytics>, (StatusCode, String)> {
+    require(&claims, tv_displays::BOARD)?;
     let today = Utc::now().date_naive();
 
     // Get department name
@@ -2044,6 +2058,7 @@ pub async fn get_queue_metrics(
     Extension(claims): Extension<Claims>,
     Path(department_id): Path<Uuid>,
 ) -> Result<Json<QueueMetrics>, (StatusCode, String)> {
+    require(&claims, tv_displays::BOARD)?;
     let today = Utc::now().date_naive();
 
     // Get current waiting count
@@ -2198,6 +2213,7 @@ mod permission_tests {
         assert_eq!(tv_displays::CREATE, "admin.tv_displays.create");
         assert_eq!(tv_displays::UPDATE, "admin.tv_displays.update");
         assert_eq!(tv_displays::DELETE, "admin.tv_displays.delete");
+        assert_eq!(tv_displays::BOARD, "admin.tv_displays.board");
         assert_eq!(tv_displays::TOKENS, "admin.tv_displays.tokens");
         assert_eq!(tv_displays::BROADCAST, "admin.tv_displays.broadcast");
     }

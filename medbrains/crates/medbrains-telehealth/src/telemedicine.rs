@@ -1020,7 +1020,9 @@ pub async fn triage_research_summary(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<TriageResearchSummary>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    // Research use, not care use: this ran on opd.queue.view, which the front
+    // desk holds to call the next patient.
+    require_permission(&claims, permissions::research::TRIAGE_EXPORT)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1094,7 +1096,9 @@ pub async fn triage_research_dataset(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<TriageResearchRow>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    // Research use, not care use: this ran on opd.queue.view, which the front
+    // desk holds to call the next patient.
+    require_permission(&claims, permissions::research::TRIAGE_EXPORT)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, TriageResearchRow>(

@@ -1095,6 +1095,20 @@ pub mod quality {
     }
 }
 
+/// Research use of clinical data, as distinct from care use of it.
+pub mod research {
+    /// Export a de-identified research dataset.
+    ///
+    /// The triage research endpoints return aggregate performance and a
+    /// 5,000-row de-identified extract — age banded, timing truncated to the
+    /// ISO week, no name and no UHID. They ran on `opd.queue.view`, which the
+    /// front desk holds to call the next patient, so anyone working a queue
+    /// could pull the hospital's research corpus. Research use is a different
+    /// act from care use even when the rows carry no direct identifier: free
+    /// text and rare combinations re-identify.
+    pub const TRIAGE_EXPORT: &str = "research.triage_export";
+}
+
 pub mod front_office {
     pub mod visitors {
         pub const LIST: &str = "front_office.visitors.list";
@@ -1774,6 +1788,17 @@ pub mod admin {
         pub const DELETE: &str = "admin.tv_displays.delete";
         pub const TOKENS: &str = "admin.tv_displays.tokens";
         pub const BROADCAST: &str = "admin.tv_displays.broadcast";
+        /// Read a queue or bed board.
+        ///
+        /// Distinct from `list`, which is the display *configuration*: this is
+        /// the board's live contents — the waiting counts, the ER acuity mix,
+        /// the bed availability and the per-department queue analytics that
+        /// drive the screens on the wall. Seven board endpoints checked nothing
+        /// at all, so any authenticated user in the tenant could read them,
+        /// while the display and token handlers beside them had been gated in
+        /// an earlier pass. Widening `list` to cover this would have handed the
+        /// boards to everyone who may edit a screen's settings.
+        pub const BOARD: &str = "admin.tv_displays.board";
     }
 
     pub mod settings {

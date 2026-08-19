@@ -5,13 +5,14 @@ import { Box, Card, Group, Select, SimpleGrid, Stack, Text, Tooltip } from "@man
 import { useDisclosure } from "@mantine/hooks";
 import type { QueueTokenFormInput } from "@medbrains/schemas";
 import { queueTokenFormSchema } from "@medbrains/schemas";
-import { useHasAnyPermission } from "@medbrains/stores";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type {
   CreateQueueTokenRequest,
   DepartmentRow,
   QueueToken,
   QueueTokenStatus,
 } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconCheck,
   IconPlayerPlay,
@@ -123,11 +124,14 @@ export function QueueTokensTab({ canManage }: { canManage: boolean }) {
     refetchInterval: QUEUE_REFRESH_MS,
   });
 
+  // The board's contents are served under admin.tv_displays.board, which is a
+  // different code from the one that opens this settings tab.
+  const canReadBoard = useHasPermission(P.ADMIN.TV_DISPLAYS_BOARD);
   const { data: queueState } = useQuery({
     queryKey: ["queue-state", selectedDepartment],
     queryFn: () =>
       selectedDepartment ? tvDisplaysService.getQueueState(selectedDepartment) : null,
-    enabled: !!selectedDepartment,
+    enabled: !!selectedDepartment && canReadBoard,
     refetchInterval: QUEUE_REFRESH_MS,
   });
 
