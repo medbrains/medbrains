@@ -66,6 +66,19 @@ RE_ROUTE = re.compile(r'\.route\(\s*"(/api/[^"]+)"\s*,\s*((?:\s*\.?\s*(?:get|pos
 RE_VERB = re.compile(r"(?:get|post|put|patch|delete)\(([a-z_0-9:]+)\)")
 RE_HANDLER_DEF = re.compile(r"^pub async fn (\w+)\s*\(", re.M)
 RE_PERM_USE = re.compile(r"permissions::([a-z_0-9:]+)::([A-Z_0-9]+)")
+
+# A handler often names a SET rather than a code:
+#
+#     const BILLING_INVOICE_WORKSPACE_PERMISSIONS: &[&str] = &[ … seven codes … ];
+#     require_any_permission(&claims, BILLING_INVOICE_WORKSPACE_PERMISSIONS)?;
+#
+# Without resolving these the handler's span holds no `permissions::` literal of
+# its own, and the nearest one elsewhere in the span gets attributed instead —
+# which is how `getInvoice`, a read, came back demanding `billing.invoices.update`
+# and made a correctly-gated page look broken.
+RE_PERM_SET = re.compile(
+    r"(?:const|static) ([A-Z_0-9]+):\s*&\[&(?:'static )?str\]\s*=\s*&\[(.*?)\];", re.S
+)
 RE_GATE = re.compile(r"use(?:Require|Has)(?:All|Any)?Permissions?\(\s*\[?\s*([^)\]]+)")
 RE_P_ACCESSOR = re.compile(r"P\.([A-Z_0-9.]+)")
 
@@ -171,13 +184,27 @@ def route_to_permissions(paths: dict[str, str]) -> dict[str, set[str]]:
             except OSError:
                 continue
 
+            perm_sets: dict[str, set[str]] = {}
+            for sm in RE_PERM_SET.finditer(text):
+                codes = {
+                    c
+                    for pm in RE_PERM_USE.finditer(sm.group(2))
+                    if (c := paths.get(f"{pm.group(1)}::{pm.group(2)}"))
+                }
+                if codes:
+                    perm_sets[sm.group(1)] = codes
+
             marks = [(m.group(1), m.start()) for m in RE_HANDLER_DEF.finditer(text)]
             for i, (fn, start) in enumerate(marks):
                 end = marks[i + 1][1] if i + 1 < len(marks) else len(text)
-                for pm in RE_PERM_USE.finditer(text[start:end]):
+                span = text[start:end]
+                for pm in RE_PERM_USE.finditer(span):
                     code = paths.get(f"{pm.group(1)}::{pm.group(2)}")
                     if code:
                         handler_perms[(rel, fn)].add(code)
+                for name, codes in perm_sets.items():
+                    if re.search(rf"\b{name}\b", span):
+                        handler_perms[(rel, fn)].update(codes)
 
             for rm in RE_ROUTE.finditer(text):
                 for fn in RE_VERB.findall(rm.group(2)):

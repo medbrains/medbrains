@@ -237,6 +237,12 @@ export function InvoiceDetail({
   const emit = useClinicalEmit();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // `canCreate` — `billing.invoices.create` — is the right code for STARTING an
+  // invoice and the wrong one for everything done to a draft afterwards. Editing
+  // its lines and issuing it need `update`; cancelling needs `cancel`. A biller
+  // who may raise a draft but not issue it was shown the Issue button anyway.
+  const canEditDraft = useHasPermission(P.BILLING.INVOICES_UPDATE);
+  const canCancelInvoice = useHasPermission(P.BILLING.INVOICES_CANCEL);
   const canPrintBillingDocs = useHasPermission(P.BILLING.RECEIPTS_PRINT);
   const amountAccess = useProtectedFieldAccess("billing.amount");
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
@@ -645,35 +651,35 @@ export function InvoiceDetail({
               {inv.status !== "draft" && (
                 <DocumentActions templateCode="invoice_gst" sourceId={inv.id} />
               )}
-              {canCreate && inv.status === "draft" && (
-                <>
-                  <Button
-                    tone="primary"
-                    size="xs"
-                    leftSection={<IconCheck size={14} />}
-                    loading={issueMutation.isPending}
-                    onClick={() => issueMutation.mutate()}
-                  >
-                    Issue
-                  </Button>
-                  <Button
-                    tone="subtle-danger"
-                    size="xs"
-                    leftSection={<IconX size={14} />}
-                    loading={cancelMutation.isPending}
-                    onClick={() =>
-                      confirmDestructive({
-                        title: "Cancel invoice",
-                        message:
-                          "Cancel this draft invoice? Its line items will no longer be billable from this draft.",
-                        confirmLabel: "Cancel invoice",
-                        onConfirm: () => cancelMutation.mutate(),
-                      })
-                    }
-                  >
-                    Cancel
-                  </Button>
-                </>
+              {canEditDraft && inv.status === "draft" && (
+                <Button
+                  tone="primary"
+                  size="xs"
+                  leftSection={<IconCheck size={14} />}
+                  loading={issueMutation.isPending}
+                  onClick={() => issueMutation.mutate()}
+                >
+                  Issue
+                </Button>
+              )}
+              {canCancelInvoice && inv.status === "draft" && (
+                <Button
+                  tone="subtle-danger"
+                  size="xs"
+                  leftSection={<IconX size={14} />}
+                  loading={cancelMutation.isPending}
+                  onClick={() =>
+                    confirmDestructive({
+                      title: "Cancel invoice",
+                      message:
+                        "Cancel this draft invoice? Its line items will no longer be billable from this draft.",
+                      confirmLabel: "Cancel invoice",
+                      onConfirm: () => cancelMutation.mutate(),
+                    })
+                  }
+                >
+                  Cancel
+                </Button>
               )}
               {canRecordPayment && (
                 <>
@@ -784,7 +790,7 @@ export function InvoiceDetail({
               <Stack gap="sm">
                 <Group justify="space-between" align="center">
                   <Text fw={700}>Items</Text>
-                  {canCreate && inv.status === "draft" && (
+                  {canEditDraft && inv.status === "draft" && (
                     <Button
                       tone="secondary"
                       size="xs"
@@ -803,7 +809,7 @@ export function InvoiceDetail({
                       <Table.Th>Price</Table.Th>
                       <Table.Th>Tax</Table.Th>
                       <Table.Th>Total</Table.Th>
-                      {canCreate && inv.status === "draft" && <Table.Th />}
+                      {canEditDraft && inv.status === "draft" && <Table.Th />}
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
@@ -814,7 +820,7 @@ export function InvoiceDetail({
                         <Table.Td>{billingAmountText(item.unit_price, amountAccess)}</Table.Td>
                         <Table.Td>{item.tax_percent}%</Table.Td>
                         <Table.Td>{billingAmountText(item.total_price, amountAccess)}</Table.Td>
-                        {canCreate && inv.status === "draft" && (
+                        {canEditDraft && inv.status === "draft" && (
                           <Table.Td>
                             <IconButton
                               tone="danger"
@@ -837,7 +843,7 @@ export function InvoiceDetail({
                   </Table.Tbody>
                 </Table>
 
-                {canCreate && inv.status === "draft" && addItemOpened && (
+                {canEditDraft && inv.status === "draft" && addItemOpened && (
                   <Stack
                     component="form"
                     gap="xs"
