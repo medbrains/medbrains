@@ -9,6 +9,7 @@ medbrains-notifications = { path = "../medbrains-notifications" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-server-services = { path = "../medbrains-server-services" }
 medbrains-workflow = { path = "../medbrains-workflow" }
+medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-authz = { path = "../medbrains-authz" }

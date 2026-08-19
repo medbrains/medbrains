@@ -272,6 +272,13 @@ pub mod links {
     pub const DPDP_CONSENT: ParentLink = ParentLink::on_patient("dpdp_consents");
     pub const PROCEDURE_CONSENT: ParentLink = ParentLink::on_patient("procedure_consents");
     pub const RADIOLOGY_ORDER: ParentLink = ParentLink::on_patient("radiology_orders");
+
+    /// A report reaches its patient through the order it reports on.
+    pub const RADIOLOGY_REPORT: ParentLink = ParentLink {
+        table: "radiology_reports",
+        column: "order_id",
+        parent: ParentKind::Via(&RADIOLOGY_ORDER),
+    };
     pub const RESTRAINT_DOCUMENTATION: ParentLink =
         ParentLink::on_patient("restraint_documentation");
     /// A medico-legal case: assault, accident, poisoning, custodial injury.
