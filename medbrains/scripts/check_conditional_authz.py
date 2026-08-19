@@ -68,6 +68,9 @@ ACCEPTED: dict[str, str] = {
         "optional patient filter; as above",
     "crates/medbrains-case-sheet-scan/src/lib.rs::list_scans":
         "optional patient filter; the unscoped list is the MRD processing queue",
+    "crates/medbrains-telehealth/src/cds.rs::check_drug_safety":
+        "optional patient turns it into an allergy read; without one it is a pure "
+        "drug-drug catalogue lookup that names nobody",
     "crates/medbrains-nursing/src/nurse_vitals.rs::list_vitals_schedules":
         "optional encounter filter; the unscoped list is the shift's vitals round",
     "crates/medbrains-nursing/src/nurse_clinical.rs::list_restraint_for_order":

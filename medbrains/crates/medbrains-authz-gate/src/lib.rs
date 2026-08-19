@@ -152,6 +152,9 @@ pub mod links {
         column: "admission_id",
         parent: ParentKind::Admission,
     };
+    /// A tele-consultation is an encounter, and its triage record hangs off it.
+    pub const TELE_CONSULTATION: ParentLink = ParentLink::on_patient("tele_consultations");
+
     pub const LAB_ORDER: ParentLink = ParentLink::on_patient("lab_orders");
 
     /// A result row reaches its patient through its order.

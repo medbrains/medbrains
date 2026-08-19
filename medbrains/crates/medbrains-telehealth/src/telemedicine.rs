@@ -87,6 +87,10 @@ pub async fn create_tele_consultation(
     Json(body): Json<CreateTeleConsultationRequest>,
 ) -> Result<Json<TeleConsultation>, AppError> {
     require_permission(&claims, permissions::opd::visit::CREATE)?;
+    // A tele-consultation is a clinical encounter opened on the patient named in
+    // the body — a video call about somebody's health. The permission said the
+    // caller may start visits, not with whom.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -821,6 +825,15 @@ pub async fn submit_triage(
     Json(body): Json<SubmitTriageRequest>,
 ) -> Result<Json<TeleTriage>, AppError> {
     require_permission(&claims, permissions::opd::visit::CREATE)?;
+    // The path names the consultation; the patient is one hop away on it. Triage
+    // is the patient's presenting symptoms and how urgent they are.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::TELE_CONSULTATION,
+        id,
+    )
+    .await?;
     if let Some(s) = body.severity {
         if !(0..=10).contains(&s) {
             return Err(AppError::BadRequest("Severity must be 0-10".to_owned()));
@@ -880,6 +893,15 @@ pub async fn get_triage(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Option<TeleTriage>>, AppError> {
     require_permission(&claims, permissions::opd::queue::VIEW)?;
+    // The path names the consultation; the patient is one hop away on it. Triage
+    // is the patient's presenting symptoms and how urgent they are.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::TELE_CONSULTATION,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, TeleTriage>(&format!(

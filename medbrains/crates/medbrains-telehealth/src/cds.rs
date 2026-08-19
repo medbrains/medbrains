@@ -322,6 +322,13 @@ pub async fn check_drug_safety(
     Json(body): Json<CheckDrugInteractionsRequest>,
 ) -> Result<Json<DrugSafetyCheckResult>, AppError> {
     require_permission(&claims, permissions::opd::visit::CREATE)?;
+    // Supplied, the patient turns this into a read of their ALLERGY list —
+    // allergen, type, severity and reaction. Omitted, it is a pure drug-drug
+    // lookup against the catalogue and names nobody, so only the scoped branch
+    // is gated.
+    if let Some(patient_id) = body.patient_id {
+        medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1228,6 +1235,10 @@ pub async fn create_restricted_drug_approval(
     Json(body): Json<CreateRestrictedDrugApprovalRequest>,
 ) -> Result<Json<RestrictedDrugApproval>, AppError> {
     require_permission(&claims, permissions::opd::visit::CREATE)?;
+    // The approval is recorded against a patient the caller named in the body.
+    // `opd.visit.create` said they may start a visit somewhere, not that this is
+    // their patient.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1371,6 +1382,9 @@ pub async fn create_pre_auth_request(
 ) -> Result<Json<PreAuthorizationRequest>, AppError> {
     require_permission(&claims, permissions::insurance::prior_auth::CREATE)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    // …and `patients.view` says the caller may know who patients are, not that
+    // they may commit THIS one to an insurer.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
