@@ -1324,6 +1324,12 @@ pub async fn list_dialysis_sessions(
     Query(params): Query<ListDialysisQuery>,
 ) -> Result<Json<Vec<DialysisSession>>, AppError> {
     require_permission(&claims, permissions::specialty::other::dialysis::LIST)?;
+    // The array predicate below was already written but bound to the raw
+    // ?patient_id, so the permitted-id set never reached the query: with no
+    // parameter it read every patient's sessions, and with one it bound a Uuid
+    // to a uuid[]. Runtime query_as is not compile-checked, so neither showed.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1339,7 +1345,7 @@ pub async fn list_dialysis_sessions(
          WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
          ORDER BY session_date DESC LIMIT 200",
     )
-    .bind(params.patient_id)
+    .bind(permitted_patients.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 
@@ -1482,6 +1488,9 @@ pub async fn list_chemo_protocols(
     Query(params): Query<ListChemoQuery>,
 ) -> Result<Json<Vec<ChemoProtocol>>, AppError> {
     require_permission(&claims, permissions::specialty::other::records::LIST)?;
+    // Same half-applied filter as the dialysis list — see the note there.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1498,7 +1507,7 @@ pub async fn list_chemo_protocols(
          AND ($2::text IS NULL OR status = $2) \
          ORDER BY cycle_date DESC LIMIT 200",
     )
-    .bind(params.patient_id)
+    .bind(permitted_patients.as_deref())
     .bind(&params.status)
     .fetch_all(&mut *tx)
     .await?;
@@ -1602,6 +1611,11 @@ pub async fn anthracycline_cumulative(
     Query(params): Query<AnthracyclineCumulativeQuery>,
 ) -> Result<Json<AnthracyclineCumulativeResult>, AppError> {
     require_permission(&claims, permissions::specialty::other::records::LIST)?;
+    // patient_id is required here, so this is a record read, not a list: the
+    // lifetime anthracycline dose of one named patient and how close it sits
+    // to the cardiotoxicity ceiling.
+    medbrains_authz_gate::require_patient_access(&state, &claims, params.patient_id)
+        .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
