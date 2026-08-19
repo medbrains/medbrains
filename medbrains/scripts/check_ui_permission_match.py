@@ -62,8 +62,13 @@ RE_KEY = re.compile(r"^\s{2}(\w+)\s*[:(]", re.M)
 # stores `apiBase = "/api"` and prepends it at call time, so `/lab/orders` here
 # is `/api/lab/orders` on the wire. Matching on a literal `/api/` found nothing.
 RE_REQUEST = re.compile(r'request<[^>]*>\s*\(\s*["`](/[^"`]*)')
+# The HTTP method, so a path served by two handlers does not union them. One
+# route registers `.get(get_settings).put(update_setting)`, and reading tenant
+# settings takes a code that writing them does not — unioned, the write looked
+# satisfiable by the read's permission.
+RE_METHOD = re.compile(r'method:\s*"(GET|POST|PUT|PATCH|DELETE)"')
 RE_ROUTE = re.compile(r'\.route\(\s*"(/api/[^"]+)"\s*,\s*((?:\s*\.?\s*(?:get|post|put|patch|delete)\([a-z_0-9:]+\))+)')
-RE_VERB = re.compile(r"(?:get|post|put|patch|delete)\(([a-z_0-9:]+)\)")
+RE_VERB = re.compile(r"(get|post|put|patch|delete)\(([a-z_0-9:]+)\)")
 RE_HANDLER_DEF = re.compile(r"^pub async fn (\w+)\s*\(", re.M)
 RE_PERM_USE = re.compile(r"permissions::([a-z_0-9:]+)::([A-Z_0-9]+)")
 
@@ -132,15 +137,23 @@ def catalogue() -> dict[str, str]:
     return paths
 
 
-def method_to_path() -> dict[str, str]:
-    """Frontend method name -> the API path it calls."""
+def method_to_path() -> dict[str, tuple[str, str]]:
+    """Frontend method name -> (API path, HTTP verb) it calls."""
     text = open(CLIENT_TS, encoding="utf-8").read()
     keys = [(m.start(), m.group(1)) for m in RE_KEY.finditer(text)]
-    out: dict[str, str] = {}
+    starts = [pos for pos, _ in keys]
+    out: dict[str, tuple[str, str]] = {}
     for m in RE_REQUEST.finditer(text):
         prior = [name for pos, name in keys if pos < m.start()]
-        if prior:
-            out.setdefault(prior[-1], normalise(m.group(1)))
+        if not prior:
+            continue
+        # The verb lives in the options object after the path. Bound the search
+        # at the next client method so an unrelated `method:` cannot leak in;
+        # absent, the client defaults to GET.
+        later = [pos for pos in starts if pos > m.start()]
+        end = later[0] if later else len(text)
+        verb = RE_METHOD.search(text[m.start() : end])
+        out.setdefault(prior[-1], (normalise(m.group(1)), verb.group(1) if verb else "GET"))
     return out
 
 
@@ -161,15 +174,15 @@ def normalise(path: str) -> str:
     return path
 
 
-def route_to_permissions(paths: dict[str, str]) -> dict[str, set[str]]:
-    """API path -> the permission codes its handlers require."""
+def route_to_permissions(paths: dict[str, str]) -> dict[tuple[str, str], set[str]]:
+    """(API path, HTTP verb) -> the permission codes that handler requires."""
     # Keyed by (file, fn), NOT by bare function name. Keying on the name alone
     # unions every same-named handler in the workspace: `listDoctors` came back
     # needing eighteen permissions including `camp.create` and `patients.update`,
     # because a dozen crates have a `list_doctors`. A route is registered in the
     # same file as its handler, so the file is the correct scope.
     handler_perms: dict[tuple[str, str], set[str]] = defaultdict(set)
-    route_handlers: dict[str, set[tuple[str, str]]] = defaultdict(set)
+    route_handlers: dict[tuple[str, str], set[tuple[str, str]]] = defaultdict(set)
 
     for dirpath, dirs, files in os.walk(CRATES):
         dirs[:] = [d for d in dirs if d != "target"]
@@ -207,12 +220,13 @@ def route_to_permissions(paths: dict[str, str]) -> dict[str, set[str]]:
                         handler_perms[(rel, fn)].update(codes)
 
             for rm in RE_ROUTE.finditer(text):
-                for fn in RE_VERB.findall(rm.group(2)):
-                    route_handlers[normalise(rm.group(1))].add((rel, fn.split("::")[-1]))
+                for verb, fn in RE_VERB.findall(rm.group(2)):
+                    key = (normalise(rm.group(1)), verb.upper())
+                    route_handlers[key].add((rel, fn.split("::")[-1]))
 
     return {
-        path: {code for key in keys for code in handler_perms.get(key, ())}
-        for path, keys in route_handlers.items()
+        route: {code for key in keys for code in handler_perms.get(key, ())}
+        for route, keys in route_handlers.items()
     }
 
 
@@ -375,10 +389,10 @@ def main() -> int:
     resolved = 0
     for page, (calls, gates, per_call) in sorted(pages.items()):
         for call in sorted(calls):
-            path = methods.get(call)
-            if path is None:
+            route = methods.get(call)
+            if route is None:
                 continue
-            required = perms_by_path.get(path)
+            required = perms_by_path.get(route)
             if not required:
                 continue
             resolved += 1
