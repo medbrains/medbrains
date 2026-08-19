@@ -169,6 +169,8 @@ pub async fn list_reviews(
     Query(params): Query<ListReviewsQuery>,
 ) -> Result<Json<Vec<UtilizationReview>>, AppError> {
     require_permission(&claims, permissions::ur::reviews::LIST)?;
+    // Narrowed by `?admission_id`, and the reviewer's remit is the whole house —
+    // utilisation review exists to look across admissions, not within a care team.
 
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -200,6 +202,10 @@ pub async fn create_review(
     Json(body): Json<CreateReviewRequest>,
 ) -> Result<(StatusCode, Json<UtilizationReview>), AppError> {
     require_permission(&claims, permissions::ur::reviews::CREATE)?;
+    // Caller-named admission — weaker than a path id, but it refuses a review
+    // filed against an admission outside the caller's reach.
+    medbrains_authz_gate::require_admission_access(&state, &claims, body.admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -532,6 +538,7 @@ pub async fn list_conversions(
     Query(params): Query<ListConversionsQuery>,
 ) -> Result<Json<Vec<UrStatusConversion>>, AppError> {
     require_permission(&claims, permissions::ur::conversions::LIST)?;
+    // As `list_reviews`.
 
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -557,6 +564,10 @@ pub async fn create_conversion(
     Json(body): Json<CreateConversionRequest>,
 ) -> Result<(StatusCode, Json<UrStatusConversion>), AppError> {
     require_permission(&claims, permissions::ur::conversions::CREATE)?;
+    // Caller-named admission — weaker than a path id, but it refuses a review
+    // filed against an admission outside the caller's reach.
+    medbrains_authz_gate::require_admission_access(&state, &claims, body.admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -664,6 +675,7 @@ pub async fn los_comparison(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<LosComparisonRow>>, AppError> {
     require_permission(&claims, permissions::ur::reviews::LIST)?;
+    // Aggregate length-of-stay comparison.
 
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;

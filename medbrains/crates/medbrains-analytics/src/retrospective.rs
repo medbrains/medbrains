@@ -166,6 +166,10 @@ pub async fn create_retro_encounter(
     Json(body): Json<CreateRetroEncounterRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::retrospective::CREATE)?;
+    // Caller-named patient. A retrospective encounter writes to a chart, so
+    // the chart has to be reachable.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;

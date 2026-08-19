@@ -207,6 +207,15 @@ pub async fn ward_patient_grid(
     Query(params): Query<WardGridQuery>,
 ) -> Result<Json<WardGridResponse>, AppError> {
     require_permission(&claims, permissions::care_view::VIEW)?;
+    // Shift-operational, deliberately whole-ward. A care view filtered to the
+    // caller's own patients leaves gaps a nurse reads as nothing to do, which is
+    // the same failure as an empty ward reading as a fact about the ward.
+    //
+    // NOTE: unlike the ipd bed boards, this returns `patient_name`
+    // unconditionally rather than gating it on `patients.view`. Two screens over
+    // the same information with different rules is worth a decision; it is
+    // recorded here rather than changed, because tightening it silently would
+    // take names off a board nurses work from.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -320,6 +329,7 @@ pub async fn my_tasks(
     Query(params): Query<MyTasksQuery>,
 ) -> Result<Json<MyTasksResponse>, AppError> {
     require_permission(&claims, permissions::care_view::MY_TASKS)?;
+    // The caller's own task list — already scoped to them by `assigned_to`.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -399,6 +409,7 @@ pub async fn vitals_checklist(
     Query(params): Query<VitalsChecklistQuery>,
 ) -> Result<Json<Vec<VitalsChecklistRow>>, AppError> {
     require_permission(&claims, permissions::care_view::VIEW)?;
+    // Shift-operational, as `ward_patient_grid` above.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -439,6 +450,7 @@ pub async fn handover_summary(
     Query(params): Query<HandoverQuery>,
 ) -> Result<Json<HandoverSummaryResponse>, AppError> {
     require_permission(&claims, permissions::care_view::HANDOVER)?;
+    // A ward handover is the whole ward by definition.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -536,6 +548,7 @@ pub async fn discharge_readiness(
     Query(params): Query<DischargeQuery>,
 ) -> Result<Json<Vec<DischargeReadinessRow>>, AppError> {
     require_permission(&claims, permissions::care_view::DISCHARGE_TRACKER)?;
+    // Discharge planning across the house, as the boards above.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -617,6 +630,8 @@ pub async fn update_primary_nurse(
     Json(body): Json<UpdatePrimaryNurseRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::care_view::MANAGE_TASKS)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

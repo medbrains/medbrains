@@ -33,6 +33,7 @@ pub async fn patient_flow_snapshot(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<PatientFlowSnapshot>, AppError> {
     require_permission(&claims, permissions::command_center::VIEW)?;
+    // Aggregate counts. No patient row leaves this handler.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -71,6 +72,7 @@ pub async fn hourly_flow(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<HourlyFlowRow>>, AppError> {
     require_permission(&claims, permissions::command_center::VIEW)?;
+    // Aggregate by hour.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -356,6 +358,8 @@ pub async fn list_pending_discharges(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<PendingDischargeRow>>, AppError> {
     require_permission(&claims, permissions::command_center::discharge::VIEW)?;
+    // Command-centre board: what is blocking discharge across the house.
+    // Whole-house by purpose, same as the ward boards.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -524,6 +528,8 @@ pub async fn list_transport_requests(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<TransportRequestRow>>, AppError> {
     require_permission(&claims, permissions::command_center::transport::LIST)?;
+    // Porter work queue. Filtering it to the caller's own patients would hide
+    // the job from the porter who has to do it.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -561,6 +567,12 @@ pub async fn create_transport_request(
     Json(body): Json<CreateTransportRequest>,
 ) -> Result<Json<TransportRequestRow>, AppError> {
     require_permission(&claims, permissions::command_center::transport::MANAGE)?;
+    // Both ids are optional here and correctly so: a transport request can move
+    // equipment rather than a person. Present means authorize, absent means
+    // there is no patient to authorize.
+    if let Some(patient_id) = body.patient_id {
+        medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -711,6 +723,7 @@ pub async fn all_kpis(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<KpiTile>>, AppError> {
     require_permission(&claims, permissions::command_center::VIEW)?;
+    // Aggregate KPIs.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -837,6 +850,7 @@ pub async fn kpi_detail(
     Path(code): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::command_center::VIEW)?;
+    // Aggregate behind one KPI code.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
