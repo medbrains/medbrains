@@ -1992,6 +1992,7 @@ pub async fn create_patient_identifier(
     Json(body): Json<CreateIdentifierRequest>,
 ) -> Result<Json<PatientIdentifier>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     let restricted = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -2052,6 +2053,7 @@ pub async fn update_patient_identifier(
     Json(body): Json<UpdateIdentifierRequest>,
 ) -> Result<Json<PatientIdentifier>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     let restricted = field_access::resolve_restricted_fields(
         &state.db,
         claims.tenant_id,
@@ -2113,6 +2115,7 @@ pub async fn delete_patient_identifier(
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::patients::DELETE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2179,6 +2182,7 @@ pub async fn create_patient_address(
     Json(body): Json<CreateAddressRequest>,
 ) -> Result<Json<PatientAddress>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut errors = ValidationErrors::new();
     if body.address_line1.is_empty() {
@@ -2241,6 +2245,7 @@ pub async fn update_patient_address(
     Json(body): Json<UpdateAddressRequest>,
 ) -> Result<Json<PatientAddress>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let addr_type_str = body.address_type.map(|t| enum_to_str(&t));
 
@@ -2299,6 +2304,7 @@ pub async fn delete_patient_address(
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::patients::DELETE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2365,6 +2371,7 @@ pub async fn create_patient_contact(
     Json(body): Json<CreateContactRequest>,
 ) -> Result<Json<PatientContact>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut errors = ValidationErrors::new();
     validation::validate_person_name(&mut errors, "contact_name", &body.contact_name);
@@ -2420,6 +2427,7 @@ pub async fn update_patient_contact(
     Json(body): Json<UpdateContactRequest>,
 ) -> Result<Json<PatientContact>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut errors = ValidationErrors::new();
     if let Some(ref name) = body.contact_name {
@@ -2482,6 +2490,7 @@ pub async fn delete_patient_contact(
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::patients::DELETE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2563,6 +2572,7 @@ pub async fn create_patient_insurance(
     Json(body): Json<CreateInsuranceRequest>,
 ) -> Result<Json<PatientInsurance>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut errors = ValidationErrors::new();
     if body.insurance_provider.is_empty() {
@@ -2624,6 +2634,7 @@ pub async fn update_patient_insurance(
     Json(body): Json<UpdateInsuranceRequest>,
 ) -> Result<Json<PatientInsurance>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2682,6 +2693,7 @@ pub async fn delete_patient_insurance(
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::patients::DELETE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2742,6 +2754,7 @@ pub async fn create_patient_allergy(
     Json(body): Json<CreateAllergyRequest>,
 ) -> Result<Json<CreateAllergyResponse>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut errors = ValidationErrors::new();
     if body.allergen_name.is_empty() {
@@ -2877,6 +2890,7 @@ pub async fn update_patient_allergy(
     Json(body): Json<UpdateAllergyRequest>,
 ) -> Result<Json<PatientAllergy>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let allergy_type_str = body.allergy_type.map(|t| enum_to_str(&t));
     let severity_str = body.severity.map(|s| enum_to_str(&s));
@@ -2924,6 +2938,7 @@ pub async fn delete_patient_allergy(
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::patients::DELETE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2987,6 +3002,7 @@ pub async fn create_patient_consent(
     Json(body): Json<CreateConsentRequest>,
 ) -> Result<Json<PatientConsent>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut errors = ValidationErrors::new();
     if body.consented_by.is_empty() {
@@ -3044,6 +3060,7 @@ pub async fn update_patient_consent(
     Json(body): Json<UpdateConsentRequest>,
 ) -> Result<Json<PatientConsent>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let consent_status_str = body.consent_status.map(|s| enum_to_str(&s));
     let capture_mode_str = body.capture_mode.map(|m| enum_to_str(&m));
@@ -3099,6 +3116,7 @@ pub async fn delete_patient_consent(
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::patients::DELETE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3167,6 +3185,12 @@ pub async fn match_patients(
     Json(body): Json<MatchRequest>,
 ) -> Result<Json<Vec<MatchResult>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    // Deliberately unfiltered, and filtering here would defeat the purpose. This
+    // is duplicate detection at the registration desk: the whole question is
+    // whether a person the caller has NO relationship with is already registered.
+    // Scoping it to reachable patients would return nothing and the desk would
+    // create a second record for the same human, which is the outcome this
+    // endpoint exists to prevent. `patients.view` is the control.
 
     let restricted = field_access::resolve_restricted_fields(
         &state.db,
@@ -3310,6 +3334,8 @@ pub async fn list_relations(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<MasterRelation>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    // `master_relations` is a lookup of relationship types — spouse, son, guardian.
+    // No patient data.
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -3697,6 +3723,14 @@ pub async fn merge_patients(
     Json(body): Json<MergePatientRequest>,
 ) -> Result<Json<PatientMergeHistory>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
+    // BOTH records, because a merge reads one and rewrites the other. Holding
+    // access to the survivor alone would let a caller fold a patient they
+    // cannot see into one they can, and read them afterwards — the merge
+    // itself would be the disclosure. Irreversible, so both or neither.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.surviving_patient_id)
+        .await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.merged_patient_id)
+        .await?;
 
     if body.surviving_patient_id == body.merged_patient_id {
         return Err(AppError::BadRequest(
@@ -3930,6 +3964,7 @@ pub async fn create_family_link(
     Json(body): Json<CreateFamilyLinkRequest>,
 ) -> Result<Json<PatientFamilyLink>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     if patient_id == body.related_patient_id {
         return Err(AppError::BadRequest(
@@ -3967,6 +4002,7 @@ pub async fn delete_family_link(
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4051,6 +4087,7 @@ pub async fn create_patient_document(
     Json(body): Json<CreateDocumentRequest>,
 ) -> Result<Json<PatientDocument>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4086,6 +4123,7 @@ pub async fn delete_patient_document(
     Path((patient_id, id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::patients::DELETE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
