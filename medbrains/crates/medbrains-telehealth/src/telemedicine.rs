@@ -445,6 +445,18 @@ pub async fn update_recording(
     Json(body): Json<UpdateRecordingRequest>,
 ) -> Result<Json<RecordingState>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    // No patient-named column on this row, so the ledger's PHI scan cannot
+    // see it — but this call sets recording_consent and then starts recording
+    // a patient's video consultation on the strength of the consent the same
+    // request just wrote. It needs the hop to the patient at least as much as
+    // its neighbours do.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::TELE_CONSULTATION,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, RecordingState>(

@@ -97,10 +97,42 @@ except ImportError:  # run from outside scripts/
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from check_authz_collapse import ACCEPTED as REVIEWED_COLLAPSES
 AUTHZ_NEARBY = re.compile(r"\.authz\b|list_accessible|bulk_check|require_\w*_access")
+# Every table the gate has a ParentLink for reaches a patient — that is what a
+# link IS — so a handler that touches one is handling patient data whether or
+# not its SQL happens to name a patient column. Reading the names from the gate
+# rather than listing them keeps the two from drifting apart.
+#
+# Without this the scan was blind to a whole class: 45 handlers that take an id
+# off the path, address a linked table, and never mention patient_id.
+# `update_recording` is the one that made it obvious — it sets
+# recording_consent and then starts recording a patient's video consultation on
+# the strength of the consent the same request just wrote, and scored as
+# not-PHI. The coverage figure was an overstatement in a way the instrument
+# could not show.
+def _linked_tables() -> list[str]:
+    gate = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "crates", "medbrains-authz-gate", "src", "lib.rs",
+    )
+    try:
+        text = open(gate, encoding="utf-8").read()
+    except OSError:
+        return []
+    found = set(re.findall(r'ParentLink::\w+\(\s*"(\w+)"', text))
+    found |= set(re.findall(r'table:\s*"(\w+)"', text))
+    return sorted(found)
+
+
+_LINKED = _linked_tables()
+_LINKED_ALT = (
+    "|(?:FROM|UPDATE|INTO|JOIN)\\s+(?:" + "|".join(_LINKED) + ")\\b" if _LINKED else ""
+)
+
 # A handler touching these is handling patient data.
 PHI = re.compile(
     r"\bpatient_id\b|\bencounter_id\b|\badmission_id\b|FROM patients|FROM encounters|"
     r"FROM admissions|FROM prescriptions|FROM lab_orders|FROM diagnoses|FROM vitals"
+    + _LINKED_ALT
 )
 
 
