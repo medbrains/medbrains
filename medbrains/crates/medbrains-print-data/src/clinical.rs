@@ -340,9 +340,10 @@ pub async fn get_opd_consent_print_data(
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty());
-    let is_reprint = prior_print_count > 0;
-    if is_reprint {
-        require_permission(&claims, permissions::opd::consents::REPRINT)?;
+    // Outside the reprint branch, where an earlier pass of this sweep left it.
+    // Nested under `if is_reprint` it checked the SECOND print of a consent and
+    // never the first — and the first is the one that hands out the patient's
+    // name, UHID, date of birth and gender.
     medbrains_authz_gate::require_access_via(
         &state,
         &claims,
@@ -350,6 +351,10 @@ pub async fn get_opd_consent_print_data(
         consent_id,
     )
     .await?;
+
+    let is_reprint = prior_print_count > 0;
+    if is_reprint {
+        require_permission(&claims, permissions::opd::consents::REPRINT)?;
         if reprint_reason.is_none_or(|value| value.len() < 5) {
             return Err(AppError::BadRequest(
                 "reprint reason is required after the first consent print".to_owned(),
