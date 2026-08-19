@@ -37,6 +37,17 @@ pub enum AppError {
     #[error("not found")]
     NotFound,
 
+    /// The route exists and its data source does not.
+    ///
+    /// Twenty print-data handlers were returning hardcoded sample documents —
+    /// "Student Name", invented assessment marks, a fabricated fire-inspection
+    /// record — on live routes, which a print template renders onto hospital
+    /// letterhead. A document that is wrong is worse than a document that is
+    /// missing, and 404 would have been a lie of a different kind: the route
+    /// is there, the implementation is not.
+    #[error("not implemented")]
+    NotImplemented,
+
     #[error("bad request: {0}")]
     BadRequest(String),
 
@@ -125,6 +136,11 @@ impl IntoResponse for AppError {
                 )
             }
             Self::NotFound => (StatusCode::NOT_FOUND, "not found", "not found".to_owned()),
+            Self::NotImplemented => (
+                StatusCode::NOT_IMPLEMENTED,
+                "not implemented",
+                "this document has no data source yet".to_owned(),
+            ),
             Self::BadRequest(msg) => {
                 tracing::warn!(detail = %msg, "bad request");
                 (StatusCode::BAD_REQUEST, "bad request", msg.clone())
