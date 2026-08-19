@@ -153,6 +153,17 @@ pub mod links {
         parent: ParentKind::Admission,
     };
     pub const LAB_ORDER: ParentLink = ParentLink::on_patient("lab_orders");
+
+    /// A result row reaches its patient through its order.
+    ///
+    /// `auto_validate_result` takes a result id off the path and releases the
+    /// value on it; the patient is two hops away, and `lab.results.create` only
+    /// said the caller may enter results somewhere.
+    pub const LAB_RESULT: ParentLink = ParentLink {
+        table: "lab_results",
+        column: "order_id",
+        parent: ParentKind::Via(&LAB_ORDER),
+    };
     pub const INVOICE: ParentLink = ParentLink {
         table: "invoices",
         column: "patient_id",

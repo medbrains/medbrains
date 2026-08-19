@@ -2324,6 +2324,10 @@ pub async fn get_cumulative_report(
     Path((patient_id, test_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<CumulativeReportResponse>, AppError> {
     require_permission(&claims, permissions::lab::reports::VIEW)?;
+    // The path names the patient outright, and this is their whole trend for one
+    // test — fifty results over time. `lab.reports.view` said the caller may read
+    // lab reports, not whose.
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4124,6 +4128,10 @@ pub async fn create_histopath_report(
     Json(body): Json<CreateHistopathRequest>,
 ) -> Result<Json<LabHistopathReport>, AppError> {
     require_permission(&claims, permissions::lab::specialized::CREATE)?;
+    // A pathology report is a diagnosis written onto somebody's record, and the
+    // patient came from the request body. `lab.specialized.create` said the
+    // caller may write specialised reports, not for whom.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, LabHistopathReport>(
@@ -4180,6 +4188,10 @@ pub async fn create_cytology_report(
     Json(body): Json<CreateCytologyRequest>,
 ) -> Result<Json<LabCytologyReport>, AppError> {
     require_permission(&claims, permissions::lab::specialized::CREATE)?;
+    // A pathology report is a diagnosis written onto somebody's record, and the
+    // patient came from the request body. `lab.specialized.create` said the
+    // caller may write specialised reports, not for whom.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, LabCytologyReport>(
@@ -4233,6 +4245,10 @@ pub async fn create_molecular_report(
     Json(body): Json<CreateMolecularRequest>,
 ) -> Result<Json<LabMolecularReport>, AppError> {
     require_permission(&claims, permissions::lab::specialized::CREATE)?;
+    // A pathology report is a diagnosis written onto somebody's record, and the
+    // patient came from the request body. `lab.specialized.create` said the
+    // caller may write specialised reports, not for whom.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, LabMolecularReport>(
@@ -4418,6 +4434,15 @@ pub async fn auto_validate_result(
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::lab::results::CREATE)?;
+    // Releasing a result is a clinical act on somebody's record. The patient is
+    // two hops off the path id — result, order, patient.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_RESULT,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
