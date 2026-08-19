@@ -2428,6 +2428,8 @@ pub async fn update_nursing_task(
     Json(body): Json<UpdateNursingTaskRequest>,
 ) -> Result<Json<NursingTask>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2675,6 +2677,8 @@ pub async fn update_progress_note(
     Json(body): Json<UpdateProgressNoteRequest>,
 ) -> Result<Json<IpdProgressNote>, AppError> {
     require_permission(&claims, permissions::ipd::progress_notes::CREATE)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3051,6 +3055,8 @@ pub async fn update_mar(
     Json(body): Json<UpdateMarRequest>,
 ) -> Result<Json<IpdMedicationAdministration>, AppError> {
     require_permission(&claims, permissions::ipd::mar::UPDATE)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id)
+        .await?;
     require_mar_status_permission(&claims, &body.status)?;
 
     let mut tx = state.db.begin().await?;
@@ -3106,6 +3112,12 @@ pub async fn list_mar_due_now(
     Query(params): Query<MarDueQuery>,
 ) -> Result<Json<Vec<MarDueRow>>, AppError> {
     require_any_permission(&claims, &[permissions::ipd::mar::LIST, permissions::nurse::mar::VIEW])?;
+    // Deliberately NOT filtered to the caller's own patients, and this is the
+    // one place where that filtering would be the dangerous choice. A medication
+    // round is a shift's work, not a care-team roster: a nurse covering a ward
+    // must see every dose that is due, and hiding one because ReBAC has not
+    // linked them to that patient is how a dose gets missed. The ward filter and
+    // the permission are the controls; `?patient_id` narrows it when asked.
 
     let window_min = params.window_min.unwrap_or(60).clamp(0, 1440);
 
@@ -3718,6 +3730,8 @@ pub async fn update_infusion(
     Json(body): Json<UpdateInfusionRequest>,
 ) -> Result<Json<IvFluidOrder>, AppError> {
     require_permission(&claims, permissions::ipd::io_chart::CREATE)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id)
+        .await?;
 
     if let Some(status) = &body.status {
         if !INFUSION_STATUSES.contains(&status.as_str()) {
@@ -3876,6 +3890,8 @@ pub async fn update_nursing_assessment(
     Json(body): Json<CreateNursingAssessmentRequest>,
 ) -> Result<Json<IpdNursingAssessment>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4023,6 +4039,8 @@ pub async fn update_care_plan(
     Json(body): Json<UpdateCarePlanRequest>,
 ) -> Result<Json<IpdCarePlan>, AppError> {
     require_permission(&claims, permissions::ipd::care_plans::CREATE)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4168,6 +4186,8 @@ pub async fn acknowledge_handover(
     Path((id, hid)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<IpdHandoverReport>, AppError> {
     require_permission(&claims, permissions::ipd::handover::CREATE)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4292,6 +4312,8 @@ pub async fn update_discharge_checklist_item(
     Json(body): Json<UpdateChecklistItemRequest>,
 ) -> Result<Json<IpdDischargeChecklist>, AppError> {
     require_permission(&claims, permissions::ipd::discharge_checklist::UPDATE)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4484,6 +4506,10 @@ pub async fn list_ward_beds(
             permissions::ipd::bed_dashboard::VIEW,
         ],
     )?;
+    // Deliberately whole-ward. A bed board that showed only the caller's own
+    // patients would leave gaps a nurse reads as empty beds. The control here is
+    // field-level instead: the patient NAME is returned only to a caller holding
+    // `patients.view`, and the board otherwise shows occupancy without identity.
     let can_view_patient_identity =
         claims_have_any_permission(&claims, &[permissions::patients::VIEW]);
 
@@ -4754,6 +4780,8 @@ pub async fn bed_dashboard_beds(
     Query(params): Query<BedDashboardQuery>,
 ) -> Result<Json<Vec<BedDashboardRow>>, AppError> {
     require_permission(&claims, permissions::ipd::bed_dashboard::VIEW)?;
+    // Whole-house bed state, same reasoning as `list_ward_beds` — identity is
+    // redacted per field rather than the board being filtered per patient.
     let can_view_patient_identity =
         claims_have_any_permission(&claims, &[permissions::patients::VIEW]);
 
@@ -4952,6 +4980,8 @@ pub async fn delete_attender(
     Path((admission_id, attender_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::ipd::attenders::MANAGE)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -5080,6 +5110,8 @@ pub async fn create_discharge_summary(
     Json(body): Json<CreateDischargeSummaryRequest>,
 ) -> Result<Json<IpdDischargeSummary>, AppError> {
     require_permission(&claims, permissions::ipd::discharge_summary::CREATE)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
     let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
     validate_discharge_summary_write_access(&body.final_diagnosis, &restricted_fields)?;
 
@@ -5142,6 +5174,8 @@ pub async fn update_discharge_summary(
     Json(body): Json<UpdateDischargeSummaryRequest>,
 ) -> Result<Json<IpdDischargeSummary>, AppError> {
     require_permission(&claims, permissions::ipd::discharge_summary::CREATE)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
     let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
     validate_discharge_summary_write_access(&body.final_diagnosis, &restricted_fields)?;
 
@@ -5506,6 +5540,7 @@ pub async fn report_occupancy(
     Query(params): Query<ReportDateQuery>,
 ) -> Result<Json<Vec<OccupancyRow>>, AppError> {
     require_permission(&claims, permissions::ipd::reports::VIEW)?;
+    // Aggregate over bed state. No patient row leaves this handler.
 
     let from = params
         .from
@@ -5565,6 +5600,7 @@ pub async fn report_alos(
     Query(params): Query<ReportDateQuery>,
 ) -> Result<Json<Vec<AlosRow>>, AppError> {
     require_permission(&claims, permissions::ipd::reports::VIEW)?;
+    // Aggregate. Counts and averages only.
 
     let from = params
         .from
@@ -5609,6 +5645,7 @@ pub async fn report_discharge_stats(
     Query(params): Query<ReportDateQuery>,
 ) -> Result<Json<Vec<DischargeStatRow>>, AppError> {
     require_permission(&claims, permissions::ipd::reports::VIEW)?;
+    // Aggregate. Counts only.
 
     let from = params
         .from
@@ -6183,6 +6220,8 @@ pub async fn list_bed_reservations(
     Query(params): Query<ListBedReservationsQuery>,
 ) -> Result<Json<Vec<BedReservation>>, AppError> {
     require_permission(&claims, permissions::ipd::reservations::MANAGE)?;
+    // Operational: which beds are held, for whom, so the desk does not double-book.
+    // Whole-house for the same reason as the boards above.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6231,6 +6270,11 @@ pub async fn create_bed_reservation(
     Json(body): Json<CreateBedReservationRequest>,
 ) -> Result<Json<BedReservation>, AppError> {
     require_permission(&claims, permissions::ipd::reservations::MANAGE)?;
+    // No route-derived id here, so the caller picks the subject of its own
+    // check. Weaker than a path id, but it stops a row being filed against
+    // something outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6378,6 +6422,13 @@ pub async fn create_bed_turnaround(
     Json(body): Json<CreateBedTurnaroundRequest>,
 ) -> Result<Json<BedTurnaroundLog>, AppError> {
     require_permission(&claims, permissions::ipd::beds::MANAGE)?;
+    // `admission_id` is optional here and correctly so: a turnaround can be a
+    // bed being cleaned between occupants, with nobody admitted to it. So the
+    // check is optional too — present means authorize it, absent means there is
+    // no patient to authorize, not that the check was skipped.
+    if let Some(admission_id) = body.admission_id {
+        medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6902,6 +6953,8 @@ pub async fn create_death_summary(
     Json(body): Json<CreateDeathSummaryRequest>,
 ) -> Result<Json<IpdDeathSummary>, AppError> {
     require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6972,6 +7025,8 @@ pub async fn update_death_summary(
     Json(body): Json<UpdateDeathSummaryRequest>,
 ) -> Result<Json<IpdDeathSummary>, AppError> {
     require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -7219,6 +7274,8 @@ pub async fn initiate_discharge_tat(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<IpdDischargeTatLog>, AppError> {
     require_permission(&claims, permissions::ipd::discharge_tat::UPDATE)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -7250,6 +7307,8 @@ pub async fn update_discharge_tat(
     let required_permissions = required_discharge_tat_update_permissions(&body)?;
     for permission in required_permissions {
         require_permission(&claims, permission)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
     }
 
     let mut tx = state.db.begin().await?;
@@ -7374,6 +7433,7 @@ pub async fn list_available_beds(
             permissions::ipd::beds::MANAGE,
         ],
     )?;
+    // Bed state, and an available bed has no patient by definition.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -8159,6 +8219,8 @@ pub async fn generate_discharge_summary(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::ipd::discharge_summary::CREATE)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -8449,6 +8511,8 @@ pub async fn expected_discharges(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<ExpectedDischargeRow>>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::LIST)?;
+    // A discharge-planning board is a view of the house, not of one caller's
+    // patients. Identity is gated on `patients.view` in the projection.
     let can_view_patient_identity =
         claims_have_any_permission(&claims, &[permissions::patients::VIEW]);
 
