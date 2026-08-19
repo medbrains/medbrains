@@ -1,4 +1,26 @@
 #![allow(clippy::too_many_lines)]
+//! Infection prevention and control — surveillance, stewardship, outbreaks.
+//!
+//! # Why the five create handlers take no record check
+//!
+//! `create_surveillance`, `create_stewardship`, `add_outbreak_contact`,
+//! `create_exposure` and `create_indwelling_device` all take a `patient_id`
+//! from the body. Every `infection_control.*.create` code is held by one role,
+//! `infection_control_officer` (`crates/medbrains-core/src/access/roles.rs`).
+//!
+//! Surveillance is the act of looking at patients you are not treating. An IC
+//! officer follows a CLABSI or a CAUTI across every ward, traces contacts of
+//! an index case through people who are not their patients, and reviews an
+//! antibiotic decision made by somebody else. A care-relationship check would
+//! confine surveillance to the officer's own caseload, which is empty.
+//!
+//! This is the same shape as the quality register and the security tag: a
+//! cross-cutting function whose whole point is reach.
+//!
+//! **What retires this:** granting any `infection_control.*` code to a role
+//! that also treats patients. The surveillance register then becomes a way to
+//! ask whether a named person is carrying a resistant organism.
+
 
 use axum::{
     Extension, Json,

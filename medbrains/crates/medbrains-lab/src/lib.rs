@@ -2689,6 +2689,9 @@ pub async fn create_phlebotomy_entry(
     Json(body): Json<CreatePhlebotomyEntryRequest>,
 ) -> Result<Json<LabPhlebotomyQueue>, AppError> {
     require_permission(&claims, permissions::lab::phlebotomy::MANAGE)?;
+    // This crate already checks the patient on nineteen other paths; these
+    // four were the ones that did not.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let priority = normalize_lab_priority(body.priority.as_deref())?;
 
@@ -3299,6 +3302,7 @@ pub async fn create_home_collection(
     Json(body): Json<CreateHomeCollectionRequest>,
 ) -> Result<Json<LabHomeCollection>, AppError> {
     require_permission(&claims, permissions::lab::samples::MANAGE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -3539,6 +3543,7 @@ pub async fn create_sample_archive(
     Json(body): Json<CreateSampleArchiveRequest>,
 ) -> Result<Json<LabSampleArchive>, AppError> {
     require_permission(&claims, permissions::lab::samples::MANAGE)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, LabSampleArchive>(
@@ -3626,6 +3631,8 @@ pub async fn create_report_dispatch(
     Json(body): Json<CreateReportDispatchRequest>,
 ) -> Result<Json<LabReportDispatch>, AppError> {
     require_permission(&claims, permissions::lab::dispatch::MANAGE)?;
+    // A dispatch names the patient whose report is being sent out.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, LabReportDispatch>(
