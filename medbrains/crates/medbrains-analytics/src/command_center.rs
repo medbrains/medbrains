@@ -1,3 +1,35 @@
+//! Command centre — house-wide flow, discharge coordination and transport.
+//!
+//! # Why nothing here filters by patient
+//!
+//! Four handlers emit patient names: `list_pending_discharges`,
+//! `get_discharge_blockers`, `list_transport_requests` and the transport
+//! writes. Only `get_discharge_blockers` names a record, and it takes
+//! `require_admission_access`. The two lists are whole-house and unfiltered,
+//! and the reason is **not** the one the ward boards use.
+//!
+//! The ward boards (`care_view.rs`, the ER board, the theatre list) take a
+//! `ward_id` or a department, and that parameter is the scope — a caller sees
+//! one ward because they asked for one ward. These two take no scope at all.
+//! Coordinating discharge across the house, and dispatching a porter to
+//! whichever bed needs one, are house-wide jobs by definition; filtering
+//! either to the caller's own patients would shorten the board and read as
+//! fewer discharges pending, or as a transport job nobody has to do.
+//!
+//! **What actually bounds the exposure today is that no built-in role holds
+//! any of the five `command_center.*` codes** (`scripts/check_permission_reachable.py`
+//! — command_center is 5 of the guarded-never-granted set). The whole module
+//! is bypass-only: super_admin and hospital_admin, who see every patient
+//! anyway. The operational arguments above describe roles that cannot reach
+//! these handlers.
+//!
+//! **What retires this exemption:** the moment any of these codes is granted
+//! to a real role, the two lists need `patient_filter(&state, &claims, None)`
+//! and `AND ($n::uuid[] IS NULL OR <tbl>.patient_id = ANY($n))` — or a
+//! deliberate decision that the coordinator and porter roles carry Viewer on
+//! the house, written here. Do not grant one of these codes without doing one
+//! or the other.
+
 #![allow(clippy::too_many_lines)]
 
 use axum::{
@@ -358,8 +390,9 @@ pub async fn list_pending_discharges(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<PendingDischargeRow>>, AppError> {
     require_permission(&claims, permissions::command_center::discharge::VIEW)?;
-    // Command-centre board: what is blocking discharge across the house.
-    // Whole-house by purpose, same as the ward boards.
+    // Whole-house and unfiltered — see the module note. Not "same as the ward
+    // boards": those are scoped by the ward_id the caller asks for, and this
+    // takes no scope at all.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -528,8 +561,10 @@ pub async fn list_transport_requests(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<TransportRequestRow>>, AppError> {
     require_permission(&claims, permissions::command_center::transport::LIST)?;
-    // Porter work queue. Filtering it to the caller's own patients would hide
-    // the job from the porter who has to do it.
+    // Porter work queue, whole-house and unfiltered — see the module note.
+    // No porter role reaches this: command_center.transport.list is held by no
+    // built-in role, so the argument from the porter's need is about a caller
+    // who does not exist yet.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
