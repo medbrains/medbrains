@@ -20,6 +20,7 @@ import type {
   PatientRegistrationInitialValues,
 } from "@medbrains/schemas";
 import { patientRegistrationFormSchema } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
 import type {
   Camp,
   CreatePatientRequest,
@@ -29,6 +30,7 @@ import type {
   SetupUser,
   TerminologySearchResult,
 } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconCalendarMonth } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
@@ -304,6 +306,11 @@ export function PatientRegisterForm({
   const initialAlternatePhoneCountryCode = initialValues?.phone_secondary
     ? detectPhoneCountryCode(initialValues.phone_secondary)
     : null;
+  // "Send to OPD queue" is checked BY DEFAULT, and the visit it creates needs
+  // `opd.visit.create` — which registering a patient does not imply. Without it
+  // the patient was registered, the queue step failed into a warning, and the
+  // patient simply was not in the queue. Every time, because it is the default.
+  const canCreateOpdVisit = useHasPermission(P.OPD.VISIT_CREATE);
   const {
     register,
     control,
@@ -359,8 +366,9 @@ export function PatientRegisterForm({
       allergy_status: initialValues?.allergy_status ?? "not_asked_yet",
       known_allergies: initialValues?.known_allergies,
       drug_allergies: initialValues?.drug_allergies,
-      create_opd_visit: initialValues?.create_opd_visit ?? !isEdit,
-      open_opd_after_registration: initialValues?.open_opd_after_registration ?? !isEdit,
+      create_opd_visit: initialValues?.create_opd_visit ?? (!isEdit && canCreateOpdVisit),
+      open_opd_after_registration:
+        initialValues?.open_opd_after_registration ?? (!isEdit && canCreateOpdVisit),
     },
   });
   const [activeStep, setActiveStep] = useState(0);
@@ -1426,7 +1434,7 @@ export function PatientRegisterForm({
                 </Grid.Col>
               </Grid>
             </FormRow>
-            {!isEdit && (
+            {!isEdit && canCreateOpdVisit && (
               <FormRow label={t("registrationForm.row.linkedServices")}>
                 <Grid>
                   <Grid.Col span={{ base: 12, sm: 6 }}>

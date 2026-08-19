@@ -3184,13 +3184,23 @@ pub async fn match_patients(
     Extension(claims): Extension<Claims>,
     Json(body): Json<MatchRequest>,
 ) -> Result<Json<Vec<MatchResult>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
+    // `create` as well as `view`, because this runs DURING registration and the
+    // registration page is gated on `create`. A caller who may register a patient
+    // but not browse them got no duplicate check at all — and the failure is
+    // silent: no matches returned reads exactly like no duplicates exist, so the
+    // desk creates a second record for the same human. Both built-in roles that
+    // can register also hold `view`, so this was latent; a custom role granted
+    // `patients.create` alone would have hit it.
+    require_any_permission(
+        &claims,
+        &[permissions::patients::VIEW, permissions::patients::CREATE],
+    )?;
     // Deliberately unfiltered, and filtering here would defeat the purpose. This
     // is duplicate detection at the registration desk: the whole question is
     // whether a person the caller has NO relationship with is already registered.
     // Scoping it to reachable patients would return nothing and the desk would
     // create a second record for the same human, which is the outcome this
-    // endpoint exists to prevent. `patients.view` is the control.
+    // endpoint exists to prevent. The permission is the control.
 
     let restricted = field_access::resolve_restricted_fields(
         &state.db,
