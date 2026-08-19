@@ -3474,6 +3474,12 @@ pub async fn create_otc_sale(
     Json(body): Json<OtcSaleRequest>,
 ) -> Result<Json<OrderDetailResponse>, AppError> {
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
+    // Optional by design: an over-the-counter sale to a walk-in customer has
+    // no patient at all. Attached to one, it becomes a dispensing record on
+    // their chart, so only that branch is gated.
+    if let Some(patient_id) = body.patient_id {
+        medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    }
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     if body.items.is_empty() {
@@ -3619,6 +3625,11 @@ pub async fn create_discharge_dispensing(
     Json(body): Json<DischargeMedsRequest>,
 ) -> Result<Json<OrderDetailResponse>, AppError> {
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
+    // Discharge medicines are dispensed TO a named patient — the body names
+    // them, and `pharmacy.dispensing.create` says only that the caller may
+    // dispense.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     if body.items.is_empty() {
@@ -5216,6 +5227,9 @@ pub async fn create_return_batch(
     Json(body): Json<CreateReturnBatchRequest>,
 ) -> Result<Json<Vec<PharmacyReturn>>, AppError> {
     require_permission(&claims, permissions::pharmacy::returns::REQUEST)?;
+    // A return is recorded against the patient who was dispensed to.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     if body.items.is_empty() {
         return Err(AppError::BadRequest(
@@ -5665,6 +5679,10 @@ pub async fn check_drug_interactions(
             permissions::pharmacy::rx_queue::REVIEW,
         ],
     )?;
+    // Interaction checking reads this patient's active medication list to
+    // compare against. The patient came from the body.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6440,6 +6458,11 @@ pub async fn check_patient_allergies(
     Json(body): Json<AllergyCheckRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::pharmacy::safety::VIEW)?;
+    // The body names the patient and the answer is their ALLERGY list —
+    // allergen, type, severity, reaction. `pharmacy.safety.view` said the
+    // caller may run safety checks, not whose record they may read.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6535,6 +6558,11 @@ pub async fn create_pos_sale(
     Json(body): Json<CreatePosSaleRequest>,
 ) -> Result<Json<PharmacyPosSale>, AppError> {
     require_permission(&claims, permissions::pharmacy::pos::CREATE)?;
+    // As with OTC — a counter sale may have no patient. Named, it lands on
+    // that patient's record.
+    if let Some(patient_id) = body.patient_id {
+        medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    }
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
     validate_pos_sale_field_access(&body, &restricted_fields)?;
 

@@ -68,6 +68,10 @@ ACCEPTED: dict[str, str] = {
         "optional patient filter; as above",
     "crates/medbrains-case-sheet-scan/src/lib.rs::list_scans":
         "optional patient filter; the unscoped list is the MRD processing queue",
+    "crates/medbrains-pharmacy/src/lib.rs::create_otc_sale":
+        "over-the-counter sale to a walk-in has no patient; the named branch is gated",
+    "crates/medbrains-pharmacy/src/lib.rs::create_pos_sale":
+        "counter sale may have no patient; the named branch is gated",
     "crates/medbrains-telehealth/src/cds.rs::check_drug_safety":
         "optional patient turns it into an allergy read; without one it is a pure "
         "drug-drug catalogue lookup that names nobody",
