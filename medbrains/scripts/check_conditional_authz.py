@@ -52,6 +52,42 @@ CALL = re.compile(
 # `overview` was reported under `retrieve_kb` — a handler two hundred lines
 # away that has nothing to do with it.
 FN = re.compile(r"^\s*(?:pub(?:\([a-z]+\))? )?(?:async )?fn (\w+)")
+HANDLER = re.compile(r"^pub async fn (\w+)\s*\(", re.M)
+PERM = re.compile(r"^(\s*)require_(?:any_)?permission\s*\(", re.M)
+
+# A handler whose ONLY permission check is nested. Not the same test as the
+# record-check one above: a stricter code on a stricter branch is normal and
+# right (a reprint wanting `reprint` ON TOP OF `print`). What is not right is
+# the branch being the sole check, because then some other path has none.
+#
+# `print_case_sheet_packet` was exactly that: `mrd.case_sheets.reprint` inside
+# `if is_reprint`, and nothing at all on the first print — of an entire case
+# sheet. `mrd.case_sheets.print` existed and was never asked for.
+PERMISSION_ONLY_NESTED: dict[str, str] = {
+    # Each of these branches exhaustively, and every path either checks a
+    # permission or returns an error. Read individually, not pattern-matched.
+    "crates/medbrains-camp/src/lib.rs::list_camps":
+        "outer condition already tests camp.list; the fallback narrows to active camps",
+    "crates/medbrains-camp/src/lib.rs::update_camp_referral":
+        "if/else-if/else, and the final else rejects an empty payload",
+    "crates/medbrains-camp/src/lib.rs::update_followup":
+        "outcome and conversion each gated; neither present is a BadRequest",
+    "crates/medbrains-device-pairing/src/lib.rs::get_peer_roster":
+        "either-of-two rights, written as a fallback; both paths check",
+    "crates/medbrains-identity/src/iam.rs::create_access_request":
+        "requesting access FOR YOURSELF needs no permission; on another's behalf it does",
+    "crates/medbrains-setup/src/lib.rs::get_settings":
+        "category split — sensitive categories take the admin code, the rest take read",
+    # A loop, not a branch, and exhaustive by construction:
+    # `required_discharge_tat_update_permissions` returns one code per milestone
+    # the body touches and errors when the body touches none, so the loop always
+    # runs at least once. The RECORD check used to sit inside it too and has
+    # been hoisted — it was doing up to six identical ReBAC round-trips.
+    "crates/medbrains-ipd/src/lib.rs::update_discharge_tat":
+        "one permission per milestone touched; the helper rejects an empty body",
+    "crates/medbrains-emergency/src/lib.rs::update_mass_casualty_event":
+        "exhaustive match; the unknown-status arm rejects",
+}
 
 # Reviewed, and each one already carries its reasoning in the code beside it.
 #
@@ -98,6 +134,32 @@ ACCEPTED: dict[str, str] = {
 }
 
 
+def permission_offenders() -> list[tuple[str, int, str]]:
+    """Handlers whose only permission check sits inside a branch."""
+    found: list[tuple[str, int, str]] = []
+    for dirpath, dirs, files in os.walk(CRATES):
+        dirs[:] = [d for d in dirs if d != "target"]
+        for name in files:
+            if not name.endswith(".rs"):
+                continue
+            path = os.path.join(dirpath, name)
+            rel = os.path.relpath(path, ROOT)
+            try:
+                text = open(path, encoding="utf-8", errors="replace").read()
+            except OSError:
+                continue
+            marks = [(m.group(1), m.start()) for m in HANDLER.finditer(text)]
+            for i, (fn, start) in enumerate(marks):
+                end = marks[i + 1][1] if i + 1 < len(marks) else len(text)
+                indents = [len(m.group(1)) for m in PERM.finditer(text[start:end])]
+                if not indents or min(indents) <= 4:
+                    continue
+                if f"{rel}::{fn}" in PERMISSION_ONLY_NESTED:
+                    continue
+                found.append((rel, text[:start].count("\n") + 1, fn))
+    return found
+
+
 def offenders() -> list[tuple[str, int, str, int, str]]:
     found: list[tuple[str, int, str, int, str]] = []
     for dirpath, dirs, files in os.walk(CRATES):
@@ -123,11 +185,25 @@ def offenders() -> list[tuple[str, int, str, int, str]]:
 
 
 def main() -> int:
+    perms = permission_offenders()
+    if perms:
+        print(f"{len(perms)} handler(s) whose ONLY permission check is nested:\n")
+        for rel, line, handler in perms:
+            print(f"   {rel}:{line}\n      {handler}")
+        print(
+            "\nEvery other path through the handler is unpermissioned. Hoist an\n"
+            "unconditional base check to the top and keep the branch for the stricter\n"
+            "code — a reprint wants `reprint` ON TOP OF `print`, not instead of it.\n"
+            "If the branching genuinely is the rule, add it to PERMISSION_ONLY_NESTED\n"
+            "with the reason, and the bar is that EVERY path checks or errors."
+        )
+        return 1
+
     found = offenders()
     if not found:
         print(
-            "✓ no record check sits inside a branch "
-            f"({len(ACCEPTED)} reviewed exception(s))"
+            "✓ no record check or sole permission check sits inside a branch "
+            f"({len(ACCEPTED) + len(PERMISSION_ONLY_NESTED)} reviewed exception(s))"
         )
         return 0
 

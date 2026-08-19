@@ -7304,11 +7304,16 @@ pub async fn update_discharge_tat(
     Path(admission_id): Path<Uuid>,
     Json(body): Json<UpdateDischargeTatRequest>,
 ) -> Result<Json<IpdDischargeTatLog>, AppError> {
+    // Above the loop, not inside it. Nested there the record check ran once per
+    // permission — up to six identical ReBAC round-trips — and would have
+    // vanished entirely the day somebody relaxed the "at least one milestone"
+    // rule that currently guarantees the loop runs. Not exploitable today; one
+    // edit away from being so.
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
+
     let required_permissions = required_discharge_tat_update_permissions(&body)?;
     for permission in required_permissions {
         require_permission(&claims, permission)?;
-    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
-        .await?;
     }
 
     let mut tx = state.db.begin().await?;
