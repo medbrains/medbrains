@@ -41,6 +41,9 @@ import { methodLabels } from "./shared";
 
 export function EquipmentTab() {
   const canManage = useHasPermission(P.CSSD.EQUIPMENT_MANAGE);
+  // The register and its maintenance history are `cssd.equipment.list`, not the
+  // manage code this tab already held.
+  const canListEquipment = useHasPermission(P.CSSD.EQUIPMENT_LIST);
   const qc = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const [selectedSterilizer, setSelectedSterilizer] = useState<CssdSterilizer | null>(null);
@@ -49,6 +52,7 @@ export function EquipmentTab() {
   const { data: sterilizers = [], isLoading } = useQuery({
     queryKey: ["cssd-sterilizers"],
     queryFn: () => cssdService.listCssdSterilizers(),
+    enabled: canListEquipment,
   });
 
   const sterilizerForm = useForm<CssdSterilizerFormInput>({
@@ -82,7 +86,7 @@ export function EquipmentTab() {
   const { data: maintLogs = [] } = useQuery({
     queryKey: ["cssd-maintenance", selectedSterilizer?.id],
     queryFn: () => cssdService.listCssdMaintenanceLogs(selectedSterilizer?.id ?? ""),
-    enabled: !!selectedSterilizer,
+    enabled: !!selectedSterilizer && canListEquipment,
   });
 
   const maintenanceForm = useForm<CssdMaintenanceFormInput>({

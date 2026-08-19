@@ -25,6 +25,9 @@ export function AdmissionPrescriptionsTab({
 }) {
   const queryClient = useQueryClient();
   const canWrite = useHasPermission(P.OPD.VISIT_UPDATE);
+  // Writing the visit is not permission to read the patient. As on the nurse
+  // prescribing tab, an empty ALLERGY list here reads as "no known allergies".
+  const canViewPatient = useHasPermission(P.PATIENTS.VIEW);
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
   const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
   const { data: prescriptions = [] } = useQuery<PrescriptionWithItems[]>({
@@ -35,11 +38,13 @@ export function AdmissionPrescriptionsTab({
   const { data: patient } = useQuery({
     queryKey: ["patient-detail", patientId],
     queryFn: () => ipdService.getPatient(patientId),
+    enabled: canViewPatient,
   });
 
   const { data: allergies = [] } = useQuery<PatientAllergy[]>({
     queryKey: ["patient-allergies", patientId],
     queryFn: () => ipdService.listPatientAllergies(patientId),
+    enabled: canViewPatient,
   });
   const allergyNames = allergies.filter((a) => a.is_active).map((a) => a.allergen_name);
 

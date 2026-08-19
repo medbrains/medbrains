@@ -26,6 +26,9 @@ const alertLevelColors: Record<string, BadgeTone> = {
 export function ColdChainTab() {
   const qc = useQueryClient();
   const canManage = useHasPermission(P.BLOOD_BANK.INVENTORY_MANAGE);
+  // Managing the fridges is not reading them. An empty cold-chain board reads
+  // as no excursions and no devices — on a blood bank that is a safety claim.
+  const canListInventory = useHasPermission(P.BLOOD_BANK.INVENTORY_LIST);
   const [deviceOpen, { open: openDevice, close: closeDevice }] = useDisclosure(false);
   const [readingOpen, { open: openReading, close: closeReading }] = useDisclosure(false);
   const [selectedDevice, setSelectedDevice] = useState<BbColdChainDeviceRow | null>(null);
@@ -33,12 +36,13 @@ export function ColdChainTab() {
   const { data: devices, isLoading } = useQuery({
     queryKey: ["blood-bank", "cold-chain-devices"],
     queryFn: () => bloodBankService.listBbDevices(),
+    enabled: canListInventory,
   });
 
   const { data: readings } = useQuery({
     queryKey: ["blood-bank", "cold-chain-readings", selectedDevice?.id],
     queryFn: () => bloodBankService.listBbReadings(selectedDevice?.id ?? ""),
-    enabled: !!selectedDevice,
+    enabled: !!selectedDevice && canListInventory,
   });
 
   const [devName, setDevName] = useState("");
