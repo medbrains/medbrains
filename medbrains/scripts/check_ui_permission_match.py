@@ -137,6 +137,33 @@ def catalogue() -> dict[str, str]:
     return paths
 
 
+SERVICES = os.path.join(WEB_SRC, "services")
+RE_ALIAS = re.compile(r"^\s*(\w+):\s*api\.(\w+)\s*,", re.M)
+
+
+def service_aliases() -> dict[str, str]:
+    """Service-layer local name -> the client method it actually calls.
+
+    `auditService.listModules` is `api.listAuditModules`, which is
+    `/audit/modules` under `audit.view`. Matching the local name against
+    client.ts instead found the unrelated `listModules` — `/setup/modules`
+    under `admin.settings.modules.manage` — and reported both audit screens as
+    calling a permission no role holds. Four of the 26 renaming aliases in
+    services/ collide with a real client method this way.
+    """
+    out: dict[str, str] = {}
+    if not os.path.isdir(SERVICES):
+        return out
+    for name in sorted(os.listdir(SERVICES)):
+        if not name.endswith(".ts"):
+            continue
+        with open(os.path.join(SERVICES, name), encoding="utf-8") as fh:
+            for local, real in RE_ALIAS.findall(fh.read()):
+                if local != real:
+                    out.setdefault(local, real)
+    return out
+
+
 def method_to_path() -> dict[str, tuple[str, str]]:
     """Frontend method name -> (API path, HTTP verb) it calls."""
     text = open(CLIENT_TS, encoding="utf-8").read()
@@ -154,6 +181,11 @@ def method_to_path() -> dict[str, tuple[str, str]]:
         end = later[0] if later else len(text)
         verb = RE_METHOD.search(text[m.start() : end])
         out.setdefault(prior[-1], (normalise(m.group(1)), verb.group(1) if verb else "GET"))
+    # A page calls the service's name, not the client's. Where they differ the
+    # alias wins — the client entry of the same name belongs to someone else.
+    for local, real in service_aliases().items():
+        if real in out:
+            out[local] = out[real]
     return out
 
 

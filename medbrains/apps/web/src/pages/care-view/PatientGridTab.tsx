@@ -1,11 +1,13 @@
 import { Card, Group, SimpleGrid, Stack, Text, ThemeIcon } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { useHasPermission } from "@medbrains/stores";
 import type {
   PatientCardRow,
   VitalsChecklistRow,
   WardGridResponse,
   WardOnDutyRow,
 } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconBed,
@@ -47,13 +49,18 @@ function workloadTone(overdue: number, pending: number): OperationalSignalTone {
 }
 
 function OnDutySection({ wardId }: { wardId: string | null }) {
+  // Without ipd.bed_dashboard.view this fetch is refused, `data` stays empty,
+  // and the early return below removes the whole card — so the nursing
+  // dashboard would not show an empty on-duty list, it would show no on-duty
+  // section at all, with nothing to question.
+  const canSeeOnDuty = useHasPermission(P.IPD.BED_DASHBOARD_VIEW);
   const { data = [] } = useQuery<WardOnDutyRow[]>({
     queryKey: ["care-view", "on-duty", wardId],
     queryFn: () => careViewService.wardOnDuty(wardId ?? ""),
-    enabled: !!wardId,
+    enabled: !!wardId && canSeeOnDuty,
     refetchInterval: 60_000,
   });
-  if (!wardId || data.length === 0) return null;
+  if (!wardId || !canSeeOnDuty || data.length === 0) return null;
   return (
     <Card withBorder padding="sm">
       <Group gap="xs" mb={6}>
