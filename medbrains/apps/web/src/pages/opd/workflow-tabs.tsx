@@ -23,6 +23,7 @@ import {
   opdProcedureOrderFormSchema,
   opdReminderFormSchema,
 } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
 import {
   type CreatePreAuthRequest,
   type CreateReferralRequest,
@@ -31,6 +32,7 @@ import {
   type DuplicateOrderInfo,
   type FollowupComplianceRow,
   type MedicalCertificate,
+  P,
   PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
   PATIENT_NAME_FIELD_ACCESS_KEYS,
   type PatientFeedback,
@@ -761,6 +763,7 @@ export function ProceduresTab({
   patientId: string;
   canUpdate: boolean;
 }) {
+  const canCancelProcedure = useHasPermission(P.OPD.PROCEDURES_CANCEL);
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const [formOpened, formHandlers] = useDisclosure(false);
@@ -1013,18 +1016,19 @@ export function ProceduresTab({
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  {canUpdate && (order.status === "ordered" || order.status === "scheduled") && (
-                    <Tooltip label="Cancel">
-                      <IconButton
-                        tone="danger"
-                        size="xs"
-                        onClick={() => cancelMutation.mutate(order.id)}
-                        aria-label="Cancel"
-                      >
-                        <IconX size={12} />
-                      </IconButton>
-                    </Tooltip>
-                  )}
+                  {canCancelProcedure &&
+                    (order.status === "ordered" || order.status === "scheduled") && (
+                      <Tooltip label="Cancel">
+                        <IconButton
+                          tone="danger"
+                          size="xs"
+                          onClick={() => cancelMutation.mutate(order.id)}
+                          aria-label="Cancel"
+                        >
+                          <IconX size={12} />
+                        </IconButton>
+                      </Tooltip>
+                    )}
                 </Table.Td>
               </Table.Tr>
             ))}
@@ -1061,13 +1065,12 @@ export function ReferralsTab({
   patientId,
   encounterId,
   departmentId,
-  canUpdate,
 }: {
   patientId: string;
   encounterId: string;
   departmentId: string;
-  canUpdate: boolean;
 }) {
+  const canCreateReferral = useHasPermission(P.OPD.REFERRALS_CREATE);
   const queryClient = useQueryClient();
   const [createOpen, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [toDeptId, setToDeptId] = useState<string | null>(null);
@@ -1132,7 +1135,7 @@ export function ReferralsTab({
 
   return (
     <Stack gap="sm">
-      {canUpdate && (
+      {canCreateReferral && (
         <Group>
           <Button
             tone="primary"
@@ -1269,6 +1272,7 @@ export function RemindersTab({
   encounterId: string;
   canUpdate: boolean;
 }) {
+  const canChangeReminder = useHasPermission(P.OPD.REMINDERS_UPDATE);
   const queryClient = useQueryClient();
   const [formOpened, formHandlers] = useDisclosure(false);
   const {
@@ -1387,7 +1391,7 @@ export function RemindersTab({
                   </Badge>
                 </Table.Td>
                 <Table.Td>
-                  {r.status === "pending" && canUpdate && (
+                  {r.status === "pending" && canChangeReminder && (
                     <Group gap={4}>
                       <Tooltip label="Complete">
                         <IconButton
@@ -1706,6 +1710,7 @@ export function ConsentsTab({
   encounterId: string;
   canUpdate: boolean;
 }) {
+  const canSignConsent = useHasPermission(P.OPD.CONSENTS_SIGN);
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const [formOpened, formHandlers] = useDisclosure(false);
@@ -1821,7 +1826,7 @@ export function ConsentsTab({
                 <Table.Td>{c.consented_by_name ?? "—"}</Table.Td>
                 <Table.Td>{new Date(c.created_at).toLocaleDateString()}</Table.Td>
                 <Table.Td>
-                  {c.status === "pending" && canUpdate && (
+                  {c.status === "pending" && canSignConsent && (
                     <Tooltip label="Sign Consent">
                       <IconButton
                         size="sm"
@@ -1928,6 +1933,7 @@ export function ConsentsTab({
 // ── Doctor Docket ─────────────────────────────────────────
 
 export function DocketTab() {
+  const canGenerateDocket = useHasPermission(P.OPD.SCHEDULE_MANAGE);
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(() => todayDateString());
 
@@ -1960,15 +1966,17 @@ export function DocketTab() {
           onChange={(e) => setSelectedDate(e.currentTarget.value)}
           style={{ width: 200 }}
         />
-        <Button
-          tone="secondary"
-          mt={24}
-          size="sm"
-          onClick={() => generateMutation.mutate(selectedDate || undefined)}
-          loading={generateMutation.isPending}
-        >
-          Generate / Refresh
-        </Button>
+        {canGenerateDocket && (
+          <Button
+            tone="secondary"
+            mt={24}
+            size="sm"
+            onClick={() => generateMutation.mutate(selectedDate || undefined)}
+            loading={generateMutation.isPending}
+          >
+            Generate / Refresh
+          </Button>
+        )}
       </Group>
 
       {isLoading ? (

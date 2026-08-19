@@ -68,6 +68,18 @@ RE_HANDLER_DEF = re.compile(r"^pub async fn (\w+)\s*\(", re.M)
 RE_PERM_USE = re.compile(r"permissions::([a-z_0-9:]+)::([A-Z_0-9]+)")
 RE_GATE = re.compile(r"use(?:Require|Has)(?:All|Any)?Permissions?\(\s*\[?\s*([^)\]]+)")
 RE_P_ACCESSOR = re.compile(r"P\.([A-Z_0-9.]+)")
+
+# `<PermissionGate codes={X}>` — the seam's render-side gate. `X` is usually a
+# key of a per-file table (`TAB_PERMISSIONS.consents`) rather than an inline
+# array, so the identifier is resolved against `const X = { … }` in the same
+# file and every code in it counted.
+#
+# The ceiling: this is file-granular, like the import inheritance it feeds. A
+# file holding eleven separately-gated panels is credited with all eleven codes,
+# so a panel gated on the wrong one of them still passes. It catches the file
+# that gates on nothing, which is the failure that actually ships.
+RE_PERMISSION_GATE = re.compile(r"<PermissionGate\b[^>]*?codes=\{([^}]*)\}")
+RE_TABLE = re.compile(r"const (\w+)\s*=\s*\{(.*?)\n\}", re.S)
 RE_CALL = re.compile(r"\b(?:\w+Service|apiClient|api)\.(\w+)\s*\(")
 
 # Files that enumerate codes rather than enforce them.
@@ -247,6 +259,16 @@ def page_facts(known_codes: set[str]) -> dict[str, tuple[set[str], set[str]]]:
                 for lit in re.findall(r'"([a-z0-9_.]+)"', gm.group(1)):
                     if lit in known_codes:
                         gates.add(lit)
+            tables = {m.group(1): m.group(2) for m in RE_TABLE.finditer(text)}
+            for expr in RE_PERMISSION_GATE.findall(text):
+                source = expr
+                ident = re.match(r"\s*(\w+)", expr)
+                if ident and ident.group(1) in tables:
+                    source = tables[ident.group(1)]
+                for lit in re.findall(r'"([a-z0-9_.]+)"', source):
+                    if lit in known_codes:
+                        gates.add(lit)
+
             own_gates[rel] = gates
 
             targets: set[str] = set()
