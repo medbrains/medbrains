@@ -102,6 +102,14 @@ function UserModal({
   const isEdit = !!editingUser;
   const canCreateRole = useHasPermission(P.ADMIN.ROLES.CREATE);
   const canCreateDept = useHasPermission(P.ADMIN.SETTINGS.DEPARTMENTS.CREATE);
+  // The page is gated on admin.users.list; these two lists carry their own
+  // codes. A refused role list does not show an error — roleOptions quietly
+  // falls back to BUILT_IN_ROLES, so the hospital's custom roles vanish and
+  // the operator picks a built-in one instead. A refused department list
+  // leaves the doctor's department picker empty, which reads as a hospital
+  // with no departments.
+  const canListRoles = useHasPermission(P.ADMIN.ROLES.LIST);
+  const canListDepartments = useHasPermission(P.ADMIN.SETTINGS.DEPARTMENTS.LIST);
 
   const {
     control,
@@ -156,14 +164,14 @@ function UserModal({
     queryKey: ["setup-roles"],
     queryFn: () => adminAccessService.listRoles(),
     staleTime: 60_000,
-    enabled: opened,
+    enabled: opened && canListRoles,
   });
 
   const { data: departments, isLoading: depsLoading } = useQuery({
     queryKey: ["setup-departments"],
     queryFn: () => adminAccessService.listDepartments(),
     staleTime: 60_000,
-    enabled: opened && role === "doctor",
+    enabled: opened && role === "doctor" && canListDepartments,
   });
 
   const roleOptions = [

@@ -1,9 +1,11 @@
 // Billing BillingSettingsTab — split from billing.tsx (pure move).
 
 import { Group, Select, Stack, Switch, Text, TextInput } from "@mantine/core";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type { TenantSettingsRow } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "@/components/ui";
+import { Alert, toast } from "@/components/ui";
 import { billingService } from "@/services/billing.service";
 
 const AUTO_BILLING_KEYS = [
@@ -36,10 +38,19 @@ const AUTO_BILLING_KEYS = [
 
 export function BillingSettingsTab() {
   const queryClient = useQueryClient();
+  // This tab had no gate of its own and rides in on the billing page's
+  // invoice-list permission, while both its calls are tenant settings. A
+  // refused read leaves settingsMap empty, so every auto-charge switch shows
+  // off and the GSTIN field renders blank — and the GSTIN is a defaultValue
+  // written back onBlur, so tabbing through the empty field would have
+  // overwritten the hospital's real GST number with "".
+  const canRead = useHasAnyPermission([P.ADMIN.SETTINGS_READ, P.ADMIN.SETTINGS_GENERAL_MANAGE]);
+  const canManage = useHasPermission(P.ADMIN.SETTINGS_GENERAL_MANAGE);
 
   const { data: settings = [], isLoading } = useQuery({
     queryKey: ["tenant-settings", "billing"],
     queryFn: () => billingService.getTenantSettings("billing"),
+    enabled: canRead,
   });
 
   const settingsMap = new Map(settings.map((s: TenantSettingsRow) => [s.key, s.value]));
@@ -72,6 +83,17 @@ export function BillingSettingsTab() {
     updateMutation.mutate({ category: "billing", key, value });
   };
 
+  if (!canRead) {
+    return (
+      <Alert tone="warning">
+        <Text size="sm">
+          You do not have permission to read billing settings. Nothing is shown here rather than a
+          set of blank defaults, which would misstate this hospital&apos;s GST configuration.
+        </Text>
+      </Alert>
+    );
+  }
+
   if (isLoading) return <Text c="dimmed">Loading settings...</Text>;
 
   return (
@@ -86,12 +108,14 @@ export function BillingSettingsTab() {
           label="GSTIN"
           placeholder="e.g. 33AABCU9603R1ZM"
           defaultValue={getStrVal("gst_number")}
+          disabled={!canManage}
           onBlur={(e) => updateStr("gst_number", e.currentTarget.value)}
         />
         <TextInput
           label="State Code"
           placeholder="e.g. 33 (Tamil Nadu)"
           defaultValue={getStrVal("gst_state_code")}
+          disabled={!canManage}
           onBlur={(e) => updateStr("gst_state_code", e.currentTarget.value)}
         />
         <Select
@@ -102,6 +126,7 @@ export function BillingSettingsTab() {
             { value: "exempt", label: "Exempt" },
           ]}
           value={getStrVal("default_gst_type") || "exempt"}
+          disabled={!canManage}
           onChange={(v) => {
             if (v) updateStr("default_gst_type", v);
           }}
@@ -116,7 +141,7 @@ export function BillingSettingsTab() {
         description="Automatically apply available patient advance deposits when recording payments"
         checked={isEnabled("auto_adjust_advance")}
         onChange={() => toggle("auto_adjust_advance")}
-        disabled={updateMutation.isPending}
+        disabled={!canManage || updateMutation.isPending}
       />
 
       <Text fw={600} mt="lg">
@@ -133,7 +158,7 @@ export function BillingSettingsTab() {
           description={description}
           checked={isEnabled(key)}
           onChange={() => toggle(key)}
-          disabled={updateMutation.isPending}
+          disabled={!canManage || updateMutation.isPending}
         />
       ))}
     </Stack>

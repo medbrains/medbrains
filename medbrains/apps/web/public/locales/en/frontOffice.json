@@ -64,6 +64,7 @@
   "tokenConsole.counterPlaceholder": "e.g. Counter 2",
   "tokenConsole.callNext": "Call next",
   "tokenConsole.empty": "No tokens in the queue",
+  "tokenConsole.boardNotPermitted": "You do not have permission to read the queue board. It is not shown, rather than shown empty.",
   "tokenBoards.wait.label": "Approximate wait now",
   "tokenBoards.wait.minutes": "About {{count}} min",
   "tokenBoards.wait.next": "You are next",

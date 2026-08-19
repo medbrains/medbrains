@@ -1,12 +1,13 @@
 import { Group, Stack } from "@mantine/core";
 import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
 import { type ModuleToken, P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, Button, Input, Select } from "@/components/ui";
+import { Alert, Badge, Button, Input, Select } from "@/components/ui";
 import { resolveTokenActions, tokenStatusLabel } from "@/config/token-workflows";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 
@@ -29,6 +30,13 @@ const STATUS_TONE: Record<string, "neutral" | "warning" | "info"> = {
 /** Staff console — call the next token and walk each one through its workflow. */
 export function TokenConsolePage() {
   useRequirePermission(P.FRONT_OFFICE.QUEUE_MANAGE);
+  // Reaching the console takes queue.manage; reading the board takes
+  // queue.list and the department filter takes its own code. Holding one
+  // without the other polled a 403 every five seconds and rendered the
+  // console's own "no tokens" empty state — a queue outage shown as a
+  // waiting room with nobody in it.
+  const canViewBoard = useHasPermission(P.FRONT_OFFICE.QUEUE_LIST);
+  const canListDepartments = useHasPermission(P.ADMIN.SETTINGS_DEPARTMENTS_LIST);
   const { t } = useTranslation("frontOffice");
   const queryClient = useQueryClient();
   const [module, setModule] = useState<string>("opd");
@@ -39,6 +47,7 @@ export function TokenConsolePage() {
     queryKey: ["setup-departments"],
     queryFn: () => api.listDepartments(),
     staleTime: 600_000,
+    enabled: canListDepartments,
   });
 
   const scope = departmentId ? "department" : undefined;
@@ -48,6 +57,7 @@ export function TokenConsolePage() {
     queryKey,
     queryFn: () => api.listTokenBoard({ module, scope, scope_id: scopeId }),
     refetchInterval: 5000,
+    enabled: canViewBoard,
   });
   const invalidate = () => void queryClient.invalidateQueries({ queryKey });
 
@@ -117,6 +127,7 @@ export function TokenConsolePage() {
           data={(departments ?? []).map((dept) => ({ value: dept.id, label: dept.name }))}
           value={departmentId}
           onChange={setDepartmentId}
+          disabled={!canListDepartments}
           searchable
           clearable
           style={{ width: 220 }}
@@ -132,6 +143,7 @@ export function TokenConsolePage() {
           {t("tokenConsole.callNext")}
         </Button>
       </Group>
+      {!canViewBoard && <Alert tone="warning">{t("tokenConsole.boardNotPermitted")}</Alert>}
       <DataTable<ModuleToken>
         columns={columns}
         data={tokens ?? []}
