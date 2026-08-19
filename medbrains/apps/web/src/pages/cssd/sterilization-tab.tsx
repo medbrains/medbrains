@@ -69,6 +69,12 @@ function statusBadgeTone(s: string): BadgeTone {
 
 export function SterilizationTab() {
   const canCreate = useHasPermission(P.CSSD.STERILIZATION_CREATE);
+  // Reading the loads and the indicator results is `cssd.sterilization.list`;
+  // the sterilizer register is `cssd.equipment.list`. Neither is the create code
+  // this tab already held, and an empty sterilization log reads as "nothing was
+  // sterilised" — which on a CSSD board is a claim about the day's instruments.
+  const canListSterilization = useHasPermission(P.CSSD.STERILIZATION_LIST);
+  const canListEquipment = useHasPermission(P.CSSD.EQUIPMENT_LIST);
   const qc = useQueryClient();
   const [loadOpened, { open: openLoad, close: closeLoad }] = useDisclosure(false);
   const [selectedLoad, setSelectedLoad] = useState<CssdSterilizationLoad | null>(null);
@@ -77,11 +83,13 @@ export function SterilizationTab() {
   const { data: loads = [], isLoading } = useQuery({
     queryKey: ["cssd-loads"],
     queryFn: () => cssdService.listCssdLoads(),
+    enabled: canListSterilization,
   });
 
   const { data: sterilizers = [] } = useQuery({
     queryKey: ["cssd-sterilizers"],
     queryFn: () => cssdService.listCssdSterilizers(),
+    enabled: canListEquipment,
   });
 
   const loadForm = useForm<CssdLoadFormInput>({
@@ -124,7 +132,7 @@ export function SterilizationTab() {
   const { data: indicators = [] } = useQuery({
     queryKey: ["cssd-indicators", selectedLoad?.id],
     queryFn: () => cssdService.listCssdIndicators(selectedLoad?.id ?? ""),
-    enabled: !!selectedLoad,
+    enabled: !!selectedLoad && canListSterilization,
   });
 
   const indicatorForm = useForm<CssdIndicatorFormInput>({

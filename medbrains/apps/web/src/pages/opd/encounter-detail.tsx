@@ -637,7 +637,7 @@ export function EncounterDetail({
           </Tabs.Panel>
           <Tabs.Panel value="diagnoses">
             <PermissionGate codes={TAB_PERMISSIONS.diagnoses} label="diagnoses">
-              <DiagnosesTab encounterId={encounterId} patientId={patientId} canUpdate={canUpdate} />
+              <DiagnosesTab encounterId={encounterId} patientId={patientId} />
             </PermissionGate>
           </Tabs.Panel>
           <Tabs.Panel value="investigations">
