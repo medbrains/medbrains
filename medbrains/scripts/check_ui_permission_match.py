@@ -119,6 +119,24 @@ RE_CALL = re.compile(r"\b(?:\w+Service|apiClient|api)\.(\w+)\s*\(")
 ENUMERATORS = ("medbrains-loadtest/src/generated.rs", "medbrains-seed/src")
 
 
+PERMISSION_SETS_TS = os.path.join(WEB_SRC, "lib", "api-permission-sets.ts")
+
+
+def shared_sets(by_code: dict[str, str]) -> dict[str, set[str]]:
+    """Named permission sets a page can gate on -> the codes they expand to."""
+    out: dict[str, set[str]] = {}
+    try:
+        text = open(PERMISSION_SETS_TS, encoding="utf-8").read()
+    except OSError:
+        return out
+    for m in re.finditer(r"export const ([A-Z_0-9]+)[^=]*=\s*\[(.*?)\];", text, re.S):
+        codes = {by_code[a] for a in RE_P_ACCESSOR.findall(m.group(2)) if a in by_code}
+        codes |= set(re.findall(r'"([a-z0-9_.]+)"', m.group(2)))
+        if codes:
+            out[m.group(1)] = codes
+    return out
+
+
 def catalogue() -> dict[str, str]:
     """`a::b::CONST` -> `a.b.const`, by walking permissions.rs as a module tree."""
     path = os.path.join(CRATES, "medbrains-core", "src", "permissions.rs")
@@ -324,6 +342,8 @@ def page_facts(known_codes: set[str]) -> dict[str, tuple[set[str], set[str]]]:
         if len(seg) >= 4:
             by_code[f"{seg[0]}.{seg[1]}." + "_".join(seg[2:])] = code
 
+    SHARED_SETS = shared_sets(by_code)
+
     calls_by_file: dict[str, set[str]] = {}
     own_gates: dict[str, set[str]] = {}
     imports: dict[str, set[str]] = {}
@@ -348,6 +368,13 @@ def page_facts(known_codes: set[str]) -> dict[str, tuple[set[str], set[str]]]:
                 for lit in re.findall(r'"([a-z0-9_.]+)"', gm.group(1)):
                     if lit in known_codes:
                         gates.add(lit)
+                # A gate may name a shared set instead of listing codes —
+                # `useHasAnyPermission(DEPARTMENT_LIST_CODES)`. The endpoints
+                # that take a long `require_any_permission` list are exactly
+                # the ones a page should not re-type, so reading only the
+                # inline codes marked the correct fix as still ungated.
+                for name in re.findall(r"\b([A-Z][A-Z_0-9]{3,})\b", gm.group(1)):
+                    gates |= SHARED_SETS.get(name, set())
             tables = {m.group(1): m.group(2) for m in RE_TABLE.finditer(text)}
             for expr in RE_PERMISSION_GATE.findall(text):
                 source = expr

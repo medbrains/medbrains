@@ -1,11 +1,13 @@
 // INDENT CreateIndentPanel — split from indent.tsx (pure move).
 
 import { Group, NumberInput, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { useHasAnyPermission } from "@medbrains/stores";
 import type { CreateIndentItemInput, IndentPriority, IndentType } from "@medbrains/types";
 import { IconPlus, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Button, IconButton, Table, toast } from "@/components/ui";
+import { DEPARTMENT_LIST_CODES } from "@/lib/api-permission-sets";
 import { indentService } from "@/services/indent.service";
 import { indentTypeLabels } from "./shared";
 
@@ -48,9 +50,14 @@ export function CreateIndentPanel({ onDone }: { onDone: () => void }) {
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<CreateIndentFormItem[]>([createIndentFormItem()]);
 
+  // The department filter is served by the shared setup endpoint, which the
+  // indent codes are not on. Refused, the picker renders empty and reads as a
+  // hospital with no departments to requisition for.
+  const canListDepartments = useHasAnyPermission(DEPARTMENT_LIST_CODES);
   const { data: departments } = useQuery({
     queryKey: ["departments"],
     queryFn: () => indentService.listDepartments(),
+    enabled: canListDepartments,
   });
 
   const { data: catalog } = useQuery({

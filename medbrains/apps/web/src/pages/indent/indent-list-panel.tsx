@@ -48,10 +48,13 @@ function IndentDetailView({ id, onClose }: { id: string; onClose: () => void }) 
   const canApprove = useHasPermission(P.INDENT.APPROVE);
   const canStock = useHasPermission(P.INDENT.STOCK_MANAGE);
   const canCreate = useHasPermission(P.INDENT.CREATE);
+  // The page opens on indent.list; the detail fetch needs indent.view.
+  const canViewIndent = useHasPermission(P.INDENT.VIEW);
 
   const { data, isLoading } = useQuery({
     queryKey: ["indent-requisition", id],
     queryFn: () => indentService.getIndentRequisition(id),
+    enabled: canViewIndent,
   });
 
   const emit = useClinicalEmit();

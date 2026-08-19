@@ -1,5 +1,5 @@
 import { Group, Image, SimpleGrid, Stack, Text, TextInput } from "@mantine/core";
-import { useHasPermission } from "@medbrains/stores";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type { CaseSheetScan } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconFileText } from "@tabler/icons-react";
@@ -9,6 +9,7 @@ import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { Badge, type BadgeTone, Button, Card, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { DOCUMENT_PRESIGN_CODES } from "@/lib/api-permission-sets";
 import { caseSheetService } from "@/services/caseSheet.service";
 
 type ExtractedField = { field: string; value: string; confidence?: number };
@@ -35,10 +36,17 @@ function ReviewPanel({ scan, canFile }: { scan: CaseSheetScan; canFile: boolean 
   );
   const [fields, setFields] = useState<ExtractedField[]>(initial);
 
+  // mrd.case_sheets.view opens this screen; fetching the scan itself goes
+  // through the shared document presign, which accepts none of the MRD
+  // case-sheet codes. Refused, `image` stays undefined and the pane below
+  // shows "Loading scan…" forever — not an error, a lie about progress, next
+  // to a form of OCR-extracted clinical values the reviewer is being asked to
+  // verify and commit against an image they will never see.
+  const canSeeScan = useHasAnyPermission(DOCUMENT_PRESIGN_CODES);
   const { data: image } = useQuery({
     queryKey: ["case-sheet-image", scan.id],
     queryFn: () => caseSheetService.presignDownload(scan.scan_image_url),
-    enabled: !!scan.scan_image_url,
+    enabled: !!scan.scan_image_url && canSeeScan,
   });
 
   const invalidate = () => {
@@ -65,16 +73,24 @@ function ReviewPanel({ scan, canFile }: { scan: CaseSheetScan; canFile: boolean 
   });
 
   const editable = canFile && scan.status !== "committed";
-  const committable = canFile && (scan.status === "parsed" || scan.status === "reviewing");
+  // Committing writes the extracted values into the record as fact. Without
+  // sight of the original there is nothing to check them against.
+  const committable =
+    canFile && canSeeScan && (scan.status === "parsed" || scan.status === "reviewing");
 
   return (
     <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
       <Card withBorder padding="sm">
         {image?.download_url ? (
           <Image src={image.download_url} alt="Scanned case sheet" fit="contain" mah={520} />
-        ) : (
+        ) : canSeeScan ? (
           <Text c="dimmed" size="sm">
             Loading scan…
+          </Text>
+        ) : (
+          <Text c="dimmed" size="sm">
+            You do not have permission to view the scanned image. Do not commit an extraction you
+            cannot check against the original.
           </Text>
         )}
       </Card>
