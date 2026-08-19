@@ -235,6 +235,10 @@ pub async fn start_break_glass(
     Json(body): Json<CreateBreakGlassRequest>,
 ) -> Result<Json<BreakGlassEvent>, AppError> {
     require_permission(&claims, permissions::audit::START)?;
+    // No record check, and that is the whole point of break-glass: it exists to
+    // reach a record the caller CANNOT otherwise reach. The controls are a
+    // permission, fresh step-up re-authentication, a mandatory justification,
+    // an expiry, and a reviewable audit event — not a prior relationship.
     // Emergency override (out-of-scope access) — require fresh re-auth.
     medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
 
@@ -306,6 +310,11 @@ pub async fn end_break_glass(
     Path(id): Path<Uuid>,
     Json(body): Json<EndBreakGlassRequest>,
 ) -> Result<Json<BreakGlassEvent>, AppError> {
+    // Deliberately unpermissioned, and safe by construction: the UPDATE below is
+    // scoped `AND user_id = claims.sub`, so a caller can only close their OWN
+    // emergency session. Requiring a permission to END one would be the wrong
+    // way round — the risk is a session left open, not one closed early. A
+    // caller who never opened one gets RowNotFound.
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -368,6 +377,9 @@ pub async fn list_break_glass(
     Query(params): Query<BreakGlassQuery>,
 ) -> Result<Json<Vec<BreakGlassEventSummary>>, AppError> {
     require_permission(&claims, permissions::audit::REVIEW)?;
+    // Oversight: the break-glass register is the record of who declared an
+    // emergency and reached what. Narrowing it to the reviewer's own care team
+    // would hide exactly the accesses an audit exists to examine.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -523,6 +535,10 @@ pub async fn list_sensitive_patients(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<SensitivePatientSummary>>, AppError> {
     require_permission(&claims, permissions::audit::ACCESS_VIEW)?;
+    // Oversight, and narrowly held: `audit.access_view` belongs to one role,
+    // Audit Officer. The list names patients flagged for extra protection, so
+    // filtering it by care team would mean only a patient's own clinicians
+    // could see that they are protected — which defeats the flag.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -548,6 +564,9 @@ pub async fn create_sensitive_patient(
     Json(body): Json<CreateSensitivePatientRequest>,
 ) -> Result<Json<SensitivePatient>, AppError> {
     require_permission(&claims, permissions::admin::SECURITY)?;
+    // Flagging a patient as sensitive PROTECTS them. Requiring clinical access
+    // to do it would mean only the care team could raise the flag, which is the
+    // opposite of what it is for.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -982,6 +1001,9 @@ pub async fn start_tat_record(
     Json(body): Json<CreateTatRecordRequest>,
 ) -> Result<Json<TatRecord>, AppError> {
     require_permission(&claims, permissions::admin::SYSTEM)?;
+    // A turnaround-time row records how long something took for a patient. It
+    // writes timing, reads no clinical content, and is raised by operations
+    // rather than by the care team — a care-team check would break the metric.
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
