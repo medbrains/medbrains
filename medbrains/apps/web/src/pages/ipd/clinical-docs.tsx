@@ -43,10 +43,17 @@ const RESTRAINT_STATUS_OPTIONS: { value: RestraintCheckStatus; label: string }[]
 ];
 
 function RestraintChecksSummary({ admissionId, docId }: { admissionId: string; docId: string }) {
+  // Without ipd.clinical_docs.list this fetch is refused, `checks` is empty
+  // and the badges below read "0 checks" and a red "No checks" — asserting
+  // that nobody has looked in on a patient in physical restraint. A false red
+  // alarm is not a safe failure here; it is indistinguishable from a real one
+  // and it trains people to ignore the badge.
+  const canList = useHasPermission(P.IPD.CLINICAL_DOCS_LIST);
   const { data } = useQuery({
     queryKey: ["restraint-checks", admissionId, docId],
     queryFn: () => ipdService.listRestraintChecks(admissionId, docId),
     refetchInterval: 60_000,
+    enabled: canList,
   });
 
   const checks = (data ?? []) as RestraintMonitoringLog[];
@@ -54,6 +61,14 @@ function RestraintChecksSummary({ admissionId, docId }: { admissionId: string; d
   const isOverdue = lastCheck
     ? Date.now() - new Date(lastCheck.check_time).getTime() > 30 * 60 * 1000
     : true;
+
+  if (!canList) {
+    return (
+      <Badge size="xs" tone="neutral">
+        Checks not visible to you
+      </Badge>
+    );
+  }
 
   return (
     <Group gap={4}>

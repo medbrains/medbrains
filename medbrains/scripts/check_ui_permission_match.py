@@ -473,7 +473,15 @@ def main() -> int:
             # A page satisfies a call if it gates on ANY code that call accepts —
             # handlers commonly take `require_any_permission`, so demanding all of
             # them would report a page that is correctly gated.
-            if not (required & (gates | per_call.get(call, set()))):
+            # Per-call gates (`permission:` beside `run:`) are keyed by the
+            # bare method name — the regex that finds them never sees the
+            # receiver. Calls are qualified now, so look both up: making calls
+            # carry their receiver broke this and reported two CSV imports in
+            # MasterDataStatusSettings that had carried a `permission:` line
+            # all along.
+            bare = call.split(".", 1)[1] if "." in call else call
+            allowed = gates | per_call.get(call, set()) | per_call.get(bare, set())
+            if not (required & allowed):
                 ungated.append((page, call, ", ".join(sorted(required))))
 
     print(f"pages with API calls : {len(pages)}")

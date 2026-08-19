@@ -57,9 +57,14 @@ export function AssessmentsTab({ admissionId }: { admissionId: string }) {
   const assessmentType = assessmentValues.assessment_type;
   const injuryPresent = assessmentValues.injury_present;
 
+  // Reading the assessments carries its own code; the tab only held the
+  // create one, so a refusal rendered an empty list — no Braden score, no
+  // falls risk, on a patient who has both on file.
+  const canList = useHasPermission(P.IPD.ASSESSMENTS_LIST);
   const { data: assessments = [] } = useQuery<IpdClinicalAssessment[]>({
     queryKey: ["ipd-assessments", admissionId],
     queryFn: () => ipdService.listAssessments(admissionId),
+    enabled: canList,
   });
 
   const bradenTotal = calculateBradenTotal(assessmentValues);
