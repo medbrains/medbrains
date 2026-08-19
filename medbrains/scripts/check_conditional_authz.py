@@ -108,6 +108,9 @@ ACCEPTED: dict[str, str] = {
         "patient_id is optional; a template may render nothing "
         "patient-specific, and the guarded branch covers the case where one "
         "is named",
+    "crates/medbrains-pharmacy-finance/src/lib.rs::create_credit_note":
+        "patient_id is optional; a credit note may be raised against stock "
+        "returned by a ward rather than by a person",
     "crates/medbrains-blood-bank/src/lib.rs::create_billing":
         "patient_id is optional; a blood-bank billing line may be raised "
         "against stock rather than against a person",

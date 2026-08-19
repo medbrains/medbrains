@@ -692,6 +692,13 @@ pub async fn create_invoice(
     Json(body): Json<CreateInvoiceRequest>,
 ) -> Result<Json<Invoice>, AppError> {
     require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    // Twelve handlers in this file already check before touching an
+    // invoice; creating one against an arbitrary patient did not. The
+    // billing helper rather than the clinical one, for the reason
+    // er_fast_invoice gives: treating somebody does not entitle you to
+    // their bill, and billing them is not a treatment relationship either.
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
+        .await?;
     // No record check on body.patient_id, deliberately. Raising a bill is a
     // front-desk act against whoever presents, and the only relation written
     // below is Viewer on the invoice this call just created — scoped to the

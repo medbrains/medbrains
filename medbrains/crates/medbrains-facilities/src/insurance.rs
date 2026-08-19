@@ -238,6 +238,9 @@ pub async fn run_verification(
     Json(body): Json<RunVerificationRequest>,
 ) -> Result<Json<InsuranceVerification>, AppError> {
     require_permission(&claims, permissions::insurance::verification::CREATE)?;
+    // Verifying a policy discloses whether this named person holds one.
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -477,6 +480,10 @@ pub async fn create_prior_auth(
     Json(body): Json<CreatePriorAuthRequest>,
 ) -> Result<Json<PriorAuthRequest>, AppError> {
     require_permission(&claims, permissions::insurance::prior_auth::CREATE)?;
+    // A prior-authorisation request names the patient and the procedure
+    // sought for them.
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

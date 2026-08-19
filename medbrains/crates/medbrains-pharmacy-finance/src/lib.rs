@@ -459,6 +459,11 @@ pub async fn create_credit_note(
     Json(body): Json<CreateCreditNoteRequest>,
 ) -> Result<Json<PharmacyCreditNote>, AppError> {
     require_permission(&claims, permissions::pharmacy::returns::REQUEST)?;
+    // patient_id is optional — a credit note may be raised against stock
+    // returned by a ward rather than by a person.
+    if let Some(pid) = body.patient_id {
+        medbrains_authz_gate::require_patient_billing_access(&state, &claims, pid).await?;
+    }
     let restricted_fields = resolve_pharmacy_finance_restricted_fields(&state, &claims).await?;
     validate_pharmacy_credit_amount_write_access(&restricted_fields)?;
     validate_credit_note_request(&body)?;
