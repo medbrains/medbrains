@@ -79,6 +79,9 @@ const toPoItemInput = (
 });
 
 function PoDetailView({ id }: { id: string }) {
+  // Reading the linked indent requisition carries indent.view; the
+  // procurement codes do not include it.
+  const canViewIndent = useHasPermission(P.INDENT.VIEW);
   const { data, isLoading } = useQuery({
     queryKey: ["purchase-order", id],
     queryFn: () => procurementService.getPurchaseOrder(id),
@@ -93,7 +96,7 @@ function PoDetailView({ id }: { id: string }) {
       }
       return procurementService.getIndentRequisition(linkedIndentId);
     },
-    enabled: Boolean(linkedIndentId),
+    enabled: Boolean(linkedIndentId) && canViewIndent,
   });
 
   if (isLoading || !data) return <Text>Loading...</Text>;
@@ -162,6 +165,7 @@ function PoDetailView({ id }: { id: string }) {
 }
 
 function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
+  const canViewIndentForSync = useHasPermission(P.INDENT.VIEW);
   const [isSyncingIndent, setIsSyncingIndent] = useState(false);
   const {
     control,
@@ -251,7 +255,11 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
   const syncLinkedIndent = async (value: string | null) => {
     setValue("indent_requisition_id", value, { shouldDirty: true, shouldValidate: true });
 
-    if (!value) {
+    // Pulling the indent's lines into the order reads the requisition under
+    // indent.view. Without it the link is still recorded, the lines are just
+    // not copied — a click-driven fetch, so an early return rather than an
+    // `enabled:`.
+    if (!value || !canViewIndentForSync) {
       return;
     }
 

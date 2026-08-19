@@ -21,6 +21,8 @@ import { ipdService } from "@/services/ipd.service";
 
 export function ProgressNotesTab({ admissionId }: { admissionId: string }) {
   const canCreate = useHasPermission(P.IPD.PROGRESS_NOTES_CREATE);
+  // Reading the notes carries its own code; the tab held only create.
+  const canList = useHasPermission(P.IPD.PROGRESS_NOTES_LIST);
   const queryClient = useQueryClient();
   const [formOpened, formHandlers] = useDisclosure(false);
   const {
@@ -37,6 +39,7 @@ export function ProgressNotesTab({ admissionId }: { admissionId: string }) {
   const { data: notes = [] } = useQuery<IpdProgressNote[]>({
     queryKey: ["ipd-progress-notes", admissionId],
     queryFn: () => ipdService.listProgressNotes(admissionId),
+    enabled: canList,
   });
 
   const mutation = useMutation({
@@ -192,7 +195,12 @@ export function ProgressNotesTab({ admissionId }: { admissionId: string }) {
           );
         });
       })()}
-      {notes.length === 0 && (
+      {notes.length === 0 && !canList && (
+        <Text c="dimmed" size="sm">
+          You do not have permission to read this admission's progress notes.
+        </Text>
+      )}
+      {notes.length === 0 && canList && (
         <Text c="dimmed" size="sm">
           No progress notes yet.
         </Text>

@@ -222,6 +222,9 @@ function DashboardOverview({
 function SelfAssessmentView() {
   const qc = useQueryClient();
   const canManage = useHasPermission(P.REGULATORY.CHECKLISTS_CREATE);
+  // Recording an accreditation assessment is served under
+  // quality.accreditation.manage, not the regulatory checklist code.
+  const canManageAccreditation = useHasPermission(P.QUALITY.ACCREDITATION_MANAGE);
 
   const { data: standards = [], isLoading: standardsLoading } = useQuery({
     queryKey: ["accreditation-standards"],
@@ -368,7 +371,7 @@ function SelfAssessmentView() {
                           },
                         })
                       }
-                      disabled={!canManage}
+                      disabled={!canManage || !canManageAccreditation}
                     />
                   </Grid.Col>
                   <Grid.Col span={{ base: 12, md: 7 }}>
@@ -385,7 +388,7 @@ function SelfAssessmentView() {
                           },
                         })
                       }
-                      disabled={!canManage}
+                      disabled={!canManage || !canManageAccreditation}
                       minRows={2}
                     />
                   </Grid.Col>
@@ -396,7 +399,7 @@ function SelfAssessmentView() {
                         fullWidth
                         onClick={() => handleSave(std.id)}
                         loading={updateMut.isPending}
-                        disabled={!canManage || !scores[std.id]}
+                        disabled={!canManage || !canManageAccreditation || !scores[std.id]}
                       >
                         Save
                       </Button>
