@@ -10,7 +10,7 @@ import {
   TextInput,
   ThemeIcon,
 } from "@mantine/core";
-import { useHasPermission } from "@medbrains/stores";
+import { useHasPermission, usePermissionStore } from "@medbrains/stores";
 import type { CsvImportRequest, CsvImportResult } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
@@ -101,6 +101,10 @@ interface MasterDataCsvImport {
   optionalColumns?: string[];
   invalidateKey: QueryKey;
   run: (data: CsvImportRequest) => Promise<CsvImportResult>;
+  /** The permission the import endpoint requires — NOT the one that lists the
+   * master. Both buttons sat behind the read code, so anyone who could see a
+   * charge master was offered "Import CSV" for it. */
+  permission: string;
 }
 
 interface MasterDataGapItem {
@@ -747,10 +751,13 @@ export function MasterDataStatusSettings() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<MasterDataFilter>("missing");
   const [importItem, setImportItem] = useState<MasterDataItem | null>(null);
+  // A selector, not the hook: the import permission is read per row inside a map.
+  const hasAnyPermission = usePermissionStore((state) => state.hasAnyPermission);
   const canManageGeneralSettings = useHasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
   const canViewFacilities = useHasPermission(P.ADMIN.SETTINGS.FACILITIES.LIST);
   const canViewPharmacyCatalog = useHasPermission(P.PHARMACY.PRESCRIPTIONS_LIST);
   const canViewLabCatalog = useHasPermission(P.LAB.ORDERS_LIST);
+  const canListLabDispatch = useHasPermission(P.LAB.DISPATCH_LIST);
   const canViewProcedureCatalog = useHasPermission(P.OPD.PROCEDURES.LIST);
   const canViewOpdQueue = useHasPermission(P.OPD.QUEUE_VIEW);
   const canCreateOpdVisit = useHasPermission(P.OPD.VISIT_CREATE);
@@ -812,7 +819,11 @@ export function MasterDataStatusSettings() {
   const canViewClinicalRules = canManageGeneralSettings || canViewOpdQueue;
   const canViewConsultationTemplates = canViewOpdQueue || canCreateOpdVisit || canUpdateOpdVisit;
   const canViewPrescriptionTemplates = canViewConsultationTemplates;
-  const canViewLabReportTemplates = canViewLabCatalog || canViewLabReports;
+  // The endpoint asks for `lab.dispatch.list` — a report template is the layout a
+  // dispatched report is printed in, so that is the right owner. The flag listed
+  // neither, and a lab manager holding exactly that code saw an empty panel.
+  const canViewLabReportTemplates =
+    canViewLabCatalog || canViewLabReports || canListLabDispatch;
   const canViewDischargeTemplates =
     canViewIpdAdmissions || canCreateDischargeSummary || canFinalizeDischargeSummary;
   const canViewStoreLocations =
@@ -1390,6 +1401,7 @@ export function MasterDataStatusSettings() {
           requiredColumns: ["code", "name", "category"],
           optionalColumns: ["base_price", "tax_percent", "hsn_sac_code", "gst_category"],
           invalidateKey: ["billing-charge-master"],
+          permission: "billing.catalog.manage",
           run: (data) => billingService.importChargeMaster(data),
         },
       }),
@@ -1529,6 +1541,7 @@ export function MasterDataStatusSettings() {
             "requires_anaesthesia",
           ],
           invalidateKey: ["procedure-catalog"],
+          permission: "opd.procedures.create",
           run: (data) => settingsSetupService.importProcedureCatalog(data),
         },
       }),
@@ -1914,6 +1927,7 @@ export function MasterDataStatusSettings() {
           requiredColumns: ["code", "name", "provider_type"],
           optionalColumns: ["contact_phone", "contact_email", "website"],
           invalidateKey: ["admin-insurance-providers"],
+          permission: "admin.settings.clinical_masters.create",
           run: (data) => clinicalMastersService.importInsuranceProviders(data),
         },
       }),
@@ -2561,16 +2575,18 @@ export function MasterDataStatusSettings() {
                       >
                         {item.actionLabel}
                       </Button>
-                      {item.csvImport && item.status !== "restricted" && (
-                        <Button
-                          tone="ghost"
-                          size="xs"
-                          leftSection={<IconUpload size={14} />}
-                          onClick={() => setImportItem(item)}
-                        >
-                          Import CSV
-                        </Button>
-                      )}
+                      {item.csvImport &&
+                        item.status !== "restricted" &&
+                        hasAnyPermission([item.csvImport.permission]) && (
+                          <Button
+                            tone="ghost"
+                            size="xs"
+                            leftSection={<IconUpload size={14} />}
+                            onClick={() => setImportItem(item)}
+                          >
+                            Import CSV
+                          </Button>
+                        )}
                     </Group>
                     {item.needsSetup && (
                       <Group gap={4}>

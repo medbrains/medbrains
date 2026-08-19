@@ -80,6 +80,21 @@ RE_P_ACCESSOR = re.compile(r"P\.([A-Z_0-9.]+)")
 # that gates on nothing, which is the failure that actually ships.
 RE_PERMISSION_GATE = re.compile(r"<PermissionGate\b[^>]*?codes=\{([^}]*)\}")
 RE_TABLE = re.compile(r"const (\w+)\s*=\s*\{(.*?)\n\}", re.S)
+
+# A permission declared beside the call it guards, inside a descriptor object:
+#
+#     csvImport: {
+#       permission: "billing.catalog.manage",
+#       run: (data) => billingService.importChargeMaster(data),
+#     }
+#
+# This is a gate on ONE method rather than on the file, which is stricter than
+# anything else here understands — and it was being reported as ungated, which
+# would have talked someone out of the better pattern.
+RE_CALL_GATE = re.compile(
+    r'permission:\s*"([a-z0-9_.]+)"[^}]{0,400}?'
+    r"(?:run|queryFn|mutationFn):[^\n]*?\.(\w+)\("
+)
 RE_CALL = re.compile(r"\b(?:\w+Service|apiClient|api)\.(\w+)\s*\(")
 
 # Files that enumerate codes rather than enforce them.
@@ -227,7 +242,7 @@ def effective_gates(
 
 
 def page_facts(known_codes: set[str]) -> dict[str, tuple[set[str], set[str]]]:
-    """Page -> (API methods it calls, permission codes it gates on, own or inherited)."""
+    """Page -> (methods it calls, codes it gates on, codes gated per-method)."""
     by_code = {}
     for code in known_codes:
         seg = [s.upper() for s in code.split(".")]
@@ -240,6 +255,7 @@ def page_facts(known_codes: set[str]) -> dict[str, tuple[set[str], set[str]]]:
     own_gates: dict[str, set[str]] = {}
     imports: dict[str, set[str]] = {}
     registry_gates: dict[str, set[str]] = {}
+    call_gates: dict[str, dict[str, set[str]]] = {}
 
     for dirpath, dirs, files in os.walk(WEB_SRC):
         dirs[:] = [d for d in dirs if d not in ("node_modules", "dist")]
@@ -268,6 +284,10 @@ def page_facts(known_codes: set[str]) -> dict[str, tuple[set[str], set[str]]]:
                 for lit in re.findall(r'"([a-z0-9_.]+)"', source):
                     if lit in known_codes:
                         gates.add(lit)
+
+            for code, method in RE_CALL_GATE.findall(text):
+                if code in known_codes:
+                    call_gates.setdefault(rel, {}).setdefault(method, set()).add(code)
 
             own_gates[rel] = gates
 
@@ -306,7 +326,7 @@ def page_facts(known_codes: set[str]) -> dict[str, tuple[set[str], set[str]]]:
 
     gates = effective_gates(own_gates, imports)
     return {
-        f: (c, gates.get(f, set()))
+        f: (c, gates.get(f, set()), call_gates.get(f, {}))
         for f, c in calls_by_file.items()
         if c and f.startswith(os.path.join("apps", "web", "src", "pages"))
     }
@@ -326,7 +346,7 @@ def main() -> int:
 
     ungated: list[tuple[str, str, str]] = []
     resolved = 0
-    for page, (calls, gates) in sorted(pages.items()):
+    for page, (calls, gates, per_call) in sorted(pages.items()):
         for call in sorted(calls):
             path = methods.get(call)
             if path is None:
@@ -338,7 +358,7 @@ def main() -> int:
             # A page satisfies a call if it gates on ANY code that call accepts —
             # handlers commonly take `require_any_permission`, so demanding all of
             # them would report a page that is correctly gated.
-            if not (required & gates):
+            if not (required & (gates | per_call.get(call, set()))):
                 ungated.append((page, call, ", ".join(sorted(required))))
 
     print(f"pages with API calls : {len(pages)}")

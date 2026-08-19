@@ -29,7 +29,7 @@ use uuid::Uuid;
 use axum::routing::{get,post,put,delete,patch};
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::middleware::authorization::{require_any_permission, require_permission};
 use medbrains_server_core::middleware::field_access;
 use medbrains_server_core::state::AppState;
 use medbrains_server_core::validation::{self, ValidationErrors};
@@ -3287,7 +3287,18 @@ pub async fn list_religions(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<MasterReligion>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
+    // A reference list, not a record: religions, occupations and relations are
+    // master data the registration form offers and the master-data settings page
+    // maintains. Requiring `patients.view` meant a settings administrator could
+    // not read it without also being able to open charts — the wrong trade in the
+    // wrong direction, so the settings permission reaches the read instead.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::patients::VIEW,
+            permissions::admin::settings::clinical_masters::LIST,
+        ],
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -3310,7 +3321,18 @@ pub async fn list_occupations(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<MasterOccupation>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
+    // A reference list, not a record: religions, occupations and relations are
+    // master data the registration form offers and the master-data settings page
+    // maintains. Requiring `patients.view` meant a settings administrator could
+    // not read it without also being able to open charts — the wrong trade in the
+    // wrong direction, so the settings permission reaches the read instead.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::patients::VIEW,
+            permissions::admin::settings::clinical_masters::LIST,
+        ],
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -3333,7 +3355,18 @@ pub async fn list_relations(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<MasterRelation>>, AppError> {
-    require_permission(&claims, permissions::patients::VIEW)?;
+    // A reference list, not a record: religions, occupations and relations are
+    // master data the registration form offers and the master-data settings page
+    // maintains. Requiring `patients.view` meant a settings administrator could
+    // not read it without also being able to open charts — the wrong trade in the
+    // wrong direction, so the settings permission reaches the read instead.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::patients::VIEW,
+            permissions::admin::settings::clinical_masters::LIST,
+        ],
+    )?;
     // `master_relations` is a lookup of relationship types — spouse, son, guardian.
     // No patient data.
     let mut tx = state.db.begin().await?;
