@@ -56,6 +56,13 @@ export function CathLabPage() {
   useRequirePermission(P.SPECIALTY.CATH_LAB.PROCEDURES_LIST);
   const qc = useQueryClient();
   const canCreate = useHasPermission(P.SPECIALTY.CATH_LAB.PROCEDURES_CREATE);
+  // Each sub-list has its own code. The page opened on `procedures.list`, so a
+  // cath-lab user without them saw three empty panels on an open procedure —
+  // no devices implanted, no STEMI timeline, no post-procedure monitoring —
+  // which on this screen reads as facts about the case.
+  const canListDevices = useHasPermission(P.SPECIALTY.CATH_LAB.DEVICES_LIST);
+  const canListStemi = useHasPermission(P.SPECIALTY.CATH_LAB.STEMI_LIST);
+  const canListMonitoring = useHasPermission(P.SPECIALTY.CATH_LAB.MONITORING_LIST);
 
   const [tab, setTab] = useState<string | null>("procedures");
   const [procOpen, procHandlers] = useDisclosure(false);
@@ -76,19 +83,19 @@ export function CathLabPage() {
   const { data: devices = [] } = useQuery({
     queryKey: ["cath-devices", detailId],
     queryFn: () => specialtyService.listCathDevices(detailId ?? ""),
-    enabled: !!detailId,
+    enabled: !!detailId && canListDevices,
   });
 
   const { data: timeline = [] } = useQuery({
     queryKey: ["stemi-timeline", detailId],
     queryFn: () => specialtyService.listStemiTimeline(detailId ?? ""),
-    enabled: !!detailId,
+    enabled: !!detailId && canListStemi,
   });
 
   const { data: monitoring = [] } = useQuery({
     queryKey: ["post-monitoring", detailId],
     queryFn: () => specialtyService.listPostMonitoring(detailId ?? ""),
-    enabled: !!detailId,
+    enabled: !!detailId && canListMonitoring,
   });
 
   // ── Create Procedure ──

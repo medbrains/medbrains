@@ -2,12 +2,14 @@
 
 import { Card, Grid, Group, SegmentedControl, Stack, Text, Tooltip } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
+import { useHasPermission } from "@medbrains/stores";
 import type {
   DepartmentScorecard,
   PatientSafetyIndicator,
   QualityCapa,
   QualityIncident,
 } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
@@ -16,6 +18,14 @@ import { qualityService } from "@/services/quality.service";
 import { capaStatusColors, incidentStatusColors } from "./shared";
 
 export function AnalyticsReviewsTab() {
+  // The tab rides on `quality.indicators.list`, which opens the quality page.
+  // Its three sub-views each want a different code, and each one returning
+  // empty is a claim: no overdue CAPAs, no sentinel events, no committee
+  // activity. On a quality dashboard those are exactly the numbers somebody
+  // reports upward.
+  const canListCapas = useHasPermission(P.QUALITY.CAPA_LIST);
+  const canListCommittees = useHasPermission(P.QUALITY.COMMITTEES_LIST);
+  const canListIncidents = useHasPermission(P.QUALITY.INCIDENTS_LIST);
   const [subView, setSubView] = useState<string>("psi");
   const [from, setFrom] = useState<string | null>(null);
   const [to, setTo] = useState<string | null>(null);
@@ -39,19 +49,19 @@ export function AnalyticsReviewsTab() {
   const { data: overdueCapas = [], isLoading: overdueLoading } = useQuery({
     queryKey: ["quality-overdue-capas"],
     queryFn: () => qualityService.listOverdueCapas(),
-    enabled: subView === "overdue-capas",
+    enabled: subView === "overdue-capas" && canListCapas,
   });
 
   const { data: committeeDash, isLoading: cdLoading } = useQuery({
     queryKey: ["quality-committee-dashboard"],
     queryFn: () => qualityService.committeeDashboard(),
-    enabled: subView === "committee-dashboard",
+    enabled: subView === "committee-dashboard" && canListCommittees,
   });
 
   const { data: sentinelEvents = [], isLoading: seLoading } = useQuery({
     queryKey: ["quality-sentinel-events"],
     queryFn: () => qualityService.listSentinelEvents(),
-    enabled: subView === "sentinel",
+    enabled: subView === "sentinel" && canListIncidents,
   });
 
   const psiColumns = [
