@@ -798,6 +798,11 @@ pub async fn create_adr_report(
     Json(body): Json<CreateAdrRequest>,
 ) -> Result<Json<AdrReport>, AppError> {
     require_permission(&claims, permissions::regulatory::adr::CREATE)?;
+    // patient_id is optional on the request; when the reporter names one,
+    // they must hold access to them.
+    if let Some(patient_id) = body.patient_id {
+        medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -856,6 +861,18 @@ pub async fn get_adr_report(
     Path(id): Path<Uuid>,
 ) -> Result<Json<AdrReport>, AppError> {
     require_permission(&claims, permissions::regulatory::adr::LIST)?;
+    // adr_reports.patient_id is NULLABLE — a reaction can be reported
+    // against a batch with nobody identified — so the optional variant:
+    // missing row is NotFound, present-with-no-patient is allowed, and a
+    // named patient is authorized. require_access_via would have read the
+    // NULL as a non-match and 404'd a real report.
+    medbrains_authz_gate::require_access_via_optional(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::ADR_REPORT,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -880,6 +897,13 @@ pub async fn update_adr_report(
     Json(body): Json<UpdateAdrRequest>,
 ) -> Result<Json<AdrReport>, AppError> {
     require_permission(&claims, permissions::regulatory::adr::UPDATE)?;
+    medbrains_authz_gate::require_access_via_optional(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::ADR_REPORT,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -927,6 +951,15 @@ pub async fn submit_adr_to_pvpi(
     Path(id): Path<Uuid>,
 ) -> Result<Json<AdrReport>, AppError> {
     require_permission(&claims, permissions::regulatory::adr::UPDATE)?;
+    // This one leaves the hospital: it files the report with the national
+    // pharmacovigilance programme.
+    medbrains_authz_gate::require_access_via_optional(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::ADR_REPORT,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -997,6 +1030,9 @@ pub async fn create_mv_report(
     Json(body): Json<CreateMvRequest>,
 ) -> Result<Json<MateriovigilanceReport>, AppError> {
     require_permission(&claims, permissions::regulatory::materiovigilance::CREATE)?;
+    if let Some(patient_id) = body.patient_id {
+        medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1047,6 +1083,13 @@ pub async fn get_mv_report(
     Path(id): Path<Uuid>,
 ) -> Result<Json<MateriovigilanceReport>, AppError> {
     require_permission(&claims, permissions::regulatory::materiovigilance::LIST)?;
+    medbrains_authz_gate::require_access_via_optional(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MATERIOVIGILANCE_REPORT,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1071,6 +1114,13 @@ pub async fn update_mv_report(
     Json(body): Json<UpdateMvRequest>,
 ) -> Result<Json<MateriovigilanceReport>, AppError> {
     require_permission(&claims, permissions::regulatory::materiovigilance::CREATE)?;
+    medbrains_authz_gate::require_access_via_optional(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MATERIOVIGILANCE_REPORT,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1112,6 +1162,14 @@ pub async fn submit_mv_to_cdsco(
     Path(id): Path<Uuid>,
 ) -> Result<Json<MateriovigilanceReport>, AppError> {
     require_permission(&claims, permissions::regulatory::materiovigilance::CREATE)?;
+    // Files the device failure with CDSCO — outside the hospital.
+    medbrains_authz_gate::require_access_via_optional(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MATERIOVIGILANCE_REPORT,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1182,6 +1240,10 @@ pub async fn create_pcpndt_form(
     Json(body): Json<CreatePcpndtRequest>,
 ) -> Result<Json<PcpndtForm>, AppError> {
     require_permission(&claims, permissions::regulatory::pcpndt::CREATE)?;
+    // The PCPNDT form names the patient outright and the register is the one
+    // the Act exists to make auditable. regulatory.pcpndt.create says the
+    // caller may file forms, not that they may file one against this woman.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

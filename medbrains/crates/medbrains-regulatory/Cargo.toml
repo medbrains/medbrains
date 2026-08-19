@@ -5,6 +5,7 @@ edition = "2024"
 rust-version = "1.85"
 
 [dependencies]
+medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-workflow = { path = "../medbrains-workflow" }
 medbrains-core = { path = "../medbrains-core" }
