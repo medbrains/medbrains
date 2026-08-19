@@ -1,19 +1,28 @@
 // IPD IoChartTab — split from ipd.tsx (pure move).
 
 import { Group, Stack, Text } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { IpdIntakeOutput } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { Badge, Table } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 
 export function IoChartTab({ admissionId }: { admissionId: string }) {
+  // The intake/output chart and its running balance are `ipd.io_chart.list`.
+  // Ungated, an empty chart reads as "nothing in, nothing out" — which on a
+  // fluid balance is a number somebody prescribes against.
+  const canListIoChart = useHasPermission(P.IPD.IO_CHART_LIST);
+
   const { data: ioData } = useQuery({
     queryKey: ["ipd-io", admissionId],
     queryFn: () => ipdService.listIntakeOutput(admissionId),
+    enabled: canListIoChart,
   });
   const { data: balance } = useQuery({
     queryKey: ["ipd-io-balance", admissionId],
     queryFn: () => ipdService.getIoBalance(admissionId),
+    enabled: canListIoChart,
   });
 
   const rows = (ioData ?? []) as IpdIntakeOutput[];

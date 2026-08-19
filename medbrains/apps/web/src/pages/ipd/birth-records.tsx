@@ -30,6 +30,8 @@ export function BirthRecordsTab({
   motherPatientId: string;
 }) {
   const canCreate = useHasPermission(P.IPD.CLINICAL_DOCS_CREATE);
+  // The birth register has its own code — `ipd.clinical_docs.create` is not it.
+  const canManageBirthRecords = useHasPermission(P.IPD.BIRTH_RECORDS_MANAGE);
   const queryClient = useQueryClient();
   const [formOpened, formHandlers] = useDisclosure(false);
   const [dob, setDob] = useState("");
@@ -49,6 +51,7 @@ export function BirthRecordsTab({
   const { data, isLoading } = useQuery({
     queryKey: ["ipd-birth-records", admissionId],
     queryFn: () => ipdService.listBirthRecords(admissionId),
+    enabled: canManageBirthRecords,
   });
 
   const createMutation = useMutation({

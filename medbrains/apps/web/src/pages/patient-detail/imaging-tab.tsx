@@ -1,7 +1,9 @@
 // PATIENT ImagingTab — split from patient-detail.tsx (pure move).
 
 import { Card, Group, Loader, Stack, Text } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { RadiologyDicomStudy } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconEye } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, Button, Table, toast } from "@/components/ui";
@@ -9,9 +11,15 @@ import { patientDetailService } from "@/services/patientDetail.service";
 
 export function ImagingTab({ patientId }: { patientId: string }) {
   const imagingQueryClient = useQueryClient();
+  // Prior DICOM studies are `radiology.orders.list`; acknowledging a critical
+  // finding is `radiology.reports.verify`. Neither was gated, and an empty
+  // study list on an imaging tab reads as "this patient has had no imaging".
+  const canListRadiologyOrders = useHasPermission(P.RADIOLOGY.ORDERS_LIST);
+  const canVerifyReports = useHasPermission(P.RADIOLOGY.REPORTS_VERIFY);
   const { data: studies = [], isLoading } = useQuery({
     queryKey: ["patient-dicom-studies", patientId],
     queryFn: () => patientDetailService.getPriorRadiologyDicomStudies(patientId),
+    enabled: canListRadiologyOrders,
   });
   const { data: reports = [] } = useQuery({
     queryKey: ["patient-radiology-reports", patientId],
@@ -59,9 +67,9 @@ export function ImagingTab({ patientId }: { patientId: string }) {
                   </Badge>
                   {report.is_critical &&
                     report.alert_id &&
-                    (report.alert_acknowledged_at ? (
-                      <Badge tone="success" size="sm">
-                        Acknowledged
+                    (report.alert_acknowledged_at || !canVerifyReports ? (
+                      <Badge tone={report.alert_acknowledged_at ? "success" : "warning"} size="sm">
+                        {report.alert_acknowledged_at ? "Acknowledged" : "Unacknowledged"}
                       </Badge>
                     ) : (
                       <Button
