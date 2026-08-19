@@ -582,6 +582,9 @@ pub async fn revoke_consent(
     Json(body): Json<RevokeConsentRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::consent::REVOKE)?;
+    // Revoking somebody's consent is an act on that person's record, and
+    // consent.revoke alone said nothing about which person.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

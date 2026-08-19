@@ -626,6 +626,10 @@ pub async fn create_crossmatch_request(
     Json(body): Json<CreateCrossmatchRequest>,
 ) -> Result<Json<CrossmatchRequest>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::CREATE)?;
+    // The body names the patient whose blood is to be matched. Ordering a
+    // crossmatch against a stranger both writes their record and reveals
+    // their blood group back in the response.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -710,6 +714,9 @@ pub async fn create_transfusion(
     Json(body): Json<CreateTransfusionRequest>,
 ) -> Result<Json<TransfusionRecord>, AppError> {
     require_permission(&claims, permissions::blood_bank::transfusion::CREATE)?;
+    // Recording a transfusion against a patient who is not yours is a
+    // clinical record written on a stranger.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1831,6 +1838,12 @@ pub async fn create_billing(
     Json(body): Json<CreateBillingRequest>,
 ) -> Result<Json<BbBillingItem>, AppError> {
     require_permission(&claims, permissions::blood_bank::inventory::MANAGE)?;
+    // patient_id is optional here — a billing line may be raised against
+    // stock rather than a person. When it does name one, the charge lands on
+    // that patient's account.
+    if let Some(pid) = body.patient_id {
+        medbrains_authz_gate::require_patient_access(&state, &claims, pid).await?;
+    }
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,

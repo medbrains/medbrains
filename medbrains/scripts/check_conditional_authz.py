@@ -104,6 +104,9 @@ ACCEPTED: dict[str, str] = {
         "optional patient filter; as above",
     "crates/medbrains-case-sheet-scan/src/lib.rs::list_scans":
         "optional patient filter; the unscoped list is the MRD processing queue",
+    "crates/medbrains-blood-bank/src/lib.rs::create_billing":
+        "patient_id is optional; a blood-bank billing line may be raised "
+        "against stock rather than against a person",
     "crates/medbrains-ancillary/src/front_office.rs::create_visitor":
         "patient_id is optional; a visitor may be for the building rather than "
         "for anybody, and the guarded branch covers the case where one is named",
