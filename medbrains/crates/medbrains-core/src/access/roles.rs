@@ -31,6 +31,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Doctor",
         description: "Clinical staff — patient care, OPD, orders, admissions",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::doctor::dashboard::VIEW_OWN,
             permissions::doctor::profile::VIEW_OWN,
@@ -333,6 +334,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Nurse",
         description: "Nursing staff — patient view, OPD queue, bed management",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::patients::LIST,
             permissions::patients::VIEW,
@@ -567,6 +569,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Receptionist",
         description: "Front desk — registration, OPD visits, billing",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::patients::LIST,
             permissions::patients::VIEW,
@@ -629,6 +632,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Lab Technician",
         description: "Lab staff — orders, results, QC, phlebotomy, outsourced",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::patients::VIEW,
             permissions::lab::orders::LIST,
@@ -670,6 +674,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Pharmacist",
         description: "Pharmacy staff — prescriptions, dispensing, stock",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::patients::VIEW,
             permissions::pharmacy::prescriptions::LIST,
@@ -752,6 +757,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Billing Clerk",
         description: "Billing staff — invoices, payments, advances, corporate, reports",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::patients::LIST,
             permissions::patients::VIEW,
@@ -845,6 +851,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Housekeeping Staff",
         description: "Housekeeping — cleaning tasks, room turnaround, linen management",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::housekeeping::cleaning::LIST,
             permissions::housekeeping::cleaning::CREATE,
@@ -865,6 +872,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Facilities Manager",
         description: "Facilities management — dashboard, bed management, indent approval, integrations",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::ipd::beds::MANAGE,
             permissions::ipd::wards::MANAGE,
@@ -987,6 +995,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Audit Officer",
         description: "Audit & compliance — read-only access across modules",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::patients::LIST,
             permissions::patients::VIEW,
@@ -1055,6 +1064,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Quality Officer",
         description: "Quality & compliance — full regulatory access",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::doctor::signoffs::VERBAL_REGISTER,
             permissions::lab::orders::LIST,
@@ -1108,6 +1118,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Occupational Health Officer",
         description: "Employee health screenings, drug testing, vaccinations, injury reports",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::occ_health::screenings::LIST,
             permissions::occ_health::screenings::CREATE,
@@ -1126,6 +1137,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Utilization Reviewer",
         description: "Admission reviews, LOS monitoring, payer communications",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::ur::reviews::LIST,
             permissions::ur::reviews::CREATE,
@@ -1141,6 +1153,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Case Manager",
         description: "Discharge planning, barrier tracking, referrals, analytics",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::case_mgmt::assignments::LIST,
             permissions::case_mgmt::assignments::CREATE,
@@ -1157,6 +1170,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Scheduling Admin",
         description: "No-show predictions, waitlist management, overbooking rules",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::scheduling::predictions::LIST,
             permissions::scheduling::predictions::CREATE,
@@ -1177,6 +1191,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "MRD Officer",
         description: "Medical records — file room, births, deaths, retrieval",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::mrd::records::LIST,
             permissions::mrd::records::CREATE,
@@ -1208,6 +1223,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Canteen Staff",
         description: "Patient meal orders, kitchen output, tray dispatch",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::diet::orders::LIST,
             permissions::diet::orders::CREATE,
@@ -1221,6 +1237,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Dietitian",
         description: "Diet templates, nutrition plans, kitchen inventory",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::diet::orders::LIST,
             permissions::diet::orders::CREATE,
@@ -1240,6 +1257,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Security Guard",
         description: "Visitor passes, incident reports, CCTV, access logs",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::security::access::LIST,
             permissions::security::cctv::LIST,
@@ -1262,6 +1280,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Biomedical Engineer",
         description: "Medical equipment, preventive maintenance, calibration, AMC contracts",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::bme::equipment::LIST,
             permissions::bme::equipment::CREATE,
@@ -1298,6 +1317,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Ambulance Driver",
         description: "Trip dispatch, fleet status, driver roster",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::ambulance::fleet::LIST,
             permissions::ambulance::drivers::LIST,
@@ -1318,6 +1338,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Radiology Technician",
         description: "Modality acquisition, study upload, technologist worklist",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::radiology::orders::LIST,
             permissions::radiology::orders::VIEW,
@@ -1335,6 +1356,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "CSSD Technician",
         description: "Sterilization cycles, instrument sets, issuance to OT",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::cssd::instruments::LIST,
             permissions::cssd::instruments::MANAGE,
@@ -1355,6 +1377,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Blood Bank Technician",
         description: "Donor screening, inventory, crossmatch, transfusion records",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::blood_bank::donors::LIST,
             permissions::blood_bank::donors::CREATE,
@@ -1371,6 +1394,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Front Office Staff",
         description: "Visitor management, gate pass, queue board, enquiry desk",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::front_office::visitors::LIST,
             permissions::front_office::visitors::CREATE,
@@ -1406,6 +1430,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Infection Control Officer",
         description: "HAI surveillance, antibiotic stewardship, biowaste, hand hygiene",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::infection_control::surveillance::LIST,
             permissions::infection_control::surveillance::CREATE,
@@ -1427,6 +1452,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Procurement Officer",
         description: "Vendor onboarding, purchase orders, GRN, supplier payments",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::procurement::vendors::LIST,
             permissions::procurement::vendors::CREATE,
@@ -1451,6 +1477,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Store Keeper",
         description: "Indents, stock movements, dead stock, consumables",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::indent::LIST,
             permissions::indent::VIEW,
@@ -1484,6 +1511,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "HR Officer",
         description: "Employee master, attendance, leave, credentials, payroll inputs",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::hr::employees::LIST,
             permissions::hr::employees::CREATE,
@@ -1506,6 +1534,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Camp Coordinator",
         description: "Outreach camp planning, registrations, screenings, lab linkage",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::camp::LIST,
             permissions::camp::CREATE,
@@ -1533,6 +1562,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Insurance Officer",
         description: "Eligibility, prior auth, claim submission, appeals",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::insurance::verification::LIST,
             permissions::insurance::verification::CREATE,
@@ -1550,6 +1580,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "OT Staff",
         description: "Operation theatre booking, room status, pre-op checks, safety checklist",
         permissions: &[
+            permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::ot::bookings::LIST,
             permissions::ot::bookings::CREATE,

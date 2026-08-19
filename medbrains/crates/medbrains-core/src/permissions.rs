@@ -1833,6 +1833,21 @@ pub mod admin {
             pub const MANAGE: &str = "admin.settings.regulatory.manage";
         }
 
+        /// Read tenant configuration.
+        ///
+        /// Not an administrative act. This is the configuration the application
+        /// itself runs on — which vitals a ward captures, whether weights are
+        /// metric, which locale to format in — and every clinical screen reads
+        /// it on load. Reading was gated on `settings.modules.manage`, which no
+        /// role holds, so for every non-bypass user the read failed and the
+        /// screen fell back to defaults without saying so. A ward that
+        /// configured its vitals set had that configuration ignored, and a
+        /// hospital on imperial units was shown metric.
+        ///
+        /// Sensitive categories are NOT covered by this and still require
+        /// `general.manage` — see `SENSITIVE_SETTING_CATEGORIES`.
+        pub const READ: &str = "admin.settings.read";
+
         pub mod clinical_masters {
             pub const LIST: &str = "admin.settings.clinical_masters.list";
             pub const CREATE: &str = "admin.settings.clinical_masters.create";

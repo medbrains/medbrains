@@ -2714,14 +2714,32 @@ pub struct SettingsQuery {
     pub category: String,
 }
 
+/// Categories whose VALUES are secrets or security posture, not UI configuration.
+///
+/// The rest of `tenant_settings` is what the application runs on — which vitals a
+/// ward captures, whether weights are metric, which locale to format in — and
+/// every clinical screen reads it on load. These four are different in kind:
+/// `email` holds the SMTP credentials, and the other three describe how the
+/// hospital is defended and how long it keeps things.
+const SENSITIVE_SETTING_CATEGORIES: &[&str] = &["email", "security", "retention", "integrations"];
+
 pub async fn get_settings(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Query(params): Query<SettingsQuery>,
 ) -> Result<Json<Vec<TenantSettings>>, AppError> {
-    // tenant_settings holds integration configuration — the seeded row is the
-    // SMTP `email` category. Read only from the admin settings pages.
-    require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
+    // The original comment here was right about ONE category and applied to all
+    // of them: the seeded row is SMTP, so the read was gated on
+    // `settings.modules.manage`. No role holds that code, so for every
+    // non-bypass user this returned 403 — and the callers treat it as
+    // non-critical and fall back to defaults, silently. A ward that configured
+    // its vitals set had the configuration ignored for every nurse, and a
+    // hospital on imperial units was shown metric.
+    if SENSITIVE_SETTING_CATEGORIES.contains(&params.category.as_str()) {
+        require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+    } else {
+        require_permission(&claims, permissions::admin::settings::READ)?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

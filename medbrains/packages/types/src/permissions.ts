@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 928 permissions, one per constant in the Rust source. */
+/** 929 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -4435,6 +4435,12 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "admin",
   },
   {
+    code: "admin.settings.read",
+    label: "Read tenant configuration",
+    description: "Not an administrative act. This is the configuration the application itself runs on — which vitals a ward captures, whether weights are metric, which locale to format in — and every clinical screen reads it on load. Reading was gated on `settings.modules.manage`, which no role holds, so for every non-bypass user the read failed and the screen fell back to defaults without saying so. A ward that configured its vitals set had that configuration ignored, and a hospital on imperial units was shown metric. Sensitive categories are NOT covered by this and still require `general.manage` — see `SENSITIVE_SETTING_CATEGORIES`.",
+    module: "admin",
+  },
+  {
     code: "admin.settings.clinical_masters.list",
     label: "List Clinical Masters",
     description: "View religions, occupations, relations, insurance providers",
@@ -5804,6 +5810,7 @@ export const P = {
         MANAGE: "admin.settings.modules.manage",
       },
       MODULES_MANAGE: "admin.settings.modules.manage",
+      READ: "admin.settings.read",
       REGULATORY: {
         MANAGE: "admin.settings.regulatory.manage",
       },
@@ -5844,6 +5851,7 @@ export const P = {
     SETTINGS_LOCATIONS_LIST: "admin.settings.locations.list",
     SETTINGS_LOCATIONS_UPDATE: "admin.settings.locations.update",
     SETTINGS_MODULES_MANAGE: "admin.settings.modules.manage",
+    SETTINGS_READ: "admin.settings.read",
     SETTINGS_REGULATORY_MANAGE: "admin.settings.regulatory.manage",
     SETTINGS_SEQUENCES_MANAGE: "admin.settings.sequences.manage",
     SETTINGS_SERVICES_CREATE: "admin.settings.services.create",
@@ -8456,6 +8464,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Doctor",
     permissions: [
       P.ABDM.ABHA.VIEW,
+      P.ADMIN.SETTINGS.READ,
       P.AUDIT.BREAK_GLASS_START,
       P.BEDSIDE.FEEDBACK.LIST,
       P.BEDSIDE.SESSIONS.LIST,
@@ -8726,6 +8735,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   nurse: {
     label: "Nurse",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.AUDIT.BREAK_GLASS_START,
       P.BEDSIDE.FEEDBACK.CREATE,
       P.BEDSIDE.FEEDBACK.LIST,
@@ -8931,6 +8941,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.ABDM.ABHA.MANAGE,
       P.ABDM.ABHA.VIEW,
       P.ADMIN.DOCTOR_PACKAGES.LIST,
+      P.ADMIN.SETTINGS.READ,
       P.BILLING.INVOICES.CANCEL,
       P.BILLING.INVOICES.CREATE,
       P.BILLING.INVOICES.LIST,
@@ -8980,6 +8991,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   lab_technician: {
     label: "Lab Technician",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.DOCUMENTS.GENERATE,
       P.DOCUMENTS.REPRINT,
@@ -9014,6 +9026,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   pharmacist: {
     label: "Pharmacist",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.DOCUMENTS.GENERATE,
       P.DOCUMENTS.REPRINT,
@@ -9087,6 +9100,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     label: "Billing Clerk",
     permissions: [
       P.ADMIN.DOCTOR_PACKAGES.LIST,
+      P.ADMIN.SETTINGS.READ,
       P.BILLING.ADVANCES.ADJUST,
       P.BILLING.ADVANCES.CREATE,
       P.BILLING.ADVANCES.LIST,
@@ -9169,6 +9183,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   housekeeping_staff: {
     label: "Housekeeping Staff",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.HOUSEKEEPING.CLEANING.CREATE,
       P.HOUSEKEEPING.CLEANING.LIST,
@@ -9186,6 +9201,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   facilities_manager: {
     label: "Facilities Manager",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.ASSETS.ISSUE,
       P.ASSETS.LIST,
       P.ASSETS.MANAGE,
@@ -9297,6 +9313,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   audit_officer: {
     label: "Audit Officer",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.AUDIT.ACCESS_VIEW,
       P.AUDIT.BREAK_GLASS_REVIEW,
       P.AUDIT.LOG_EXPORT,
@@ -9356,6 +9373,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   quality_officer: {
     label: "Quality Officer",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.DOCTOR.SIGNOFFS.VERBAL_REGISTER,
       P.LAB.ORDERS.LIST,
@@ -9402,6 +9420,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   occ_health_officer: {
     label: "Occupational Health Officer",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.OCC_HEALTH.DRUG_SCREENS.LIST,
       P.OCC_HEALTH.DRUG_SCREENS.MANAGE,
@@ -9418,6 +9437,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   utilization_reviewer: {
     label: "Utilization Reviewer",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.UR.COMMUNICATIONS.CREATE,
       P.UR.COMMUNICATIONS.LIST,
@@ -9431,6 +9451,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   case_manager: {
     label: "Case Manager",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.CASE_MGMT.ANALYTICS.VIEW,
       P.CASE_MGMT.ASSIGNMENTS.CREATE,
       P.CASE_MGMT.ASSIGNMENTS.LIST,
@@ -9445,6 +9466,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   scheduling_admin: {
     label: "Scheduling Admin",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.OPD.SCHEDULE.LIST,
       P.OPD.SCHEDULE.MANAGE,
@@ -9461,6 +9483,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   mrd_officer: {
     label: "MRD Officer",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.IPD.ADMISSIONS.LIST,
       P.IPD.ADMISSIONS.VIEW,
@@ -9488,6 +9511,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   canteen_staff: {
     label: "Canteen Staff",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.DIET.INVENTORY.LIST,
       P.DIET.KITCHEN.LIST,
@@ -9499,6 +9523,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   dietitian: {
     label: "Dietitian",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.DIET.AUDITS.CREATE,
       P.DIET.AUDITS.LIST,
@@ -9514,6 +9539,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   security_guard: {
     label: "Security Guard",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.FRONT_OFFICE.PASSES.LIST,
       P.FRONT_OFFICE.VISITORS.LIST,
@@ -9532,6 +9558,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   biomed_engineer: {
     label: "Biomedical Engineer",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.ASSETS.ISSUE,
       P.ASSETS.LIST,
       P.ASSETS.MANAGE,
@@ -9564,6 +9591,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   ambulance_driver: {
     label: "Ambulance Driver",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.AMBULANCE.DRIVERS.LIST,
       P.AMBULANCE.DRIVERS.MANAGE,
       P.AMBULANCE.FLEET.CREATE,
@@ -9580,6 +9608,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   radiology_tech: {
     label: "Radiology Technician",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.RADIOLOGY.MODALITIES.MANAGE,
       P.RADIOLOGY.ORDERS.CANCEL,
@@ -9593,6 +9622,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   cssd_technician: {
     label: "CSSD Technician",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.CSSD.EQUIPMENT.LIST,
       P.CSSD.EQUIPMENT.MANAGE,
       P.CSSD.INSTRUMENTS.LIST,
@@ -9609,6 +9639,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   blood_bank_tech: {
     label: "Blood Bank Technician",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.BLOOD_BANK.CROSSMATCH.CREATE,
       P.BLOOD_BANK.CROSSMATCH.LIST,
       P.BLOOD_BANK.DONORS.CREATE,
@@ -9625,6 +9656,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ABDM.ABHA.MANAGE,
       P.ABDM.ABHA.VIEW,
+      P.ADMIN.SETTINGS.READ,
       P.COMMUNICATIONS.ALERTS.CREATE,
       P.COMMUNICATIONS.ALERTS.LIST,
       P.COMMUNICATIONS.ALERTS.MANAGE,
@@ -9654,6 +9686,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   infection_control_officer: {
     label: "Infection Control Officer",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.INFECTION_CONTROL.BIOWASTE.CREATE,
       P.INFECTION_CONTROL.BIOWASTE.LIST,
@@ -9671,6 +9704,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   procurement_officer: {
     label: "Procurement Officer",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.PROCUREMENT.GRN.CREATE,
       P.PROCUREMENT.GRN.LIST,
@@ -9691,6 +9725,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   store_keeper: {
     label: "Store Keeper",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.INDENT.ANALYTICS_VIEW,
       P.INDENT.CONDEMNATION_LIST,
@@ -9720,6 +9755,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   hr_officer: {
     label: "HR Officer",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.HR.ATTENDANCE.LIST,
       P.HR.ATTENDANCE.MANAGE,
@@ -9738,6 +9774,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   camp_coordinator: {
     label: "Camp Coordinator",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.CAMP.BILLING.CREATE,
       P.CAMP.BILLING.LIST,
       P.CAMP.CREATE,
@@ -9763,6 +9800,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   insurance_officer: {
     label: "Insurance Officer",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.INSURANCE.APPEALS.CREATE,
       P.INSURANCE.APPEALS.LIST,
@@ -9778,6 +9816,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
   ot_staff: {
     label: "OT Staff",
     permissions: [
+      P.ADMIN.SETTINGS.READ,
       P.DASHBOARD.VIEW,
       P.OT.ANESTHESIA.CREATE,
       P.OT.ANESTHESIA.LIST,
