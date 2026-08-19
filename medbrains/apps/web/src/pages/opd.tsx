@@ -58,6 +58,11 @@ export function OpdEncounterPage() {
   const { encounterId } = useParams<{ encounterId: string }>();
   const navigate = useNavigate();
   const canUpdate = useHasPermission(P.OPD.VISIT_UPDATE);
+  // opd.queue.view opens this page; the demographics fetch below needs
+  // patients.view. Refused, `patient` stays undefined and the page falls
+  // through to "OPD visit not found." — a live visit reported as absent,
+  // which is the existence oracle running backwards.
+  const canViewPatient = useHasPermission(P.PATIENTS.VIEW);
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
   const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
   const requestedEncounterId = encounterId ?? "";
@@ -72,7 +77,7 @@ export function OpdEncounterPage() {
   const { data: patient, isLoading: patientLoading } = useQuery({
     queryKey: ["patient", patientId],
     queryFn: () => opdService.getPatient(patientId),
-    enabled: patientId.length > 0,
+    enabled: patientId.length > 0 && canViewPatient,
   });
 
   const loading = encounterLoading || patientLoading;
@@ -82,6 +87,19 @@ export function OpdEncounterPage() {
       <Stack align="center" py="xl">
         <Loader size="lg" />
         <Text c="dimmed">Loading OPD visit...</Text>
+      </Stack>
+    );
+  }
+
+  if (encounter && !canViewPatient) {
+    return (
+      <Stack align="center" py="xl">
+        <Text c="dimmed">
+          This visit exists, but you do not have permission to view the patient's record.
+        </Text>
+        <Button tone="secondary" onClick={() => navigate("/opd")}>
+          Back to OPD queue
+        </Button>
       </Stack>
     );
   }
@@ -182,9 +200,13 @@ export function OpdVitalsPage() {
   const { queueEntryId } = useParams<{ queueEntryId: string }>();
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
-  const canUpdate = useHasPermission(P.OPD.VISIT_UPDATE);
   const canRecordNurseVitals = useHasPermission(P.NURSE.VITALS_RECORD);
-  const canRecordVitals = canRecordNurseVitals || canUpdate;
+  // The fallback endpoint when the nurse code is absent is createVital,
+  // which the server gates on opd.vitals.create — not on opd.visit.update.
+  // Asking for the wrong one let a doctor fill the whole vitals form and
+  // collect a 403 on save.
+  const canCreateOpdVitals = useHasPermission(P.OPD.VITALS_CREATE);
+  const canRecordVitals = canRecordNurseVitals || canCreateOpdVitals;
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
   const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
   const requestedQueueEntryId = queueEntryId ?? "";

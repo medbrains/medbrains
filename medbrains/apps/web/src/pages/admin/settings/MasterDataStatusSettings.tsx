@@ -772,7 +772,9 @@ export function MasterDataStatusSettings() {
   const canViewSequences = useHasPermission(P.ADMIN.SETTINGS.SEQUENCES.MANAGE);
   const canViewBedTypes = useHasPermission(P.ADMIN.SETTINGS.BED_TYPES.MANAGE);
   const canViewBillingMasters = useHasPermission(P.ADMIN.SETTINGS.BILLING_TAX.MANAGE);
-  const canViewPrintTemplates = useHasPermission(P.ADMIN.SETTINGS.BRANDING.MANAGE);
+  // getPrintTemplates is served under admin.settings.read, not under the
+  // branding code that lets you edit them.
+  const canViewPrintTemplates = useHasPermission(P.ADMIN.SETTINGS.READ);
   const canViewBillingCatalog = useHasPermission(P.BILLING.INVOICES_LIST);
   const canViewCorporateMasters = useHasPermission(P.BILLING.CORPORATE_LIST);
   const canViewGlAccounts = useHasPermission(P.BILLING.JOURNAL_LIST);
@@ -822,8 +824,7 @@ export function MasterDataStatusSettings() {
   // The endpoint asks for `lab.dispatch.list` — a report template is the layout a
   // dispatched report is printed in, so that is the right owner. The flag listed
   // neither, and a lab manager holding exactly that code saw an empty panel.
-  const canViewLabReportTemplates =
-    canViewLabCatalog || canViewLabReports || canListLabDispatch;
+  const canViewLabReportTemplates = canViewLabCatalog || canViewLabReports || canListLabDispatch;
   const canViewDischargeTemplates =
     canViewIpdAdmissions || canCreateDischargeSummary || canFinalizeDischargeSummary;
   const canViewStoreLocations =

@@ -289,10 +289,14 @@ function LocationStaffDrawer({
     queryFn: () => settingsSetupService.listLocationStaff(locId),
     enabled: !!locId,
   });
+  // The staff picker's directory is gated on admin.users.list, which the
+  // locations screen does not carry. Refused, the picker renders empty and
+  // reads as a hospital with no staff to assign.
+  const canListUsers = useHasPermission(P.ADMIN.USERS.LIST);
   const { data: users = [] } = useQuery({
     queryKey: ["setup-users"],
     queryFn: () => settingsSetupService.listSetupUsers(),
-    enabled: !!locId,
+    enabled: !!locId && canListUsers,
   });
 
   const assign = useMutation({

@@ -6,6 +6,7 @@ import { Group, Modal, Select, Stack, Switch, Text, Textarea } from "@mantine/co
 import { DateTimePicker } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { IconPlus, IconTrash, IconUserCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -35,6 +36,7 @@ function coverageStatus(row: { start_at: string; end_at: string }): string {
 
 export function AdminCoveragePage() {
   useRequirePermission(P.ADMIN.COVERAGE.LIST);
+  const canListDoctors = useHasPermission(P.ADMIN.USERS.LIST);
   const queryClient = useQueryClient();
   const [createOpen, createHandlers] = useDisclosure(false);
   const [activeOnly, setActiveOnly] = useState(true);
@@ -44,14 +46,23 @@ export function AdminCoveragePage() {
     queryFn: () => adminDoctorsService.listCoverage({ active_now: activeOnly }),
   });
 
+  // The roster is gated on admin.coverage.list; the doctor directory it
+  // renders names from is gated on admin.users.list. Without it `doctors`
+  // stays empty and doctorName() falls back to id.slice(0, 8), so the on-call
+  // board would have listed eight-character UUID fragments as if those were
+  // the people covering.
   const { data: doctors = [] } = useQuery({
     queryKey: ["admin-doctors-active"],
     queryFn: () => adminDoctorsService.listDoctors({ is_active: true, limit: 500 }),
+    enabled: canListDoctors,
   });
 
   const doctorName = (id: string) => {
     const d = doctors.find((x) => x.user_id === id || x.id === id);
-    return d ? `${d.prefix ? `${d.prefix} ` : ""}${d.display_name}` : id.slice(0, 8);
+    if (d) {
+      return `${d.prefix ? `${d.prefix} ` : ""}${d.display_name}`;
+    }
+    return canListDoctors ? id.slice(0, 8) : "Name not visible to you";
   };
 
   const remove = useMutation({
