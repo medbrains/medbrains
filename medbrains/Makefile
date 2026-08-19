@@ -9,7 +9,7 @@
        mobile-staff-android mobile-staff-prebuild mobile-staff-typecheck \
        check check-backend check-frontend lint check-api check-sqlx prepare-sqlx guard-sqlx-nonprod \
        check-ui-api check-types check-ui-seam check-raw-html check-secrets check-all \
-       check-field-classes check-authz-collapse check-query-collapse check-permission-codes check-permission-reachable check-ui-permission-match check-relation-parity check-parent-id-scoping check-phi-audit-coverage authz-ledger \
+       check-field-classes check-authz-collapse check-query-collapse check-conditional-authz check-permission-codes check-permission-reachable check-ui-permission-match check-relation-parity check-parent-id-scoping check-phi-audit-coverage authz-ledger \
        check-rls check-sharing check-authz-posture check-print-placeholders check-requirement-flags check-surface-drift check-role-templates check-tx-error-discard check-pg-enum-parity check-default-parity check-unbounded-reads check-permission-enforcement check-tenant-registry-reads check-pool-reads check-rls-only-writes check-tenant-leak check-runtime-sqlx check-audit check-tracing \
        check-migration-headers \
        check-region-pinning check-no-card-logging check-egress-allowlist check-cert-readiness check-encryption-at-rest check-redaction-masking \
@@ -330,6 +330,9 @@ check-permission-codes: ## Ban guarding on a permission code that is defined now
 
 check-permission-reachable: ## Report permissions nothing grants or nothing guards
 	python3 scripts/check_permission_reachable.py
+
+check-conditional-authz: ## Ban a record check nested inside a branch
+	python3 scripts/check_conditional_authz.py
 
 check-ui-permission-match: ## Report pages calling an endpoint they do not gate on
 	python3 scripts/check_ui_permission_match.py
