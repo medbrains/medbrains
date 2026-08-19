@@ -203,6 +203,9 @@ function DiscardComponentForm({
 export function InventoryTab() {
   const qc = useQueryClient();
   const canManage = useHasPermission(P.BLOOD_BANK.INVENTORY_MANAGE);
+  // Managing stock is not reading it. An empty component list reads as "no
+  // blood in the fridge", which is a thing somebody acts on in an emergency.
+  const canListInventory = useHasPermission(P.BLOOD_BANK.INVENTORY_LIST);
   const [createOpen, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [discardComponent, setDiscardComponent] = useState<BloodComponent | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
@@ -218,12 +221,14 @@ export function InventoryTab() {
   const { data: components, isLoading } = useQuery({
     queryKey: ["blood-bank", "components", params],
     queryFn: () => bloodBankService.listBloodComponents(params),
+    enabled: canListInventory,
   });
 
   // Also fetch all components (unfiltered) for the discard report
   const { data: allComponents } = useQuery({
     queryKey: ["blood-bank", "components", {}],
     queryFn: () => bloodBankService.listBloodComponents(),
+    enabled: canListInventory,
   });
 
   const discardedComponents = useMemo(

@@ -176,6 +176,9 @@ function RecordReactionForm({
 export function TransfusionsTab() {
   const qc = useQueryClient();
   const canCreate = useHasPermission(P.BLOOD_BANK.TRANSFUSION_CREATE);
+  // Recording a transfusion is not permission to read the register. An empty
+  // transfusion list reads as "this blood was never given".
+  const canListTransfusions = useHasPermission(P.BLOOD_BANK.TRANSFUSION_LIST);
   const [createOpen, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [reactionId, setReactionId] = useState<string | null>(null);
   const [monitorId, setMonitorId] = useState<string | null>(null);
@@ -183,6 +186,7 @@ export function TransfusionsTab() {
   const { data: transfusions, isLoading } = useQuery({
     queryKey: ["blood-bank", "transfusions"],
     queryFn: () => bloodBankService.listTransfusions(),
+    enabled: canListTransfusions,
   });
 
   const createMut = useMutation({
