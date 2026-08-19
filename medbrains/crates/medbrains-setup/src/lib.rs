@@ -4553,7 +4553,14 @@ pub async fn get_print_templates(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<TenantSettings>>, AppError> {
-    require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
+    // A print template is a LAYOUT — letterhead, margins, which fields appear —
+    // not module management, and it lives in the same `tenant_settings` table the
+    // category split above already governs. It was gated on
+    // `settings.modules.manage`, which no role holds, so it was bypass-only: the
+    // settings screen that lists templates rendered empty for every delegated
+    // administrator. The WRITE stays on `settings.branding.manage`; reading a
+    // layout you may be about to edit should not be stricter than editing it.
+    require_permission(&claims, permissions::admin::settings::READ)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

@@ -32,6 +32,9 @@ import { auditStatusColors, statusColorTone } from "./shared";
 
 export function AuditsTab() {
   const canCreate = useHasPermission(P.QUALITY.AUDITS_CREATE);
+  // Findings are the audit's results and have their own list code. Empty reads
+  // as "this audit found nothing", which is the opposite of a blank screen.
+  const canListAudits = useHasPermission(P.QUALITY.AUDITS_LIST);
   const qc = useQueryClient();
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
@@ -102,7 +105,7 @@ export function AuditsTab() {
   const { data: findings = [], isLoading: findingsLoading } = useQuery({
     queryKey: ["quality-audit-findings", selectedAudit?.id],
     queryFn: () => qualityService.listAuditFindings(selectedAudit?.id ?? ""),
-    enabled: !!selectedAudit,
+    enabled: !!selectedAudit && canListAudits,
   });
 
   const createFindingMut = useMutation({
