@@ -285,6 +285,9 @@ pub mod links {
         ParentLink::on_patient("medication_reconciliations");
     pub const SEPSIS_BUNDLE: ParentLink = ParentLink::on_patient("sepsis_hour1_bundles");
 
+    /// A patient reminder — cancelling one stops an outreach to that person.
+    pub const PATIENT_REMINDER: ParentLink = ParentLink::on_patient("patient_reminders");
+
     pub const RADIOLOGY_ORDER: ParentLink = ParentLink::on_patient("radiology_orders");
 
     /// A report reaches its patient through the order it reports on.

@@ -3668,6 +3668,10 @@ pub async fn create_certificate(
     Json(body): Json<CreateCertificateRequest>,
 ) -> Result<Json<MedicalCertificate>, AppError> {
     require_permission(&claims, permissions::opd::certificates::CREATE)?;
+    // A medical certificate is issued IN a patient's name and they are named in
+    // the body. `opd.certificates.create` says the caller may issue one.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4174,6 +4178,9 @@ pub async fn create_procedure_order(
     Json(body): Json<CreateProcedureOrderRequest>,
 ) -> Result<Json<ProcedureOrder>, AppError> {
     require_permission(&claims, permissions::opd::procedures::CREATE)?;
+    // The order is placed on the patient the body names.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let priority = body.priority.as_deref().unwrap_or("routine");
 
@@ -5031,6 +5038,9 @@ pub async fn create_reminder(
     Json(body): Json<CreateReminderRequest>,
 ) -> Result<Json<PatientReminder>, AppError> {
     require_permission(&claims, permissions::opd::reminders::CREATE)?;
+    // A reminder is scheduled against a named patient and reaches them.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let priority = body.priority.as_deref().unwrap_or("normal");
 
@@ -5096,6 +5106,15 @@ pub async fn cancel_reminder(
     Path(id): Path<Uuid>,
 ) -> Result<Json<PatientReminder>, AppError> {
     require_permission(&claims, permissions::opd::reminders::UPDATE)?;
+    // The path names the reminder; the patient is one hop away on it.
+    // Cancelling a reminder stops an outreach that was scheduled for them.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PATIENT_REMINDER,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5170,6 +5189,9 @@ pub async fn create_feedback(
     Json(body): Json<CreateFeedbackRequest>,
 ) -> Result<Json<PatientFeedback>, AppError> {
     require_permission(&claims, permissions::opd::feedback::CREATE)?;
+    // Feedback is recorded against a named patient's visit.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5272,6 +5294,12 @@ pub async fn create_consent(
     Json(body): Json<CreateConsentRequest>,
 ) -> Result<Json<ProcedureConsent>, AppError> {
     require_permission(&claims, permissions::opd::consents::CREATE)?;
+    // `ensure_opd_patient_context_in_tx` below proves the patient EXISTS in this
+    // tenant and that the encounter belongs to them. That is referential
+    // integrity, not authorization — it never asks whether this caller may act
+    // on that patient, and a consent is their decision recorded.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let consent_type = body.consent_type.as_deref().unwrap_or("procedure");
 
@@ -5638,6 +5666,9 @@ pub async fn book_appointment_group(
     Json(body): Json<BookAppointmentGroupRequest>,
 ) -> Result<Json<Vec<Appointment>>, AppError> {
     require_permission(&claims, permissions::opd::appointment::CREATE)?;
+    // A recurring appointment series booked for the patient the body names.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     if body.slot_requests.is_empty() {
         return Err(AppError::BadRequest(
