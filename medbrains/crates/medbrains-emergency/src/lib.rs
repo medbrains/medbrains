@@ -598,6 +598,9 @@ async fn auto_create_mlc_case_for_visit(
 //  ER Visits
 // ══════════════════════════════════════════════════════════
 
+// The ER board. Like a ward board, it must show everyone currently in the
+// department to the people staffing it — that is what the department-scoped
+// emergency permissions are for. Scoping it per-patient would empty the board.
 pub async fn list_visits(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -669,6 +672,20 @@ pub async fn get_visit(
             permissions::emergency::mlc_police_intimations::REPRINT,
         ],
     )?;
+    // The ER visit names the patient. This module held no record check at
+    // all, while the gate has carried an unused ER_VISIT link — with a
+    // comment noting er_visits.patient_id is NOT NULL — the whole time. The
+    // emergency-override argument does not excuse it: this system implements
+    // break-glass properly (break_glass_events, four-hour expiry, and a
+    // Grant::BreakGlass the decision layer routes to review), and a handler
+    // that skips the check does not take that path, so nothing is reviewable.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::ER_VISIT,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -687,6 +704,10 @@ pub async fn get_visit(
     Ok(Json(filter_er_visit_response(row, &claims)))
 }
 
+// No record check on the patient named in the body, deliberately. Opening an
+// ER visit is the act that creates the caller's relationship to the patient —
+// somebody arrives, and the triage desk registers them. Every handler that
+// works on an EXISTING visit takes the ER_VISIT hop; this one is the door.
 pub async fn create_visit(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -851,6 +872,13 @@ pub async fn update_visit(
     Json(body): Json<UpdateVisitRequest>,
 ) -> Result<Json<ErVisit>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::ER_VISIT,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -942,6 +970,13 @@ pub async fn create_triage(
     Json(body): Json<CreateTriageRequest>,
 ) -> Result<Json<ErTriageAssessment>, AppError> {
     require_permission(&claims, permissions::emergency::triage::CREATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::ER_VISIT,
+        visit_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1219,6 +1254,8 @@ pub async fn list_code_activations(
     Ok(Json(rows))
 }
 
+// A code blue / code red activation is a department-wide alarm, not a record
+// read. It resolves the responder roster, not the patient's chart.
 pub async fn create_code_activation(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2169,6 +2206,13 @@ pub async fn admit_from_er(
     Json(body): Json<AdmitFromErRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::ER_VISIT,
+        id,
+    )
+    .await?;
     require_permission(&claims, permissions::ipd::admissions::CREATE)?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
@@ -2477,6 +2521,13 @@ pub async fn get_discharge_summary(
     Path(er_visit_id): Path<Uuid>,
 ) -> Result<Json<Option<ErDischargeSummary>>, AppError> {
     require_permission(&claims, permissions::emergency::visits::LIST)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::ER_VISIT,
+        er_visit_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -2506,6 +2557,13 @@ pub async fn create_discharge_summary(
     Json(body): Json<ErDischargeSummaryRequest>,
 ) -> Result<Json<ErDischargeSummary>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::ER_VISIT,
+        er_visit_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -2548,6 +2606,13 @@ pub async fn update_discharge_summary(
     Json(body): Json<ErDischargeSummaryRequest>,
 ) -> Result<Json<ErDischargeSummary>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::ER_VISIT,
+        er_visit_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -2592,6 +2657,13 @@ pub async fn finalize_discharge_summary(
     Path(er_visit_id): Path<Uuid>,
 ) -> Result<Json<ErDischargeSummary>, AppError> {
     require_permission(&claims, permissions::emergency::visits::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::ER_VISIT,
+        er_visit_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,

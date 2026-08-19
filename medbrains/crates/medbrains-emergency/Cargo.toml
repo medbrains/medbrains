@@ -12,6 +12,7 @@ medbrains-workflow = { path = "../medbrains-workflow" }
 medbrains-core = { path = "../medbrains-core" }
 medbrains-db = { path = "../medbrains-db" }
 medbrains-authz = { path = "../medbrains-authz" }
+medbrains-authz-gate = { path = "../medbrains-authz-gate" }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
