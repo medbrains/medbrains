@@ -266,7 +266,11 @@ pub async fn list_visitors(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // Asking for one patient's visitors is asking who comes to see them, which
+    // is a fact about the patient. The unfiltered branch below is the desk's
+    // own register — who is in the building — and is not narrowed by patient.
     let rows = if let Some(pid) = params.patient_id {
+        medbrains_authz_gate::require_patient_access(&state, &claims, pid).await?;
         sqlx::query_as::<_, VisitorRegistration>(
             "SELECT * FROM visitor_registrations WHERE patient_id = $1 \
              ORDER BY created_at DESC LIMIT 5000",
@@ -300,6 +304,12 @@ pub async fn create_visitor(
     Json(body): Json<CreateVisitorRequest>,
 ) -> Result<Json<VisitorRegistration>, AppError> {
     require_permission(&claims, permissions::front_office::visitors::CREATE)?;
+    // patient_id is optional here — a visitor may be for the building rather
+    // than for anybody, and an enquiry may name no patient at all. When one IS
+    // named, attaching a record to them is a statement about them.
+    if let Some(pid) = body.patient_id {
+        medbrains_authz_gate::require_patient_access(&state, &claims, pid).await?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -716,6 +726,12 @@ pub async fn create_enquiry(
     Json(body): Json<CreateEnquiryRequest>,
 ) -> Result<Json<EnquiryLog>, AppError> {
     require_permission(&claims, permissions::front_office::enquiry::CREATE)?;
+    // patient_id is optional here — a visitor may be for the building rather
+    // than for anybody, and an enquiry may name no patient at all. When one IS
+    // named, attaching a record to them is a statement about them.
+    if let Some(pid) = body.patient_id {
+        medbrains_authz_gate::require_patient_access(&state, &claims, pid).await?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

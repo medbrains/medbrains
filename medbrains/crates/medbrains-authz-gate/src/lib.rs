@@ -278,6 +278,15 @@ pub mod links {
     pub const CASE_SHEET_PACKET: ParentLink =
         ParentLink::on_patient("mrd_case_sheet_packets");
 
+    /// Clinical-trial subject records. Each carries a NOT NULL `patient_id`
+    /// beside its `trial_id`, so the hop is direct — the trial is the roster,
+    /// the patient is the subject, and an update names only the record.
+    pub const TRIAL_VISIT: ParentLink = ParentLink::on_patient("trial_visits");
+    pub const TRIAL_ADVERSE_EVENT: ParentLink =
+        ParentLink::on_patient("trial_adverse_events");
+    pub const TRIAL_RANDOMIZATION: ParentLink =
+        ParentLink::on_patient("trial_randomizations");
+
     /// Ward safety records, each keyed straight on the patient they concern.
     pub const HYPOGLYCEMIA_EVENT: ParentLink =
         ParentLink::on_patient("hypoglycemia_events");

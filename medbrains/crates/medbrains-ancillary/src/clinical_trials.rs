@@ -1,5 +1,30 @@
 //! Clinical Trials registry (ticket #2983). A hospital research department's trials with a
 //! lifecycle status. Gated by the `specialty.clinical_trials.*` permission (research / admin).
+//!
+//! # Why the four `list_*` handlers take no record check
+//!
+//! `list_trial_visits`, `list_adverse_events`, `list_randomizations` and
+//! `list_trial_consents` each take a `trial_id` from the path and join
+//! `patients` for the subject's name. The trial IS the scope, the same way a
+//! ward is the scope of a ward worklist: an investigator sees every subject on
+//! their protocol by definition, and filtering the roster to the caller's own
+//! patients would show a monitor a trial with fewer arms than it has.
+//! `export_trial` is those same lists in one response and rests on the same
+//! reason.
+//!
+//! What that argument does NOT cover, and what is therefore guarded:
+//!
+//! - the writes, which take a `patient_id` from the request body and enrol
+//!   that patient — `require_patient_access`;
+//! - the updates and the unblinding, which name a record in the path and reach
+//!   the patient through it — `require_access_via`;
+//! - `screen_candidates`, the one endpoint that reaches outside the trial,
+//!   which already carries its own note and a second permission.
+//!
+//! **What retires the list exemption:** a relation saying which trials a user
+//! runs. Until then `clinical_trials.list` is tenant-wide, so a holder sees
+//! every roster in the hospital and not only their own — it is granted at
+//! `crates/medbrains-core/src/access/roles.rs:202` and again at 1113.
 
 use axum::extract::{Path, Query, State};
 use axum::{Extension, Json};
@@ -345,6 +370,10 @@ pub async fn record_trial_consent(
     Json(body): Json<RecordTrialConsentRequest>,
 ) -> Result<Json<TrialConsent>, AppError> {
     require_permission(&claims, permissions::specialty::clinical_trials::CREATE)?;
+    // The body names the patient to be written into the trial. Without this
+    // check, holding clinical_trials.create was enough to enrol any patient in
+    // the tenant onto a protocol, or to attach an adverse event to them.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let new_id: Uuid = sqlx::query_scalar(
@@ -431,6 +460,10 @@ pub async fn schedule_visit(
     Json(body): Json<ScheduleVisitRequest>,
 ) -> Result<Json<TrialVisit>, AppError> {
     require_permission(&claims, permissions::specialty::clinical_trials::CREATE)?;
+    // The body names the patient to be written into the trial. Without this
+    // check, holding clinical_trials.create was enough to enrol any patient in
+    // the tenant onto a protocol, or to attach an adverse event to them.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if body.visit_name.trim().is_empty() {
         return Err(AppError::BadRequest("Visit name is required".to_owned()));
     }
@@ -474,6 +507,14 @@ pub async fn update_visit(
     Json(body): Json<UpdateVisitRequest>,
 ) -> Result<Json<TrialVisit>, AppError> {
     require_permission(&claims, permissions::specialty::clinical_trials::CREATE)?;
+    // The path names the record, not the patient; hop through it.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::TRIAL_VISIT,
+        id,
+    )
+    .await?;
     if !["scheduled", "completed", "missed", "rescheduled"].contains(&body.status.as_str()) {
         return Err(AppError::BadRequest("Invalid visit status".to_owned()));
     }
@@ -567,6 +608,10 @@ pub async fn report_adverse_event(
     Json(body): Json<ReportAeRequest>,
 ) -> Result<Json<TrialAdverseEvent>, AppError> {
     require_permission(&claims, permissions::specialty::clinical_trials::CREATE)?;
+    // The body names the patient to be written into the trial. Without this
+    // check, holding clinical_trials.create was enough to enrol any patient in
+    // the tenant onto a protocol, or to attach an adverse event to them.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if body.event_term.trim().is_empty() {
         return Err(AppError::BadRequest("Event term is required".to_owned()));
     }
@@ -618,6 +663,14 @@ pub async fn update_adverse_event(
     Json(body): Json<UpdateAeRequest>,
 ) -> Result<Json<TrialAdverseEvent>, AppError> {
     require_permission(&claims, permissions::specialty::clinical_trials::CREATE)?;
+    // The path names the record, not the patient; hop through it.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::TRIAL_ADVERSE_EVENT,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, TrialAdverseEvent>(&format!(
@@ -699,6 +752,10 @@ pub async fn randomize_patient(
     Json(body): Json<RandomizeRequest>,
 ) -> Result<Json<TrialRandomization>, AppError> {
     require_permission(&claims, permissions::specialty::clinical_trials::CREATE)?;
+    // The body names the patient to be written into the trial. Without this
+    // check, holding clinical_trials.create was enough to enrol any patient in
+    // the tenant onto a protocol, or to attach an adverse event to them.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if body.arm.trim().is_empty() {
         return Err(AppError::BadRequest("Arm is required".to_owned()));
     }
@@ -741,6 +798,16 @@ pub async fn unblind_randomization(
     Json(body): Json<UnblindRequest>,
 ) -> Result<Json<TrialRandomization>, AppError> {
     require_permission(&claims, permissions::specialty::clinical_trials::UNBLIND)?;
+    // Unblinding is a controlled act and clinical_trials.unblind is held by no
+    // built-in role, but the record check is not the grant: whoever is given
+    // the code still may not break the blind on a patient outside their care.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::TRIAL_RANDOMIZATION,
+        id,
+    )
+    .await?;
     if body.reason.trim().is_empty() {
         return Err(AppError::BadRequest("An unblinding reason is required".to_owned()));
     }

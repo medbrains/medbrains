@@ -104,6 +104,14 @@ ACCEPTED: dict[str, str] = {
         "optional patient filter; as above",
     "crates/medbrains-case-sheet-scan/src/lib.rs::list_scans":
         "optional patient filter; the unscoped list is the MRD processing queue",
+    "crates/medbrains-ancillary/src/front_office.rs::create_visitor":
+        "patient_id is optional; a visitor may be for the building rather than "
+        "for anybody, and the guarded branch covers the case where one is named",
+    "crates/medbrains-ancillary/src/front_office.rs::create_enquiry":
+        "patient_id is optional; a switchboard enquiry often names no patient",
+    "crates/medbrains-ancillary/src/front_office.rs::list_visitors":
+        "optional patient filter; the unscoped branch is the desk's own "
+        "register of who is in the building, not a view of one patient",
     "crates/medbrains-regulatory/src/lib.rs::create_adr_report":
         "patient_id is optional on the report; the unguarded branch is a "
         "reaction filed against a batch with nobody identified",
