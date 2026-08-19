@@ -5322,6 +5322,16 @@ pub async fn sign_consent(
     Path(id): Path<Uuid>,
 ) -> Result<Json<ProcedureConsent>, AppError> {
     require_permission(&claims, permissions::opd::consents::SIGN)?;
+    // The path names the consent row; the patient is one hop away on it. Signing
+    // or withdrawing a consent is a legal act on somebody's record, and the
+    // permission only said the caller may sign consents SOMEWHERE.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PROCEDURE_CONSENT,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5369,6 +5379,16 @@ pub async fn revoke_consent(
 ) -> Result<Json<ProcedureConsent>, AppError> {
     require_permission(&claims, permissions::opd::consents::REVOKE)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    // The path names the consent row; the patient is one hop away on it. Signing
+    // or withdrawing a consent is a legal act on somebody's record, and the
+    // permission only said the caller may sign consents SOMEWHERE.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PROCEDURE_CONSENT,
+        id,
+    )
+    .await?;
 
     let reason = body.withdrawal_reason.trim();
     if reason.len() < 5 {
