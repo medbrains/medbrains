@@ -156,6 +156,57 @@ def crate_modules() -> dict[str, list[str]]:
 AXUM_SIG = re.compile(r"State\(|Extension\(|Path\(|Query\(|Json\(|Authorized<")
 
 
+def _fn_end(text: str, start: int, limit: int) -> int:
+    """Offset just past a function's closing brace, or `limit` if unbalanced.
+
+    Spans used to run to the next `pub async fn`, which swept up every type
+    declared between two handlers. `create_nuclear_source` scored as PHI
+    because the `ListNuclearAdminQuery { patient_id }` struct that follows it
+    fell inside its span — the table has no patient column at all. The same
+    error in the other direction would credit a handler with a guard written
+    in the helper below it.
+
+    Braces inside string literals do not count: `COALESCE($5, '{}'::jsonb)`
+    appears in the very handler that surfaced this.
+    """
+    i, depth, seen = start, 0, False
+    while i < limit:
+        c = text[i]
+        if c == "/" and i + 1 < limit and text[i + 1] == "/":
+            i = text.find("\n", i)
+            if i == -1:
+                return limit
+            continue
+        if c == "/" and i + 1 < limit and text[i + 1] == "*":
+            j = text.find("*/", i + 2)
+            i = limit if j == -1 else j + 2
+            continue
+        if c == "r" and i + 1 < limit and text[i + 1] in '"#':
+            j = i + 1
+            while j < limit and text[j] == "#":
+                j += 1
+            if j < limit and text[j] == '"':
+                fence = '"' + "#" * (j - i - 1)
+                k = text.find(fence, j + 1)
+                i = limit if k == -1 else k + len(fence)
+                continue
+        if c == '"':
+            i += 1
+            while i < limit and text[i] != '"':
+                i += 2 if text[i] == "\\" else 1
+            i += 1
+            continue
+        if c == "{":
+            depth += 1
+            seen = True
+        elif c == "}":
+            depth -= 1
+            if seen and depth == 0:
+                return i + 1
+        i += 1
+    return limit
+
+
 def split_handlers(text: str) -> list[tuple[str, str]]:
     """(name, body) for each `pub async fn` that takes axum extractors.
 
@@ -167,6 +218,7 @@ def split_handlers(text: str) -> list[tuple[str, str]]:
     out = []
     for i, (name, start) in enumerate(marks):
         end = marks[i + 1][1] if i + 1 < len(marks) else len(text)
+        end = _fn_end(text, start, end)
         body = text[start:end]
         signature = body[: body.find("{")] if "{" in body else body[:400]
         if AXUM_SIG.search(signature):
