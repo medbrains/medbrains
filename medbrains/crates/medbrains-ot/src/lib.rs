@@ -538,6 +538,16 @@ pub async fn get_booking(
     Path(id): Path<Uuid>,
 ) -> Result<Json<OtBooking>, AppError> {
     require_permission(&claims, permissions::ot::bookings::LIST)?;
+    // The path names the booking and the booking names the patient.
+    // ot.bookings.list says the caller works the theatre list, not that
+    // they may open this case.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::OT_BOOKING,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
@@ -679,6 +689,14 @@ pub async fn update_booking(
     Json(body): Json<UpdateBookingRequest>,
 ) -> Result<Json<OtBooking>, AppError> {
     require_permission(&claims, permissions::ot::bookings::UPDATE)?;
+    // This one also reads the case's blood requests and consents.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::OT_BOOKING,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
@@ -788,6 +806,13 @@ pub async fn update_booking_status(
     Json(body): Json<UpdateBookingStatusRequest>,
 ) -> Result<Json<OtBooking>, AppError> {
     require_permission(&claims, permissions::ot::bookings::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::OT_BOOKING,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
@@ -1001,6 +1026,14 @@ pub async fn get_preop(
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<Option<OtPreopAssessment>>, AppError> {
     require_permission(&claims, permissions::ot::preop::LIST)?;
+    // Joins patients for the pre-op assessment.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::OT_BOOKING,
+        booking_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
@@ -2513,6 +2546,16 @@ pub async fn get_surgeon_caseload(
     Ok(Json(rows))
 }
 
+// NOT an aggregate, and not yet fixed. `ot_utilization` and
+// `get_surgeon_caseload` next to it really are counts, but this one selects
+// `COALESCE(p.first_name || ' ' || p.last_name, 'Unknown') AS patient_name` —
+// it is a named list of the patients who had an anaesthetic complication,
+// served under ot.reports.view.
+//
+// The right fix is `patient_filter` and an `AND adm.patient_id = ANY($n)` in
+// the statement, not a per-record hop: it is a list. That is a rewrite of a
+// runtime `query_as`, which the compiler does not check, so it needs the
+// statement PREPAREd against the schema rather than a blind edit.
 pub async fn list_anesthesia_complications(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
