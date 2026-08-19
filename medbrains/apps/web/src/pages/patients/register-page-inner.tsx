@@ -4,7 +4,9 @@ import { Card, Divider, Grid, Group, Modal, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { PatientRegistrationInitialValues } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
 import type { CreatePatientRequest, MpiMatchResult, Patient } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconArrowLeft,
@@ -107,6 +109,14 @@ export function PatientRegisterPageInner() {
   const source = params.get("source");
   const sourceCampId = params.get("campId") ?? "";
   const returnTo = params.get("returnTo") ?? undefined;
+  // Registering the patient takes patients.create; filing them against the
+  // camp takes camp.registrations.create and opening the visit takes
+  // opd.visit.create. Both follow-on calls are wrapped in a catch that folds
+  // the failure into a soft queueWarning, so without these the screen would
+  // report a successful registration while the patient was never filed to the
+  // camp and never queued.
+  const canRegisterToCamp = useHasPermission(P.CAMP.REGISTRATIONS_CREATE);
+  const canCreateOpdVisit = useHasPermission(P.OPD.VISIT_CREATE);
   const isCampRegistration = source === "camp" && Boolean(sourceCampId);
   const { data: camps = [], isLoading: campContextLoading } = useQuery({
     queryKey: ["camp-camps", "patient-registration-page", sourceCampId],
@@ -145,7 +155,7 @@ export function PatientRegisterPageInner() {
       campContext,
     }: RegisterPatientMutationInput): Promise<RegisterPatientMutationResult> => {
       const patient = await patientsService.createPatient(req);
-      if (campContext?.campId) {
+      if (campContext?.campId && canRegisterToCamp) {
         try {
           const campRegistration = await campService.createCampRegistration({
             camp_id: campContext.campId,
@@ -160,7 +170,7 @@ export function PatientRegisterPageInner() {
             is_walk_in: true,
           });
 
-          if (linkedServices?.createOpdVisit && req.department_id) {
+          if (linkedServices?.createOpdVisit && canCreateOpdVisit && req.department_id) {
             try {
               const result = await campService.openCampRegistrationEncounter(campRegistration.id, {
                 department_id: req.department_id,
@@ -206,7 +216,7 @@ export function PatientRegisterPageInner() {
         }
       }
 
-      if (!linkedServices?.createOpdVisit || !req.department_id) {
+      if (!linkedServices?.createOpdVisit || !canCreateOpdVisit || !req.department_id) {
         return { patient, linkedServices };
       }
 

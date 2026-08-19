@@ -62,6 +62,7 @@ export default function GroupsPage() {
   // `admin.users.list` opens this page; it does not edit or deactivate a group.
   // Both controls were ungated, so a user administrator with read-only access
   // was shown Edit and Deactivate on every row.
+  const canCreateUsers = useHasPermission(P.ADMIN.USERS.CREATE);
   const canUpdateUsers = useHasPermission(P.ADMIN.USERS.UPDATE);
   const canDeleteUsers = useHasPermission(P.ADMIN.USERS.DELETE);
 
@@ -90,9 +91,11 @@ export default function GroupsPage() {
         title="Access Groups"
         subtitle="Care teams, on-call rotations, and privilege escalations. Membership feeds SpiceDB tuples for resource scoping."
         actions={
-          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
-            New group
-          </Button>
+          canCreateUsers ? (
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
+              New group
+            </Button>
+          ) : undefined
         }
       />
 

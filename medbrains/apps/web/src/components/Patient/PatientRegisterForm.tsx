@@ -366,9 +366,15 @@ export function PatientRegisterForm({
       allergy_status: initialValues?.allergy_status ?? "not_asked_yet",
       known_allergies: initialValues?.known_allergies,
       drug_allergies: initialValues?.drug_allergies,
-      create_opd_visit: initialValues?.create_opd_visit ?? (!isEdit && canCreateOpdVisit),
+      // `??` only falls through when the caller passes nothing, so a caller
+      // that hard-sets create_opd_visit — the camp registration route does —
+      // used to beat the permission check. The checkbox is hidden without
+      // opd.visit.create, so there was no way to unset it either: the visit
+      // call went out and 403'd into a swallowed queueWarning, leaving a
+      // patient registered and silently not queued.
+      create_opd_visit: (initialValues?.create_opd_visit ?? !isEdit) && canCreateOpdVisit,
       open_opd_after_registration:
-        initialValues?.open_opd_after_registration ?? (!isEdit && canCreateOpdVisit),
+        (initialValues?.open_opd_after_registration ?? !isEdit) && canCreateOpdVisit,
     },
   });
   const [activeStep, setActiveStep] = useState(0);

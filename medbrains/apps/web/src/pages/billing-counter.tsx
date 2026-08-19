@@ -79,6 +79,11 @@ function AdvanceSummary({ advances }: { advances: PatientAdvance[] }) {
 export function BillingCounterPage() {
   useRequirePermission(P.BILLING.PAYMENTS_CREATE);
   const canCreate = useHasPermission(P.BILLING.INVOICES_CREATE);
+  // Taking payment needs billing.payments.create; reading what is owed needs
+  // billing.invoices.list. Held apart, the counter showed an empty list of
+  // open invoices — a cashier would have told the patient there is nothing
+  // outstanding.
+  const canListInvoices = useHasPermission(P.BILLING.INVOICES_LIST);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [patientId, setPatientId] = useState("");
@@ -94,7 +99,7 @@ export function BillingCounterPage() {
   const invoicesQuery = useQuery({
     queryKey: ["counter-invoices", patientId],
     queryFn: () => billingService.listInvoices({ patient_id: patientId, per_page: "50" }),
-    enabled: patientId.length > 0,
+    enabled: patientId.length > 0 && canListInvoices,
   });
 
   const advancesQuery = useQuery({
