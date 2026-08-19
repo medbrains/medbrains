@@ -607,6 +607,13 @@ pub async fn generate_document(
     Json(body): Json<GenerateDocumentRequest>,
 ) -> Result<Json<DocumentOutput>, AppError> {
     require_permission(&claims, permissions::documents::GENERATE)?;
+    // documents.generate is held by seven roles — doctor, nurse, pharmacist,
+    // lab_technician, receptionist, billing_clerk and facilities_manager — and
+    // the body chooses which patient the document is rendered for. patient_id
+    // is optional because a template may render nothing patient-specific.
+    if let Some(pid) = body.patient_id {
+        medbrains_authz_gate::require_patient_access(&state, &claims, pid).await?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

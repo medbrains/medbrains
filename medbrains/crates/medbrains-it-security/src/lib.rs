@@ -1,5 +1,25 @@
 //! IT Security routes — Break-Glass, Clinical Access Monitor, Stock Disposal,
 //! TAT Tracking, Data Migration, EOD Digest, Data Quality, CERT-In Compliance.
+//!
+//! # Why create_sensitive_patient and start_tat_record take no record check
+//!
+//! `create_sensitive_patient` marks a patient as restricted — VIP, staff, or a
+//! diagnosis that must not surface on a shared screen. `start_tat_record`
+//! opens a turnaround-time record whose `patient_id` is optional.
+//!
+//! They are guarded on `admin.security` and `admin.system`, and **neither code
+//! is held by any built-in role** (`scripts/check_permission_reachable.py`),
+//! so both are bypass-only: super_admin and hospital_admin, who see every
+//! patient regardless.
+//!
+//! Beyond that, marking a patient sensitive is a protective act performed by
+//! somebody deliberately not on their care team. Requiring care access would
+//! mean the only patients who can be shielded are the ones the shielder
+//! already treats.
+//!
+//! **What retires this:** granting either code to a role that treats patients.
+//! The sensitive-patient list then becomes a way to learn which patients carry
+//! a restricted diagnosis, which is the thing it exists to hide.
 
 use axum::routing::{delete, get, patch, post};
 use axum::{
