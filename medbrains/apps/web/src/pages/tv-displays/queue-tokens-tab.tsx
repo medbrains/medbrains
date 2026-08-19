@@ -5,6 +5,7 @@ import { Box, Card, Group, Select, SimpleGrid, Stack, Text, Tooltip } from "@man
 import { useDisclosure } from "@mantine/hooks";
 import type { QueueTokenFormInput } from "@medbrains/schemas";
 import { queueTokenFormSchema } from "@medbrains/schemas";
+import { useHasAnyPermission } from "@medbrains/stores";
 import type {
   CreateQueueTokenRequest,
   DepartmentRow,
@@ -28,6 +29,7 @@ import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton, toast } from "@/components/ui";
 import { defaultQueueTokenFormValues, queueTokenFormToRequest } from "@/forms/tv-displays.form";
+import { DEPARTMENT_LIST_CODES } from "@/lib/api-permission-sets";
 import { tvDisplaysService } from "@/services/tvDisplays.service";
 import styles from "../tv-displays.module.scss";
 import { DISPLAY_LIST_REFRESH_MS, QUEUE_REFRESH_MS, todayIsoDate } from "./shared";
@@ -93,9 +95,15 @@ export function QueueTokensTab({ canManage }: { canManage: boolean }) {
   });
   const today = todayIsoDate();
 
+  // The department picker is the shared setup endpoint, which takes
+  // require_any_permission over nineteen codes. Mirror the handler rather than
+  // guess one member — gating on one would hide the picker from people the
+  // server would allow.
+  const canListDepartments = useHasAnyPermission(DEPARTMENT_LIST_CODES);
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
     queryFn: () => tvDisplaysService.listDepartments(),
+    enabled: canListDepartments,
   });
 
   const { data: displays = [] } = useQuery({

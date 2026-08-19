@@ -43,3 +43,17 @@ export const DOCUMENT_PRESIGN_CODES: string[] = [
   P.DOCUMENTS.AUDIT_LIST,
   P.DOCUMENTS.GENERATE,
 ];
+
+/**
+ * `medbrains-ipd::list_wards` — GET /api/ipd/wards. Six codes, because a ward
+ * list is read by admitting, by the bed dashboard, by transfers and by ward
+ * administration alike.
+ */
+export const WARD_LIST_CODES: string[] = [
+  P.IPD.ADMISSIONS_CREATE,
+  P.IPD.ADMISSIONS_LIST,
+  P.IPD.BED_DASHBOARD_VIEW,
+  P.IPD.BEDS_MANAGE,
+  P.IPD.TRANSFERS_CREATE,
+  P.IPD.WARDS_MANAGE,
+];

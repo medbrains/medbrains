@@ -18,7 +18,9 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { OrderSetItemFormInput } from "@medbrains/schemas";
 import { orderSetItemFormSchema } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
 import type { AddOrderSetItemRequest, OrderSetTemplateItem } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -55,6 +57,9 @@ const emptyItemForm: OrderSetItemFormInput = {
 };
 
 export function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
+  // The parent passes the update flag but not the read one: opening a
+  // template carries order_sets.templates.view.
+  const canViewTemplate = useHasPermission(P.ORDER_SETS.TEMPLATES_VIEW);
   const qc = useQueryClient();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [itemDrawer, { open: openItem, close: closeItem }] = useDisclosure(false);
@@ -72,7 +77,7 @@ export function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
       if (!selectedTemplateId) throw new Error("Template not selected");
       return orderSetsService.getOrderSetTemplate(selectedTemplateId);
     },
-    enabled: !!selectedTemplateId,
+    enabled: !!selectedTemplateId && canViewTemplate,
   });
 
   const {

@@ -16,6 +16,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import type { TvDisplayFormInput } from "@medbrains/schemas";
 import { tvDisplayFormSchema } from "@medbrains/schemas";
+import { useHasAnyPermission } from "@medbrains/stores";
 import type {
   CreateTvDisplayRequest,
   DepartmentRow,
@@ -37,6 +38,7 @@ import {
   tvDisplayFormToUpdateRequest,
   tvDisplayToForm,
 } from "@/forms/tv-displays.form";
+import { DEPARTMENT_LIST_CODES } from "@/lib/api-permission-sets";
 import { confirmDestructive } from "@/lib/confirm";
 import { tvDisplaysService } from "@/services/tvDisplays.service";
 import { displayLaunchTarget } from "./shared";
@@ -96,9 +98,15 @@ export function DisplaysTab({
     queryFn: () => tvDisplaysService.listTvDisplays(),
   });
 
+  // The department picker is the shared setup endpoint, which takes
+  // require_any_permission over nineteen codes. Mirror the handler rather than
+  // guess one member — gating on one would hide the picker from people the
+  // server would allow.
+  const canListDepartments = useHasAnyPermission(DEPARTMENT_LIST_CODES);
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
     queryFn: () => tvDisplaysService.listDepartments(),
+    enabled: canListDepartments,
   });
 
   const createMutation = useMutation({

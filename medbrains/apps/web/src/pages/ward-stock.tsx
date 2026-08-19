@@ -17,6 +17,10 @@ import { pharmacyService } from "@/services/pharmacy.service";
 export function WardStockPage() {
   useRequirePermission(P.PHARMACY.STORES_MANAGE);
   const canManage = useHasPermission(P.PHARMACY.STORES_MANAGE);
+  // The stock dashboard is served under pharmacy.analytics.view, not the
+  // stores code this page opens on. Refused, the ward's stock reads as empty
+  // — a ward that has run out rather than one you may not see.
+  const canReadStockDashboard = useHasPermission(P.PHARMACY.ANALYTICS_VIEW);
   const qc = useQueryClient();
   const [dept, setDept] = useState("");
   const [parOpen, parHandlers] = useDisclosure(false);
@@ -35,6 +39,7 @@ export function WardStockPage() {
   const { data: locations = [] } = useQuery({
     queryKey: ["pharmacy-location-stock"],
     queryFn: () => pharmacyService.getLocationStockDashboard(),
+    enabled: canReadStockDashboard,
   });
 
   const locationCols: Column<LocationStockSummary>[] = [

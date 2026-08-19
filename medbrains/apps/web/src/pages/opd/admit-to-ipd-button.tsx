@@ -2,6 +2,7 @@
 
 import { Group, Menu, Modal, Select, Stack, Textarea } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { useHasAnyPermission } from "@medbrains/stores";
 import type { AdmitFromOpdRequest, DepartmentRow } from "@medbrains/types";
 import { IconMedicalCross } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { useClinicalEmit } from "@/components";
 import { BedSelect } from "@/components/BedSelect";
 import { Button, toast } from "@/components/ui";
+import { DEPARTMENT_LIST_CODES, WARD_LIST_CODES } from "@/lib/api-permission-sets";
 import { opdService } from "@/services/opd.service";
 
 export function AdmitToIpdButton({
@@ -33,15 +35,23 @@ export function AdmitToIpdButton({
   const [notes, setNotes] = useState("");
   const emit = useClinicalEmit();
 
+  // The department picker is the shared setup endpoint, which takes
+  // require_any_permission over nineteen codes. Mirror the handler rather than
+  // guess one member — gating on one would hide the picker from people the
+  // server would allow.
+  const canListDepartments = useHasAnyPermission(DEPARTMENT_LIST_CODES);
+  // The ward list has its own six-code set for the same reason.
+  const canListWards = useHasAnyPermission(WARD_LIST_CODES);
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
     queryFn: () => opdService.listDepartments(),
+    enabled: canListDepartments,
   });
 
   const { data: wards = [] } = useQuery({
     queryKey: ["ipd-wards"],
     queryFn: () => opdService.listWards(),
-    enabled: opened,
+    enabled: opened && canListWards,
   });
 
   const deptOptions = departments.map((d: DepartmentRow) => ({ value: d.id, label: d.name }));
