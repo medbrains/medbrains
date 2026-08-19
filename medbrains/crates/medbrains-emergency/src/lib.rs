@@ -1456,6 +1456,11 @@ pub async fn deactivate_code(
 //  MLC Cases
 // ══════════════════════════════════════════════════════════
 
+// The medico-legal register itself. This is the "statutory register" case:
+// the MLC register exists to be maintained and produced, and the codes that
+// reach it are narrow and specific. Opening ONE case is a different act — an
+// MLC names assault, poisoning, a sexual offence or a POCSO matter against a
+// person — so every handler below that takes a case id authorizes it.
 pub async fn list_mlc_cases(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1646,6 +1651,17 @@ pub async fn update_mlc_case(
     Json(body): Json<UpdateMlcCaseRequest>,
 ) -> Result<Json<MlcCase>, AppError> {
     require_permission(&claims, permissions::emergency::mlc::UPDATE)?;
+    // MLC_CASE hangs off `mlc_cases.patient_id`, which is NOT NULL, rather
+    // than the nullable `er_visit_id` beside it — an MLC raised without an
+    // ER visit (brought dead, an OPD-originated case) would otherwise
+    // authorize as "no such case".
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MLC_CASE,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1822,6 +1838,15 @@ pub async fn create_mlc_document(
 ) -> Result<Json<MlcDocument>, AppError> {
     let required_permission = mlc_document_create_permission(&body.document_type)?;
     require_permission(&claims, required_permission)?;
+    // The document hangs off the case named in the path; authorizing the
+    // case is the decision.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MLC_CASE,
+        mlc_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1898,6 +1923,14 @@ pub async fn list_police_intimations(
             permissions::emergency::mlc_police_intimations::REPRINT,
         ],
     )?;
+    // A list under a parent id: authorize the parent.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MLC_CASE,
+        mlc_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1938,6 +1971,13 @@ pub async fn create_police_intimation(
         &claims,
         permissions::emergency::mlc_police_intimations::CREATE,
     )?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MLC_CASE,
+        mlc_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -2025,6 +2065,15 @@ pub async fn confirm_police_receipt(
         &claims,
         permissions::emergency::mlc_police_intimations::CONFIRM,
     )?;
+    // The path names the intimation, which reaches the patient through its
+    // case — MLC_POLICE_INTIMATION is Via(MLC_CASE) for that hop.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MLC_POLICE_INTIMATION,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
