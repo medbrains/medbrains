@@ -1,5 +1,6 @@
-import { Group, Loader, Stack } from "@mantine/core";
+import { Group, Loader, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { useHasPermission } from "@medbrains/stores";
 import type { CreatePatientRequest, UpdatePatientRequest } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,10 +28,15 @@ function PatientEditPageInner() {
   const queryClient = useQueryClient();
   const emit = useClinicalEmit();
 
+  // The page opens on patients.update; loading the record to edit needs
+  // patients.view. Refused, `patient` never arrives and the early return
+  // below spins forever — the same lie about progress as the case-sheet
+  // scan pane, on a form the user was sent here to fill in.
+  const canViewPatient = useHasPermission(P.PATIENTS.VIEW);
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", patientId],
     queryFn: () => patientsService.getPatient(patientId),
-    enabled: Boolean(patientId),
+    enabled: Boolean(patientId) && canViewPatient,
   });
 
   const updateMutation = useMutation({
@@ -57,6 +63,19 @@ function PatientEditPageInner() {
       });
     },
   });
+
+  if (!canViewPatient) {
+    return (
+      <div>
+        <PageHeader title={t("registrationForm.title.edit")} subtitle="" />
+        <Group justify="center" py="xl">
+          <Text c="dimmed" size="sm">
+            You do not have permission to read this patient's record, so it cannot be edited here.
+          </Text>
+        </Group>
+      </div>
+    );
+  }
 
   if (isLoading || !patient) {
     return (

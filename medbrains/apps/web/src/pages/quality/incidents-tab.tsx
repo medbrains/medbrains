@@ -41,6 +41,9 @@ import { capaStatusColors, incidentStatusColors, statusColorTone } from "./share
 
 export function IncidentsTab() {
   const canCreate = useHasPermission(P.QUALITY.INCIDENTS_CREATE);
+  // Opening one incident carries the list code, which the tab never asked
+  // for — it holds only create, update and CAPA manage.
+  const canListIncidents = useHasPermission(P.QUALITY.INCIDENTS_LIST);
   const canUpdate = useHasPermission(P.QUALITY.INCIDENTS_UPDATE);
   const canManageCapa = useHasPermission(P.QUALITY.CAPA_MANAGE);
   const qc = useQueryClient();
@@ -69,6 +72,9 @@ export function IncidentsTab() {
   // The list omits the heavy free-text/JSONB fields — fetch the full incident
   // (with description/immediate_action/root_cause) when opening the detail view.
   const openIncidentDetail = async (id: string) => {
+    if (!canListIncidents) {
+      return;
+    }
     setSelectedIncident(null);
     openDetail();
     const full = await qc.fetchQuery({
