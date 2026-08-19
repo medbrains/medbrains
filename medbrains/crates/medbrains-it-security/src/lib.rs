@@ -93,7 +93,7 @@ use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::middleware::authorization::{require_any_permission, require_permission};
 use medbrains_server_core::state::AppState;
 
 fn parse_uuid(s: &Option<String>) -> Option<Uuid> {
@@ -1547,7 +1547,18 @@ pub async fn list_security_incidents(
     Extension(claims): Extension<Claims>,
     Query(params): Query<IncidentQuery>,
 ) -> Result<Json<Vec<SecurityIncidentSummary>>, AppError> {
-    require_permission(&claims, permissions::admin::SECURITY)?;
+    // `security.incidents.*` exists for exactly this and is granted to Security
+    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
+    // to NO role, so the register was bypass-only: the role created to log
+    // security incidents could not log one. Both are accepted — an IT security
+    // administrator holding the broader code keeps access.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::security::incidents::LIST,
+            permissions::admin::SECURITY,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1589,7 +1600,18 @@ pub async fn get_security_incident(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<SecurityIncident>, AppError> {
-    require_permission(&claims, permissions::admin::SECURITY)?;
+    // `security.incidents.*` exists for exactly this and is granted to Security
+    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
+    // to NO role, so the register was bypass-only: the role created to log
+    // security incidents could not log one. Both are accepted — an IT security
+    // administrator holding the broader code keeps access.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::security::incidents::LIST,
+            permissions::admin::SECURITY,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1610,7 +1632,18 @@ pub async fn create_security_incident(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateSecurityIncidentRequest>,
 ) -> Result<Json<SecurityIncident>, AppError> {
-    require_permission(&claims, permissions::admin::SECURITY)?;
+    // `security.incidents.*` exists for exactly this and is granted to Security
+    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
+    // to NO role, so the register was bypass-only: the role created to log
+    // security incidents could not log one. Both are accepted — an IT security
+    // administrator holding the broader code keeps access.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::security::incidents::CREATE,
+            permissions::admin::SECURITY,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1658,7 +1691,18 @@ pub async fn update_security_incident(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateSecurityIncidentRequest>,
 ) -> Result<Json<SecurityIncident>, AppError> {
-    require_permission(&claims, permissions::admin::SECURITY)?;
+    // `security.incidents.*` exists for exactly this and is granted to Security
+    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
+    // to NO role, so the register was bypass-only: the role created to log
+    // security incidents could not log one. Both are accepted — an IT security
+    // administrator holding the broader code keeps access.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::security::incidents::UPDATE,
+            permissions::admin::SECURITY,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1728,7 +1772,18 @@ pub async fn report_to_cert_in(
     Path(id): Path<Uuid>,
     Json(body): Json<ReportToCertInRequest>,
 ) -> Result<Json<SecurityIncident>, AppError> {
-    require_permission(&claims, permissions::admin::SECURITY)?;
+    // `security.incidents.*` exists for exactly this and is granted to Security
+    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
+    // to NO role, so the register was bypass-only: the role created to log
+    // security incidents could not log one. Both are accepted — an IT security
+    // administrator holding the broader code keeps access.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::security::incidents::UPDATE,
+            permissions::admin::SECURITY,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1766,7 +1821,18 @@ pub async fn get_incident_updates(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<SecurityIncidentUpdate>>, AppError> {
-    require_permission(&claims, permissions::admin::SECURITY)?;
+    // `security.incidents.*` exists for exactly this and is granted to Security
+    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
+    // to NO role, so the register was bypass-only: the role created to log
+    // security incidents could not log one. Both are accepted — an IT security
+    // administrator holding the broader code keeps access.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::security::incidents::LIST,
+            permissions::admin::SECURITY,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1793,7 +1859,18 @@ pub async fn add_incident_update(
     Path(id): Path<Uuid>,
     Json(body): Json<AddIncidentUpdateRequest>,
 ) -> Result<Json<SecurityIncidentUpdate>, AppError> {
-    require_permission(&claims, permissions::admin::SECURITY)?;
+    // `security.incidents.*` exists for exactly this and is granted to Security
+    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
+    // to NO role, so the register was bypass-only: the role created to log
+    // security incidents could not log one. Both are accepted — an IT security
+    // administrator holding the broader code keeps access.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::security::incidents::UPDATE,
+            permissions::admin::SECURITY,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

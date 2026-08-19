@@ -1,3 +1,22 @@
+//! ── Why nothing here takes a record check ──
+//!
+//! Every handler in this file returns a hospital-level AGGREGATE: counts, sums,
+//! rates and turnaround times, grouped by month, department or doctor. None of
+//! them emits a patient identifier. Three reference `patient_id` and a reader
+//! scanning for it will stop on them, so to save that reading:
+//! `doctor_revenue` and `opd_footfall` use it inside `COUNT(DISTINCT …)`, and
+//! `readmission_watch` uses it only in an inner correlation to decide whether a
+//! discharge came back — the output is monthly counts.
+//!
+//! Filtering an aggregate to the reader's own care team would not make it safer,
+//! it would make it WRONG. A departmental revenue figure that silently omits the
+//! patients this particular reader does not treat is not departmental revenue,
+//! and a readmission rate computed over a subset is a different rate. The number
+//! would still be presented as the hospital's.
+//!
+//! `analytics.view` is the control, held by Doctor, Pharmacist, Quality Officer,
+//! Case Manager and Scheduling Admin.
+
 use axum::routing::get;
 use axum::{
     Extension, Json,
