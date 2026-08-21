@@ -351,6 +351,7 @@ check-parent-id-scoping: ## Ban nested routes that discard their parent id
 
 check-marketing-wall: ## Keep clinical data out of the mkt_* schema
 	python3 scripts/check_marketing_wall.py
+	python3 scripts/test_check_marketing_wall.py
 
 check-patient-filter-bind: ## Ban a uuid[] patient predicate with no permitted set bound to it
 	python3 scripts/check_patient_filter_bind.py

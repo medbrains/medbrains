@@ -42,12 +42,12 @@ CLINICAL_TABLES = re.compile(
 RESOLVER = "cohorts.rs"
 
 
-def check_schema() -> list[str]:
+def check_schema(migrations: str = MIGRATIONS) -> list[str]:
     failures = []
-    for name in sorted(os.listdir(MIGRATIONS)):
+    for name in sorted(os.listdir(migrations)):
         if not name.endswith(".sql"):
             continue
-        text = open(os.path.join(MIGRATIONS, name), encoding="utf-8").read()
+        text = open(os.path.join(migrations, name), encoding="utf-8").read()
         for block in re.finditer(
             r"CREATE TABLE[^;]*?public\.(mkt_\w+)\s*\((.*?)\n\);", text, re.S
         ):
@@ -62,9 +62,9 @@ def check_schema() -> list[str]:
     return failures
 
 
-def check_reach() -> list[str]:
+def check_reach(marketing: str = MARKETING) -> list[str]:
     failures = []
-    for dirpath, _, files in os.walk(MARKETING):
+    for dirpath, _, files in os.walk(marketing):
         for name in sorted(files):
             if not name.endswith(".rs") or name == RESOLVER:
                 continue
