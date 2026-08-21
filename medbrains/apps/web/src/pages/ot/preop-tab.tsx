@@ -29,11 +29,16 @@ import { otService } from "@/services/ot.service";
 export function PreopTab({ bookingId }: { bookingId: string }) {
   const queryClient = useQueryClient();
   const canCreate = useHasPermission(P.OT.PREOP_CREATE);
+  // The tab holds only the create code; reading the record carries its
+  // own. Refused, the fetch returns nothing and the panel below renders
+  // as though the record does not exist.
+  const canView = useHasPermission(P.OT.PREOP_LIST);
   const [editing, { open: openEditing, close: closeEditing }] = useDisclosure(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["ot-preop", bookingId],
     queryFn: () => otService.listPreopAssessments(bookingId),
+    enabled: canView,
   });
 
   const assessments: OtPreopAssessment[] = data ?? [];

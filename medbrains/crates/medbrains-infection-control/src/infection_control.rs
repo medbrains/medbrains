@@ -1,4 +1,26 @@
 #![allow(clippy::too_many_lines)]
+//! Infection prevention and control — surveillance, stewardship, outbreaks.
+//!
+//! # Why the five create handlers take no record check
+//!
+//! `create_surveillance`, `create_stewardship`, `add_outbreak_contact`,
+//! `create_exposure` and `create_indwelling_device` all take a `patient_id`
+//! from the body. Every `infection_control.*.create` code is held by one role,
+//! `infection_control_officer` (`crates/medbrains-core/src/access/roles.rs`).
+//!
+//! Surveillance is the act of looking at patients you are not treating. An IC
+//! officer follows a CLABSI or a CAUTI across every ward, traces contacts of
+//! an index case through people who are not their patients, and reviews an
+//! antibiotic decision made by somebody else. A care-relationship check would
+//! confine surveillance to the officer's own caseload, which is empty.
+//!
+//! This is the same shape as the quality register and the security tag: a
+//! cross-cutting function whose whole point is reach.
+//!
+//! **What retires this:** granting any `infection_control.*` code to a role
+//! that also treats patients. The surveillance register then becomes a way to
+//! ask whether a named person is carrying a resistant organism.
+
 
 use axum::{
     Extension, Json,
@@ -769,7 +791,7 @@ pub async fn create_biowaste(
     .fetch_one(&mut *tx)
     .await?;
 
-    medbrains_server_core::nabh_evidence::mirror_biowaste_record(&mut tx, claims.tenant_id, row.id).await?;
+    medbrains_nabh::mirror_biowaste_record(&mut tx, claims.tenant_id, row.id).await?;
     queue_biowaste_event(&mut tx, &claims, &row).await?;
 
     tx.commit().await?;
@@ -1772,8 +1794,7 @@ pub async fn monthly_surveillance_report(
     .bind(from)
     .bind(to)
     .fetch_one(&mut *tx)
-    .await
-    .unwrap_or(0);
+    .await?;
 
     // Hand hygiene compliance average
     let hygiene_compliance: Option<f64> = sqlx::query_scalar(
@@ -1814,8 +1835,7 @@ pub async fn monthly_surveillance_report(
     .bind(from)
     .bind(to)
     .fetch_one(&mut *tx)
-    .await
-    .unwrap_or(0);
+    .await?;
 
     // Active outbreaks
     let active_outbreaks: i64 = sqlx::query_scalar(
@@ -1825,8 +1845,7 @@ pub async fn monthly_surveillance_report(
     )
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
-    .await
-    .unwrap_or(0);
+    .await?;
 
     // Needle-stick incidents count
     let needle_stick_count: i64 = sqlx::query_scalar(
@@ -1839,8 +1858,7 @@ pub async fn monthly_surveillance_report(
     .bind(from)
     .bind(to)
     .fetch_one(&mut *tx)
-    .await
-    .unwrap_or(0);
+    .await?;
 
     tx.commit().await?;
 

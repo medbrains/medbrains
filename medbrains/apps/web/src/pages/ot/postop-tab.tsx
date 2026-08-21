@@ -24,10 +24,15 @@ import { otService } from "@/services/ot.service";
 export function PostopTab({ bookingId }: { bookingId: string }) {
   const queryClient = useQueryClient();
   const canCreate = useHasPermission(P.OT.POSTOP_CREATE);
+  // The tab holds only the create code; reading the record carries its
+  // own. Refused, the fetch returns nothing and the panel below renders
+  // as though the record does not exist.
+  const canView = useHasPermission(P.OT.POSTOP_LIST);
 
   const { data: record = null, isLoading } = useQuery<OtPostopRecord | null>({
     queryKey: ["ot-postop", bookingId],
     queryFn: () => otService.getPostopRecord(bookingId),
+    enabled: canView,
   });
 
   const {
@@ -211,7 +216,9 @@ export function PostopTab({ bookingId }: { bookingId: string }) {
   if (!canCreate)
     return (
       <Text c="dimmed" size="sm">
-        No post-op record yet.
+        {canView
+          ? "No post-op record yet."
+          : "You do not have permission to view the post-op record."}
       </Text>
     );
 

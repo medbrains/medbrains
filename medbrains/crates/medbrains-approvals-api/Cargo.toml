@@ -1,0 +1,28 @@
+[package]
+name = "medbrains-approvals-api"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+# HTTP surface for the approvals platform.
+#
+# The only layer that knows about axum. Everything below it — the controls, the
+# guarded writes, the plug traits — is reachable without a web framework, which
+# is what lets the rules be tested without one.
+[dependencies]
+medbrains-approvals = { path = "../medbrains-approvals" }
+medbrains-approvals-core = { path = "../medbrains-approvals-core" }
+medbrains-approvals-store = { path = "../medbrains-approvals-store" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-db = { path = "../medbrains-db" }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

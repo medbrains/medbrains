@@ -3,11 +3,13 @@
 import { Drawer, Group, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { useHasPermission } from "@medbrains/stores";
 import type {
   CommTemplateRow,
   CommTemplateType,
   CreateCommTemplateRequest,
 } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -71,6 +73,9 @@ function templatePayload(form: TemplateForm): CreateCommTemplateRequest | null {
 }
 
 export function ConfigTab() {
+  // The tab rides in on the communications page's gate; creating a template
+  // carries communications.config.manage.
+  const canManage = useHasPermission(P.COMMUNICATIONS.CONFIG_MANAGE);
   const qc = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const [form, setForm] = useState<TemplateForm>(emptyTemplateForm);
@@ -136,18 +141,20 @@ export function ConfigTab() {
 
   return (
     <>
-      <Group justify="flex-end" mb="md">
-        <Button
-          tone="primary"
-          leftSection={<IconPlus size={16} />}
-          onClick={() => {
-            setForm(emptyTemplateForm);
-            open();
-          }}
-        >
-          Add Template
-        </Button>
-      </Group>
+      {canManage && (
+        <Group justify="flex-end" mb="md">
+          <Button
+            tone="primary"
+            leftSection={<IconPlus size={16} />}
+            onClick={() => {
+              setForm(emptyTemplateForm);
+              open();
+            }}
+          >
+            Add Template
+          </Button>
+        </Group>
+      )}
       <DataTable columns={cols} data={data} loading={isLoading} rowKey={(r) => r.id} />
       <Drawer opened={opened} onClose={close} title="Add Template" position="right" size="xl">
         <Stack>

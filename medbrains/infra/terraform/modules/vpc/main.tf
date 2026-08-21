@@ -13,8 +13,23 @@ variable "azs" {
   default = ["a", "b", "c"]
 }
 
+# Cost knobs — default to prod-safe (HA) behaviour; non-prod envs opt into the
+# cheaper values. Single NAT and no interface endpoints save ~$195/mo in dev.
+variable "single_nat_gateway" {
+  type        = bool
+  default     = false
+  description = "One shared NAT GW instead of one per AZ. Set true in non-prod."
+}
+variable "enable_interface_endpoints" {
+  type        = bool
+  default     = true
+  description = "Billed hourly per AZ. Set false in non-prod (NAT already reaches AWS APIs)."
+}
+
 locals {
   full_azs = [for az in var.azs : "${var.region}${az}"]
+  # AZs that get a NAT GW: all of them, or just the first when single_nat_gateway.
+  nat_azs = var.single_nat_gateway ? [local.full_azs[0]] : local.full_azs
 }
 
 resource "aws_vpc" "this" {
@@ -67,12 +82,12 @@ resource "aws_internet_gateway" "this" {
 }
 
 resource "aws_eip" "nat" {
-  for_each = toset(local.full_azs)
+  for_each = toset(local.nat_azs)
   domain   = "vpc"
 }
 
 resource "aws_nat_gateway" "this" {
-  for_each      = toset(local.full_azs)
+  for_each      = toset(local.nat_azs)
   allocation_id = aws_eip.nat[each.value].id
   subnet_id     = aws_subnet.public[each.value].id
   tags          = { Name = "nat-${each.value}" }
@@ -98,8 +113,9 @@ resource "aws_route_table" "private" {
   for_each = toset(local.full_azs)
   vpc_id   = aws_vpc.this.id
   route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.this[each.value].id
+    cidr_block = "0.0.0.0/0"
+    # Per-AZ NAT normally; all AZs share the single NAT when single_nat_gateway.
+    nat_gateway_id = aws_nat_gateway.this[var.single_nat_gateway ? local.full_azs[0] : each.value].id
   }
 }
 
@@ -158,7 +174,7 @@ locals {
 }
 
 resource "aws_vpc_endpoint" "interface" {
-  for_each            = toset(local.interface_services)
+  for_each            = var.enable_interface_endpoints ? toset(local.interface_services) : toset([])
   vpc_id              = aws_vpc.this.id
   service_name        = "com.amazonaws.${data.aws_region.current.name}.${each.value}"
   vpc_endpoint_type   = "Interface"

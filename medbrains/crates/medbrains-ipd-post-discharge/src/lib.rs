@@ -80,6 +80,8 @@ pub async fn get_discharge_workflow(
             permissions::ipd::discharge_checklist::UPDATE,
         ],
     )?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -108,6 +110,8 @@ pub async fn update_discharge_step(
     Json(body): Json<DischargeStepUpdate>,
 ) -> Result<Json<DischargeWorkflow>, AppError> {
     require_permission(&claims, permissions::ipd::discharge_checklist::UPDATE)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -381,6 +385,8 @@ pub async fn record_dama(
     Json(body): Json<CreateDamaRequest>,
 ) -> Result<Json<DamaRecord>, AppError> {
     require_permission(&claims, permissions::ipd::discharge::CREATE)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
     if body.record_type != "dama" && body.record_type != "lama" {
         return Err(AppError::BadRequest(
             "record_type must be 'dama' or 'lama'".to_owned(),
@@ -483,6 +489,8 @@ pub async fn get_dama(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Option<DamaRecord>>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -564,6 +572,8 @@ pub async fn send_survey(
     Json(body): Json<SendSurveyRequest>,
 ) -> Result<Json<PostDischargeFollowup>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::UPDATE)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -631,6 +641,11 @@ pub async fn create_mortality_review(
     Json(body): Json<CreateMortalityReviewRequest>,
 ) -> Result<Json<MortalityReview>, AppError> {
     require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
+    // No route-derived id: the caller names the admission it is reviewing.
+    // Weaker than a path id, but it stops a review being filed against an
+    // admission outside the caller's reach.
+    medbrains_authz_gate::require_admission_access(&state, &claims, body.admission_id)
+        .await?;
 
     // NABH expects M&M review within 72h; review_due_at is computed
     // server-side so the dashboard's "overdue" flag is consistent.

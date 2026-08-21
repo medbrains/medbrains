@@ -1,12 +1,14 @@
 // IPD BillingTab — split from ipd.tsx (pure move).
 
 import { Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type {
   BillingSummaryResponse,
   EstimatedCostResponse,
   IpTypeConfiguration,
   Receipt,
 } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DocumentActions } from "@/components";
@@ -15,6 +17,14 @@ import { ipdService } from "@/services/ipd.service";
 
 export function BillingTab({ admissionId }: { admissionId: string }) {
   const billingQueryClient = useQueryClient();
+  // Read off each handler, not off the tab. Four endpoints behind one tab want
+  // four different codes, and the tab was gating on none of them — so a caller
+  // who could see the ledger but not the advances register got an empty
+  // Advances panel, which reads as "this patient paid nothing".
+  const canViewInvoices = useHasPermission(P.BILLING.INVOICES_VIEW);
+  const canIssueNoDues = useHasPermission(P.BILLING.INVOICES_UPDATE);
+  const canListAdvances = useHasPermission(P.BILLING.ADVANCES_LIST);
+  const canListTariffs = useHasAnyPermission([P.IPD.TARIFFS_LIST, P.IPD.TARIFFS_MANAGE]);
   const { data: costData } = useQuery({
     queryKey: ["ipd-estimated-cost", admissionId],
     queryFn: () => ipdService.getEstimatedCost(admissionId),
@@ -22,6 +32,7 @@ export function BillingTab({ admissionId }: { admissionId: string }) {
   const { data: noDues } = useQuery({
     queryKey: ["ipd-no-dues", admissionId],
     queryFn: () => ipdService.getNoDuesCertificate(admissionId),
+    enabled: canViewInvoices,
   });
   const issueNoDues = useMutation({
     mutationFn: () => ipdService.issueNoDuesCertificate(admissionId, {}),
@@ -40,10 +51,12 @@ export function BillingTab({ admissionId }: { admissionId: string }) {
   const { data: advances } = useQuery({
     queryKey: ["ipd-advances", admissionId],
     queryFn: () => ipdService.getAdmissionAdvances(admissionId),
+    enabled: canListAdvances,
   });
   const { data: ipTypes } = useQuery({
     queryKey: ["ipd-ip-types"],
     queryFn: () => ipdService.listIpTypes(),
+    enabled: canListTariffs,
   });
 
   const cost = costData as EstimatedCostResponse | undefined;
@@ -77,7 +90,7 @@ export function BillingTab({ admissionId }: { admissionId: string }) {
             </Text>
           </Stack>
           <Group gap="xs">
-            {!noDues && (
+            {!noDues && canIssueNoDues && (
               <Button
                 size="sm"
                 onClick={() => issueNoDues.mutate()}

@@ -3,7 +3,7 @@
 //! Phase 5: AMC Contracts, Calibration, Breakdown, History, MGPS, Water, DG/UPS, Fire Inspection.
 
 use axum::{
-    Json,
+    Extension, Json,
     extract::{Path, State},
 };
 use axum::routing::get;
@@ -11,18 +11,18 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use medbrains_core::permissions;
 use medbrains_core::print_data::{
     AmcContractPrintData, BatteryStatus, BreakdownEvent, CalibrationCertificatePrintData,
-    CalibrationEvent, CalibrationParameter, CylinderBank, DgUpsParameters, DgUpsRunLogPrintData,
-    DrillObservation, EmergencyExitCheck, EquipmentBreakdownReportPrintData, EquipmentCoverage,
-    EquipmentHistoryCardPrintData, EscalationContact, FireAlarmCheck,
-    FireEquipmentInspectionPrintData, FireExtinguisherCheck, FireHydrantCheck,
-    FireMockDrillReportPrintData, FirstResponder, FuelStatus, MaintenanceEvent,
-    MateriovigilanceReportPrintData, MgpsConsumption, MgpsDailyLogPrintData, MgpsReading,
-    MicrobiologicalResult, RunEvent, SprinklerCheck, WaterQualityTestPrintData, WaterTestParameter,
+    CalibrationEvent, CalibrationParameter, DgUpsParameters, DgUpsRunLogPrintData,
+    DrillObservation, EquipmentBreakdownReportPrintData, EquipmentCoverage,
+    EquipmentHistoryCardPrintData, EscalationContact, FireEquipmentInspectionPrintData, FireMockDrillReportPrintData, FirstResponder, FuelStatus, MaintenanceEvent,
+    MateriovigilanceReportPrintData, MgpsDailyLogPrintData, RunEvent, WaterQualityTestPrintData, 
 };
 
 use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
 // ── AMC Contract Summary ──────────────────────────────────────────────────────
@@ -30,8 +30,11 @@ use medbrains_server_core::state::AppState;
 /// GET /print-data/amc-contract/{contract_id}
 pub async fn get_amc_contract_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(contract_id): Path<Uuid>,
 ) -> Result<Json<AmcContractPrintData>, AppError> {
+    require_permission(&claims, permissions::bme::contracts::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -97,8 +100,7 @@ pub async fn get_amc_contract_print_data(
     )
     .bind(contract_id)
     .fetch_all(pool)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let equipment_covered: Vec<EquipmentCoverage> = if equipment.is_empty() {
         vec![EquipmentCoverage {
@@ -174,8 +176,11 @@ pub async fn get_amc_contract_print_data(
 /// GET /print-data/calibration-certificate/{calibration_id}
 pub async fn get_calibration_certificate_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(calibration_id): Path<Uuid>,
 ) -> Result<Json<CalibrationCertificatePrintData>, AppError> {
+    require_permission(&claims, permissions::bme::calibration::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -280,8 +285,11 @@ pub async fn get_calibration_certificate_print_data(
 /// GET /print-data/equipment-breakdown/{breakdown_id}
 pub async fn get_equipment_breakdown_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(breakdown_id): Path<Uuid>,
 ) -> Result<Json<EquipmentBreakdownReportPrintData>, AppError> {
+    require_permission(&claims, permissions::bme::breakdowns::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -384,8 +392,11 @@ pub async fn get_equipment_breakdown_print_data(
 /// GET /print-data/equipment-history/{equipment_id}
 pub async fn get_equipment_history_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(equipment_id): Path<Uuid>,
 ) -> Result<Json<EquipmentHistoryCardPrintData>, AppError> {
+    require_permission(&claims, permissions::bme::equipment::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -501,161 +512,34 @@ pub async fn get_equipment_history_print_data(
 
 /// GET /print-data/mgps-log/{date}/{shift}
 pub async fn get_mgps_log_print_data(
-    State(state): State<AppState>,
-    Path((date, shift)): Path<(String, String)>,
+    State(_state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Path((_date, _shift)): Path<(String, String)>,
 ) -> Result<Json<MgpsDailyLogPrintData>, AppError> {
-    let pool: &PgPool = &state.db;
-
-    let log_date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
-        .unwrap_or_else(|_| Utc::now().date_naive());
-
-    let hospital = get_hospital_info(pool).await?;
-
-    // Sample MGPS readings
-    let readings = vec![
-        MgpsReading {
-            time: "08:00".to_string(),
-            gas_type: "O2".to_string(),
-            line_pressure: 4.5,
-            purity_percent: Some(99.5),
-            flow_rate: Some(120.0),
-            alarm_status: "Normal".to_string(),
-        },
-        MgpsReading {
-            time: "08:00".to_string(),
-            gas_type: "N2O".to_string(),
-            line_pressure: 4.2,
-            purity_percent: None,
-            flow_rate: Some(30.0),
-            alarm_status: "Normal".to_string(),
-        },
-        MgpsReading {
-            time: "08:00".to_string(),
-            gas_type: "Air".to_string(),
-            line_pressure: 4.8,
-            purity_percent: None,
-            flow_rate: Some(200.0),
-            alarm_status: "Normal".to_string(),
-        },
-        MgpsReading {
-            time: "12:00".to_string(),
-            gas_type: "O2".to_string(),
-            line_pressure: 4.4,
-            purity_percent: Some(99.5),
-            flow_rate: Some(150.0),
-            alarm_status: "Normal".to_string(),
-        },
-    ];
-
-    let cylinder_status = vec![
-        CylinderBank {
-            bank_id: "Bank-A".to_string(),
-            gas_type: "O2".to_string(),
-            primary_pressure: 150.0,
-            secondary_pressure: 4.5,
-            cylinders_full: 10,
-            cylinders_in_use: 2,
-            cylinders_empty: 0,
-        },
-        CylinderBank {
-            bank_id: "Bank-B".to_string(),
-            gas_type: "O2".to_string(),
-            primary_pressure: 145.0,
-            secondary_pressure: 4.5,
-            cylinders_full: 8,
-            cylinders_in_use: 2,
-            cylinders_empty: 2,
-        },
-    ];
-
-    Ok(Json(MgpsDailyLogPrintData {
-        log_date: log_date.format("%d-%m-%Y").to_string(),
-        shift,
-        operator_name: "MGPS Operator".to_string(),
-        readings,
-        consumption: MgpsConsumption {
-            o2_liters: 2500.0,
-            n2o_liters: 150.0,
-            air_liters: 3000.0,
-            vacuum_liters: 1000.0,
-        },
-        incidents: vec![],
-        cylinder_status,
-        manifold_status: "Auto-changeover Active".to_string(),
-        remarks: None,
-        supervisor_verified: true,
-        supervisor_name: Some("Shift Supervisor".to_string()),
-        hospital_name: hospital.name,
-    }))
+    // No data source exists for this document yet. It previously returned a
+    // hardcoded sample — invented names, marks, and in bme.rs a fabricated
+    // fire-inspection record — which a print template renders onto hospital
+    // letterhead. A missing document is recoverable; a wrong one signed and
+    // filed is not. The sample body is deleted rather than left unreachable,
+    // so nothing here can be revived by accident.
+    Err(AppError::NotImplemented)
 }
 
 // ── Water Quality Test ────────────────────────────────────────────────────────
 
 /// GET /print-data/water-quality/{test_id}
 pub async fn get_water_quality_print_data(
-    State(state): State<AppState>,
-    Path(test_id): Path<Uuid>,
+    State(_state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Path(_test_id): Path<Uuid>,
 ) -> Result<Json<WaterQualityTestPrintData>, AppError> {
-    let pool: &PgPool = &state.db;
-    let hospital = get_hospital_info(pool).await?;
-
-    // Sample water quality test data
-    let parameters = vec![
-        WaterTestParameter {
-            parameter: "pH".to_string(),
-            unit: "-".to_string(),
-            result: "7.2".to_string(),
-            acceptable_range: "6.5-8.5".to_string(),
-            status: "Pass".to_string(),
-        },
-        WaterTestParameter {
-            parameter: "TDS".to_string(),
-            unit: "mg/L".to_string(),
-            result: "120".to_string(),
-            acceptable_range: "<500".to_string(),
-            status: "Pass".to_string(),
-        },
-        WaterTestParameter {
-            parameter: "Chlorine".to_string(),
-            unit: "mg/L".to_string(),
-            result: "0.3".to_string(),
-            acceptable_range: "0.2-0.5".to_string(),
-            status: "Pass".to_string(),
-        },
-        WaterTestParameter {
-            parameter: "Hardness".to_string(),
-            unit: "mg/L".to_string(),
-            result: "85".to_string(),
-            acceptable_range: "<200".to_string(),
-            status: "Pass".to_string(),
-        },
-    ];
-
-    Ok(Json(WaterQualityTestPrintData {
-        test_date: Utc::now().format("%d-%m-%Y").to_string(),
-        sample_id: format!("WQ-{test_id}"),
-        sample_location: "RO Plant Output".to_string(),
-        sample_type: "RO Water".to_string(),
-        collected_by: "Lab Technician".to_string(),
-        tested_by: "QC Department".to_string(),
-        test_parameters: parameters,
-        overall_result: "Pass".to_string(),
-        microbiological_results: Some(MicrobiologicalResult {
-            total_plate_count: "<10 CFU/mL".to_string(),
-            coliform_count: "Absent".to_string(),
-            e_coli: "Absent".to_string(),
-            pseudomonas: Some("Absent".to_string()),
-            endotoxin_level: Some("<0.25 EU/mL".to_string()),
-        }),
-        action_required: None,
-        next_test_due: Some(
-            (Utc::now() + chrono::Duration::days(7))
-                .format("%d-%m-%Y")
-                .to_string(),
-        ),
-        remarks: None,
-        hospital_name: hospital.name,
-    }))
+    // No data source exists for this document yet. It previously returned a
+    // hardcoded sample — invented names, marks, and in bme.rs a fabricated
+    // fire-inspection record — which a print template renders onto hospital
+    // letterhead. A missing document is recoverable; a wrong one signed and
+    // filed is not. The sample body is deleted rather than left unreachable,
+    // so nothing here can be revived by accident.
+    Err(AppError::NotImplemented)
 }
 
 // ── DG/UPS Run Log ────────────────────────────────────────────────────────────
@@ -663,8 +547,12 @@ pub async fn get_water_quality_print_data(
 /// GET /print-data/dg-ups-log/{equipment_id}/{date}
 pub async fn get_dg_ups_log_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path((equipment_id, date)): Path<(Uuid, String)>,
 ) -> Result<Json<DgUpsRunLogPrintData>, AppError> {
+    // Diesel generator and UPS logs are the energy record.
+    require_permission(&claims, permissions::facilities::energy::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     let log_date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
@@ -766,102 +654,17 @@ pub async fn get_dg_ups_log_print_data(
 
 /// GET /print-data/fire-inspection/{inspection_id}
 pub async fn get_fire_inspection_print_data(
-    State(state): State<AppState>,
-    Path(inspection_id): Path<Uuid>,
+    State(_state): State<AppState>,
+    Extension(_claims): Extension<Claims>,
+    Path(_inspection_id): Path<Uuid>,
 ) -> Result<Json<FireEquipmentInspectionPrintData>, AppError> {
-    let pool: &PgPool = &state.db;
-    let hospital = get_hospital_info(pool).await?;
-
-    let fire_extinguishers = vec![
-        FireExtinguisherCheck {
-            location: "Main Lobby".to_string(),
-            extinguisher_type: "ABC".to_string(),
-            capacity: "6 kg".to_string(),
-            expiry_date: "31-12-2026".to_string(),
-            pressure_ok: true,
-            seal_intact: true,
-            accessible: true,
-            signage_ok: true,
-            status: "OK".to_string(),
-        },
-        FireExtinguisherCheck {
-            location: "ICU Corridor".to_string(),
-            extinguisher_type: "CO2".to_string(),
-            capacity: "4.5 kg".to_string(),
-            expiry_date: "30-06-2026".to_string(),
-            pressure_ok: true,
-            seal_intact: true,
-            accessible: true,
-            signage_ok: true,
-            status: "OK".to_string(),
-        },
-    ];
-
-    let fire_alarms = vec![FireAlarmCheck {
-        zone: "Zone 1 - Ground Floor".to_string(),
-        panel_ok: true,
-        detectors_ok: true,
-        sounders_ok: true,
-        battery_ok: true,
-        last_tested: Some("01-04-2026".to_string()),
-        status: "OK".to_string(),
-    }];
-
-    let fire_hydrants = vec![FireHydrantCheck {
-        location: "Main Building".to_string(),
-        water_flow_ok: true,
-        hose_condition: "Good".to_string(),
-        nozzle_ok: true,
-        valve_operational: true,
-        status: "OK".to_string(),
-    }];
-
-    let emergency_exits = vec![
-        EmergencyExitCheck {
-            location: "Ground Floor East".to_string(),
-            signage_illuminated: true,
-            path_clear: true,
-            door_operational: true,
-            panic_bar_ok: true,
-            status: "OK".to_string(),
-        },
-        EmergencyExitCheck {
-            location: "First Floor West".to_string(),
-            signage_illuminated: true,
-            path_clear: true,
-            door_operational: true,
-            panic_bar_ok: true,
-            status: "OK".to_string(),
-        },
-    ];
-
-    Ok(Json(FireEquipmentInspectionPrintData {
-        inspection_date: Utc::now().format("%d-%m-%Y").to_string(),
-        inspection_number: format!("FI-{inspection_id}"),
-        inspector_name: "Fire Safety Officer".to_string(),
-        inspector_designation: "Safety Officer".to_string(),
-        area_inspected: "Main Building - All Floors".to_string(),
-        fire_extinguishers,
-        fire_alarms,
-        fire_hydrants,
-        emergency_exits,
-        sprinkler_system: Some(SprinklerCheck {
-            zones_inspected: 4,
-            heads_ok: true,
-            valve_ok: true,
-            pressure_ok: true,
-            last_flow_test: Some("01-03-2026".to_string()),
-            status: "OK".to_string(),
-        }),
-        overall_status: "Satisfactory".to_string(),
-        deficiencies_found: vec![],
-        corrective_actions: vec![],
-        next_inspection_due: (Utc::now() + chrono::Duration::days(30))
-            .format("%d-%m-%Y")
-            .to_string(),
-        supervisor_verified: true,
-        hospital_name: hospital.name,
-    }))
+    // No data source exists for this document yet. It previously returned a
+    // hardcoded sample — invented names, marks, and in bme.rs a fabricated
+    // fire-inspection record — which a print template renders onto hospital
+    // letterhead. A missing document is recoverable; a wrong one signed and
+    // filed is not. The sample body is deleted rather than left unreachable,
+    // so nothing here can be revived by accident.
+    Err(AppError::NotImplemented)
 }
 
 // ── Materiovigilance Report ───────────────────────────────────────────────────
@@ -869,8 +672,21 @@ pub async fn get_fire_inspection_print_data(
 /// GET /print-data/materiovigilance/{report_id}
 pub async fn get_materiovigilance_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(report_id): Path<Uuid>,
 ) -> Result<Json<MateriovigilanceReportPrintData>, AppError> {
+    // Device adverse-event reporting is a regulatory submission, so it is
+    // guarded as one rather than as equipment maintenance.
+    require_permission(&claims, permissions::regulatory::materiovigilance::LIST)?;
+    // Optional parent: this record is only sometimes about a patient.
+    medbrains_authz_gate::require_access_via_optional(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MATERIOVIGILANCE_REPORT,
+        report_id,
+    )
+    .await?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -971,8 +787,11 @@ pub async fn get_materiovigilance_print_data(
 /// GET /print-data/fire-mock-drill/{drill_id}
 pub async fn get_fire_mock_drill_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(drill_id): Path<Uuid>,
 ) -> Result<Json<FireMockDrillReportPrintData>, AppError> {
+    require_permission(&claims, permissions::facilities::fire::LIST)?;
+
     let pool: &PgPool = &state.db;
     let hospital = get_hospital_info(pool).await?;
 

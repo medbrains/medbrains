@@ -2,7 +2,9 @@
 
 import { Drawer, Group, Select, Stack, Tabs, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { useHasPermission } from "@medbrains/stores";
 import type { EmployeeCredential, LeaveBalance } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -25,6 +27,10 @@ export function EmployeeDetailDrawer({
   const qc = useQueryClient();
   const [subTab, setSubTab] = useState<string | null>("info");
 
+  // Credentials and leave balances each have their own code — an employee's
+  // licence and registration history is not the same read as their leave.
+  const canListCredentials = useHasPermission(P.HR.CREDENTIALS_LIST);
+  const canListLeave = useHasPermission(P.HR.LEAVE_LIST);
   const { data: employee } = useQuery({
     queryKey: ["hr-employee", employeeId],
     queryFn: () => hrService.getEmployee(employeeId),
@@ -33,12 +39,12 @@ export function EmployeeDetailDrawer({
   const { data: credentials = [] } = useQuery({
     queryKey: ["hr-credentials", employeeId],
     queryFn: () => hrService.listCredentials(employeeId),
-    enabled: opened,
+    enabled: opened && canListCredentials,
   });
   const { data: leaveBalances = [] } = useQuery({
     queryKey: ["hr-leave-balances", employeeId],
     queryFn: () => hrService.listLeaveBalances(employeeId),
-    enabled: opened,
+    enabled: opened && canListLeave,
   });
 
   // ── Add credential ──

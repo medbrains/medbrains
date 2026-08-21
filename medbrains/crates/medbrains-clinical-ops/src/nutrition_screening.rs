@@ -111,6 +111,9 @@ pub async fn create_nutrition_screening(
     Json(body): Json<CreateNutritionScreeningRequest>,
 ) -> Result<Json<NutritionScreening>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    // A nutrition screening is a clinical assessment of the named patient.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     if body.height_cm < 50.0 || body.height_cm > 260.0 {
         return Err(AppError::BadRequest("height_cm must be between 50 and 260".into()));
     }
@@ -170,6 +173,9 @@ pub async fn list_nutrition_screenings(
     Query(params): Query<ListNutritionScreeningQuery>,
 ) -> Result<Json<Vec<NutritionScreening>>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+    // One patient's screening history.
+    medbrains_authz_gate::require_patient_access(&state, &claims, params.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, NutritionScreening>(&format!(

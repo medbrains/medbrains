@@ -1,6 +1,8 @@
 // Long-term-care SnfPanel — split from long-term-care.tsx (pure move).
 
 import { Group, NumberInput, Select, Stack, Text, Textarea, TextInput } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import type { BadgeTone } from "@/components/ui";
@@ -10,7 +12,10 @@ import { longTermCareService } from "@/services/longTermCare.service";
 const SNF_SOURCES = ["hospital_discharge", "direct", "transfer"];
 const SNF_LEVELS = ["skilled_nursing", "rehab", "long_term"];
 
-export function SnfPanel({ patientId, canManage }: { patientId: string; canManage: boolean }) {
+export function SnfPanel({ patientId }: { patientId: string }) {
+  const canView = useHasPermission(P.SPECIALTY.LTC.SNF_LIST);
+  const canCreate = useHasPermission(P.SPECIALTY.LTC.SNF_CREATE);
+  const canUpdate = useHasPermission(P.SPECIALTY.LTC.SNF_UPDATE);
   const qc = useQueryClient();
   const [source, setSource] = useState<string | null>("hospital_discharge");
   const [level, setLevel] = useState<string | null>("skilled_nursing");
@@ -21,6 +26,7 @@ export function SnfPanel({ patientId, canManage }: { patientId: string; canManag
   const { data = [] } = useQuery({
     queryKey: ["snf", patientId],
     queryFn: () => longTermCareService.listSnfAdmissions(patientId),
+    enabled: canView,
   });
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ["snf", patientId] });
@@ -59,7 +65,7 @@ export function SnfPanel({ patientId, canManage }: { patientId: string; canManag
       <Text fw={600} size="sm">
         SNF admissions
       </Text>
-      {canManage && (
+      {canCreate && (
         <>
           <Group grow>
             <Select
@@ -119,7 +125,7 @@ export function SnfPanel({ patientId, canManage }: { patientId: string; canManag
                 {a.expected_los_days ? ` · ~${a.expected_los_days}d` : ""}
               </Text>
             </Stack>
-            {canManage && a.status === "admitted" && (
+            {canUpdate && a.status === "admitted" && (
               <Button
                 size="xs"
                 tone="secondary"

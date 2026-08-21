@@ -87,6 +87,10 @@ pub async fn create_tele_consultation(
     Json(body): Json<CreateTeleConsultationRequest>,
 ) -> Result<Json<TeleConsultation>, AppError> {
     require_permission(&claims, permissions::opd::visit::CREATE)?;
+    // A tele-consultation is a clinical encounter opened on the patient named in
+    // the body — a video call about somebody's health. The permission said the
+    // caller may start visits, not with whom.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -182,6 +186,14 @@ pub async fn list_tele_consultations(
 ) -> Result<Json<Vec<TeleConsultationListItem>>, AppError> {
     require_permission(&claims, permissions::opd::queue::VIEW)?;
 
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    // Dual-mode: with ?patient_id it is one patient's records, without it it is
+    // every patient's. Both resolve to a set of permitted ids so the dangerous
+    // mode cannot be left open while the safe one looks guarded.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, q.patient_id).await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -193,13 +205,13 @@ pub async fn list_tele_consultations(
          WHERE tenant_id = $1 \
            AND ($2::text IS NULL OR status = $2) \
            AND ($3::uuid IS NULL OR doctor_id = $3) \
-           AND ($4::uuid IS NULL OR patient_id = $4) \
+           AND ($4::uuid[] IS NULL OR patient_id = ANY($4)) \
          ORDER BY scheduled_at DESC NULLS LAST, created_at DESC LIMIT 500",
     )
     .bind(claims.tenant_id)
     .bind(q.status.as_deref().map(str::trim).filter(|s| !s.is_empty()))
     .bind(q.doctor_id)
-    .bind(q.patient_id)
+    .bind(permitted_patients.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 
@@ -282,6 +294,17 @@ pub async fn update_tele_status(
     Json(body): Json<UpdateTeleStatusRequest>,
 ) -> Result<Json<TeleConsultation>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    // Its two neighbours on this row — submit_triage and update_recording —
+    // already gate on the consultation. This one writes doctor_notes and a
+    // cancel_reason onto the same record and marks the session no-show or
+    // completed, so it needs the same hop to the patient.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::TELE_CONSULTATION,
+        id,
+    )
+    .await?;
 
     let status = body.status.trim();
     if !VALID_STATUSES.contains(&status) {
@@ -422,6 +445,18 @@ pub async fn update_recording(
     Json(body): Json<UpdateRecordingRequest>,
 ) -> Result<Json<RecordingState>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    // No patient-named column on this row, so the ledger's PHI scan cannot
+    // see it — but this call sets recording_consent and then starts recording
+    // a patient's video consultation on the strength of the consent the same
+    // request just wrote. It needs the hop to the patient at least as much as
+    // its neighbours do.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::TELE_CONSULTATION,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, RecordingState>(
@@ -813,6 +848,15 @@ pub async fn submit_triage(
     Json(body): Json<SubmitTriageRequest>,
 ) -> Result<Json<TeleTriage>, AppError> {
     require_permission(&claims, permissions::opd::visit::CREATE)?;
+    // The path names the consultation; the patient is one hop away on it. Triage
+    // is the patient's presenting symptoms and how urgent they are.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::TELE_CONSULTATION,
+        id,
+    )
+    .await?;
     if let Some(s) = body.severity {
         if !(0..=10).contains(&s) {
             return Err(AppError::BadRequest("Severity must be 0-10".to_owned()));
@@ -872,6 +916,15 @@ pub async fn get_triage(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Option<TeleTriage>>, AppError> {
     require_permission(&claims, permissions::opd::queue::VIEW)?;
+    // The path names the consultation; the patient is one hop away on it. Triage
+    // is the patient's presenting symptoms and how urgent they are.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::TELE_CONSULTATION,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, TeleTriage>(&format!(
@@ -967,7 +1020,9 @@ pub async fn triage_research_summary(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<TriageResearchSummary>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    // Research use, not care use: this ran on opd.queue.view, which the front
+    // desk holds to call the next patient.
+    require_permission(&claims, permissions::research::TRIAGE_EXPORT)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1041,7 +1096,9 @@ pub async fn triage_research_dataset(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<TriageResearchRow>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    // Research use, not care use: this ran on opd.queue.view, which the front
+    // desk holds to call the next patient.
+    require_permission(&claims, permissions::research::TRIAGE_EXPORT)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, TriageResearchRow>(

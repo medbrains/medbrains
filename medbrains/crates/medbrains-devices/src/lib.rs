@@ -1,11 +1,8 @@
+use axum::routing::{get, post, put};
 use axum::{Extension, Json, extract::Path, extract::Query, extract::State};
-use axum::routing::{get,post,put};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use medbrains_server_core::error::AppError;
-use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::state::AppState;
 use medbrains_core::device::{
     self, BridgeAgentRow, BridgeHeartbeatRequest, BridgeRegisterRequest,
     CreateDeviceInstanceRequest, CreateRoutingRuleRequest, DeviceAdapterCatalogRow,
@@ -13,6 +10,9 @@ use medbrains_core::device::{
     GeneratedDeviceConfig, UpdateDeviceInstanceRequest, UpdateRoutingRuleRequest,
 };
 use medbrains_core::permissions;
+use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::state::AppState;
 
 fn require_permission(claims: &Claims, perm: &str) -> Result<(), AppError> {
     if claims.role == "super_admin" || claims.role == "hospital_admin" {
@@ -764,9 +764,15 @@ pub async fn delete_routing_rule(
 
 pub async fn ingest_device_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(module): Path<String>,
     Json(body): Json<device::DeviceIngestRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    // The device is looked up globally by id and the tenant context is then
+    // set from the DEVICE's tenant, not the caller's — so without this an
+    // authenticated user could push readings for a device in another tenant.
+    require_permission(&claims, permissions::devices::INGEST)?;
+
     let dq = format!("{INSTANCE_SELECT} WHERE id = $1");
     let device = sqlx::query_as::<_, DeviceInstanceRow>(&dq)
         .bind(body.device_instance_id)
@@ -1001,15 +1007,44 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/devices/manufacturers", get(list_manufacturers))
         .route("/api/devices/catalog", get(list_adapter_catalog))
         .route("/api/devices/catalog/{adapter_code}", get(get_adapter))
-        .route("/api/devices/catalog/{adapter_code}/preview-config", get(preview_config))
-        .route("/api/devices/instances", get(list_device_instances).post(create_device_instance))
-        .route("/api/devices/instances/{id}", get(get_device_instance).put(update_device_instance).delete(decommission_device))
-        .route("/api/devices/instances/{id}/test", post(test_device_connection))
-        .route("/api/devices/instances/{id}/regenerate-config", post(regenerate_config))
-        .route("/api/devices/instances/{id}/messages", get(list_device_messages))
-        .route("/api/devices/instances/{id}/config-history", get(list_config_history))
-        .route("/api/devices/routing-rules", get(list_routing_rules).post(create_routing_rule))
-        .route("/api/devices/routing-rules/{id}", put(update_routing_rule).delete(delete_routing_rule))
+        .route(
+            "/api/devices/catalog/{adapter_code}/preview-config",
+            get(preview_config),
+        )
+        .route(
+            "/api/devices/instances",
+            get(list_device_instances).post(create_device_instance),
+        )
+        .route(
+            "/api/devices/instances/{id}",
+            get(get_device_instance)
+                .put(update_device_instance)
+                .delete(decommission_device),
+        )
+        .route(
+            "/api/devices/instances/{id}/test",
+            post(test_device_connection),
+        )
+        .route(
+            "/api/devices/instances/{id}/regenerate-config",
+            post(regenerate_config),
+        )
+        .route(
+            "/api/devices/instances/{id}/messages",
+            get(list_device_messages),
+        )
+        .route(
+            "/api/devices/instances/{id}/config-history",
+            get(list_config_history),
+        )
+        .route(
+            "/api/devices/routing-rules",
+            get(list_routing_rules).post(create_routing_rule),
+        )
+        .route(
+            "/api/devices/routing-rules/{id}",
+            put(update_routing_rule).delete(delete_routing_rule),
+        )
         .route("/api/devices/agents", get(list_bridge_agents))
         .route("/api/device-ingest/{module}", post(ingest_device_data))
 }

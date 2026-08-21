@@ -2,7 +2,7 @@
 
 import { Tabs, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { useHasPermission } from "@medbrains/stores";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type { ComplianceSettings, TenantSettingsRow } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
@@ -153,9 +153,21 @@ export function PharmacyPageInner() {
     canViewAnalytics ||
     canWorkReturns;
 
+  // The compliance flags are read under admin.settings.read, which a
+  // dispensing pharmacist need not hold. Refused, the defaults below stand:
+  // every show_* is true, so the schedule, controlled-drug, formulary and
+  // AWaRe badges the catalogue draws stay on — the safe direction. The
+  // enforce_* defaults are false but nothing on this page consumes them, so a
+  // refusal misinforms nobody here. Gated anyway so the call is not made by
+  // someone the server will refuse.
+  const canReadSettings = useHasAnyPermission([
+    P.ADMIN.SETTINGS_READ,
+    P.ADMIN.SETTINGS_GENERAL_MANAGE,
+  ]);
   const { data: complianceRaw = [] } = useQuery<TenantSettingsRow[]>({
     queryKey: ["tenant-settings", "compliance"],
     queryFn: () => pharmacyService.getTenantSettings("compliance"),
+    enabled: canReadSettings,
     staleTime: 300_000,
   });
 

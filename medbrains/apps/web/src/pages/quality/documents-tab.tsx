@@ -32,6 +32,9 @@ import { docStatusColors } from "./shared";
 
 export function DocumentsTab() {
   const canManage = useHasPermission(P.QUALITY.DOCUMENTS_MANAGE);
+  // Acknowledging a document is served under the list code, not the manage
+  // one the tab holds.
+  const canAcknowledge = useHasPermission(P.QUALITY.DOCUMENTS_LIST);
   const qc = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const [ackModalOpened, { open: openAckModal, close: closeAckModal }] = useDisclosure(false);
@@ -174,6 +177,7 @@ export function DocumentsTab() {
               <Tooltip label="Acknowledge">
                 <IconButton
                   tone="success"
+                  disabled={!canAcknowledge}
                   onClick={() => acknowledgeMut.mutate(d.id)}
                   aria-label="Acknowledge"
                 >

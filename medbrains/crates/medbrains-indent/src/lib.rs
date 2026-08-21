@@ -514,8 +514,7 @@ pub async fn submit_requisition(
         sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM indent_items WHERE requisition_id = $1")
             .bind(req.id)
             .fetch_one(&state.db)
-            .await
-            .unwrap_or(0);
+            .await?;
 
     let _ = medbrains_workflow::orchestration::lifecycle::emit_after_event(
         &state.db,
@@ -1810,6 +1809,11 @@ pub async fn issue_to_patient(
     Json(body): Json<IssueToPatientRequest>,
 ) -> Result<Json<PatientConsumableIssue>, AppError> {
     require_permission(&claims, permissions::indent::CONSUMABLES_MANAGE)?;
+    // indent.* is held by doctor, nurse, pharmacist, store_keeper and
+    // facilities_manager. A broadly-granted code the caller aims at any
+    // patient is the same shape as generate_document, and issuing stock
+    // against somebody puts a charge and a clinical record on them.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     if body.quantity <= 0 {
         return Err(AppError::BadRequest("Quantity must be positive".into()));
@@ -2144,6 +2148,11 @@ pub async fn record_consignment_usage(
     Json(body): Json<ConsignmentUsageRequest>,
 ) -> Result<Json<StoreStockMovement>, AppError> {
     require_permission(&claims, permissions::indent::STOCK_MANAGE)?;
+    // patient_id is optional — consignment stock moves without being used
+    // on anybody — so the guard covers only the case where one is named.
+    if let Some(pid) = body.patient_id {
+        medbrains_authz_gate::require_patient_access(&state, &claims, pid).await?;
+    }
 
     if body.quantity <= 0 {
         return Err(AppError::BadRequest("Quantity must be positive".into()));
@@ -2286,6 +2295,9 @@ pub async fn create_implant_entry(
     Json(body): Json<CreateImplantRequest>,
 ) -> Result<Json<ImplantRegistryEntry>, AppError> {
     require_permission(&claims, permissions::indent::IMPLANTS_MANAGE)?;
+    // The implant registry is a lifetime, recallable record of what is
+    // inside a named person.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let implant_date = NaiveDate::parse_from_str(&body.implant_date, "%Y-%m-%d")
         .map_err(|_| AppError::BadRequest("Invalid implant_date format".into()))?;

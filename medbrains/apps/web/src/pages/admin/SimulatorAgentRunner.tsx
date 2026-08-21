@@ -1,6 +1,8 @@
 import { Box, Card, Group, Stack, Text } from "@mantine/core";
 import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
 import type { SimulatorAgentProfile, SimulatorProfile } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconRobot } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -48,9 +50,14 @@ export function SimulatorAgentRunner() {
   const [hospitalOpd, setHospitalOpd] = useState<number | string>(200);
   const [sweepAll, setSweepAll] = useState(false);
 
+  // The simulator drives the live API as each role, so it needs the role
+  // catalogue. Refused, roleOptions is empty and the runner offers no roles
+  // to simulate — indistinguishable from a tenant that has none.
+  const canListRoles = useHasPermission(P.ADMIN.ROLES.LIST);
   const { data: roleOptions = [] } = useQuery({
     queryKey: ["roles"],
     queryFn: () => api.listRoles(),
+    enabled: canListRoles,
   });
 
   const run = useMutation({

@@ -2,7 +2,9 @@
 
 import { Card, Group, Menu, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { useHasPermission } from "@medbrains/stores";
 import type { BookAppointmentGroupRequest, DepartmentRow } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconPlus, IconTrash, IconUsers } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -46,6 +48,10 @@ export function GroupAppointmentModal({
 }) {
   const [opened, { open, close }] = useDisclosure(false);
   const queryClient = useQueryClient();
+  // The component renders its own trigger, so the gate belongs here rather
+  // than at each caller. Without it the menu entry opens a form whose submit
+  // the server refuses, after the slots have been filled in.
+  const canBookGroup = useHasPermission(P.OPD.APPOINTMENT_CREATE);
   const [rows, setRows] = useState<GroupSlotRow[]>([createGroupSlotRow(), createGroupSlotRow()]);
 
   const { data: allDoctors = [] } = useQuery({
@@ -129,6 +135,8 @@ export function GroupAppointmentModal({
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const minDate = toDateString(tomorrow);
+
+  if (!canBookGroup) return null;
 
   return (
     <>

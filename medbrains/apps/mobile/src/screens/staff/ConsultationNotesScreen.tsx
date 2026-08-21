@@ -3,7 +3,9 @@ import {
   type MobileConsultationNotesFormInput,
   mobileConsultationNotesFormSchema,
 } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
 import type { Diagnosis } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -154,6 +156,7 @@ function consultationText(key: string): string {
 }
 
 export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps) {
+  const canWriteConsultation = useHasPermission(P.OPD.VISIT_UPDATE);
   const theme = useTheme();
   const queryClient = useQueryClient();
   const { encounterId } = route.params;
@@ -372,7 +375,7 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
           mode="contained"
           onPress={() => void submitNotes()}
           loading={saveMutation.isPending}
-          disabled={!hasContent || saveMutation.isPending}
+          disabled={!hasContent || saveMutation.isPending || !canWriteConsultation}
           style={styles.saveButton}
           contentStyle={styles.saveButtonContent}
           icon="content-save"

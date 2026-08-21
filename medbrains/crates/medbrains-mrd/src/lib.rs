@@ -281,18 +281,26 @@ pub async fn list_records(
 ) -> Result<Json<Vec<MrdMedicalRecord>>, AppError> {
     require_permission(&claims, permissions::mrd::records::LIST)?;
 
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    // Dual-mode: with ?patient_id it is one patient's records, without it it is
+    // every patient's. Both resolve to a set of permitted ids so the dangerous
+    // mode cannot be left open while the safe one looks guarded.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, q.patient_id).await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
     let rows = sqlx::query_as::<_, MrdMedicalRecord>(
         "SELECT * FROM mrd_medical_records \
-         WHERE ($1::uuid IS NULL OR patient_id = $1) \
+         WHERE ($1::uuid[] IS NULL OR patient_id = ANY($1)) \
            AND ($2::text IS NULL OR status::text = $2) \
            AND ($3::text IS NULL OR record_type = $3) \
          ORDER BY created_at DESC LIMIT 500",
     )
-    .bind(q.patient_id)
+    .bind(permitted_patients.as_deref())
     .bind(q.status)
     .bind(q.record_type)
     .fetch_all(&mut *tx)
@@ -308,6 +316,9 @@ pub async fn create_record(
     Json(body): Json<CreateRecordRequest>,
 ) -> Result<Json<MrdMedicalRecord>, AppError> {
     require_permission(&claims, permissions::mrd::records::CREATE)?;
+    // The body names the patient the record is opened on.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -510,10 +521,13 @@ pub async fn issue_record(
 pub async fn return_record(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path((_record_id, movement_id)): Path<(Uuid, Uuid)>,
+    Path((record_id, movement_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<MrdRecordMovement>, AppError> {
     require_permission(&claims, permissions::mrd::records::MANAGE)?;
 
+    // The URL names a parent; scope the statement by it so it cannot address a
+    // child under the wrong one. Without this the parent segment is decorative
+    // and the audit row names a record the write never touched.
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -521,9 +535,10 @@ pub async fn return_record(
     let row = sqlx::query_as::<_, MrdRecordMovement>(
         "UPDATE mrd_record_movements SET \
            returned_at = now(), status = 'returned' \
-         WHERE id = $1 RETURNING *",
+         WHERE id = $1 AND medical_record_id = $2 RETURNING *",
     )
     .bind(movement_id)
+    .bind(record_id)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -567,6 +582,11 @@ pub async fn create_birth(
     Json(body): Json<CreateBirthRequest>,
 ) -> Result<Json<MrdBirthRegister>, AppError> {
     require_permission(&claims, permissions::mrd::births::CREATE)?;
+    // A birth register entry is statutory, and the register itself is rightly
+    // unfiltered — but CREATING one names a specific patient, and recording a
+    // birth against the wrong person is a legal document about the wrong life.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -685,6 +705,11 @@ pub async fn create_death(
     Json(body): Json<CreateDeathRequest>,
 ) -> Result<Json<MrdDeathRegister>, AppError> {
     require_permission(&claims, permissions::mrd::deaths::CREATE)?;
+    // As with births: reading the death register is statutory and stays open;
+    // recording a death against a named patient is not something
+    // `mrd.deaths.create` alone should authorise on ANY patient in the tenant.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1323,6 +1348,14 @@ pub async fn list_case_sheet_packets(
 ) -> Result<Json<Vec<MrdCaseSheetPacket>>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::VIEW)?;
 
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    // Dual-mode: with ?patient_id it is one patient's records, without it it is
+    // every patient's. Both resolve to a set of permitted ids so the dangerous
+    // mode cannot be left open while the safe one looks guarded.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, q.patient_id).await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1340,7 +1373,7 @@ pub async fn list_case_sheet_packets(
     .bind(claims.tenant_id)
     .bind(q.status)
     .bind(q.packet_type)
-    .bind(q.patient_id)
+    .bind(permitted_patients.as_deref())
     .bind(q.encounter_id)
     .bind(q.admission_id)
     .fetch_all(&mut *tx)
@@ -1395,6 +1428,14 @@ pub async fn get_case_sheet_completeness(
     Path(packet_id): Path<Uuid>,
 ) -> Result<Json<MrdCaseSheetCompletenessResponse>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::VIEW)?;
+    // The path names the packet; the patient is one hop away on it.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CASE_SHEET_PACKET,
+        packet_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1864,6 +1905,10 @@ pub async fn generate_opd_case_sheet_packet(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<MrdCaseSheetPacket>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::GENERATE)?;
+    // A case-sheet packet is the WHOLE chart assembled for release — the single
+    // largest disclosure this system performs. `case_sheets.generate` said the
+    // caller may assemble packets, not whose.
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2021,6 +2066,8 @@ pub async fn generate_ipd_case_sheet_packet(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<MrdCaseSheetPacket>, AppError> {
     require_permission(&claims, permissions::mrd::case_sheets::GENERATE)?;
+    // The admission's whole chart. As above.
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2161,6 +2208,20 @@ pub async fn print_case_sheet_packet(
     Path(id): Path<Uuid>,
     Json(body): Json<PrintCaseSheetPacketRequest>,
 ) -> Result<Json<MrdCaseSheetPacket>, AppError> {
+    // The FIRST print had no permission check at all — only reprints were
+    // guarded, and only on `case_sheets.reprint`. A case-sheet packet is the
+    // whole chart, so printing one was the largest disclosure in the system and
+    // any authenticated user in the tenant could perform it once per packet.
+    // `mrd.case_sheets.print` already existed and was simply never asked for.
+    require_permission(&claims, permissions::mrd::case_sheets::PRINT)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CASE_SHEET_PACKET,
+        id,
+    )
+    .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;

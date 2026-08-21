@@ -10,6 +10,9 @@ import { ipdService } from "@/services/ipd.service";
 
 export function DischargeTatTab({ admissionId }: { admissionId: string }) {
   const canView = useHasPermission(P.IPD.DISCHARGE_TAT_VIEW);
+  // Starting the tracking and stamping each milestone are writes under
+  // ipd.discharge_tat.update; the tab only asked for the view code.
+  const canUpdate = useHasPermission(P.IPD.DISCHARGE_TAT_UPDATE);
   const queryClient = useQueryClient();
 
   const { data: tat, isLoading } = useQuery({
@@ -50,14 +53,16 @@ export function DischargeTatTab({ admissionId }: { admissionId: string }) {
         <Text c="dimmed" size="sm">
           Discharge TAT tracking has not been initiated for this admission.
         </Text>
-        <Button
-          tone="primary"
-          size="sm"
-          onClick={() => initMutation.mutate()}
-          loading={initMutation.isPending}
-        >
-          Start Discharge TAT Tracking
-        </Button>
+        {canUpdate && (
+          <Button
+            tone="primary"
+            size="sm"
+            onClick={() => initMutation.mutate()}
+            loading={initMutation.isPending}
+          >
+            Start Discharge TAT Tracking
+          </Button>
+        )}
       </Stack>
     );
   }

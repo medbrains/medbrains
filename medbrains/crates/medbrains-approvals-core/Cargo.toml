@@ -1,0 +1,25 @@
+[package]
+name = "medbrains-approvals-core"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+# The pure core of the approvals platform.
+#
+# Deliberately no sqlx, no axum, no medbrains-db. Every control the platform
+# enforces — segregation of duties, stage ordering, terminal immutability,
+# quorum, witness, elevation — is a pure function over values, so the whole
+# rule set is exhaustively testable without a database or a container.
+#
+# Anything needing the outside world is a port (a trait) defined here and
+# implemented above. If a dependency on a driver or a framework ever becomes
+# necessary in this crate, the logic that needs it belongs one layer up.
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

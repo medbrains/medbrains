@@ -1,4 +1,6 @@
+import { useHasPermission } from "@medbrains/stores";
 import type { LabOrder, LabOrderStatus, LabPriority, LabTestCatalog } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
@@ -146,6 +148,7 @@ function placeLabOrderText(count: number): string {
 }
 
 export function LabOrderScreen({ route, navigation }: LabOrderScreenProps) {
+  const canOrderLabs = useHasPermission(P.LAB.ORDERS_CREATE);
   const theme = useTheme();
   const queryClient = useQueryClient();
   const { encounterId, patientId } = route.params;
@@ -410,7 +413,7 @@ export function LabOrderScreen({ route, navigation }: LabOrderScreenProps) {
             mode="contained"
             onPress={() => createOrderMutation.mutate()}
             loading={createOrderMutation.isPending}
-            disabled={createOrderMutation.isPending}
+            disabled={createOrderMutation.isPending || !canOrderLabs}
             style={styles.submitButton}
             contentStyle={styles.submitButtonContent}
             icon="flask-plus"

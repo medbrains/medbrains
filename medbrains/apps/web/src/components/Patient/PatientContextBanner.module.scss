@@ -1,6 +1,14 @@
 // Clean rx-suite patient header — neutral surface, hairline border, an
 // initials avatar + identity, with operational signal chips on the right.
 // Replaces the old full-width severity-coloured alert band.
+//
+// The surface is a token, not `#fff`. Hardcoded white pinned this banner to
+// one scheme while the text kept following the theme, so in dark mode the
+// patient's name rendered near-white on white and simply vanished — on the
+// one element in the encounter that says who is being treated.
+//
+// `color: #fff` on the avatars below is deliberate: that is white on brand
+// blue, which is correct in both schemes.
 
 .banner {
   display: flex;
@@ -9,7 +17,7 @@
   gap: 16px;
   flex-wrap: wrap;
   padding: 12px 24px;
-  background: #fff;
+  background: var(--mb-bg-default, #fff);
   border-bottom: 1px solid var(--mb-border, #e0e0e0);
 }
 
@@ -69,7 +77,7 @@
   gap: 16px;
   flex-wrap: wrap;
   padding: 16px 20px;
-  background: #fff;
+  background: var(--mb-bg-default, #fff);
   border: 1px solid var(--mb-border, #e0e0e0);
   border-radius: var(--mb-radius-sm, 4px);
 }

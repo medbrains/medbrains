@@ -1,7 +1,9 @@
 // Ipd DischargeTab — split from ipd.tsx (pure move).
 
 import { Checkbox, Group, Select, Stack, Text, Textarea } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { DischargeType, IpdDischargeChecklist } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconDoor } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -38,9 +40,14 @@ export function DischargeTab({
   const [summary, setSummary] = useState("");
   const emit = useClinicalEmit();
 
+  // The tab rides in on ipd.admissions.view; the discharge checklist carries its own
+  // code. Refused, `data ?? []` renders an empty table that reads as a
+  // fact about the patient rather than about the reader.
+  const canViewChecklist = useHasPermission(P.IPD.DISCHARGE_CHECKLIST_LIST);
   const { data: checklist } = useQuery({
     queryKey: ["ipd-discharge-checklist", admissionId],
     queryFn: () => ipdService.listDischargeChecklist(admissionId),
+    enabled: canViewChecklist,
   });
 
   const dischargeMutation = useMutation({

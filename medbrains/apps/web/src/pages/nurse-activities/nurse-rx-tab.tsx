@@ -1,6 +1,6 @@
 // IPD NurseRxTab — split from nurse-activities.tsx (pure move).
 
-import { useHasPermission } from "@medbrains/stores";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type {
   CreatePrescriptionRequest,
   PatientAllergy,
@@ -16,20 +16,31 @@ import { opdService } from "@/services/opd.service";
 export function NurseRxTab({ encounterId, patientId }: { encounterId: string; patientId: string }) {
   const qc = useQueryClient();
   const canDraft = useHasPermission(P.NURSE.PRESCRIPTIONS_DRAFT);
+  // Drafting a prescription is not permission to read the patient. The demographic
+  // and ALLERGY reads want `patients.view`, and an empty allergy list on a
+  // prescribing screen is the most dangerous empty result in the system — it
+  // reads as "no known allergies".
+  const canViewPatient = useHasPermission(P.PATIENTS.VIEW);
+  const canListPrescriptions = useHasAnyPermission([
+    P.PHARMACY.PRESCRIPTIONS_LIST,
+    P.OPD.QUEUE_VIEW,
+    P.OPD.VISIT_UPDATE,
+  ]);
 
   const { data: prescriptions = [] } = useQuery<PrescriptionWithItems[]>({
     queryKey: ["encounter-prescriptions", encounterId],
     queryFn: () => opdService.listPrescriptions(encounterId),
+    enabled: canListPrescriptions,
   });
   const { data: patient } = useQuery({
     queryKey: ["patient-detail", patientId],
     queryFn: () => opdService.getPatient(patientId),
-    enabled: Boolean(patientId),
+    enabled: Boolean(patientId) && canViewPatient,
   });
   const { data: allergies = [] } = useQuery<PatientAllergy[]>({
     queryKey: ["patient-allergies", patientId],
     queryFn: () => opdService.listPatientAllergies(patientId),
-    enabled: Boolean(patientId),
+    enabled: Boolean(patientId) && canViewPatient,
   });
 
   const invalidate = () =>

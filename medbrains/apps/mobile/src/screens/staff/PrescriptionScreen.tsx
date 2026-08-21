@@ -3,7 +3,9 @@ import {
   type MobilePrescriptionItemFormInput,
   mobilePrescriptionItemFormSchema,
 } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
 import type { PharmacyCatalog, PrescriptionWithItems } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -128,6 +130,7 @@ function saveButtonText(count: number): string {
 }
 
 export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProps) {
+  const canPrescribe = useHasPermission(P.OPD.VISIT_UPDATE);
   const theme = useTheme();
   const queryClient = useQueryClient();
   const { encounterId } = route.params;
@@ -334,7 +337,7 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
             mode="contained"
             onPress={() => saveMutation.mutate()}
             loading={saveMutation.isPending}
-            disabled={saveMutation.isPending}
+            disabled={saveMutation.isPending || !canPrescribe}
             style={styles.saveButton}
             contentStyle={styles.saveButtonContent}
             icon="content-save"

@@ -1,5 +1,6 @@
 import { Group, Stack, Switch, Tabs, Text, Textarea, TextInput } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import { IconWorld } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -212,8 +213,8 @@ function WidgetTab({ canManage }: { canManage: boolean }) {
 }
 
 export function MicrositeSettingsPage() {
-  useRequirePermission("specialty.health_packages.list");
-  const canManage = useHasPermission("specialty.health_packages.manage");
+  useRequirePermission(P.SPECIALTY.HEALTH_PACKAGES.LIST);
+  const canManage = useHasPermission(P.SPECIALTY.HEALTH_PACKAGES.MANAGE);
   return (
     <Stack gap="md">
       <PageHeader

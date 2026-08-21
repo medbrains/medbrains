@@ -1,0 +1,26 @@
+[package]
+name = "medbrains-authz-gate"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+# Sits ABOVE medbrains-server-core, deliberately.
+#
+# These guards change on almost every authorization change, and while they lived
+# inside server-core each edit recompiled all 7,365 lines of it — notifications,
+# NABH evidence, oauth and the rest — none of which authorization touches.
+# server-core has 102 dependents, so it is the most expensive crate in the tree
+# to dirty.
+#
+# Inverting AppState into a leaf crate would also have worked and was the first
+# design considered, but AppState carries NotificationHub, SystemStateCache and
+# the S3 presigner, so the "leaf" would have been ~1,500 lines and the change
+# would have touched every handler signature. Nothing inside server-core uses
+# authz_patient — only a `pub mod` line — so the guards can simply move up
+# instead, and server-core stays cached whenever they change.
+[dependencies]
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-authz = { path = "../medbrains-authz" }
+sqlx = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }

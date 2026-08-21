@@ -154,6 +154,13 @@ pub async fn get_psych_patient(
     Path(id): Path<Uuid>,
 ) -> Result<Json<PsychPatient>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::patients::LIST)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PSYCH_PATIENT,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -182,6 +189,10 @@ pub async fn create_psych_patient(
         &claims,
         permissions::specialty::psychiatry::patients::CREATE,
     )?;
+    // No route-derived id here, so the check's subject is the id the caller
+    // sent. Weaker than a route-derived check, but it stops a psychiatric
+    // record being opened against a patient outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -228,6 +239,13 @@ pub async fn update_psych_patient(
         &claims,
         permissions::specialty::psychiatry::patients::UPDATE,
     )?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PSYCH_PATIENT,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -277,6 +295,13 @@ pub async fn list_assessments(
         &claims,
         permissions::specialty::psychiatry::assessments::LIST,
     )?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PSYCH_PATIENT,
+        psych_patient_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -309,6 +334,13 @@ pub async fn create_assessment(
         &claims,
         permissions::specialty::psychiatry::assessments::CREATE,
     )?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PSYCH_PATIENT,
+        psych_patient_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -352,6 +384,13 @@ pub async fn list_ect_sessions(
     Path(psych_patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PsychEctRegister>>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::ect::LIST)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PSYCH_PATIENT,
+        psych_patient_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -381,6 +420,13 @@ pub async fn create_ect_session(
     Json(body): Json<CreateEctRequest>,
 ) -> Result<Json<PsychEctRegister>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::ect::CREATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PSYCH_PATIENT,
+        psych_patient_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -450,6 +496,13 @@ pub async fn list_restraints(
     Path(psych_patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PsychSeclusionRestraint>>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::restraint::LIST)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PSYCH_PATIENT,
+        psych_patient_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -500,6 +553,13 @@ pub async fn create_restraint(
         &claims,
         permissions::specialty::psychiatry::restraint::MANAGE,
     )?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PSYCH_PATIENT,
+        psych_patient_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -544,6 +604,13 @@ pub async fn release_restraint(
         &claims,
         permissions::specialty::psychiatry::restraint::MANAGE,
     )?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PSYCH_RESTRAINT,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -578,6 +645,13 @@ pub async fn list_mhrb_notifications(
     Path(psych_patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PsychMhrbNotification>>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::mhrb::MANAGE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PSYCH_PATIENT,
+        psych_patient_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -607,6 +681,13 @@ pub async fn create_mhrb_notification(
     Json(body): Json<CreateMhrbNotificationRequest>,
 ) -> Result<Json<PsychMhrbNotification>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::mhrb::MANAGE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PSYCH_PATIENT,
+        psych_patient_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -642,6 +723,13 @@ pub async fn update_mhrb_notification(
     Json(body): Json<UpdateMhrbNotificationRequest>,
 ) -> Result<Json<PsychMhrbNotification>, AppError> {
     require_permission(&claims, permissions::specialty::psychiatry::mhrb::MANAGE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PSYCH_MHRB_NOTIFICATION,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -681,6 +769,13 @@ pub async fn list_counseling_sessions(
         &claims,
         permissions::specialty::psychiatry::assessments::LIST,
     )?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PSYCH_PATIENT,
+        psych_patient_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -713,6 +808,13 @@ pub async fn create_counseling_session(
         &claims,
         permissions::specialty::psychiatry::assessments::CREATE,
     )?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PSYCH_PATIENT,
+        psych_patient_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,

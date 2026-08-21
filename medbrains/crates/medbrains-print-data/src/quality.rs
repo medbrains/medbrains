@@ -1,10 +1,10 @@
 //! Print-data endpoints — quality & safety forms.
 
+use axum::routing::get;
 use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use axum::routing::get;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -55,7 +55,19 @@ pub async fn get_incident_report_print_data(
     Extension(claims): Extension<Claims>,
     Path(incident_id): Path<Uuid>,
 ) -> Result<Json<IncidentReportPrintData>, AppError> {
-    require_permission(&claims, permissions::admin::roles::LIST)?;
+    // A patient-safety incident report, including `patient_involved`. It was
+    //     // gated on `admin.roles.list` — the permission to read the role list —
+    //     // which let anyone with a benign admin read print it, and could block the
+    //     // quality officer whose job it is.
+    require_permission(&claims, permissions::quality::incidents::LIST)?;
+    // Optional parent: this record is only sometimes about a patient.
+    medbrains_authz_gate::require_access_via_optional(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INCIDENT_REPORT,
+        incident_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -197,7 +209,16 @@ pub async fn get_rca_template_print_data(
     Extension(claims): Extension<Claims>,
     Path(incident_id): Path<Uuid>,
 ) -> Result<Json<RcaTemplatePrintData>, AppError> {
-    require_permission(&claims, permissions::admin::roles::LIST)?;
+    // Root-cause analysis of an incident, so it follows the incident permission.
+    require_permission(&claims, permissions::quality::incidents::LIST)?;
+    // Optional parent: this record is only sometimes about a patient.
+    medbrains_authz_gate::require_access_via_optional(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::RCA_REPORT,
+        incident_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -435,7 +456,8 @@ pub async fn get_capa_form_print_data(
     Extension(claims): Extension<Claims>,
     Path(capa_id): Path<Uuid>,
 ) -> Result<Json<CapaFormPrintData>, AppError> {
-    require_permission(&claims, permissions::admin::roles::LIST)?;
+    require_permission(&claims, permissions::quality::capa::LIST)?;
+    // Not guarded: `capa_records` does not exist in the schema.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -583,6 +605,14 @@ pub async fn get_adr_report_print_data(
     Path(report_id): Path<Uuid>,
 ) -> Result<Json<AdrReportPrintData>, AppError> {
     require_permission(&claims, permissions::regulatory::adr::LIST)?;
+    // Optional parent: this record is only sometimes about a patient.
+    medbrains_authz_gate::require_access_via_optional(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::ADR_REPORT,
+        report_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -761,6 +791,8 @@ pub async fn get_transfusion_reaction_print_data(
     Path(reaction_id): Path<Uuid>,
 ) -> Result<Json<TransfusionReactionPrintData>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
+    // Not guarded: `transfusion_reactions` does not exist. The real table is
+    // `nabh_blood_transfusion_reactions` — a name mismatch, not a gap.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

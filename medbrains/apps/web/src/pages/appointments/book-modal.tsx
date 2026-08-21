@@ -14,7 +14,9 @@ import {
   toAppointmentRecurrenceFormValue,
   toAppointmentTypeFormValue,
 } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
 import type { AvailableSlot, DepartmentRow, SetupUser } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -77,9 +79,14 @@ export function BookAppointmentModal({
     queryFn: () => appointmentsService.listDepartments(),
   });
 
+  const canListUsers = useHasPermission(P.ADMIN.USERS.LIST);
+  // doctorOptions is built from this list, so a refusal renders an empty
+  // doctor picker — "nobody is available to book with" rather than "you may
+  // not see the directory".
   const { data: users } = useQuery({
     queryKey: ["setup-users"],
     queryFn: () => appointmentsService.listSetupUsers(),
+    enabled: canListUsers,
   });
 
   const { data: patients } = useQuery({

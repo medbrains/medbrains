@@ -150,6 +150,13 @@ pub async fn get_opd_certificate_print_data(
     let is_reprint = prior_print_count > 0;
     if is_reprint {
         require_permission(&claims, permissions::opd::certificates::REPRINT)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MEDICAL_CERTIFICATE,
+        certificate_id,
+    )
+    .await?;
         if reprint_reason.is_none_or(|value| value.len() < 5) {
             return Err(AppError::BadRequest(
                 "reprint reason is required after the first certificate print".to_owned(),
@@ -333,6 +340,18 @@ pub async fn get_opd_consent_print_data(
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty());
+    // Outside the reprint branch, where an earlier pass of this sweep left it.
+    // Nested under `if is_reprint` it checked the SECOND print of a consent and
+    // never the first — and the first is the one that hands out the patient's
+    // name, UHID, date of birth and gender.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PROCEDURE_CONSENT,
+        consent_id,
+    )
+    .await?;
+
     let is_reprint = prior_print_count > 0;
     if is_reprint {
         require_permission(&claims, permissions::opd::consents::REPRINT)?;
@@ -532,7 +551,7 @@ pub async fn get_wristband_print_data(
     Query(query): Query<WristbandPrintQuery>,
 ) -> Result<Json<WristbandPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::wristband::PRINT)?;
-    medbrains_server_core::authz_patient::require_admission_access(&state, &claims, admission_id).await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -732,7 +751,7 @@ pub async fn get_discharge_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<DischargeSummaryPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
-    medbrains_server_core::authz_patient::require_admission_access(&state, &claims, admission_id).await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -771,7 +790,7 @@ pub async fn get_discharge_print_data(
     .await?;
 
     // Fetch signatures (primary + co-signers) for the discharge summary.
-    let sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
+    let sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "discharge_summary",
@@ -845,6 +864,13 @@ pub async fn get_er_discharge_print_data(
 ) -> Result<Json<ErDischargeSummaryPrintData>, AppError> {
     require_permission(&claims, permissions::emergency::visits::LIST)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::ER_DISCHARGE_SUMMARY,
+        er_visit_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -934,6 +960,18 @@ pub async fn get_token_slip_print_data(
     Path(token_id): Path<Uuid>,
 ) -> Result<Json<TokenSlipPrintData>, AppError> {
     require_permission(&claims, permissions::front_office::queue::LIST)?;
+    // The token's patient is nullable — a token can be issued before the
+    // person is identified — so the optional form: a missing token is
+    // NotFound, a token with no patient passes on the permission alone.
+    medbrains_authz_gate::require_access_via_optional(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::QUEUE_TOKEN,
+        token_id,
+    )
+    .await?;
+    // Not guarded: `queue_tokens.patient_id` is NULLABLE — a walk-in token
+    // exists before a patient is registered — so it cannot be a parent column.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1026,6 +1064,7 @@ pub async fn get_visitor_pass_print_data(
     Path(pass_id): Path<Uuid>,
 ) -> Result<Json<VisitorPassPrintData>, AppError> {
     require_permission(&claims, permissions::front_office::passes::LIST)?;
+    // Visitor passes name a visitor, not a patient; no patient column exists.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1108,7 +1147,7 @@ pub async fn get_treatment_chart_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<TreatmentChartPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
-    medbrains_server_core::authz_patient::require_admission_access(&state, &claims, admission_id).await?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -1200,7 +1239,7 @@ pub async fn get_treatment_chart_print_data(
          FROM stat_orders so \
          LEFT JOIN users u ON u.id = so.ordered_by \
          WHERE so.admission_id = $1 AND so.tenant_id = $2 \
-           AND so.created_at::date = CURRENT_DATE \
+           AND (so.created_at >= CURRENT_DATE AND so.created_at < CURRENT_DATE + 1) \
          ORDER BY so.created_at DESC LIMIT 5000",
     )
     .bind(admission_id)
@@ -1208,7 +1247,7 @@ pub async fn get_treatment_chart_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
-    let chart_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
+    let chart_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "other",
@@ -1235,7 +1274,7 @@ pub async fn get_treatment_chart_print_data(
         iv_fluids,
         stat_orders,
         treating_doctor: row.treating_doctor,
-        signatures: medbrains_server_core::signed_documents::to_print_signatures(chart_sigs),
+        signatures: medbrains_signing::signed_documents::to_print_signatures(chart_sigs),
     }))
 }
 
@@ -1270,6 +1309,13 @@ pub async fn get_transfer_summary_print_data(
 ) -> Result<Json<TransferSummaryPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    // Not guarded: this handler is written against a `patient_transfers` that
+    // does not exist. It selects `pt.tenant_id`, `pt.from_ward_id` and
+    // `pt.to_bed_id` for an intra-hospital ward move, while the table of that
+    // name in the schema is an INTER-TENANT referral record —
+    // `source_tenant_id`/`dest_tenant_id`, no ward or bed columns. The name
+    // collides; the handler cannot run. A parent link cannot be built either,
+    // because `require_access_via` scopes on `tenant_id` and this table has none.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1363,7 +1409,7 @@ pub async fn get_transfer_summary_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
-    let transfer_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
+    let transfer_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "discharge_summary",
@@ -1399,7 +1445,7 @@ pub async fn get_transfer_summary_print_data(
         receiving_doctor: row.receiving_doctor,
         transferring_nurse: row.transferring_nurse,
         receiving_nurse: row.receiving_nurse,
-        signatures: medbrains_server_core::signed_documents::to_print_signatures(transfer_sigs),
+        signatures: medbrains_signing::signed_documents::to_print_signatures(transfer_sigs),
     }))
 }
 
@@ -1423,6 +1469,13 @@ pub async fn get_patient_education_print_data(
     Path(material_id): Path<Uuid>,
 ) -> Result<Json<PatientEducationPrintData>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PATIENT_EDUCATION,
+        material_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1510,7 +1563,7 @@ pub async fn get_registration_card_print_data(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<RegistrationCardPrintData>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
-    medbrains_server_core::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1621,6 +1674,13 @@ pub async fn get_infant_wristband_print_data(
 ) -> Result<Json<InfantWristbandPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::NEWBORN,
+        newborn_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1731,7 +1791,7 @@ pub async fn get_opd_prescription_print_data(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<OpdPrescriptionPrintData>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
-    medbrains_server_core::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -1818,7 +1878,7 @@ pub async fn get_opd_prescription_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
-    let sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
+    let sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "prescription",
@@ -1951,6 +2011,13 @@ pub async fn get_lab_report_full_print_data(
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<LabReportFullPrintData>, AppError> {
     require_permission(&claims, permissions::lab::reports::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        order_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2024,7 +2091,7 @@ pub async fn get_lab_report_full_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
-    let lab_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
+    let lab_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "lab_report",
@@ -2127,7 +2194,7 @@ pub async fn get_cumulative_lab_report_print_data(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<CumulativeLabReportPrintData>, AppError> {
     require_permission(&claims, permissions::lab::reports::VIEW)?;
-    medbrains_server_core::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2281,6 +2348,13 @@ pub async fn get_radiology_report_full_print_data(
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<RadiologyReportFullPrintData>, AppError> {
     require_permission(&claims, permissions::radiology::reports::VERIFY)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::RADIOLOGY_ORDER,
+        order_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2343,8 +2417,7 @@ pub async fn get_radiology_report_full_print_data(
     .bind(order_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let tenant = sqlx::query_as::<_, (String, Option<String>)>(
         "SELECT name, logo_url FROM tenants WHERE id = $1",
@@ -2353,7 +2426,7 @@ pub async fn get_radiology_report_full_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
-    let rad_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
+    let rad_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "radiology_report",
@@ -2475,7 +2548,7 @@ pub async fn get_death_certificate_print_data(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<DeathCertificatePrintData>, AppError> {
     require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
-    medbrains_server_core::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -2545,8 +2618,7 @@ pub async fn get_death_certificate_print_data(
     .bind(patient_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let tenant = sqlx::query_as::<_, (String, Option<String>, Option<String>)>(
         "SELECT name, logo_url, address_line1 FROM tenants WHERE id = $1",
@@ -2555,7 +2627,7 @@ pub async fn get_death_certificate_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
-    let death_sigs = medbrains_server_core::signed_documents::fetch_all_signatures_for_print(
+    let death_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
         "death_certificate",
@@ -2666,8 +2738,14 @@ async fn get_tenant_info(
 /// GET /print-data/ot-register/{ot_id}/{date}
 pub async fn get_ot_register_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path((ot_id, date)): Path<(Uuid, String)>,
 ) -> Result<Json<OtRegisterPrintData>, AppError> {
+    // The OT register is the log of cases performed; `ot::case_records` is the
+    // permission that governs those records elsewhere.
+    require_permission(&claims, permissions::ot::case_records::LIST)?;
+    // Not guarded: `operation_theatres` does not exist in the schema.
+
     let pool: &PgPool = &state.db;
 
     let register_date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
@@ -2748,8 +2826,7 @@ pub async fn get_ot_register_print_data(
     .bind(ot_id)
     .bind(register_date)
     .fetch_all(pool)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let mut elective = 0;
     let mut emergency = 0;
@@ -2821,8 +2898,12 @@ pub async fn get_ot_register_print_data(
 /// GET /print-data/blood-donor-form/{donor_id}
 pub async fn get_blood_donor_form_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(donor_id): Path<Uuid>,
 ) -> Result<Json<BloodDonorFormPrintData>, AppError> {
+    require_permission(&claims, permissions::blood_bank::donors::LIST)?;
+    // A donor is not a patient here; `blood_donors` has no patient column.
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -2950,8 +3031,13 @@ pub async fn get_blood_donor_form_print_data(
 /// GET /print-data/cross-match-requisition/{requisition_id}
 pub async fn get_cross_match_requisition_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(requisition_id): Path<Uuid>,
 ) -> Result<Json<CrossMatchRequisitionPrintData>, AppError> {
+    require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
+    // Not guarded: `cross_match_requisitions` does not exist in the schema.
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -3057,8 +3143,19 @@ pub async fn get_cross_match_requisition_print_data(
 /// GET /print-data/appointment-slip/{appointment_id}
 pub async fn get_appointment_slip_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(appointment_id): Path<Uuid>,
 ) -> Result<Json<AppointmentSlipPrintData>, AppError> {
+    require_permission(&claims, permissions::opd::appointment::LIST)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::APPOINTMENT,
+        appointment_id,
+    )
+    .await?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -3141,8 +3238,22 @@ pub async fn get_appointment_slip_print_data(
 /// GET /print-data/dpdp-consent/{consent_id}
 pub async fn get_dpdp_consent_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(consent_id): Path<Uuid>,
 ) -> Result<Json<DpdpConsentPrintData>, AppError> {
+    // No other code reads `dpdp_consents`, so there is no sibling handler to
+    // copy from. A DPDP consent is a signed consent record, which is what
+    // `consent::signatures` governs.
+    require_permission(&claims, permissions::consent::signatures::LIST)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::DPDP_CONSENT,
+        consent_id,
+    )
+    .await?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -3270,8 +3381,14 @@ pub async fn get_dpdp_consent_print_data(
 /// GET /print-data/video-consent/{video_consent_id}
 pub async fn get_video_consent_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(video_consent_id): Path<Uuid>,
 ) -> Result<Json<VideoConsentPrintData>, AppError> {
+    // Same reasoning as the DPDP consent above — a signed consent record.
+    require_permission(&claims, permissions::consent::signatures::LIST)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
+    // Not guarded: `video_consents` does not exist in the schema.
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -3356,8 +3473,20 @@ pub async fn get_video_consent_print_data(
 /// GET /print-data/restraint-documentation/{restraint_id}
 pub async fn get_restraint_documentation_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(restraint_id): Path<Uuid>,
 ) -> Result<Json<RestraintDocumentationPrintData>, AppError> {
+    // `nurse_clinical.rs` guards the restraint record itself with this.
+    require_permission(&claims, permissions::nurse::restraint::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::RESTRAINT_DOCUMENTATION,
+        restraint_id,
+    )
+    .await?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]

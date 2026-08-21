@@ -6,6 +6,14 @@
 //! change. This is a genuinely separate concern from raising and settling an
 //! invoice: the ledger is what the finance team reconciles and files returns
 //! from, on its own permissions, long after the patient has gone home.
+//!
+//! Like `reports.rs`, nothing here carries a record check: these read
+//! `invoices` and `invoice_items` to sum them, never to show one, so the
+//! ledger's PHI flag is the linked-table heuristic rather than a gap.
+//! `export_to_erp` is the one to watch — the only handler here that sends
+//! anything outward. It must stay restricted to invoice totals and tax codes;
+//! the moment it carries a patient identifier it needs a per-record decision,
+//! not a module-level permission.
 
 use axum::{
     Extension, Json,

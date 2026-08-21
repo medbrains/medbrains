@@ -400,7 +400,7 @@ pub async fn create_gas_reading(
     .fetch_one(&mut *tx)
     .await?;
 
-    medbrains_server_core::nabh_evidence::mirror_medical_gas_alarm(&mut tx, claims.tenant_id, row.id)
+    medbrains_nabh::mirror_medical_gas_alarm(&mut tx, claims.tenant_id, row.id)
         .await?;
 
     tx.commit().await?;
@@ -759,7 +759,7 @@ pub async fn create_fire_drill(
     .fetch_one(&mut *tx)
     .await?;
 
-    medbrains_server_core::nabh_evidence::mirror_fire_drill(&mut tx, claims.tenant_id, claims.sub, row.id)
+    medbrains_nabh::mirror_fire_drill(&mut tx, claims.tenant_id, claims.sub, row.id)
         .await?;
 
     tx.commit().await?;

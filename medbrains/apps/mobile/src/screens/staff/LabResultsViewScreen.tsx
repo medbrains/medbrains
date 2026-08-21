@@ -1,4 +1,6 @@
+import { useHasPermission } from "@medbrains/stores";
 import type { LabOrder, LabOrderStatus, LabPriority, LabResult } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
@@ -116,6 +118,7 @@ function getStatusColor(status: string): string {
 }
 
 export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
+  const canViewLabOrders = useHasPermission(P.LAB.ORDERS_LIST);
   const theme = useTheme();
   const { orderId, patientId } = route.params;
 
@@ -124,7 +127,9 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
   const { data: orderDetail, isLoading: orderLoading } = useQuery({
     queryKey: ["lab", "order", orderId],
     queryFn: () => clinicalService.getLabOrder(orderId || ""),
-    enabled: Boolean(orderId),
+    // Do not fetch what this user may not see — hiding it after
+    // the fetch still leaves it in the response and in devtools.
+    enabled: Boolean(orderId) && canViewLabOrders,
   });
 
   const { data: patientOrders } = useQuery({

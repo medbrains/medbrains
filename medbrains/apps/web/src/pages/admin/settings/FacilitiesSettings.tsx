@@ -17,7 +17,9 @@ import {
   facilitySettingsFormSchema,
   facilityTypeFormSchema,
 } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
 import type { Facility } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -434,6 +436,12 @@ function FacilityModal({
 
 export function FacilitiesSettings() {
   const queryClient = useQueryClient();
+  // The tab is gated on `…facilities.list` (a read permission, see SETTINGS_TABS), so
+  // without these the write controls render for a read-only admin who then gets
+  // a 403 from a form they were invited to fill.
+  const canCreate = useHasPermission(P.ADMIN.SETTINGS.FACILITIES.CREATE);
+  const canUpdate = useHasPermission(P.ADMIN.SETTINGS.FACILITIES.UPDATE);
+  const canDelete = useHasPermission(P.ADMIN.SETTINGS.FACILITIES.DELETE);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingFacility, setEditingFacility] = useState<Facility | null>(null);
 
@@ -519,17 +527,21 @@ export function FacilitiesSettings() {
       </Table.Td>
       <Table.Td>
         <Group gap={4}>
-          <IconButton tone="primary" onClick={() => openEdit(facility)} aria-label="Edit">
-            <IconPencil size={16} />
-          </IconButton>
-          <IconButton
-            tone="danger"
-            onClick={() => handleDelete(facility)}
-            loading={deleteMutation.isPending}
-            aria-label="Delete"
-          >
-            <IconTrash size={16} />
-          </IconButton>
+          {canUpdate && (
+            <IconButton tone="primary" onClick={() => openEdit(facility)} aria-label="Edit">
+              <IconPencil size={16} />
+            </IconButton>
+          )}
+          {canDelete && (
+            <IconButton
+              tone="danger"
+              onClick={() => handleDelete(facility)}
+              loading={deleteMutation.isPending}
+              aria-label="Delete"
+            >
+              <IconTrash size={16} />
+            </IconButton>
+          )}
         </Group>
       </Table.Td>
     </Table.Tr>
@@ -541,9 +553,16 @@ export function FacilitiesSettings() {
         <Text size="lg" fw={600}>
           Facilities
         </Text>
-        <Button tone="primary" size="sm" leftSection={<IconPlus size={14} />} onClick={openCreate}>
-          Add Facility
-        </Button>
+        {canCreate && (
+          <Button
+            tone="primary"
+            size="sm"
+            leftSection={<IconPlus size={14} />}
+            onClick={openCreate}
+          >
+            Add Facility
+          </Button>
+        )}
       </Group>
 
       <Table striped highlightOnHover withTableBorder withColumnBorders>

@@ -1,6 +1,7 @@
 // INDENT AnalyticsPanel — split from indent.tsx (pure move).
 
 import { Group, SegmentedControl, Select, Stack, Text, TextInput } from "@mantine/core";
+import { useHasAnyPermission } from "@medbrains/stores";
 import type {
   AbcAnalysisRow,
   ComplianceCheckRow,
@@ -16,6 +17,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import { Badge, type BadgeTone } from "@/components/ui";
+import { DEPARTMENT_LIST_CODES } from "@/lib/api-permission-sets";
 import { statusColor } from "@/lib/status-colors";
 import { indentService } from "@/services/indent.service";
 import { colorToBadgeTone } from "./shared";
@@ -25,9 +27,14 @@ function ConsumptionView() {
   const [toDate, setToDate] = useState("");
   const [department, setDepartment] = useState<string | null>(null);
 
+  // The department filter is served by the shared setup endpoint, which the
+  // indent codes are not on. Refused, the picker renders empty and reads as a
+  // hospital with no departments to requisition for.
+  const canListDepartments = useHasAnyPermission(DEPARTMENT_LIST_CODES);
   const { data: departments } = useQuery({
     queryKey: ["departments"],
     queryFn: () => indentService.listDepartments(),
+    enabled: canListDepartments,
   });
 
   const params: Record<string, string> = {};

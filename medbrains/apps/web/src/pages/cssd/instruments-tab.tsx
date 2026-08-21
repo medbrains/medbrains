@@ -48,6 +48,7 @@ const statusColors: Record<string, BadgeTone> = {
 export function InstrumentsTab() {
   const canManage = useHasPermission(P.CSSD.INSTRUMENTS_MANAGE);
   const canManageSets = useHasPermission(P.CSSD.SETS_MANAGE);
+  const canListSets = useHasPermission(P.CSSD.SETS_LIST);
   const qc = useQueryClient();
   const [instrOpened, { open: openInstr, close: closeInstr }] = useDisclosure(false);
   const [setOpened, { open: openSet, close: closeSet }] = useDisclosure(false);
@@ -60,6 +61,7 @@ export function InstrumentsTab() {
   const { data: sets = [] } = useQuery({
     queryKey: ["cssd-sets"],
     queryFn: () => cssdService.listCssdSets(),
+    enabled: canListSets,
   });
 
   const instrForm = useForm<CssdInstrumentFormInput>({

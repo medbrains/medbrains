@@ -1,7 +1,9 @@
 // IPD IpTypeConfigSection — split from ipd.tsx (pure move).
 
 import { Card, Checkbox, Group, NumberInput, Stack, Text } from "@mantine/core";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type { IpTypeConfiguration } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconPencil } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -9,6 +11,12 @@ import { Badge, Button, IconButton, Table, toast } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 
 export function IpTypeConfigSection() {
+  // Tariffs carry their own codes. The caller gates this on
+  // `ipd.wards.manage`, which the server does not accept for either call —
+  // and a refused list would have rendered as "No IP type configurations
+  // found", i.e. an outage dressed up as a configured-nothing hospital.
+  const canView = useHasAnyPermission([P.IPD.TARIFFS_LIST, P.IPD.TARIFFS_MANAGE]);
+  const canManage = useHasPermission(P.IPD.TARIFFS_MANAGE);
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -18,7 +26,7 @@ export function IpTypeConfigSection() {
   const { data, isLoading } = useQuery({
     queryKey: ["ipd-ip-types"],
     queryFn: () => ipdService.listIpTypes(),
-    enabled: expanded,
+    enabled: expanded && canView,
   });
 
   const updateMutation = useMutation({
@@ -38,6 +46,10 @@ export function IpTypeConfigSection() {
   });
 
   const configs = (data ?? []) as IpTypeConfiguration[];
+
+  if (!canView) {
+    return null;
+  }
 
   return (
     <Card withBorder mt="md">
@@ -139,16 +151,18 @@ export function IpTypeConfigSection() {
                           </Button>
                         </Group>
                       ) : (
-                        <IconButton
-                          aria-label="Edit"
-                          onClick={() => {
-                            setEditingId(c.id);
-                            setEditThreshold(c.billing_alert_threshold ?? "");
-                            setEditAutoBilling(c.auto_billing_enabled);
-                          }}
-                        >
-                          <IconPencil size={14} />
-                        </IconButton>
+                        canManage && (
+                          <IconButton
+                            aria-label="Edit"
+                            onClick={() => {
+                              setEditingId(c.id);
+                              setEditThreshold(c.billing_alert_threshold ?? "");
+                              setEditAutoBilling(c.auto_billing_enabled);
+                            }}
+                          >
+                            <IconPencil size={14} />
+                          </IconButton>
+                        )
                       )}
                     </Table.Td>
                   </Table.Tr>

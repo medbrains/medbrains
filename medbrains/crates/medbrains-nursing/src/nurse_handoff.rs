@@ -1,4 +1,21 @@
 //! Nurse handoff (SBAR) + code blue + equipment checks.
+//!
+//! # Why start_code_blue takes no record check
+//!
+//! It writes `code_blue_events` against a NOT NULL `patient_id` from the body,
+//! under `nurse.code_blue.record`, held by `nurse`
+//! (`crates/medbrains-core/src/access/roles.rs`). This file checks the
+//! encounter on forty-six other paths and deliberately does not check here.
+//!
+//! A code blue is run by whoever is present when somebody arrests. That is
+//! routinely not the care team — it is the nearest nurse, and the first thing
+//! they do is call it, not look up whether the arrest is theirs to record.
+//! This is the emergency-override category, and in this repo emergency
+//! override has no other implementation: `break_glass_events` exists but no
+//! code path routes a code blue through it.
+//!
+//! **What retires this:** wiring the arrest into break-glass, so the override
+//! is recorded and reviewed rather than merely absent.
 
 use axum::{
     Extension, Json,
@@ -26,13 +43,11 @@ async fn require_encounter_access(
     claims: &Claims,
     encounter_id: Uuid,
 ) -> Result<(), AppError> {
-    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
-    let allowed = state
-        .authz
-        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "encounter", encounter_id)
-        .await
-        .unwrap_or(false);
-    if allowed { Ok(()) } else { Err(AppError::NotFound) }
+    // Delegates to the canonical resolver rather than repeating it. The
+    // hand-rolled copy that lived here collapsed a backend outage into
+    // `NotFound`, so a SpiceDB failure told the caller the record did not
+    // exist; the shared one distinguishes an outage (503) from a refusal.
+    medbrains_authz_gate::require_encounter_access(state, claims, encounter_id).await
 }
 
 // ── shift_handoffs (SBAR) ───────────────────────────────────────────
@@ -204,7 +219,7 @@ pub async fn start_code_blue(
     .fetch_one(&mut *tx)
     .await?;
 
-    medbrains_server_core::nabh_evidence::mirror_code_blue_started(
+    medbrains_nabh::mirror_code_blue_started(
         &mut tx,
         claims.tenant_id,
         claims.sub,
@@ -304,14 +319,14 @@ pub async fn end_code_blue(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    medbrains_server_core::nabh_evidence::mirror_code_blue_started(
+    medbrains_nabh::mirror_code_blue_started(
         &mut tx,
         claims.tenant_id,
         claims.sub,
         row.id,
     )
     .await?;
-    medbrains_server_core::nabh_evidence::mirror_code_blue_ended(&mut tx, claims.tenant_id, row.id).await?;
+    medbrains_nabh::mirror_code_blue_ended(&mut tx, claims.tenant_id, row.id).await?;
     let mut event = ClinicalEventEnvelope::new(
         claims.tenant_id,
         ClinicalEventName::EmergencyCodeBlueCompleted,

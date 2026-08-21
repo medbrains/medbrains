@@ -12,13 +12,15 @@
     "build:dev:ios": "eas build --profile development --platform ios",
     "build:dev:android": "eas build --profile development --platform android",
     "typecheck": "tsc --noEmit",
-    "lint": "biome check src/"
+    "lint": "biome check src/",
+    "test": "vitest run"
   },
   "dependencies": {
     "@medbrains/api": "workspace:*",
     "@medbrains/mobile-shell": "workspace:*",
     "@medbrains/types": "workspace:*",
     "@medbrains/ui-mobile": "workspace:*",
+    "@react-navigation/bottom-tabs": "^7.18.16",
     "@react-navigation/native": "^7.1.33",
     "@react-navigation/native-stack": "^7.14.4",
     "@tanstack/react-query": "^5.90.21",
@@ -38,6 +40,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.6",
     "@types/react": "~19.1.10",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.5"
   }
 }

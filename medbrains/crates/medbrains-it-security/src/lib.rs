@@ -1,11 +1,31 @@
 //! IT Security routes — Break-Glass, Clinical Access Monitor, Stock Disposal,
 //! TAT Tracking, Data Migration, EOD Digest, Data Quality, CERT-In Compliance.
+//!
+//! # Why create_sensitive_patient and start_tat_record take no record check
+//!
+//! `create_sensitive_patient` marks a patient as restricted — VIP, staff, or a
+//! diagnosis that must not surface on a shared screen. `start_tat_record`
+//! opens a turnaround-time record whose `patient_id` is optional.
+//!
+//! They are guarded on `admin.security` and `admin.system`, and **neither code
+//! is held by any built-in role** (`scripts/check_permission_reachable.py`),
+//! so both are bypass-only: super_admin and hospital_admin, who see every
+//! patient regardless.
+//!
+//! Beyond that, marking a patient sensitive is a protective act performed by
+//! somebody deliberately not on their care team. Requiring care access would
+//! mean the only patients who can be shielded are the ones the shielder
+//! already treats.
+//!
+//! **What retires this:** granting either code to a role that treats patients.
+//! The sensitive-patient list then becomes a way to learn which patients carry
+//! a restricted diagnosis, which is the thing it exists to hide.
 
+use axum::routing::{delete, get, patch, post};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::{get,post,delete,patch};
 use medbrains_core::it_security::{
     AccessAlert,
     AcknowledgeAlertRequest,
@@ -93,7 +113,7 @@ use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::require_permission;
+use medbrains_server_core::middleware::authorization::{require_any_permission, require_permission};
 use medbrains_server_core::state::AppState;
 
 fn parse_uuid(s: &Option<String>) -> Option<Uuid> {
@@ -235,6 +255,10 @@ pub async fn start_break_glass(
     Json(body): Json<CreateBreakGlassRequest>,
 ) -> Result<Json<BreakGlassEvent>, AppError> {
     require_permission(&claims, permissions::audit::START)?;
+    // No record check, and that is the whole point of break-glass: it exists to
+    // reach a record the caller CANNOT otherwise reach. The controls are a
+    // permission, fresh step-up re-authentication, a mandatory justification,
+    // an expiry, and a reviewable audit event — not a prior relationship.
     // Emergency override (out-of-scope access) — require fresh re-auth.
     medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
 
@@ -306,6 +330,11 @@ pub async fn end_break_glass(
     Path(id): Path<Uuid>,
     Json(body): Json<EndBreakGlassRequest>,
 ) -> Result<Json<BreakGlassEvent>, AppError> {
+    // Deliberately unpermissioned, and safe by construction: the UPDATE below is
+    // scoped `AND user_id = claims.sub`, so a caller can only close their OWN
+    // emergency session. Requiring a permission to END one would be the wrong
+    // way round — the risk is a session left open, not one closed early. A
+    // caller who never opened one gets RowNotFound.
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -368,6 +397,9 @@ pub async fn list_break_glass(
     Query(params): Query<BreakGlassQuery>,
 ) -> Result<Json<Vec<BreakGlassEventSummary>>, AppError> {
     require_permission(&claims, permissions::audit::REVIEW)?;
+    // Oversight: the break-glass register is the record of who declared an
+    // emergency and reached what. Narrowing it to the reviewer's own care team
+    // would hide exactly the accesses an audit exists to examine.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -523,6 +555,10 @@ pub async fn list_sensitive_patients(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<SensitivePatientSummary>>, AppError> {
     require_permission(&claims, permissions::audit::ACCESS_VIEW)?;
+    // Oversight, and narrowly held: `audit.access_view` belongs to one role,
+    // Audit Officer. The list names patients flagged for extra protection, so
+    // filtering it by care team would mean only a patient's own clinicians
+    // could see that they are protected — which defeats the flag.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -548,6 +584,9 @@ pub async fn create_sensitive_patient(
     Json(body): Json<CreateSensitivePatientRequest>,
 ) -> Result<Json<SensitivePatient>, AppError> {
     require_permission(&claims, permissions::admin::SECURITY)?;
+    // Flagging a patient as sensitive PROTECTS them. Requiring clinical access
+    // to do it would mean only the care team could raise the flag, which is the
+    // opposite of what it is for.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -982,6 +1021,9 @@ pub async fn start_tat_record(
     Json(body): Json<CreateTatRecordRequest>,
 ) -> Result<Json<TatRecord>, AppError> {
     require_permission(&claims, permissions::admin::SYSTEM)?;
+    // A turnaround-time row records how long something took for a patient. It
+    // writes timing, reads no clinical content, and is raised by operations
+    // rather than by the care team — a care-team check would break the metric.
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1525,7 +1567,18 @@ pub async fn list_security_incidents(
     Extension(claims): Extension<Claims>,
     Query(params): Query<IncidentQuery>,
 ) -> Result<Json<Vec<SecurityIncidentSummary>>, AppError> {
-    require_permission(&claims, permissions::admin::SECURITY)?;
+    // `security.incidents.*` exists for exactly this and is granted to Security
+    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
+    // to NO role, so the register was bypass-only: the role created to log
+    // security incidents could not log one. Both are accepted — an IT security
+    // administrator holding the broader code keeps access.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::security::incidents::LIST,
+            permissions::admin::SECURITY,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1567,7 +1620,18 @@ pub async fn get_security_incident(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<SecurityIncident>, AppError> {
-    require_permission(&claims, permissions::admin::SECURITY)?;
+    // `security.incidents.*` exists for exactly this and is granted to Security
+    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
+    // to NO role, so the register was bypass-only: the role created to log
+    // security incidents could not log one. Both are accepted — an IT security
+    // administrator holding the broader code keeps access.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::security::incidents::LIST,
+            permissions::admin::SECURITY,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1588,7 +1652,18 @@ pub async fn create_security_incident(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateSecurityIncidentRequest>,
 ) -> Result<Json<SecurityIncident>, AppError> {
-    require_permission(&claims, permissions::admin::SECURITY)?;
+    // `security.incidents.*` exists for exactly this and is granted to Security
+    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
+    // to NO role, so the register was bypass-only: the role created to log
+    // security incidents could not log one. Both are accepted — an IT security
+    // administrator holding the broader code keeps access.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::security::incidents::CREATE,
+            permissions::admin::SECURITY,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1636,7 +1711,18 @@ pub async fn update_security_incident(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateSecurityIncidentRequest>,
 ) -> Result<Json<SecurityIncident>, AppError> {
-    require_permission(&claims, permissions::admin::SECURITY)?;
+    // `security.incidents.*` exists for exactly this and is granted to Security
+    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
+    // to NO role, so the register was bypass-only: the role created to log
+    // security incidents could not log one. Both are accepted — an IT security
+    // administrator holding the broader code keeps access.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::security::incidents::UPDATE,
+            permissions::admin::SECURITY,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1706,7 +1792,18 @@ pub async fn report_to_cert_in(
     Path(id): Path<Uuid>,
     Json(body): Json<ReportToCertInRequest>,
 ) -> Result<Json<SecurityIncident>, AppError> {
-    require_permission(&claims, permissions::admin::SECURITY)?;
+    // `security.incidents.*` exists for exactly this and is granted to Security
+    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
+    // to NO role, so the register was bypass-only: the role created to log
+    // security incidents could not log one. Both are accepted — an IT security
+    // administrator holding the broader code keeps access.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::security::incidents::UPDATE,
+            permissions::admin::SECURITY,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1744,7 +1841,18 @@ pub async fn get_incident_updates(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<SecurityIncidentUpdate>>, AppError> {
-    require_permission(&claims, permissions::admin::SECURITY)?;
+    // `security.incidents.*` exists for exactly this and is granted to Security
+    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
+    // to NO role, so the register was bypass-only: the role created to log
+    // security incidents could not log one. Both are accepted — an IT security
+    // administrator holding the broader code keeps access.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::security::incidents::LIST,
+            permissions::admin::SECURITY,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1771,7 +1879,18 @@ pub async fn add_incident_update(
     Path(id): Path<Uuid>,
     Json(body): Json<AddIncidentUpdateRequest>,
 ) -> Result<Json<SecurityIncidentUpdate>, AppError> {
-    require_permission(&claims, permissions::admin::SECURITY)?;
+    // `security.incidents.*` exists for exactly this and is granted to Security
+    // Guard (and Audit Officer for the reads). `admin.security.manage` is granted
+    // to NO role, so the register was bypass-only: the role created to log
+    // security incidents could not log one. Both are accepted — an IT security
+    // administrator holding the broader code keeps access.
+    require_any_permission(
+        &claims,
+        &[
+            permissions::security::incidents::UPDATE,
+            permissions::admin::SECURITY,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2032,6 +2151,8 @@ pub async fn get_onboarding_progress(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Option<OnboardingProgress>>, AppError> {
+    require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -2051,6 +2172,8 @@ pub async fn update_onboarding_progress(
     Extension(claims): Extension<Claims>,
     Json(body): Json<UpdateOnboardingRequest>,
 ) -> Result<Json<OnboardingProgress>, AppError> {
+    require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -2081,6 +2204,8 @@ pub async fn complete_onboarding_step(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CompleteOnboardingStepRequest>,
 ) -> Result<Json<OnboardingProgress>, AppError> {
+    require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -2107,6 +2232,8 @@ pub async fn complete_onboarding(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<OnboardingProgress>, AppError> {
+    require_permission(&claims, permissions::admin::settings::modules::MANAGE)?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -2421,51 +2548,126 @@ pub async fn mark_incentive_paid(
 /// IT security & compliance routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route("/api/break-glass", post(start_break_glass).get(list_break_glass))
+        .route(
+            "/api/break-glass",
+            post(start_break_glass).get(list_break_glass),
+        )
         .route("/api/break-glass/{id}", get(get_break_glass))
         .route("/api/break-glass/{id}/end", post(end_break_glass))
         .route("/api/break-glass/{id}/review", post(review_break_glass))
-        .route("/api/sensitive-patients", get(list_sensitive_patients).post(create_sensitive_patient))
-        .route("/api/sensitive-patients/{id}", delete(delete_sensitive_patient))
+        .route(
+            "/api/sensitive-patients",
+            get(list_sensitive_patients).post(create_sensitive_patient),
+        )
+        .route(
+            "/api/sensitive-patients/{id}",
+            delete(delete_sensitive_patient),
+        )
         .route("/api/access-alerts", get(list_access_alerts))
-        .route("/api/access-alerts/{id}/acknowledge", post(acknowledge_access_alert))
+        .route(
+            "/api/access-alerts/{id}/acknowledge",
+            post(acknowledge_access_alert),
+        )
         .route("/api/disposals", get(list_disposals).post(create_disposal))
         .route("/api/disposals/{id}", get(get_disposal))
         .route("/api/disposals/{id}/items", get(get_disposal_items))
         .route("/api/disposals/{id}/approve", post(approve_disposal))
         .route("/api/disposals/{id}/execute", post(execute_disposal))
-        .route("/api/tat/benchmarks", get(list_tat_benchmarks).post(create_tat_benchmark))
-        .route("/api/tat/records", get(list_tat_records).post(start_tat_record))
+        .route(
+            "/api/tat/benchmarks",
+            get(list_tat_benchmarks).post(create_tat_benchmark),
+        )
+        .route(
+            "/api/tat/records",
+            get(list_tat_records).post(start_tat_record),
+        )
         .route("/api/tat/records/{id}/complete", post(complete_tat_record))
         .route("/api/tat/dashboard", get(tat_dashboard))
-        .route("/api/migrations", get(list_migrations).post(create_migration))
+        .route(
+            "/api/migrations",
+            get(list_migrations).post(create_migration),
+        )
         .route("/api/migrations/{id}", get(get_migration))
         .route("/api/migrations/{id}/cancel", post(cancel_migration))
-        .route("/api/digest/subscription", get(get_my_digest_subscription).post(upsert_digest_subscription))
+        .route(
+            "/api/digest/subscription",
+            get(get_my_digest_subscription).post(upsert_digest_subscription),
+        )
         .route("/api/digest/history", get(list_digest_history))
-        .route("/api/data-quality/rules", get(list_dq_rules).post(create_dq_rule))
+        .route(
+            "/api/data-quality/rules",
+            get(list_dq_rules).post(create_dq_rule),
+        )
         .route("/api/data-quality/issues", get(list_dq_issues))
-        .route("/api/data-quality/issues/{id}/resolve", post(resolve_dq_issue))
+        .route(
+            "/api/data-quality/issues/{id}/resolve",
+            post(resolve_dq_issue),
+        )
         .route("/api/data-quality/dashboard", get(dq_dashboard))
-        .route("/api/security-incidents", get(list_security_incidents).post(create_security_incident))
-        .route("/api/security-incidents/{id}", get(get_security_incident).patch(update_security_incident))
-        .route("/api/security-incidents/{id}/cert-in", post(report_to_cert_in))
-        .route("/api/security-incidents/{id}/updates", get(get_incident_updates).post(add_incident_update))
-        .route("/api/vulnerabilities", get(list_vulnerabilities).post(create_vulnerability))
+        .route(
+            "/api/security-incidents",
+            get(list_security_incidents).post(create_security_incident),
+        )
+        .route(
+            "/api/security-incidents/{id}",
+            get(get_security_incident).patch(update_security_incident),
+        )
+        .route(
+            "/api/security-incidents/{id}/cert-in",
+            post(report_to_cert_in),
+        )
+        .route(
+            "/api/security-incidents/{id}/updates",
+            get(get_incident_updates).post(add_incident_update),
+        )
+        .route(
+            "/api/vulnerabilities",
+            get(list_vulnerabilities).post(create_vulnerability),
+        )
         .route("/api/vulnerabilities/{id}", patch(update_vulnerability))
-        .route("/api/compliance-requirements", get(list_compliance_requirements))
-        .route("/api/compliance-requirements/{id}", patch(update_compliance_requirement))
+        .route(
+            "/api/compliance-requirements",
+            get(list_compliance_requirements),
+        )
+        .route(
+            "/api/compliance-requirements/{id}",
+            patch(update_compliance_requirement),
+        )
         .route("/api/system-health", get(system_health_dashboard))
         .route("/api/backups", get(list_backups))
-        .route("/api/it-onboarding/progress", get(get_onboarding_progress).post(update_onboarding_progress))
-        .route("/api/it-onboarding/complete-step", post(complete_onboarding_step))
+        .route(
+            "/api/it-onboarding/progress",
+            get(get_onboarding_progress).post(update_onboarding_progress),
+        )
+        .route(
+            "/api/it-onboarding/complete-step",
+            post(complete_onboarding_step),
+        )
         .route("/api/it-onboarding/complete", post(complete_onboarding))
-        .route("/api/incentive-plans", get(list_incentive_plans).post(create_incentive_plan))
-        .route("/api/incentive-plans/{id}/rules", get(get_incentive_plan_rules).post(add_incentive_rule))
-        .route("/api/incentive-assignments", get(list_doctor_incentive_assignments).post(assign_incentive_plan))
-        .route("/api/incentive-calculations", get(list_incentive_calculations).post(calculate_incentive))
-        .route("/api/incentive-calculations/{id}/approve", post(approve_incentive))
-        .route("/api/incentive-calculations/{id}/paid", post(mark_incentive_paid))
+        .route(
+            "/api/incentive-plans",
+            get(list_incentive_plans).post(create_incentive_plan),
+        )
+        .route(
+            "/api/incentive-plans/{id}/rules",
+            get(get_incentive_plan_rules).post(add_incentive_rule),
+        )
+        .route(
+            "/api/incentive-assignments",
+            get(list_doctor_incentive_assignments).post(assign_incentive_plan),
+        )
+        .route(
+            "/api/incentive-calculations",
+            get(list_incentive_calculations).post(calculate_incentive),
+        )
+        .route(
+            "/api/incentive-calculations/{id}/approve",
+            post(approve_incentive),
+        )
+        .route(
+            "/api/incentive-calculations/{id}/paid",
+            post(mark_incentive_paid),
+        )
 }
 
 #[cfg(test)]

@@ -1,7 +1,9 @@
 // Long-term-care LtcMedicationsPanel — split from long-term-care.tsx (pure move).
 
 import { Group, NumberInput, Stack, Switch, Text, TextInput } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { PharmacyCatalog } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DrugSearchSelect } from "@/components/DrugSearchSelect";
@@ -9,13 +11,10 @@ import type { BadgeTone } from "@/components/ui";
 import { Badge, Button, toast } from "@/components/ui";
 import { longTermCareService } from "@/services/longTermCare.service";
 
-export function LtcMedicationsPanel({
-  patientId,
-  canManage,
-}: {
-  patientId: string;
-  canManage: boolean;
-}) {
+export function LtcMedicationsPanel({ patientId }: { patientId: string }) {
+  const canView = useHasPermission(P.SPECIALTY.LTC.MEDICATIONS_LIST);
+  const canCreate = useHasPermission(P.SPECIALTY.LTC.MEDICATIONS_CREATE);
+  const canUpdate = useHasPermission(P.SPECIALTY.LTC.MEDICATIONS_UPDATE);
   const qc = useQueryClient();
   const [drugId, setDrugId] = useState("");
   const [drugName, setDrugName] = useState("");
@@ -27,6 +26,7 @@ export function LtcMedicationsPanel({
   const { data = [] } = useQuery({
     queryKey: ["ltc-meds", patientId],
     queryFn: () => longTermCareService.listLtcMedications(patientId),
+    enabled: canView,
   });
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ["ltc-meds", patientId] });
@@ -74,7 +74,7 @@ export function LtcMedicationsPanel({
       <Text fw={600} size="sm">
         Long-term medications
       </Text>
-      {canManage && (
+      {canCreate && (
         <>
           <DrugSearchSelect
             value={drugId}
@@ -140,7 +140,7 @@ export function LtcMedicationsPanel({
                 {m.refill_count} refills
               </Text>
             </Stack>
-            {canManage && m.status === "active" && (
+            {canUpdate && m.status === "active" && (
               <Group gap="xs">
                 <Button size="xs" tone="primary" onClick={() => refill.mutate(m.id)}>
                   Refill

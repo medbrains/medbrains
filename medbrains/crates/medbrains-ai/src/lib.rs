@@ -9,17 +9,20 @@
 //! `api_key_secret` reference is set, so keys live in the secret store rather
 //! than the database or process env.
 
+use axum::response::IntoResponse as _;
+use axum::routing::{get, post};
 use axum::{
     Extension, Json,
     extract::{Path, State},
     response::sse::{Event, KeepAlive, Sse},
 };
-use axum::routing::{get,post};
 use futures::{Stream, StreamExt as _};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use medbrains_core::permissions;
 use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::{error::AppError, state::AppState};
 
 /// The finalized app router, stashed by `main` after construction, so read tools
@@ -80,7 +83,6 @@ pub use medbrains_server_services::llm::{AiConfig, extract, resolve_config};
 /// `routes/ai_system_prompt.txt` (plain text — no Rust escaping).
 const SYSTEM_PROMPT: &str = include_str!("ai_system_prompt.txt");
 
-
 // ── Streaming chat (RFC-AI-CLINICAL-COPILOT Phase 1) ──────────────────
 //
 // `POST /api/ai/chat` streams the assistant reply over SSE, riding the normal
@@ -125,7 +127,10 @@ impl Grounding {
             lines.push(format!("Known allergies: {}", self.allergies.join(", ")));
         }
         if !self.medications.is_empty() {
-            lines.push(format!("Active medications: {}", self.medications.join(", ")));
+            lines.push(format!(
+                "Active medications: {}",
+                self.medications.join(", ")
+            ));
         }
         if !self.diagnoses.is_empty() {
             lines.push(format!("Active problems: {}", self.diagnoses.join(", ")));
@@ -295,7 +300,8 @@ impl DrugSafetyTool {
         patient_id: Uuid,
     ) -> Result<Vec<medbrains_pharmacy::MedicationSafetyWarning>, AppError> {
         let mut tx = self.db.begin().await?;
-        medbrains_db::pool::set_full_context(&mut tx, &self.tenant_id, &self.department_ids).await?;
+        medbrains_db::pool::set_full_context(&mut tx, &self.tenant_id, &self.department_ids)
+            .await?;
         let items = [medbrains_pharmacy::MedicationSafetyItem {
             catalog_item_id: None,
             drug_name: drug.to_owned(),
@@ -345,9 +351,10 @@ impl rig::tool::Tool for DrugSafetyTool {
                 drug: args.drug,
                 safe: true,
                 warnings: Vec::new(),
-                notes: "No patient chart is loaded, so safety cannot be checked — ask the clinician \
+                notes:
+                    "No patient chart is loaded, so safety cannot be checked — ask the clinician \
                     to open the patient's chart before relying on a drug suggestion."
-                    .to_owned(),
+                        .to_owned(),
             });
         };
         match self.evaluate(&args.drug, patient_id).await {
@@ -429,7 +436,8 @@ impl DraftPrescriptionTool {
         dose: Option<&str>,
     ) -> Result<(bool, Vec<String>), AppError> {
         let mut tx = self.db.begin().await?;
-        medbrains_db::pool::set_full_context(&mut tx, &self.tenant_id, &self.department_ids).await?;
+        medbrains_db::pool::set_full_context(&mut tx, &self.tenant_id, &self.department_ids)
+            .await?;
         let items = [medbrains_pharmacy::MedicationSafetyItem {
             catalog_item_id: None,
             drug_name: drug.to_owned(),
@@ -443,7 +451,10 @@ impl DraftPrescriptionTool {
         )
         .await?;
         let blocked = warnings.iter().any(|w| {
-            matches!(w.severity, medbrains_pharmacy::MedicationSafetySeverity::Block)
+            matches!(
+                w.severity,
+                medbrains_pharmacy::MedicationSafetySeverity::Block
+            )
         });
         let messages: Vec<String> = warnings
             .iter()
@@ -485,11 +496,12 @@ impl rig::tool::Tool for DraftPrescriptionTool {
     async fn definition(&self, _prompt: String) -> rig::completion::ToolDefinition {
         rig::completion::ToolDefinition {
             name: Self::NAME.to_owned(),
-            description: "Draft a prescription for the current patient. The server runs the pharmacy \
+            description:
+                "Draft a prescription for the current patient. The server runs the pharmacy \
                 safety engine and REFUSES (decision='blocked') on a contraindication — you cannot \
                 override it. On success the draft is staged for a clinician to sign; you never \
                 prescribe directly."
-                .to_owned(),
+                    .to_owned(),
             parameters: serde_json::json!({
                 "type": "object",
                 "properties": {
@@ -510,7 +522,10 @@ impl rig::tool::Tool for DraftPrescriptionTool {
                 message: "No patient chart is loaded — cannot draft a prescription.".to_owned(),
             });
         };
-        match self.stage(patient_id, &args.drug, args.dose.as_deref()).await {
+        match self
+            .stage(patient_id, &args.drug, args.dose.as_deref())
+            .await
+        {
             Ok((true, messages)) => Ok(DraftPrescriptionResult {
                 decision: "blocked".to_owned(),
                 message: format!(
@@ -566,11 +581,15 @@ struct PatientOverviewTool {
 impl PatientOverviewTool {
     async fn overview(&self, patient_id: Uuid) -> Result<String, AppError> {
         // Same access rule as the grounding gate: admins bypass, others ReBAC.
-        let is_admin =
-            medbrains_server_core::middleware::authorization::BYPASS_ROLES.contains(&self.claims.role.as_str());
+        let is_admin = medbrains_server_core::middleware::authorization::BYPASS_ROLES
+            .contains(&self.claims.role.as_str());
         if !is_admin {
-            medbrains_patients::require_patient_viewer(&self.state, &self.claims, patient_id)
-                .await?;
+            medbrains_authz_gate::require_patient_access(
+                &self.state,
+                &self.claims,
+                patient_id,
+            )
+            .await?;
         }
         let mut tx = self.state.db.begin().await?;
         medbrains_db::pool::set_full_context(
@@ -619,16 +638,16 @@ impl rig::tool::Tool for PatientOverviewTool {
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let Ok(pid) = Uuid::parse_str(&args.patient_id) else {
-            return Ok("No valid patient id was provided. If no patient is in the screen context, \
+            return Ok(
+                "No valid patient id was provided. If no patient is in the screen context, \
                 call `request_patient` so the user can choose one — do not guess an id."
-                .to_owned());
+                    .to_owned(),
+            );
         };
         Ok(match self.overview(pid).await {
             Ok(text) => text,
-            Err(_) => {
-                "You do not have access to this patient, or their data could not be loaded."
-                    .to_owned()
-            }
+            Err(_) => "You do not have access to this patient, or their data could not be loaded."
+                .to_owned(),
         })
     }
 }
@@ -659,8 +678,11 @@ impl CallApiTool {
             .ok_or_else(|| AppError::Internal("router unavailable".to_owned()))?
             .clone();
         // Mint a token for the caller so the request goes through the real auth path.
-        let token = medbrains_server_core::middleware::auth::encode_jwt(&self.claims, &self.state.jwt_encoding_key)
-            .map_err(|_| AppError::Internal("token mint failed".to_owned()))?;
+        let token = medbrains_server_core::middleware::auth::encode_jwt(
+            &self.claims,
+            &self.state.jwt_encoding_key,
+        )
+        .map_err(|_| AppError::Internal("token mint failed".to_owned()))?;
         let request = axum::http::Request::builder()
             .method(axum::http::Method::GET)
             .uri(path)
@@ -676,7 +698,10 @@ impl CallApiTool {
         let bytes = axum::body::to_bytes(response.into_body(), 256 * 1024)
             .await
             .map_err(|_| AppError::Internal("read body failed".to_owned()))?;
-        Ok(format!("HTTP {status}\n{}", String::from_utf8_lossy(&bytes)))
+        Ok(format!(
+            "HTTP {status}\n{}",
+            String::from_utf8_lossy(&bytes)
+        ))
     }
 }
 
@@ -749,9 +774,11 @@ impl rig::tool::Tool for RequestPatientTool {
     }
 
     async fn call(&self, _args: Self::Args) -> Result<Self::Output, Self::Error> {
-        Ok("A patient search box is now shown to the user. STOP and wait for their selection; do \
+        Ok(
+            "A patient search box is now shown to the user. STOP and wait for their selection; do \
             not call patient tools or invent an id. The chosen patient arrives in the next message."
-            .to_owned())
+                .to_owned(),
+        )
     }
 }
 
@@ -790,9 +817,8 @@ impl rig::tool::Tool for ListApisTool {
 }
 
 /// The boxed SSE body type — one alias so both provider branches unify.
-type SseBody = std::pin::Pin<
-    Box<dyn Stream<Item = Result<Event, std::convert::Infallible>> + Send>,
->;
+type SseBody =
+    std::pin::Pin<Box<dyn Stream<Item = Result<Event, std::convert::Infallible>> + Send>>;
 
 /// One SSE frame carrying a JSON payload; falls back to `{}` if serialisation
 /// somehow fails (avoids `unwrap`, which clippy denies).
@@ -824,19 +850,30 @@ async fn open_turn(
         .and_then(|c| c.get("patient_id"))
         .and_then(serde_json::Value::as_str)
         .and_then(|s| Uuid::parse_str(s).ok());
-    // Admins bypass every other check, so they bypass the patient-viewer gate too
+    // Admins bypass every other check, so they bypass the patient gate too
     // (otherwise a missing SpiceDB relation silently drops grounding for them).
-    let is_admin = medbrains_server_core::middleware::authorization::BYPASS_ROLES.contains(&claims.role.as_str());
+    let is_admin = medbrains_server_core::middleware::authorization::BYPASS_ROLES
+        .contains(&claims.role.as_str());
     let grounded_patient = match patient_id {
-        Some(pid)
-            if is_admin
-                || medbrains_patients::require_patient_viewer(state, claims, pid)
-                    .await
-                    .is_ok() =>
+        None => None,
+        Some(pid) if is_admin => Some(pid),
+        // A refusal skips grounding silently, as designed — the copilot answers
+        // generally rather than revealing that the patient exists.
+        //
+        // An outage must NOT take that path. `.is_ok()` used to fold both into
+        // "skip", so a database fault produced a fluent clinical answer with
+        // the patient's chart silently missing from it, and nothing on screen
+        // said so. An ungrounded answer that looks grounded is worse than no
+        // answer, so the request fails instead.
+        Some(pid) => match medbrains_authz_gate::require_patient_access(
+            state, claims, pid,
+        )
+        .await
         {
-            Some(pid)
-        }
-        _ => None,
+            Ok(()) => Some(pid),
+            Err(err @ AppError::ServiceUnavailable(_)) => return Err(err),
+            Err(_) => None,
+        },
     };
 
     let mut tx = state.db.begin().await?;
@@ -925,7 +962,12 @@ fn build_preamble(context: Option<&serde_json::Value>, kb_hits: &[KbHit]) -> Str
         let refs: Vec<String> = kb_hits
             .iter()
             .map(|h| {
-                format!("- {} [{}]: {}", h.term, h.source_name, h.snippet.as_deref().unwrap_or(""))
+                format!(
+                    "- {} [{}]: {}",
+                    h.term,
+                    h.source_name,
+                    h.snippet.as_deref().unwrap_or("")
+                )
             })
             .collect();
         parts.push(format!(
@@ -1225,11 +1267,13 @@ async fn persist_assistant_turn(
     .bind(answer)
     .execute(&mut *tx)
     .await?;
-    sqlx::query("UPDATE ai_conversations SET last_message_at = now() WHERE id = $1 AND tenant_id = $2")
-        .bind(conversation_id)
-        .bind(tenant_id)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "UPDATE ai_conversations SET last_message_at = now() WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(conversation_id)
+    .bind(tenant_id)
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
     Ok(())
 }
@@ -1324,7 +1368,21 @@ async fn fetch_new_whispers(
 pub async fn whispers(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-) -> impl axum::response::IntoResponse {
+) -> axum::response::Response {
+    // The stream carries `lab_critical_alerts` rows — patient id, parameter,
+    // value, flag. That is a patient's critical result, and without this any
+    // authenticated session could hold the stream open and receive every one
+    // in the hospital.
+    //
+    // Gated on the lab-report permission because that is the PHI-bearing half;
+    // the ER code activations it also carries are broadcast information. The
+    // better long-term shape is to filter each item by what the caller may
+    // see, rather than gate the whole stream — worth doing when a role needs
+    // the codes without the labs.
+    if let Err(error) = require_permission(&claims, permissions::lab::reports::VIEW) {
+        return error.into_response();
+    }
+
     let tenant_id = claims.tenant_id;
     let stream = async_stream::stream! {
         // Only surface alerts that fire AFTER the stream opens.
@@ -1346,7 +1404,9 @@ pub async fn whispers(
             }
         }
     };
-    Sse::new(stream).keep_alive(KeepAlive::default())
+    Sse::new(stream)
+        .keep_alive(KeepAlive::default())
+        .into_response()
 }
 
 // ── Conversation history (resume a thread) ───────────────────────────

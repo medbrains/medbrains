@@ -1,0 +1,28 @@
+[package]
+name = "medbrains-approvals"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+# The approvals engine.
+#
+# Orchestrates core (what may happen) and store (how it is written), and
+# defines the traits domains plug into. Depends on no domain crate: handlers
+# are registered at the composition root, so adding a domain never edits this
+# crate.
+[dependencies]
+medbrains-approvals-core = { path = "../medbrains-approvals-core" }
+medbrains-approvals-store = { path = "../medbrains-approvals-store" }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+[lints]
+workspace = true

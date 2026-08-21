@@ -1,0 +1,31 @@
+-- RLS-Posture: tenant-scoped
+-- Tenant-Column: tenant_id
+-- New-Tables: none
+-- Drops: none
+-- A role for the identity behind an API key.
+--
+-- ## Why not reuse an existing role
+--
+-- `users.role` is NOT NULL, so a service account needs one. Borrowing a
+-- clinical role makes the audit trail lie — "Lab Integration, Pharmacist" —
+-- and puts a machine into every report that counts staff by role.
+--
+-- ## Why this matters more than tidiness
+--
+-- `is_bypass_role` reads `claims.role`, and `super_admin` / `hospital_admin`
+-- return true from every permission check. A key whose identity carried one of
+-- those would bypass its own allowlist completely: the explicit permission
+-- list, the whole reason a key is not a user, would be dead code.
+--
+-- A dedicated role that is not in `BYPASS_ROLES` makes that impossible to
+-- reach by accident, and the CHECK below makes it impossible to reach on
+-- purpose.
+--
+-- ## Why this migration does nothing else
+--
+-- `ALTER TYPE ... ADD VALUE` may be issued inside a transaction, but the new
+-- value cannot be *used* until that transaction commits. sqlx runs each
+-- migration in its own transaction, so the constraint that references the
+-- value lives in the next file rather than this one.
+
+ALTER TYPE public.user_role ADD VALUE IF NOT EXISTS 'service_account';

@@ -1,7 +1,9 @@
 // IPD RandomizationModal — split from clinical-trials.tsx (pure move).
 
 import { Group, Modal, Stack, Text, TextInput } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { ClinicalTrial } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
@@ -15,6 +17,12 @@ export function RandomizationModal({
   trial: ClinicalTrial;
   onClose: () => void;
 }) {
+  // Randomising and unblinding are different acts. Unblinding ends the
+  // masking for that participant and has its own permission, granted to
+  // nobody by default — showing the control to everyone who can view the
+  // trial would just produce a 403 at the click.
+  const canRandomize = useHasPermission(P.SPECIALTY.CLINICAL_TRIALS.CREATE);
+  const canUnblind = useHasPermission(P.SPECIALTY.CLINICAL_TRIALS.UNBLIND);
   const qc = useQueryClient();
   const [patientId, setPatientId] = useState("");
   const [arm, setArm] = useState("");
@@ -73,13 +81,15 @@ export function RandomizationModal({
             placeholder="R-0007"
           />
         </Group>
-        <Button
-          onClick={() => randomize.mutate()}
-          loading={randomize.isPending}
-          disabled={!patientId || !arm.trim()}
-        >
-          Randomize patient
-        </Button>
+        {canRandomize && (
+          <Button
+            onClick={() => randomize.mutate()}
+            loading={randomize.isPending}
+            disabled={!patientId || !arm.trim()}
+          >
+            Randomize patient
+          </Button>
+        )}
 
         {unblindId && (
           <Group align="flex-end" gap="xs">
@@ -133,7 +143,7 @@ export function RandomizationModal({
                   </Badge>
                 )}
               </Group>
-              {!r.is_unblinded && (
+              {canUnblind && !r.is_unblinded && (
                 <Button size="xs" tone="danger" onClick={() => setUnblindId(r.id)}>
                   Unblind
                 </Button>

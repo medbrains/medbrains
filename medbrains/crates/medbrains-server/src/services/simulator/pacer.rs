@@ -83,7 +83,7 @@ async fn produced_today(state: &AppState, tenant_id: &Uuid) -> i64 {
     }
     let count: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM encounters \
-         WHERE is_dummy = true AND created_at::date = CURRENT_DATE",
+         WHERE is_dummy = true AND (created_at >= CURRENT_DATE AND created_at < CURRENT_DATE + 1)",
     )
     .fetch_one(&mut *tx)
     .await

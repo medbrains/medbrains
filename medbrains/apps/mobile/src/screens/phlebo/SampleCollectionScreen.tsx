@@ -1,5 +1,7 @@
 import { BarcodeScanner } from "@medbrains/mobile-shell";
+import { useHasPermission } from "@medbrains/stores";
 import type { LabHomeCollection } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
@@ -53,6 +55,7 @@ function confirmMessage(sampleCount: number, collectionId: string): string {
 }
 
 export function SampleCollectionScreen({ route, navigation }: SampleCollectionScreenProps) {
+  const canUpdateCollection = useHasPermission(P.LAB.SAMPLES_MANAGE);
   const theme = useTheme();
   const queryClient = useQueryClient();
   const { orderId } = route.params;
@@ -343,7 +346,7 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
         <Button
           mode="contained"
           onPress={() => setConfirmDialogVisible(true)}
-          disabled={!allCollected}
+          disabled={!allCollected || !canUpdateCollection}
           style={styles.submitButton}
           contentStyle={styles.submitButtonContent}
           icon="check-circle"

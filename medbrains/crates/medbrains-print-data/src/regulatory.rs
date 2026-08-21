@@ -90,8 +90,7 @@ pub async fn get_nabh_quality_report_print_data(
     .bind(&period)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     tx.commit().await?;
 
@@ -179,8 +178,7 @@ pub async fn get_nmc_compliance_report_print_data(
     .bind(&period)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let corrective_actions: Vec<String> = sqlx::query_scalar(
         "SELECT action_description FROM nmc_corrective_actions \
@@ -190,8 +188,7 @@ pub async fn get_nmc_compliance_report_print_data(
     .bind(&period)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let tenant = sqlx::query_as::<_, (String, Option<String>, Option<String>)>(
         "SELECT name, logo_url, nmc_registration_number FROM tenants WHERE id = $1",
@@ -333,8 +330,7 @@ pub async fn get_nabl_quality_report_print_data(
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let tenant = sqlx::query_as::<_, (String, Option<String>, Option<String>)>(
         "SELECT name, logo_url, nabl_certificate_number FROM tenants WHERE id = $1",
@@ -786,8 +782,7 @@ pub async fn get_drug_license_report_print_data(
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let controlled_license: Option<String> = sqlx::query_scalar(
         "SELECT license_number FROM controlled_substance_licenses WHERE tenant_id = $1 AND is_active = true",
@@ -1148,6 +1143,9 @@ pub async fn get_death_register_print_data(
     Path(period): Path<String>,
 ) -> Result<Json<DeathRegisterPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
+    // Deliberately unfiltered: a statutory death register lists every death in
+    // the period. Narrowing it to the caller's own patients would make the
+    // document wrong as a register, so it stays permission-gated.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1255,6 +1253,8 @@ pub async fn get_mlc_register_summary_print_data(
     Path(period): Path<String>,
 ) -> Result<Json<MlcRegisterSummaryPrintData>, AppError> {
     require_permission(&claims, permissions::emergency::mlc::LIST)?;
+    // Deliberately unfiltered, as the death register above: a medico-legal
+    // register is a statutory summary of the period, not a per-patient read.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1519,8 +1519,7 @@ pub async fn get_nmc_narf_assessment_print_data(
     .bind(year)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let improvements: Vec<String> = sqlx::query_scalar(
         "SELECT item FROM narf_improvements WHERE assessment_year = $1 AND tenant_id = $2 ORDER BY display_order LIMIT 5000",
@@ -1528,8 +1527,7 @@ pub async fn get_nmc_narf_assessment_print_data(
     .bind(year)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let action_plan: Vec<String> = sqlx::query_scalar(
         "SELECT item FROM narf_action_plan WHERE assessment_year = $1 AND tenant_id = $2 ORDER BY display_order LIMIT 5000",
@@ -1537,8 +1535,7 @@ pub async fn get_nmc_narf_assessment_print_data(
     .bind(year)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let tenant = sqlx::query_as::<_, (String, Option<String>, Option<String>)>(
         "SELECT name, logo_url, nmc_registration_number FROM tenants WHERE id = $1",

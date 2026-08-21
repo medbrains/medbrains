@@ -3,6 +3,7 @@
 import { Card, Group, Select, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { useHasPermission } from "@medbrains/stores";
 import type {
   AmendResultRequest,
   AutoValidateResult,
@@ -11,6 +12,7 @@ import type {
   LabResult,
   ResultInput,
 } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconDroplet,
@@ -53,6 +55,10 @@ export function LabOrderDetail({
   canPrintReports: boolean;
 }) {
   const { t } = useTranslation("lab");
+  // The parent passes four write flags but never the read one: opening the
+  // order carries lab.orders.view. Refused, `data` never arrives and the
+  // panel renders as though the order has no results.
+  const canViewOrder = useHasPermission(P.LAB.ORDERS_VIEW);
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const [resultFormOpen, resultFormHandlers] = useDisclosure(false);
@@ -71,6 +77,7 @@ export function LabOrderDetail({
   const { data } = useQuery<LabOrderDetailResponse>({
     queryKey: ["lab-order-detail", orderId],
     queryFn: () => labService.getLabOrder(orderId),
+    enabled: canViewOrder,
   });
 
   // Critical alerts for this order

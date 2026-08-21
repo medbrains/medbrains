@@ -232,6 +232,39 @@ medbrains/
 - Use `thiserror` for defining error types. Use `anyhow` only at application boundaries (main, route handlers).
 - Format with `cargo fmt` (rustfmt.toml enforces max_width=100, Unix newlines, crate-level import grouping).
 
+#### Never start a build while one is running (MANDATORY)
+
+**Run `scripts/build_guard.sh` before any `cargo build`, `check`, `test` or
+`clippy`.** It exits 0 when the machine is free and 1 when it is not.
+
+This workspace is ~119 crates and 1,200 dependencies. One `cargo check` takes
+the machine to a load average of 4; a full build takes half an hour. Two at
+once do not take twice as long — they thrash, and on a laptop they can take the
+machine down and lose whatever else was running with it.
+
+Disk is the other way a build kills a machine: `/tmp/mb-target` and the
+in-repo `target/` hold ~61 GB between them, and a build that fills the volume
+corrupts its own cache. The guard warns below 20 GB free.
+
+**Never kill another job to unblock your own.** The guard classifies what it
+finds, and only `--reap` stops anything, and only jobs it can prove are stale:
+
+| class | meaning | may be stopped |
+|---|---|---|
+| `agent` | `CARGO_TARGET_DIR=/tmp/mb-target`, a check/test/clippy — a verification run that can simply be redone | yes, with `--reap` |
+| `stale` | no CPU for over three minutes — probably wedged | yes, with `--reap` |
+| `operator` | a `--release` build or a `--target` cross-compile — somebody's deploy artefact | **never**, ask first |
+| `unknown` | cannot be attributed | **never**, ask first |
+
+A release cross-compile is thirty-five minutes of somebody's afternoon.
+Killing it to save ninety seconds is a bad trade, and making it silently is
+worse. `--wait` blocks until the machine is free; that is usually the right
+answer.
+
+Stale jobs are stopped with `TERM`, never `KILL` — cargo removes its lock file
+on the way out, and a `-9` leaves a lock that blocks the next run with a
+"waiting for file lock" message that explains nothing.
+
 #### Cross-compilation
 
 - **`cargo-zigbuild` is the only cross-compile path.** No `cross` (cross-rs), no docker emulation, no QEMU. Operator's mac (arm64) → server (x86_64) is the common direction; zigbuild handles glibc ABI cleanly.
@@ -448,6 +481,112 @@ When picking up a ticket or story (incl. the generated stories in `medbrains/doc
 1. **Research the real-world scenario first** — who actually uses this, in what hospital workflow, and what are the real business rules and edge cases? Read the relevant RFC(s), the existing code paths (`ccc search`), the regulatory norms, and how similar features behave. Confirm what exists vs what's missing (many backlog tickets are already partly done).
 2. **Expand into scenario-based, business-logic acceptance criteria** — the generated stories carry only generic module-tailored AC. Rewrite them as concrete **Given/When/Then scenarios** grounded in real-world use, covering the actual business logic and edge cases: happy path, conflict/error states, permission-denied, the regulatory rule, boundary values, and what the system does to which records/users. Not a generic checklist — real scenarios (e.g. "Given a Schedule-X drug with no duplicate record, When the pharmacist dispenses, Then the system blocks it and logs the attempt"). Agree them if non-trivial (plan mode).
 3. **Then start** — implement to the scenario AC, following the Module Build Workflow below; verify each scenario; ship one focused PR.
+
+## Permissions First (MANDATORY)
+
+**Every feature defines its permission before any code is written** — before the
+handler, before the page, before the button. Authorization is step 0, not a
+finishing task.
+
+Every authorization defect found in the 2026-08-15 audit came from this being
+done last: 154 routes shipped unguarded, 105 permissions existed in Rust that
+the admin UI could not grant, two pages guarded on codes only TypeScript knew
+about (so every non-bypass user was redirected away), and three patient-safety
+print endpoints were gated on `admin.roles.list` by copy-paste.
+
+**The order:**
+
+1. **Define in Rust** — `crates/medbrains-core/src/permissions.rs`, with a `///`
+   doc comment. The first sentence becomes the UI label, the rest the
+   description, so writing the constant writes the UI copy. Keep the first
+   sentence under ~48 characters.
+2. **Generate the UI catalogue** — `python3 scripts/generate_permissions_ts.py`.
+   **Never hand-edit `packages/types/src/permissions.ts`** — it is generated
+   from the Rust constants, including `ROLE_TEMPLATES` from `BUILT_IN_ROLES`.
+3. **Grant it to roles** — `crates/medbrains-core/src/access/roles.rs`. The
+   compiler validates the reference; a typo does not build.
+4. **Guard the backend** — `require_permission(&claims, permissions::…)`, or
+   `Authorized<P>` / `AllOf<..>` / `AnyOf<..>`.
+5. **Gate the UI** — `useRequirePermission` on the route component,
+   `useHasPermission` on any control that triggers a mutating call.
+6. **Prove it** — `make check-permissions` and `make check-role-templates` must
+   pass. For anything touching PHI, call it with an API key that lacks the
+   permission and confirm a 403.
+
+A permission added only to TypeScript enforces nothing. Rust is the single
+source of truth; TypeScript is generated from it.
+
+---
+
+## Authorization Is Repo-Wide Law (MANDATORY)
+
+**Spec: `RFCs/RFC-AUTHZ-2026-001-Design-and-Grammar.md`.** Read it before
+touching anything that decides who may see or do what. It is not advisory and
+it is not scoped to "the authz crate" — it binds **every module, every app,
+every API, every code path**.
+
+There is no module that opts out. A hospital system leaks through the one
+screen nobody audited, and every authorization defect found in the 2026-08-15
+audit was in code whose author believed authorization was somebody else's file.
+
+**The unit of compliance is the module, and every module must satisfy all
+four axes:**
+
+| Axis | What it means | Enforced by |
+|---|---|---|
+| **API** | every route has a permission, and a per-record check if it touches PHI | `check-permission-enforcement` |
+| **App** | every surface — web, 16 mobile, 14 TV, kiosk, desktop — gates the control *and* the query | `check-ui-api`, per-surface review |
+| **Code** | no authz error collapsed into `false`; three outcomes, always | `check-authz-collapse` |
+| **Data** | every redactable field declares its class; denial mode follows from it | `check-field-classes` |
+
+**The rules that apply everywhere, without exception:**
+
+1. **Permissions first** — defined in Rust before the handler, the page, or the
+   button. See the section above.
+2. **A fault is not a refusal.** Three outcomes — allow, deny, **unknown**.
+   Never `.unwrap_or(false)`, `?? false`, or `.is_ok()` on an authorization
+   result. A denial answers 404 so as not to be an existence oracle; an outage
+   answering 404 tells a clinician the record does not exist.
+3. **No unscoped checks.** `patient.update` is meaningless; `update` on
+   `patient:456` is a decision.
+4. **The service layer is the guard, not HTTP.** HL7 ingest, jobs, the Tauri
+   bridge and the CLI all bypass Axum. Middleware-only authorization leaves them
+   open.
+5. **Denial mode comes from the data class, never the call site.** Otherwise the
+   same HIV result is masked on one screen and hidden on another.
+6. **A list must never render an outage as emptiness.** A blank ward reads as a
+   fact about the ward.
+7. **The control's gate must match the permission its call requires.** A tab
+   gated on `.list` containing a button that needs `.create` promises what the
+   server will refuse.
+8. **Reads gate the query, not just the control** — a screen without the
+   permission must not issue the fetch.
+9. **One round trip per screen.** Bulk-check and list-filter; never `check()` in
+   a loop.
+10. **Both backends must agree.** A policy whose answer depends on which engine
+    responded is not a policy.
+
+**A missing permission is created, never worked around.** When a handler,
+screen, tab or button has no permission that fits, the answer is a **new
+permission**, defined in Rust first and generated outward — not reuse of a
+loosely-related code, and never `admin.roles.list` because it was nearest to
+hand (three patient-safety print endpoints shipped that way). Follow the
+Permissions First order above in full: define with a `///` doc comment, generate
+the catalogue, grant it to the roles that need it, guard the backend, gate the
+UI, prove it. Widening an existing permission to cover a new action is the same
+mistake wearing a different hat — it silently grants that action to everyone who
+already held the code.
+
+**Coverage is tracked, not remembered.** `make authz-ledger` reports conformance
+per module across all four axes. A module is not "done" because someone looked
+at it; it is done when the ledger says so.
+
+**When the grammar (§2B) lands, the vocabulary is generated** — `schema.zed`,
+`relations.rs`, `permissions.rs` and `permissions.ts` all come from one source.
+Until then, hand-edits to any of them must keep parity
+(`make check-relation-parity`).
+
+---
 
 ## Module Build Workflow
 

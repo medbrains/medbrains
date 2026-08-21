@@ -98,6 +98,9 @@ pub async fn create_hypoglycemia_event(
     Json(body): Json<CreateHypoglycemiaRequest>,
 ) -> Result<Json<HypoglycemiaView>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    // A hypoglycaemia event is recorded against the patient the body names.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     if body.glucose_value <= 0.0 || body.glucose_value > 2000.0 {
         return Err(AppError::BadRequest("glucose_value out of range".into()));
     }
@@ -147,6 +150,14 @@ pub async fn recheck_hypoglycemia_event(
     Json(body): Json<HypoglycemiaRecheckRequest>,
 ) -> Result<Json<HypoglycemiaView>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    // Recording the recheck glucose closes out somebody's hypoglycaemia event.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::HYPOGLYCEMIA_EVENT,
+        id,
+    )
+    .await?;
     if body.recheck_glucose <= 0.0 || body.recheck_glucose > 2000.0 {
         return Err(AppError::BadRequest("recheck_glucose out of range".into()));
     }
@@ -182,6 +193,9 @@ pub async fn list_hypoglycemia_events(
     Query(params): Query<ListHypoglycemiaQuery>,
 ) -> Result<Json<Vec<HypoglycemiaView>>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::LIST)?;
+    // The query names one patient; this is their hypoglycaemia history.
+    medbrains_authz_gate::require_patient_access(&state, &claims, params.patient_id)
+        .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, HypoglycemiaEvent>(&format!(

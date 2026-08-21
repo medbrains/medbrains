@@ -226,6 +226,11 @@ pub async fn create_enrollment(
     Json(body): Json<CreateEnrollmentRequest>,
 ) -> Result<Json<CorporateEnrollment>, AppError> {
     require_permission(&claims, permissions::billing::corporate::ENROLL)?;
+    // Financial, so the direct grant rather than the clinical check — treating
+    // somebody does not entitle you to their bill. The id is caller-supplied,
+    // which is weaker than a path id but still refuses an unreachable patient.
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -386,6 +391,15 @@ pub async fn create_write_off(
     Json(body): Json<CreateWriteOffRequest>,
 ) -> Result<Json<BadDebtWriteOff>, AppError> {
     require_permission(&claims, permissions::billing::write_off::CREATE)?;
+    // Writing off a named invoice. Approval is separately gated and
+    // enforces requester != approver; this is the request side.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::INVOICE,
+        body.invoice_id,
+    )
+    .await?;
 
     let reason = body.reason.trim();
     if reason.len() < 3 {
@@ -620,6 +634,9 @@ pub async fn list_credit_patients(
             permissions::billing::credit::MANAGE,
         ],
     )?;
+    // The credit ledger is a finance function: who is on terms and what they owe.
+    // Scoping it to the caller's own patients would make it unusable for the desk
+    // that chases the debt. `billing.*` is the control.
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
@@ -657,6 +674,11 @@ pub async fn create_credit_patient(
     Json(body): Json<CreateCreditPatientRequest>,
 ) -> Result<Json<CreditPatient>, AppError> {
     require_permission(&claims, permissions::billing::credit::MANAGE)?;
+    // Financial, so the direct grant rather than the clinical check — treating
+    // somebody does not entitle you to their bill. The id is caller-supplied,
+    // which is weaker than a path id but still refuses an unreachable patient.
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
+        .await?;
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
     validate_billing_amount_write_access(&restricted_fields)?;
 
@@ -696,6 +718,13 @@ pub async fn update_credit_patient(
     Json(body): Json<UpdateCreditPatientRequest>,
 ) -> Result<Json<CreditPatient>, AppError> {
     require_permission(&claims, permissions::billing::credit::MANAGE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CREDIT_PATIENT,
+        id,
+    )
+    .await?;
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
     if body.credit_limit.is_some() {
         validate_billing_amount_write_access(&restricted_fields)?;
@@ -746,6 +775,13 @@ pub async fn report_credit_aging(
             permissions::billing::credit::MANAGE,
         ],
     )?;
+    // Aggregate over outstanding balances, one row per patient on terms. The
+    // SELECT does concatenate a name, so what makes this safe is not the
+    // shape of the query but filter_credit_aging_row below, which blanks
+    // the identity unless the caller holds patients.view. Saying "no
+    // patient row leaves this handler" was not accurate; the accurate
+    // claim is that the identity does not, and it is a field control
+    // rather than a record check.
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
     let can_reveal_patient_identity = can_view_patient_identity(&claims);
 

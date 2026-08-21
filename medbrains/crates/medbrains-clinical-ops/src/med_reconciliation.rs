@@ -29,13 +29,11 @@ async fn require_patient_access(
     claims: &Claims,
     patient_id: Uuid,
 ) -> Result<(), AppError> {
-    let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
-    let allowed = state
-        .authz
-        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "patient", patient_id)
-        .await
-        .unwrap_or(false);
-    if allowed { Ok(()) } else { Err(AppError::NotFound) }
+    // Delegates to the canonical resolver rather than repeating it. The
+    // hand-rolled copy that lived here collapsed a backend outage into
+    // `NotFound`, so a SpiceDB failure told the caller the record did not
+    // exist; the shared one distinguishes an outage (503) from a refusal.
+    medbrains_authz_gate::require_patient_access(state, claims, patient_id).await
 }
 
 const TRANSITIONS: [&str; 3] = ["admission", "transfer", "discharge"];
@@ -120,6 +118,9 @@ pub async fn create_med_reconciliation(
     Json(body): Json<CreateMedReconciliationRequest>,
 ) -> Result<Json<MedReconciliationView>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    // Medication reconciliation lists what this patient was taking on arrival.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     if !TRANSITIONS.contains(&body.transition_type.as_str()) {
         return Err(AppError::BadRequest(format!(
             "invalid transition_type '{}'",
@@ -217,6 +218,14 @@ pub async fn complete_med_reconciliation(
     Path(id): Path<Uuid>,
 ) -> Result<Json<MedReconciliationView>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    // Completing reconciliation asserts this patient's medication list is correct.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MED_RECONCILIATION,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 

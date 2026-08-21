@@ -277,6 +277,10 @@ pub async fn sign_basket(
     Json(body): Json<SignBasketRequest>,
 ) -> Result<Json<SignBasketResponse>, AppError> {
     require_permission(&claims, permissions::order_basket::SIGN)?;
+    // Signing a basket commits orders against the patient the body names.
+    // require_basket_item_permissions below checks WHICH orders may be
+    // signed; nothing checked WHOSE.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     if body.items.is_empty() {
         return Err(AppError::BadRequest("basket is empty".to_owned()));

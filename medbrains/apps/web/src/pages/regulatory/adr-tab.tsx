@@ -36,6 +36,9 @@ const eventStatusColors: Record<string, BadgeTone> = {
 export function AdrTab() {
   const canCreateAdr = useHasPermission(P.REGULATORY.ADR_CREATE);
   const canCreateMv = useHasPermission(P.REGULATORY.MATERIOVIGILANCE_CREATE);
+  // Filing the report with the national programme is an update, not a
+  // create — the tab asked only for the create codes.
+  const canSubmitAdr = useHasPermission(P.REGULATORY.ADR_UPDATE);
   const qc = useQueryClient();
   const [adrOpened, { open: openAdr, close: closeAdr }] = useDisclosure(false);
   const [mvOpened, { open: openMv, close: closeMv }] = useDisclosure(false);
@@ -185,6 +188,7 @@ export function AdrTab() {
               ) : r.status === "draft" && canCreateAdr ? (
                 <IconButton
                   tone="primary"
+                  disabled={!canSubmitAdr}
                   onClick={() => submitAdrMut.mutate(r.id)}
                   aria-label="Send"
                 >

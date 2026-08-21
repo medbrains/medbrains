@@ -24,6 +24,10 @@ export function PayrollPage() {
   useRequirePermission(P.HR.PAYROLL_STRUCTURES_LIST);
   const canManage = useHasPermission(P.HR.PAYROLL_STRUCTURES_MANAGE);
   const canRun = useHasPermission(P.HR.PAYROLL_RUNS_CREATE);
+  // The page opens on `payroll.structures.list`; the RUNS and the payslips in
+  // them are `payroll.runs.list`. An empty run list reads as "payroll has not
+  // been run", which is a thing somebody acts on at month end.
+  const canListRuns = useHasPermission(P.HR.PAYROLL_RUNS_LIST);
   const qc = useQueryClient();
   const now = new Date();
 
@@ -46,11 +50,12 @@ export function PayrollPage() {
   const { data: runs = [] } = useQuery({
     queryKey: ["payroll-runs"],
     queryFn: () => hrService.listPayrollRuns(),
+    enabled: canListRuns,
   });
   const { data: payslips = [] } = useQuery({
     queryKey: ["payslips", detailRun?.id],
     queryFn: () => hrService.listPayslips(detailRun?.id ?? ""),
-    enabled: !!detailRun,
+    enabled: !!detailRun && canListRuns,
   });
 
   const upsertStruct = useMutation({

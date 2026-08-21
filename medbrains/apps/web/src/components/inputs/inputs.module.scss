@@ -383,7 +383,7 @@
       background: var(--fc-copper-tint);
     }
     &.night {
-      background: #2b2925;
+      background: #2b2925; // scheme-fixed: depicts the night shift, not a surface
     }
   }
   .marker {
@@ -464,7 +464,7 @@
       background: var(--fc-copper-tint);
     }
     &.night::before {
-      background: #2b2925;
+      background: #2b2925; // scheme-fixed: depicts the night shift, not a surface
     }
   }
 }
@@ -620,7 +620,7 @@
   }
 
   &.severe .badge {
-    background: #f3d3d3;
+    background: var(--mb-danger-bg, #f3d3d3);
     color: var(--code-red);
   }
 }

@@ -59,6 +59,11 @@ function statusBadgeTone(color: string): BadgeTone {
 
 export function AllergiesTab({ patient }: { patient: Patient }) {
   const canUpdate = useHasPermission(P.PATIENTS.UPDATE);
+  // Removing an allergy is deletion, not an update: the endpoint requires
+  // patients.delete, which no built-in role holds. The column was rendered
+  // under canUpdate, so every nurse who could add an allergy was offered a
+  // delete the server would refuse — on safety-critical history.
+  const canDelete = useHasPermission(P.PATIENTS.DELETE);
   const queryClient = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const {
@@ -194,7 +199,7 @@ export function AllergiesTab({ patient }: { patient: Patient }) {
               label: "Reaction",
               render: (a: PatientAllergy) => <Text size="sm">{a.reaction ?? "-"}</Text>,
             },
-            ...(canUpdate
+            ...(canDelete
               ? [
                   {
                     key: "actions",

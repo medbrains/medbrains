@@ -128,6 +128,10 @@ pub struct CreatePostnatalRequest {
 //  Handlers — Maternity Registrations
 // ══════════════════════════════════════════════════════════
 
+// The maternity register: who is booked for delivery. Left unscoped like the
+// ER board and the theatre list — a departmental worklist that must show the
+// department everyone it is staffed to care for. Every handler below that
+// names a specific registration, labour record or newborn takes the hop.
 pub async fn list_registrations(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -169,6 +173,15 @@ pub async fn get_registration(
         &claims,
         permissions::specialty::maternity::registrations::LIST,
     )?;
+    // The path names the registration and the registration names the
+    // mother.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MATERNITY_REGISTRATION,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -195,6 +208,10 @@ pub async fn create_registration(
         &claims,
         permissions::specialty::maternity::registrations::CREATE,
     )?;
+    // No route-derived id here, so the check's subject is the id the caller
+    // sent — weaker than a route-derived check, but it stops a registration
+    // being opened against a patient outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -317,6 +334,16 @@ pub async fn list_labor_records(
     Path(registration_id): Path<Uuid>,
 ) -> Result<Json<Vec<LaborRecord>>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::labor::LIST)?;
+    // The parent is named in the path, so authorize the registration —
+    // scoping the list to one mother's labour records is the same decision
+    // as opening her registration.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MATERNITY_REGISTRATION,
+        registration_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -341,6 +368,17 @@ pub async fn create_labor_record(
     Json(body): Json<CreateLaborRecordRequest>,
 ) -> Result<Json<LaborRecord>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::labor::CREATE)?;
+    // The registration comes from the URL and names the mother one hop away.
+    // The body's `admission_id` is not the subject of this check: the caller
+    // supplies it, so authorizing on it would let the caller choose who is
+    // checked.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MATERNITY_REGISTRATION,
+        registration_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -376,6 +414,16 @@ pub async fn update_labor_record(
     Json(body): Json<UpdateLaborRecordRequest>,
 ) -> Result<Json<LaborRecord>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::labor::CREATE)?;
+    // LABOR_RECORD goes through `registration_id`, not the nullable
+    // `admission_id` beside it: a birth that never became an admission
+    // would otherwise authorize as "no such record".
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LABOR_RECORD,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -430,6 +478,15 @@ pub async fn list_newborns(
     Path(labor_id): Path<Uuid>,
 ) -> Result<Json<Vec<NewbornRecord>>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::newborn::LIST)?;
+    // Authorize the labour record the path names. NEWBORN itself hangs off
+    // `labor_id` for the same reason — its `mother_id` is nullable.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LABOR_RECORD,
+        labor_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -461,6 +518,16 @@ pub async fn create_newborn(
     Json(body): Json<CreateNewbornRequest>,
 ) -> Result<Json<CreateNewbornResponse>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::newborn::CREATE)?;
+    // Two hops to the mother: labor record -> registration -> patient. The
+    // handler already walks that chain below to store `mother_id`; this makes
+    // the same chain decide access rather than only provenance.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LABOR_RECORD,
+        labor_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -559,6 +626,16 @@ pub async fn verify_newborn_identity(
     Json(body): Json<VerifyNewbornIdentityRequest>,
 ) -> Result<Json<VerifyNewbornIdentityResult>, AppError> {
     require_permission(&claims, permissions::specialty::maternity::newborn::LIST)?;
+    // This compares a scanned band against the mother's UHID, so an unguarded
+    // caller could confirm or deny a mother/baby pairing for any newborn in
+    // the tenant — an identity oracle over the maternity ward.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::NEWBORN,
+        newborn_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -604,7 +681,14 @@ pub async fn list_postnatal(
     Extension(claims): Extension<Claims>,
     Path(registration_id): Path<Uuid>,
 ) -> Result<Json<Vec<PostnatalRecord>>, AppError> {
-    require_permission(&claims, permissions::specialty::maternity::newborn::LIST)?;
+    require_permission(&claims, permissions::specialty::maternity::postnatal::LIST)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MATERNITY_REGISTRATION,
+        registration_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -629,7 +713,14 @@ pub async fn create_postnatal(
     Path(registration_id): Path<Uuid>,
     Json(body): Json<CreatePostnatalRequest>,
 ) -> Result<Json<PostnatalRecord>, AppError> {
-    require_permission(&claims, permissions::specialty::maternity::newborn::CREATE)?;
+    require_permission(&claims, permissions::specialty::maternity::postnatal::CREATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MATERNITY_REGISTRATION,
+        registration_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "maternity")
         .await?;
     let mut tx = state.db.begin().await?;

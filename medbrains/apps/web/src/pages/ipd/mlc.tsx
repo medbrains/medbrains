@@ -1,7 +1,9 @@
 // IPD MlcTab — split from ipd.tsx (pure move).
 
 import { Card, Group, SimpleGrid, Stack, Text, TextInput } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { MlcCase } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconLink } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -9,12 +11,16 @@ import { Badge, Button, toast } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 
 export function MlcTab({ admissionId, canCreate }: { admissionId: string; canCreate: boolean }) {
+  // An MLC record is a medico-legal case file. Its own code governs the read.
+  const canListMlc = useHasPermission(P.EMERGENCY.MLC_LIST);
+
   const queryClient = useQueryClient();
   const [mlcIdInput, setMlcIdInput] = useState("");
 
   const { data: mlcData, isLoading } = useQuery({
     queryKey: ["ipd-mlc", admissionId],
     queryFn: () => ipdService.getAdmissionMlc(admissionId),
+    enabled: canListMlc,
   });
 
   const linkMutation = useMutation({

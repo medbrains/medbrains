@@ -17,6 +17,25 @@
 // short-circuit in `medbrains-rebac::Subject::is_bypass` before SpiceDB is
 // ever called. Keeps the schema clean.
 
+
+// ── Caveats ────────────────────────────────────────────────────────────────
+
+// A ward's roster should not hold standing access to every chart it ever
+// touched. `on_shift` narrows a department-derived grant to the hours the
+// member is actually working.
+//
+// NOT YET APPLIED to any relation. Attaching it to `dept_member` before the
+// backfill writes shift windows would deny every department-derived grant at
+// once — the ward would lose its charts the moment the schema landed. The
+// order is: write shift context into the tuples, verify, then attach.
+//
+// Expiry does NOT need a caveat: SpiceDB has native relationship expiration
+// (v1.49+), which is what `break_glass` already uses, and expired tuples are
+// filtered at resolution and garbage-collected.
+caveat on_shift(now int, shift_start int, shift_end int) {
+    now >= shift_start && now < shift_end
+}
+
 // ── Subject definitions ────────────────────────────────────────────────────
 
 definition tenant {}
@@ -252,4 +271,94 @@ definition pipeline {
     permission edit = creator
     permission run = creator + runner
     permission delete = creator
+}
+
+// ── Records belonging to an encounter, order, or admission ─────────────────
+//
+// These inherit rather than restate. A prescription is not separately shared
+// with a care team — it is visible because the encounter is, and copying
+// `owner + attending + dept_member + group_member + viewer + editor` onto each
+// child would mean six tuples per record instead of one, and six places to get
+// a revocation wrong.
+//
+// `permission view = encounter->view` is the whole point of an arrow: revoke
+// access to the encounter and every child follows in the same instant.
+
+definition prescription {
+    relation tenant: tenant
+
+    // FK: prescriptions.encounter_id
+    relation encounter: encounter
+    // FK: prescriptions.doctor_id — the prescriber keeps access to their own
+    // prescription even after the encounter is closed to them.
+    relation prescriber: user
+
+    permission view = prescriber + encounter->view
+    permission edit = prescriber + encounter->edit
+    permission dispense = encounter->view
+}
+
+definition diagnosis {
+    relation tenant: tenant
+
+    // FK: diagnoses.encounter_id
+    relation encounter: encounter
+
+    permission view = encounter->view
+    permission edit = encounter->edit
+}
+
+definition vital {
+    relation tenant: tenant
+
+    // FK: vitals.encounter_id
+    relation encounter: encounter
+
+    permission view = encounter->view
+    permission edit = encounter->edit
+}
+
+definition lab_result {
+    relation tenant: tenant
+
+    // FK: lab_results.order_id
+    relation order: lab_order
+
+    permission view = order->view
+    // Amending a released result is a regulated act; it follows the order's
+    // result permission rather than plain edit.
+    permission amend = order->add_results
+}
+
+definition radiology_report {
+    relation tenant: tenant
+
+    // FK: radiology_reports.order_id
+    relation order: radiology_order
+
+    permission view = order->view
+    permission edit = order->edit
+}
+
+definition restraint_record {
+    relation tenant: tenant
+
+    // FK: restraint_documentation.admission_id — restraint is an inpatient
+    // act, so ward membership is what grants sight of it.
+    relation admission: admission
+
+    permission view = admission->view
+    permission edit = admission->edit
+}
+
+// A donor is a person in their own right, not a record hanging off a patient,
+// so this does not inherit. Blood bank staff see donors; nobody else does.
+definition blood_donor {
+    relation tenant: tenant
+
+    relation dept_member: user | department#member
+    relation viewer: user
+
+    permission view = dept_member + viewer
+    permission edit = dept_member
 }

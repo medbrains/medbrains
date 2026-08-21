@@ -192,6 +192,19 @@ resource "random_password" "db" {
   special = false
 }
 
+# DB HA + teardown knobs — default prod-safe; non-prod (test/demo) sets both
+# false to halve RDS cost and allow `terraform destroy`.
+variable "multi_az" {
+  type        = bool
+  default     = true
+  description = "Multi-AZ standby. Set false in non-prod to halve RDS cost."
+}
+variable "deletion_protection" {
+  type        = bool
+  default     = true
+  description = "true also forces a final snapshot on destroy. Set false in non-prod so teardown succeeds."
+}
+
 resource "aws_db_instance" "this" {
   identifier                = "${var.hostname}-pg"
   engine                    = "postgres"
@@ -204,14 +217,14 @@ resource "aws_db_instance" "this" {
   db_name                   = "medbrains"
   username                  = "medbrains_admin"
   password                  = random_password.db.result
-  multi_az                  = true
+  multi_az                  = var.multi_az
   publicly_accessible       = false
   db_subnet_group_name      = aws_db_subnet_group.this.name
   vpc_security_group_ids    = [aws_security_group.db.id]
   backup_retention_period   = 14
   final_snapshot_identifier = "${var.hostname}-pg-final-snapshot"
-  skip_final_snapshot       = false
-  deletion_protection       = true
+  skip_final_snapshot       = !var.deletion_protection
+  deletion_protection       = var.deletion_protection
 
   tags = local.tags
 }

@@ -96,3 +96,20 @@ export async function listPortalPrescriptions(): Promise<PortalPrescriptionItem[
 export async function listPortalAppointments(): Promise<PortalAppointment[]> {
   return request<PortalAppointment[]>(apiConfig, "GET", "/api/portal/appointments");
 }
+
+/** What the tenant has licensed for this patient, beyond their record. */
+export interface PortalEntitlements {
+  companion: boolean;
+}
+
+/**
+ * Whether the Health tab exists for this patient.
+ *
+ * The server already fails closed on an unknown; this adds the second half —
+ * a request that never arrives must not open the tab either. Callers treat a
+ * rejection as "not licensed", which is why this returns the shape rather than
+ * throwing past them.
+ */
+export async function getPortalEntitlements(): Promise<PortalEntitlements> {
+  return request<PortalEntitlements>(apiConfig, "GET", "/api/portal/entitlements");
+}

@@ -1,7 +1,7 @@
 // OPD PrescriptionsTab — split from opd.tsx (pure move).
 
 import { Card, Group, Stack, Text } from "@mantine/core";
-import { useHasPermission } from "@medbrains/stores";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type {
   CreatePrescriptionRequest,
   PendingSignoffEntry,
@@ -59,9 +59,21 @@ export function PrescriptionsTab({
     summary: `${rx.items.length} medication${rx.items.length === 1 ? "" : "s"}`,
   });
 
+  // hospital_name / address / phone feed the printed prescription's
+  // letterhead. The tenant-settings read is served under admin.settings.read,
+  // which a prescriber need not hold — refused, `hospitalSettings` is empty,
+  // getSetting returns undefined for all three, and the prescription prints
+  // with no institutional identification on it. Whether that should block
+  // printing outright is a product call; this at least stops the fetch from
+  // being made by someone the server will refuse.
+  const canReadSettings = useHasAnyPermission([
+    P.ADMIN.SETTINGS_READ,
+    P.ADMIN.SETTINGS_GENERAL_MANAGE,
+  ]);
   const { data: hospitalSettings = [] } = useQuery({
     queryKey: ["tenant-settings", "general"],
     queryFn: () => opdService.getTenantSettings("general"),
+    enabled: canReadSettings,
     staleTime: 600_000,
   });
 

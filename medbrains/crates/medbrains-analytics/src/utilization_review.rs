@@ -1,3 +1,28 @@
+//! Utilisation review — length-of-stay, level-of-care and outlier decisions.
+//!
+//! # Why the three list handlers take no record check
+//!
+//! `list_reviews` and `list_conversions` are dual-mode on `?admission_id`, and
+//! `los_comparison` is a department-level average. None of them names a
+//! patient: a `utilization_reviews` row carries an expected and an actual
+//! length of stay, a decision and an outlier flag against an admission id.
+//!
+//! Every `ur.*` code is held by exactly one role, `utilization_reviewer`
+//! (`crates/medbrains-core/src/access/roles.rs`), and looking across
+//! admissions the reviewer has no care relationship with is the whole job.
+//! Filtering to the reviewer's own patients would empty the worklist.
+//!
+//! **Guarding only the `Some(admission_id)` branch would be theatre.** The
+//! unfiltered branch returns the same rows to the same caller, so a check on
+//! the narrow path is skipped by omitting the parameter — the antipattern
+//! `patient_filter`'s own doc warns about. Either both modes resolve to a
+//! permitted set or neither does, and here neither is right.
+//!
+//! **What retires this exemption:** a relation saying which admissions or
+//! departments a reviewer covers. Until one exists, `ur.reviews.list` is
+//! tenant-wide by design and the reviewer sees every admission in the
+//! hospital.
+
 #![allow(clippy::too_many_lines)]
 
 use axum::{
@@ -169,6 +194,8 @@ pub async fn list_reviews(
     Query(params): Query<ListReviewsQuery>,
 ) -> Result<Json<Vec<UtilizationReview>>, AppError> {
     require_permission(&claims, permissions::ur::reviews::LIST)?;
+    // Narrowed by `?admission_id`, and the reviewer's remit is the whole house —
+    // utilisation review exists to look across admissions, not within a care team.
 
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -200,6 +227,10 @@ pub async fn create_review(
     Json(body): Json<CreateReviewRequest>,
 ) -> Result<(StatusCode, Json<UtilizationReview>), AppError> {
     require_permission(&claims, permissions::ur::reviews::CREATE)?;
+    // Caller-named admission — weaker than a path id, but it refuses a review
+    // filed against an admission outside the caller's reach.
+    medbrains_authz_gate::require_admission_access(&state, &claims, body.admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -393,6 +424,8 @@ pub async fn list_by_admission(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<UtilizationReview>>, AppError> {
     require_permission(&claims, permissions::ur::reviews::LIST)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -530,6 +563,7 @@ pub async fn list_conversions(
     Query(params): Query<ListConversionsQuery>,
 ) -> Result<Json<Vec<UrStatusConversion>>, AppError> {
     require_permission(&claims, permissions::ur::conversions::LIST)?;
+    // As `list_reviews`.
 
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -555,6 +589,10 @@ pub async fn create_conversion(
     Json(body): Json<CreateConversionRequest>,
 ) -> Result<(StatusCode, Json<UrStatusConversion>), AppError> {
     require_permission(&claims, permissions::ur::conversions::CREATE)?;
+    // Caller-named admission — weaker than a path id, but it refuses a review
+    // filed against an admission outside the caller's reach.
+    medbrains_authz_gate::require_admission_access(&state, &claims, body.admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -662,6 +700,7 @@ pub async fn los_comparison(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<LosComparisonRow>>, AppError> {
     require_permission(&claims, permissions::ur::reviews::LIST)?;
+    // Aggregate length-of-stay comparison.
 
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;

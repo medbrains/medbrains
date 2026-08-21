@@ -6,8 +6,8 @@ use argon2::{
     Argon2,
     password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
 };
+use axum::routing::{get, post};
 use axum::{Extension, Json, extract::State, response::IntoResponse};
-use axum::routing::{get,post};
 use axum_extra::extract::CookieJar;
 use chrono::Utc;
 use medbrains_core::onboarding::OnboardingProgress;
@@ -241,8 +241,7 @@ pub async fn init(
             || "https://localhost".to_owned(),
             |host| format!("https://{}", host.split(':').next().unwrap_or(host)),
         );
-    email_verification::issue(&mut tx, tenant_id, user_id, &body.admin_email, &verify_base)
-        .await?;
+    email_verification::issue(&mut tx, tenant_id, user_id, &body.admin_email, &verify_base).await?;
 
     // Create onboarding progress record
     sqlx::query(
@@ -577,7 +576,14 @@ fn is_module_enabled_for_edition(hospital_type: &str, code: &str) -> bool {
         // Government / public — broad clinical, no elective specialties.
         "district_hospital" | "community_health" | "primary_health" => matches!(
             code,
-            "opd" | "ipd" | "pharmacy" | "lab" | "maternity" | "emergency" | "radiology" | "nursing"
+            "opd"
+                | "ipd"
+                | "pharmacy"
+                | "lab"
+                | "maternity"
+                | "emergency"
+                | "radiology"
+                | "nursing"
         ),
         "standalone_clinic" => matches!(code, "opd" | "pharmacy" | "lab"),
         _ => true,
@@ -590,6 +596,15 @@ pub async fn setup(
     Extension(claims): Extension<Claims>,
     Json(body): Json<SetupRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    // Tenant configuration, not self-service. `setup` refuses once onboarding
+    // is complete, but before that any authenticated user of the tenant could
+    // have run it — and it writes departments, settings and the tenant's whole
+    // shape. Same permission the edition endpoints in this crate already use.
+    medbrains_server_core::middleware::authorization::require_permission(
+        &claims,
+        medbrains_core::permissions::admin::settings::modules::MANAGE,
+    )?;
+
     // ── Idempotency check ───────────────────────────────
     let already_complete: bool = sqlx::query_scalar(
         "SELECT COALESCE(\
@@ -1279,6 +1294,15 @@ pub async fn get_progress(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<OnboardingProgress>, AppError> {
+    // Tenant configuration, not self-service. `setup` refuses once onboarding
+    // is complete, but before that any authenticated user of the tenant could
+    // have run it — and it writes departments, settings and the tenant's whole
+    // shape. Same permission the edition endpoints in this crate already use.
+    medbrains_server_core::middleware::authorization::require_permission(
+        &claims,
+        medbrains_core::permissions::admin::settings::modules::MANAGE,
+    )?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1307,6 +1331,15 @@ pub async fn update_progress(
     Extension(claims): Extension<Claims>,
     Json(body): Json<UpdateProgressRequest>,
 ) -> Result<Json<OnboardingProgress>, AppError> {
+    // Tenant configuration, not self-service. `setup` refuses once onboarding
+    // is complete, but before that any authenticated user of the tenant could
+    // have run it — and it writes departments, settings and the tenant's whole
+    // shape. Same permission the edition endpoints in this crate already use.
+    medbrains_server_core::middleware::authorization::require_permission(
+        &claims,
+        medbrains_core::permissions::admin::settings::modules::MANAGE,
+    )?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1333,6 +1366,15 @@ pub async fn complete(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    // Tenant configuration, not self-service. `setup` refuses once onboarding
+    // is complete, but before that any authenticated user of the tenant could
+    // have run it — and it writes departments, settings and the tenant's whole
+    // shape. Same permission the edition endpoints in this crate already use.
+    medbrains_server_core::middleware::authorization::require_permission(
+        &claims,
+        medbrains_core::permissions::admin::settings::modules::MANAGE,
+    )?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1465,10 +1507,28 @@ pub async fn apply_edition(
 }
 
 /// Onboarding routes.
-pub fn router() -> axum::Router<AppState> {
+/// Routes that must be reachable before anyone has a session.
+///
+/// `status` says whether a new organisation may register; `init` creates the
+/// first tenant and its admin. Neither can require a credential because
+/// neither has one to require yet.
+pub fn public_router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/onboarding/status", get(status))
         .route("/api/onboarding/init", post(init))
+}
+
+/// The rest of onboarding, which needs a signed-in administrator.
+///
+/// These were mounted on the public router alongside `status` and `init`,
+/// which made every one of them return 500 to *everybody*: they extract
+/// `Extension<Claims>`, and only the protected router's auth middleware
+/// inserts it. Verified against a running server — anonymous and
+/// authenticated callers both got 500 on `/api/onboarding/progress`.
+///
+/// So the wizard could register a tenant and then not take a single step.
+pub fn router() -> axum::Router<AppState> {
+    axum::Router::new()
         .route(
             "/api/onboarding/progress",
             get(get_progress).put(update_progress),

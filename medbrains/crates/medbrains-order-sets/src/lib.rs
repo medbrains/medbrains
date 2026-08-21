@@ -717,6 +717,10 @@ pub async fn activate_order_set(
     Json(body): Json<ActivateRequest>,
 ) -> Result<Json<ActivationResult>, AppError> {
     require_permission(&claims, permissions::order_sets::activation::CREATE)?;
+    // Activating an order set commits its orders against the patient the body
+    // names — the same act as signing a basket, and it needs the same answer
+    // to whose. order_sets.activation.create is held by doctor and nurse.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

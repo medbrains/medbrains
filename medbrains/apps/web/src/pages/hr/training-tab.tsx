@@ -16,7 +16,9 @@ import {
   TextInput,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import { useHasPermission } from "@medbrains/stores";
 import type { TrainingComplianceRow, TrainingProgram } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -26,6 +28,10 @@ import { Badge, Button, toast } from "@/components/ui";
 import { hrService } from "@/services/hr.service";
 
 export function TrainingTab({ canManage }: { canManage: boolean }) {
+  // Training compliance is `hr.training.list`; empty reads as "nobody is
+  // trained", which is reported to the accreditor.
+  const canListTraining = useHasPermission(P.HR.TRAINING_LIST);
+
   const qc = useQueryClient();
   const [programOpen, { open: openProgram, close: closeProgram }] = useDisclosure(false);
   const [recordOpen, { open: openRecord, close: closeRecord }] = useDisclosure(false);
@@ -39,7 +45,7 @@ export function TrainingTab({ canManage }: { canManage: boolean }) {
   const { data: complianceRows = [], isLoading: complianceLoading } = useQuery({
     queryKey: ["hr-training-compliance"],
     queryFn: () => hrService.trainingCompliance(),
-    enabled: subView === "compliance",
+    enabled: subView === "compliance" && canListTraining,
   });
 
   // ── Create program ──

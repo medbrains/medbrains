@@ -1,0 +1,28 @@
+[package]
+name = "medbrains-signing"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+# Ed25519 document signing and the signed-document projection.
+#
+# `signing` is pure crypto with no internal dependencies at all — it could be a
+# leaf below server-core. `signed_documents` needs AppError, so the pair sits
+# above the hub instead of splitting them across two crates for one type.
+#
+# Dependency list copied from medbrains-server-core rather than re-derived:
+# a moved file needs the dependencies its old crate declared, and that is the
+# one extraction failure no source rewrite can detect (see
+# scripts/extract_crate_checklist.md, form 4).
+[dependencies]
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-core = { path = "../medbrains-core" }
+ed25519-dalek = "2"
+getrandom = { version = "0.3", features = ["std"] }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }

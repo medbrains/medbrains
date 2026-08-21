@@ -2,7 +2,10 @@ use axum::{Extension, Json, extract::State};
 use serde::Serialize;
 
 use crate::middleware::auth::Claims;
-use crate::middleware::authorization::authz_context;
+use medbrains_core::permissions;
+
+use crate::error::AppError;
+use crate::middleware::authorization::{authz_context, require_permission};
 use crate::state::AppState;
 
 #[derive(Debug, Serialize)]
@@ -43,7 +46,13 @@ pub struct AuthzProbeResponse {
 pub async fn authz_probe(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-) -> Json<AuthzProbeResponse> {
+) -> Result<Json<AuthzProbeResponse>, AppError> {
+    // A diagnostic for operators, not a self-service endpoint. It reports only
+    // on the caller, so it leaks nobody else's access — but it names the authz
+    // backend and returns raw error strings, and neither belongs in the hands
+    // of every authenticated user.
+    require_permission(&claims, permissions::admin::system_state::VIEW)?;
+
     let ctx = authz_context(&claims);
     let result = state
         .authz
@@ -53,12 +62,12 @@ pub async fn authz_probe(
         Ok(ids) => (ids.len(), None),
         Err(e) => (0, Some(e.to_string())),
     };
-    Json(AuthzProbeResponse {
+    Ok(Json(AuthzProbeResponse {
         backend: state.authz.backend_name(),
         user_id: ctx.user_id.to_string(),
         role: ctx.role.clone(),
         is_bypass: ctx.is_bypass,
         patient_count: count,
         error,
-    })
+    }))
 }

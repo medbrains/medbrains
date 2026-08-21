@@ -21,7 +21,9 @@ import {
   printTemplateSettingsFormSchema,
   printTemplateTypeFormSchema,
 } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
 import type { TenantSettingsRow } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconCheck, IconDeviceFloppy } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -138,6 +140,11 @@ function formToPayload(
 
 export function PrintTemplateSettings() {
   const queryClient = useQueryClient();
+  // The templates are served under admin.settings.read. Without it the query
+  // returns nothing and parseTemplateFromRow([]) builds the letterhead form
+  // from its own defaults — a blank hospital name and address on an editor
+  // whose save would then write those blanks over the real letterhead.
+  const canReadTemplates = useHasPermission(P.ADMIN.SETTINGS.READ);
   const [selectedType, setSelectedType] = useState<PrintTemplateTypeFormValue>("letterhead");
 
   const {
@@ -148,6 +155,7 @@ export function PrintTemplateSettings() {
   } = useQuery({
     queryKey: ["setup-print-templates"],
     queryFn: () => tenantSettingsService.getPrintTemplates(),
+    enabled: canReadTemplates,
   });
   const formValues = useMemo(
     () => parseTemplateFromRow(templates ?? [], selectedType),
@@ -203,6 +211,17 @@ export function PrintTemplateSettings() {
       <Stack align="center" py="xl">
         <Loader size="lg" />
         <Text c="dimmed">Loading print templates...</Text>
+      </Stack>
+    );
+  }
+
+  if (!canReadTemplates) {
+    return (
+      <Stack align="center" py="xl">
+        <Text c="dimmed">
+          You do not have permission to read this hospital's print templates. The editor is not
+          shown, rather than shown filled with blanks it would then save.
+        </Text>
       </Stack>
     );
   }

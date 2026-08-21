@@ -13,7 +13,9 @@ import {
 import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
 import { type ServiceSettingsFormInput, serviceSettingsFormSchema } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
 import type { DepartmentRow, ServiceRow } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconCheck, IconPencil, IconPlus, IconTrash, IconUpload } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -261,6 +263,12 @@ function ServiceModal({
 
 export function ServicesSettings() {
   const queryClient = useQueryClient();
+  // The tab opens on admin.settings.services.list. Creating, editing and
+  // deleting each carry their own code, and none of the three controls asked
+  // for one.
+  const canCreate = useHasPermission(P.ADMIN.SETTINGS.SERVICES.CREATE);
+  const canUpdate = useHasPermission(P.ADMIN.SETTINGS.SERVICES.UPDATE);
+  const canDelete = useHasPermission(P.ADMIN.SETTINGS.SERVICES.DELETE);
   const [modalOpen, setModalOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editingService, setEditingService] = useState<ServiceRow | null>(null);
@@ -346,22 +354,26 @@ export function ServicesSettings() {
           Services
         </Text>
         <Group gap="xs">
-          <Button
-            tone="secondary"
-            size="sm"
-            leftSection={<IconUpload size={14} />}
-            onClick={() => setImportOpen(true)}
-          >
-            Import CSV
-          </Button>
-          <Button
-            tone="primary"
-            size="sm"
-            leftSection={<IconPlus size={14} />}
-            onClick={openCreate}
-          >
-            Add Service
-          </Button>
+          {canCreate && (
+            <Button
+              tone="secondary"
+              size="sm"
+              leftSection={<IconUpload size={14} />}
+              onClick={() => setImportOpen(true)}
+            >
+              Import CSV
+            </Button>
+          )}
+          {canCreate && (
+            <Button
+              tone="primary"
+              size="sm"
+              leftSection={<IconPlus size={14} />}
+              onClick={openCreate}
+            >
+              Add Service
+            </Button>
+          )}
         </Group>
       </Group>
 
@@ -413,16 +425,24 @@ export function ServicesSettings() {
                 </Table.Td>
                 <Table.Td>
                   <Group gap="xs" wrap="nowrap">
-                    <IconButton tone="primary" onClick={() => openEdit(service)} aria-label="Edit">
-                      <IconPencil size={16} />
-                    </IconButton>
-                    <IconButton
-                      tone="danger"
-                      onClick={() => setDeleteTarget(service)}
-                      aria-label="Delete"
-                    >
-                      <IconTrash size={16} />
-                    </IconButton>
+                    {canUpdate && (
+                      <IconButton
+                        tone="primary"
+                        onClick={() => openEdit(service)}
+                        aria-label="Edit"
+                      >
+                        <IconPencil size={16} />
+                      </IconButton>
+                    )}
+                    {canDelete && (
+                      <IconButton
+                        tone="danger"
+                        onClick={() => setDeleteTarget(service)}
+                        aria-label="Delete"
+                      >
+                        <IconTrash size={16} />
+                      </IconButton>
+                    )}
                   </Group>
                 </Table.Td>
               </Table.Tr>

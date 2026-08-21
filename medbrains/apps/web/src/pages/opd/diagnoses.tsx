@@ -1,11 +1,13 @@
 // OPD DiagnosesTab — split from opd.tsx (pure move).
 
+import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateDiagnosisRequest,
   Diagnosis,
   PatientDiagnosisRow,
   UpdateDiagnosisRequest,
 } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DiagnosisPanel } from "@/components";
 import { opdService } from "@/services/opd.service";
@@ -13,11 +15,9 @@ import { opdService } from "@/services/opd.service";
 export function DiagnosesTab({
   encounterId,
   patientId,
-  canUpdate,
 }: {
   encounterId: string;
   patientId: string;
-  canUpdate: boolean;
 }) {
   const queryClient = useQueryClient();
 
@@ -37,6 +37,13 @@ export function DiagnosesTab({
     void queryClient.invalidateQueries({ queryKey: ["patient-diagnoses", patientId] });
   };
 
+  // One flag drove all three: the parent passed `opd.visit.update` as canCreate,
+  // canUpdate AND canDelete. Recording a diagnosis, amending one and removing one
+  // are three acts with three codes, and deleting a diagnosis from a chart is not
+  // the same permission as writing one.
+  const canCreateDiagnosis = useHasPermission(P.OPD.DIAGNOSES_CREATE);
+  const canUpdateDiagnosis = useHasPermission(P.OPD.DIAGNOSES_UPDATE);
+  const canDeleteDiagnosis = useHasPermission(P.OPD.DIAGNOSES_DELETE);
   const createMutation = useMutation({
     mutationFn: (data: CreateDiagnosisRequest) => opdService.createDiagnosis(encounterId, data),
     onSuccess: invalidateDiagnosisQueries,
@@ -65,9 +72,9 @@ export function DiagnosesTab({
       encounterId={encounterId}
       diagnoses={diagnoses}
       patientDiagnoses={patientDiagnoses}
-      canCreate={canUpdate}
-      canUpdate={canUpdate}
-      canDelete={canUpdate}
+      canCreate={canCreateDiagnosis}
+      canUpdate={canUpdateDiagnosis}
+      canDelete={canDeleteDiagnosis}
       onAdd={(data) => createMutation.mutate(data)}
       onUpdate={(diagnosisEncounterId, diagnosisId, data) =>
         updateMutation.mutate({ diagnosisEncounterId, diagnosisId, data })

@@ -12,8 +12,10 @@
 //! - Work Order Form
 //! - Preventive Maintenance Checklist
 
+use axum::Extension;
 use axum::extract::{Path, State};
 use axum::routing::get;
+use medbrains_core::permissions;
 use medbrains_core::print_data::{
     DrugExpiryAlertPrintData, EquipmentCondemnationPrintData, ExpiryDrugItem, GrnItem,
     GrnPrintData, IndentFormPrintData, IndentItem, IssueItem, MaterialIssueVoucherPrintData,
@@ -25,6 +27,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
 
@@ -34,8 +38,11 @@ use medbrains_server_core::state::AppState;
 
 pub async fn get_indent_form_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(indent_id): Path<Uuid>,
 ) -> Result<axum::Json<IndentFormPrintData>, AppError> {
+    require_permission(&claims, permissions::indent::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     // Query indent header
@@ -163,8 +170,11 @@ struct IndentItemRow {
 
 pub async fn get_purchase_order_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(po_id): Path<Uuid>,
 ) -> Result<axum::Json<PurchaseOrderPrintData>, AppError> {
+    require_permission(&claims, permissions::procurement::purchase_orders::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     // Query PO header
@@ -323,8 +333,11 @@ struct PoItemRow {
 
 pub async fn get_grn_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(grn_id): Path<Uuid>,
 ) -> Result<axum::Json<GrnPrintData>, AppError> {
+    require_permission(&claims, permissions::procurement::grn::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     // Query GRN header
@@ -475,8 +488,11 @@ struct GrnItemRow {
 
 pub async fn get_material_issue_voucher_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(voucher_id): Path<Uuid>,
 ) -> Result<axum::Json<MaterialIssueVoucherPrintData>, AppError> {
+    require_permission(&claims, permissions::indent::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     // Query voucher header
@@ -608,8 +624,13 @@ struct IssueItemRow {
 
 pub async fn get_stock_transfer_note_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(transfer_id): Path<Uuid>,
 ) -> Result<axum::Json<StockTransferNotePrintData>, AppError> {
+    // No read-only stock permission exists, so this requires the manage one.
+    // Stricter than ideal, and the right way to be wrong here.
+    require_permission(&claims, permissions::indent::STOCK_MANAGE)?;
+
     let pool: &PgPool = &state.db;
 
     // Query transfer header
@@ -740,8 +761,13 @@ struct TransferItemRow {
 
 pub async fn get_ndps_register_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(period): Path<String>,
 ) -> Result<axum::Json<NdpsRegisterPrintData>, AppError> {
+    // The NDPS register is a statutory narcotics record under the NDPS Act
+    // 1985. Printing it is a controlled-substance disclosure.
+    require_permission(&claims, permissions::pharmacy::ndps::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     // Parse period (YYYY-MM format)
@@ -934,8 +960,11 @@ struct NdpsTransactionRow {
 
 pub async fn get_drug_expiry_alert_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(store_id): Path<Uuid>,
 ) -> Result<axum::Json<DrugExpiryAlertPrintData>, AppError> {
+    require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
+
     let pool: &PgPool = &state.db;
 
     // Query store info
@@ -1100,8 +1129,11 @@ struct ExpiryDrugRow {
 
 pub async fn get_equipment_condemnation_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(condemnation_id): Path<Uuid>,
 ) -> Result<axum::Json<EquipmentCondemnationPrintData>, AppError> {
+    require_permission(&claims, permissions::indent::CONDEMNATION_LIST)?;
+
     let pool: &PgPool = &state.db;
 
     // Query condemnation record
@@ -1217,8 +1249,11 @@ struct CondemnationRow {
 
 pub async fn get_work_order_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(work_order_id): Path<Uuid>,
 ) -> Result<axum::Json<WorkOrderPrintData>, AppError> {
+    require_permission(&claims, permissions::facilities::work_orders::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     // Query work order
@@ -1331,8 +1366,11 @@ struct WorkOrderRow {
 
 pub async fn get_pm_checklist_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(pm_id): Path<Uuid>,
 ) -> Result<axum::Json<PmChecklistPrintData>, AppError> {
+    require_permission(&claims, permissions::bme::pm::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     // Query PM record

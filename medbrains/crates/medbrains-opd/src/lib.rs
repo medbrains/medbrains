@@ -33,7 +33,7 @@ use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::{require_any_permission, require_permission};
 use medbrains_server_core::middleware::field_access;
-use medbrains_server_core::notifications::{NewNotification, create_notification};
+use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::state::AppState;
 
 const OPD_ENCOUNTER_WORKSPACE_PERMISSIONS: &[&str] = &[
@@ -581,13 +581,23 @@ pub async fn list_encounters(
     let visible_ids: Option<Vec<Uuid>> = if authz_ctx.is_bypass {
         None
     } else {
-        Some(
-            state
-                .authz
-                .list_accessible(&authz_ctx, "encounter", medbrains_authz::Relation::Viewer)
-                .await
-                .unwrap_or_default(),
-        )
+        // As in the patient list: an unanswerable scope must not render as an
+        // empty encounter list, which reads as "this clinic has no patients
+        // today" rather than as a fault.
+        match state
+            .authz
+            .list_accessible(&authz_ctx, "encounter", medbrains_authz::Relation::Viewer)
+            .await
+        {
+            Ok(ids) => Some(ids),
+            Err(e) => {
+                tracing::error!(error = %e, user = %authz_ctx.user_id,
+                    "rebac: list_accessible(encounter) FAILED");
+                return Err(AppError::ServiceUnavailable(
+                    "authorization backend unavailable".to_owned(),
+                ));
+            }
+        }
     };
 
     let mut tx = state.db.begin().await?;
@@ -734,6 +744,12 @@ pub async fn create_encounter(
     if body.appointment_id.is_some() {
         require_permission(&claims, permissions::opd::appointment::UPDATE)?;
     }
+    // No record check on body.patient_id, deliberately — opening a visit is
+    // what puts the patient in front of a clinician in the first place. The
+    // grants below name the treating department and attending doctor, not the
+    // caller. Contrast create_referral just below, which hands a department
+    // and a doctor of the requester's choosing access to a patient and does
+    // need the check. Permission-scoped by necessity.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1122,19 +1138,12 @@ pub async fn get_encounter(
         && !medbrains_server_core::middleware::authorization::is_bypass_role(&claims)
     {
         let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
-        let allowed = state
-            .authz
-            .check(
-                &authz_ctx,
-                medbrains_authz::Relation::Viewer,
+        medbrains_server_core::middleware::authorization::collapse(
+            medbrains_server_core::middleware::authorization::outcome_of(
+                state.authz.check(&authz_ctx, medbrains_authz::Relation::Viewer, "encounter", id,).await,
                 "encounter",
-                id,
-            )
-            .await
-            .unwrap_or(false);
-        if !allowed {
-            return Err(AppError::NotFound);
-        }
+            ),
+        )?;
     }
 
     let mut tx = state.db.begin().await?;
@@ -1162,6 +1171,20 @@ pub async fn update_encounter(
     Json(body): Json<UpdateEncounterRequest>,
 ) -> Result<Json<Encounter>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
+
+    // The route names an encounter; holding the module permission is not the
+    // same as being on this patient's care team.
+    medbrains_authz_gate::require_encounter_access(
+        &state, &claims, id,
+    )
+    .await?;
+
+    // The route names an encounter; holding the module permission is not the
+    // same as being on this patient's care team.
+    medbrains_authz_gate::require_encounter_access(
+        &state, &claims, id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1360,7 +1383,7 @@ const QUEUE_CHANGED_SIGNAL: &str = "opd.queue.changed";
 
 /// Nudge a department's boards after a queue transition commits.
 fn signal_queue_changed(state: &AppState, claims: &Claims, queue: &OpdQueue) {
-    medbrains_server_core::notifications::publish_board_signal(
+    medbrains_notifications::publish_board_signal(
         state,
         claims.tenant_id,
         queue.department_id,
@@ -1421,6 +1444,12 @@ pub async fn start_consultation(
 
     let q = q.ok_or(AppError::NotFound)?;
 
+    // Guarded after the row is fetched: the route carries a queue id, and the
+    // encounter it belongs to is only known once that row is read. `q` here is
+    // the fetched row, not a query extractor.
+    medbrains_authz_gate::require_encounter_access(&state, &claims, q.encounter_id)
+        .await?;
+
     // Update encounter status to in_progress
     sqlx::query(
         "UPDATE encounters SET status = 'in_progress'::encounter_status, updated_at = now() \
@@ -1474,6 +1503,12 @@ pub async fn complete_queue_entry(
     .await?;
 
     let q = q.ok_or(AppError::NotFound)?;
+
+    // Guarded after the row is fetched: the route carries a queue id, and the
+    // encounter it belongs to is only known once that row is read. `q` here is
+    // the fetched row, not a query extractor.
+    medbrains_authz_gate::require_encounter_access(&state, &claims, q.encounter_id)
+        .await?;
 
     sqlx::query(
         "UPDATE encounters SET status = 'completed'::encounter_status, updated_at = now() \
@@ -1629,6 +1664,12 @@ pub async fn mark_no_show(
 
     let q = q.ok_or(AppError::NotFound)?;
 
+    // Guarded after the row is fetched: the route carries a queue id, and the
+    // encounter it belongs to is only known once that row is read. `q` here is
+    // the fetched row, not a query extractor.
+    medbrains_authz_gate::require_encounter_access(&state, &claims, q.encounter_id)
+        .await?;
+
     sqlx::query(
         "UPDATE encounters SET status = 'cancelled'::encounter_status, updated_at = now() \
          WHERE id = $1 AND tenant_id = $2",
@@ -1668,7 +1709,7 @@ pub async fn list_vitals(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<Vec<Vital>>, AppError> {
     require_permission(&claims, permissions::opd::vitals::LIST)?;
-    medbrains_server_core::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1693,7 +1734,7 @@ pub async fn create_vital(
     Json(body): Json<CreateVitalRequest>,
 ) -> Result<Json<Vital>, AppError> {
     require_permission(&claims, permissions::opd::vitals::CREATE)?;
-    medbrains_server_core::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
 
     // Auto-calculate BMI
     let bmi = match (body.weight_kg, body.height_cm) {
@@ -1768,7 +1809,7 @@ pub async fn create_vital(
     // Post-commit: nudge the department's open screens so the waiting list
     // reflects the new vitals without waiting for its next poll.
     if let Some(department_id) = department_id {
-        medbrains_server_core::notifications::publish_board_signal(
+        medbrains_notifications::publish_board_signal(
             &state,
             claims.tenant_id,
             department_id,
@@ -1867,7 +1908,7 @@ pub async fn get_consultation(
             permissions::opd::visit::UPDATE,
         ],
     )?;
-    medbrains_server_core::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1895,7 +1936,7 @@ pub async fn create_consultation(
     Json(body): Json<CreateConsultationRequest>,
 ) -> Result<Json<Consultation>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
-    medbrains_server_core::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
     let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
     validate_opd_soap_note_write_access(&restricted_fields)?;
 
@@ -2001,10 +2042,17 @@ pub async fn create_consultation(
 pub async fn update_consultation(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path((_encounter_id, id)): Path<(Uuid, Uuid)>,
+    Path((encounter_id, id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateConsultationRequest>,
 ) -> Result<Json<Consultation>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
+
+    // The route names an encounter; holding the module permission is not the
+    // same as being on this patient's care team.
+    medbrains_authz_gate::require_encounter_access(
+        &state, &claims, encounter_id,
+    )
+    .await?;
     let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
     validate_opd_soap_note_write_access(&restricted_fields)?;
 
@@ -2027,7 +2075,7 @@ pub async fn update_consultation(
          physical_examination = COALESCE($14, physical_examination), \
          general_appearance = COALESCE($15, general_appearance), \
          updated_at = now() \
-         WHERE id = $6 AND tenant_id = $7 \
+         WHERE id = $6 AND tenant_id = $7 AND encounter_id = $16 \
          RETURNING *",
     )
     .bind(&body.chief_complaint)
@@ -2045,6 +2093,7 @@ pub async fn update_consultation(
     .bind(&body.review_of_systems)
     .bind(&body.physical_examination)
     .bind(&body.general_appearance)
+    .bind(encounter_id)
     .fetch_optional(&mut *tx)
     .await?;
 
@@ -2185,7 +2234,7 @@ pub async fn list_diagnoses(
             permissions::opd::diagnoses::DELETE,
         ],
     )?;
-    medbrains_server_core::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2215,7 +2264,7 @@ pub async fn create_diagnosis(
     Json(body): Json<CreateDiagnosisRequest>,
 ) -> Result<Json<Diagnosis>, AppError> {
     require_permission(&claims, permissions::opd::diagnoses::CREATE)?;
-    medbrains_server_core::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
     let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
     validate_opd_diagnosis_write_access(&restricted_fields)?;
 
@@ -2313,6 +2362,13 @@ pub async fn update_diagnosis(
     Json(body): Json<UpdateDiagnosisRequest>,
 ) -> Result<Json<Diagnosis>, AppError> {
     require_permission(&claims, permissions::opd::diagnoses::UPDATE)?;
+
+    // The route names an encounter; holding the module permission is not the
+    // same as being on this patient's care team.
+    medbrains_authz_gate::require_encounter_access(
+        &state, &claims, encounter_id,
+    )
+    .await?;
     let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
     validate_opd_diagnosis_write_access(&restricted_fields)?;
 
@@ -2391,16 +2447,24 @@ pub async fn update_diagnosis(
 pub async fn delete_diagnosis(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path((_encounter_id, did)): Path<(Uuid, Uuid)>,
+    Path((encounter_id, did)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::opd::diagnoses::DELETE)?;
+
+    // The route names an encounter; holding the module permission is not the
+    // same as being on this patient's care team.
+    medbrains_authz_gate::require_encounter_access(
+        &state, &claims, encounter_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let result = sqlx::query("DELETE FROM diagnoses WHERE id = $1 AND tenant_id = $2")
+    let result = sqlx::query("DELETE FROM diagnoses WHERE id = $1 AND tenant_id = $2 AND encounter_id = $3")
         .bind(did)
         .bind(claims.tenant_id)
+        .bind(encounter_id)
         .execute(&mut *tx)
         .await?;
 
@@ -2456,7 +2520,7 @@ pub async fn list_prescriptions(
             permissions::pharmacy::prescriptions::LIST,
         ],
     )?;
-    medbrains_server_core::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2531,6 +2595,16 @@ pub async fn get_prescription(
             permissions::pharmacy::prescriptions::VIEW,
         ],
     )?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PRESCRIPTION,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -2585,7 +2659,7 @@ pub async fn create_prescription(
             permissions::nurse::prescriptions::DRAFT,
         ],
     )?;
-    medbrains_server_core::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
     // Prescribing — require fresh re-auth (the 5-min window keeps it light).
     medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
 
@@ -3076,6 +3150,16 @@ pub async fn update_prescription(
             permissions::nurse::prescriptions::DRAFT,
         ],
     )?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PRESCRIPTION,
+        id,
+    )
+    .await?;
     // Prescribing — require fresh re-auth (the 5-min window keeps it light).
     medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
 
@@ -3331,6 +3415,13 @@ pub async fn list_patient_prescriptions(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PrescriptionHistoryItem>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+
+    // The route names a patient; the module permission says what this role may
+    // do, not which patients they may do it to.
+    medbrains_authz_gate::require_patient_access(
+        &state, &claims, patient_id,
+    )
+    .await?;
     require_any_permission(
         &claims,
         &[
@@ -3442,6 +3533,13 @@ pub async fn list_patient_diagnoses(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientDiagnosisRow>>, AppError> {
     require_permission(&claims, permissions::opd::diagnoses::LIST)?;
+
+    // The route names a patient; the module permission says what this role may
+    // do, not which patients they may do it to.
+    medbrains_authz_gate::require_patient_access(
+        &state, &claims, patient_id,
+    )
+    .await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -3544,6 +3642,13 @@ pub async fn list_certificates(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<MedicalCertificate>>, AppError> {
     require_permission(&claims, permissions::opd::certificates::LIST)?;
+
+    // The route names a patient; the module permission says what this role may
+    // do, not which patients they may do it to.
+    medbrains_authz_gate::require_patient_access(
+        &state, &claims, patient_id,
+    )
+    .await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -3569,6 +3674,10 @@ pub async fn create_certificate(
     Json(body): Json<CreateCertificateRequest>,
 ) -> Result<Json<MedicalCertificate>, AppError> {
     require_permission(&claims, permissions::opd::certificates::CREATE)?;
+    // A medical certificate is issued IN a patient's name and they are named in
+    // the body. `opd.certificates.create` says the caller may issue one.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3651,6 +3760,16 @@ pub async fn void_certificate(
     Json(body): Json<VoidCertificateRequest>,
 ) -> Result<Json<MedicalCertificate>, AppError> {
     require_permission(&claims, permissions::opd::certificates::VOID)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::MEDICAL_CERTIFICATE,
+        id,
+    )
+    .await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let reason = body.void_reason.trim();
@@ -3736,6 +3855,13 @@ pub async fn list_patient_vitals_history(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<VitalHistoryPoint>>, AppError> {
     require_permission(&claims, permissions::opd::vitals::LIST)?;
+
+    // The route names a patient; the module permission says what this role may
+    // do, not which patients they may do it to.
+    medbrains_authz_gate::require_patient_access(
+        &state, &claims, patient_id,
+    )
+    .await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -3804,6 +3930,13 @@ pub async fn list_patient_referrals(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<ReferralWithNames>>, AppError> {
     require_permission(&claims, permissions::opd::referrals::LIST)?;
+
+    // The route names a patient; the module permission says what this role may
+    // do, not which patients they may do it to.
+    medbrains_authz_gate::require_patient_access(
+        &state, &claims, patient_id,
+    )
+    .await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -3841,6 +3974,13 @@ pub async fn create_referral(
     Json(body): Json<CreateReferralRequest>,
 ) -> Result<Json<Referral>, AppError> {
     require_permission(&claims, permissions::opd::referrals::CREATE)?;
+    // Referring grants: the receiving department gets dept_member on this
+    // patient and the named doctor gets Viewer. Both come off the request
+    // body, so without this the checks below — which only prove the patient
+    // and encounter exist in the tenant — would let anyone holding
+    // opd.referrals.create hand a department and a doctor of their choosing
+    // access to a patient they have none of themselves.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
 
     let urgency = body.urgency.as_deref().unwrap_or("routine");
 
@@ -4020,7 +4160,7 @@ pub async fn list_procedure_orders(
             permissions::opd::procedures::CANCEL,
         ],
     )?;
-    medbrains_server_core::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4051,6 +4191,9 @@ pub async fn create_procedure_order(
     Json(body): Json<CreateProcedureOrderRequest>,
 ) -> Result<Json<ProcedureOrder>, AppError> {
     require_permission(&claims, permissions::opd::procedures::CREATE)?;
+    // The order is placed on the patient the body names.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let priority = body.priority.as_deref().unwrap_or("routine");
 
@@ -4115,6 +4258,16 @@ pub async fn cancel_procedure_order(
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::opd::procedures::CANCEL)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PROCEDURE_ORDER,
+        order_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4186,6 +4339,11 @@ pub async fn check_duplicate_orders(
             permissions::opd::procedures::CREATE,
         ],
     )?;
+
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    medbrains_authz_gate::require_patient_access(&state, &claims, q.patient_id)
+        .await?;
 
     let hours = q.hours.unwrap_or(24);
 
@@ -4850,6 +5008,14 @@ pub async fn list_reminders(
     Query(q): Query<ListRemindersQuery>,
 ) -> Result<Json<Vec<PatientReminder>>, AppError> {
     require_permission(&claims, permissions::opd::reminders::LIST)?;
+
+    // The id arrives on the query string rather than the path, so the route map
+    // reads as unscoped. It is still a per-record read and needs a per-record check.
+    // Dual-mode: with ?patient_id it is one patient's records, without it it is
+    // every patient's. Both resolve to a set of permitted ids so the dangerous
+    // mode cannot be left open while the safe one looks guarded.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, q.patient_id).await?;
     if q.patient_id.is_some() {
         require_permission(&claims, permissions::patients::VIEW)?;
     }
@@ -4868,7 +5034,7 @@ pub async fn list_reminders(
     )
     .bind(claims.tenant_id)
     .bind(claims.sub)
-    .bind(q.patient_id)
+    .bind(permitted_patients.as_deref())
     .bind(&q.status)
     .bind(q.from_date)
     .bind(q.to_date)
@@ -4885,6 +5051,9 @@ pub async fn create_reminder(
     Json(body): Json<CreateReminderRequest>,
 ) -> Result<Json<PatientReminder>, AppError> {
     require_permission(&claims, permissions::opd::reminders::CREATE)?;
+    // A reminder is scheduled against a named patient and reaches them.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let priority = body.priority.as_deref().unwrap_or("normal");
 
@@ -4950,6 +5119,15 @@ pub async fn cancel_reminder(
     Path(id): Path<Uuid>,
 ) -> Result<Json<PatientReminder>, AppError> {
     require_permission(&claims, permissions::opd::reminders::UPDATE)?;
+    // The path names the reminder; the patient is one hop away on it.
+    // Cancelling a reminder stops an outreach that was scheduled for them.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PATIENT_REMINDER,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4993,6 +5171,13 @@ pub async fn list_feedback(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientFeedback>>, AppError> {
     require_permission(&claims, permissions::opd::feedback::LIST)?;
+
+    // The route names a patient; the module permission says what this role may
+    // do, not which patients they may do it to.
+    medbrains_authz_gate::require_patient_access(
+        &state, &claims, patient_id,
+    )
+    .await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -5017,6 +5202,9 @@ pub async fn create_feedback(
     Json(body): Json<CreateFeedbackRequest>,
 ) -> Result<Json<PatientFeedback>, AppError> {
     require_permission(&claims, permissions::opd::feedback::CREATE)?;
+    // Feedback is recorded against a named patient's visit.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5088,6 +5276,13 @@ pub async fn list_consents(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<ProcedureConsent>>, AppError> {
     require_permission(&claims, permissions::opd::consents::LIST)?;
+
+    // The route names a patient; the module permission says what this role may
+    // do, not which patients they may do it to.
+    medbrains_authz_gate::require_patient_access(
+        &state, &claims, patient_id,
+    )
+    .await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
@@ -5112,6 +5307,12 @@ pub async fn create_consent(
     Json(body): Json<CreateConsentRequest>,
 ) -> Result<Json<ProcedureConsent>, AppError> {
     require_permission(&claims, permissions::opd::consents::CREATE)?;
+    // `ensure_opd_patient_context_in_tx` below proves the patient EXISTS in this
+    // tenant and that the encounter belongs to them. That is referential
+    // integrity, not authorization — it never asks whether this caller may act
+    // on that patient, and a consent is their decision recorded.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let consent_type = body.consent_type.as_deref().unwrap_or("procedure");
 
@@ -5162,6 +5363,16 @@ pub async fn sign_consent(
     Path(id): Path<Uuid>,
 ) -> Result<Json<ProcedureConsent>, AppError> {
     require_permission(&claims, permissions::opd::consents::SIGN)?;
+    // The path names the consent row; the patient is one hop away on it. Signing
+    // or withdrawing a consent is a legal act on somebody's record, and the
+    // permission only said the caller may sign consents SOMEWHERE.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PROCEDURE_CONSENT,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5209,6 +5420,16 @@ pub async fn revoke_consent(
 ) -> Result<Json<ProcedureConsent>, AppError> {
     require_permission(&claims, permissions::opd::consents::REVOKE)?;
     require_permission(&claims, permissions::patients::VIEW)?;
+    // The path names the consent row; the patient is one hop away on it. Signing
+    // or withdrawing a consent is a legal act on somebody's record, and the
+    // permission only said the caller may sign consents SOMEWHERE.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PROCEDURE_CONSENT,
+        id,
+    )
+    .await?;
 
     let reason = body.withdrawal_reason.trim();
     if reason.len() < 5 {
@@ -5458,6 +5679,9 @@ pub async fn book_appointment_group(
     Json(body): Json<BookAppointmentGroupRequest>,
 ) -> Result<Json<Vec<Appointment>>, AppError> {
     require_permission(&claims, permissions::opd::appointment::CREATE)?;
+    // A recurring appointment series booked for the patient the body names.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     if body.slot_requests.is_empty() {
         return Err(AppError::BadRequest(
@@ -5642,7 +5866,7 @@ pub async fn admit_from_opd(
     Json(body): Json<AdmitFromOpdRequest>,
 ) -> Result<Json<AdmitFromOpdResponse>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
-    medbrains_server_core::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
     require_permission(&claims, permissions::ipd::admissions::CREATE)?;
 
     let mut tx = state.db.begin().await?;
@@ -5938,7 +6162,7 @@ pub async fn pharmacy_dispatch_status(
             permissions::pharmacy::dispensing::CREATE,
         ],
     )?;
-    medbrains_server_core::authz_patient::require_encounter_access(&state, &claims, encounter_id).await?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

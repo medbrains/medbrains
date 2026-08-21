@@ -6,7 +6,14 @@ import { adminCreateRoleFormSchema, editRoleFormSchema } from "@medbrains/schema
 import { useHasPermission } from "@medbrains/stores";
 import type { CustomRole } from "@medbrains/types";
 import { P, ROLE_TEMPLATES } from "@medbrains/types";
-import { IconDots, IconEdit, IconPlus, IconShield, IconTrash } from "@tabler/icons-react";
+import {
+  IconDots,
+  IconEdit,
+  IconEyeOff,
+  IconPlus,
+  IconShield,
+  IconTrash,
+} from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -17,6 +24,7 @@ import { Badge, Button, IconButton, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { confirmDestructive } from "@/lib/confirm";
 import { adminAccessService } from "@/services/adminAccess.service";
+import { RoleFieldAccessDrawer } from "./RoleFieldAccessDrawer";
 
 // ── Edit Role Modal ────────────────────────────────────────
 
@@ -258,6 +266,9 @@ function CreateRoleModal({ opened, onClose }: { opened: boolean; onClose: () => 
 // ── Main Roles Page ─────────────────────────────────────────
 
 export function RolesPage() {
+  // Which role's field redaction is open. Held here rather than in the menu so
+  // the drawer survives the menu closing.
+  const [fieldAccessRole, setFieldAccessRole] = useState<CustomRole | null>(null);
   useRequirePermission(P.ADMIN.ROLES.LIST);
   const canCreate = useHasPermission(P.ADMIN.ROLES.CREATE);
   const canUpdate = useHasPermission(P.ADMIN.ROLES.UPDATE);
@@ -389,6 +400,13 @@ export function RolesPage() {
                       Permissions
                     </Menu.Item>
                     <Menu.Item
+                      leftSection={<IconEyeOff size={14} />}
+                      onClick={() => setFieldAccessRole(role)}
+                      disabled={!canUpdate}
+                    >
+                      Field access
+                    </Menu.Item>
+                    <Menu.Item
                       leftSection={<IconEdit size={14} />}
                       onClick={() => handleEditRole(role)}
                       disabled={!canUpdate}
@@ -428,6 +446,14 @@ export function RolesPage() {
           )}
         </Table.Tbody>
       </Table>
+
+      {fieldAccessRole ? (
+        <RoleFieldAccessDrawer
+          role={fieldAccessRole}
+          opened
+          onClose={() => setFieldAccessRole(null)}
+        />
+      ) : null}
 
       <CreateRoleModal opened={createOpened} onClose={closeCreate} />
       {editModalOpened && (

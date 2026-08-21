@@ -104,6 +104,44 @@ pub fn validate_write_access(
     )))
 }
 
+/// Narrow a configured level to what the field's declared class permits.
+///
+/// Only ever stricter. A role may withhold more than the class requires — a
+/// hospital can decide its receptionists do not see diagnoses — but it may not
+/// mask something the class says must be withheld entirely.
+fn narrow_to_class(field_code: &str, configured: FieldAccessLevel) -> FieldAccessLevel {
+    use medbrains_authz::classification::DataClass;
+
+    let class_floor = match medbrains_authz::field_class::class_of(field_code) {
+        // Ordinary data imposes no floor at all — the role decides entirely.
+        // Giving `Routine` a floor would mean an *unclassified* field is
+        // silently hidden more than anyone asked for, and forgetting to
+        // classify would quietly remove data from screens.
+        DataClass::Routine => FieldAccessLevel::Edit,
+        // Masking suits identifiers: a partial date of birth is useful, and
+        // nobody is surprised the field exists.
+        DataClass::Identifying => FieldAccessLevel::Mask,
+        // For everything else the value must not reach the client at all.
+        DataClass::Sensitive
+        | DataClass::Restricted
+        | DataClass::Confidential
+        | DataClass::Sealed => FieldAccessLevel::Hidden,
+    };
+
+    // Stricter of the two. `Hidden` beats `Mask` beats `View`.
+    let rank = |level: FieldAccessLevel| match level {
+        FieldAccessLevel::Edit => 0,
+        FieldAccessLevel::View => 1,
+        FieldAccessLevel::Mask => 2,
+        FieldAccessLevel::Hidden => 3,
+    };
+    if rank(class_floor) > rank(configured) {
+        class_floor
+    } else {
+        configured
+    }
+}
+
 fn merge_field_access_map(
     restricted: &mut HashMap<String, FieldAccessLevel>,
     value: &Value,
@@ -125,7 +163,18 @@ fn merge_field_access_map(
             parsed @ (FieldAccessLevel::View
             | FieldAccessLevel::Mask
             | FieldAccessLevel::Hidden) => {
-                restricted.insert(field_code.clone(), parsed);
+                // The configuration decides *whether* a field is restricted
+                // for this role. The declared class decides *how* — which is
+                // why the configured level is narrowed here rather than
+                // trusted.
+                //
+                // Without this, the same HIV result is masked in one panel and
+                // hidden in another, because two administrators answered the
+                // same question differently. Masking a clinical value is the
+                // worse of the two: "Diagnosis: ****" still says a diagnosis
+                // exists, and for a restricted result the existence is usually
+                // the disclosure.
+                restricted.insert(field_code.clone(), narrow_to_class(field_code, parsed));
             }
         }
     }
@@ -189,6 +238,70 @@ mod tests {
         assert_eq!(
             restricted.get("patients.phone"),
             Some(&FieldAccessLevel::Mask)
+        );
+    }
+}
+
+#[cfg(test)]
+mod class_narrowing_tests {
+    use super::narrow_to_class;
+    use medbrains_core::form::FieldAccessLevel;
+
+    /// The rule from §0.6: configuration says *whether*, the class says *how*.
+    /// An administrator who ticks "mask" on a clinical value gets it withheld
+    /// instead, because a partially revealed diagnosis is worse than none.
+    #[test]
+    fn masking_a_clinical_value_is_upgraded_to_withholding() {
+        assert_eq!(
+            narrow_to_class("opd.diagnosis", FieldAccessLevel::Mask),
+            FieldAccessLevel::Hidden,
+        );
+        assert_eq!(
+            narrow_to_class("emergency.mlc.pocso_report", FieldAccessLevel::Mask),
+            FieldAccessLevel::Hidden,
+        );
+    }
+
+    /// A government identifier cannot be masked — the visible half is enough
+    /// to correlate against another source.
+    #[test]
+    fn government_identifiers_cannot_be_masked() {
+        assert_eq!(
+            narrow_to_class("patients.identifiers.id_number", FieldAccessLevel::Mask),
+            FieldAccessLevel::Hidden,
+        );
+    }
+
+    /// Identifiers keep the presentation that is actually useful at a desk.
+    #[test]
+    fn identifiers_may_still_be_masked() {
+        assert_eq!(
+            narrow_to_class("patients.date_of_birth", FieldAccessLevel::Mask),
+            FieldAccessLevel::Mask,
+        );
+    }
+
+    /// Narrowing is one-way. A role that chose to hide a field does not get it
+    /// re-opened because the class would have allowed masking.
+    #[test]
+    fn narrowing_never_loosens_what_a_role_chose() {
+        assert_eq!(
+            narrow_to_class("patients.date_of_birth", FieldAccessLevel::Hidden),
+            FieldAccessLevel::Hidden,
+        );
+        assert_eq!(
+            narrow_to_class("billing.amount", FieldAccessLevel::Hidden),
+            FieldAccessLevel::Hidden,
+        );
+    }
+
+    /// An unclassified field is not silently withheld — it keeps whatever the
+    /// role configured, so forgetting to classify never hides data.
+    #[test]
+    fn an_unclassified_field_keeps_its_configured_level() {
+        assert_eq!(
+            narrow_to_class("not.a.declared.field", FieldAccessLevel::View),
+            FieldAccessLevel::View,
         );
     }
 }

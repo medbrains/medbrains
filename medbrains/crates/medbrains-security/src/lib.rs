@@ -1,4 +1,21 @@
 #![allow(clippy::too_many_lines)]
+//! Physical security — patient safety tags, incidents, visitor control.
+//!
+//! # Why create_patient_tag takes no record check
+//!
+//! It writes a `security_patient_tags` row against a NOT NULL `patient_id`
+//! from the body, under `security.patient_safety.manage`, which is held by one
+//! role: `security_guard` (`crates/medbrains-core/src/access/roles.rs`).
+//!
+//! A guard has no care relationship with anybody. Tagging a patient as a
+//! wander risk or an aggression risk is protective and cross-cutting by
+//! design; requiring care access would mean the only patients who can be
+//! flagged are the ones the flagger already treats, which is nobody.
+//!
+//! **What retires this:** granting `security.patient_safety.manage` to a
+//! clinical role, at which point the tag becomes a clinical annotation and
+//! needs scoping like one.
+
 
 use axum::{
     Extension, Json,

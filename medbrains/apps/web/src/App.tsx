@@ -349,6 +349,9 @@ const OtherSpecialtiesPage = lazy(() =>
 );
 const NabhIndicatorsPage = lazy(() => import("./pages/admin/nabh-indicators"));
 const UsersPage = lazy(() => import("./pages/admin/users").then((m) => ({ default: m.UsersPage })));
+const ApiKeysPage = lazy(() =>
+  import("./pages/admin/api-keys").then((m) => ({ default: m.ApiKeysPage })),
+);
 const RolesPage = lazy(() => import("./pages/admin/roles").then((m) => ({ default: m.RolesPage })));
 const GroupsPage = lazy(() => import("./pages/admin/groups"));
 const SsoSettingsPage = lazy(() =>
@@ -356,6 +359,9 @@ const SsoSettingsPage = lazy(() =>
 );
 const AdminDoctorsPage = lazy(() =>
   import("./pages/admin/doctors").then((m) => ({ default: m.AdminDoctorsPage })),
+);
+const ApprovalsPage = lazy(() =>
+  import("./pages/approvals").then((m) => ({ default: m.ApprovalsPage })),
 );
 const AccessRequestsPage = lazy(() =>
   import("./pages/admin/access-requests").then((m) => ({ default: m.AccessRequestsPage })),
@@ -508,6 +514,7 @@ export function App() {
               <Route path="ambulance" element={<AmbulancePage />} />
               <Route path="communications" element={<CommunicationsPage />} />
               <Route path="camp" element={<CampPage />} />
+              <Route path="approvals" element={<ApprovalsPage />} />
               <Route path="telemedicine" element={<TelemedicinePage />} />
               <Route path="camp/new" element={<CampCreatePage />} />
               <Route path="camp/:campId/work" element={<CampWorkPage />} />
@@ -591,6 +598,7 @@ export function App() {
                 <Route path="users" element={<UsersPage />} />
                 <Route path="doctors" element={<AdminDoctorsPage />} />
                 <Route path="nabh-indicators" element={<NabhIndicatorsPage />} />
+                <Route path="api-keys" element={<ApiKeysPage />} />
                 <Route path="roles" element={<RolesPage />} />
                 <Route path="groups" element={<GroupsPage />} />
                 <Route path="sso" element={<SsoSettingsPage />} />

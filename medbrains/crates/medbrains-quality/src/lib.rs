@@ -1,4 +1,21 @@
 #![allow(clippy::too_many_lines)]
+//! Quality, incidents and mortality review.
+//!
+//! # Why create_incident and create_mortality_review take no record check
+//!
+//! Both write `quality_incidents` with an optional `patient_id` from the body,
+//! under `quality.incidents.create`, held by one role: `quality_officer`.
+//!
+//! Incident and near-miss reporting must not require a care relationship. The
+//! reports worth having are the ones filed by somebody who witnessed
+//! something on a patient who is not theirs, and NABH asks that reporting be
+//! encouraged rather than gated. A care check would suppress exactly the
+//! reports the register exists to collect.
+//!
+//! **What retires this:** granting the code to a role that also treats
+//! patients, at which point the incident register becomes a way to confirm a
+//! named patient exists.
+
 
 use axum::{
     Extension, Json,
@@ -853,7 +870,7 @@ pub async fn create_incident(
     if matches!(body.severity, IncidentSeverity::Sentinel)
         || body.incident_type.to_lowercase().contains("sentinel")
     {
-        medbrains_server_core::nabh_evidence::mirror_sentinel_incident(
+        medbrains_nabh::mirror_sentinel_incident(
             &mut tx,
             claims.tenant_id,
             claims.sub,
@@ -862,7 +879,7 @@ pub async fn create_incident(
         .await?;
     }
     if body.incident_type.to_lowercase().contains("fall") {
-        medbrains_server_core::nabh_evidence::mirror_fall_incident(
+        medbrains_nabh::mirror_fall_incident(
             &mut tx,
             claims.tenant_id,
             claims.sub,

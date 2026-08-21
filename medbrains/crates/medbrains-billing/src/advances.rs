@@ -120,6 +120,13 @@ pub async fn list_advances(
             permissions::billing::advances::REFUND,
         ],
     )?;
+    // Dual-mode: with ?patient_id it is one patient's advances and that patient
+    // is checked; without it, it was every advance in the tenant. `patient_filter`
+    // answers both — a permitted-id set, or None meaning no restriction for a
+    // caller who may see everyone.
+    let permitted_patients =
+        medbrains_authz_gate::require_patient_billing_filter(&state, &claims, params.patient_id)
+            .await?;
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
@@ -137,9 +144,11 @@ pub async fn list_advances(
     } else {
         sqlx::query_as::<_, PatientAdvance>(
             "SELECT * FROM patient_advances \
-             WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 100",
+             WHERE tenant_id = $1 AND ($2::uuid[] IS NULL OR patient_id = ANY($2)) \
+             ORDER BY created_at DESC LIMIT 100",
         )
         .bind(claims.tenant_id)
+        .bind(permitted_patients.as_deref())
         .fetch_all(&mut *tx)
         .await?
     };
@@ -158,6 +167,11 @@ pub async fn create_advance(
     Json(body): Json<CreateAdvanceRequest>,
 ) -> Result<Json<PatientAdvance>, AppError> {
     require_permission(&claims, permissions::billing::advances::CREATE)?;
+    // Financial, so the direct grant rather than the clinical check — treating
+    // somebody does not entitle you to their bill. The id is caller-supplied,
+    // which is weaker than a path id but still refuses an unreachable patient.
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
+        .await?;
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
     validate_billing_amount_write_access(&restricted_fields)?;
 
@@ -242,6 +256,13 @@ pub async fn adjust_advance(
     Json(body): Json<AdjustAdvanceRequest>,
 ) -> Result<Json<AdvanceAdjustment>, AppError> {
     require_permission(&claims, permissions::billing::advances::ADJUST)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PATIENT_ADVANCE,
+        id,
+    )
+    .await?;
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
     validate_billing_amount_write_access(&restricted_fields)?;
 
@@ -408,6 +429,13 @@ pub async fn refund_advance(
     Json(body): Json<RefundAdvanceRequest>,
 ) -> Result<Json<PatientAdvance>, AppError> {
     require_permission(&claims, permissions::billing::advances::REFUND)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PATIENT_ADVANCE,
+        id,
+    )
+    .await?;
     let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
     validate_billing_amount_write_access(&restricted_fields)?;
 
@@ -512,6 +540,11 @@ pub async fn create_interim_invoice(
     Json(body): Json<CreateInterimInvoiceRequest>,
 ) -> Result<Json<Invoice>, AppError> {
     require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    // Financial, so the direct grant rather than the clinical check — treating
+    // somebody does not entitle you to their bill. The id is caller-supplied,
+    // which is weaker than a path id but still refuses an unreachable patient.
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

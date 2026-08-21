@@ -1,4 +1,21 @@
 #![allow(clippy::too_many_lines)]
+//! Operation theatre — bookings, checklists, anaesthesia and handoffs.
+//!
+//! # Why create_booking takes no record check
+//!
+//! `ot.bookings.create` is held by `ot_staff`
+//! (`crates/medbrains-core/src/access/roles.rs`). Theatre scheduling is a
+//! departmental function that reaches every patient the surgeons list, and an
+//! OT scheduler holds no care relationship with any of them — the same
+//! exemption the theatre list itself already carries.
+//!
+//! The records that hang off a booking DO check: this crate calls
+//! `require_access_via` through the OT_BOOKING link on eight paths, so once a
+//! booking exists, reaching its anaesthesia record or its handoff is scoped.
+//! The root is the one thing the department is trusted to create.
+//!
+//! **What retires this:** a relation saying which lists an OT scheduler runs.
+
 
 use axum::{
     Extension, Json,
@@ -538,6 +555,16 @@ pub async fn get_booking(
     Path(id): Path<Uuid>,
 ) -> Result<Json<OtBooking>, AppError> {
     require_permission(&claims, permissions::ot::bookings::LIST)?;
+    // The path names the booking and the booking names the patient.
+    // ot.bookings.list says the caller works the theatre list, not that
+    // they may open this case.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::OT_BOOKING,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
@@ -679,6 +706,14 @@ pub async fn update_booking(
     Json(body): Json<UpdateBookingRequest>,
 ) -> Result<Json<OtBooking>, AppError> {
     require_permission(&claims, permissions::ot::bookings::UPDATE)?;
+    // This one also reads the case's blood requests and consents.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::OT_BOOKING,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
@@ -788,6 +823,13 @@ pub async fn update_booking_status(
     Json(body): Json<UpdateBookingStatusRequest>,
 ) -> Result<Json<OtBooking>, AppError> {
     require_permission(&claims, permissions::ot::bookings::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::OT_BOOKING,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
@@ -1001,6 +1043,14 @@ pub async fn get_preop(
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<Option<OtPreopAssessment>>, AppError> {
     require_permission(&claims, permissions::ot::preop::LIST)?;
+    // Joins patients for the pre-op assessment.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::OT_BOOKING,
+        booking_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
 
@@ -2513,6 +2563,20 @@ pub async fn get_surgeon_caseload(
     Ok(Json(rows))
 }
 
+// A named list, not an aggregate: `ot_utilization` and `get_surgeon_caseload`
+// next to it really are counts, but this one returns each patient by name. It
+// is scoped with `patient_filter` rather than a per-record hop because it is a
+// list — the caller names no record, so there is nothing to authorize one at a
+// time. `None` from the filter means unrestricted (bypass roles), which the
+// `$4::uuid[] IS NULL` arm carries.
+//
+// PREPAREing the statement to check that predicate found two faults that had
+// nothing to do with authorization and stopped it running at all:
+// `ot_bookings` has no `encounter_id`, so the `JOIN admissions … JOIN patients
+// ON p.id = adm.patient_id` chain errored — and the join was unnecessary,
+// since `ot_bookings.patient_id` is what the OT_BOOKING link already uses.
+// `anesthesia_type` is an enum, so `COALESCE(…, 'unknown')` tried to coerce a
+// literal into it and failed. Both fixed here; the statement PREPAREs clean.
 pub async fn list_anesthesia_complications(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2521,6 +2585,7 @@ pub async fn list_anesthesia_complications(
     require_permission(&claims, permissions::ot::reports::VIEW)?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "ot")
         .await?;
+    let visible = medbrains_authz_gate::patient_filter(&state, &claims, None).await?;
 
     let from = params
         .from
@@ -2535,17 +2600,17 @@ pub async fn list_anesthesia_complications(
            cr.id AS case_id, \
            COALESCE(p.first_name || ' ' || p.last_name, 'Unknown') AS patient_name, \
            cr.procedure_performed AS procedure_name, \
-           COALESCE(ar.anesthesia_type, 'unknown') AS anesthesia_type, \
+           COALESCE(ar.anesthesia_type::text, 'unknown') AS anesthesia_type, \
            ar.complications, \
            ar.adverse_events, \
            b.scheduled_date AS case_date \
          FROM ot_anesthesia_records ar \
          JOIN ot_bookings b ON b.id = ar.booking_id AND b.tenant_id = ar.tenant_id \
          JOIN ot_case_records cr ON cr.booking_id = ar.booking_id AND cr.tenant_id = ar.tenant_id \
-         JOIN admissions adm ON adm.encounter_id = b.encounter_id AND adm.tenant_id = b.tenant_id \
-         JOIN patients p ON p.id = adm.patient_id \
+         JOIN patients p ON p.id = b.patient_id \
          WHERE ar.tenant_id = $1 \
            AND b.scheduled_date BETWEEN $2 AND $3 \
+           AND ($4::uuid[] IS NULL OR b.patient_id = ANY($4)) \
            AND (ar.complications IS NOT NULL AND ar.complications <> '' \
                 OR ar.adverse_events IS NOT NULL AND ar.adverse_events <> 'null'::jsonb) \
          ORDER BY b.scheduled_date DESC LIMIT 5000",
@@ -2553,6 +2618,7 @@ pub async fn list_anesthesia_complications(
     .bind(claims.tenant_id)
     .bind(from)
     .bind(to)
+    .bind(visible.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 

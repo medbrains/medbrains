@@ -16,6 +16,7 @@ use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use medbrains_core::permissions;
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
@@ -111,7 +112,7 @@ pub async fn enroll(
     jar: axum_extra::extract::CookieJar,
     Json(req): Json<EnrollRequest>,
 ) -> Result<Json<EnrollResponse>, AppError> {
-    require_permission(&claims, "vpn.enroll")?;
+    require_permission(&claims, permissions::vpn::ENROLL)?;
     // Enrolling a device grants it network access to the HIMS — high-risk, so
     // require a fresh re-auth (the client prompts + retries automatically).
     medbrains_server_core::step_up::require_step_up(&state, &jar, &claims)?;
@@ -153,7 +154,7 @@ pub async fn status(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<VpnDevice>>, AppError> {
-    require_permission(&claims, "vpn.enroll")?;
+    require_permission(&claims, permissions::vpn::ENROLL)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let devices = sqlx::query_as::<_, VpnDevice>(
@@ -174,7 +175,7 @@ pub async fn revoke(
     Extension(claims): Extension<Claims>,
     Path(device_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, "vpn.enroll")?;
+    require_permission(&claims, permissions::vpn::ENROLL)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let node_id = sqlx::query_scalar::<_, Option<String>>(

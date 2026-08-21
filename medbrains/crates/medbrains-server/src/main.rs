@@ -250,6 +250,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Run seed (insert default tenant + super_admin if not exists)
     medbrains_seed::run_seed(&db_pool).await?;
 
+    // Rebuild the code-owned role definitions for every tenant, not just
+    // DEFAULT. Cheap, idempotent, and the only thing that repairs a tenant
+    // whose roles table was never populated — or was emptied.
+    medbrains_seed::reconcile_built_in_roles(&db_pool).await?;
+
     // Provision SSO from the local creds file (sso.local.json) if present — turnkey
     // federation without manual /admin/sso setup.
     routes::sso::seed_from_config(&state).await?;

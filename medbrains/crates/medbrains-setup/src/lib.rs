@@ -2,11 +2,11 @@ use argon2::{
     Argon2,
     password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
 };
+use axum::routing::{delete, get, post, put};
 use axum::{
     Extension, Json,
     extract::{Path, State},
 };
-use axum::routing::{get,post,put,delete};
 use medbrains_core::{
     facility::Facility,
     onboarding::{CustomRole, ModuleConfig, TenantSettings},
@@ -19,7 +19,9 @@ use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
-use medbrains_server_core::middleware::authorization::{is_bypass_role, require_any_permission, require_permission};
+use medbrains_server_core::middleware::authorization::{
+    is_bypass_role, require_any_permission, require_permission,
+};
 use medbrains_server_core::state::AppState;
 use medbrains_server_core::validation::{self, ValidationErrors};
 
@@ -1167,10 +1169,15 @@ pub async fn list_users(
         .await?;
 
     let rows = sqlx::query_as::<_, SetupUserRow>(
+        // Service accounts are excluded: this is the staff directory, and it
+        // feeds every "assign to user" picker. A machine identity offered as
+        // an assignee is a task nobody is going to do. They have their own
+        // page at /admin/api-keys, where the key they belong to is visible.
         "SELECT id, tenant_id, username, email, full_name, role::text, \
          specialization, medical_registration_number, qualification, \
          consultation_fee, department_ids, is_active, access_matrix \
-         FROM users WHERE tenant_id = $1 ORDER BY created_at LIMIT 5000",
+         FROM users WHERE tenant_id = $1 AND is_service_account = false \
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2707,11 +2714,33 @@ pub struct SettingsQuery {
     pub category: String,
 }
 
+/// Categories whose VALUES are secrets or security posture, not UI configuration.
+///
+/// The rest of `tenant_settings` is what the application runs on — which vitals a
+/// ward captures, whether weights are metric, which locale to format in — and
+/// every clinical screen reads it on load. These four are different in kind:
+/// `email` holds the SMTP credentials, and the other three describe how the
+/// hospital is defended and how long it keeps things.
+const SENSITIVE_SETTING_CATEGORIES: &[&str] = &["email", "security", "retention", "integrations"];
+
 pub async fn get_settings(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Query(params): Query<SettingsQuery>,
 ) -> Result<Json<Vec<TenantSettings>>, AppError> {
+    // The original comment here was right about ONE category and applied to all
+    // of them: the seeded row is SMTP, so the read was gated on
+    // `settings.modules.manage`. No role holds that code, so for every
+    // non-bypass user this returned 403 — and the callers treat it as
+    // non-critical and fall back to defaults, silently. A ward that configured
+    // its vitals set had the configuration ignored for every nurse, and a
+    // hospital on imperial units was shown metric.
+    if SENSITIVE_SETTING_CATEGORIES.contains(&params.category.as_str()) {
+        require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+    } else {
+        require_permission(&claims, permissions::admin::settings::READ)?;
+    }
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -4524,6 +4553,15 @@ pub async fn get_print_templates(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<TenantSettings>>, AppError> {
+    // A print template is a LAYOUT — letterhead, margins, which fields appear —
+    // not module management, and it lives in the same `tenant_settings` table the
+    // category split above already governs. It was gated on
+    // `settings.modules.manage`, which no role holds, so it was bypass-only: the
+    // settings screen that lists templates rendered empty for every delegated
+    // administrator. The WRITE stays on `settings.branding.manage`; reading a
+    // layout you may be about to edit should not be stricter than editing it.
+    require_permission(&claims, permissions::admin::settings::READ)?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -5688,10 +5726,15 @@ pub async fn list_visible_screens(
     let perms: std::collections::HashSet<String> = if is_bypass {
         std::collections::HashSet::new()
     } else {
-        medbrains_server_core::permissions::resolve_permissions(&state.db, claims.tenant_id, user_id, &role)
-            .await?
-            .into_iter()
-            .collect()
+        medbrains_server_core::permissions::resolve_permissions(
+            &state.db,
+            claims.tenant_id,
+            user_id,
+            &role,
+        )
+        .await?
+        .into_iter()
+        .collect()
     };
 
     let visible: Vec<VisibleScreen> = medbrains_core::access::screens::SCREENS
@@ -5798,22 +5841,22 @@ pub fn router() -> axum::Router<AppState> {
             "/api/setup/users/{id}/visible-screens",
             get(list_visible_screens),
         )
-        .route(
-            "/api/setup/tenant",
-            get(get_tenant).put(update_tenant),
-        )
+        .route("/api/setup/tenant", get(get_tenant).put(update_tenant))
         .route("/api/setup/tenant/geo", put(update_tenant_geo_with_presets))
         .route("/api/setup/compliance", post(create_compliance))
-        .route(
-            "/api/setup/settings",
-            get(get_settings).put(update_setting),
-        )
+        .route("/api/setup/settings", get(get_settings).put(update_setting))
         .route(
             "/api/setup/device-settings",
             get(get_secure_device_settings).put(update_secure_device_setting),
         )
-        .route("/api/setup/brand-entities", get(list_brand_entities).post(create_brand_entity))
-        .route("/api/setup/brand-entities/{id}", put(update_brand_entity).delete(delete_brand_entity))
+        .route(
+            "/api/setup/brand-entities",
+            get(list_brand_entities).post(create_brand_entity),
+        )
+        .route(
+            "/api/setup/brand-entities/{id}",
+            put(update_brand_entity).delete(delete_brand_entity),
+        )
         .route(
             "/api/setup/facilities",
             get(list_facilities).post(create_facility),
@@ -5850,10 +5893,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/setup/departments/{id}",
             put(update_department).delete(delete_department),
         )
-        .route(
-            "/api/setup/roles",
-            get(list_roles).post(create_role),
-        )
+        .route("/api/setup/roles", get(list_roles).post(create_role))
         .route(
             "/api/setup/roles/{id}",
             put(update_role).delete(delete_role),
@@ -5870,14 +5910,8 @@ pub fn router() -> axum::Router<AppState> {
             "/api/setup/roles/{id}/widget-access",
             put(update_role_widget_access),
         )
-        .route(
-            "/api/setup/users",
-            get(list_users).post(create_user),
-        )
-        .route(
-            "/api/setup/doctors",
-            get(list_doctors),
-        )
+        .route("/api/setup/users", get(list_users).post(create_user))
+        .route("/api/setup/doctors", get(list_doctors))
         .route(
             "/api/setup/users/{id}",
             put(update_user).delete(delete_user),
@@ -5936,10 +5970,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/setup/branding",
             get(get_branding).put(update_branding),
         )
-        .route(
-            "/api/setup/module-masters",
-            post(seed_module_masters),
-        )
+        .route("/api/setup/module-masters", post(seed_module_masters))
         .route("/api/setup/locations/import", post(import_locations))
         .route("/api/setup/departments/import", post(import_departments))
         .route("/api/setup/users/import", post(import_users))
@@ -5992,17 +6023,8 @@ pub fn router() -> axum::Router<AppState> {
             "/api/setup/departments/template",
             post(seed_department_template),
         )
-        .route(
-            "/api/setup/completeness",
-            get(completeness_check),
-        )
+        .route("/api/setup/completeness", get(completeness_check))
         .route("/api/setup/health", get(system_health))
-        .route(
-            "/api/setup/config/export",
-            get(export_config),
-        )
-        .route(
-            "/api/setup/config/import",
-            post(import_config),
-        )
+        .route("/api/setup/config/export", get(export_config))
+        .route("/api/setup/config/import", post(import_config))
 }

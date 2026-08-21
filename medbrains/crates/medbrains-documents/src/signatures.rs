@@ -19,9 +19,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use uuid::Uuid;
 
+use medbrains_signing::signing;
 use medbrains_server_core::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    signing, state::AppState,
+    state::AppState,
 };
 
 const SIGNATURE_KEY_SECRET: &str = "MEDBRAINS_SIGNATURE_KEY_ENCRYPTION_KEY";

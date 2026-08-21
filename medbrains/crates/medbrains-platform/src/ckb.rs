@@ -13,6 +13,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use medbrains_core::permissions;
 use medbrains_server_core::{
     error::AppError,
     middleware::auth::Claims,
@@ -58,7 +59,7 @@ pub async fn list_diagnoses(
     Extension(claims): Extension<Claims>,
     Query(q): Query<DiseaseSearchQuery>,
 ) -> Result<Json<Vec<DiagnosisReference>>, AppError> {
-    require_permission(&claims, "ckb.view")?;
+    require_permission(&claims, permissions::ckb::VIEW)?;
     let pattern = format!("%{}%", q.q.unwrap_or_default().trim().to_lowercase());
     let notifiable_only = q.notifiable_only.unwrap_or(false);
     // Global reference table (no RLS) — query the pool directly.
@@ -98,7 +99,7 @@ pub async fn list_formulary(
     Extension(claims): Extension<Claims>,
     Query(q): Query<DiseaseSearchQuery>,
 ) -> Result<Json<Vec<DrugReference>>, AppError> {
-    require_permission(&claims, "ckb.view")?;
+    require_permission(&claims, permissions::ckb::VIEW)?;
     let pattern = format!("%{}%", q.q.unwrap_or_default().trim().to_lowercase());
     let rows = sqlx::query_as::<_, DrugReference>(
         "SELECT generic_name, inn_name, atc_code, max_dose_per_day, max_single_dose, \
@@ -154,7 +155,7 @@ pub async fn list_lab_reference(
     Extension(claims): Extension<Claims>,
     Query(q): Query<DiseaseSearchQuery>,
 ) -> Result<Json<Vec<LabReference>>, AppError> {
-    require_permission(&claims, "ckb.view")?;
+    require_permission(&claims, permissions::ckb::VIEW)?;
     let pattern = format!("%{}%", q.q.unwrap_or_default().trim().to_lowercase());
     let rows = sqlx::query_as::<_, LabReference>(
         "SELECT test, analyte, unit, normal_low::float8, normal_high::float8, \
@@ -186,7 +187,7 @@ pub async fn list_state_schemes(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<StateScheme>>, AppError> {
-    require_permission(&claims, "ckb.view")?;
+    require_permission(&claims, permissions::ckb::VIEW)?;
     let rows = sqlx::query_as::<_, StateScheme>(
         "SELECT state_code, state_name, scheme_name, coverage, count(*)::int8 AS drug_count \
          FROM cds_state_formulary \
@@ -242,7 +243,7 @@ pub async fn list_notifiable_reports(
     Extension(claims): Extension<Claims>,
     Query(q): Query<ReportListQuery>,
 ) -> Result<Json<Vec<NotifiableReport>>, AppError> {
-    require_permission(&claims, "ckb.reports.list")?;
+    require_permission(&claims, permissions::ckb::reports::LIST)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, NotifiableReport>(
@@ -275,7 +276,7 @@ pub async fn update_notifiable_report(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateReportRequest>,
 ) -> Result<Json<NotifiableReport>, AppError> {
-    require_permission(&claims, "ckb.reports.manage")?;
+    require_permission(&claims, permissions::ckb::reports::MANAGE)?;
     if !["submitted", "exempted"].contains(&body.status.as_str()) {
         return Err(AppError::BadRequest("Status must be submitted or exempted.".to_owned()));
     }

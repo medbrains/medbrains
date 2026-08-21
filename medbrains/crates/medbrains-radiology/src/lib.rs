@@ -199,6 +199,10 @@ pub async fn contrast_screening(
     Json(body): Json<ContrastScreeningRequest>,
 ) -> Result<Json<ContrastScreeningResult>, AppError> {
     require_permission(&claims, permissions::radiology::orders::VIEW)?;
+    // Screening reads the patient's renal function and contrast allergy history
+    // to decide whether contrast is safe. The body names them.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -264,6 +268,10 @@ pub async fn cumulative_dose(
     Query(params): Query<CumulativeDoseQuery>,
 ) -> Result<Json<CumulativeDoseResult>, AppError> {
     require_permission(&claims, permissions::radiology::orders::VIEW)?;
+    // Lifetime radiation dose for one named patient. A dose history says how
+    // often they have been imaged and for what.
+    medbrains_authz_gate::require_patient_access(&state, &claims, params.patient_id)
+        .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -472,15 +480,16 @@ pub async fn list_orders(
         None
     } else {
         Some(
-            state
-                .authz
-                .list_accessible(
-                    &authz_ctx,
-                    "radiology_order",
-                    medbrains_authz::Relation::Viewer,
-                )
-                .await
-                .unwrap_or_default(),
+            match state.authz.list_accessible(&authz_ctx, "radiology_order", medbrains_authz::Relation::Viewer,).await {
+            Ok(ids) => ids,
+            Err(e) => {
+                tracing::error!(error = %e, object_type = "radiology_order",
+                    "rebac: list_accessible failed; refusing rather than showing an empty list");
+                return Err(AppError::ServiceUnavailable(
+                    "authorization backend unavailable".to_owned(),
+                ));
+            }
+        },
         )
     };
 
@@ -816,19 +825,12 @@ pub async fn get_order(
 
     // ── ReBAC pre-check — must hold `view` on the radiology_order ─
     let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
-    let allowed = state
-        .authz
-        .check(
-            &authz_ctx,
-            medbrains_authz::Relation::Viewer,
+    medbrains_server_core::middleware::authorization::collapse(
+        medbrains_server_core::middleware::authorization::outcome_of(
+            state.authz.check(&authz_ctx, medbrains_authz::Relation::Viewer, "radiology_order", id,).await,
             "radiology_order",
-            id,
-        )
-        .await
-        .unwrap_or(false);
-    if !allowed {
-        return Err(AppError::NotFound);
-    }
+        ),
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -880,6 +882,14 @@ pub async fn update_order_status(
     Json(body): Json<UpdateStatusRequest>,
 ) -> Result<Json<RadiologyOrder>, AppError> {
     require_permission(&claims, permissions::radiology::orders::CREATE)?;
+    // The path names the order; the patient is one hop away on it.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::RADIOLOGY_ORDER,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -944,7 +954,7 @@ pub async fn update_order_status(
     if is_completed {
         // Post-commit: the radiology board tracks what is still pending, so a
         // completed study should drop off it immediately.
-        medbrains_server_core::notifications::publish_surface_board_signal(
+        medbrains_notifications::publish_surface_board_signal(
             &state,
             claims.tenant_id,
             "radiology",
@@ -1001,6 +1011,14 @@ pub async fn cancel_order(
     Json(body): Json<CancelOrderRequest>,
 ) -> Result<Json<RadiologyOrder>, AppError> {
     require_permission(&claims, permissions::radiology::orders::CANCEL)?;
+    // Cancelling somebody's imaging order is a decision about their care.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::RADIOLOGY_ORDER,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1071,6 +1089,14 @@ pub async fn create_report(
     Json(body): Json<CreateReportRequest>,
 ) -> Result<Json<RadiologyReport>, AppError> {
     require_permission(&claims, permissions::radiology::reports::CREATE)?;
+    // A radiology report is the finding written onto a patient's record.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::RADIOLOGY_ORDER,
+        order_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1174,10 +1200,10 @@ pub async fn create_report(
         .fetch_one(&mut *tx)
         .await?;
         let snippet: String = finding.chars().take(140).collect();
-        medbrains_server_core::notifications::create_notification(
+        medbrains_notifications::create_notification(
             &mut tx,
             claims.tenant_id,
-            medbrains_server_core::notifications::NewNotification {
+            medbrains_notifications::NewNotification {
                 user_id: recipient,
                 kind: "danger",
                 title: "Critical imaging finding",
@@ -1228,6 +1254,15 @@ pub async fn verify_report(
     Path(id): Path<Uuid>,
 ) -> Result<Json<RadiologyReport>, AppError> {
     require_permission(&claims, permissions::radiology::reports::VERIFY)?;
+    // Verifying a report finalises a diagnosis on somebody's record. The path
+    // names the report; the patient is two hops away — report, order, patient.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::RADIOLOGY_REPORT,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1309,10 +1344,10 @@ pub async fn verify_report(
     .fetch_one(&mut *tx)
     .await?;
     if recipient != claims.sub {
-        medbrains_server_core::notifications::create_notification(
+        medbrains_notifications::create_notification(
             &mut tx,
             claims.tenant_id,
-            medbrains_server_core::notifications::NewNotification {
+            medbrains_notifications::NewNotification {
                 user_id: recipient,
                 kind: "info",
                 title: "Imaging report ready",
@@ -1475,6 +1510,14 @@ pub async fn record_dose(
     Json(body): Json<RecordDoseRequest>,
 ) -> Result<Json<RadiationDoseRecord>, AppError> {
     require_permission(&claims, permissions::radiology::orders::CREATE)?;
+    // Radiation dose is recorded against the patient the order belongs to.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::RADIOLOGY_ORDER,
+        order_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1598,6 +1641,9 @@ pub async fn create_radiology_appointment(
     Json(body): Json<CreateRadiologyAppointmentRequest>,
 ) -> Result<Json<RadiologyOrder>, AppError> {
     require_permission(&claims, permissions::radiology::orders::CREATE)?;
+    // The appointment is booked FOR the patient named in the body.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -1756,6 +1802,10 @@ pub async fn get_prior_studies(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
+    // Prior studies are this patient's imaging history — what was looked for
+    // and when, which is a diagnosis trail.
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
+        .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -2126,6 +2176,10 @@ pub async fn list_patient_reports(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientRadiologyReport>>, AppError> {
     require_permission(&claims, permissions::radiology::orders::LIST)?;
+    // The path names the patient and the answer is every radiology report on
+    // them. `radiology.orders.list` said the caller may list orders, not whose.
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id)
+        .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,

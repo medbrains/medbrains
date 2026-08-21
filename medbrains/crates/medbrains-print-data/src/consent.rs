@@ -81,6 +81,8 @@ pub async fn get_general_consent_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<ConsentPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -167,6 +169,13 @@ pub async fn get_surgical_consent_print_data(
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<ConsentPrintData>, AppError> {
     require_permission(&claims, permissions::ot::bookings::LIST)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::OT_BOOKING,
+        booking_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -262,6 +271,13 @@ pub async fn get_anesthesia_consent_print_data(
     Path(booking_id): Path<Uuid>,
 ) -> Result<Json<ConsentPrintData>, AppError> {
     require_permission(&claims, permissions::ot::bookings::LIST)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::OT_BOOKING,
+        booking_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -359,6 +375,8 @@ pub async fn get_blood_consent_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<ConsentPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -455,6 +473,7 @@ pub async fn get_hiv_consent_print_data(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<ConsentPrintData>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -533,6 +552,8 @@ pub async fn get_ama_consent_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<ConsentPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -631,6 +652,7 @@ pub async fn get_photo_consent_print_data(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<ConsentPrintData>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -723,6 +745,8 @@ pub async fn get_dnr_consent_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<DnrConsentPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -797,6 +821,7 @@ pub async fn get_organ_donation_consent_print_data(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<OrganDonationConsentPrintData>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -890,6 +915,9 @@ pub async fn get_research_consent_print_data(
     Path(enrollment_id): Path<Uuid>,
 ) -> Result<Json<ResearchConsentPrintData>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    // Not guarded: `research_enrollments` does not exist in the schema, so
+    // this handler cannot run and there is nothing to resolve a patient
+    // through. Guard it when the table lands.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -968,6 +996,7 @@ pub async fn get_abdm_consent_print_data(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<AbdmConsentPrintData>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1033,6 +1062,8 @@ pub async fn get_teaching_consent_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<TeachingConsentPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

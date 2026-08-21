@@ -73,6 +73,14 @@ jobs:
         run: python3 medbrains/scripts/check_ui_seam.py
       - name: No raw interactive HTML in shipped JSX
         run: python3 medbrains/scripts/check_raw_html.py
+      # A field marked redactable but never classified falls back to Routine and
+      # renders to everyone who can see the record. Nothing at runtime notices.
+      - name: Every redactable field declares its data class
+        run: python3 medbrains/scripts/check_field_classes.py
+      # An authz check whose error becomes `false` answers a fault with the
+      # same 404 / empty list it answers a real refusal with.
+      - name: No authorization check collapses its error
+        run: python3 medbrains/scripts/check_authz_collapse.py
 
   rust-fmt:
     name: "Rust format (TODO: 1053 diffs on master)"

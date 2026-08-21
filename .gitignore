@@ -25,3 +25,8 @@ __pycache__/
 # CocoIndex Code (ccc) — ignore index DBs, keep the shared settings
 /.cocoindex_code/*
 !/.cocoindex_code/settings.yml
+
+# DeepSec AI scan workspace — local-only, never committed.
+# 441MB of node_modules plus scan findings. Its own .gitignore reads as if the
+# directory were meant to be tracked; it is not. Decided 2026-08-16.
+medbrains/.deepsec/

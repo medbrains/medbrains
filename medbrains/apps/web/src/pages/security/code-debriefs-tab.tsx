@@ -23,11 +23,15 @@ import { securityService } from "@/services/security.service";
 
 export function CodeDebriefsTab() {
   const canCreate = useHasPermission(P.SECURITY.DEBRIEFS_CREATE);
+  // The list has its own code. Refused, the debrief table is empty and reads
+  // as no emergency code having been debriefed.
+  const canList = useHasPermission(P.SECURITY.DEBRIEFS_LIST);
   const qc = useQueryClient();
 
   const { data: debriefs = [], isLoading } = useQuery({
     queryKey: ["sec-debriefs"],
     queryFn: () => securityService.listSecurityCodeDebriefs(),
+    enabled: canList,
   });
   const [opened, { open, close }] = useDisclosure(false);
   const debriefForm = useForm<SecurityCodeDebriefFormInput>({

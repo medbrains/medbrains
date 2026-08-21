@@ -33,6 +33,8 @@ pub async fn get_prescription_print_data(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<PrescriptionPrintData>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    medbrains_authz_gate::require_encounter_access(&state, &claims, encounter_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -112,6 +114,13 @@ pub async fn get_lab_report_print_data(
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<LabReportPrintData>, AppError> {
     require_permission(&claims, permissions::lab::orders::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        order_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -200,6 +209,13 @@ pub async fn get_radiology_report_print_data(
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<RadiologyReportPrintData>, AppError> {
     require_permission(&claims, permissions::radiology::orders::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::RADIOLOGY_ORDER,
+        order_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -280,6 +296,7 @@ pub async fn get_patient_card_print_data(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<PatientCardPrintData>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -364,6 +381,13 @@ pub async fn get_culture_sensitivity_print_data(
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<CultureSensitivityPrintData>, AppError> {
     require_permission(&claims, permissions::lab::orders::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        order_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -496,6 +520,13 @@ pub async fn get_histopath_report_print_data(
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<HistopathReportPrintData>, AppError> {
     require_permission(&claims, permissions::lab::orders::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        order_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -629,6 +660,9 @@ pub async fn get_crossmatch_report_print_data(
     Path(request_id): Path<Uuid>,
 ) -> Result<Json<CrossmatchReportPrintData>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
+    // Not guarded: `blood_requests.patient_id` is NULLABLE, so it cannot be
+    // a parent column — a request without one would authorize as "no such
+    // record" rather than being refused on its merits.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -747,6 +781,8 @@ pub async fn get_component_slip_print_data(
     Path(issue_id): Path<Uuid>,
 ) -> Result<Json<ComponentSlipPrintData>, AppError> {
     require_permission(&claims, permissions::blood_bank::crossmatch::LIST)?;
+    // Not guarded: reaches a patient only through `component_issues.request_id`
+    // -> `blood_requests.patient_id`, and both columns are NULLABLE.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -845,6 +881,13 @@ pub async fn get_investigation_requisition_print_data(
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<InvestigationRequisitionPrintData>, AppError> {
     require_permission(&claims, permissions::lab::orders::VIEW)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        order_id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

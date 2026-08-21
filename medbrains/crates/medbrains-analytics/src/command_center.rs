@@ -1,3 +1,35 @@
+//! Command centre — house-wide flow, discharge coordination and transport.
+//!
+//! # Why nothing here filters by patient
+//!
+//! Four handlers emit patient names: `list_pending_discharges`,
+//! `get_discharge_blockers`, `list_transport_requests` and the transport
+//! writes. Only `get_discharge_blockers` names a record, and it takes
+//! `require_admission_access`. The two lists are whole-house and unfiltered,
+//! and the reason is **not** the one the ward boards use.
+//!
+//! The ward boards (`care_view.rs`, the ER board, the theatre list) take a
+//! `ward_id` or a department, and that parameter is the scope — a caller sees
+//! one ward because they asked for one ward. These two take no scope at all.
+//! Coordinating discharge across the house, and dispatching a porter to
+//! whichever bed needs one, are house-wide jobs by definition; filtering
+//! either to the caller's own patients would shorten the board and read as
+//! fewer discharges pending, or as a transport job nobody has to do.
+//!
+//! **What actually bounds the exposure today is that no built-in role holds
+//! any of the five `command_center.*` codes** (`scripts/check_permission_reachable.py`
+//! — command_center is 5 of the guarded-never-granted set). The whole module
+//! is bypass-only: super_admin and hospital_admin, who see every patient
+//! anyway. The operational arguments above describe roles that cannot reach
+//! these handlers.
+//!
+//! **What retires this exemption:** the moment any of these codes is granted
+//! to a real role, the two lists need `patient_filter(&state, &claims, None)`
+//! and `AND ($n::uuid[] IS NULL OR <tbl>.patient_id = ANY($n))` — or a
+//! deliberate decision that the coordinator and porter roles carry Viewer on
+//! the house, written here. Do not grant one of these codes without doing one
+//! or the other.
+
 #![allow(clippy::too_many_lines)]
 
 use axum::{
@@ -33,6 +65,7 @@ pub async fn patient_flow_snapshot(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<PatientFlowSnapshot>, AppError> {
     require_permission(&claims, permissions::command_center::VIEW)?;
+    // Aggregate counts. No patient row leaves this handler.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -40,7 +73,7 @@ pub async fn patient_flow_snapshot(
     let row = sqlx::query_as::<_, PatientFlowSnapshot>(
         "SELECT \
            (SELECT COUNT(*) FROM patients WHERE tenant_id = $1 \
-            AND created_at::date = CURRENT_DATE) AS registered_today, \
+            AND (created_at >= CURRENT_DATE AND created_at < CURRENT_DATE + 1)) AS registered_today, \
            (SELECT COUNT(*) FROM opd_queues WHERE tenant_id = $1 \
             AND status::text = 'waiting' AND queue_date = CURRENT_DATE) AS opd_waiting, \
            (SELECT COUNT(*) FROM opd_queues WHERE tenant_id = $1 \
@@ -56,7 +89,7 @@ pub async fn patient_flow_snapshot(
             AND expected_discharge_date <= CURRENT_DATE + INTERVAL '48 hours') \
             AS pending_discharge, \
            (SELECT COUNT(*) FROM admissions WHERE tenant_id = $1 \
-            AND discharged_at::date = CURRENT_DATE) AS discharged_today",
+            AND (discharged_at >= CURRENT_DATE AND discharged_at < CURRENT_DATE + 1)) AS discharged_today",
     )
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
@@ -71,6 +104,7 @@ pub async fn hourly_flow(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<HourlyFlowRow>>, AppError> {
     require_permission(&claims, permissions::command_center::VIEW)?;
+    // Aggregate by hour.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -356,6 +390,9 @@ pub async fn list_pending_discharges(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<PendingDischargeRow>>, AppError> {
     require_permission(&claims, permissions::command_center::discharge::VIEW)?;
+    // Whole-house and unfiltered — see the module note. Not "same as the ward
+    // boards": those are scoped by the ward_id the caller asks for, and this
+    // takes no scope at all.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -403,6 +440,8 @@ pub async fn get_discharge_blockers(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::command_center::discharge::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -522,6 +561,10 @@ pub async fn list_transport_requests(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<TransportRequestRow>>, AppError> {
     require_permission(&claims, permissions::command_center::transport::LIST)?;
+    // Porter work queue, whole-house and unfiltered — see the module note.
+    // No porter role reaches this: command_center.transport.list is held by no
+    // built-in role, so the argument from the porter's need is about a caller
+    // who does not exist yet.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -559,6 +602,12 @@ pub async fn create_transport_request(
     Json(body): Json<CreateTransportRequest>,
 ) -> Result<Json<TransportRequestRow>, AppError> {
     require_permission(&claims, permissions::command_center::transport::MANAGE)?;
+    // Both ids are optional here and correctly so: a transport request can move
+    // equipment rather than a person. Present means authorize, absent means
+    // there is no patient to authorize.
+    if let Some(patient_id) = body.patient_id {
+        medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -709,6 +758,7 @@ pub async fn all_kpis(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<KpiTile>>, AppError> {
     require_permission(&claims, permissions::command_center::VIEW)?;
+    // Aggregate KPIs.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -835,6 +885,7 @@ pub async fn kpi_detail(
     Path(code): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::command_center::VIEW)?;
+    // Aggregate behind one KPI code.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

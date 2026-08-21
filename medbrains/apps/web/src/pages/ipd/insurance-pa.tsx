@@ -1,16 +1,23 @@
 // IPD InsurancePaTab — split from ipd.tsx (pure move).
 
 import { Stack, Text } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { PriorAuthRequestRow } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import type { BadgeTone } from "@/components/ui";
 import { Badge, Table } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 
 export function InsurancePaTab({ admissionId }: { admissionId: string }) {
+  // The tab rides in on ipd.admissions.view; the pre-authorisations carries its own
+  // code. Refused, `data ?? []` renders an empty table that reads as a
+  // fact about the patient rather than about the reader.
+  const canViewPriorAuth = useHasPermission(P.BILLING.CORPORATE_LIST);
   const { data, isLoading } = useQuery({
     queryKey: ["ipd-prior-auth", admissionId],
     queryFn: () => ipdService.getAdmissionPriorAuth(admissionId),
+    enabled: canViewPriorAuth,
   });
 
   const paStatusColors: Record<string, BadgeTone> = {

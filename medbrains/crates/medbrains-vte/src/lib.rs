@@ -111,6 +111,9 @@ pub async fn create_vte_assessment(
     Json(body): Json<CreateVteRequest>,
 ) -> Result<Json<VteRiskAssessment>, AppError> {
     require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
+    // A VTE risk score is a clinical assessment of the patient the body
+    // names, not of the ward.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     if let Some(t) = body.prophylaxis_type.as_deref() {
         if !["pharmacological", "mechanical", "none"].contains(&t) {
             return Err(AppError::BadRequest(format!("invalid prophylaxis_type '{t}'")));

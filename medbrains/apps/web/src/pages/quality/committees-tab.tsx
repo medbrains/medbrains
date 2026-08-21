@@ -35,6 +35,10 @@ import { qualityService } from "@/services/quality.service";
 
 export function CommitteesTab() {
   const canManage = useHasPermission(P.QUALITY.COMMITTEES_MANAGE);
+  // The tab holds the manage code; the list carries its own. Refused, the
+  // committee list renders empty and reads as a hospital with no quality
+  // committees rather than a reader who may not see them.
+  const canList = useHasPermission(P.QUALITY.COMMITTEES_LIST);
   const qc = useQueryClient();
   const [committeeOpened, { open: openCommittee, close: closeCommittee }] = useDisclosure(false);
   const [meetingOpened, { open: openMeeting, close: closeMeeting }] = useDisclosure(false);
@@ -44,6 +48,7 @@ export function CommitteesTab() {
   const { data: committees = [], isLoading } = useQuery({
     queryKey: ["quality-committees"],
     queryFn: () => qualityService.listQualityCommittees(),
+    enabled: canList,
   });
 
   const { data: meetings = [] } = useQuery({

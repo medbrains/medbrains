@@ -1,10 +1,12 @@
 import { Group, Text } from "@mantine/core";
 import { api } from "@medbrains/api";
+import { useHasAnyPermission } from "@medbrains/stores";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { TokenBoardLive } from "@/components/TokenBoardLive";
 import { Select } from "@/components/ui";
+import { DEPARTMENT_LIST_CODES } from "@/lib/api-permission-sets";
 import styles from "./token-display.module.scss";
 
 const MODULES: { value: string; label: string }[] = [
@@ -40,9 +42,15 @@ export function TokenDisplayPage() {
   const module = params.get("module") ?? "opd";
   const departmentId = params.get("scope_id");
 
+  // The department picker is the shared setup endpoint, which takes
+  // require_any_permission over nineteen codes. Mirror the handler rather than
+  // guess one member — gating on one would hide the picker from people the
+  // server would allow.
+  const canListDepartments = useHasAnyPermission(DEPARTMENT_LIST_CODES);
   const { data: departments } = useQuery({
     queryKey: ["setup-departments"],
     queryFn: () => api.listDepartments(),
+    enabled: canListDepartments,
     staleTime: 600_000,
   });
 

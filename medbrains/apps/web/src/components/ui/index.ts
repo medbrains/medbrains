@@ -28,6 +28,7 @@ export { Modal } from "./Modal";
 export { ModuleBadge, type ModuleBadgeProps } from "./ModuleBadge";
 export { MultiSelect, type MultiSelectProps } from "./MultiSelect";
 export { Panel, type PanelProps } from "./Panel";
+export { PermissionGate } from "./PermissionGate";
 export { RichTextEditor, type RichTextEditorProps } from "./RichTextEditor";
 export { SegmentedControl } from "./SegmentedControl";
 export { Select, type SelectProps } from "./Select";

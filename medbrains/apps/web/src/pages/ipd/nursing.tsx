@@ -1,20 +1,29 @@
 // IPD NursingTab — split from ipd.tsx (pure move).
 
 import { Group, Stack, Text } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { IpdCarePlan, IpdHandoverReport } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge, Button } from "@/components/ui";
 import { ipdService } from "@/services/ipd.service";
 
 export function NursingTab({ admissionId }: { admissionId: string }) {
+  // Care plans and shift handovers are separate reads with separate codes.
+  // An empty handover list reads as "nothing was handed over".
+  const canListCarePlans = useHasPermission(P.IPD.CARE_PLANS_LIST);
+  const canListHandovers = useHasPermission(P.IPD.HANDOVER_LIST);
+
   const { data: carePlans } = useQuery({
     queryKey: ["ipd-care-plans", admissionId],
     queryFn: () => ipdService.listCarePlans(admissionId),
+    enabled: canListCarePlans,
   });
   const { data: handovers } = useQuery({
     queryKey: ["ipd-handovers", admissionId],
     queryFn: () => ipdService.listHandovers(admissionId),
+    enabled: canListHandovers,
   });
 
   const plans = (carePlans ?? []) as IpdCarePlan[];

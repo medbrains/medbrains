@@ -1566,7 +1566,12 @@ pub async fn vendor_performance(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<VendorPerformanceRow>>, AppError> {
-    require_permission(&claims, permissions::procurement::vendors::LIST)?;
+    // The vendor-performance tab gates on `procurement.performance.view` in the
+    // web app, while this endpoint asked for `procurement.vendors.list` — so the
+    // permission an administrator granted did nothing at the API, and anyone with
+    // the vendor list could read the analytics the tab was hiding from them.
+    // `procurement_officer` holds both codes, so no built-in role changes.
+    require_permission(&claims, permissions::procurement::PERFORMANCE_VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1609,7 +1614,7 @@ pub async fn vendor_comparison(
     Extension(claims): Extension<Claims>,
     Query(params): Query<VendorComparisonQuery>,
 ) -> Result<Json<Vec<VendorComparisonRow>>, AppError> {
-    require_permission(&claims, permissions::procurement::vendors::LIST)?;
+    require_permission(&claims, permissions::procurement::PERFORMANCE_VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

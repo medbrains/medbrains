@@ -1,0 +1,26 @@
+[package]
+name = "medbrains-api-keys-api"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+# HTTP surface for machine credentials.
+#
+# The minting itself lives in `medbrains-api-keys`, which has no web framework
+# and no database, so the rules about what a key may carry are testable without
+# either. This crate is the part that knows about requests and transactions.
+[dependencies]
+medbrains-api-keys = { path = "../medbrains-api-keys" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-db = { path = "../medbrains-db" }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

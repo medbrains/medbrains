@@ -158,7 +158,7 @@ export function StandardsSettings() {
   const canReadLab = useHasPermission(P.LAB.ORDERS_LIST);
   const canReadPharmacy = useHasPermission(P.PHARMACY.PRESCRIPTIONS_LIST);
   const canReadRadiology = useHasPermission(P.RADIOLOGY.ORDERS_LIST);
-  const canReadAbdm = useHasPermission("abdm.hfr.view");
+  const canReadAbdm = useHasPermission(P.ABDM.HFR_VIEW);
 
   const fhirQuery = useQuery({
     queryKey: ["standards", "fhir-metadata"],

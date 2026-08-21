@@ -28,6 +28,7 @@ use medbrains_server_core::{
 
 #[derive(Debug, Deserialize)]
 pub struct ListCathProceduresQuery {
+    pub patient_id: Option<Uuid>,
     pub status: Option<String>,
     pub procedure_type: Option<String>,
     pub is_stemi: Option<bool>,
@@ -101,6 +102,7 @@ pub struct CreatePostMonitoringRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct ListEndoscopyProceduresQuery {
+    pub patient_id: Option<Uuid>,
     pub status: Option<String>,
     pub procedure_type: Option<String>,
 }
@@ -178,6 +180,11 @@ pub async fn list_cath_procedures(
     Query(params): Query<ListCathProceduresQuery>,
 ) -> Result<Json<Vec<CathProcedure>>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::procedures::LIST)?;
+    // Unscoped before this: every catheterisation in the tenant, and with
+    // ?is_stemi=true every heart attack. Dual-mode — one patient with
+    // ?patient_id, otherwise the set the caller may see.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -189,11 +196,13 @@ pub async fn list_cath_procedures(
          WHERE ($1::text IS NULL OR status = $1) \
          AND ($2::text IS NULL OR procedure_type::text = $2) \
          AND ($3::bool IS NULL OR is_stemi = $3) \
+         AND ($4::uuid[] IS NULL OR patient_id = ANY($4)) \
          ORDER BY created_at DESC LIMIT 200",
     )
     .bind(&params.status)
     .bind(&params.procedure_type)
     .bind(params.is_stemi)
+    .bind(permitted_patients.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 
@@ -207,6 +216,13 @@ pub async fn get_cath_procedure(
     Path(id): Path<Uuid>,
 ) -> Result<Json<CathProcedure>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::procedures::LIST)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CATH_PROCEDURE,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -231,6 +247,11 @@ pub async fn create_cath_procedure(
         &claims,
         permissions::specialty::cath_lab::procedures::CREATE,
     )?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops a
+    // procedure being filed against a patient outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -272,6 +293,13 @@ pub async fn update_cath_procedure(
         &claims,
         permissions::specialty::cath_lab::procedures::CREATE,
     )?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CATH_PROCEDURE,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -316,6 +344,13 @@ pub async fn list_hemodynamics(
     Path(procedure_id): Path<Uuid>,
 ) -> Result<Json<Vec<CathHemodynamic>>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::procedures::LIST)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CATH_PROCEDURE,
+        procedure_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -343,6 +378,13 @@ pub async fn create_hemodynamic(
         &claims,
         permissions::specialty::cath_lab::procedures::CREATE,
     )?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CATH_PROCEDURE,
+        procedure_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -379,6 +421,13 @@ pub async fn list_cath_devices(
     Path(procedure_id): Path<Uuid>,
 ) -> Result<Json<Vec<CathDevice>>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::devices::LIST)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CATH_PROCEDURE,
+        procedure_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -403,6 +452,13 @@ pub async fn create_cath_device(
     Json(body): Json<CreateCathDeviceRequest>,
 ) -> Result<Json<CathDevice>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::devices::MANAGE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CATH_PROCEDURE,
+        procedure_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -443,6 +499,13 @@ pub async fn list_stemi_timeline(
     Path(procedure_id): Path<Uuid>,
 ) -> Result<Json<Vec<CathStemiTimeline>>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::stemi::LIST)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CATH_PROCEDURE,
+        procedure_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -467,6 +530,13 @@ pub async fn create_stemi_event(
     Json(body): Json<CreateStemiTimelineRequest>,
 ) -> Result<Json<CathStemiTimeline>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::stemi::MANAGE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CATH_PROCEDURE,
+        procedure_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -522,6 +592,13 @@ pub async fn list_post_monitoring(
     Path(procedure_id): Path<Uuid>,
 ) -> Result<Json<Vec<CathPostMonitoring>>, AppError> {
     require_permission(&claims, permissions::specialty::cath_lab::monitoring::LIST)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CATH_PROCEDURE,
+        procedure_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -549,6 +626,13 @@ pub async fn create_post_monitoring(
         &claims,
         permissions::specialty::cath_lab::monitoring::CREATE,
     )?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::CATH_PROCEDURE,
+        procedure_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(&state.db, claims.tenant_id, "cath_lab")
         .await?;
     let mut tx = state.db.begin().await?;
@@ -588,6 +672,10 @@ pub async fn list_endoscopy_procedures(
     Query(params): Query<ListEndoscopyProceduresQuery>,
 ) -> Result<Json<Vec<EndoscopyProcedure>>, AppError> {
     require_permission(&claims, permissions::specialty::endoscopy::procedures::LIST)?;
+    // Unscoped before this: every endoscopy in the tenant. Dual-mode — one
+    // patient with ?patient_id, otherwise the set the caller may see.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, params.patient_id).await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -602,10 +690,12 @@ pub async fn list_endoscopy_procedures(
         "SELECT * FROM endoscopy_procedures \
          WHERE ($1::text IS NULL OR status = $1) \
          AND ($2::text IS NULL OR procedure_type = $2) \
+         AND ($3::uuid[] IS NULL OR patient_id = ANY($3)) \
          ORDER BY created_at DESC LIMIT 200",
     )
     .bind(&params.status)
     .bind(&params.procedure_type)
+    .bind(permitted_patients.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 
@@ -622,6 +712,11 @@ pub async fn create_endoscopy_procedure(
         &claims,
         permissions::specialty::endoscopy::procedures::CREATE,
     )?;
+    // No route-derived id here, so the subject of the check is the id the
+    // caller sent. Weaker than a route-derived check, but it stops a
+    // procedure being filed against a patient outside the caller's reach.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -664,6 +759,13 @@ pub async fn update_endoscopy_procedure(
         &claims,
         permissions::specialty::endoscopy::procedures::CREATE,
     )?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::ENDOSCOPY_PROCEDURE,
+        id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -710,6 +812,9 @@ pub async fn list_scopes(
     Query(params): Query<ListScopesQuery>,
 ) -> Result<Json<Vec<EndoscopyScope>>, AppError> {
     require_permission(&claims, permissions::specialty::endoscopy::scopes::LIST)?;
+    // Endoscope inventory — equipment, not a patient record. The
+    // reprocessing log below hangs off a scope for the same reason.
+    // Permission-gated only, deliberately.
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -899,6 +1004,13 @@ pub async fn list_biopsy_specimens(
     Path(procedure_id): Path<Uuid>,
 ) -> Result<Json<Vec<EndoscopyBiopsySpecimen>>, AppError> {
     require_permission(&claims, permissions::specialty::endoscopy::procedures::LIST)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::ENDOSCOPY_PROCEDURE,
+        procedure_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -930,6 +1042,13 @@ pub async fn create_biopsy_specimen(
         &claims,
         permissions::specialty::endoscopy::procedures::CREATE,
     )?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::ENDOSCOPY_PROCEDURE,
+        procedure_id,
+    )
+    .await?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -964,7 +1083,7 @@ pub async fn create_biopsy_specimen(
     Ok(Json(row))
 }
 
-/// specialty_interventional routes.
+/// `specialty_interventional` routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route(

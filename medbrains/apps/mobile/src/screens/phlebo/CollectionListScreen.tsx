@@ -1,5 +1,6 @@
-import { useAuthStore } from "@medbrains/stores";
+import { useAuthStore, useHasPermission } from "@medbrains/stores";
 import type { LabHomeCollection } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { FlatList, StyleSheet, TouchableOpacity, View } from "react-native";
@@ -63,6 +64,7 @@ function emptyFilterMessage(filter: FilterType): string {
 }
 
 export function CollectionListScreen({ navigation }: CollectionListScreenProps) {
+  const canListCollections = useHasPermission(P.LAB.SAMPLES_LIST);
   const theme = useTheme();
   const { user } = useAuthStore();
 
@@ -83,7 +85,9 @@ export function CollectionListScreen({ navigation }: CollectionListScreenProps) 
       }
       return phlebotomyService.listHomeCollections(params);
     },
-    enabled: Boolean(user?.id),
+    // Do not fetch what this user may not see — hiding it after
+    // the fetch still leaves it in the response and in devtools.
+    enabled: Boolean(user?.id) && canListCollections,
     refetchInterval: 30000,
   });
 

@@ -1,6 +1,9 @@
 //! OAuth connect routes — the admin-facing side of the common token module.
 //! Authorize → consent → exchange → stored connection; list + disconnect.
 
+pub mod oauth;
+pub use oauth::{KNOWN_OAUTH_PROVIDERS, OAuthConnection, oauth_provider_spec};
+
 use axum::routing::{delete,get,post};
 use axum::{
     Extension, Json,
@@ -14,7 +17,6 @@ use medbrains_server_core::{
     error::AppError,
     middleware::auth::Claims,
     middleware::authorization::require_permission,
-    oauth::{self, KNOWN_OAUTH_PROVIDERS, OAuthConnection, oauth_provider_spec},
     state::AppState,
 };
 

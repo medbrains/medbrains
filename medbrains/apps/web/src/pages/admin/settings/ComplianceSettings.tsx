@@ -1,6 +1,8 @@
 import { Card, Divider, Group, Loader, Stack, Switch, Text, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type { ComplianceSettings as ComplianceFlags, TenantSettingsRow } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconAlertTriangle, IconShieldCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -104,11 +106,21 @@ function isComplianceKey(key: string): key is keyof ComplianceFlags {
 
 export function ComplianceSettingsTab() {
   const queryClient = useQueryClient();
+  // The tab is reached under admin.settings.regulatory.manage, but the two
+  // calls on it are the generic tenant-settings read and write. Without the
+  // read this screen does not go blank — `raw` stays empty and every flag
+  // falls back to DEFAULT_COMPLIANCE, where every enforce_* is false. A
+  // refused read would render "NDPS tracking off, LASA warnings off,
+  // max-dose check off" for a hospital that enforces all three, on the one
+  // screen an auditor would take at its word.
+  const canRead = useHasAnyPermission([P.ADMIN.SETTINGS_READ, P.ADMIN.SETTINGS_GENERAL_MANAGE]);
+  const canManage = useHasPermission(P.ADMIN.SETTINGS_GENERAL_MANAGE);
 
   const { data: raw = [], isLoading } = useQuery({
     queryKey: ["tenant-settings", "compliance"],
     queryFn: () => tenantSettingsService.getTenantSettings("compliance"),
     staleTime: 300_000,
+    enabled: canRead,
   });
 
   const settings = useMemo(() => {
@@ -160,6 +172,17 @@ export function ComplianceSettingsTab() {
     updateMutation.mutate({ key, value: checked });
   };
 
+  if (!canRead) {
+    return (
+      <Alert icon={<IconShieldCheck size={20} />} tone="warning">
+        <Text size="sm">
+          You do not have permission to read this hospital&apos;s compliance settings. Nothing is
+          shown here rather than a set of defaults, which would misstate what is enforced.
+        </Text>
+      </Alert>
+    );
+  }
+
   if (isLoading) {
     return <Loader size="sm" />;
   }
@@ -196,7 +219,7 @@ export function ComplianceSettingsTab() {
               <Switch
                 checked={settings[item.key]}
                 onChange={(e) => handleToggle(item.key, e.currentTarget.checked)}
-                disabled={updateMutation.isPending}
+                disabled={!canManage || updateMutation.isPending}
               />
             </Group>
           ))}
@@ -228,7 +251,7 @@ export function ComplianceSettingsTab() {
               <Switch
                 checked={settings[item.key]}
                 onChange={(e) => handleToggle(item.key, e.currentTarget.checked)}
-                disabled={updateMutation.isPending}
+                disabled={!canManage || updateMutation.isPending}
                 color="orange"
               />
             </Group>

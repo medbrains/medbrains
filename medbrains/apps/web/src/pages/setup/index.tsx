@@ -1,5 +1,6 @@
 import { Card, Group, RingProgress, SimpleGrid, Stack, Text, ThemeIcon } from "@mantine/core";
 import { api } from "@medbrains/api";
+import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import {
   type Icon,
@@ -124,18 +125,28 @@ const SEGMENTS: Segment[] = [
 export function SetupCenterPage() {
   useRequirePermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
   const navigate = useNavigate();
+  // The setup centre counts what is configured. `admin.settings.general.manage`
+  // opens it; each master has its own code, and without them the counts came
+  // back zero — which on a page whose whole job is "what still needs setting
+  // up" reads as nothing configured rather than nothing visible.
+  const canListDepartments = useHasPermission(P.ADMIN.SETTINGS.DEPARTMENTS.LIST);
+  const canListServices = useHasPermission(P.ADMIN.SETTINGS.SERVICES.LIST);
+  const canManageSequences = useHasPermission(P.ADMIN.SETTINGS.SEQUENCES.MANAGE);
 
   const { data: departments = [] } = useQuery({
     queryKey: ["setup", "departments"],
     queryFn: () => api.listDepartments(),
+    enabled: canListDepartments,
   });
   const { data: services = [] } = useQuery({
     queryKey: ["setup", "services"],
     queryFn: () => api.listServices(),
+    enabled: canListServices,
   });
   const { data: sequences = [] } = useQuery({
     queryKey: ["setup", "sequences"],
     queryFn: () => api.listSequences(),
+    enabled: canManageSequences,
   });
   const { data: ssoProviders = [] } = useQuery({
     queryKey: ["sso-active-providers"],

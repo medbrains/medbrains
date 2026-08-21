@@ -136,6 +136,12 @@ pub async fn create_session(
 ) -> Result<Json<BedsideSession>, AppError> {
     require_permission(&claims, permissions::bedside::sessions::MANAGE)?;
 
+    // Only a caller-supplied id is available here — the route carries none. This
+    // still prevents creating a record against an unreachable patient, but it is
+    // weaker than a route-derived check: the caller picks the subject.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -162,6 +168,13 @@ pub async fn end_session(
     Path(id): Path<Uuid>,
 ) -> Result<Json<BedsideSession>, AppError> {
     require_permission(&claims, permissions::bedside::sessions::MANAGE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::BEDSIDE_SESSION,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -188,6 +201,10 @@ pub async fn get_daily_schedule(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<DailyScheduleItem>>, AppError> {
     require_permission(&claims, permissions::bedside::VIEW)?;
+    // The tablet reads by admission id from the URL. Nothing else scoped
+    // this: `bedside.view` reached any admission in the tenant.
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -199,13 +216,13 @@ pub async fn get_daily_schedule(
                   COALESCE(drug_name, 'Medication') AS description, \
                   status::text AS status \
            FROM ipd_medication_administration WHERE admission_id = $1 \
-                AND scheduled_at::date = CURRENT_DATE \
+                AND (scheduled_at >= CURRENT_DATE AND scheduled_at < CURRENT_DATE + 1) \
            UNION ALL \
            SELECT 'nursing_task' AS event_type, scheduled_at, \
                   COALESCE(task_description, 'Nursing Task') AS description, \
                   status::text AS status \
            FROM nursing_tasks WHERE admission_id = $1 \
-                AND scheduled_at::date = CURRENT_DATE \
+                AND (scheduled_at >= CURRENT_DATE AND scheduled_at < CURRENT_DATE + 1) \
            UNION ALL \
            SELECT 'meal' AS event_type, start_date::timestamptz AS scheduled_at, \
                   ('Diet: ' || diet_type::text) AS description, \
@@ -216,8 +233,7 @@ pub async fn get_daily_schedule(
     )
     .bind(admission_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -244,6 +260,8 @@ pub async fn get_medications(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<MedicationItem>>, AppError> {
     require_permission(&claims, permissions::bedside::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -256,8 +274,7 @@ pub async fn get_medications(
     )
     .bind(admission_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -283,6 +300,8 @@ pub async fn get_vitals(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<VitalReading>>, AppError> {
     require_permission(&claims, permissions::bedside::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -297,8 +316,7 @@ pub async fn get_vitals(
     )
     .bind(admission_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -325,6 +343,8 @@ pub async fn get_lab_results(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<LabResultItem>>, AppError> {
     require_permission(&claims, permissions::bedside::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -342,8 +362,7 @@ pub async fn get_lab_results(
     )
     .bind(admission_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -368,6 +387,8 @@ pub async fn get_diet_order(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<DietOrderItem>>, AppError> {
     require_permission(&claims, permissions::bedside::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -380,8 +401,7 @@ pub async fn get_diet_order(
     )
     .bind(admission_id)
     .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -398,6 +418,12 @@ pub async fn create_nurse_request(
     Json(body): Json<CreateNurseRequestPayload>,
 ) -> Result<Json<BedsideNurseRequest>, AppError> {
     require_permission(&claims, permissions::bedside::REQUEST)?;
+
+    // Authorize the admission the ROUTE names, not body.patient_id — the body is
+    // caller-supplied, so authorizing on it would let the caller choose the
+    // subject of its own check.
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -427,6 +453,8 @@ pub async fn list_nurse_requests(
     Query(params): Query<ListNurseRequestsQuery>,
 ) -> Result<Json<Vec<BedsideNurseRequest>>, AppError> {
     require_permission(&claims, permissions::bedside::VIEW)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -453,6 +481,13 @@ pub async fn update_request_status(
     Json(body): Json<UpdateRequestStatusPayload>,
 ) -> Result<Json<BedsideNurseRequest>, AppError> {
     require_permission(&claims, permissions::bedside::sessions::MANAGE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::BEDSIDE_NURSE_REQUEST,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -486,6 +521,7 @@ pub async fn list_videos(
     Query(params): Query<ListVideosQuery>,
 ) -> Result<Json<Vec<BedsideEducationVideo>>, AppError> {
     require_permission(&claims, permissions::bedside::videos::LIST)?;
+    // Patient education content, not a patient record.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -510,6 +546,7 @@ pub async fn create_video(
     Json(body): Json<CreateVideoRequest>,
 ) -> Result<Json<BedsideEducationVideo>, AppError> {
     require_permission(&claims, permissions::bedside::videos::MANAGE)?;
+    // Patient education content, not a patient record.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -546,6 +583,7 @@ pub async fn update_video(
     Json(body): Json<UpdateVideoRequest>,
 ) -> Result<Json<BedsideEducationVideo>, AppError> {
     require_permission(&claims, permissions::bedside::videos::MANAGE)?;
+    // Patient education content, not a patient record.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -590,6 +628,12 @@ pub async fn record_video_view(
 ) -> Result<Json<BedsideEducationView>, AppError> {
     require_permission(&claims, permissions::bedside::VIEW)?;
 
+    // Authorize the admission the ROUTE names, not body.patient_id — the body is
+    // caller-supplied, so authorizing on it would let the caller choose the
+    // subject of its own check.
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -624,6 +668,12 @@ pub async fn submit_feedback(
 ) -> Result<Json<BedsideRealtimeFeedback>, AppError> {
     require_permission(&claims, permissions::bedside::feedback::CREATE)?;
 
+    // Authorize the admission the ROUTE names, not body.patient_id — the body is
+    // caller-supplied, so authorizing on it would let the caller choose the
+    // subject of its own check.
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -656,6 +706,8 @@ pub async fn list_feedback(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<BedsideRealtimeFeedback>>, AppError> {
     require_permission(&claims, permissions::bedside::feedback::LIST)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

@@ -3,7 +3,7 @@ import { nullOn404 } from "@medbrains/api";
 
 import { Card, Group, Menu, Modal, Stack, Tabs, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { useHasPermission } from "@medbrains/stores";
+import { useHasAnyPermission, useHasPermission, usePermissionStore } from "@medbrains/stores";
 import type {
   Consultation,
   Diagnosis,
@@ -51,7 +51,7 @@ import { OrderBasketWorkspace } from "@/components/OrderBasket/OrderBasketWorksp
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientContextSummary } from "@/components/Patient/PatientContextSummary";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
-import { Badge, Button, toast } from "@/components/ui";
+import { Badge, Button, PermissionGate, toast } from "@/components/ui";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { mrdService } from "@/services/mrd.service";
 import { opdService } from "@/services/opd.service";
@@ -91,6 +91,32 @@ import {
   TimelineTab,
 } from "./workflow-tabs";
 
+/**
+ * What each tab's endpoints actually accept.
+ *
+ * Every code here was read off the handler the tab calls, not chosen to look
+ * plausible: `check-ui-permission-match` reports a tab whose gate and whose
+ * endpoint disagree, and this table is the answer it checks against.
+ *
+ * A tab absent from this table is one whose required code has not been
+ * established yet, and is left ungated rather than guessed — a wrong code
+ * hides a tab from the clinician who is entitled to it, which is the worse
+ * failure of the two.
+ */
+const TAB_PERMISSIONS = {
+  diagnoses: ["opd.diagnoses.list"],
+  investigations: ["lab.orders.list", "lab.orders.create"],
+  procedures: ["opd.procedures.list"],
+  referrals: ["opd.referrals.list"],
+  charts: ["opd.vitals.list", "opd.vitals.create"],
+  timeline: ["patients.view"],
+  certificates: ["opd.certificates.list"],
+  reminders: ["opd.reminders.list"],
+  consents: ["opd.consents.list"],
+  docket: ["opd.schedule.list"],
+  feedback: ["opd.feedback.list"],
+} as const satisfies Record<string, readonly string[]>;
+
 export function EncounterDetail({
   encounterId,
   patientId,
@@ -108,6 +134,9 @@ export function EncounterDetail({
   departmentId: string;
   canUpdate: boolean;
 }) {
+  // A selector, not the hook: the tab list is filtered inside a map, and
+  // `useHasAnyPermission` cannot be called once per item.
+  const hasAnyPermission = usePermissionStore((state) => state.hasAnyPermission);
   const canOrder = useHasPermission(P.ORDER_BASKET.SIGN);
   const canGenerateMrdCaseSheet = useHasPermission(P.MRD.CASE_SHEETS_GENERATE);
   const canViewMrdCaseSheets = useHasPermission(P.MRD.CASE_SHEETS_VIEW);
@@ -172,9 +201,21 @@ export function EncounterDetail({
     queryKey: ["lab-catalog"],
     queryFn: () => opdService.listLabCatalog(),
   });
+  // hospital_name / address / phone feed the printed summary's
+  // letterhead. The tenant-settings read is served under admin.settings.read,
+  // which a prescriber need not hold — refused, `hospitalSettings` is empty,
+  // getSetting returns undefined for all three, and the prescription prints
+  // with no institutional identification on it. Whether that should block
+  // printing outright is a product call; this at least stops the fetch from
+  // being made by someone the server will refuse.
+  const canReadSettings = useHasAnyPermission([
+    P.ADMIN.SETTINGS_READ,
+    P.ADMIN.SETTINGS_GENERAL_MANAGE,
+  ]);
   const { data: hospitalSettings = [] } = useQuery({
     queryKey: ["tenant-settings", "general"],
     queryFn: () => opdService.getTenantSettings("general"),
+    enabled: canReadSettings,
     staleTime: 600_000,
   });
   const { data: mrdCaseSheetPackets = [] } = useQuery({
@@ -559,11 +600,18 @@ export function EncounterDetail({
                 <Tabs.List
                   style={{ border: "none", display: "flex", flexDirection: "column", gap: 2 }}
                 >
-                  {section.tabs.map((tab) => (
-                    <Tabs.Tab key={tab.value} value={tab.value} leftSection={tab.icon}>
-                      {tab.label}
-                    </Tabs.Tab>
-                  ))}
+                  {section.tabs
+                    .filter((tab) => {
+                      const codes = (
+                        TAB_PERMISSIONS as Record<string, readonly string[] | undefined>
+                      )[tab.value];
+                      return !codes || hasAnyPermission(codes);
+                    })
+                    .map((tab) => (
+                      <Tabs.Tab key={tab.value} value={tab.value} leftSection={tab.icon}>
+                        {tab.label}
+                      </Tabs.Tab>
+                    ))}
                 </Tabs.List>
               </div>
             ))}
@@ -600,17 +648,27 @@ export function EncounterDetail({
             <PhysicalExamTab encounterId={encounterId} canUpdate={canUpdate} />
           </Tabs.Panel>
           <Tabs.Panel value="diagnoses">
-            <DiagnosesTab encounterId={encounterId} patientId={patientId} canUpdate={canUpdate} />
+            <PermissionGate codes={TAB_PERMISSIONS.diagnoses} label="diagnoses">
+              <DiagnosesTab encounterId={encounterId} patientId={patientId} />
+            </PermissionGate>
           </Tabs.Panel>
           <Tabs.Panel value="investigations">
-            <InvestigationsTab
-              encounterId={encounterId}
-              patientId={patientId}
-              canUpdate={canUpdate}
-            />
+            <PermissionGate codes={TAB_PERMISSIONS.investigations} label="investigations">
+              <InvestigationsTab
+                encounterId={encounterId}
+                patientId={patientId}
+                canUpdate={canUpdate}
+              />
+            </PermissionGate>
           </Tabs.Panel>
           <Tabs.Panel value="procedures">
-            <ProceduresTab encounterId={encounterId} patientId={patientId} canUpdate={canUpdate} />
+            <PermissionGate codes={TAB_PERMISSIONS.procedures} label="procedures">
+              <ProceduresTab
+                encounterId={encounterId}
+                patientId={patientId}
+                canUpdate={canUpdate}
+              />
+            </PermissionGate>
           </Tabs.Panel>
           <Tabs.Panel value="prescriptions">
             <PrescriptionsTab
@@ -623,28 +681,35 @@ export function EncounterDetail({
             />
           </Tabs.Panel>
           <Tabs.Panel value="referrals">
-            <ReferralsTab
-              patientId={patientId}
-              encounterId={encounterId}
-              departmentId={departmentId}
-              canUpdate={canUpdate}
-            />
+            <PermissionGate codes={TAB_PERMISSIONS.referrals} label="referrals">
+              <ReferralsTab
+                patientId={patientId}
+                encounterId={encounterId}
+                departmentId={departmentId}
+              />
+            </PermissionGate>
           </Tabs.Panel>
           <Tabs.Panel value="rx-history">
             <RxHistoryTab patientId={patientId} />
           </Tabs.Panel>
           <Tabs.Panel value="charts">
-            <ChartsTab patientId={patientId} />
+            <PermissionGate codes={TAB_PERMISSIONS.charts} label="observation charts">
+              <ChartsTab patientId={patientId} />
+            </PermissionGate>
           </Tabs.Panel>
           <Tabs.Panel value="timeline">
-            <TimelineTab patientId={patientId} />
+            <PermissionGate codes={TAB_PERMISSIONS.timeline} label="this patient's timeline">
+              <TimelineTab patientId={patientId} />
+            </PermissionGate>
           </Tabs.Panel>
           <Tabs.Panel value="certificates">
-            <CertificatesTab
-              patientId={patientId}
-              encounterId={encounterId}
-              canUpdate={canUpdate}
-            />
+            <PermissionGate codes={TAB_PERMISSIONS.certificates} label="medical certificates">
+              <CertificatesTab
+                patientId={patientId}
+                encounterId={encounterId}
+                canUpdate={canUpdate}
+              />
+            </PermissionGate>
           </Tabs.Panel>
           <Tabs.Panel value="followup">
             <FollowUpTab
@@ -655,19 +720,27 @@ export function EncounterDetail({
             />
           </Tabs.Panel>
           <Tabs.Panel value="reminders">
-            <RemindersTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
+            <PermissionGate codes={TAB_PERMISSIONS.reminders} label="reminders">
+              <RemindersTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
+            </PermissionGate>
           </Tabs.Panel>
           <Tabs.Panel value="feedback">
-            <FeedbackTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
+            <PermissionGate codes={TAB_PERMISSIONS.feedback} label="patient feedback">
+              <FeedbackTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
+            </PermissionGate>
           </Tabs.Panel>
           <Tabs.Panel value="consents">
-            <ConsentsTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
+            <PermissionGate codes={TAB_PERMISSIONS.consents} label="consents">
+              <ConsentsTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
+            </PermissionGate>
           </Tabs.Panel>
           <Tabs.Panel value="pre-auth">
             <PreAuthTab patientId={patientId} encounterId={encounterId} canUpdate={canUpdate} />
           </Tabs.Panel>
           <Tabs.Panel value="docket">
-            <DocketTab />
+            <PermissionGate codes={TAB_PERMISSIONS.docket} label="the doctor docket">
+              <DocketTab />
+            </PermissionGate>
           </Tabs.Panel>
           <Tabs.Panel value="pharmacy-dispatch">
             <PharmacyDispatchTab encounterId={encounterId} />

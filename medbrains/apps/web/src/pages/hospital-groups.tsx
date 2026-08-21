@@ -1,6 +1,7 @@
 import { Card, Group, Modal, Select, SimpleGrid, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { GroupDashboard, HospitalGroup, HospitalKpiSummary } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconBuildingHospital, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -209,7 +210,7 @@ function HospitalsPanel({ groupId }: { groupId: string }) {
 }
 
 export function HospitalGroupsPage() {
-  useRequirePermission("admin.system_state.view");
+  useRequirePermission(P.ADMIN.SYSTEM_STATE.VIEW);
   const [modalOpen, modal] = useDisclosure(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [manageHospitals, setManageHospitals] = useState<string | null>(null);

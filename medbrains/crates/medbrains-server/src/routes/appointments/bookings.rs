@@ -141,6 +141,11 @@ pub async fn book_appointment(
     Json(body): Json<BookAppointmentRequest>,
 ) -> Result<Json<Appointment>, AppError> {
     require_permission(&claims, permissions::opd::appointment::CREATE)?;
+    // The body names the patient this appointment is for. The deceased check
+    // below already reads that patient's record; without this, holding
+    // opd.appointment.create was enough to book against anyone in the tenant
+    // and learn from the response whether they are alive.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -274,7 +279,10 @@ pub async fn book_appointment(
         .bind(claims.tenant_id)
         .fetch_one(&mut *tx)
         .await?;
-        let summary = format!("{patient_name} — {} {}", appt.appointment_date, appt.slot_start);
+        let summary = format!(
+            "{patient_name} — {} {}",
+            appt.appointment_date, appt.slot_start
+        );
         create_notification(
             &mut tx,
             claims.tenant_id,
@@ -305,6 +313,16 @@ pub async fn get_appointment(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Appointment>, AppError> {
     require_permission(&claims, permissions::opd::appointment::LIST)?;
+    // The path names the appointment and the appointment names the
+    // patient. opd.appointment.list says the caller may work the
+    // diary, not that they may open this entry.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::APPOINTMENT,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -326,6 +344,13 @@ pub async fn reschedule_appointment(
     Json(body): Json<RescheduleRequest>,
 ) -> Result<Json<Appointment>, AppError> {
     require_permission(&claims, permissions::opd::appointment::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::APPOINTMENT,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -356,6 +381,16 @@ pub async fn cancel_appointment(
     Json(body): Json<CancelRequest>,
 ) -> Result<Json<Appointment>, AppError> {
     require_permission(&claims, permissions::opd::appointment::CANCEL)?;
+    // Cancelling also clears the queue token and the encounter it
+    // opened, so it reaches further into the patient's day than the
+    // others here.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::APPOINTMENT,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -452,6 +487,13 @@ pub async fn check_in_appointment(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Appointment>, AppError> {
     require_permission(&claims, permissions::opd::appointment::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::APPOINTMENT,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -588,6 +630,13 @@ pub async fn complete_appointment(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Appointment>, AppError> {
     require_permission(&claims, permissions::opd::appointment::UPDATE)?;
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::APPOINTMENT,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -613,6 +662,15 @@ pub async fn mark_appointment_no_show(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Appointment>, AppError> {
     require_permission(&claims, permissions::opd::appointment::UPDATE)?;
+    // A no-show is a durable mark on a patient's record and can carry a
+    // fee; it is not a neutral state change.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::APPOINTMENT,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 

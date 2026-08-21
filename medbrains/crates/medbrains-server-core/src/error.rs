@@ -20,11 +20,33 @@ pub enum AppError {
     #[error("forbidden")]
     Forbidden,
 
+    /// A 403 that says why.
+    ///
+    /// `Forbidden` answers "no" and nothing else, which is right when the
+    /// reason is that the caller lacks a permission — spelling that out tells
+    /// them what to go and acquire. It is wrong when the route is refusing a
+    /// *kind* of caller, because the request will never succeed however the
+    /// permissions are changed, and an integration author reading a bare
+    /// "forbidden" has no way to learn that.
+    #[error("forbidden: {0}")]
+    ForbiddenReason(String),
+
     #[error("step-up required")]
     StepUpRequired,
 
     #[error("not found")]
     NotFound,
+
+    /// The route exists and its data source does not.
+    ///
+    /// Twenty print-data handlers were returning hardcoded sample documents —
+    /// "Student Name", invented assessment marks, a fabricated fire-inspection
+    /// record — on live routes, which a print template renders onto hospital
+    /// letterhead. A document that is wrong is worse than a document that is
+    /// missing, and 404 would have been a lie of a different kind: the route
+    /// is there, the implementation is not.
+    #[error("not implemented")]
+    NotImplemented,
 
     #[error("bad request: {0}")]
     BadRequest(String),
@@ -101,6 +123,10 @@ impl IntoResponse for AppError {
                 tracing::warn!("forbidden request");
                 (StatusCode::FORBIDDEN, "forbidden", "forbidden".to_owned())
             }
+            Self::ForbiddenReason(msg) => {
+                tracing::warn!(%msg, "forbidden request");
+                (StatusCode::FORBIDDEN, "forbidden", msg.clone())
+            }
             Self::StepUpRequired => {
                 tracing::debug!("step-up required");
                 (
@@ -110,6 +136,11 @@ impl IntoResponse for AppError {
                 )
             }
             Self::NotFound => (StatusCode::NOT_FOUND, "not found", "not found".to_owned()),
+            Self::NotImplemented => (
+                StatusCode::NOT_IMPLEMENTED,
+                "not implemented",
+                "this document has no data source yet".to_owned(),
+            ),
             Self::BadRequest(msg) => {
                 tracing::warn!(detail = %msg, "bad request");
                 (StatusCode::BAD_REQUEST, "bad request", msg.clone())

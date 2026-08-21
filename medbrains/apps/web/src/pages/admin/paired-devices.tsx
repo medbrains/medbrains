@@ -104,7 +104,7 @@ export function PairedDevicesPage() {
     return index;
   }, [roster]);
 
-  const canManageLocations = useHasPermission("admin.settings.locations.create");
+  const canManageLocations = useHasPermission(P.ADMIN.SETTINGS.LOCATIONS_CREATE);
   const [mintOpen, { open: openMint, close: closeMint }] = useDisclosure(false);
   const [stationsOpen, { open: openStations, close: closeStations }] = useDisclosure(false);
   const [tokenResult, setTokenResult] = useState<PairingToken | null>(null);

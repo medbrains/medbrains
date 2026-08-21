@@ -12,7 +12,7 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { useHasPermission } from "@medbrains/stores";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type {
   AuditFinding,
   CreateAuditFindingRequest,
@@ -27,11 +27,19 @@ import { useState } from "react";
 import { DataTable } from "@/components";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { Badge, Button, IconButton, Table, toast } from "@/components/ui";
+import { DEPARTMENT_LIST_CODES } from "@/lib/api-permission-sets";
 import { qualityService } from "@/services/quality.service";
 import { auditStatusColors, statusColorTone } from "./shared";
 
 export function AuditsTab() {
   const canCreate = useHasPermission(P.QUALITY.AUDITS_CREATE);
+  // Findings are the audit's results and have their own list code. Empty reads
+  // as "this audit found nothing", which is the opposite of a blank screen.
+  const canListAudits = useHasPermission(P.QUALITY.AUDITS_LIST);
+  // The department filter is the shared setup endpoint, which takes a long
+  // require_any_permission list. Gating on one plausible member would hide
+  // the filter from people the server would allow, so mirror the handler.
+  const canListDepartments = useHasAnyPermission(DEPARTMENT_LIST_CODES);
   const qc = useQueryClient();
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
@@ -46,6 +54,7 @@ export function AuditsTab() {
   const { data: departments = [] } = useQuery({
     queryKey: ["departments-list"],
     queryFn: () => qualityService.listDepartments(),
+    enabled: canListDepartments,
     staleTime: 300_000,
   });
 
@@ -102,7 +111,7 @@ export function AuditsTab() {
   const { data: findings = [], isLoading: findingsLoading } = useQuery({
     queryKey: ["quality-audit-findings", selectedAudit?.id],
     queryFn: () => qualityService.listAuditFindings(selectedAudit?.id ?? ""),
-    enabled: !!selectedAudit,
+    enabled: !!selectedAudit && canListAudits,
   });
 
   const createFindingMut = useMutation({

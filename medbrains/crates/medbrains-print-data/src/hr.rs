@@ -3,7 +3,7 @@
 //! Phase 5: Employee ID, Duty Roster, Leave, Attendance, Training, Credentials, Visitor Register.
 
 use axum::{
-    Json,
+    Extension, Json,
     extract::{Path, State},
 };
 use axum::routing::get;
@@ -11,6 +11,7 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use medbrains_core::permissions;
 use medbrains_core::print_data::{
     AttendanceRecord, AttendanceSummary, CredentialDetail, DailyAttendance, DayShift,
     DutyRosterPrintData, EmployeeIdCardPrintData, LeaveApplicationPrintData, RosterEntry,
@@ -19,6 +20,8 @@ use medbrains_core::print_data::{
 };
 
 use medbrains_server_core::error::AppError;
+use medbrains_server_core::middleware::auth::Claims;
+use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::state::AppState;
 
 // ── Employee ID Card ──────────────────────────────────────────────────────────
@@ -26,8 +29,11 @@ use medbrains_server_core::state::AppState;
 /// GET /print-data/employee-id-card/{employee_id}
 pub async fn get_employee_id_card_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(employee_id): Path<Uuid>,
 ) -> Result<Json<EmployeeIdCardPrintData>, AppError> {
+    require_permission(&claims, permissions::hr::employees::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -98,8 +104,11 @@ pub async fn get_employee_id_card_print_data(
 /// GET /print-data/duty-roster/{department_id}/{period}
 pub async fn get_duty_roster_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path((department_id, period)): Path<(Uuid, String)>,
 ) -> Result<Json<DutyRosterPrintData>, AppError> {
+    require_permission(&claims, permissions::hr::roster::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     let dept_name = sqlx::query_scalar::<_, String>("SELECT name FROM departments WHERE id = $1")
@@ -218,8 +227,11 @@ pub async fn get_duty_roster_print_data(
 /// GET /print-data/leave-application/{leave_id}
 pub async fn get_leave_application_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(leave_id): Path<Uuid>,
 ) -> Result<Json<LeaveApplicationPrintData>, AppError> {
+    require_permission(&claims, permissions::hr::leave::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -310,8 +322,11 @@ pub async fn get_leave_application_print_data(
 /// GET /print-data/staff-attendance/{department_id}/{month}/{year}
 pub async fn get_staff_attendance_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path((department_id, month, year)): Path<(Uuid, u32, i32)>,
 ) -> Result<Json<StaffAttendanceReportPrintData>, AppError> {
+    require_permission(&claims, permissions::hr::attendance::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     let dept_name = sqlx::query_scalar::<_, String>("SELECT name FROM departments WHERE id = $1")
@@ -447,8 +462,11 @@ pub async fn get_staff_attendance_print_data(
 /// GET /print-data/training-certificate/{training_id}
 pub async fn get_training_certificate_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(training_id): Path<Uuid>,
 ) -> Result<Json<TrainingCertificatePrintData>, AppError> {
+    require_permission(&claims, permissions::hr::training::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -562,8 +580,14 @@ pub async fn get_training_certificate_print_data(
 /// GET /print-data/staff-credentials/{employee_id}
 pub async fn get_staff_credentials_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(employee_id): Path<Uuid>,
 ) -> Result<Json<StaffCredentialFormPrintData>, AppError> {
+    // Credentials are the registration and licence numbers a clinician
+    // practises under. Kept to the HR permission rather than a general staff
+    // one — a roster does not entitle you to somebody's medical council number.
+    require_permission(&claims, permissions::hr::credentials::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     #[derive(sqlx::FromRow)]
@@ -622,8 +646,7 @@ pub async fn get_staff_credentials_print_data(
     )
     .bind(employee_id)
     .fetch_all(pool)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let credentials: Vec<CredentialDetail> = if creds.is_empty() {
         // Sample credentials if none exist
@@ -690,8 +713,13 @@ pub async fn get_staff_credentials_print_data(
 /// GET /print-data/visitor-register/{date}
 pub async fn get_visitor_register_print_data(
     State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(date): Path<String>,
 ) -> Result<Json<VisitorRegisterPrintData>, AppError> {
+    // The visitor register belongs to front office, not HR, despite living
+    // in this file — it records who came to see which patient.
+    require_permission(&claims, permissions::front_office::visitors::LIST)?;
+
     let pool: &PgPool = &state.db;
 
     let register_date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
@@ -740,8 +768,7 @@ pub async fn get_visitor_register_print_data(
     )
     .bind(register_date)
     .fetch_all(pool)
-    .await
-    .unwrap_or_default();
+    .await?;
 
     let entries: Vec<VisitorEntry> = if visitors.is_empty() {
         // Sample entries if none exist

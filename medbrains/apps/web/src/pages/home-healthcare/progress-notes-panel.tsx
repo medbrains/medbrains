@@ -1,6 +1,8 @@
 // Home-healthcare ProgressNotesPanel — split from home-healthcare.tsx (pure move).
 
 import { Group, Select, Stack, Text, Textarea } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Badge, Button, toast } from "@/components/ui";
@@ -13,12 +15,16 @@ export function ProgressNotesPanel({
   patientId: string;
   canManage: boolean;
 }) {
+  // Progress notes are clinical narrative on a named patient.
+  const canListProgressNotes = useHasPermission(P.IPD.PROGRESS_NOTES_LIST);
+
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const [role, setRole] = useState<string | null>("nurse");
   const { data = [] } = useQuery({
     queryKey: ["home-progress-notes", patientId],
     queryFn: () => homeHealthService.listProgressNotes(patientId),
+    enabled: canListProgressNotes,
   });
   const add = useMutation({
     mutationFn: () =>

@@ -111,10 +111,15 @@ function PhaseChecklistBody({
 export function ChecklistTab({ bookingId }: { bookingId: string }) {
   const queryClient = useQueryClient();
   const canCreate = useHasPermission(P.OT.SAFETY_CHECKLIST_CREATE);
+  // The tab holds only the create code; reading the record carries its
+  // own. Refused, the fetch returns nothing and the panel below renders
+  // as though the record does not exist.
+  const canView = useHasPermission(P.OT.SAFETY_CHECKLIST_LIST);
 
   const { data: checklists = [], isLoading } = useQuery<OtSurgicalSafetyChecklist[]>({
     queryKey: ["ot-checklists", bookingId],
     queryFn: () => otService.listSafetyChecklists(bookingId),
+    enabled: canView,
   });
 
   const byPhase = new Map(checklists.map((c) => [c.phase, c]));
@@ -138,6 +143,24 @@ export function ChecklistTab({ bookingId }: { bookingId: string }) {
     const prev = byPhase.get(prevPhase);
     return !prev?.completed;
   };
+
+  if (!canView) {
+    // Without ot.safety_checklist.list the fetch is refused, `checklists` is
+    // empty, and every phase below renders grey and un-ticked — sign-in,
+    // time-out and sign-out all shown as not done for an operation where all
+    // three were completed and signed. isPhaseBlocked then also blocks the
+    // next phase from being recorded, so the refusal does not merely misread
+    // the theatre, it obstructs it.
+    return (
+      <Stack>
+        <Text fw={600}>WHO Surgical Safety Checklist</Text>
+        <Text c="dimmed" size="sm">
+          You do not have permission to view this checklist. Its phases are not shown, rather than
+          shown un-ticked.
+        </Text>
+      </Stack>
+    );
+  }
 
   return (
     <Stack>

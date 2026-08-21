@@ -1,0 +1,377 @@
+#!/usr/bin/env python3
+"""Authorization conformance, per module, across the four axes.
+
+    python3 scripts/authz_ledger.py                 # summary, worst first
+    python3 scripts/authz_ledger.py --module lab    # one module, with detail
+    python3 scripts/authz_ledger.py --json          # machine-readable
+
+CLAUDE.md makes authorization repo-wide law: module by module, app by app, API
+by API, code by code. Across 127 crates that is only tractable if coverage is
+*measured*. A module is not conformant because somebody looked at it; it is
+conformant when this says so.
+
+The four axes, and what each would miss on its own:
+
+  API   every route carries a permission. Misses: a route that is permissioned
+        but not per-record — `patients.view` is not "this patient".
+  CODE  no authorization result collapsed into a boolean. This is the axis that
+        turns an outage into "no such record".
+  DATA  every redactable field declares its class, so the denial mode follows
+        from the data rather than from whoever wrote the handler.
+  RECORD  PHI routes that check a permission but never check the record. The
+        expensive one, and the one no existing script covered.
+
+This reports; it does not gate. `make check-*` are the gates. A ledger that
+fails the build on day one just gets excluded from the build.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+from collections import defaultdict
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CRATES = os.path.join(ROOT, "crates")
+
+HANDLER = re.compile(r"^pub async fn (\w+)\s*\(", re.M)
+# Authority guards come in more shapes than `require_permission`. A hand audit
+# of the unpermissioned set found `require_admin`, `require_super_admin`,
+# `require_step_up`, `require_sign_permission` and friends — every one of them a
+# real guard the first pattern scored as missing. Match the shape, not the name.
+PERMISSION_CHECK = re.compile(
+    r"require_permission|require_any_permission|require_all_permissions|"
+    r"require_admin|require_super_admin|require_upload_permission|"
+    r"require_sign_permission|require_basket_item_permissions|"
+    r"require_module_enabled|require_step_up|require_tenant_in_group|"
+    r"require_ownership|require_group_access|require_department_access|"
+    r"Authorized<|AllOf<|AnyOf<|is_bypass_role|permissions::"
+)
+# Per-record checks likewise. `ensure_*_belongs_to_tenant` is NOT one of these —
+# tenant scoping is RLS's job and does not establish a care relationship.
+#
+# This list must include every helper the gate crate exports, and it did not:
+# `require_access_via` (31 sites) and `patient_filter`/`visible_patient_ids`
+# (12 sites) were missing, so handlers guarded through a parent link or a
+# permitted-id set scored as unguarded. The instrument that ranks the sweep was
+# under-reporting exactly the guards this sweep installs — `list_dental_exams`
+# was flagged as a gap while holding a `patient_filter` call put there in an
+# earlier pass. When a helper is added to medbrains-authz-gate, add it here.
+RECORD_CHECK = re.compile(
+    r"require_patient_access|require_encounter_access|require_admission_access|"
+    r"require_access_via|require_access_via_optional|require_patient_billing_access|"
+    # `require_patient_billing_filter` is the list form of the billing check —
+    # `patient_filter` does not match it, because the name reads
+    # billing_filter. Two guarded billing lists scored as unchecked until
+    # this line existed, which is the same shape as the wrapper and span
+    # defects: a guard the detector could not see, reported as an absent one.
+    r"require_patient_billing_filter|"
+    r"patient_filter|visible_patient_ids|"
+    r"require_patient_viewer|require_object_view|require_patient\b|"
+    r"ensure_invoice_view_access|ensure_invoice_workspace_access|"
+    # `.authz` is a handle, not a decision. `.check`, `.bulk_check` and
+    # `.list_accessible` ask SpiceDB a question; `.write_tuple` and `.grant_raw`
+    # MINT a relation. Matching the bare handle scored eight handlers as
+    # record-checked because they hand out access — `schedule_follow_up` copies
+    # any consultation by path id and writes the doctor a Viewer tuple on that
+    # patient, and was counted as guarded for doing so.
+    r"\.authz\s*\.(?:check|bulk_check|list_accessible)\b|authz_patient::|"
+    # The patient portal's form, and the strongest one there is: the patient id
+    # is bound from the TOKEN, never from the request, so there is no id a caller
+    # could substitute. Every portal data endpoint does this and every one of
+    # them scored as unguarded, which would have invited somebody to "fix" it by
+    # bolting a staff-shaped guard onto a handler that cannot be tricked.
+    r"claims\.pid\b|"
+    # The kiosk's form of the same thing: the subject is unsealed from a signed
+    # token, and the tenant with it, so a request cannot name a record the token
+    # does not already carry. `kiosk_checkin` and `public_token_status` are
+    # unauthenticated ON PURPOSE — the check is the seal, not a permission.
+    r"open_event_token"
+)
+COLLAPSE = re.compile(r"unwrap_or\(false\)|unwrap_or_default\(\)|\.is_ok\(\)|\.is_err\(\)")
+
+# The gate owns the reviewed-exception list; read it rather than keeping a
+# second copy. Printing a raw count of 1 next to a gate that passes reads as a
+# violation the gate is missing, and costs a re-investigation of a site whose
+# decision was already recorded — which is what it cost the first time.
+try:
+    from check_authz_collapse import ACCEPTED as REVIEWED_COLLAPSES
+except ImportError:  # run from outside scripts/
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from check_authz_collapse import ACCEPTED as REVIEWED_COLLAPSES
+AUTHZ_NEARBY = re.compile(r"\.authz\b|list_accessible|bulk_check|require_\w*_access")
+# Every table the gate has a ParentLink for reaches a patient — that is what a
+# link IS — so a handler that touches one is handling patient data whether or
+# not its SQL happens to name a patient column. Reading the names from the gate
+# rather than listing them keeps the two from drifting apart.
+#
+# Without this the scan was blind to a whole class: 45 handlers that take an id
+# off the path, address a linked table, and never mention patient_id.
+# `update_recording` is the one that made it obvious — it sets
+# recording_consent and then starts recording a patient's video consultation on
+# the strength of the consent the same request just wrote, and scored as
+# not-PHI. The coverage figure was an overstatement in a way the instrument
+# could not show.
+def _linked_tables() -> list[str]:
+    gate = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "crates", "medbrains-authz-gate", "src", "lib.rs",
+    )
+    try:
+        text = open(gate, encoding="utf-8").read()
+    except OSError:
+        return []
+    found = set(re.findall(r'ParentLink::\w+\(\s*"(\w+)"', text))
+    found |= set(re.findall(r'table:\s*"(\w+)"', text))
+    return sorted(found)
+
+
+_LINKED = _linked_tables()
+_LINKED_ALT = (
+    "|(?:FROM|UPDATE|INTO|JOIN)\\s+(?:" + "|".join(_LINKED) + ")\\b" if _LINKED else ""
+)
+
+# A handler touching these is handling patient data.
+PHI = re.compile(
+    r"\bpatient_id\b|\bencounter_id\b|\badmission_id\b|FROM patients|FROM encounters|"
+    r"FROM admissions|FROM prescriptions|FROM lab_orders|FROM diagnoses|FROM vitals"
+    + _LINKED_ALT
+)
+
+
+def crate_modules() -> dict[str, list[str]]:
+    """Every medbrains-* crate and its .rs files."""
+    out: dict[str, list[str]] = defaultdict(list)
+    for name in sorted(os.listdir(CRATES)):
+        if not name.startswith("medbrains-"):
+            continue
+        src = os.path.join(CRATES, name, "src")
+        if not os.path.isdir(src):
+            continue
+        for dirpath, dirs, files in os.walk(src):
+            dirs[:] = [d for d in dirs if d != "target"]
+            for f in files:
+                if f.endswith(".rs"):
+                    out[name[len("medbrains-"):]].append(os.path.join(dirpath, f))
+    return out
+
+
+AXUM_SIG = re.compile(r"State\(|Extension\(|Path\(|Query\(|Json\(|Authorized<")
+
+
+def _fn_end(text: str, start: int, limit: int) -> int:
+    """Offset just past a function's closing brace, or `limit` if unbalanced.
+
+    Spans used to run to the next `pub async fn`, which swept up every type
+    declared between two handlers. `create_nuclear_source` scored as PHI
+    because the `ListNuclearAdminQuery { patient_id }` struct that follows it
+    fell inside its span — the table has no patient column at all. The same
+    error in the other direction would credit a handler with a guard written
+    in the helper below it.
+
+    Braces inside string literals do not count: `COALESCE($5, '{}'::jsonb)`
+    appears in the very handler that surfaced this.
+    """
+    i, depth, seen = start, 0, False
+    while i < limit:
+        c = text[i]
+        if c == "/" and i + 1 < limit and text[i + 1] == "/":
+            i = text.find("\n", i)
+            if i == -1:
+                return limit
+            continue
+        if c == "/" and i + 1 < limit and text[i + 1] == "*":
+            j = text.find("*/", i + 2)
+            i = limit if j == -1 else j + 2
+            continue
+        if c == "r" and i + 1 < limit and text[i + 1] in '"#':
+            j = i + 1
+            while j < limit and text[j] == "#":
+                j += 1
+            if j < limit and text[j] == '"':
+                fence = '"' + "#" * (j - i - 1)
+                k = text.find(fence, j + 1)
+                i = limit if k == -1 else k + len(fence)
+                continue
+        if c == '"':
+            i += 1
+            while i < limit and text[i] != '"':
+                i += 2 if text[i] == "\\" else 1
+            i += 1
+            continue
+        if c == "{":
+            depth += 1
+            seen = True
+        elif c == "}":
+            depth -= 1
+            if seen and depth == 0:
+                return i + 1
+        i += 1
+    return limit
+
+
+def split_handlers(text: str) -> list[tuple[str, str]]:
+    """(name, body) for each `pub async fn` that takes axum extractors.
+
+    Without the signature test this counted every public async helper — 137 of
+    them — and reported a permission-coverage figure that contradicted the
+    verified route sweep.
+    """
+    marks = [(m.group(1), m.start()) for m in HANDLER.finditer(text)]
+    out = []
+    for i, (name, start) in enumerate(marks):
+        end = marks[i + 1][1] if i + 1 < len(marks) else len(text)
+        end = _fn_end(text, start, end)
+        body = text[start:end]
+        signature = body[: body.find("{")] if "{" in body else body[:400]
+        if AXUM_SIG.search(signature):
+            out.append((name, body))
+    return out
+
+
+LOCAL_FN = re.compile(r"^(?:pub(?:\([^)]*\))?\s+)?fn (\w+)\s*\(", re.M)
+
+
+def local_guard_wrappers(text: str) -> re.Pattern | None:
+    """Calls to a file-local wrapper that itself checks a permission.
+
+    `medbrains-tv` gates eleven handlers through a two-line `require(claims,
+    perm)` helper that maps `AppError::Forbidden` into that module's older
+    `(StatusCode, String)` shape. None of the wrapper's callers mention
+    `require_permission` or `permissions::`, so the module scored 0 of 13
+    permissioned when in fact only the queue-board reads are open — and the
+    sweep spent a tick chasing a hole that was already closed.
+
+    Match the wrapper by what it does, not by its name.
+    """
+    marks = [(m.group(1), m.start()) for m in LOCAL_FN.finditer(text)]
+    names = []
+    for i, (name, start) in enumerate(marks):
+        end = marks[i + 1][1] if i + 1 < len(marks) else len(text)
+        if PERMISSION_CHECK.search(text[start:end]):
+            names.append(name)
+    if not names:
+        return None
+    return re.compile(r"\b(?:" + "|".join(sorted(set(names))) + r")\s*\(")
+
+
+def audit_module(paths: list[str]) -> dict:
+    handlers = permissioned = phi = phi_with_record = 0
+    collapses: list[str] = []
+    for path in paths:
+        try:
+            text = open(path, encoding="utf-8", errors="replace").read()
+        except OSError:
+            continue
+        local_guard = local_guard_wrappers(text)
+        lines = text.split("\n")
+        for i, line in enumerate(lines):
+            if not COLLAPSE.search(line):
+                continue
+            stripped = line.lstrip()
+            if not (stripped.startswith(".") or ".await" in line):
+                continue
+            if AUTHZ_NEARBY.search("\n".join(lines[max(0, i - 8): i + 1])):
+                site = f"{os.path.relpath(path, ROOT)}:{i + 1}"
+                if site not in REVIEWED_COLLAPSES:
+                    collapses.append(site)
+        for name, raw_body in split_handlers(text):
+            # Strip comments before matching. A handler was scoring as
+            # record-checked because a COMMENT mentioned `authz_patient::links`;
+            # renaming that comment during the crate split dropped the repo-wide
+            # count by 9, which is how the false positive surfaced at all.
+            body = re.sub(r"//[^\n]*", "", raw_body)
+            handlers += 1
+            if PERMISSION_CHECK.search(body) or (
+                local_guard is not None and local_guard.search(body)
+            ):
+                permissioned += 1
+            if PHI.search(body):
+                phi += 1
+                if RECORD_CHECK.search(body):
+                    phi_with_record += 1
+    return {
+        "handlers": handlers,
+        "permissioned": permissioned,
+        "phi_handlers": phi,
+        "phi_with_record_check": phi_with_record,
+        "collapses": collapses,
+    }
+
+
+def pct(part: int, whole: int) -> float:
+    return 100.0 if whole == 0 else round(100.0 * part / whole, 1)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--module")
+    ap.add_argument("--json", action="store_true")
+    ap.add_argument("--limit", type=int, default=25)
+    args = ap.parse_args()
+
+    modules = crate_modules()
+    if args.module:
+        modules = {k: v for k, v in modules.items() if args.module in k}
+        if not modules:
+            print(f"no module matching '{args.module}'")
+            return 1
+
+    report = {name: audit_module(paths) for name, paths in modules.items()}
+    # Only modules with handlers are scoreable; a types-only crate has nothing
+    # to authorize and should not dilute the numbers.
+    scoreable = {k: v for k, v in report.items() if v["handlers"]}
+
+    if args.json:
+        print(json.dumps(report, indent=1))
+        return 0
+
+    tot_h = sum(v["handlers"] for v in scoreable.values())
+    tot_p = sum(v["permissioned"] for v in scoreable.values())
+    tot_phi = sum(v["phi_handlers"] for v in scoreable.values())
+    tot_rec = sum(v["phi_with_record_check"] for v in scoreable.values())
+    tot_col = sum(len(v["collapses"]) for v in scoreable.values())
+
+    print("AUTHORIZATION LEDGER — conformance per module\n")
+    print(f"  modules with handlers : {len(scoreable)}")
+    print(f"  handlers              : {tot_h}")
+    print(f"  permissioned          : {tot_p}  ({pct(tot_p, tot_h)}%)")
+    print(f"  PHI handlers          : {tot_phi}")
+    print(f"  …with a record check  : {tot_rec}  ({pct(tot_rec, tot_phi)}%)   <- the gap")
+    print(f"  collapsed authz calls : {tot_col}")
+
+    if args.module:
+        for name, v in sorted(report.items()):
+            print(f"\n── {name} ─────────────────────────")
+            print(f"   handlers {v['handlers']}   permissioned {v['permissioned']}"
+                  f" ({pct(v['permissioned'], v['handlers'])}%)")
+            print(f"   PHI {v['phi_handlers']}   with record check"
+                  f" {v['phi_with_record_check']} ({pct(v['phi_with_record_check'], v['phi_handlers'])}%)")
+            for c in v["collapses"]:
+                print(f"   collapse: {c}")
+        return 0
+
+    # Worst first, by the record-check gap — that is the axis with real exposure.
+    ranked = sorted(
+        (v for v in scoreable.items() if v[1]["phi_handlers"]),
+        key=lambda kv: (kv[1]["phi_with_record_check"] - kv[1]["phi_handlers"],
+                        -kv[1]["phi_handlers"]),
+    )
+    print(f"\nWorst {min(args.limit, len(ranked))} by unchecked PHI handlers:\n")
+    print(f"  {'module':<26} {'PHI':>5} {'rec':>5} {'gap':>5}   perms")
+    for name, v in ranked[: args.limit]:
+        gap = v["phi_handlers"] - v["phi_with_record_check"]
+        if gap == 0:
+            continue
+        print(f"  {name:<26} {v['phi_handlers']:>5} {v['phi_with_record_check']:>5}"
+              f" {gap:>5}   {pct(v['permissioned'], v['handlers']):>5}%")
+
+    print("\n  `--module <name>` for detail. Sweep order: medical > audits > forms > infra.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

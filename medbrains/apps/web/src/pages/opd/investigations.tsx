@@ -16,6 +16,7 @@ import {
 import { useDisclosure } from "@mantine/hooks";
 import type { OpdLabOrderFormInput } from "@medbrains/schemas";
 import { opdLabOrderFormSchema } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
 import type {
   DuplicateOrderInfo,
   LabOrder,
@@ -25,6 +26,7 @@ import type {
   PatientLabOrderRow,
   RadiologyDicomStudy,
 } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconAlertTriangle, IconEye, IconFlask, IconPlus, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -94,6 +96,12 @@ export function InvestigationsTab({
 }) {
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
+  // Prior imaging and lab detail carry their own module permissions. A
+  // refused imaging fetch left `imagingStudies` empty, and this card renders
+  // its count in a badge — so "Imaging 0" on a doctor's investigations tab
+  // would have stated that the patient has never been imaged.
+  const canViewImaging = useHasPermission(P.RADIOLOGY.ORDERS_LIST);
+  const canViewLabReport = useHasPermission(P.LAB.ORDERS_VIEW);
   const [formOpened, formHandlers] = useDisclosure(false);
   const [labDupeWarning, setLabDupeWarning] = useState<DuplicateOrderInfo[]>(NO_DUPES);
   const [dupeCheckUnavailable, setDupeCheckUnavailable] = useState(false);
@@ -134,12 +142,13 @@ export function InvestigationsTab({
   const { data: imagingStudies = [] } = useQuery<RadiologyDicomStudy[]>({
     queryKey: ["patient-dicom-studies", patientId],
     queryFn: () => opdService.getPriorRadiologyDicomStudies(patientId),
+    enabled: canViewImaging,
   });
 
   const { data: selectedLabReport, isLoading: selectedLabReportLoading } = useQuery({
     queryKey: ["lab-order-detail", selectedLabReportId],
     queryFn: () => opdService.getLabOrder(selectedLabReportId ?? ""),
-    enabled: selectedLabReportId !== null,
+    enabled: selectedLabReportId !== null && canViewLabReport,
   });
 
   const recentLabReports = patientLabOrders
@@ -398,11 +407,16 @@ export function InvestigationsTab({
                 <Text size="sm" fw={600}>
                   Imaging
                 </Text>
-                <Badge size="xs" tone="accent">
-                  {recentImagingStudies.length}
+                <Badge size="xs" tone={canViewImaging ? "accent" : "neutral"}>
+                  {canViewImaging ? recentImagingStudies.length : "—"}
                 </Badge>
               </Group>
-              {recentImagingStudies.length > 0 ? (
+              {!canViewImaging ? (
+                <Text size="sm" c="dimmed">
+                  You do not have permission to see this patient's imaging history. This is not the
+                  same as having none.
+                </Text>
+              ) : recentImagingStudies.length > 0 ? (
                 <Table striped highlightOnHover>
                   <Table.Tbody>
                     {recentImagingStudies.map((study) => (
@@ -593,9 +607,13 @@ export function InvestigationsTab({
               ))}
             </Table.Tbody>
           </Table>
-        ) : (
+        ) : canViewLabReport ? (
           <Text size="sm" c="dimmed">
             No structured result values are available for this report.
+          </Text>
+        ) : (
+          <Text size="sm" c="dimmed">
+            You do not have permission to view lab report values.
           </Text>
         )}
       </Modal>

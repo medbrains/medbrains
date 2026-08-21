@@ -23,10 +23,15 @@ import { otService } from "@/services/ot.service";
 export function AnesthesiaTab({ bookingId }: { bookingId: string }) {
   const queryClient = useQueryClient();
   const canCreate = useHasPermission(P.OT.ANESTHESIA_CREATE);
+  // The tab holds only the create code; reading the record carries its
+  // own. Refused, the fetch returns nothing and the panel below renders
+  // as though the record does not exist.
+  const canView = useHasPermission(P.OT.ANESTHESIA_LIST);
 
   const { data: record = null, isLoading } = useQuery<OtAnesthesiaRecord | null>({
     queryKey: ["ot-anesthesia", bookingId],
     queryFn: () => otService.getAnesthesiaRecord(bookingId),
+    enabled: canView,
   });
 
   const {
@@ -89,7 +94,9 @@ export function AnesthesiaTab({ bookingId }: { bookingId: string }) {
   if (!canCreate)
     return (
       <Text c="dimmed" size="sm">
-        No anesthesia record yet.
+        {canView
+          ? "No anesthesia record yet."
+          : "You do not have permission to view the anesthesia record."}
       </Text>
     );
 

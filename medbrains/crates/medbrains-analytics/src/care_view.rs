@@ -1,3 +1,28 @@
+//! ── Why the ward worklists take no record check ──
+//!
+//! Five handlers here emit patient names — `ward_patient_grid`,
+//! `vitals_checklist`, `handover_summary`, `discharge_readiness` and
+//! `my_tasks` — so the "aggregate" exemption does not apply to any of them.
+//! They are not aggregates. They are worklists, and they are correct.
+//!
+//! The four ward views take a `ward_id` and run under `care_view.view`,
+//! `care_view.handover` and `care_view.discharge_tracker`. A nurse standing at
+//! a nursing station must see every patient on that ward: the bed grid, who is
+//! due vitals, what to hand over at shift change, who is ready to go home.
+//! Scoping those to a per-patient care relationship would empty the board the
+//! ward is staffed to read — the same reason the ER board, the theatre list,
+//! the maternity register and the front-desk diary stay unscoped. The ward IS
+//! the scope.
+//!
+//! `my_tasks` is narrower still and needs no ward: it binds `claims.sub` twice
+//! — `nursing_tasks.assigned_to = $1`, and the same predicate inside the
+//! medication-due correlation — so it returns the caller's own assignments and
+//! the patients attached to them. Self-service.
+//!
+//! If a handler here is ever changed to drop the `ward_id` filter, or to accept
+//! a ward the caller has no relationship to, this note stops applying and the
+//! list needs `patient_filter`.
+
 #![allow(clippy::too_many_lines)]
 
 use axum::{
@@ -207,6 +232,15 @@ pub async fn ward_patient_grid(
     Query(params): Query<WardGridQuery>,
 ) -> Result<Json<WardGridResponse>, AppError> {
     require_permission(&claims, permissions::care_view::VIEW)?;
+    // Shift-operational, deliberately whole-ward. A care view filtered to the
+    // caller's own patients leaves gaps a nurse reads as nothing to do, which is
+    // the same failure as an empty ward reading as a fact about the ward.
+    //
+    // NOTE: unlike the ipd bed boards, this returns `patient_name`
+    // unconditionally rather than gating it on `patients.view`. Two screens over
+    // the same information with different rules is worth a decision; it is
+    // recorded here rather than changed, because tightening it silently would
+    // take names off a board nurses work from.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -272,15 +306,13 @@ pub async fn ward_patient_grid(
         )
         .bind(ward_id)
         .fetch_one(&mut *tx)
-        .await
-        .unwrap_or(0)
+        .await?
     } else {
         sqlx::query_scalar::<_, i64>(
             "SELECT COUNT(*) FROM ward_bed_mappings WHERE is_active = true",
         )
         .fetch_one(&mut *tx)
-        .await
-        .unwrap_or(0)
+        .await?
     };
 
     let occupied = i64::try_from(patients.len()).unwrap_or(0);
@@ -322,6 +354,7 @@ pub async fn my_tasks(
     Query(params): Query<MyTasksQuery>,
 ) -> Result<Json<MyTasksResponse>, AppError> {
     require_permission(&claims, permissions::care_view::MY_TASKS)?;
+    // The caller's own task list — already scoped to them by `assigned_to`.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -401,6 +434,7 @@ pub async fn vitals_checklist(
     Query(params): Query<VitalsChecklistQuery>,
 ) -> Result<Json<Vec<VitalsChecklistRow>>, AppError> {
     require_permission(&claims, permissions::care_view::VIEW)?;
+    // Shift-operational, as `ward_patient_grid` above.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -441,6 +475,7 @@ pub async fn handover_summary(
     Query(params): Query<HandoverQuery>,
 ) -> Result<Json<HandoverSummaryResponse>, AppError> {
     require_permission(&claims, permissions::care_view::HANDOVER)?;
+    // A ward handover is the whole ward by definition.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -482,8 +517,7 @@ pub async fn handover_summary(
         )
         .bind(bp.admission_id)
         .fetch_all(&mut *tx)
-        .await
-        .unwrap_or_default();
+        .await?;
 
         // Pending meds
         let pending_meds: Vec<String> = sqlx::query_scalar(
@@ -494,8 +528,7 @@ pub async fn handover_summary(
         )
         .bind(bp.admission_id)
         .fetch_all(&mut *tx)
-        .await
-        .unwrap_or_default();
+        .await?;
 
         // Active clinical docs
         let active_docs: Vec<String> = sqlx::query_scalar(
@@ -505,8 +538,7 @@ pub async fn handover_summary(
         )
         .bind(bp.admission_id)
         .fetch_all(&mut *tx)
-        .await
-        .unwrap_or_default();
+        .await?;
 
         patients.push(HandoverSummaryPatient {
             admission_id: bp.admission_id,
@@ -541,6 +573,7 @@ pub async fn discharge_readiness(
     Query(params): Query<DischargeQuery>,
 ) -> Result<Json<Vec<DischargeReadinessRow>>, AppError> {
     require_permission(&claims, permissions::care_view::DISCHARGE_TRACKER)?;
+    // Discharge planning across the house, as the boards above.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -622,6 +655,8 @@ pub async fn update_primary_nurse(
     Json(body): Json<UpdatePrimaryNurseRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::care_view::MANAGE_TASKS)?;
+    medbrains_authz_gate::require_admission_access(&state, &claims, admission_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

@@ -1095,6 +1095,20 @@ pub mod quality {
     }
 }
 
+/// Research use of clinical data, as distinct from care use of it.
+pub mod research {
+    /// Export a de-identified research dataset.
+    ///
+    /// The triage research endpoints return aggregate performance and a
+    /// 5,000-row de-identified extract — age banded, timing truncated to the
+    /// ISO week, no name and no UHID. They ran on `opd.queue.view`, which the
+    /// front desk holds to call the next patient, so anyone working a queue
+    /// could pull the hospital's research corpus. Research use is a different
+    /// act from care use even when the rows carry no direct identifier: free
+    /// text and rare combinations re-identify.
+    pub const TRIAGE_EXPORT: &str = "research.triage_export";
+}
+
 pub mod front_office {
     pub mod visitors {
         pub const LIST: &str = "front_office.visitors.list";
@@ -1327,6 +1341,113 @@ pub mod specialty {
         }
     }
 
+    /// Long-term and post-acute care — nursing-home residents, skilled
+    /// nursing facility stays, home-care referrals and the family channel.
+    ///
+    /// The whole module ran on `ipd.nursing_assessment` before this, so
+    /// recording one ward observation carried the right to read a resident's
+    /// family messages and open a skilled-nursing admission, while an LTC
+    /// coordinator could not be granted either without IPD nursing rights.
+    pub mod ltc {
+        pub mod mds {
+            /// View MDS assessments.
+            ///
+            /// The Minimum Data Set — the standardised functional, cognitive
+            /// and clinical assessment of a long-term care resident.
+            pub const LIST: &str = "specialty.ltc.mds.list";
+            /// Start an MDS assessment.
+            pub const CREATE: &str = "specialty.ltc.mds.create";
+            /// Complete an MDS assessment.
+            ///
+            /// Signs the assessment off; it drives the resident's care plan
+            /// and reimbursement category, so completing is not editing.
+            pub const COMPLETE: &str = "specialty.ltc.mds.complete";
+        }
+        pub mod medications {
+            /// View long-term medications.
+            pub const LIST: &str = "specialty.ltc.medications.list";
+            /// Add a long-term medication.
+            pub const CREATE: &str = "specialty.ltc.medications.create";
+            /// Refill or amend a long-term medication.
+            pub const UPDATE: &str = "specialty.ltc.medications.update";
+        }
+        pub mod rehab {
+            /// View rehabilitation progress.
+            pub const LIST: &str = "specialty.ltc.rehab.list";
+            /// Record rehabilitation progress.
+            pub const CREATE: &str = "specialty.ltc.rehab.create";
+        }
+        pub mod family {
+            /// View family messages.
+            ///
+            /// Correspondence between a resident's relatives and the care
+            /// team — read by families, so treated as resident-identifying.
+            pub const LIST: &str = "specialty.ltc.family.list";
+            /// Post a family message.
+            pub const CREATE: &str = "specialty.ltc.family.create";
+            /// Edit or withdraw a family message.
+            pub const UPDATE: &str = "specialty.ltc.family.update";
+        }
+        pub mod readmission {
+            /// View readmission risk assessments.
+            pub const LIST: &str = "specialty.ltc.readmission.list";
+            /// Assess readmission risk.
+            pub const CREATE: &str = "specialty.ltc.readmission.create";
+        }
+        pub mod home_care {
+            /// View home-care referrals.
+            pub const LIST: &str = "specialty.ltc.home_care.list";
+            /// Refer a resident to home care.
+            pub const CREATE: &str = "specialty.ltc.home_care.create";
+            /// Update a home-care referral.
+            pub const UPDATE: &str = "specialty.ltc.home_care.update";
+        }
+        pub mod snf {
+            /// View skilled nursing facility admissions.
+            pub const LIST: &str = "specialty.ltc.snf.list";
+            /// Admit a resident to a skilled nursing facility.
+            pub const CREATE: &str = "specialty.ltc.snf.create";
+            /// Update a skilled nursing facility admission.
+            pub const UPDATE: &str = "specialty.ltc.snf.update";
+        }
+    }
+
+    /// Clinical trials — a hospital research department's studies.
+    ///
+    /// These codes were checked as bare string literals with no definition
+    /// anywhere, so no role could hold them and `require_permission` refused
+    /// every non-bypass caller. The whole module worked for `super_admin` and
+    /// `hospital_admin` only, and no administrator could grant it, because it
+    /// never appeared in the catalogue the admin UI renders.
+    pub mod clinical_trials {
+        /// View trials and their participants.
+        pub const LIST: &str = "specialty.clinical_trials.list";
+        /// Register trials, consents, visits and adverse events.
+        pub const CREATE: &str = "specialty.clinical_trials.create";
+        /// Break a randomisation blind.
+        ///
+        /// Unblinding is a controlled act: it ends the masking for that
+        /// participant and must be justified and auditable. It was gated on
+        /// `create` — the same code as scheduling a visit.
+        pub const UNBLIND: &str = "specialty.clinical_trials.unblind";
+        /// Screen the patient population for trial candidates.
+        ///
+        /// Screening is not listing. It searches every patient in the tenant by
+        /// diagnosis code and returns their names, so running it against a
+        /// trial's ICD codes produces a named list of the people who carry that
+        /// diagnosis — the disclosure is the diagnosis, not the trial. It was
+        /// gated on `list`, which every trial user holds.
+        pub const SCREEN: &str = "specialty.clinical_trials.screen";
+    }
+
+    /// Health packages — priced bundles sold at the front desk.
+    pub mod health_packages {
+        /// View health packages.
+        pub const LIST: &str = "specialty.health_packages.list";
+        /// Create and price health packages.
+        pub const MANAGE: &str = "specialty.health_packages.manage";
+    }
+
     pub mod pmr {
         pub mod plans {
             pub const LIST: &str = "specialty.pmr.plans.list";
@@ -1382,6 +1503,21 @@ pub mod specialty {
         pub mod newborn {
             pub const LIST: &str = "specialty.maternity.newborn.list";
             pub const CREATE: &str = "specialty.maternity.newborn.create";
+        }
+        /// Postnatal records are the mother's recovery, not the baby's care.
+        /// They were reached through the newborn permission, which quietly
+        /// granted every clinician recording infant observations the right to
+        /// write the mother's postnatal chart.
+        pub mod postnatal {
+            /// View postnatal records.
+            ///
+            /// The mother's recovery after delivery — fundal height, lochia,
+            /// perineal healing, breastfeeding and mood observations.
+            pub const LIST: &str = "specialty.maternity.postnatal.list";
+            /// Record a postnatal visit.
+            ///
+            /// Adds an observation to the mother's postnatal chart.
+            pub const CREATE: &str = "specialty.maternity.postnatal.create";
         }
     }
 
@@ -1540,6 +1676,33 @@ pub mod chronic {
     }
 }
 
+/// The clinical knowledge base — drug monographs, protocols, notifiable-disease
+/// reference. Seeded clinical content, never patient data.
+///
+/// These existed only in the TypeScript catalogue, so `useRequirePermission`
+/// on `/clinical-kb` matched a code the server had never defined and redirected
+/// every non-bypass user away from the page.
+pub mod ckb {
+    /// Open the clinical knowledge base.
+    pub const VIEW: &str = "ckb.view";
+
+    pub mod reports {
+        /// List knowledge-base reports.
+        pub const LIST: &str = "ckb.reports.list";
+        /// Create and edit knowledge-base reports.
+        pub const MANAGE: &str = "ckb.reports.manage";
+    }
+}
+
+/// Remote access for staff working off-site.
+///
+/// Same story as `ckb` — `/remote-access` guarded on `vpn.enroll`, which no
+/// Rust constant defined, so the page was unreachable.
+pub mod vpn {
+    /// Enrol this device for remote access.
+    pub const ENROLL: &str = "vpn.enroll";
+}
+
 pub mod admin {
     pub mod users {
         pub const LIST: &str = "admin.users.list";
@@ -1548,6 +1711,37 @@ pub mod admin {
         pub const UPDATE: &str = "admin.users.update";
         pub const DELETE: &str = "admin.users.delete";
         pub const FORCE_LOGOUT: &str = "admin.users.force_logout";
+    }
+
+    /// Oversight of the approvals platform.
+    ///
+    /// Without this you see an approval request only if you raised it, are an
+    /// approver on it, or it is about you. That is the default because a
+    /// request names what somebody asked for — a role, a permission, leave —
+    /// and the queue is a directory of who wanted what.
+    pub mod approvals {
+        /// See every request in the tenant, not just your own.
+        pub const OVERSEE: &str = "admin.approvals.oversee";
+    }
+
+    /// Machine credentials for the API.
+    ///
+    /// Separate from `admin.users` on purpose. A key is not a user and issuing
+    /// one is not the same decision as creating a person: whoever can mint a
+    /// key can mint a credential that outlives their own account, so the grant
+    /// is its own thing rather than a side effect of user administration.
+    ///
+    /// There is no UPDATE. A key's permissions are fixed at creation — being
+    /// able to widen one silently is exactly the property the explicit
+    /// allowlist exists to prevent. Change the scope by issuing a new key and
+    /// revoking the old one, which leaves a trail.
+    pub mod api_keys {
+        pub const LIST: &str = "admin.api_keys.list";
+        pub const CREATE: &str = "admin.api_keys.create";
+        pub const REVOKE: &str = "admin.api_keys.revoke";
+        /// Reading what a key actually did — a forensic surface, so it is
+        /// grantable to an auditor who cannot mint or revoke anything.
+        pub const VIEW_USAGE: &str = "admin.api_keys.view_usage";
     }
 
     /// Sprint A: per-tenant operating mode flip (`normal/degraded/read_only`).
@@ -1594,6 +1788,17 @@ pub mod admin {
         pub const DELETE: &str = "admin.tv_displays.delete";
         pub const TOKENS: &str = "admin.tv_displays.tokens";
         pub const BROADCAST: &str = "admin.tv_displays.broadcast";
+        /// Read a queue or bed board.
+        ///
+        /// Distinct from `list`, which is the display *configuration*: this is
+        /// the board's live contents — the waiting counts, the ER acuity mix,
+        /// the bed availability and the per-department queue analytics that
+        /// drive the screens on the wall. Seven board endpoints checked nothing
+        /// at all, so any authenticated user in the tenant could read them,
+        /// while the display and token handlers beside them had been gated in
+        /// an earlier pass. Widening `list` to cover this would have handed the
+        /// boards to everyone who may edit a screen's settings.
+        pub const BOARD: &str = "admin.tv_displays.board";
     }
 
     pub mod settings {
@@ -1652,6 +1857,21 @@ pub mod admin {
         pub mod regulatory {
             pub const MANAGE: &str = "admin.settings.regulatory.manage";
         }
+
+        /// Read tenant configuration.
+        ///
+        /// Not an administrative act. This is the configuration the application
+        /// itself runs on — which vitals a ward captures, whether weights are
+        /// metric, which locale to format in — and every clinical screen reads
+        /// it on load. Reading was gated on `settings.modules.manage`, which no
+        /// role holds, so for every non-bypass user the read failed and the
+        /// screen fell back to defaults without saying so. A ward that
+        /// configured its vitals set had that configuration ignored, and a
+        /// hospital on imperial units was shown metric.
+        ///
+        /// Sensitive categories are NOT covered by this and still require
+        /// `general.manage` — see `SENSITIVE_SETTING_CATEGORIES`.
+        pub const READ: &str = "admin.settings.read";
 
         pub mod clinical_masters {
             pub const LIST: &str = "admin.settings.clinical_masters.list";
@@ -2104,5 +2324,30 @@ pub mod pharmacy_finance {
     }
     pub mod finance_reports {
         pub const VIEW: &str = "pharmacy_finance.finance_reports.view";
+    }
+}
+
+/// ABDM — Ayushman Bharat Digital Mission, India's national health-ID and
+/// facility-registry integration.
+///
+/// These four codes lived as `const … : &str` inside the route files, which
+/// meant `require_permission` compared against a string no role could ever
+/// hold: every non-bypass caller got 403, and no administrator could grant
+/// access, because the codes never reached the catalogue the admin UI renders.
+/// The frontend guarded on the same literal, so the control was hidden too.
+pub mod abdm {
+    pub mod abha {
+        /// View a patient's ABHA health ID.
+        pub const VIEW: &str = "abdm.abha.view";
+        /// Create or link a patient's ABHA health ID.
+        pub const MANAGE: &str = "abdm.abha.manage";
+    }
+    pub mod hfr {
+        /// View this facility's Health Facility Registry entry.
+        pub const VIEW: &str = "abdm.hfr.view";
+        /// Register or update the facility in the Health Facility Registry.
+        ///
+        /// A facility-level administrative act, not a clinical one.
+        pub const REGISTER: &str = "abdm.hfr.register";
     }
 }

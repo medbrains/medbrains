@@ -1,6 +1,7 @@
 import { Group, Select, Stack } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { ClinicalTrial } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconFlask2, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -26,7 +27,7 @@ function statusTone(s: string): BadgeTone {
 }
 
 export function ClinicalTrialsPage() {
-  useRequirePermission("specialty.clinical_trials.list");
+  useRequirePermission(P.SPECIALTY.CLINICAL_TRIALS.LIST);
   const qc = useQueryClient();
   const [filter, setFilter] = useState<string | null>(null);
   const [modalOpen, modal] = useDisclosure(false);

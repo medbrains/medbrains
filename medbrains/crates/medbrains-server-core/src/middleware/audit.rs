@@ -139,6 +139,15 @@ const PHI_LIST_PREFIXES: &[&str] = &[
     "/api/mrd/records",
     "/api/emergency/cases",
     "/api/billing/invoices",
+    // The access-control registers. Reading these is itself a privileged act:
+    // /api/sensitive-patients lists every VIP and restricted patient with the
+    // reason each was flagged, and /api/break-glass lists who has invoked
+    // emergency access. RFC §11 requires audit reads to be audited — privacy
+    // officers are subject to review too. The detail routes were already
+    // covered by `path_is_detail_route`; the list routes were not.
+    "/api/sensitive-patients",
+    "/api/break-glass",
+    "/api/access-alerts",
 ];
 
 fn path_is_phi_list(path: &str) -> bool {
@@ -147,14 +156,29 @@ fn path_is_phi_list(path: &str) -> bool {
         .any(|prefix| path.starts_with(prefix))
 }
 
+/// Whether the path names a specific record.
+///
+/// A UUID **anywhere** in the path, not only at the end. The rule used to look
+/// at the last segment alone, which made audit coverage positional: reading a
+/// record was logged, and reading *deeper into* the same record was not.
+///
+///     /api/patients/{uuid}                    audited
+///     /api/patients/{uuid}/documents          NOT audited
+///     /api/fhir/Patient/{uuid}/$everything    NOT audited
+///
+/// That last one returns a FHIR Bundle with a patient's entire record — the
+/// most complete export the API offers — and it escaped because its final
+/// segment is `$everything`. 158 GET routes had an id followed by a suffix and
+/// were invisible for the same reason. Sensitivity increases as you read deeper
+/// into a record, so the coverage was exactly inverted.
 fn path_is_detail_route(path: &str) -> bool {
-    let last = path.rsplit('/').next().unwrap_or("");
-    // UUID is 36 chars with dashes at fixed positions; cheap pre-filter.
-    last.len() == 36
-        && last.as_bytes()[8] == b'-'
-        && last.as_bytes()[13] == b'-'
-        && last.as_bytes()[18] == b'-'
-        && last.as_bytes()[23] == b'-'
+    path.split('/').any(segment_is_uuid)
+}
+
+/// UUID is 36 chars with dashes at fixed positions; cheap pre-filter, no alloc.
+fn segment_is_uuid(segment: &str) -> bool {
+    let b = segment.as_bytes();
+    b.len() == 36 && b[8] == b'-' && b[13] == b'-' && b[18] == b'-' && b[23] == b'-'
 }
 
 /// Wraps the per-request correlation ID. Stored in request extensions so
@@ -220,6 +244,54 @@ fn is_uuid_like(s: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use super::{path_is_detail_route, path_is_phi_list};
+
+    const UUID: &str = "3f2a1b4c-5d6e-7f80-9a1b-2c3d4e5f6071";
+
+    /// The bug this rule was rewritten for: reading deeper into a record used
+    /// to be *less* likely to be audited than reading the record itself.
+    #[test]
+    fn a_record_is_a_record_wherever_the_id_sits_in_the_path() {
+        assert!(path_is_detail_route(&format!("/api/patients/{UUID}")));
+        assert!(path_is_detail_route(&format!("/api/patients/{UUID}/documents")));
+        assert!(path_is_detail_route(&format!("/api/fhir/Patient/{UUID}/$everything")));
+        assert!(path_is_detail_route(&format!("/api/ipd/admissions/{UUID}/progress-notes")));
+    }
+
+    /// A FHIR Bundle of a patient's whole record is the most complete export
+    /// the API offers. It escaped because its final segment is `$everything`.
+    #[test]
+    fn the_whole_record_export_is_audited() {
+        assert!(path_is_detail_route(&format!("/api/fhir/Patient/{UUID}/$everything")));
+    }
+
+    /// Collection routes carry no id and are covered by the prefix list
+    /// instead — the two rules must not both claim the same paths.
+    #[test]
+    fn collection_routes_are_not_detail_routes() {
+        assert!(!path_is_detail_route("/api/patients"));
+        assert!(!path_is_detail_route("/api/ipd/admissions"));
+        assert!(path_is_phi_list("/api/patients"));
+    }
+
+    /// A segment that merely looks long must not be mistaken for an id, or
+    /// every slug-shaped path starts writing audit rows.
+    #[test]
+    fn only_real_uuid_shapes_count() {
+        assert!(!path_is_detail_route("/api/reports/a-very-long-slug-that-is-not-a-uuid"));
+        assert!(!path_is_detail_route("/api/patients/summary"));
+        // right length, dashes in the wrong places
+        assert!(!path_is_detail_route("/api/x/3f2a1b4c5d6e-7f80-9a1b-2c3d4e5f60712"));
+    }
+
+    /// The access-control registers: reading them is itself privileged.
+    #[test]
+    fn the_access_control_registers_are_audited() {
+        assert!(path_is_phi_list("/api/sensitive-patients"));
+        assert!(path_is_phi_list("/api/break-glass"));
+        assert!(path_is_phi_list("/api/access-alerts"));
+    }
+
     use super::*;
 
     #[test]

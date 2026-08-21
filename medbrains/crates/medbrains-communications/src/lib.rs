@@ -1,4 +1,24 @@
 #![allow(clippy::too_many_lines)]
+//! Clinical messaging, critical alerts, complaints and feedback.
+//!
+//! # Why the four create handlers take no record check
+//!
+//! All four write an optional or NOT NULL `patient_id` from the body. Every
+//! `communications.*.create` code is held by one role, `front_office_staff`
+//! (`crates/medbrains-core/src/access/roles.rs`).
+//!
+//! - `create_critical_alert` is critical-value escalation: the row carries an
+//!   `alert_value` and a `normal_range`. Whoever notices a critical result
+//!   raises it, and they are typically not on that patient's care team. A
+//!   care check here would drop the alert.
+//! - `create_complaint` and `create_feedback` are patient-experience intake at
+//!   the desk, often filed by a relative rather than the patient.
+//! - `create_clinical_message` carries a nullable patient because a message
+//!   between clinicians need not concern one.
+//!
+//! **What retires this:** any of these growing a read path that returns the
+//! patient's own record rather than the message about them.
+
 
 use axum::{
     Extension, Json,

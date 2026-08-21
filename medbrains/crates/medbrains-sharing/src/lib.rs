@@ -18,8 +18,8 @@
 //! middleware already handles state-changing requests, so we just
 //! need to log the relation_type / relation_expires_at fields.
 
+use axum::routing::{get, post};
 use axum::{Extension, Json, extract::State};
-use axum::routing::{get,post};
 use chrono::{DateTime, Utc};
 use medbrains_authz::{Relation, Subject};
 use medbrains_core::{
@@ -113,6 +113,10 @@ pub async fn list_subjects(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<SharingSubjectDirectory>, AppError> {
+    // Enumerates access groups, departments and roles — the tenant's whole
+    // org structure, which is what a sharing picker needs and a clerk does not.
+    require_permission(&claims, permissions::admin::roles::LIST)?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -181,13 +185,17 @@ pub async fn create_grant(
 
     if !is_admin_sharer {
         let ctx = authz_context(&claims);
-        let owns = state
-            .authz
-            .check(&ctx, Relation::Owner, &body.object_type, body.object_id)
-            .await
-            .unwrap_or(false);
-        if !owns {
-            return Err(AppError::Forbidden);
+        match medbrains_server_core::middleware::authorization::outcome_of(
+            state.authz.check(&ctx, Relation::Owner, &body.object_type, body.object_id).await,
+            &body.object_type,
+        ) {
+            medbrains_authz::decision::Outcome::Allow => {}
+            medbrains_authz::decision::Outcome::Deny => return Err(AppError::Forbidden),
+            medbrains_authz::decision::Outcome::Unknown => {
+                return Err(AppError::ServiceUnavailable(
+                    "authorization backend unavailable".to_owned(),
+                ));
+            }
         }
     }
 
@@ -269,13 +277,17 @@ pub async fn revoke_grant(
 
     if !is_admin_sharer {
         let ctx = authz_context(&claims);
-        let owns = state
-            .authz
-            .check(&ctx, Relation::Owner, &body.object_type, body.object_id)
-            .await
-            .unwrap_or(false);
-        if !owns {
-            return Err(AppError::Forbidden);
+        match medbrains_server_core::middleware::authorization::outcome_of(
+            state.authz.check(&ctx, Relation::Owner, &body.object_type, body.object_id).await,
+            &body.object_type,
+        ) {
+            medbrains_authz::decision::Outcome::Allow => {}
+            medbrains_authz::decision::Outcome::Deny => return Err(AppError::Forbidden),
+            medbrains_authz::decision::Outcome::Unknown => {
+                return Err(AppError::ServiceUnavailable(
+                    "authorization backend unavailable".to_owned(),
+                ));
+            }
         }
     }
 
@@ -319,19 +331,15 @@ pub async fn list_grants(
 ) -> Result<Json<Vec<GrantSummary>>, AppError> {
     let ctx = authz_context(&claims);
     if !ctx.is_bypass {
-        let can_view = state
-            .authz
-            .check(
-                &ctx,
-                Relation::Viewer,
+        medbrains_server_core::middleware::authorization::collapse(
+            medbrains_server_core::middleware::authorization::outcome_of(
+                state
+                    .authz
+                    .check(&ctx, Relation::Viewer, &params.object_type, params.object_id)
+                    .await,
                 &params.object_type,
-                params.object_id,
-            )
-            .await
-            .unwrap_or(false);
-        if !can_view {
-            return Err(AppError::NotFound);
-        }
+            ),
+        )?;
     }
 
     let tuples = state
@@ -392,11 +400,16 @@ pub async fn list_granted_to_me(
 
     let mut out = Vec::new();
     for t in types {
-        let visible = state
-            .authz
-            .list_accessible(&ctx, t, Relation::Viewer)
-            .await
-            .unwrap_or_default();
+        let visible = match state.authz.list_accessible(&ctx, t, Relation::Viewer).await {
+            Ok(ids) => ids,
+            Err(e) => {
+                tracing::error!(error = %e, object_type = t,
+                    "rebac: list_accessible failed; refusing rather than under-reporting shares");
+                return Err(AppError::ServiceUnavailable(
+                    "authorization backend unavailable".to_owned(),
+                ));
+            }
+        };
         for id in visible {
             out.push(GrantSummary {
                 object_type: (*t).to_owned(),
@@ -421,9 +434,7 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/sharing/subjects", get(list_subjects))
         .route(
             "/api/sharing/grants",
-            post(create_grant)
-                .delete(revoke_grant)
-                .get(list_grants),
+            post(create_grant).delete(revoke_grant).get(list_grants),
         )
         .route("/api/sharing/granted-to-me", get(list_granted_to_me))
 }

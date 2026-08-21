@@ -1,7 +1,9 @@
 // BLOOD-BANK ReportsTab — split from blood-bank.tsx (pure move).
 
 import { Divider, Paper, SegmentedControl, SimpleGrid, Stack, Text, Title } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { HemovigilanceRow, TtiReportRow } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "@/components";
@@ -16,9 +18,15 @@ const ttiStatusColors: Record<string, BadgeTone> = {
 };
 
 function TtiReportView() {
+  // TTI screening results sit behind `blood_bank.inventory.list`, and the
+  // haemovigilance report behind `blood_bank.transfusion.list`. Neither was
+  // gated, and an empty haemovigilance report reads as "no transfusion
+  // reactions" — which is exactly the number a blood bank reports to NACO.
+  const canListInventory = useHasPermission(P.BLOOD_BANK.INVENTORY_LIST);
   const { data, isLoading } = useQuery({
     queryKey: ["blood-bank", "tti-report"],
     queryFn: () => bloodBankService.getTtiReport(),
+    enabled: canListInventory,
   });
 
   const reactiveCount = useMemo(
@@ -86,9 +94,11 @@ function TtiReportView() {
 }
 
 function HemovigilanceView() {
+  const canListTransfusion = useHasPermission(P.BLOOD_BANK.TRANSFUSION_LIST);
   const { data, isLoading } = useQuery({
     queryKey: ["blood-bank", "hemovigilance"],
     queryFn: () => bloodBankService.getHemovigilanceReport(),
+    enabled: canListTransfusion,
   });
 
   const columns = [

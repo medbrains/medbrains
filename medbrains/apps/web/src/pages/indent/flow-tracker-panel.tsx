@@ -1,11 +1,13 @@
 // INDENT FlowTrackerPanel — split from indent.tsx (pure move).
 
 import { Group, Stack, Stepper, Text, TextInput, Timeline } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type {
   IndentRequisitionDetailResponse,
   PurchaseOrder,
   ResolvedSidecar,
 } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconEye } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -334,10 +336,13 @@ export function FlowTrackerPanel() {
   const [indentNumber, setIndentNumber] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // The indent page opens on indent.list; fetching one requisition needs
+  // indent.view.
+  const canViewIndent = useHasPermission(P.INDENT.VIEW);
   const detailQuery = useQuery({
     queryKey: ["indent-requisition", selectedId],
     queryFn: () => (selectedId ? indentService.getIndentRequisition(selectedId) : undefined),
-    enabled: !!selectedId,
+    enabled: !!selectedId && canViewIndent,
   });
 
   return (

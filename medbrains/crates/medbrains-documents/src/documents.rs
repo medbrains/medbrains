@@ -607,6 +607,13 @@ pub async fn generate_document(
     Json(body): Json<GenerateDocumentRequest>,
 ) -> Result<Json<DocumentOutput>, AppError> {
     require_permission(&claims, permissions::documents::GENERATE)?;
+    // documents.generate is held by seven roles — doctor, nurse, pharmacist,
+    // lab_technician, receptionist, billing_clerk and facilities_manager — and
+    // the body chooses which patient the document is rendered for. patient_id
+    // is optional because a template may render nothing patient-specific.
+    if let Some(pid) = body.patient_id {
+        medbrains_authz_gate::require_patient_access(&state, &claims, pid).await?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -804,7 +811,7 @@ pub async fn list_outputs(
     // Patient-scoped listing is a clinical read → gate on patient access. The
     // unscoped audit list is operational (documents.audit.LIST role-gated).
     if let Some(patient_id) = params.patient_id {
-        medbrains_server_core::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
+        medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     }
 
     let mut tx = state.db.begin().await?;
@@ -850,7 +857,7 @@ pub async fn get_output(
     // access (reachable via the patient's care team). Non-patient docs (tenant
     // reports etc.) stay permission-gated.
     if let Some(patient_id) = row.patient_id {
-        medbrains_server_core::authz_patient::require_patient_access(&state, &claims, patient_id).await?;
+        medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
     }
     Ok(Json(row))
 }
@@ -1090,15 +1097,21 @@ pub async fn add_output_signature(
 pub async fn delete_output_signature(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path((_output_id, sig_id)): Path<(Uuid, Uuid)>,
+    Path((output_id, sig_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::documents::GENERATE)?;
 
+    // The URL names a parent; scope the statement by it so it cannot address a
+    // child under the wrong one. Without this the parent segment is decorative
+    // and the audit row names a record the write never touched.
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    sqlx::query("DELETE FROM document_output_signatures WHERE id = $1")
+    sqlx::query(
+        "DELETE FROM document_output_signatures WHERE id = $1 AND document_output_id = $2",
+    )
         .bind(sig_id)
+        .bind(output_id)
         .execute(&mut *tx)
         .await?;
 

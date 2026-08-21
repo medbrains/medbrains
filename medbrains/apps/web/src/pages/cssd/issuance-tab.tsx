@@ -20,12 +20,16 @@ import { cssdService } from "@/services/cssd.service";
 
 export function IssuanceTab() {
   const canCreate = useHasPermission(P.CSSD.ISSUANCE_CREATE);
+  // Issuing a set is not reading the issuance log — an empty log reads as
+  // "nothing was issued to theatre".
+  const canListIssuance = useHasPermission(P.CSSD.ISSUANCE_LIST);
   const qc = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
 
   const { data: issuances = [], isLoading } = useQuery({
     queryKey: ["cssd-issuances"],
     queryFn: () => cssdService.listCssdIssuances(),
+    enabled: canListIssuance,
   });
 
   const issuanceForm = useForm<CssdIssuanceFormInput>({

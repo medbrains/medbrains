@@ -3,25 +3,25 @@ pub mod access;
 pub mod admin;
 pub mod admin_simulator;
 pub mod appointments;
-pub mod portal;
-pub mod rx_verify;
 pub mod audit;
 pub mod coverage;
 pub mod debug;
-pub mod nhcx_onboarding;
 pub mod health;
-pub use medbrains_server_core::nabh_evidence;
+pub mod nhcx_onboarding;
+pub mod portal;
+pub mod rx_verify;
+pub use medbrains_nabh as nabh_evidence;
 // scheduling routes moved to the medbrains-scheduling leaf; re-exported so
 // reports.rs (which reuses scheduling helpers) keeps resolving crate::routes::scheduling.
-pub use medbrains_scheduling::scheduling;
-pub use medbrains_telehealth::cds;
-pub use medbrains_platform::ckb;
-pub use medbrains_server_core::notifications;
 pub use medbrains_identity::sso;
-pub use medbrains_server_core::step_up;
-pub use medbrains_server_core::signed_documents;
+pub use medbrains_platform::ckb;
 pub use medbrains_print_data::billing as print_data_billing;
 pub use medbrains_print_data::clinical as print_data_clinical;
+pub use medbrains_scheduling::scheduling;
+pub use medbrains_notifications as notifications;
+pub use medbrains_signing::signed_documents;
+pub use medbrains_server_core::step_up;
+pub use medbrains_telehealth::cds;
 // order_basket reaches diet's order-creation helper via super::diet
 pub use medbrains_diet as diet;
 // opd/order_basket reach radiology order helpers via super::radiology; public viewer route too
@@ -36,12 +36,11 @@ pub use medbrains_opd as opd;
 pub use medbrains_patients as patients;
 // payment_gateway webhook routes stay in the no-auth public chain in mod.rs
 pub use medbrains_payment_gateway as payment_gateway;
-pub use medbrains_vpn as vpn;
 pub use medbrains_setup as setup;
+pub use medbrains_vpn as vpn;
 // billing/lab/pharmacy/patients/appointments reach token helpers via crate::routes::tokens
 pub use medbrains_tokens as tokens;
 pub mod orchestration;
-
 
 pub mod ws;
 
@@ -78,8 +77,8 @@ pub fn build_router(state: AppState) -> Router {
 
     // Password reset — public, shares the login limiter shape (per-IP)
     let reset_limiter = RateLimiter::new();
-    let password_reset_routes = Router::new()
-        .layer(from_fn_with_state(reset_limiter, rate_limit_middleware));
+    let password_reset_routes =
+        Router::new().layer(from_fn_with_state(reset_limiter, rate_limit_middleware));
 
     // Public routes (no auth required)
     let public = Router::new()
@@ -97,7 +96,7 @@ pub fn build_router(state: AppState) -> Router {
         // code and polling for the result are public; approving is not.
         .merge(medbrains_device_pairing::device_code_router())
         // Onboarding — public endpoints
-        .merge(medbrains_onboarding::router())
+        .merge(medbrains_onboarding::public_router())
         // Geo — public read-only endpoints
         // CMS Public API (no auth required)
         .route("/api/public/tenant-by-host", get(setup::tenant_by_host))
@@ -135,6 +134,9 @@ pub fn build_router(state: AppState) -> Router {
         // ── Sharing API (manual per-resource grants) ─────────
         .merge(medbrains_sharing::router())
         .merge(medbrains_identity::router())
+        .merge(medbrains_approvals_api::router())
+        .merge(medbrains_onboarding::router())
+        .merge(medbrains_api_keys_api::router())
         .route("/api/auth/step-up", post(step_up::step_up))
         .merge(medbrains_mfa::router())
         // Phase A.1 — offline JWT revocation feed for mobile/TV/edge
@@ -729,8 +731,12 @@ pub fn build_router(state: AppState) -> Router {
     let portal_routes = Router::new()
         .route("/api/portal/bills", get(portal::portal_bills))
         .route("/api/portal/lab-reports", get(portal::portal_lab_reports))
-        .route("/api/portal/prescriptions", get(portal::portal_prescriptions))
+        .route(
+            "/api/portal/prescriptions",
+            get(portal::portal_prescriptions),
+        )
         .route("/api/portal/appointments", get(portal::portal_appointments))
+        .route("/api/portal/entitlements", get(portal::portal_entitlements))
         .layer(from_fn_with_state(state.clone(), portal::require_patient));
 
     // ── Reminder config — protected, must run through the same auth +

@@ -2,11 +2,12 @@
 
 import { Switch } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { opdService } from "@/services/opd.service";
 
 export function OpdRegistrationPolicyToggle() {
-  const canManage = useHasPermission("admin.settings.general.manage");
+  const canManage = useHasPermission(P.ADMIN.SETTINGS.GENERAL_MANAGE);
   const queryClient = useQueryClient();
   const { data } = useQuery({
     queryKey: ["opd-registration-policy"],

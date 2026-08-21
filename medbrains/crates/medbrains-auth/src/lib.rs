@@ -5,8 +5,8 @@ use argon2::{
     password_hash::{PasswordHasher, SaltString, rand_core::OsRng},
 };
 use axum::http::HeaderMap;
-use axum::{Extension, Json, extract::State, response::IntoResponse};
 use axum::routing::{get, post};
+use axum::{Extension, Json, extract::State, response::IntoResponse};
 use axum_extra::extract::CookieJar;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -224,10 +224,16 @@ pub async fn login(
     Json(body): Json<LoginRequest>,
 ) -> Result<axum::response::Response, AppError> {
     // Find user by username (across all tenants — login does not require tenant context)
+    //
+    // Service accounts are excluded in the query rather than checked after, so
+    // the caller gets the same `Unauthorized` as for a username that does not
+    // exist. Rejecting them later would answer "this name is a real account"
+    // to anyone probing, and the reply for a NULL password_hash below —
+    // "please use SSO" — would be both a disclosure and a lie.
     let row = sqlx::query!(
         "SELECT id, tenant_id, username, email, password_hash, full_name, \
          role::text AS \"role!\", is_active, perm_version \
-         FROM users WHERE username = $1",
+         FROM users WHERE username = $1 AND is_service_account = false",
         body.username
     )
     .fetch_optional(&state.db)
@@ -861,8 +867,7 @@ pub async fn logout_all(
 
     // A full session cut-off must sever every channel: revoke the target's VPN
     // devices too (best-effort — a VPN/Headscale hiccup must not fail logout).
-    if let Err(e) =
-        medbrains_vpn::revoke_user_devices(&state, claims.tenant_id, target_user).await
+    if let Err(e) = medbrains_vpn::revoke_user_devices(&state, claims.tenant_id, target_user).await
     {
         tracing::warn!(error = %e, user = %target_user, "logout-all: VPN device revoke failed");
     }
@@ -942,11 +947,10 @@ pub async fn me(
         .bind(row.id)
         .fetch_one(&state.db)
         .await?;
-    let email_verified: bool =
-        sqlx::query_scalar("SELECT email_verified FROM users WHERE id = $1")
-            .bind(row.id)
-            .fetch_one(&state.db)
-            .await?;
+    let email_verified: bool = sqlx::query_scalar("SELECT email_verified FROM users WHERE id = $1")
+        .bind(row.id)
+        .fetch_one(&state.db)
+        .await?;
     let mfa_enrollment_required = !mfa_enabled
         && medbrains_mfa::mfa_required_for_role(&state.db, row.tenant_id, &row.role).await?;
 
@@ -983,7 +987,11 @@ pub async fn change_password(
     Json(body): Json<ChangePasswordRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let mut errors = medbrains_server_core::validation::ValidationErrors::new();
-    medbrains_server_core::validation::validate_password(&mut errors, "new_password", &body.new_password);
+    medbrains_server_core::validation::validate_password(
+        &mut errors,
+        "new_password",
+        &body.new_password,
+    );
     if errors.has_errors() {
         return Err(AppError::ValidationFailed(errors));
     }
@@ -1005,8 +1013,7 @@ pub async fn change_password(
     // to change, which is a different answer from "no such user".
     let Some(ref current_hash) = current_hash else {
         return Err(AppError::BadRequest(
-            "This account signs in with single sign-on and has no password to change."
-                .to_owned(),
+            "This account signs in with single sign-on and has no password to change.".to_owned(),
         ));
     };
 
@@ -1098,7 +1105,11 @@ pub async fn request_password_reset(
     }));
 
     let Some((user_id, tenant_id, phone)) = sqlx::query_as::<_, (Uuid, Uuid, Option<String>)>(
-        "SELECT id, tenant_id, phone FROM users WHERE username = $1 AND is_active = true",
+        // Service accounts cannot receive a one-time code: they have no person
+        // behind them to receive it, and offering the route would make a machine
+        // identity reachable by anyone who can read its phone column.
+        "SELECT id, tenant_id, phone FROM users WHERE username = $1 AND is_active = true \
+         AND is_service_account = false",
     )
     .bind(&body.username)
     .fetch_optional(&state.db)
@@ -1180,7 +1191,9 @@ pub async fn confirm_password_reset(
     }
 
     let Some((user_id, tenant_id)) = sqlx::query_as::<_, (Uuid, Uuid)>(
-        "SELECT id, tenant_id FROM users WHERE username = $1 AND is_active = true",
+        // Same reasoning as the code-request path above.
+        "SELECT id, tenant_id FROM users WHERE username = $1 AND is_active = true \
+         AND is_service_account = false",
     )
     .bind(&body.username)
     .fetch_optional(&state.db)
@@ -1391,6 +1404,13 @@ pub async fn list_revocations(
     Extension(claims): Extension<Claims>,
     axum::extract::Query(q): axum::extract::Query<RevocationsQuery>,
 ) -> Result<Json<RevocationsResponse>, AppError> {
+    // A tenant-wide list of whose tokens were revoked, which is a staff
+    // directory with a security overlay.
+    medbrains_server_core::middleware::authorization::require_permission(
+        &claims,
+        medbrains_core::permissions::admin::users::LIST,
+    )?;
+
     let since = q
         .since
         .unwrap_or_else(|| DateTime::<Utc>::from_timestamp(0, 0).unwrap_or_default());

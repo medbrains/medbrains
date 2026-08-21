@@ -15,13 +15,13 @@ use serde_json::{Map, Value};
 use sqlx::FromRow;
 use uuid::Uuid;
 
+use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::{
     error::AppError,
     middleware::{
         auth::Claims,
         authorization::{is_bypass_role, require_permission},
     },
-    notifications::{NewNotification, create_notification},
     state::AppState,
 };
 

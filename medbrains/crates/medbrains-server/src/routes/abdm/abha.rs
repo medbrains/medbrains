@@ -20,8 +20,6 @@ use crate::{
     state::AppState,
 };
 
-const ABDM_ABHA_VIEW: &str = "abdm.abha.view";
-const ABDM_ABHA_MANAGE: &str = "abdm.abha.manage";
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -70,7 +68,7 @@ pub async fn status(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<AbhaStatusResponse>, AppError> {
-    require_permission(&claims, ABDM_ABHA_VIEW)?;
+    require_permission(&claims, medbrains_core::permissions::abdm::abha::VIEW)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let config = read_abdm_config(&mut tx, &claims.tenant_id).await.ok();
@@ -97,7 +95,7 @@ pub async fn create_session(
     Extension(claims): Extension<Claims>,
     Json(body): Json<AbhaSessionRequest>,
 ) -> Result<Json<AbhaProviderResponse<SessionTokenResponse>>, AppError> {
-    require_permission(&claims, ABDM_ABHA_MANAGE)?;
+    require_permission(&claims, medbrains_core::permissions::abdm::abha::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let config = read_abdm_config(&mut tx, &claims.tenant_id).await?;
@@ -121,7 +119,7 @@ pub async fn public_certificate(
     Extension(claims): Extension<Claims>,
     Json(body): Json<AbhaPublicCertificateRequest>,
 ) -> Result<Json<AbhaProviderResponse<PublicCertificateResponse>>, AppError> {
-    require_permission(&claims, ABDM_ABHA_VIEW)?;
+    require_permission(&claims, medbrains_core::permissions::abdm::abha::VIEW)?;
     let environment = body.environment.unwrap_or(AbdmEnvironment::Sandbox);
     let context = request_context(body.access_token);
     let response = client_for(&environment)
@@ -137,7 +135,7 @@ pub async fn request_login_otp(
     Extension(claims): Extension<Claims>,
     Json(body): Json<AbhaAuthenticatedRequest<RequestOtpRequest>>,
 ) -> Result<Json<AbhaProviderResponse<RequestOtpResponse>>, AppError> {
-    require_permission(&claims, ABDM_ABHA_MANAGE)?;
+    require_permission(&claims, medbrains_core::permissions::abdm::abha::MANAGE)?;
     let environment = body.environment.unwrap_or(AbdmEnvironment::Sandbox);
     let context = request_context(body.access_token);
     let response = client_for(&environment)
@@ -153,7 +151,7 @@ pub async fn verify_login_otp(
     Extension(claims): Extension<Claims>,
     Json(body): Json<AbhaAuthenticatedRequest<VerifyOtpRequest>>,
 ) -> Result<Json<AbhaProviderResponse<VerifyOtpResponse>>, AppError> {
-    require_permission(&claims, ABDM_ABHA_MANAGE)?;
+    require_permission(&claims, medbrains_core::permissions::abdm::abha::MANAGE)?;
     let environment = body.environment.unwrap_or(AbdmEnvironment::Sandbox);
     let context = request_context(body.access_token);
     let response = client_for(&environment)

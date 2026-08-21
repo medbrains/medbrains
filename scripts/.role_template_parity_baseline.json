@@ -1,47 +1,134 @@
 {
+  "ambulance_driver": {
+    "missing_from_template": 0,
+    "template_only": []
+  },
   "audit_officer": {
-    "missing_from_template": 24,
+    "missing_from_template": 0,
     "template_only": []
   },
   "billing_clerk": {
-    "missing_from_template": 21,
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "biomed_engineer": {
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "blood_bank_tech": {
+    "missing_from_template": 0,
     "template_only": []
   },
   "camp_coordinator": {
     "missing_from_template": 0,
     "template_only": []
   },
+  "canteen_staff": {
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "case_manager": {
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "cssd_technician": {
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "dietitian": {
+    "missing_from_template": 0,
+    "template_only": []
+  },
   "doctor": {
-    "missing_from_template": 66,
-    "template_only": [
-      "specialty.palliative.dnr.manage"
-    ]
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "facilities_manager": {
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "front_office_staff": {
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "hospital_admin": {
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "housekeeping_staff": {
+    "missing_from_template": 0,
+    "template_only": []
   },
   "hr_officer": {
     "missing_from_template": 0,
-    "template_only": [
-      "hr.leave.create",
-      "hr.on_call.list",
-      "hr.roster.list",
-      "hr.training.list"
-    ]
+    "template_only": []
+  },
+  "infection_control_officer": {
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "insurance_officer": {
+    "missing_from_template": 0,
+    "template_only": []
   },
   "lab_technician": {
-    "missing_from_template": 12,
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "mrd_officer": {
+    "missing_from_template": 0,
     "template_only": []
   },
   "nurse": {
-    "missing_from_template": 28,
-    "template_only": [
-      "specialty.endoscopy.scopes.list"
-    ]
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "occ_health_officer": {
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "ot_staff": {
+    "missing_from_template": 0,
+    "template_only": []
   },
   "pharmacist": {
-    "missing_from_template": 40,
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "procurement_officer": {
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "quality_officer": {
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "radiology_tech": {
+    "missing_from_template": 0,
     "template_only": []
   },
   "receptionist": {
-    "missing_from_template": 10,
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "scheduling_admin": {
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "security_guard": {
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "store_keeper": {
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "super_admin": {
+    "missing_from_template": 0,
+    "template_only": []
+  },
+  "utilization_reviewer": {
+    "missing_from_template": 0,
     "template_only": []
   }
 }

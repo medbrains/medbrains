@@ -20,25 +20,29 @@ variable "environment" {
   default = "dev"
 }
 
-# Tags + provider config from shared/
-# (terraform doesn't allow `include` — we symlink or copy at apply time;
-# Phase 4.2 follow-up adds a tiny shell wrapper in Makefile.)
+# Tags + provider config: providers.tf / tags.tf are symlinks to shared/
+# (terraform reads all .tf in the dir, following symlinks). Gives the aws
+# provider + default_tags for cost allocation.
 
 # ── Stack composition ─────────────────────────────────────────────────
+
+data "aws_caller_identity" "current" {}
 
 module "kms" {
   source      = "../../../../modules/kms"
   region      = var.region
   environment = var.environment
+  account_id  = data.aws_caller_identity.current.account_id
 }
 
 module "vpc" {
   source      = "../../../../modules/vpc"
   region      = var.region
   environment = var.environment
+  # dev cost savings: one NAT, no per-AZ interface endpoints (~$195/mo).
+  single_nat_gateway         = true
+  enable_interface_endpoints = false
 }
-
-data "aws_caller_identity" "current" {}
 
 module "s3" {
   source               = "../../../../modules/s3"
@@ -69,7 +73,7 @@ module "aurora" {
   vpc_id        = module.vpc.vpc_id
   db_subnet_ids = module.vpc.db_subnet_ids
   kms_key_arn   = module.kms.key_arns.db
-  min_acu       = 0.5
+  min_acu       = 0 # dev — scale-to-zero when idle ($0/hr; ~5-15s cold start)
   max_acu       = 4 # dev — small ceiling
 }
 

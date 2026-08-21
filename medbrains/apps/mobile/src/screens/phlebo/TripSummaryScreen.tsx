@@ -1,5 +1,6 @@
-import { useAuthStore } from "@medbrains/stores";
+import { useAuthStore, useHasPermission } from "@medbrains/stores";
 import type { LabHomeCollection } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
@@ -32,6 +33,7 @@ interface TripSummaryScreenProps {
 }
 
 export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
+  const canListCollections = useHasPermission(P.LAB.SAMPLES_LIST);
   const theme = useTheme();
   const { user } = useAuthStore();
 
@@ -51,7 +53,9 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
       }
       return phlebotomyService.listHomeCollections(params);
     },
-    enabled: Boolean(user?.id),
+    // Do not fetch what this user may not see — hiding it after
+    // the fetch still leaves it in the response and in devtools.
+    enabled: Boolean(user?.id) && canListCollections,
   });
 
   const collections: LabHomeCollection[] = data || [];

@@ -34,7 +34,7 @@ use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::{is_bypass_role, require_any_permission, require_permission};
 use medbrains_server_core::middleware::field_access;
-use medbrains_server_core::notifications::{NewNotification, create_notification};
+use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::state::AppState;
 use medbrains_core::form::FieldAccessLevel;
 
@@ -1666,15 +1666,16 @@ pub async fn list_orders(
         None
     } else {
         Some(
-            state
-                .authz
-                .list_accessible(
-                    &authz_ctx,
-                    "pharmacy_order",
-                    medbrains_authz::Relation::Viewer,
-                )
-                .await
-                .unwrap_or_default(),
+            match state.authz.list_accessible(&authz_ctx, "pharmacy_order", medbrains_authz::Relation::Viewer,).await {
+            Ok(ids) => ids,
+            Err(e) => {
+                tracing::error!(error = %e, object_type = "pharmacy_order",
+                    "rebac: list_accessible failed; refusing rather than showing an empty list");
+                return Err(AppError::ServiceUnavailable(
+                    "authorization backend unavailable".to_owned(),
+                ));
+            }
+        },
         )
     };
 
@@ -2297,19 +2298,12 @@ pub async fn get_order(
 
     // ── ReBAC pre-check — must hold `view` on the pharmacy_order ─
     let authz_ctx = medbrains_server_core::middleware::authorization::authz_context(&claims);
-    let allowed = state
-        .authz
-        .check(
-            &authz_ctx,
-            medbrains_authz::Relation::Viewer,
+    medbrains_server_core::middleware::authorization::collapse(
+        medbrains_server_core::middleware::authorization::outcome_of(
+            state.authz.check(&authz_ctx, medbrains_authz::Relation::Viewer, "pharmacy_order", id,).await,
             "pharmacy_order",
-            id,
-        )
-        .await
-        .unwrap_or(false);
-    if !allowed {
-        return Err(AppError::NotFound);
-    }
+        ),
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3045,7 +3039,7 @@ pub async fn dispense_order(
 
     // Post-commit: the pharmacy board shows what is ready for handover, so a
     // dispensed order should leave it immediately rather than on the next poll.
-    medbrains_server_core::notifications::publish_surface_board_signal(
+    medbrains_notifications::publish_surface_board_signal(
         &state,
         claims.tenant_id,
         "pharmacy",
@@ -3480,6 +3474,12 @@ pub async fn create_otc_sale(
     Json(body): Json<OtcSaleRequest>,
 ) -> Result<Json<OrderDetailResponse>, AppError> {
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
+    // Optional by design: an over-the-counter sale to a walk-in customer has
+    // no patient at all. Attached to one, it becomes a dispensing record on
+    // their chart, so only that branch is gated.
+    if let Some(patient_id) = body.patient_id {
+        medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    }
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     if body.items.is_empty() {
@@ -3625,6 +3625,11 @@ pub async fn create_discharge_dispensing(
     Json(body): Json<DischargeMedsRequest>,
 ) -> Result<Json<OrderDetailResponse>, AppError> {
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
+    // Discharge medicines are dispensed TO a named patient — the body names
+    // them, and `pharmacy.dispensing.create` says only that the caller may
+    // dispense.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     if body.items.is_empty() {
@@ -5222,6 +5227,9 @@ pub async fn create_return_batch(
     Json(body): Json<CreateReturnBatchRequest>,
 ) -> Result<Json<Vec<PharmacyReturn>>, AppError> {
     require_permission(&claims, permissions::pharmacy::returns::REQUEST)?;
+    // A return is recorded against the patient who was dispensed to.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     if body.items.is_empty() {
         return Err(AppError::BadRequest(
@@ -5671,6 +5679,10 @@ pub async fn check_drug_interactions(
             permissions::pharmacy::rx_queue::REVIEW,
         ],
     )?;
+    // Interaction checking reads this patient's active medication list to
+    // compare against. The patient came from the body.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6446,6 +6458,11 @@ pub async fn check_patient_allergies(
     Json(body): Json<AllergyCheckRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::pharmacy::safety::VIEW)?;
+    // The body names the patient and the answer is their ALLERGY list —
+    // allergen, type, severity, reaction. `pharmacy.safety.view` said the
+    // caller may run safety checks, not whose record they may read.
+    medbrains_authz_gate::require_patient_access(&state, &claims, body.patient_id)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -6541,6 +6558,11 @@ pub async fn create_pos_sale(
     Json(body): Json<CreatePosSaleRequest>,
 ) -> Result<Json<PharmacyPosSale>, AppError> {
     require_permission(&claims, permissions::pharmacy::pos::CREATE)?;
+    // As with OTC — a counter sale may have no patient. Named, it lands on
+    // that patient's record.
+    if let Some(patient_id) = body.patient_id {
+        medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+    }
     let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
     validate_pos_sale_field_access(&body, &restricted_fields)?;
 

@@ -77,9 +77,14 @@ export function CareViewPage() {
   const [selectedWard, setSelectedWard] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string | null>("grid");
 
+  // care_view.view opens the dashboard; the ward list is served under the IPD
+  // codes. Refused, wardOptions collapses to just "All Wards" and the nursing
+  // dashboard's ward picker reads as a hospital with no wards.
+  const canListWards = useHasPermission(P.IPD.BED_DASHBOARD_VIEW);
   const { data: wards } = useQuery<WardListRow[]>({
     queryKey: ["wards"],
     queryFn: () => careViewService.listWards(),
+    enabled: canListWards,
   });
 
   const wardOptions = [

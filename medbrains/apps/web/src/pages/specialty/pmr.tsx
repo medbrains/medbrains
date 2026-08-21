@@ -46,6 +46,11 @@ export function PmrPage() {
   useRequirePermission(P.SPECIALTY.PMR.PLANS_LIST);
   const qc = useQueryClient();
   const canPlan = useHasPermission(P.SPECIALTY.PMR.PLANS_CREATE);
+  // Recording a session is its own code; the tab held only the plan one.
+  const canRecordSession = useHasPermission(P.SPECIALTY.PMR.SESSIONS_CREATE);
+  // Sessions are a separate read from plans, with their own code. An empty
+  // session list reads as "this patient has attended no rehab".
+  const canListSessions = useHasPermission(P.SPECIALTY.PMR.SESSIONS_LIST);
 
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [tab, setTab] = useState<string | null>("plans");
@@ -60,7 +65,7 @@ export function PmrPage() {
   const { data: sessions = [] } = useQuery({
     queryKey: ["rehab-sessions", selectedPlanId],
     queryFn: () => specialtyService.listRehabSessions(selectedPlanId ?? ""),
-    enabled: !!selectedPlanId,
+    enabled: !!selectedPlanId && canListSessions,
   });
   const { data: audioTests = [] } = useQuery({
     queryKey: ["audiology-tests"],
@@ -102,6 +107,9 @@ export function PmrPage() {
   });
 
   const openSession = () => {
+    if (!canRecordSession) {
+      return;
+    }
     setSessionForm(blankSession());
     sessionHandlers.open();
   };

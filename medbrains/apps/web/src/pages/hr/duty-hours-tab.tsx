@@ -1,7 +1,9 @@
 // HR DutyHoursTab — split from hr.tsx (pure move).
 
 import { Group, Stack, Text } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { DutyHoursRow } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { DataTable } from "@/components";
 import { Badge } from "@/components/ui";
@@ -14,9 +16,14 @@ const FATIGUE_FLAG_LABEL: Record<string, string> = {
 };
 
 export function DutyHoursTab() {
+  // Duty hours are attendance data. An empty roster reads as "nobody worked",
+  // which on a duty-hours screen is the number a fatigue rule is checked against.
+  const canListAttendance = useHasPermission(P.HR.ATTENDANCE_LIST);
+
   const { data = [], isLoading } = useQuery({
     queryKey: ["hr-duty-hours"],
     queryFn: () => hrService.listDutyHours(),
+    enabled: canListAttendance,
   });
 
   const columns = [

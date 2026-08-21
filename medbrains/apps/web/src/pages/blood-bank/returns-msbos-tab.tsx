@@ -30,6 +30,8 @@ export function ReturnsAndMsbosTab() {
   const qc = useQueryClient();
   const canManage = useHasPermission(P.BLOOD_BANK.INVENTORY_MANAGE);
   const canCreateXm = useHasPermission(P.BLOOD_BANK.CROSSMATCH_CREATE);
+  // The MSBOS schedule is read under the crossmatch list code, not the create.
+  const canListCrossmatch = useHasPermission(P.BLOOD_BANK.CROSSMATCH_LIST);
   const [returnOpen, { open: openReturn, close: closeReturn }] = useDisclosure(false);
   const [msbosOpen, { open: openMsbos, close: closeMsbos }] = useDisclosure(false);
   const [returnView, setReturnView] = useState("returns");
@@ -37,6 +39,7 @@ export function ReturnsAndMsbosTab() {
   const { data: msbos, isLoading: msbosLoading } = useQuery({
     queryKey: ["blood-bank", "msbos"],
     queryFn: () => bloodBankService.listBbMsbos(),
+    enabled: canListCrossmatch,
   });
 
   const [returnComponentId, setReturnComponentId] = useState("");

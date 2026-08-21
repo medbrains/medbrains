@@ -2,6 +2,7 @@ import { Card, Group, Stack, Text } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { MdsAssessment } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconPlus, IconReportMedical } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -20,8 +21,12 @@ import { RehabPanel } from "./long-term-care/rehab-panel";
 import { SnfPanel } from "./long-term-care/snf-panel";
 
 export function LongTermCarePage() {
-  useRequirePermission("ipd.nursing_assessment.list");
-  const canManage = useHasPermission("ipd.nursing_assessment.create");
+  useRequirePermission(P.SPECIALTY.LTC.MDS_LIST);
+  // One `canManage` flag used to drive the create control on all six panels,
+  // so the family-message button was gated on whatever MDS needed. Each panel
+  // now resolves its own; the page keeps only the two MDS ones.
+  const canCreateMds = useHasPermission(P.SPECIALTY.LTC.MDS_CREATE);
+  const canCompleteMds = useHasPermission(P.SPECIALTY.LTC.MDS_COMPLETE);
   const qc = useQueryClient();
   const [patientId, setPatientId] = useState("");
   const [modalOpen, modal] = useDisclosure(false);
@@ -64,7 +69,7 @@ export function LongTermCarePage() {
       key: "actions",
       label: "",
       render: (r) =>
-        canManage && r.status === "draft" ? (
+        canCompleteMds && r.status === "draft" ? (
           <Button
             size="xs"
             tone="primary"
@@ -86,7 +91,7 @@ export function LongTermCarePage() {
       />
       <Group align="flex-end" gap="sm">
         <PatientSearchSelect value={patientId} onChange={setPatientId} />
-        {patientId && canManage && (
+        {patientId && canCreateMds && (
           <Button leftSection={<IconPlus size={16} />} onClick={modal.open}>
             New MDS assessment
           </Button>
@@ -105,32 +110,32 @@ export function LongTermCarePage() {
       )}
       {patientId && (
         <Card withBorder padding="md">
-          <LtcMedicationsPanel patientId={patientId} canManage={canManage} />
+          <LtcMedicationsPanel patientId={patientId} />
         </Card>
       )}
       {patientId && (
         <Card withBorder padding="md">
-          <RehabPanel patientId={patientId} canManage={canManage} />
+          <RehabPanel patientId={patientId} />
         </Card>
       )}
       {patientId && (
         <Card withBorder padding="md">
-          <ReadmissionRiskPanel patientId={patientId} canManage={canManage} />
+          <ReadmissionRiskPanel patientId={patientId} />
         </Card>
       )}
       {patientId && (
         <Card withBorder padding="md">
-          <SnfPanel patientId={patientId} canManage={canManage} />
+          <SnfPanel patientId={patientId} />
         </Card>
       )}
       {patientId && (
         <Card withBorder padding="md">
-          <ReferralPanel patientId={patientId} canManage={canManage} />
+          <ReferralPanel patientId={patientId} />
         </Card>
       )}
       {patientId && (
         <Card withBorder padding="md">
-          <FamilyPanel patientId={patientId} canManage={canManage} />
+          <FamilyPanel patientId={patientId} />
         </Card>
       )}
       {patientId && (

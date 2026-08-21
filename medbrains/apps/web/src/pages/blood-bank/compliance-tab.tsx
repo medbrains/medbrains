@@ -74,11 +74,15 @@ function lookbackStatusTone(status: string): BadgeTone {
 function LookbackSection() {
   const qc = useQueryClient();
   const canCreate = useHasPermission(P.BLOOD_BANK.TRANSFUSION_CREATE);
+  // Look-back is the trace of who received blood from a donor later found
+  // reactive. An empty look-back reads as "nobody was exposed".
+  const canListTransfusions = useHasPermission(P.BLOOD_BANK.TRANSFUSION_LIST);
   const [createOpen, { open: openCreate, close: closeCreate }] = useDisclosure(false);
 
   const { data: events, isLoading } = useQuery({
     queryKey: ["blood-bank", "lookback"],
     queryFn: () => bloodBankService.listBbLookback(),
+    enabled: canListTransfusions,
   });
 
   const [infectionType, setInfectionType] = useState("");

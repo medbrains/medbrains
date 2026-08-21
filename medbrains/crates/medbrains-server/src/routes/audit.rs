@@ -1,3 +1,25 @@
+//! Audit trail and access log.
+//!
+//! # Why the access-log reads take no record check
+//!
+//! `list_access_log` and `patient_access_log` both emit patient names, and
+//! `patient_access_log` takes a patient id straight from the path. Neither
+//! calls `require_patient_access`, deliberately.
+//!
+//! An access log exists to show who reached a record they should not have.
+//! Requiring a care relationship before the privacy officer may read it would
+//! mean the only accesses reviewable are the ones already authorized — the
+//! improper access is exactly the entry a care-relationship check would hide.
+//!
+//! `audit.access_view` is held by one role, `audit_officer`, and by nothing
+//! else (`crates/medbrains-core/src/access/roles.rs`); `doctor` and `nurse`
+//! hold only `audit.start`. So the exemption is bounded by a code that means
+//! oversight and not care.
+//!
+//! **What would retire it:** granting `audit.access_view` to a clinical role.
+//! At that point the log needs its own scoping, because a clinician reading
+//! who has looked at a patient is reading a fact about the patient.
+
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -144,7 +166,7 @@ pub async fn audit_stats(
 
     let today = sqlx::query_as::<_, CountRow>(
         "SELECT COUNT(*)::bigint AS count FROM audit_log \
-         WHERE created_at::date = CURRENT_DATE",
+         WHERE (created_at >= CURRENT_DATE AND created_at < CURRENT_DATE + 1)",
     )
     .fetch_one(&mut *tx)
     .await?;
