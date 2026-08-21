@@ -2,6 +2,9 @@
 resolver = "2"
 members = [
     "crates/medbrains-server",
+    "crates/medbrains-automation",
+    "crates/medbrains-automation-store",
+    "crates/medbrains-automation-api",
     "crates/medbrains-core",
     "crates/medbrains-authz-gate",
     "crates/medbrains-nabh",

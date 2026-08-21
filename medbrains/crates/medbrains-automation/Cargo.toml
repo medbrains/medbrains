@@ -1,0 +1,34 @@
+[package]
+name = "medbrains-automation"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+# Workflow automation for MedBrains, built on the r8r engine.
+#
+# This crate owns the rules that make a general-purpose automation engine safe
+# to run inside a hospital system: which authority a workflow acts with, what it
+# is allowed to reach, and how it stays isolated from the clinical schema. It
+# knows nothing about axum or about storage — those are the -api and -store
+# crates, which is what lets these rules be tested without either.
+#
+# r8r is a separate project with its own repository, tests and release cadence,
+# consumed here as a package. It sits beside this workspace as a submodule, so
+# the version in use is a commit somebody chose rather than whatever happens to
+# be on a colleague's disk.
+[dependencies]
+r8r-workflow = { path = "../../../r8r/crates/workflow" }
+r8r-core = { path = "../../../r8r/crates/core" }
+r8r-nodes-base = { path = "../../../r8r/crates/nodes-base" }
+
+medbrains-core = { path = "../medbrains-core" }
+async-trait = "0.1"
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

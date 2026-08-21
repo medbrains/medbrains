@@ -30,3 +30,12 @@ __pycache__/
 # 441MB of node_modules plus scan findings. Its own .gitignore reads as if the
 # directory were meant to be tracked; it is not. Decided 2026-08-16.
 medbrains/.deepsec/
+
+# r8r — the workflow automation engine, developed alongside this repository but
+# released on its own cadence. It is deliberately not part of this repo's
+# history: a change there must not be able to reach the hospital without
+# somebody choosing a version.
+#
+# Once it has a remote, replace this ignore with the pinned pointer:
+#   git rm -r --cached r8r && git submodule add https://github.com/DomnicAmalan/r8r.git r8r
+/r8r/

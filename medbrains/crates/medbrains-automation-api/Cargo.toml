@@ -1,0 +1,28 @@
+[package]
+name = "medbrains-automation-api"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+# The HTTP surface for workflow automation.
+#
+# One router, mounted two ways: nested into the MedBrains server under
+# /api/automation, or served on its own port by medbrains-automation-server.
+# The handlers cannot tell which, because the tenant and the authority reach
+# them the same way either way.
+[dependencies]
+medbrains-automation = { path = "../medbrains-automation" }
+medbrains-automation-store = { path = "../medbrains-automation-store" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-db = { path = "../medbrains-db" }
+axum = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true

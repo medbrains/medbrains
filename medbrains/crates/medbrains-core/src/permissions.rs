@@ -29,6 +29,19 @@ pub mod dashboard {
     pub const VIEW: &str = "dashboard.view";
 }
 
+/// Workflow automation.
+///
+/// `ACTIVATE` is separate from `MANAGE` on purpose: building a workflow is
+/// harmless, and arming one is the moment it gains the authority to act on its
+/// own. Whoever activates it lends it their permissions, so that is the step
+/// worth gating separately.
+pub mod automation {
+    pub const VIEW: &str = "automation.view";
+    pub const MANAGE: &str = "automation.manage";
+    pub const ACTIVATE: &str = "automation.activate";
+    pub const RUN: &str = "automation.run";
+}
+
 pub mod patients {
     pub const LIST: &str = "patients.list";
     pub const VIEW: &str = "patients.view";

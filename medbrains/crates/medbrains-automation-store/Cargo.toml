@@ -1,0 +1,25 @@
+[package]
+name = "medbrains-automation-store"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+# Persistence for workflow automation.
+#
+# Everything here is tenant-scoped and goes through the same RLS context the
+# clinical tables use, so a query that forgets its tenant returns nothing
+# rather than another hospital's workflows.
+[dependencies]
+medbrains-automation = { path = "../medbrains-automation" }
+medbrains-db = { path = "../medbrains-db" }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+
+[lints]
+workspace = true
