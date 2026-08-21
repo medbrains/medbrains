@@ -349,6 +349,9 @@ authz-ledger: ## Report authorization conformance per module (4 axes)
 check-parent-id-scoping: ## Ban nested routes that discard their parent id
 	python3 scripts/check_parent_id_scoping.py
 
+check-marketing-wall: ## Keep clinical data out of the mkt_* schema
+	python3 scripts/check_marketing_wall.py
+
 check-patient-filter-bind: ## Ban a uuid[] patient predicate with no permitted set bound to it
 	python3 scripts/check_patient_filter_bind.py
 

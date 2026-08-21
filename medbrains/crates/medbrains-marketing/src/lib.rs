@@ -38,6 +38,7 @@
 
 pub mod audit;
 pub mod campaigns;
+pub mod cohorts;
 pub mod contacts;
 pub mod interactions;
 pub mod phone;
@@ -85,6 +86,15 @@ pub fn router() -> Router<AppState> {
             "/api/marketing/reports/enquiry-audit",
             get(audit::enquiry_audit),
         )
+        .route(
+            "/api/marketing/cohorts",
+            get(cohorts::list_cohorts).post(cohorts::create_enquiry_cohort),
+        )
+        .route(
+            "/api/marketing/cohorts/clinical",
+            post(cohorts::create_clinical_cohort),
+        )
+        .route("/api/marketing/cohorts/{id}/size", get(cohorts::cohort_size))
         .route("/api/marketing/stages", get(pipeline::list_stages))
         .route(
             "/api/marketing/telephony/calls",
