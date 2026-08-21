@@ -196,6 +196,24 @@ pub async fn run(
     // it and removed with it.
     let execution_id = Uuid::new_v4();
     let started_at = chrono::Utc::now();
+
+    // Written down before the run, so a run that never finishes still leaves a
+    // record. Without it a crash mid-run is invisible: the workflow ran, may
+    // have written to the hospital, and the history shows nothing.
+    executions::open(
+        &state.pool,
+        &executions::Opening {
+            id: execution_id,
+            tenant_id: claims.tenant_id,
+            workflow_id: id,
+            workflow_name: &stored.workflow.name,
+            mode: "manual",
+            started_at,
+        },
+    )
+    .await
+    .map_err(|error| store_error(&error))?;
+
     let result = state
         .automation
         .run_as_execution(
