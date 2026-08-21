@@ -58,6 +58,7 @@ export function ScreenHeader({
             unstuck was the hardest one to hit.
           */}
           <TouchableRipple
+            testID="screen-back"
             onPress={router.pop}
             accessibilityRole="button"
             accessibilityLabel="Go back"

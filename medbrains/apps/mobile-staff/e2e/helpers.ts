@@ -23,6 +23,20 @@ export const VISIBLE_TIMEOUT = 30_000;
  */
 export const COLD_START_TIMEOUT = 120_000;
 
+/**
+ * How much of a control has to be on screen for a scroll-into-view to accept it.
+ *
+ * Detox defaults to 75%. The last item on a module home cannot reach that in a
+ * Debug build: React Native's dev-warning toasts sit over the bottom of the
+ * screen and the list has already scrolled as far as it goes. Those toasts do
+ * not exist in a Release build, which is what CI runs — so this is a
+ * concession to the debug harness, not to the app.
+ *
+ * Half is still a real assertion: an element genuinely off-screen or behind a
+ * modal fails it.
+ */
+export const LAST_ITEM_VISIBILITY = 50;
+
 export async function waitForId(id: string, timeout = VISIBLE_TIMEOUT): Promise<void> {
   await waitFor(element(by.id(id))).toBeVisible().withTimeout(timeout);
 }
@@ -30,6 +44,26 @@ export async function waitForId(id: string, timeout = VISIBLE_TIMEOUT): Promise<
 /** Wait for a screen, by its stable id. */
 export async function awaitScreen(testID: string, timeout = VISIBLE_TIMEOUT): Promise<void> {
   await waitForId(testID, timeout);
+}
+
+/**
+ * Scroll a container until the control is on screen, then tap it.
+ *
+ * `toBeVisible` means visible, not merely mounted, so an action near the
+ * bottom of a module home fails a plain `tapId` — correctly. Scrolling is what
+ * the user does; asserting on a mounted-but-offscreen element would pass on a
+ * screen nobody can reach.
+ */
+export async function tapIdScrollingIn(
+  testID: string,
+  containerID: string,
+  visiblePercent = LAST_ITEM_VISIBILITY,
+): Promise<void> {
+  await waitFor(element(by.id(testID)))
+    .toBeVisible(visiblePercent)
+    .whileElement(by.id(containerID))
+    .scroll(240, "down");
+  await element(by.id(testID)).tap();
 }
 
 /** Tap a control by id, once it is actually on screen. */

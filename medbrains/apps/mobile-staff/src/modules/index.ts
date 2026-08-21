@@ -18,9 +18,18 @@ import { pharmacyModule } from "./pharmacy";
 import { receptionModule } from "./reception";
 import { securityModule } from "./security";
 
+/**
+ * Order is not cosmetic: the shell mounts one screen per permitted module and
+ * opens on the first, so this list decides where each role lands. A
+ * receptionist holds `billing.invoices.list` for taking payments, and with
+ * reception at the bottom that landed them in Billing every morning.
+ *
+ * Desk and clinical modules first, cross-cutting ones after.
+ */
 export const MODULES: ReadonlyArray<Module> = [
   doctorModule,
   nurseModule,
+  receptionModule,
   pharmacyModule,
   labModule,
   bloodBankModule,
@@ -30,6 +39,5 @@ export const MODULES: ReadonlyArray<Module> = [
   housekeepingModule,
   securityModule,
   hrModule,
-  receptionModule,
   createDeviceSyncModule(["Mobile-Admin"]),
 ];

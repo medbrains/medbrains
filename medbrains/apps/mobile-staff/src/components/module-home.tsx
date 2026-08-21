@@ -81,7 +81,13 @@ export function ModuleHome(props: ModuleHomeProps): ReactNode {
     <ScrollView
       testID={moduleHomeTestId(title)}
       style={{ flex: 1, backgroundColor: COLORS.canvas }}
-      contentContainerStyle={{ padding: SPACING.md }}
+      // Bottom inset, not just padding: the last action was flush against the
+      // screen edge, which puts it under the home indicator on every phone
+      // shipped since 2017 and makes the hardest-to-reach control the one at
+      // the end of the list. WCAG 2.2 SC 2.5.8 is about being able to hit a
+      // target, and a target you cannot scroll clear of the chrome fails that
+      // as surely as one that is too small.
+      contentContainerStyle={{ padding: SPACING.md, paddingBottom: SPACING.xl * 2 }}
     >
       <View style={{ marginBottom: SPACING.md }}>
         <Text

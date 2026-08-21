@@ -244,6 +244,7 @@ export function RegisterPatientScreen(): ReactNode {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.canvas }}>
       <ScreenHeader
+        testID="screen-register-patient"
         eyebrow="RECEPTION"
         title="Register patient"
         description="OPD, referral and camp registration with department, consultant and safety context."
@@ -545,6 +546,8 @@ export function RegisterPatientScreen(): ReactNode {
           </HelperText>
         )}
         <Button
+          testID="register-patient-submit"
+          accessibilityLabel="Register this patient"
           mode="contained"
           loading={busy}
           disabled={!isValid || busy}

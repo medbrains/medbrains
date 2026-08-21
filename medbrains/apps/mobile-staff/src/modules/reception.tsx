@@ -13,10 +13,12 @@ import { listOpdWorklistCount } from "../api/queue.js";
 import { useModuleCount } from "../components/module-count.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import { EnquiryDeskScreen } from "./reception/enquiry-desk.js";
 import { PatientDetailScreen } from "./reception/patient-detail.js";
 import { PatientListScreen } from "./reception/patient-list.js";
 import { QueueBoardScreen } from "./reception/queue-board.js";
 import { RegisterPatientScreen } from "./reception/register-patient.js";
+import { VisitorDeskScreen } from "./reception/visitor-desk.js";
 
 function ReceptionHome(): ReactNode {
   const router = useModuleRouter();
@@ -64,12 +66,14 @@ function ReceptionHome(): ReactNode {
           label: "Visitor passes",
           description: "Issue, check-in, revoke.",
           permission: P.FRONT_OFFICE.PASSES_LIST,
+          onPress: () => router.push("visitor-desk"),
         },
         {
           id: "enquiry",
           label: "Enquiry desk",
           description: "Log enquiries + resolve.",
           permission: P.FRONT_OFFICE.ENQUIRY_LIST,
+          onPress: () => router.push("enquiry-desk"),
         },
       ]}
     />
@@ -86,6 +90,8 @@ function ReceptionScreen(): ReactNode {
         directory: <PatientListScreen />,
         "patient-detail": (payload) => <PatientDetailScreen patient={payload as PatientRow} />,
         "queue-board": <QueueBoardScreen />,
+        "visitor-desk": <VisitorDeskScreen />,
+        "enquiry-desk": <EnquiryDeskScreen />,
       }}
     />
   );
@@ -95,7 +101,14 @@ export const receptionModule: Module = {
   id: "reception",
   displayName: "Reception",
   icon: () => null,
-  requiredPermissions: [P.PATIENTS.LIST],
+  // Not patients.list: nurses and doctors hold that, and front_office_staff --
+  // whose entire job is this desk -- does not, so the reception module was
+  // visible to clinicians and invisible to the front office. That role opened
+  // the app to no modules at all.
+  //
+  // front_office.queue.list means "works the front desk": held by receptionist
+  // and front_office_staff, by neither nurse nor doctor.
+  requiredPermissions: [P.FRONT_OFFICE.QUEUE_LIST],
   navigator: ReceptionScreen,
   appCodes: ["Desktop-Kiosk", "Desktop-Workstation", "Mobile-Admin", "Mobile-Security"],
   tags: ["front-office", "registration", "queue", "appointments", "visitor-pass"],
