@@ -37,7 +37,13 @@ export function FormScrollView({
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         contentContainerStyle={[
-          { padding: SPACING.md, gap: SPACING.sm },
+          // Bottom inset, not just padding. The submit is the last thing on
+          // every form that uses this, and with `padding` alone it sat flush
+          // against the screen edge — under the home indicator, and clipped
+          // enough that scrolling to the end still did not bring it fully into
+          // view. The one control the whole screen exists to reach was the one
+          // hardest to press.
+          { padding: SPACING.md, paddingBottom: SPACING.xl * 3, gap: SPACING.sm },
           contentContainerStyle,
         ]}
         {...rest}

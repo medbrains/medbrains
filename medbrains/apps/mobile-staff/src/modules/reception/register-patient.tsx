@@ -249,7 +249,7 @@ export function RegisterPatientScreen(): ReactNode {
         title="Register patient"
         description="OPD, referral and camp registration with department, consultant and safety context."
       />
-      <FormScrollView>
+      <FormScrollView testID="register-patient-form">
         <Card eyebrow="Identity" title="Patient">
           <View style={{ gap: SPACING.sm }}>
             <FormTextField control={control} name="first_name" label="First name" required />
@@ -579,6 +579,10 @@ function FormTextField({
       render={({ field, fieldState }) => (
         <MobileTextField
           {...props}
+          // Derived from the field, so every control on this form has a stable
+          // handle without anyone remembering to add one. End-to-end tests
+          // match on these; the labels are translated copy.
+          testID={props.testID ?? `field-${name}`}
           label={label}
           value={typeof field.value === "string" ? field.value : ""}
           onBlur={field.onBlur}
