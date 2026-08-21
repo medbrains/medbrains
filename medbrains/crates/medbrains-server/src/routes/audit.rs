@@ -19,6 +19,20 @@
 //! **What would retire it:** granting `audit.access_view` to a clinical role.
 //! At that point the log needs its own scoping, because a clinician reading
 //! who has looked at a patient is reading a fact about the patient.
+//!
+//! # Why `log_access` takes no permission
+//!
+//! It records that the caller viewed something, attributed to `claims.sub`
+//! and to no one else. Gating it on a permission would mean any role not
+//! granted that code quietly stops being audited — the trail would go quiet
+//! for exactly the accounts whose configuration nobody reviewed.
+//!
+//! **Its ceiling:** the entity, module and patient id are caller-supplied, so
+//! a user can record a view they did not perform. They cannot record one
+//! against another user, and they cannot erase their own. The log is
+//! therefore sound as evidence that an access happened and unsound as
+//! evidence that one did not. Server-side emission at the read site is what
+//! would close that, and is a larger change than this sweep.
 
 use axum::{
     Extension, Json,

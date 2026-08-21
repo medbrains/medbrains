@@ -275,6 +275,11 @@ pub async fn get_available_slots(
     Query(query): Query<ListSlotsQuery>,
 ) -> Result<Json<Vec<AvailableSlot>>, AppError> {
     require_permission(&claims, permissions::opd::appointment::LIST)?;
+    // No record check and no patient data: the rows are one doctor's working
+    // periods and a COUNT of how many of each slot are taken. `appointments` is
+    // read for that count alone — no column of it is projected. A clerk needs
+    // this to book anybody, so scoping it to patients they already hold would
+    // make booking a new patient impossible.
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 

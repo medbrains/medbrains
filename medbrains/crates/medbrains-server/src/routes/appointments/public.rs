@@ -345,6 +345,11 @@ pub async fn queue_token_status_link(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    // No record check on the queue token's patient, deliberately: the caller is
+    // front-office staff minting the status link they are about to hand to the
+    // person standing in front of them, and the queue is the one place a patient
+    // is present before any care relationship exists. The link itself carries a
+    // scoped, expiring event token rather than the row id.
     // Confirm the token is this tenant's before sealing its id into a link that
     // needs no further authorisation to use.
     let exists: Option<(Uuid,)> = sqlx::query_as(
