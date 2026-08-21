@@ -719,6 +719,29 @@ pub mod blood_bank {
     }
 }
 
+/// Wall displays: TVs, door boards and kiosks that show a queue.
+///
+/// A screen on a wall is not an administrator. `admin.tv_displays.board` and
+/// `admin.tv_displays.list` are operator codes — the board's contents and the
+/// screen's configuration — and neither was ever granted to a role, so every
+/// TV surface in the product was readable only by a bypass account. Fixing
+/// that by granting the admin code would have handed each display everything
+/// an operator can see on a screen nobody is standing at.
+///
+/// This is the read-only half, sized for a device.
+pub mod display {
+    pub mod board {
+        /// Read a wall board's live contents on a paired display.
+        ///
+        /// Only counts when the request carries a paired device: the role that
+        /// holds this exists for screens bolted to walls, and a credential
+        /// lifted off one should not become a way to read every ward board from
+        /// a laptop. Operators keep reaching the same boards through
+        /// `admin.tv_displays.board`, which carries no such condition.
+        pub const READ: &str = "display.board.read";
+    }
+}
+
 pub mod bedside {
     pub const VIEW: &str = "bedside.view";
     pub const REQUEST: &str = "bedside.request";

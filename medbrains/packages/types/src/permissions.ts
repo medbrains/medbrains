@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 955 permissions, one per constant in the Rust source. */
+/** 956 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1791,6 +1791,13 @@ export const PERMISSIONS: PermissionDef[] = [
     label: "Record Transfusion",
     description: "Record blood transfusions and reactions",
     module: "blood_bank",
+  },
+  // display
+  {
+    code: "display.board.read",
+    label: "Read Board",
+    description: "Read a wall board's live contents on a paired display. Only counts when the request carries a paired device: the role that holds this exists for screens bolted to walls, and a credential lifted off one should not become a way to read every ward board from a laptop. Operators keep reaching the same boards through `admin.tv_displays.board`, which carries no such condition.",
+    module: "display",
   },
   // bedside
   {
@@ -6653,6 +6660,12 @@ export const P = {
     TEMPLATES_LIST: "diet.templates.list",
     TEMPLATES_MANAGE: "diet.templates.manage",
   },
+  DISPLAY: {
+    BOARD: {
+      READ: "display.board.read",
+    },
+    BOARD_READ: "display.board.read",
+  },
   DOCTOR: {
     DASHBOARD: {
       VIEW_OWN: "doctor.dashboard.view_own",
@@ -10075,6 +10088,12 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.INSURANCE.PRIOR_AUTH.UPDATE,
       P.INSURANCE.VERIFICATION.CREATE,
       P.INSURANCE.VERIFICATION.LIST,
+    ],
+  },
+  display_device: {
+    label: "Wall Display",
+    permissions: [
+      P.DISPLAY.BOARD.READ,
     ],
   },
   ot_staff: {

@@ -18,6 +18,7 @@ use sqlx::FromRow;
 use uuid::Uuid;
 
 use medbrains_core::permissions::admin::tv_displays;
+use medbrains_core::permissions::display;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::queue_broadcast::{
@@ -32,6 +33,30 @@ use medbrains_server_core::state::AppState;
 fn require(claims: &Claims, perm: &str) -> Result<(), (StatusCode, String)> {
     require_permission(claims, perm)
         .map_err(|_| (StatusCode::FORBIDDEN, "forbidden".to_owned()))
+}
+
+/// Whether these claims may read a board's live contents.
+///
+/// Two ways in, and they are not the same identity. An operator holds
+/// `admin.tv_displays.board` and may read a board from anywhere, because
+/// looking at a ward's waiting count from a desk is part of running the place.
+/// A wall display holds `display.board.read` and may read one **only while it
+/// is a paired device** — the role exists for screens bolted to corridors, and
+/// a credential lifted off one should not become a way to read every board in
+/// the hospital from a laptop.
+///
+/// Split out rather than folded into `require` because the device condition is
+/// the point: without it the new code is just the admin code with a shorter
+/// name, and the reason for adding it disappears.
+fn require_board_read(claims: &Claims) -> Result<(), (StatusCode, String)> {
+    if require_permission(claims, tv_displays::BOARD).is_ok() {
+        return Ok(());
+    }
+    let holds_display_code = require_permission(claims, display::board::READ).is_ok();
+    if holds_display_code && claims.paired_device_id.is_some() {
+        return Ok(());
+    }
+    Err((StatusCode::FORBIDDEN, "forbidden".to_owned()))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -819,7 +844,7 @@ pub async fn get_queue_state(
     // admin.tv_displays.board. These seven read endpoints checked nothing,
     // while the display and token handlers beside them were gated in an
     // earlier pass.
-    require(&claims, tv_displays::BOARD)?;
+    require_board_read(&claims)?;
     let today = Utc::now().date_naive();
 
     // Get department name
@@ -1282,7 +1307,7 @@ pub async fn get_pharmacy_queue(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<PharmacyQueueDisplay>, (StatusCode, String)> {
-    require(&claims, tv_displays::BOARD)?;
+    require_board_read(&claims)?;
     let mut tx = state
         .db
         .begin()
@@ -1481,7 +1506,7 @@ pub async fn get_lab_queue(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<LabQueueDisplay>, (StatusCode, String)> {
     // A stub today; gated now so it is not open when it is filled in.
-    require(&claims, tv_displays::BOARD)?;
+    require_board_read(&claims)?;
     // Placeholder implementation - would query lab_orders table
     Ok(Json(LabQueueDisplay {
         current_tokens: vec![],
@@ -1504,7 +1529,7 @@ pub async fn get_radiology_queue(
     Path(modality): Path<String>,
 ) -> Result<Json<RadiologyQueueDisplay>, (StatusCode, String)> {
     // A stub today; gated now so it is not open when it is filled in.
-    require(&claims, tv_displays::BOARD)?;
+    require_board_read(&claims)?;
     // Placeholder implementation - would query radiology_orders table
     Ok(Json(RadiologyQueueDisplay {
         modality: modality.to_uppercase(),
@@ -1525,7 +1550,7 @@ pub async fn get_er_queue(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<ErQueueDisplay>, (StatusCode, String)> {
-    require(&claims, tv_displays::BOARD)?;
+    require_board_read(&claims)?;
     let mut tx = state
         .db
         .begin()
@@ -1693,7 +1718,7 @@ pub async fn get_billing_queue(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<BillingQueueDisplay>, (StatusCode, String)> {
-    require(&claims, tv_displays::BOARD)?;
+    require_board_read(&claims)?;
     let mut tx = state
         .db
         .begin()
@@ -1823,7 +1848,7 @@ pub async fn get_bed_availability(
     Extension(claims): Extension<Claims>,
     Path(ward_type): Path<String>,
 ) -> Result<Json<BedAvailabilityDisplay>, (StatusCode, String)> {
-    require(&claims, tv_displays::BOARD)?;
+    require_board_read(&claims)?;
     let ward_type = normalise_tv_ward_type(&ward_type);
     let mut tx = state
         .db
@@ -1973,7 +1998,7 @@ pub async fn get_queue_analytics(
     Extension(claims): Extension<Claims>,
     Path(department_id): Path<Uuid>,
 ) -> Result<Json<QueueAnalytics>, (StatusCode, String)> {
-    require(&claims, tv_displays::BOARD)?;
+    require_board_read(&claims)?;
     let today = Utc::now().date_naive();
 
     // Get department name
@@ -2058,7 +2083,7 @@ pub async fn get_queue_metrics(
     Extension(claims): Extension<Claims>,
     Path(department_id): Path<Uuid>,
 ) -> Result<Json<QueueMetrics>, (StatusCode, String)> {
-    require(&claims, tv_displays::BOARD)?;
+    require_board_read(&claims)?;
     let today = Utc::now().date_naive();
 
     // Get current waiting count
@@ -2200,7 +2225,7 @@ pub fn router() -> axum::Router<AppState> {
 
 #[cfg(test)]
 mod permission_tests {
-    use super::tv_displays;
+    use super::{Claims, display, require_board_read, tv_displays};
 
     /// The TV board handlers were gated in the UI (`P.ADMIN.TV_DISPLAYS.*`) but
     /// not on the server, so any authenticated role could delete a display,
@@ -2214,6 +2239,41 @@ mod permission_tests {
         assert_eq!(tv_displays::UPDATE, "admin.tv_displays.update");
         assert_eq!(tv_displays::DELETE, "admin.tv_displays.delete");
         assert_eq!(tv_displays::BOARD, "admin.tv_displays.board");
+        assert_eq!(display::board::READ, "display.board.read");
+    }
+
+    fn claims_with(permissions: &[&str], paired: Option<uuid::Uuid>) -> Claims {
+        Claims {
+            sub: uuid::Uuid::nil(),
+            tenant_id: uuid::Uuid::nil(),
+            role: "nurse".to_owned(),
+            permissions: permissions.iter().map(|p| (*p).to_owned()).collect(),
+            department_ids: Vec::new(),
+            perm_version: 0,
+            paired_device_id: paired,
+            exp: 0,
+        }
+    }
+
+    #[test]
+    fn a_wall_display_reads_a_board_only_while_it_is_a_paired_device() {
+        let device = uuid::Uuid::new_v4();
+        assert!(require_board_read(&claims_with(&[display::board::READ], Some(device))).is_ok());
+        // The same credential off the wall. This is the whole reason the code
+        // exists rather than granting the admin one.
+        assert!(require_board_read(&claims_with(&[display::board::READ], None)).is_err());
+    }
+
+    #[test]
+    fn an_operator_reads_a_board_from_anywhere() {
+        // Looking at a ward's waiting count from a desk is part of running the
+        // place, so the device condition must not apply to the admin code.
+        assert!(require_board_read(&claims_with(&[tv_displays::BOARD], None)).is_ok());
+    }
+
+    #[test]
+    fn holding_neither_code_is_refused() {
+        assert!(require_board_read(&claims_with(&["opd.queue.list"], None)).is_err());
         assert_eq!(tv_displays::TOKENS, "admin.tv_displays.tokens");
         assert_eq!(tv_displays::BROADCAST, "admin.tv_displays.broadcast");
     }

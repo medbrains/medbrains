@@ -1625,6 +1625,18 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         ],
     },
     BuiltInRole {
+        code: "display_device",
+        name: "Wall Display",
+        description: "A screen, not a person — reads queue and status boards and nothing else",
+        permissions: &[
+            // Deliberately the whole list. A display has no dashboard, no
+            // settings read, no patient list: it shows a board and is bolted to
+            // a wall where anyone walking past can see it. Every code added
+            // here is visible to a corridor.
+            permissions::display::board::READ,
+        ],
+    },
+    BuiltInRole {
         code: "ot_staff",
         name: "OT Staff",
         description: "Operation theatre booking, room status, pre-op checks, safety checklist",
