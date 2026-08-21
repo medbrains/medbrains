@@ -16,6 +16,49 @@
 //! `opd::create_encounter` and `ipd::create_admission` do — they call
 //! `grant_raw` and name the treating department, which is the honest way to
 //! open a relationship rather than to assume one.
+//!
+//! # The other seven, and one redaction that actually fires
+//!
+//! `sync_camp_inbound`, `list_registrations`, `update_registration`,
+//! `create_screening` and `link_lab_sample` emit no patient name at all —
+//! they move registration rows, screening rows and lab-sample links around
+//! the camp they belong to.
+//!
+//! `get_camp_packet` is the one that emits names and a UHID, and it is worth
+//! reading beside `ipd::expected_discharges`, which looks identical and is
+//! not.
+//!
+//! It requires **four** camp codes with AND, not a choice of one:
+//! `camp.list`, `camp.registrations.list`, `camp.screenings.list` and
+//! `camp.lab.list`. It carries `camp_id` in the WHERE, so the camp the caller
+//! asked for is the scope. And it gates the patient-record fields on
+//! `has_patient_record_view`, which resolves `patients.view`.
+//!
+//! **That gate fires.** Only `camp_coordinator` holds all four camp codes —
+//! `audit_officer` has `camp.list` but not `camp.lab.list` — and
+//! `camp_coordinator` does **not** hold `patients.view`
+//! (`crates/medbrains-core/src/access/roles.rs`). So the only non-bypass role
+//! that can reach this handler is the one whose patient fields come back
+//! blanked, which is exactly right for somebody running a field camp.
+//!
+//! The contrast is the useful part. `ipd::expected_discharges` writes the same
+//! kind of `CASE WHEN … ELSE NULL END` on `patients.view` and every role that
+//! can reach it also holds that code, so the gate is true in the SQL and empty
+//! in practice. Field redaction is only a control when somebody who can call
+//! the handler lacks the code it tests. **Checking that is a separate step
+//! from finding the redaction.**
+//!
+//! **What retires this one:** granting `camp.lab.list` to a clinical role, or
+//! granting `patients.view` to `camp_coordinator`. Either turns a working
+//! control into a decorative one without touching this file.
+//!
+//! # open_registration_encounter is an open question, not an exemption
+//!
+//! It grants `patient/Owner/User(claims.sub)` on `r.patient_id` off a
+//! path-named camp registration — the caller becomes owner of a patient by
+//! naming a registration. That may be correct for a camp, where the
+//! registering clinician is the treating one, and it may not. It is recorded
+//! here as an operator decision rather than settled quietly in a sweep.
 
 // Structured camp-planning helpers staged in this file are scheduled for
 // wiring into the route layer in a follow-up. Suppress dead_code so the
