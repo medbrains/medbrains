@@ -1190,6 +1190,22 @@ pub mod marketing {
     /// deliberately NOT part of this code — see the module RFC.
     pub const REPORTS_VIEW: &str = "marketing.reports.view";
 
+    pub mod telephony {
+        /// Accept call events from the phone system.
+        ///
+        /// A machine endpoint. The switch — FreePBX over AMI, or a provider
+        /// webhook — posts what happened to a call, and the module turns it
+        /// into an interaction and, if it was missed, a callback task.
+        ///
+        /// **Held by no built-in role, deliberately.** Nothing a human does in
+        /// a browser should reach this: it is authenticated with an API key
+        /// carrying an explicit permission list, which is what machine
+        /// identity is for. A role holding it would let any of that role's
+        /// holders fabricate call history, and call history is what the
+        /// missed-call number and every conversion report are computed from.
+        pub const INGEST: &str = "marketing.telephony.ingest";
+    }
+
     /// Configure pipeline stages, templates and routing.
     pub const SETTINGS_MANAGE: &str = "marketing.settings.manage";
 }

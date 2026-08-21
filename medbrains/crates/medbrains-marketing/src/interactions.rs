@@ -48,11 +48,18 @@ pub async fn ingest_call(
     )
     .await?;
 
-    let interaction_id: Uuid = sqlx::query_scalar(
+    // Idempotent on the switch's own call id. Providers retry a webhook they
+    // did not get a 2xx for, and an AMI reconnect replays events across the
+    // gap. A second landing is not harmless: the missed-call branch below
+    // books a callback, so a retry would put the same patient in somebody's
+    // queue twice and inflate the number the product is sold on.
+    let interaction_id: Option<Uuid> = sqlx::query_scalar(
         "INSERT INTO mkt_interactions \
             (tenant_id, contact_id, kind, channel, direction, occurred_at, answered, \
              duration_secs, agent_id, recording_url, external_ref) \
          VALUES ($1, $2, $3, 'phone', $4, $5, $6, $7, $8, $9, $10) \
+         ON CONFLICT (tenant_id, external_ref) WHERE external_ref IS NOT NULL \
+         DO NOTHING \
          RETURNING id",
     )
     .bind(tenant_id)
@@ -65,8 +72,22 @@ pub async fn ingest_call(
     .bind(event.agent_id)
     .bind(event.recording_ref.as_deref())
     .bind(&event.external_ref)
-    .fetch_one(&mut **tx)
+    .fetch_optional(&mut **tx)
     .await?;
+
+    // Already seen. Return the existing row and do nothing else — the callback
+    // task from the first landing is already somebody's work.
+    let Some(interaction_id) = interaction_id else {
+        let existing: Uuid = sqlx::query_scalar(
+            "SELECT id FROM mkt_interactions \
+             WHERE tenant_id = $1 AND external_ref = $2",
+        )
+        .bind(tenant_id)
+        .bind(&event.external_ref)
+        .fetch_one(&mut **tx)
+        .await?;
+        return Ok(existing);
+    };
 
     if event.outcome.answered() {
         sqlx::query(

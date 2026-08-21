@@ -43,6 +43,7 @@ pub mod pipeline;
 pub mod screen_pop;
 pub mod telephony;
 pub mod types;
+pub mod webhook;
 
 use axum::Router;
 use axum::routing::{get, post};
@@ -67,6 +68,10 @@ pub fn router() -> Router<AppState> {
         )
         .route("/api/marketing/screen-pop", get(screen_pop::screen_pop))
         .route("/api/marketing/stages", get(pipeline::list_stages))
+        .route(
+            "/api/marketing/telephony/calls",
+            post(webhook::ingest_call_webhook),
+        )
         .route(
             "/api/marketing/reports/missed-calls",
             get(interactions::missed_call_summary),

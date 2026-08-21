@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 950 permissions, one per constant in the Rust source. */
+/** 951 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -2905,6 +2905,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "marketing.reports.view",
     label: "View acquisition funnel reports",
     description: "Conversion by source, specialty and agent. Doctor-level conversion is deliberately NOT part of this code — see the module RFC.",
+    module: "marketing",
+  },
+  {
+    code: "marketing.telephony.ingest",
+    label: "Accept call events from the phone system",
+    description: "A machine endpoint. The switch — FreePBX over AMI, or a provider webhook — posts what happened to a call, and the module turns it into an interaction and, if it was missed, a callback task. **Held by no built-in role, deliberately.** Nothing a human does in a browser should reach this: it is authenticated with an API key carrying an explicit permission list, which is what machine identity is for. A role holding it would let any of that role's holders fabricate call history, and call history is what the missed-call number and every conversion report are computed from.",
     module: "marketing",
   },
   {
@@ -7380,6 +7386,10 @@ export const P = {
     PIPELINE_VIEW: "marketing.pipeline.view",
     REPORTS_VIEW: "marketing.reports.view",
     SETTINGS_MANAGE: "marketing.settings.manage",
+    TELEPHONY: {
+      INGEST: "marketing.telephony.ingest",
+    },
+    TELEPHONY_INGEST: "marketing.telephony.ingest",
   },
   MRD: {
     BIRTHS: {
