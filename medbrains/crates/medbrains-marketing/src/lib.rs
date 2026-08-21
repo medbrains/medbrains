@@ -41,6 +41,7 @@ pub mod campaigns;
 pub mod cohorts;
 pub mod contacts;
 pub mod interactions;
+pub mod messaging;
 pub mod outreach;
 pub mod phone;
 pub mod pipeline;
@@ -103,6 +104,10 @@ pub fn router() -> Router<AppState> {
         .route("/api/marketing/outreach/{id}/submit", post(outreach::submit_run))
         .route("/api/marketing/outreach/{id}/approve", post(outreach::approve_run))
         .route("/api/marketing/outreach/{id}/cancel", post(outreach::cancel_run))
+        .route(
+            "/api/marketing/messaging/messages",
+            post(messaging::ingest_message_webhook),
+        )
         .route("/api/marketing/stages", get(pipeline::list_stages))
         .route(
             "/api/marketing/telephony/calls",

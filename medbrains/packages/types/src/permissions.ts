@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 951 permissions, one per constant in the Rust source. */
+/** 952 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -2905,6 +2905,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "marketing.reports.view",
     label: "View acquisition funnel reports",
     description: "Conversion by source, specialty and agent. Doctor-level conversion is deliberately NOT part of this code — see the module RFC.",
+    module: "marketing",
+  },
+  {
+    code: "marketing.messaging.ingest",
+    label: "Accept WhatsApp and SMS events from the provider",
+    description: "A sibling of `telephony.ingest` and deliberately a separate code. The two are usually different vendors — a telephony provider and a WhatsApp business solution provider — and a key that can write call history should not thereby be able to write message history. One code for both would mean a leaked BSP key could forge the record of what a hospital said to a patient. **Held by no built-in role**, for the same reason: this is machine identity, authenticated with an API key carrying an explicit permission list.",
     module: "marketing",
   },
   {
@@ -7370,6 +7376,10 @@ export const P = {
     },
     INTERACTIONS_LOG: "marketing.interactions.log",
     INTERACTIONS_PLAY_RECORDING: "marketing.interactions.play_recording",
+    MESSAGING: {
+      INGEST: "marketing.messaging.ingest",
+    },
+    MESSAGING_INGEST: "marketing.messaging.ingest",
     OUTREACH: {
       APPROVE: "marketing.outreach.approve",
       SEND: "marketing.outreach.send",

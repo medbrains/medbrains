@@ -1190,6 +1190,22 @@ pub mod marketing {
     /// deliberately NOT part of this code — see the module RFC.
     pub const REPORTS_VIEW: &str = "marketing.reports.view";
 
+    pub mod messaging {
+        /// Accept WhatsApp and SMS events from the provider.
+        ///
+        /// A sibling of `telephony.ingest` and deliberately a separate code.
+        /// The two are usually different vendors — a telephony provider and a
+        /// WhatsApp business solution provider — and a key that can write call
+        /// history should not thereby be able to write message history. One
+        /// code for both would mean a leaked BSP key could forge the record of
+        /// what a hospital said to a patient.
+        ///
+        /// **Held by no built-in role**, for the same reason: this is machine
+        /// identity, authenticated with an API key carrying an explicit
+        /// permission list.
+        pub const INGEST: &str = "marketing.messaging.ingest";
+    }
+
     pub mod telephony {
         /// Accept call events from the phone system.
         ///
