@@ -36,6 +36,7 @@
 //! webhook — produces it. That keeps "buy telephony now, own it later" a
 //! configuration change rather than a rewrite.
 
+pub mod audit;
 pub mod campaigns;
 pub mod contacts;
 pub mod interactions;
@@ -79,6 +80,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/marketing/reports/campaign-funnel",
             get(campaigns::campaign_funnel),
+        )
+        .route(
+            "/api/marketing/reports/enquiry-audit",
+            get(audit::enquiry_audit),
         )
         .route("/api/marketing/stages", get(pipeline::list_stages))
         .route(
