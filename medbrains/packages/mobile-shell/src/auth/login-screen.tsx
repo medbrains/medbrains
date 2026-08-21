@@ -132,6 +132,7 @@ export function LoginScreen(props: LoginScreenProps): ReactNode {
         name="identifier"
         render={({ field }) => (
           <MobileTextField
+            testID="login-identifier"
             label={identifierLabel}
             value={field.value}
             onChangeText={field.onChange}
@@ -148,6 +149,7 @@ export function LoginScreen(props: LoginScreenProps): ReactNode {
         name="password"
         render={({ field }) => (
           <MobileTextField
+            testID="login-password"
             label={passwordLabel}
             value={field.value}
             onChangeText={field.onChange}
@@ -164,6 +166,7 @@ export function LoginScreen(props: LoginScreenProps): ReactNode {
         </HelperText>
       )}
       <Button
+        testID="login-submit"
         mode="contained"
         loading={isSubmitting}
         disabled={isSubmitting || !identifier || !password}

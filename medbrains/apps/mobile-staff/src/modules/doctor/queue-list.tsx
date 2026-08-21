@@ -34,6 +34,7 @@ export function QueueListScreen(): ReactNode {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.canvas }}>
       <ScreenHeader
+        testID="screen-doctor-queue"
         eyebrow="DOCTOR"
         title="OPD queue"
         description="Today's tokens — tap a row to begin a consult."

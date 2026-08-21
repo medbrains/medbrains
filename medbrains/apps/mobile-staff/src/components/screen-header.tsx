@@ -17,6 +17,14 @@ export interface ScreenHeaderProps {
   title: string;
   description?: string;
   trailing?: ReactNode;
+  /**
+   * A stable handle for the screen, for end-to-end tests.
+   *
+   * Given rather than derived from the title: these titles are patient names
+   * and drug names on half the screens that use this, so a derived id would be
+   * different on every run.
+   */
+  testID?: string;
 }
 
 export function ScreenHeader({
@@ -24,10 +32,12 @@ export function ScreenHeader({
   title,
   description,
   trailing,
+  testID,
 }: ScreenHeaderProps): ReactNode {
   const router = useModuleRouter();
   return (
     <View
+      testID={testID}
       style={{
         paddingHorizontal: SPACING.md,
         paddingTop: SPACING.md,

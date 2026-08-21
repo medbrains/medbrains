@@ -60,6 +60,7 @@ export function QueueBoardScreen(): ReactNode {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.canvas }}>
       <ScreenHeader
+        testID="screen-reception-queue"
         eyebrow="RECEPTION"
         title="OPD queue"
         description="Token order. Calling acts on whoever is next."
@@ -112,6 +113,7 @@ export function QueueBoardScreen(): ReactNode {
               loading={busy}
               // No button when nobody is waiting: pressing it would call nobody.
               disabled={busy || !next}
+              testID="reception-call-next"
               accessibilityLabel={
                 next ? `Call token ${next.number}` : "Nobody is waiting to be called"
               }

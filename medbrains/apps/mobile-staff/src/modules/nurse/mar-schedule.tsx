@@ -43,6 +43,7 @@ export function MarScheduleScreen({ admission }: MarScheduleScreenProps): ReactN
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.canvas }}>
       <ScreenHeader
+        testID="screen-mar"
         eyebrow="MAR"
         title={admission.patient_name}
         description={`UHID ${admission.uhid}${admission.bed_label ? ` · BED ${admission.bed_label}` : ""}`}
@@ -128,6 +129,7 @@ function DoseRow({ dose, onAdminister }: { dose: MarRow; onAdminister: () => voi
         <View style={{ marginTop: SPACING.sm }}>
           <Button
             accessibilityLabel={`Take ${dose.drug_name} to the bedside and scan`}
+            testID="mar-take-to-bedside"
             mode="contained"
             onPress={onAdminister}
             style={{ justifyContent: "center", minHeight: TAP_TARGET }}

@@ -101,7 +101,15 @@ export const doctorModule: Module = {
   id: "doctor",
   displayName: "Doctor",
   icon: () => null,
-  requiredPermissions: [P.OPD.QUEUE_LIST],
+  // Not opd.queue.list: nurse holds that too, so this module captured every
+  // nurse who signed in — and because the shell mounts one screen per permitted
+  // module and opens on the first with no switcher, a nurse could not then
+  // reach the Nurse module at all. Found by the Detox suite on its first run.
+  //
+  // opd.visit.update is what this module is for: recording into a consultation.
+  // Doctor holds it; nurse and receptionist do not. The gate now matches the
+  // permission its actions require, which is the same rule the API follows.
+  requiredPermissions: [P.OPD.VISIT_UPDATE],
   navigator: DoctorScreen,
   appCodes: ["Mobile-Doctor"],
   tags: ["clinical", "opd", "ipd-rounds", "prescription", "offline-ready"],

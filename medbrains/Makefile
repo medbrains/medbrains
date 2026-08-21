@@ -1,4 +1,4 @@
-.PHONY: maestro maestro-camp maestro-staff help dev dev-watch dev-fast dev-icd dev-backend dev-frontend dev-simulator-admin db db-stop db-reset db-icd \
+.PHONY: detox-staff detox-staff-build maestro maestro-camp maestro-staff help dev dev-watch dev-fast dev-icd dev-backend dev-frontend dev-simulator-admin db db-stop db-reset db-icd \
        sim-hospital sim-hospital-batch sim-hospital-clean \
        local-https-cert dev-proxy dev-https \
        build build-backend build-frontend \
@@ -518,6 +518,12 @@ maestro-camp: ## Maestro flows for the camp app (needs a booted device + backend
 maestro-staff: ## Maestro flows for the staff app (needs a booted device + backend)
 	maestro test .maestro/staff-mobile-nurse-calls.yaml .maestro/staff-mobile-bcma.yaml \
 		.maestro/staff-mobile-opd-queue.yaml .maestro/staff-mobile-reception-call-next.yaml
+
+detox-staff-build: ## Build the staff app for Detox (iOS simulator, debug)
+	pnpm --filter @medbrains/mobile-staff e2e:build
+
+detox-staff: ## Detox end-to-end for the staff app (needs the build + `make dev`)
+	pnpm --filter @medbrains/mobile-staff e2e:ios
 
 maestro: maestro-camp maestro-staff ## Every Maestro flow
 

@@ -20,6 +20,7 @@ export function AdmissionsListScreen(): ReactNode {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.canvas }}>
       <ScreenHeader
+        testID="screen-admissions"
         eyebrow="NURSE"
         title="My shift"
         description="Tap a patient to open bedside MAR, vitals, I/O and risk actions."

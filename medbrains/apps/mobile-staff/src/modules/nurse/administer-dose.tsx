@@ -100,6 +100,7 @@ export function AdministerDoseScreen({ admission, dose }: AdministerDoseScreenPr
   return (
     <ScrollView style={{ backgroundColor: COLORS.canvas, flex: 1 }}>
       <ScreenHeader
+        testID="screen-administer-dose"
         eyebrow="ADMINISTER"
         title={dose.drug_name}
         description={`${dose.dose} · ${dose.route} · ${admission.patient_name} · UHID ${admission.uhid}`}
@@ -172,7 +173,7 @@ function ScanRefused({
         padding: SPACING.md,
       }}
     >
-      <Text variant="titleMedium" style={{ color: COLORS.red }}>
+      <Text testID="bcma-refused" variant="titleMedium" style={{ color: COLORS.red }}>
         Do not give this dose
       </Text>
       <Text style={{ color: COLORS.ink }}>
@@ -279,6 +280,7 @@ function RecordAdministration({
 
       <Button
         accessibilityLabel={`Record ${dose.drug_name} as given`}
+        testID="bcma-give-now"
         disabled={busy || !canRecordGiven({ isHighAlert: dose.is_high_alert, witnessId })}
         loading={busy}
         mode="contained"

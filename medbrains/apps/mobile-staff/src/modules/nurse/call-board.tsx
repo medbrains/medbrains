@@ -84,6 +84,7 @@ export function NurseCallBoardScreen({ wardId }: NurseCallBoardScreenProps): Rea
   return (
     <View style={{ backgroundColor: COLORS.canvas, flex: 1 }}>
       <ScreenHeader
+        testID="screen-nurse-calls"
         eyebrow="NURSE CALLS"
         title="Open calls"
         description="Every call still waiting, oldest first."
@@ -109,11 +110,14 @@ export function NurseCallBoardScreen({ wardId }: NurseCallBoardScreenProps): Rea
       )}
 
       {!loading && !error && calls.length === 0 && (
-        <Empty title="No open calls" description="Every call has been answered." />
+        <View testID="nurse-calls-empty">
+          <Empty title="No open calls" description="Every call has been answered." />
+        </View>
       )}
 
       {!loading && !error && calls.length > 0 && (
         <FlatList
+          testID="nurse-calls-list"
           contentContainerStyle={{ gap: SPACING.sm, padding: SPACING.md }}
           data={calls}
           getItemLayout={itemLayout}
@@ -201,6 +205,7 @@ function CallRow({
           {call.acknowledged_at === null && (
             <Button
               accessibilityLabel={`Mark the call from ${call.bed_number ?? "an unassigned bed"} as seen`}
+              testID="nurse-call-seen"
               disabled={busy}
               mode="outlined"
               onPress={() => respond("acknowledged")}
@@ -211,6 +216,7 @@ function CallRow({
           )}
           <Button
             accessibilityLabel={`Mark the call from ${call.bed_number ?? "an unassigned bed"} as answered`}
+            testID="nurse-call-done"
             disabled={busy}
             mode="contained"
             onPress={() => respond("completed")}

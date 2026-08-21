@@ -41,6 +41,30 @@ export interface ModuleHomeProps {
   emptyTitle?: string;
 }
 
+/**
+ * A stable handle for a module home and each of its actions.
+ *
+ * End-to-end tests match on these, never on the copy. The labels here are
+ * clinical wording that gets revised — "Patient is in" was "Start
+ * consultation" a week ago — and a suite anchored to sentences fails on the
+ * revision, gets marked flaky, and then gets skipped.
+ */
+export function moduleHomeTestId(title: string): string {
+  return `module-home-${slugForTestId(title)}`;
+}
+
+export function moduleActionTestId(actionId: string): string {
+  return `module-action-${slugForTestId(actionId)}`;
+}
+
+function slugForTestId(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 export function ModuleHome(props: ModuleHomeProps): ReactNode {
   const {
     eyebrow,
@@ -55,6 +79,7 @@ export function ModuleHome(props: ModuleHomeProps): ReactNode {
 
   return (
     <ScrollView
+      testID={moduleHomeTestId(title)}
       style={{ flex: 1, backgroundColor: COLORS.canvas }}
       contentContainerStyle={{ padding: SPACING.md }}
     >
@@ -159,6 +184,7 @@ function ActionRow({ action }: { action: ModuleAction }) {
 
   return (
     <List.Item
+      testID={moduleActionTestId(action.id)}
       title={action.label}
       description={description}
       onPress={action.onPress}

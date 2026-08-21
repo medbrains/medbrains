@@ -87,6 +87,7 @@ export function PatientWorkspaceScreen({ admission }: PatientWorkspaceScreenProp
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.canvas }}>
       <ScreenHeader
+        testID="screen-patient-workspace"
         eyebrow="BED"
         title={admission.patient_name}
         description={`UHID ${admission.uhid}${admission.bed_label ? ` · ${admission.bed_label}` : ""}`}

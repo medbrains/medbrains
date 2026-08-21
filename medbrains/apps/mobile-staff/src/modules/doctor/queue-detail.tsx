@@ -77,12 +77,24 @@ export function QueueDetailScreen({ entry: initial }: QueueDetailScreenProps): R
 
         <View style={{ gap: SPACING.sm, marginTop: SPACING.md }}>
           {entry.status === "waiting" && canWorkQueue && (
-            <Button mode="contained" loading={busy} disabled={busy} onPress={() => run(callToken)}>
+            <Button
+              testID="queue-call-patient"
+              mode="contained"
+              loading={busy}
+              disabled={busy}
+              onPress={() => run(callToken)}
+            >
               Call patient
             </Button>
           )}
           {entry.status === "called" && canWorkQueue && (
-            <Button mode="contained" loading={busy} disabled={busy} onPress={() => run(serveToken)}>
+            <Button
+              testID="queue-patient-is-in"
+              mode="contained"
+              loading={busy}
+              disabled={busy}
+              onPress={() => run(serveToken)}
+            >
               Patient is in
             </Button>
           )}
@@ -92,6 +104,7 @@ export function QueueDetailScreen({ entry: initial }: QueueDetailScreenProps): R
               loading={busy}
               disabled={busy}
               onPress={() => run(completeToken)}
+              testID="queue-mark-complete"
             >
               Mark complete
             </Button>
