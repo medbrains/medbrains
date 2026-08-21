@@ -1,4 +1,4 @@
-.PHONY: help dev dev-watch dev-fast dev-icd dev-backend dev-frontend dev-simulator-admin db db-stop db-reset db-icd \
+.PHONY: maestro maestro-camp maestro-staff help dev dev-watch dev-fast dev-icd dev-backend dev-frontend dev-simulator-admin db db-stop db-reset db-icd \
        sim-hospital sim-hospital-batch sim-hospital-clean \
        local-https-cert dev-proxy dev-https \
        build build-backend build-frontend \
@@ -510,6 +510,16 @@ smoke-test: ## Run API smoke tests (needs running backend; no browser required)
 
 e2e-test: ## Run full E2E scenario tests (needs backend + frontend)
 	pnpm exec playwright test --config apps/web/playwright.config.ts e2e/scenarios/
+
+maestro-camp: ## Maestro flows for the camp app (needs a booted device + backend)
+	maestro test .maestro/camp-mobile-smoke.yaml .maestro/camp-mobile-e2e.yaml \
+		.maestro/camp-mobile-negative.yaml
+
+maestro-staff: ## Maestro flows for the staff app (needs a booted device + backend)
+	maestro test .maestro/staff-mobile-nurse-calls.yaml .maestro/staff-mobile-bcma.yaml \
+		.maestro/staff-mobile-opd-queue.yaml .maestro/staff-mobile-reception-call-next.yaml
+
+maestro: maestro-camp maestro-staff ## Every Maestro flow
 
 generate-smoke: ## Regenerate smoke test files from API contract
 	python3 ../scripts/generate_smoke_tests.py

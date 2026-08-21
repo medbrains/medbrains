@@ -1,0 +1,56 @@
+appId: com.medbrains.staff
+name: Staff Mobile — a dose cannot be given without a scan
+tags:
+  - staff
+  - nursing
+  - safety
+---
+# The 5-rights check has been enforced server-side since the eMAR shipped, and
+# the phone posted barcode_verified: false and recorded the administration
+# anyway. This flow pins the fix: the MAR list hands the dose to a bedside
+# screen, and that screen asks for the wristband before it offers anything.
+#
+# It deliberately does NOT scan. A simulator has no barcode to show a camera,
+# and the assertion worth having is the negative one: "Give now" must not be
+# reachable from a screen where nothing has been verified. If a future change
+# puts the button back on the list, this fails.
+
+- clearState
+- launchApp
+- extendedWaitUntil:
+    visible: "MedBrains Staff"
+    timeout: 30000
+
+- tapOn: "Username"
+- inputText: "admin"
+- tapOn: "Password"
+- inputText: "admin123"
+- tapOn: "Sign in"
+
+- extendedWaitUntil:
+    visible: "Nurse"
+    timeout: 30000
+- tapOn: "Nurse"
+
+- tapOn: "My shift"
+- extendedWaitUntil:
+    visible: "Admissions"
+    timeout: 20000
+
+# First bed on the ward. Any admission will do; the guard is not per-patient.
+- tapOn:
+    index: 0
+    text: ".*UHID.*"
+- extendedWaitUntil:
+    visible: "Bedside chart"
+    timeout: 15000
+
+- tapOn: "MAR"
+- extendedWaitUntil:
+    visible: "MAR|No scheduled doses"
+    timeout: 15000
+
+# The list offers the bedside screen, never the administration itself.
+- assertNotVisible: "Give now"
+- assertVisible:
+    text: "Take to bedside|No scheduled doses"

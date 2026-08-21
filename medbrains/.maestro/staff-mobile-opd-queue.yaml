@@ -1,0 +1,47 @@
+appId: com.medbrains.staff
+name: Staff Mobile — the doctor and the board work one queue
+tags:
+  - staff
+  - opd
+---
+# OPD check-in used to write three parallel queues that advanced independently:
+# the doctor called the next patient in opd_queues while the waiting-room board
+# read a table nothing advanced. This flow walks the doctor's side of the queue
+# that is now the only one.
+#
+# The three transitions are one act on one queue and take one permission. The
+# buttons used to be gated on opd.visit.create and opd.visit.update — the
+# clinical record, not the queue position — so a control could offer what the
+# server would refuse. If that regresses, "Patient is in" appears for a user
+# who cannot press it.
+
+- clearState
+- launchApp
+- extendedWaitUntil:
+    visible: "MedBrains Staff"
+    timeout: 30000
+
+- tapOn: "Username"
+- inputText: "admin"
+- tapOn: "Password"
+- inputText: "admin123"
+- tapOn: "Sign in"
+
+- extendedWaitUntil:
+    visible: "Doctor"
+    timeout: 30000
+- tapOn: "Doctor"
+
+- extendedWaitUntil:
+    visible: "OPD queue"
+    timeout: 15000
+- tapOn: "OPD queue"
+
+- extendedWaitUntil:
+    visible: "Today's tokens — tap a row to begin a consult."
+    timeout: 20000
+
+# Either the queue has somebody in it or it says so. An empty screen with
+# neither is the failure this catches.
+- assertVisible:
+    text: "TOKEN |Queue is empty|Couldn't load the queue"

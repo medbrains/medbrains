@@ -1,0 +1,48 @@
+appId: com.medbrains.staff
+name: Staff Mobile — reception calls next, the server decides who
+tags:
+  - staff
+  - opd
+  - safety
+---
+# The desk used to pick the next patient on the device: lowest token number
+# still waiting. The unified queue orders by priority weight, so an elderly,
+# pregnant or emergency-referral patient is called ahead of a lower number —
+# and a device sorting by the number on the slip would have called the wrong
+# person, in front of everybody.
+#
+# The button now calls the server's call-next, which picks under an advisory
+# lock. What this flow can check from outside is that the screen offers one
+# call action rather than a row-by-row call, and that it names who is next
+# rather than leaving the desk to guess.
+
+- clearState
+- launchApp
+- extendedWaitUntil:
+    visible: "MedBrains Staff"
+    timeout: 30000
+
+- tapOn: "Username"
+- inputText: "admin"
+- tapOn: "Password"
+- inputText: "admin123"
+- tapOn: "Sign in"
+
+- extendedWaitUntil:
+    visible: "Reception"
+    timeout: 30000
+- tapOn: "Reception"
+
+- extendedWaitUntil:
+    visible: "OPD queue"
+    timeout: 15000
+- tapOn: "OPD queue"
+
+- extendedWaitUntil:
+    visible: "Token order. Calling acts on whoever is next."
+    timeout: 20000
+
+# Names the next patient, or says the queue is clear — never an enabled button
+# that would call nobody.
+- assertVisible:
+    text: "Call token |Queue is clear|Nobody is waiting to be called"

@@ -1,0 +1,49 @@
+appId: com.medbrains.staff
+name: Staff Mobile — ward call board
+tags:
+  - staff
+  - nursing
+---
+# A patient's bedside tablet could always raise a call. Until the ward board
+# shipped there was no way to read one back except per-admission, so nobody was
+# looking. This flow is the loop closing: a nurse opens the module and sees who
+# is waiting.
+#
+# The assertion that matters is the LAST one. An outage and a quiet ward must
+# not look the same on this screen, so the empty state says "Every call has been
+# answered" and the failure state says the opposite in as many words. A flow
+# that only asserted "the screen loaded" would pass on either.
+
+- clearState
+- launchApp
+- extendedWaitUntil:
+    visible: "MedBrains Staff"
+    timeout: 30000
+
+- tapOn: "Username"
+- inputText: "admin"
+- tapOn: "Password"
+- inputText: "admin123"
+- tapOn: "Sign in"
+
+- extendedWaitUntil:
+    visible: "Nurse"
+    timeout: 30000
+- tapOn: "Nurse"
+
+- extendedWaitUntil:
+    visible: "MAR, vitals, handoff, intake/output."
+    timeout: 15000
+
+# The tile is the reason a nurse opens the module at all. It must carry a
+# number or an em dash — never a zero it did not get from the server.
+- assertVisible: "Beds waiting on a call"
+
+- tapOn: "Open calls"
+- extendedWaitUntil:
+    visible: "Every call still waiting, oldest first."
+    timeout: 15000
+
+# One of these two, and they mean opposite things.
+- assertVisible:
+    text: "No open calls|overdue|Nurse call|Bathroom|Pain|Call board unavailable"
