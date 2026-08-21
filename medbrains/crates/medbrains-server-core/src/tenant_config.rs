@@ -17,6 +17,15 @@ pub mod keys {
     pub const VISITOR_PASS_VALID_HOURS: &str = "visitor_pass_valid_hours";
     pub const MAX_VISITORS_PER_PATIENT: &str = "max_visitors_per_patient";
     pub const HOLIDAYS: &str = "holidays";
+
+    /// Seconds an unanswered nurse call may wait before the board escalates it
+    /// to the charge nurse, and then to the nursing supervisor.
+    ///
+    /// The thresholds are the hospital's, not ours: an ICU answers faster than
+    /// a general ward and both will argue about the number. The defaults are
+    /// the two minutes and five minutes named in the NABH nursing checklist.
+    pub const NURSE_CALL_ESCALATE_SECS: &str = "nurse_call_escalate_secs";
+    pub const NURSE_CALL_SUPERVISOR_SECS: &str = "nurse_call_supervisor_secs";
 }
 
 pub async fn setting_value(

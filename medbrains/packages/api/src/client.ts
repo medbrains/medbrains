@@ -1330,6 +1330,7 @@ import type {
   NotificationListResponse,
   NuclearMedAdministration,
   NuclearMedSource,
+  NurseCallBoard,
   NursingAssessmentPrintData,
   NursingTask,
   NutritionScreening,
@@ -13365,6 +13366,10 @@ export const api = {
 
   getBedAvailabilityDisplay: (wardType: string) =>
     request<BedAvailabilityDisplay>(`/tv/queue/beds/${wardType}`),
+
+  /** Open nurse calls across the ward — the board, not one admission's list. */
+  getNurseCallBoard: (wardId?: string) =>
+    request<NurseCallBoard>(`/bedside/nurse-calls/active${wardId ? `?ward_id=${wardId}` : ""}`),
 
   getQueueAnalytics: (departmentId: string) =>
     request<QueueAnalytics>(`/tv/queue/analytics/${departmentId}`),

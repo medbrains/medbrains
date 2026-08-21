@@ -529,6 +529,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::bedside::REQUEST,
             permissions::bedside::sessions::LIST,
             permissions::bedside::sessions::MANAGE,
+            permissions::bedside::calls::BOARD,
             permissions::bedside::feedback::LIST,
             permissions::bedside::feedback::CREATE,
             permissions::bedside::videos::LIST,

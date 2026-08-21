@@ -22,7 +22,7 @@ import type {
   BedsideRequestType,
   BedsideVitalReading,
 } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { openNurseCalls, P } from "@medbrains/types";
 import {
   IconDots,
   IconMoodSmile,
@@ -166,6 +166,17 @@ export function BedsidePortalPage() {
     queryFn: () => bedsideService.listBedsideFeedback(admissionId),
     enabled: isReady && canListFeedback,
   });
+
+  // What the patient sees back after pressing the button. Until the ward call
+  // board existed, "A nurse has been notified" was a claim nothing on any
+  // screen could support, and a patient with no feedback presses again.
+  const openCallsQ = useQuery({
+    queryKey: ["bedside", "nurse-requests", admissionId],
+    queryFn: () => bedsideService.listBedsideNurseRequests(admissionId),
+    enabled: isReady && canRequest,
+    refetchInterval: 15_000,
+  });
+  const openCalls = openNurseCalls(openCallsQ.data ?? []);
 
   // ── Mutations ──
   const nurseRequestMut = useMutation({
@@ -430,6 +441,25 @@ export function BedsidePortalPage() {
                         </Button>
                       ))}
                     </SimpleGrid>
+                    {openCalls.length > 0 && (
+                      <Stack gap="xs" mt="md">
+                        {openCalls.map((call) => (
+                          <Group key={call.id} justify="space-between">
+                            <Text size="sm">
+                              {REQUEST_TYPE_CONFIG[call.request_type as BedsideRequestType]
+                                ?.label ?? "Request"}
+                            </Text>
+                            {/* "Seen" is not "answered", and saying so is the
+                                point: a nurse has the call and is on the way.
+                                Claiming more than that is how a patient stops
+                                trusting the button. */}
+                            <Badge tone={call.acknowledged_at ? "success" : "neutral"}>
+                              {call.acknowledged_at ? "A nurse is coming" : "Sent to the ward"}
+                            </Badge>
+                          </Group>
+                        ))}
+                      </Stack>
+                    )}
                   </Card>
                 )}
 

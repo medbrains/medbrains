@@ -1,4 +1,8 @@
-import type { BillingQueueLaneKey, TokenBoardSurfaceId } from "@medbrains/types";
+import type {
+  BillingQueueLaneKey,
+  NurseCallEscalation,
+  TokenBoardSurfaceId,
+} from "@medbrains/types";
 
 type TvTextValues = Record<string, string | number | boolean>;
 export type TvBedStatusReadinessKey = "privacy" | "refresh" | "ward";
@@ -71,6 +75,31 @@ export const TV_TEXT = {
     waitingCase: "tv.bedStatus.waitingCase",
     waitingLaneTitle: "tv.bedStatus.waitingLaneTitle",
     waitMinutes: "tv.bedStatus.waitMinutes",
+  },
+  nurseCalls: {
+    displayName: "tv.nurseCalls.displayName",
+    empty: "tv.nurseCalls.empty",
+    escalation: {
+      charge_nurse: "tv.nurseCalls.escalation.charge_nurse",
+      normal: "tv.nurseCalls.escalation.normal",
+      supervisor: "tv.nurseCalls.escalation.supervisor",
+    },
+    eyebrow: "tv.nurseCalls.eyebrow",
+    feedError: "tv.nurseCalls.feedError",
+    loading: "tv.nurseCalls.loading",
+    privacyNotice: "tv.nurseCalls.privacyNotice",
+    seen: "tv.nurseCalls.seen",
+    subtitle: "tv.nurseCalls.subtitle",
+    summary: {
+      longestWait: "tv.nurseCalls.summary.longestWait",
+      open: "tv.nurseCalls.summary.open",
+      overdue: "tv.nurseCalls.summary.overdue",
+    },
+    title: "tv.nurseCalls.title",
+    unassignedBed: "tv.nurseCalls.unassignedBed",
+    unavailableMessage: "tv.nurseCalls.unavailableMessage",
+    unavailableTitle: "tv.nurseCalls.unavailableTitle",
+    waiting: "tv.nurseCalls.waiting",
   },
   feed: {
     degradedTitle: "tv.feed.degradedTitle",
@@ -216,6 +245,27 @@ export const TV_TEXT = {
 
 const TV_MESSAGES: Readonly<Record<string, string>> = {
   "tv.bedStatus.availableLegend": "{{count}} available",
+  "tv.nurseCalls.displayName": "Nurse calls",
+  "tv.nurseCalls.empty": "No open calls",
+  "tv.nurseCalls.escalation.charge_nurse": "CHARGE NURSE",
+  "tv.nurseCalls.escalation.normal": "WAITING",
+  "tv.nurseCalls.escalation.supervisor": "SUPERVISOR",
+  "tv.nurseCalls.eyebrow": "NURSING STATION",
+  "tv.nurseCalls.feedError":
+    "Call feed is unreachable. The calls below may have been answered already \u2014 check the ward.",
+  "tv.nurseCalls.loading": "Loading open calls...",
+  "tv.nurseCalls.privacyNotice":
+    "Bed and request type only; no names, UHIDs, or what the patient typed.",
+  "tv.nurseCalls.seen": "Seen",
+  "tv.nurseCalls.subtitle": "Every call still waiting, oldest first.",
+  "tv.nurseCalls.summary.longestWait": "LONGEST WAIT",
+  "tv.nurseCalls.summary.open": "OPEN CALLS",
+  "tv.nurseCalls.summary.overdue": "OVERDUE",
+  "tv.nurseCalls.title": "Open calls",
+  "tv.nurseCalls.unassignedBed": "No bed",
+  "tv.nurseCalls.unavailableMessage": "Check TV pairing, network, and ward display access.",
+  "tv.nurseCalls.unavailableTitle": "Call board unavailable",
+  "tv.nurseCalls.waiting": "{{minutes}}m {{seconds}}s",
   "tv.bedStatus.displayName": "Bed occupancy",
   "tv.bedStatus.emptyWaiting": "No waiting patients for this ward type",
   "tv.bedStatus.eyebrow": "WARD",
@@ -373,6 +423,46 @@ function interpolate(template: string, values?: TvTextValues): string {
 
 export function tvText(key: string, values?: TvTextValues): string {
   return interpolate(TV_MESSAGES[key] ?? key, values);
+}
+
+export type TvNurseCallsTextKey =
+  | "displayName"
+  | "empty"
+  | "eyebrow"
+  | "feedError"
+  | "loading"
+  | "privacyNotice"
+  | "seen"
+  | "subtitle"
+  | "title"
+  | "unassignedBed"
+  | "unavailableMessage"
+  | "unavailableTitle";
+
+export function tvNurseCallsText(key: TvNurseCallsTextKey): string {
+  return tvText(TV_TEXT.nurseCalls[key]);
+}
+
+export function tvNurseCallSummaryLabel(key: keyof typeof TV_TEXT.nurseCalls.summary): string {
+  return tvText(TV_TEXT.nurseCalls.summary[key]);
+}
+
+/**
+ * The escalation level as a word, always rendered next to the colour.
+ *
+ * WCAG 2.2 1.4.1: a red card and an amber one must not be the only thing
+ * separating "waiting" from "the supervisor needs to know". Across a ward at
+ * ten feet, through a screen nobody calibrated, it is also just practical.
+ */
+export function tvNurseCallEscalationLabel(level: NurseCallEscalation): string {
+  return tvText(TV_TEXT.nurseCalls.escalation[level]);
+}
+
+export function tvNurseCallWaiting(waitingSeconds: number): string {
+  return tvText(TV_TEXT.nurseCalls.waiting, {
+    minutes: Math.floor(waitingSeconds / 60),
+    seconds: waitingSeconds % 60,
+  });
 }
 
 export function tvBedStatusAvailableLegend(count: number): string {

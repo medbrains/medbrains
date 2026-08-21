@@ -12,6 +12,7 @@ import { campQueueModule } from "./camp-queue";
 import { digitalSignageModule } from "./digital-signage";
 import { emergencyTriageModule } from "./emergency-triage";
 import { labStatusModule } from "./lab-status";
+import { nurseCallsModule } from "./nurse-calls";
 import { pharmacyQueueModule } from "./pharmacy-queue";
 import { queueModule } from "./queue";
 import { radiologyQueueModule } from "./radiology-queue";
@@ -48,4 +49,5 @@ export const MODULES: ReadonlyArray<Module> = [
   ...TOKEN_BOARD_TV_MODULE_LIST,
   bedStatusModule,
   digitalSignageModule,
+  nurseCallsModule,
 ];

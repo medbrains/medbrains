@@ -6,6 +6,7 @@ use medbrains_server_core::state::AppState;
 pub mod bedside_portal;
 pub mod case_mgmt;
 pub mod chronic_care;
+pub mod nurse_calls;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -128,6 +129,10 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/bedside/nurse-requests/{id}/status",
             put(bedside_portal::update_request_status),
+        )
+        .route(
+            "/api/bedside/nurse-calls/active",
+            get(nurse_calls::active_nurse_calls),
         )
         .route(
             "/api/bedside/videos",

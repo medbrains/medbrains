@@ -3,6 +3,7 @@
  * `crates/medbrains-nursing/src/nurse_handoff.rs`.
  */
 
+import type { ActiveNurseCall, NurseCallBoard } from "@medbrains/types";
 import { request } from "./client.js";
 import { apiConfig } from "./config.js";
 
@@ -66,4 +67,47 @@ export function pendingForNurse(handoffs: ShiftHandoff[], nurseId: string): Shif
 export function outstandingAlerts(handoffs: ShiftHandoff[]): HandoffAlert[] {
   const open = handoffs.filter((handoff) => handoff.completed_at === null);
   return open.flatMap((handoff) => handoff.alerts ?? []);
+}
+
+// ── Ward call board ────────────────────────────────────────
+// Wire shape mirrors `crates/medbrains-care-mgmt/src/nurse_calls.rs`.
+
+export type {
+  ActiveNurseCall,
+  NurseCallBoard,
+  NurseCallEscalation,
+} from "@medbrains/types";
+
+/** Every open call in the ward — needs `bedside.calls.board`, not `bedside.view`. */
+export async function listActiveNurseCalls(wardId?: string): Promise<NurseCallBoard> {
+  const query = wardId ? `?ward_id=${encodeURIComponent(wardId)}` : "";
+  return request<NurseCallBoard>(apiConfig, "GET", `/api/bedside/nurse-calls/active${query}`);
+}
+
+/**
+ * Acknowledge, complete or cancel one call.
+ *
+ * `acknowledged` means seen, not answered — the server keeps the clock running
+ * from `created_at`, so acknowledging does not quiet the board.
+ */
+export async function updateNurseCallStatus(
+  id: string,
+  status: "acknowledged" | "completed" | "cancelled",
+): Promise<ActiveNurseCall> {
+  return request<ActiveNurseCall>(apiConfig, "PUT", `/api/bedside/nurse-requests/${id}/status`, {
+    status,
+  });
+}
+
+/**
+ * Just the rows, for the home tile.
+ *
+ * `useModuleCount` needs an array so a failed fetch can stay "—" rather than
+ * become 0 — a tile reading "0 beds waiting" because the network dropped is
+ * indistinguishable from a quiet ward, and it is the one number on this screen
+ * where that difference is a patient waiting.
+ */
+export async function listOpenNurseCalls(wardId?: string): Promise<ActiveNurseCall[]> {
+  const board = await listActiveNurseCalls(wardId);
+  return board.calls;
 }

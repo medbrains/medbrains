@@ -737,6 +737,22 @@ pub mod bedside {
         pub const LIST: &str = "bedside.sessions.list";
         pub const MANAGE: &str = "bedside.sessions.manage";
     }
+
+    pub mod calls {
+        /// See every open call in the ward.
+        ///
+        /// `bedside.view` answers "may I read this admission's bedside data",
+        /// which is the question a patient's own tablet asks and the only
+        /// question the bedside module could answer. A ward call board asks a
+        /// different one — every patient waiting right now, across admissions
+        /// the caller may hold no relationship to — and answering it is what
+        /// makes a call button worth pressing.
+        ///
+        /// Separate rather than folded into `bedside.view`, because widening
+        /// that would have handed the whole ward to every holder of a
+        /// per-admission read, silently and retroactively.
+        pub const BOARD: &str = "bedside.calls.board";
+    }
 }
 
 pub mod diet {

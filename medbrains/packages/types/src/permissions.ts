@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 952 permissions, one per constant in the Rust source. */
+/** 953 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -1839,6 +1839,12 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "bedside.sessions.manage",
     label: "Manage Sessions",
     description: "Start/end bedside tablet sessions",
+    module: "bedside",
+  },
+  {
+    code: "bedside.calls.board",
+    label: "See every open call in the ward",
+    description: "`bedside.view` answers \"may I read this admission's bedside data\", which is the question a patient's own tablet asks and the only question the bedside module could answer. A ward call board asks a different one — every patient waiting right now, across admissions the caller may hold no relationship to — and answering it is what makes a call button worth pressing. Separate rather than folded into `bedside.view`, because widening that would have handed the whole ward to every holder of a per-admission read, silently and retroactively.",
     module: "bedside",
   },
   // diet
@@ -6097,6 +6103,10 @@ export const P = {
     LOG_VIEW: "audit.log.view",
   },
   BEDSIDE: {
+    CALLS: {
+      BOARD: "bedside.calls.board",
+    },
+    CALLS_BOARD: "bedside.calls.board",
     FEEDBACK: {
       CREATE: "bedside.feedback.create",
       LIST: "bedside.feedback.list",
@@ -8941,6 +8951,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
     permissions: [
       P.ADMIN.SETTINGS.READ,
       P.AUDIT.BREAK_GLASS_START,
+      P.BEDSIDE.CALLS.BOARD,
       P.BEDSIDE.FEEDBACK.CREATE,
       P.BEDSIDE.FEEDBACK.LIST,
       P.BEDSIDE.REQUEST,

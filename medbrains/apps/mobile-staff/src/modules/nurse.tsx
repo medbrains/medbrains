@@ -9,11 +9,13 @@ import { P } from "@medbrains/types";
 import type { ReactNode } from "react";
 import type { AdmissionRow } from "../api/ipd.js";
 import { listActiveAdmissions } from "../api/ipd.js";
+import { listOpenNurseCalls } from "../api/nursing.js";
 import { useModuleCount } from "../components/module-count.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
 import { AdmissionsListScreen } from "./nurse/admissions-list.js";
 import { BedsideActionScreen } from "./nurse/bedside-action.js";
+import { NurseCallBoardScreen } from "./nurse/call-board.js";
 import { MarScheduleScreen } from "./nurse/mar-schedule.js";
 import { PatientWorkspaceScreen } from "./nurse/patient-workspace.js";
 import { ShiftHandoverScreen } from "./nurse/shift-handover.js";
@@ -21,6 +23,9 @@ import { ShiftHandoverScreen } from "./nurse/shift-handover.js";
 function NurseHome(): ReactNode {
   const router = useModuleRouter();
   const admissions = useModuleCount(listActiveAdmissions);
+  // The tile is the reason a nurse opens the module at all; an em dash
+  // where a number belongs is how a ward learns to stop looking.
+  const openCalls = useModuleCount(listOpenNurseCalls);
   return (
     <ModuleHome
       eyebrow="MODULE"
@@ -29,7 +34,7 @@ function NurseHome(): ReactNode {
       tags={["Mobile-Nurse", "IPD", "eMAR", "offline-ready"]}
       summaries={[
         { eyebrow: "DUE", count: admissions.count, title: "MAR doses (next hour)" },
-        { eyebrow: "VITALS", count: "—", title: "Bedside rounds left" },
+        { eyebrow: "CALLS", count: openCalls.count, title: "Beds waiting on a call" },
       ]}
       actions={[
         {
@@ -45,6 +50,13 @@ function NurseHome(): ReactNode {
           description: "Select a patient, then capture BP, HR, SpO2 and temperature.",
           permission: P.NURSE.VITALS_RECORD,
           onPress: () => router.push("admissions"),
+        },
+        {
+          id: "calls",
+          label: "Open calls",
+          description: "Every bed still waiting on a call, oldest first.",
+          permission: P.BEDSIDE.CALLS_BOARD,
+          onPress: () => router.push("calls"),
         },
         {
           id: "handoff",
@@ -79,6 +91,7 @@ function NurseScreen(): ReactNode {
       screens={{
         home: <NurseHome />,
         admissions: <AdmissionsListScreen />,
+        calls: <NurseCallBoardScreen />,
         "patient-workspace": (payload) => (
           <PatientWorkspaceScreen admission={payload as AdmissionRow} />
         ),
