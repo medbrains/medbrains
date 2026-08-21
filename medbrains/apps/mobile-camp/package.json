@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@medbrains/api": "workspace:*",
+    "@medbrains/design-system": "workspace:*",
     "@medbrains/edge-rn-bindings": "workspace:*",
     "@medbrains/mobile-shell": "workspace:*",
     "@medbrains/types": "workspace:*",

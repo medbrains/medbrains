@@ -107,3 +107,6 @@ crash.*.log
 
 # medbrains-edge dev state (Loro docs + Merkle chain)
 var/
+
+# Detox run artifacts — screenshots and device logs from the last e2e run.
+apps/*/artifacts/

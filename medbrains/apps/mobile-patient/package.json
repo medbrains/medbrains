@@ -2,7 +2,7 @@
   "name": "@medbrains/mobile-patient",
   "private": true,
   "version": "0.1.0",
-  "description": "MedBrains Patient — generated from medbrains-create-mobile-app, variant: patient",
+  "description": "MedBrains Patient \u2014 generated from medbrains-create-mobile-app, variant: patient",
   "main": "index.js",
   "scripts": {
     "start": "expo start",
@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@medbrains/api": "workspace:*",
+    "@medbrains/design-system": "workspace:*",
     "@medbrains/mobile-shell": "workspace:*",
     "@medbrains/types": "workspace:*",
     "@medbrains/ui-mobile": "workspace:*",
