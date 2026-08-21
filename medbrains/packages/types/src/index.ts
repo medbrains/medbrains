@@ -7736,6 +7736,32 @@ export interface UnreadCountResponse {
 
 // ── Unified token / queue system ──
 /**
+ * One queue row as the clinician working it sees it.
+ *
+ * The same token the board shows, plus who the patient is. The board's own
+ * endpoint carries no name and a test holds it that way; this one is gated on a
+ * clinical permission because it carries a name, a UHID and the encounter to
+ * open. Two reads of one queue.
+ */
+export interface WorklistToken {
+  id: string;
+  number: string;
+  seq: number;
+  status: string;
+  priority: string;
+  scope_id: string | null;
+  scope_label: string | null;
+  counter_label: string | null;
+  called_at: string | null;
+  created_at: string;
+  patient_id: string | null;
+  patient_name: string | null;
+  uhid: string | null;
+  /** Null on a token issued before its encounter existed. */
+  encounter_id: string | null;
+}
+
+/**
  * The two numbers above a token board.
  *
  * `avg_wait_minutes` is null until somebody has been called today. Render a

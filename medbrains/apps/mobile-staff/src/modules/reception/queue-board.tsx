@@ -8,6 +8,13 @@
  *
  * The call button acts on whoever the rule says is next rather than on a row
  * the user picked, so the queue cannot be jumped by mis-tapping.
+ *
+ * "Next" is the server's decision, not this screen's. It used to be computed
+ * here as the lowest token number still waiting; the unified queue orders by
+ * priority weight first, so an elderly or emergency-referral patient is called
+ * ahead of a lower number. `call-next` picks under a lock, by the same rule it
+ * used to order the list below, so the desk and the board cannot disagree and
+ * two people pressing at once cannot call the same patient twice.
  */
 
 import { Badge, COLORS, EcgLoader, Empty, SPACING } from "@medbrains/ui-mobile";
@@ -15,21 +22,22 @@ import type { ReactNode } from "react";
 import { useCallback, useMemo, useState } from "react";
 import { FlatList, View } from "react-native";
 import { Button, HelperText, Text } from "react-native-paper";
-import type { QueueEntry } from "../../api/opd.js";
-import { callQueue, listOpdQueue } from "../../api/opd.js";
+import type { WorklistToken } from "../../api/queue.js";
+import { callNextInQueue, listWorklist } from "../../api/queue.js";
 import { EntityRow } from "../../components/entity-row.js";
 import { ScreenHeader } from "../../components/screen-header.js";
-import { byToken, countQueue, isWaiting, nextToCall } from "../../lib/queue-order.js";
+import { countQueue, isWaiting, nextToCall } from "../../lib/queue-order.js";
 import { useFetch } from "../../lib/use-fetch.js";
 
 const MAX_ROWS = 100;
 
 export function QueueBoardScreen(): ReactNode {
-  const { data, loading, error, refetch } = useFetch(() => listOpdQueue(), []);
+  const { data, loading, error, refetch } = useFetch(() => listWorklist({ module: "opd" }), []);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
 
-  const entries = useMemo(() => byToken(data ?? []).slice(0, MAX_ROWS), [data]);
+  // Already in call order; re-sorting here is what got the wrong patient called.
+  const entries = useMemo(() => (data ?? []).slice(0, MAX_ROWS), [data]);
   const next = useMemo(() => nextToCall(entries), [entries]);
   const counts = useMemo(() => countQueue(entries), [entries]);
 
@@ -40,7 +48,7 @@ export function QueueBoardScreen(): ReactNode {
     setBusy(true);
     setFailure(null);
     try {
-      await callQueue(next.id);
+      await callNextInQueue("opd");
       refetch();
     } catch (cause) {
       setFailure(cause instanceof Error ? cause.message : "Could not call that token.");
@@ -94,7 +102,9 @@ export function QueueBoardScreen(): ReactNode {
               {next ? "Next to call" : "Nobody waiting"}
             </Text>
             <Text variant="headlineSmall" style={{ color: COLORS.ink, fontWeight: "700" }}>
-              {next ? `Token ${next.token_number} · ${next.patient_name}` : "Queue is clear"}
+              {next
+                ? `Token ${next.number} · ${next.patient_name ?? "Unnamed patient"}`
+                : "Queue is clear"}
             </Text>
             <Button
               mode="contained"
@@ -103,7 +113,7 @@ export function QueueBoardScreen(): ReactNode {
               // No button when nobody is waiting: pressing it would call nobody.
               disabled={busy || !next}
               accessibilityLabel={
-                next ? `Call token ${next.token_number}` : "Nobody is waiting to be called"
+                next ? `Call token ${next.number}` : "Nobody is waiting to be called"
               }
             >
               {busy ? "Calling…" : "Call next"}
@@ -121,13 +131,13 @@ export function QueueBoardScreen(): ReactNode {
   );
 }
 
-function QueueRow({ entry }: { entry: QueueEntry }): ReactNode {
+function QueueRow({ entry }: { entry: WorklistToken }): ReactNode {
   const waiting = isWaiting(entry);
 
   return (
     <View style={{ marginBottom: SPACING.sm }}>
       <EntityRow
-        title={`${entry.token_number} · ${entry.patient_name}`}
+        title={`${entry.number} · ${entry.patient_name ?? "Unnamed patient"}`}
         subtitle={`UHID ${entry.uhid}`}
         badge={{
           label: entry.status.replace(/_/g, " "),

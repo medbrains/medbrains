@@ -2080,6 +2080,7 @@ import type {
   WidgetAccessLevel,
   WidgetDataResponse,
   WidgetTemplate,
+  WorklistToken,
   WorkOrderPrintData,
   WoundCertificatePrintData,
   WristbandPrintData,
@@ -3613,6 +3614,20 @@ export const api = {
     if (params.scope_id) qs.set("scope_id", params.scope_id);
     if (params.include_finished) qs.set("include_finished", "true");
     return request<ModuleToken[]>(`/tokens/board?${qs.toString()}`);
+  },
+
+  /** The same queue as the board, with the patients on it — clinicians only. */
+  listTokenWorklist: (params: {
+    module: string;
+    scope?: string;
+    scope_id?: string;
+    include_finished?: boolean;
+  }) => {
+    const qs = new URLSearchParams({ module: params.module });
+    if (params.scope) qs.set("scope", params.scope);
+    if (params.scope_id) qs.set("scope_id", params.scope_id);
+    if (params.include_finished) qs.set("include_finished", "true");
+    return request<WorklistToken[]>(`/tokens/worklist?${qs.toString()}`);
   },
 
   /** The waiting count and mean wait that sit above a board. */

@@ -8,8 +8,8 @@ import type { Module } from "@medbrains/mobile-shell";
 import { P } from "@medbrains/types";
 import type { ReactNode } from "react";
 import type { AdmissionRow } from "../api/ipd.js";
-import type { QueueEntry } from "../api/opd.js";
-import { listOpdQueue } from "../api/opd.js";
+import type { WorklistToken } from "../api/queue.js";
+import { listOpdWorklistCount } from "../api/queue.js";
 import { useModuleCount } from "../components/module-count.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
@@ -20,10 +20,7 @@ import { QueueListScreen } from "./doctor/queue-list.js";
 
 function DoctorHome(): ReactNode {
   const router = useModuleRouter();
-  const opdQueue = useModuleCount(
-    () => listOpdQueue(),
-    (q) => q.status === "waiting",
-  );
+  const opdQueue = useModuleCount(listOpdWorklistCount, (q) => q.status === "waiting");
   return (
     <ModuleHome
       eyebrow="MODULE"
@@ -89,7 +86,7 @@ function DoctorScreen(): ReactNode {
       screens={{
         home: <DoctorHome />,
         queue: <QueueListScreen />,
-        "queue-detail": (payload) => <QueueDetailScreen entry={payload as QueueEntry} />,
+        "queue-detail": (payload) => <QueueDetailScreen entry={payload as WorklistToken} />,
         "ipd-rounds": <DoctorIpdRoundsScreen />,
         "ipd-round-detail": (payload) => (
           <DoctorIpdRoundDetailScreen admission={payload as AdmissionRow} />

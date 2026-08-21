@@ -623,8 +623,21 @@ pub async fn check_in_appointment(
             priority: "normal",
             patient_id: Some(row.patient_id),
             patient_name: None,
-            entity_type: Some("appointment"),
-            entity_id: Some(row.id),
+            // The encounter, not the appointment, when there is one — and by
+            // this point there always is, because the block above creates it if
+            // the appointment arrived without.
+            //
+            // A token is a queue position; what a clinician opens from it is the
+            // clinical record. Naming the appointment made the unified queue
+            // unusable as a worklist without a second lookup, which is part of
+            // why the doctor's screens still read `opd_queues`. The appointment
+            // stays reachable the other way round, off `appointments.encounter_id`.
+            entity_type: Some(if row.encounter_id.is_some() {
+                "encounter"
+            } else {
+                "appointment"
+            }),
+            entity_id: Some(row.encounter_id.unwrap_or(row.id)),
             issued_by: Some(claims.sub),
         },
     )

@@ -8,8 +8,8 @@
 import type { Module } from "@medbrains/mobile-shell";
 import { P } from "@medbrains/types";
 import type { ReactNode } from "react";
-import { listOpdQueue } from "../api/opd.js";
 import type { PatientRow } from "../api/patients.js";
+import { listOpdWorklistCount } from "../api/queue.js";
 import { useModuleCount } from "../components/module-count.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
@@ -20,10 +20,7 @@ import { RegisterPatientScreen } from "./reception/register-patient.js";
 
 function ReceptionHome(): ReactNode {
   const router = useModuleRouter();
-  const queueLength = useModuleCount(
-    () => listOpdQueue(),
-    (q) => q.status === "waiting",
-  );
+  const queueLength = useModuleCount(listOpdWorklistCount, (q) => q.status === "waiting");
   return (
     <ModuleHome
       eyebrow="MODULE"

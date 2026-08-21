@@ -475,7 +475,7 @@ pub async fn list_board(
            AND ($3::uuid IS NULL OR scope_id = $3) \
            AND (status IN ('waiting', 'called', 'serving') \
                 OR ($4::bool AND status IN ('completed', 'no_show'))) \
-         ORDER BY CASE priority WHEN 'stat' THEN 0 WHEN 'urgent' THEN 1 ELSE 2 END, seq ASC"
+         ORDER BY token_priority_weight(priority), seq ASC"
     ))
     .bind(&query.module)
     .bind(&query.scope)
@@ -486,6 +486,98 @@ pub async fn list_board(
 
     tx.commit().await?;
     Ok(Json(tokens))
+}
+
+/// One queue row as the clinician working it needs to see it.
+///
+/// The same `tokens` row the board shows, plus who the patient is. A wall
+/// board gets `/api/tokens/board`, which carries no name and is enforced
+/// token-only by a test; a doctor calling the next patient needs the name, the
+/// UHID and the encounter to open. Two reads of one queue, rather than the two
+/// queues this replaces.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct WorklistToken {
+    pub id: Uuid,
+    pub number: String,
+    pub seq: i32,
+    pub status: String,
+    pub priority: String,
+    pub scope_id: Option<Uuid>,
+    pub scope_label: Option<String>,
+    pub counter_label: Option<String>,
+    pub called_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub patient_id: Option<Uuid>,
+    pub patient_name: Option<String>,
+    pub uhid: Option<String>,
+    /// The clinical record this token is a queue position for.
+    ///
+    /// Null on a token issued before the encounter existed, and on modules
+    /// whose tokens name something else entirely.
+    pub encounter_id: Option<Uuid>,
+}
+
+/// Who may read a queue as a worklist — with the patient on it.
+///
+/// The board's code is not enough. `display.board.read` belongs to a screen in
+/// a corridor and this read carries a name and a UHID, so a display holding it
+/// must not reach here. The clinical codes are the module's own: `opd.queue.list`
+/// for OPD, held by doctor, nurse, receptionist and the audit roles, falling
+/// through to the desk's `front_office.queue.list` for every other queue.
+fn require_queue_worklist(claims: &Claims, module: &str) -> Result<(), AppError> {
+    if module == "opd" && require_permission(claims, permissions::opd::queue::LIST).is_ok() {
+        return Ok(());
+    }
+    require_permission(claims, permissions::front_office::queue::LIST)
+}
+
+/// GET /api/tokens/worklist — the queue with the patients on it.
+///
+/// # Why no per-record check
+///
+/// A queue is a place's list, not a person's record: the point of it is the
+/// patient the clinician has not met yet, and filtering by permitted patients
+/// would empty the worklist for exactly the person it exists to serve — the
+/// doctor about to call the next name. It is scoped by permission, by module
+/// and by queue instead. This is the same reasoning the ward call board carries,
+/// and the opposite of a per-patient record read.
+pub async fn list_worklist(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(query): Query<BoardQuery>,
+) -> Result<Json<Vec<WorklistToken>>, AppError> {
+    require_queue_worklist(&claims, &query.module)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // One statement. A worklist that fetched each patient separately would be
+    // N+1 on the screen a clinic refreshes most.
+    let rows = sqlx::query_as::<_, WorklistToken>(
+        "SELECT t.id, t.number, t.seq, t.status, t.priority, t.scope_id, t.scope_label, \
+                t.counter_label, t.called_at, t.created_at, t.patient_id, \
+                CONCAT_WS(' ', p.first_name, NULLIF(p.last_name, '')) AS patient_name, \
+                p.uhid, \
+                CASE WHEN t.entity_type = 'encounter' THEN t.entity_id END AS encounter_id \
+           FROM tokens t \
+           LEFT JOIN patients p ON p.id = t.patient_id \
+          WHERE t.module = $1 AND t.token_date = CURRENT_DATE \
+            AND ($2::text IS NULL OR t.scope = $2) \
+            AND ($3::uuid IS NULL OR t.scope_id = $3) \
+            AND (t.status IN ('waiting', 'called', 'serving') \
+                 OR ($4::bool AND t.status IN ('completed', 'no_show'))) \
+          ORDER BY token_priority_weight(t.priority), t.seq ASC \
+          LIMIT 500",
+    )
+    .bind(&query.module)
+    .bind(&query.scope)
+    .bind(query.scope_id)
+    .bind(query.include_finished)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
 }
 
 /// The two numbers a board shows beside the tokens.
@@ -572,9 +664,9 @@ pub async fn my_tokens(
               AND ahead.scope_id IS NOT DISTINCT FROM t.scope_id \
               AND ahead.token_date = t.token_date \
               AND ahead.status = 'waiting' \
-              AND (CASE ahead.priority WHEN 'stat' THEN 0 WHEN 'urgent' THEN 1 ELSE 2 END, \
+              AND (token_priority_weight(ahead.priority), \
                    ahead.seq) \
-                < (CASE t.priority WHEN 'stat' THEN 0 WHEN 'urgent' THEN 1 ELSE 2 END, t.seq) \
+                < (token_priority_weight(t.priority), t.seq) \
          ) AS ahead \
          FROM tokens t \
          WHERE t.patient_id = $1 AND t.token_date = CURRENT_DATE \
@@ -798,7 +890,7 @@ pub async fn call_next(
         "SELECT id FROM tokens \
          WHERE module = $1 AND token_date = CURRENT_DATE AND status = 'waiting' \
            AND ($2::text IS NULL OR scope = $2) AND ($3::uuid IS NULL OR scope_id = $3) \
-         ORDER BY CASE priority WHEN 'stat' THEN 0 WHEN 'urgent' THEN 1 ELSE 2 END, seq ASC \
+         ORDER BY token_priority_weight(priority), seq ASC \
          LIMIT 1",
     )
     .bind(&body.module)
@@ -1059,7 +1151,7 @@ async fn place_after(
     let boundary: Option<i32> = sqlx::query_scalar(
         "WITH ordered AS ( \
            SELECT seq, row_number() OVER ( \
-                    ORDER BY CASE priority WHEN 'stat' THEN 0 WHEN 'urgent' THEN 1 ELSE 2 END, \
+                    ORDER BY token_priority_weight(priority), \
                              seq \
                   ) AS rn \
              FROM tokens \
@@ -1234,6 +1326,7 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/tokens/issue", post(issue_token))
         .route("/api/tokens/board", get(list_board))
         .route("/api/tokens/board/metrics", get(board_metrics))
+        .route("/api/tokens/worklist", get(list_worklist))
         .route("/api/tokens/camp-board", get(camp_board))
         .route("/api/tokens/mine", get(my_tokens))
         .route("/api/tokens/call-next", post(call_next))
@@ -1247,7 +1340,7 @@ pub fn router() -> axum::Router<AppState> {
 
 #[cfg(test)]
 mod queue_permission_tests {
-    use super::require_queue_manage;
+    use super::{require_queue_manage, require_queue_worklist};
     use medbrains_server_core::middleware::auth::Claims;
 
     fn claims(permissions: &[&str]) -> Claims {
@@ -1289,5 +1382,31 @@ mod queue_permission_tests {
     #[test]
     fn holding_neither_is_refused() {
         assert!(require_queue_manage(&claims(&["front_office.queue.list"]), "opd").is_err());
+    }
+
+    #[test]
+    fn a_clinician_reads_the_opd_worklist() {
+        assert!(require_queue_worklist(&claims(&["opd.queue.list"]), "opd").is_ok());
+    }
+
+    #[test]
+    fn a_wall_display_never_reads_the_worklist() {
+        // The board's code reaches /tokens/board, which carries no name. This
+        // read carries a name and a UHID, and a screen in a corridor holding a
+        // credential that reached it would be the whole point of the split
+        // undone.
+        assert!(require_queue_worklist(&claims(&["display.board.read"]), "opd").is_err());
+    }
+
+    #[test]
+    fn the_opd_read_does_not_open_another_module_s_worklist() {
+        assert!(require_queue_worklist(&claims(&["opd.queue.list"]), "pharmacy").is_err());
+    }
+
+    #[test]
+    fn the_desk_reads_every_worklist() {
+        for module in ["opd", "pharmacy", "lab"] {
+            assert!(require_queue_worklist(&claims(&["front_office.queue.list"]), module).is_ok());
+        }
     }
 }

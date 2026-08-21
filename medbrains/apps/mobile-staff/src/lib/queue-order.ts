@@ -1,16 +1,21 @@
 /**
  * Reading an OPD queue the way the desk works it.
  *
- * Extracted so the "who is next" rule is testable and stated once. Calling the
- * wrong person is not a cosmetic error: it sends someone into a consulting room
- * ahead of people who have been waiting longer, in front of all of them.
+ * The "who is next" rule is no longer here. It used to be: lowest token number
+ * still waiting, sorted on the device. The unified queue orders by priority
+ * weight and then by position, so an elderly or emergency-referral patient is
+ * called before a lower number — and a desk sorting locally by the number on
+ * the slip would have called the wrong person, in front of everyone. Calling
+ * the wrong person is not a cosmetic error.
+ *
+ * The server owns that rule now, in `token_priority_weight`, and returns rows
+ * already in it. Nothing here re-sorts; these helpers read a list that arrived
+ * in order.
  */
 
 export interface QueueItem {
   id: string;
-  token_number: number;
   status: string;
-  called_at: string | null;
 }
 
 /** Nobody in these states is waiting to be called. */
@@ -24,23 +29,22 @@ export function isOpen(entry: QueueItem): boolean {
   return !CLOSED.has(entry.status);
 }
 
-/** Token order. The number on the slip is the promise the board made. */
-export function byToken<T extends QueueItem>(entries: ReadonlyArray<T>): T[] {
-  return [...entries].sort((a, b) => a.token_number - b.token_number);
-}
-
 /**
- * The next person to call: lowest token still waiting.
+ * The next person to call — the first still waiting, in the order given.
  *
- * Someone already called is skipped even if their token is lower — they are in
- * the room, or they did not answer, and calling them again would put them in
- * front of the queue a second time.
+ * Used to label the button, not to decide the call: the desk presses call-next
+ * and the server picks, under a lock, by the same rule it used to order this
+ * list. If the two ever disagreed, the server would win and the label would
+ * have been a guess; they do not disagree, because neither side sorts.
+ *
+ * Someone already called is skipped — they are in the room, or they did not
+ * answer, and calling them again would put them in front a second time.
  *
  * Null when nobody is waiting, so the screen can say the queue is clear rather
  * than offer a button that would call nobody.
  */
 export function nextToCall<T extends QueueItem>(entries: ReadonlyArray<T>): T | null {
-  return byToken(entries).find(isWaiting) ?? null;
+  return entries.find(isWaiting) ?? null;
 }
 
 export interface QueueCounts {
