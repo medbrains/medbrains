@@ -116,6 +116,7 @@ members = [
     "crates/medbrains-clinical-ops",
     "crates/medbrains-identity",
     "crates/medbrains-materials",
+    "crates/medbrains-marketing",
     "crates/medbrains-facilities",
     "crates/medbrains-documents",
     "crates/medbrains-infra-utils",
