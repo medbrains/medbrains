@@ -41,6 +41,7 @@ pub mod campaigns;
 pub mod cohorts;
 pub mod contacts;
 pub mod interactions;
+pub mod outreach;
 pub mod phone;
 pub mod pipeline;
 pub mod screen_pop;
@@ -95,6 +96,13 @@ pub fn router() -> Router<AppState> {
             post(cohorts::create_clinical_cohort),
         )
         .route("/api/marketing/cohorts/{id}/size", get(cohorts::cohort_size))
+        .route(
+            "/api/marketing/outreach",
+            get(outreach::list_runs).post(outreach::create_run),
+        )
+        .route("/api/marketing/outreach/{id}/submit", post(outreach::submit_run))
+        .route("/api/marketing/outreach/{id}/approve", post(outreach::approve_run))
+        .route("/api/marketing/outreach/{id}/cancel", post(outreach::cancel_run))
         .route("/api/marketing/stages", get(pipeline::list_stages))
         .route(
             "/api/marketing/telephony/calls",
