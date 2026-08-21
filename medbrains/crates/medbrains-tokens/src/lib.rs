@@ -535,6 +535,31 @@ pub struct CallTokenInput {
 const VALID_TOKEN_STATUSES: [&str; 6] =
     ["waiting", "called", "serving", "completed", "no_show", "cancelled"];
 
+/// Who may work a queue, by the module it belongs to.
+///
+/// `front_office.queue.manage` is the desk's code: it works any module's
+/// queue, which is what a front office does. It is held by no role today, so
+/// on its own it made the whole unified token system — call, serve, complete,
+/// no-show, call-next — unreachable by anyone but a bypass account. The same
+/// was true of the TV token endpoints. The only OPD queue anybody could
+/// actually advance was `opd_queues`, which no board reads.
+///
+/// An OPD consultation queue is also worked by the clinician in the room, and
+/// `opd.token.manage` — held by doctor and receptionist — has always been that
+/// permission. It gated exactly this act on `opd_queues`; a unified token with
+/// `module = 'opd'` is the same act on the table meant to replace it.
+/// Accepting it here is what porting the doctor's call path means at the
+/// authorization layer, and it widens nothing: no one gains a queue they could
+/// not already call.
+fn require_queue_manage(claims: &Claims, module: &str) -> Result<(), AppError> {
+    if module == "opd" && require_permission(claims, permissions::opd::TOKEN_MANAGE).is_ok() {
+        return Ok(());
+    }
+    // Falls through so a caller working a non-OPD queue is told about the code
+    // that would actually let them, rather than about OPD.
+    require_permission(claims, permissions::front_office::queue::MANAGE)
+}
+
 async fn transition(
     state: &AppState,
     claims: &Claims,
@@ -553,6 +578,16 @@ async fn transition(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // The permission depends on which queue this token is in, so the module has
+    // to be read before the write. A token's module never changes, so there is
+    // nothing to lock against between the two statements.
+    let module = sqlx::query_scalar::<_, String>("SELECT module FROM tokens WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    require_queue_manage(claims, &module)?;
 
     let token = sqlx::query_as::<_, Token>(&format!(
         "UPDATE tokens SET status = $2, \
@@ -625,7 +660,6 @@ pub async fn call_token(
     Path(id): Path<Uuid>,
     Json(body): Json<CallTokenInput>,
 ) -> Result<Json<Token>, AppError> {
-    require_permission(&claims, permissions::front_office::queue::MANAGE)?;
     Ok(Json(transition(&state, &claims, id, "called", body.counter_label).await?))
 }
 
@@ -635,7 +669,6 @@ pub async fn serve_token(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Token>, AppError> {
-    require_permission(&claims, permissions::front_office::queue::MANAGE)?;
     Ok(Json(transition(&state, &claims, id, "serving", None).await?))
 }
 
@@ -645,7 +678,6 @@ pub async fn complete_token(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Token>, AppError> {
-    require_permission(&claims, permissions::front_office::queue::MANAGE)?;
     Ok(Json(transition(&state, &claims, id, "completed", None).await?))
 }
 
@@ -655,7 +687,6 @@ pub async fn no_show_token(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Token>, AppError> {
-    require_permission(&claims, permissions::front_office::queue::MANAGE)?;
     Ok(Json(transition(&state, &claims, id, "no_show", None).await?))
 }
 
@@ -674,7 +705,6 @@ pub async fn advance_token(
     Path(id): Path<Uuid>,
     Json(body): Json<AdvanceTokenInput>,
 ) -> Result<Json<Token>, AppError> {
-    require_permission(&claims, permissions::front_office::queue::MANAGE)?;
     Ok(Json(transition(&state, &claims, id, &body.status, body.counter_label).await?))
 }
 
@@ -693,7 +723,7 @@ pub async fn call_next(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CallNextInput>,
 ) -> Result<Json<Option<Token>>, AppError> {
-    require_permission(&claims, permissions::front_office::queue::MANAGE)?;
+    require_queue_manage(&claims, &body.module)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -871,7 +901,6 @@ pub async fn requeue_token(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Token>, AppError> {
-    require_permission(&claims, permissions::front_office::queue::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -887,6 +916,9 @@ pub async fn requeue_token(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+    // Same queue, same permission as calling from it — checked once the row has
+    // said which queue that is.
+    require_queue_manage(&claims, &existing.module)?;
 
     // Serialise against a concurrent issue or call-next on this queue: both
     // read the same sequence this is about to renumber.
@@ -1143,4 +1175,51 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/tokens/{id}/complete", post(complete_token))
         .route("/api/tokens/{id}/no-show", post(no_show_token))
         .route("/api/tokens/{id}/requeue", post(requeue_token))
+}
+
+#[cfg(test)]
+mod queue_permission_tests {
+    use super::require_queue_manage;
+    use medbrains_server_core::middleware::auth::Claims;
+
+    fn claims(permissions: &[&str]) -> Claims {
+        Claims {
+            sub: uuid::Uuid::nil(),
+            tenant_id: uuid::Uuid::nil(),
+            role: "doctor".to_owned(),
+            permissions: permissions.iter().map(|p| (*p).to_owned()).collect(),
+            department_ids: Vec::new(),
+            perm_version: 0,
+            paired_device_id: None,
+            exp: 0,
+        }
+    }
+
+    #[test]
+    fn a_doctor_can_call_the_next_patient_in_their_own_opd_queue() {
+        // opd.token.manage is held by doctor and receptionist and has always
+        // gated this act on opd_queues. If this stops passing, the unified
+        // queue goes back to being advanceable only by a bypass account.
+        assert!(require_queue_manage(&claims(&["opd.token.manage"]), "opd").is_ok());
+    }
+
+    #[test]
+    fn the_opd_code_does_not_open_the_pharmacy_or_lab_queue() {
+        // The whole reason this is per-module. A clinician calling their own
+        // consultation queue must not thereby run the pharmacy counter.
+        assert!(require_queue_manage(&claims(&["opd.token.manage"]), "pharmacy").is_err());
+        assert!(require_queue_manage(&claims(&["opd.token.manage"]), "lab").is_err());
+    }
+
+    #[test]
+    fn the_desk_code_works_every_queue() {
+        for module in ["opd", "pharmacy", "lab", "billing"] {
+            assert!(require_queue_manage(&claims(&["front_office.queue.manage"]), module).is_ok());
+        }
+    }
+
+    #[test]
+    fn holding_neither_is_refused() {
+        assert!(require_queue_manage(&claims(&["front_office.queue.list"]), "opd").is_err());
+    }
 }
