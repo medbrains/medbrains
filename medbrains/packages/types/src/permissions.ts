@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 931 permissions, one per constant in the Rust source. */
+/** 952 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -2797,6 +2797,133 @@ export const PERMISSIONS: PermissionDef[] = [
     label: "Update Bmw Disposal",
     description: "Update Bmw Disposal",
     module: "quality",
+  },
+  // marketing
+  {
+    code: "marketing.contacts.list",
+    label: "List enquiry contacts",
+    description: "The enquiry record — name, number, what they asked about, which campaign produced them. Not the clinical record.",
+    module: "marketing",
+  },
+  {
+    code: "marketing.contacts.view",
+    label: "Open an enquiry contact",
+    description: "Open an enquiry contact",
+    module: "marketing",
+  },
+  {
+    code: "marketing.contacts.create",
+    label: "Record a new enquiry",
+    description: "Record a new enquiry",
+    module: "marketing",
+  },
+  {
+    code: "marketing.contacts.update",
+    label: "Edit an enquiry contact",
+    description: "Edit an enquiry contact",
+    module: "marketing",
+  },
+  {
+    code: "marketing.contacts.merge",
+    label: "Merge duplicate enquiry contacts",
+    description: "Merging is destructive to the losing record's identity, so it is separate from ordinary editing.",
+    module: "marketing",
+  },
+  {
+    code: "marketing.pipeline.view",
+    label: "View the enquiry pipeline",
+    description: "View the enquiry pipeline",
+    module: "marketing",
+  },
+  {
+    code: "marketing.pipeline.move",
+    label: "Move an enquiry between stages",
+    description: "Move an enquiry between stages",
+    module: "marketing",
+  },
+  {
+    code: "marketing.pipeline.assign",
+    label: "Assign or reassign an enquiry",
+    description: "Assign or reassign an enquiry",
+    module: "marketing",
+  },
+  {
+    code: "marketing.interactions.log",
+    label: "Log a call, message or note",
+    description: "Log a call, message or note",
+    module: "marketing",
+  },
+  {
+    code: "marketing.interactions.play_recording",
+    label: "Play back a call recording",
+    description: "A recording carries whatever the caller said, including symptoms they were told not to describe. Held apart from reading the interaction timeline, which carries only the disposition.",
+    module: "marketing",
+  },
+  {
+    code: "marketing.campaigns.view",
+    label: "View campaigns and their attribution",
+    description: "View campaigns and their attribution",
+    module: "marketing",
+  },
+  {
+    code: "marketing.campaigns.manage",
+    label: "Create and edit campaigns",
+    description: "Create and edit campaigns",
+    module: "marketing",
+  },
+  {
+    code: "marketing.cohorts.view",
+    label: "View cohort names and sizes",
+    description: "A cohort is a list of people to contact. Marketing sees its name, its size and when it was built — never why any individual is in it.",
+    module: "marketing",
+  },
+  {
+    code: "marketing.cohorts.manage",
+    label: "Build a cohort from enquiry criteria",
+    description: "Source, campaign, stage, last-contacted — the enquiry record only.",
+    module: "marketing",
+  },
+  {
+    code: "marketing.cohorts.clinical_define",
+    label: "Build a cohort from clinical criteria",
+    description: "Recall lists — due for a screen, dormant after a procedure. The query runs with clinical authority and returns contactable identities; the diagnosis never crosses into the marketing tables. A clinical act wearing a marketing name, so it is held by clinicians and not by the people who run the campaign.",
+    module: "marketing",
+  },
+  {
+    code: "marketing.outreach.send",
+    label: "Send a campaign to a cohort",
+    description: "Calls, SMS and WhatsApp alike. Separate from building the cohort, because the mistake that reaches thousands of people is the send, not the query.",
+    module: "marketing",
+  },
+  {
+    code: "marketing.outreach.approve",
+    label: "Approve campaign content before it sends",
+    description: "NMC advertising rules and the Drugs and Magic Remedies Act bind what a hospital may say. Automation scales a wording error to the whole list, so approval is a second pair of eyes and deliberately not held by whoever wrote the campaign.",
+    module: "marketing",
+  },
+  {
+    code: "marketing.reports.view",
+    label: "View acquisition funnel reports",
+    description: "Conversion by source, specialty and agent. Doctor-level conversion is deliberately NOT part of this code — see the module RFC.",
+    module: "marketing",
+  },
+  {
+    code: "marketing.messaging.ingest",
+    label: "Accept WhatsApp and SMS events from the provider",
+    description: "A sibling of `telephony.ingest` and deliberately a separate code. The two are usually different vendors — a telephony provider and a WhatsApp business solution provider — and a key that can write call history should not thereby be able to write message history. One code for both would mean a leaked BSP key could forge the record of what a hospital said to a patient. **Held by no built-in role**, for the same reason: this is machine identity, authenticated with an API key carrying an explicit permission list.",
+    module: "marketing",
+  },
+  {
+    code: "marketing.telephony.ingest",
+    label: "Accept call events from the phone system",
+    description: "A machine endpoint. The switch — FreePBX over AMI, or a provider webhook — posts what happened to a call, and the module turns it into an interaction and, if it was missed, a callback task. **Held by no built-in role, deliberately.** Nothing a human does in a browser should reach this: it is authenticated with an API key carrying an explicit permission list, which is what machine identity is for. A role holding it would let any of that role's holders fabricate call history, and call history is what the missed-call number and every conversion report are computed from.",
+    module: "marketing",
+  },
+  {
+    code: "marketing.settings.manage",
+    label: "Configure pipeline stages, templates and routing",
+    description: "Configure pipeline stages, templates and routing",
+    module: "marketing",
   },
   // research
   {
@@ -7216,6 +7343,64 @@ export const P = {
     QUIZZES_CREATE: "lms.quizzes.create",
     QUIZZES_LIST: "lms.quizzes.list",
   },
+  MARKETING: {
+    CAMPAIGNS: {
+      MANAGE: "marketing.campaigns.manage",
+      VIEW: "marketing.campaigns.view",
+    },
+    CAMPAIGNS_MANAGE: "marketing.campaigns.manage",
+    CAMPAIGNS_VIEW: "marketing.campaigns.view",
+    COHORTS: {
+      CLINICAL_DEFINE: "marketing.cohorts.clinical_define",
+      MANAGE: "marketing.cohorts.manage",
+      VIEW: "marketing.cohorts.view",
+    },
+    COHORTS_CLINICAL_DEFINE: "marketing.cohorts.clinical_define",
+    COHORTS_MANAGE: "marketing.cohorts.manage",
+    COHORTS_VIEW: "marketing.cohorts.view",
+    CONTACTS: {
+      CREATE: "marketing.contacts.create",
+      LIST: "marketing.contacts.list",
+      MERGE: "marketing.contacts.merge",
+      UPDATE: "marketing.contacts.update",
+      VIEW: "marketing.contacts.view",
+    },
+    CONTACTS_CREATE: "marketing.contacts.create",
+    CONTACTS_LIST: "marketing.contacts.list",
+    CONTACTS_MERGE: "marketing.contacts.merge",
+    CONTACTS_UPDATE: "marketing.contacts.update",
+    CONTACTS_VIEW: "marketing.contacts.view",
+    INTERACTIONS: {
+      LOG: "marketing.interactions.log",
+      PLAY_RECORDING: "marketing.interactions.play_recording",
+    },
+    INTERACTIONS_LOG: "marketing.interactions.log",
+    INTERACTIONS_PLAY_RECORDING: "marketing.interactions.play_recording",
+    MESSAGING: {
+      INGEST: "marketing.messaging.ingest",
+    },
+    MESSAGING_INGEST: "marketing.messaging.ingest",
+    OUTREACH: {
+      APPROVE: "marketing.outreach.approve",
+      SEND: "marketing.outreach.send",
+    },
+    OUTREACH_APPROVE: "marketing.outreach.approve",
+    OUTREACH_SEND: "marketing.outreach.send",
+    PIPELINE: {
+      ASSIGN: "marketing.pipeline.assign",
+      MOVE: "marketing.pipeline.move",
+      VIEW: "marketing.pipeline.view",
+    },
+    PIPELINE_ASSIGN: "marketing.pipeline.assign",
+    PIPELINE_MOVE: "marketing.pipeline.move",
+    PIPELINE_VIEW: "marketing.pipeline.view",
+    REPORTS_VIEW: "marketing.reports.view",
+    SETTINGS_MANAGE: "marketing.settings.manage",
+    TELEPHONY: {
+      INGEST: "marketing.telephony.ingest",
+    },
+    TELEPHONY_INGEST: "marketing.telephony.ingest",
+  },
   MRD: {
     BIRTHS: {
       CREATE: "mrd.births.create",
@@ -8597,6 +8782,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.COURSES.LIST,
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
+      P.MARKETING.COHORTS.CLINICAL_DEFINE,
       P.MRD.CASE_SHEETS.GENERATE,
       P.MRD.CASE_SHEETS.PRINT,
       P.MRD.CASE_SHEETS.VIEW,
@@ -8989,6 +9175,13 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.COURSES.LIST,
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
+      P.MARKETING.CONTACTS.CREATE,
+      P.MARKETING.CONTACTS.LIST,
+      P.MARKETING.CONTACTS.UPDATE,
+      P.MARKETING.CONTACTS.VIEW,
+      P.MARKETING.INTERACTIONS.LOG,
+      P.MARKETING.PIPELINE.MOVE,
+      P.MARKETING.PIPELINE.VIEW,
       P.OPD.APPOINTMENT.CANCEL,
       P.OPD.APPOINTMENT.CREATE,
       P.OPD.APPOINTMENT.LIST,
@@ -9402,6 +9595,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.COURSES.LIST,
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
+      P.MARKETING.OUTREACH.APPROVE,
       P.ORDER_SETS.ANALYTICS.VIEW,
       P.ORDER_SETS.TEMPLATES.LIST,
       P.ORDER_SETS.TEMPLATES.VIEW,
@@ -9669,6 +9863,20 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.DASHBOARD.VIEW,
     ],
   },
+  marketing_executive: {
+    label: "Marketing Executive",
+    permissions: [
+      P.DASHBOARD.VIEW,
+      P.MARKETING.CAMPAIGNS.MANAGE,
+      P.MARKETING.CAMPAIGNS.VIEW,
+      P.MARKETING.COHORTS.MANAGE,
+      P.MARKETING.COHORTS.VIEW,
+      P.MARKETING.CONTACTS.LIST,
+      P.MARKETING.OUTREACH.SEND,
+      P.MARKETING.PIPELINE.VIEW,
+      P.MARKETING.REPORTS_VIEW,
+    ],
+  },
   front_office_staff: {
     label: "Front Office Staff",
     permissions: [
@@ -9699,6 +9907,13 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.FRONT_OFFICE.VISITORS.CREATE,
       P.FRONT_OFFICE.VISITORS.LIST,
       P.FRONT_OFFICE.VISITORS.MANAGE,
+      P.MARKETING.CONTACTS.CREATE,
+      P.MARKETING.CONTACTS.LIST,
+      P.MARKETING.CONTACTS.UPDATE,
+      P.MARKETING.CONTACTS.VIEW,
+      P.MARKETING.INTERACTIONS.LOG,
+      P.MARKETING.PIPELINE.MOVE,
+      P.MARKETING.PIPELINE.VIEW,
     ],
   },
   infection_control_officer: {

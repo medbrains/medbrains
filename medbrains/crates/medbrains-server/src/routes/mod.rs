@@ -123,6 +123,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_clinical_scores::router())
         .merge(medbrains_clinical_ops::router())
         .merge(medbrains_vte::router())
+        .merge(medbrains_marketing::router())
         .merge(medbrains_setup::router())
         // ── FHIR R4 read API (ABDM HIE-CM HIP role + generic interop) ──
         .merge(medbrains_fhir_api::router())
