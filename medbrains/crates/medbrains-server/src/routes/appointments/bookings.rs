@@ -29,6 +29,17 @@ pub async fn list_appointments(
     Query(query): Query<ListAppointmentsQuery>,
 ) -> Result<Json<Vec<AppointmentWithPatient>>, AppError> {
     require_permission(&claims, permissions::opd::appointment::LIST)?;
+    // This redaction does not fire for anybody today. opd.appointment.list is
+    // held by receptionist alone, and receptionist also holds patients.view,
+    // so the flag is true for every non-bypass caller who can reach the
+    // handler. Correct code, inert control — the same shape as
+    // ipd::expected_discharges and pharmacy::list_rx_queue, and the opposite
+    // of camp::get_camp_packet where the only holding role lacks the code.
+    //
+    // Kept, because the appointment list is the first thing a new desk role
+    // gets and the day one is added without patients.view this starts
+    // working. What must not happen is somebody counting it as a control
+    // that operates now.
     let can_view_patient_identity = is_bypass_role(&claims)
         || claims
             .permissions

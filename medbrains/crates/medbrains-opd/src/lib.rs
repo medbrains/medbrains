@@ -1222,6 +1222,11 @@ pub async fn list_queue(
     Query(params): Query<ListQueueQuery>,
 ) -> Result<Json<Vec<QueueEntry>>, AppError> {
     require_permission(&claims, permissions::opd::queue::LIST)?;
+    // The redaction below does not fire for anybody today: opd.queue.* is held
+    // by audit_officer, doctor, mrd_officer, nurse and receptionist, and all
+    // five also hold patients.view. Correct code, inert control — see
+    // list_verbal_orders in this file for the same test coming out the other
+    // way, where quality_officer holds the code and not patients.view.
     let can_view_patient_identity = medbrains_server_core::middleware::authorization::is_bypass_role(&claims)
         || claims
             .permissions
@@ -4937,6 +4942,10 @@ pub async fn generate_doctor_docket(
     Query(q): Query<DocketQuery>,
 ) -> Result<Json<DoctorDocket>, AppError> {
     require_permission(&claims, permissions::opd::schedule::MANAGE)?;
+    // No record check, and no patient data leaves here. Every column is a
+    // COUNT and the whole statement is bound to claims.sub — a doctor's own
+    // day, nobody else's. The PHI flag comes from the encounters table being
+    // named, not from anything projected out of it.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5096,6 +5105,19 @@ pub async fn complete_reminder(
     Path(id): Path<Uuid>,
 ) -> Result<Json<PatientReminder>, AppError> {
     require_permission(&claims, permissions::opd::reminders::UPDATE)?;
+    // Identical twin of cancel_reminder immediately below, which does check.
+    // Completing a reminder closes an outreach obligation on a named patient's
+    // record and stamps it with a time — the same weight of act as cancelling
+    // one, reached by the same path shape. The permission alone is not a
+    // decision: opd.reminders.update says the caller may work the reminder
+    // queue, not that this patient is theirs.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::PATIENT_REMINDER,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5746,6 +5768,34 @@ pub async fn list_appointment_group(
 ) -> Result<Json<Vec<Appointment>>, AppError> {
     require_permission(&claims, permissions::opd::appointment::LIST)?;
 
+    // A group is one patient's recurring series — book_appointment_group takes a
+    // single body.patient_id and stamps every slot with it — so this is a
+    // per-patient record read, not the day's worklist that list_appointments
+    // serves. The write side already checks; without this the read side is the
+    // create-vs-read inversion, and the group id is guessable in the sense that
+    // it is handed out by the booking response.
+    //
+    // The path names the group, so resolve the patient off it first. There is no
+    // ParentLink for this because links key on `id` and this keys on
+    // `appointment_group_id`; one lookup is cheaper than a link variant used once.
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let patient_id = sqlx::query_scalar::<_, Uuid>(
+        "SELECT patient_id FROM appointments \
+         WHERE tenant_id = $1 AND appointment_group_id = $2 LIMIT 1",
+    )
+    .bind(claims.tenant_id)
+    .bind(group_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    tx.commit().await?;
+
+    // An empty group and a denied one answer alike, so neither is an oracle.
+    let Some(patient_id) = patient_id else {
+        return Err(AppError::NotFound);
+    };
+    medbrains_authz_gate::require_patient_access(&state, &claims, patient_id).await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -6203,6 +6253,14 @@ pub async fn referral_tracking(
     Query(params): Query<ReferralTrackingQuery>,
 ) -> Result<Json<Vec<ReferralWithNames>>, AppError> {
     require_permission(&claims, permissions::opd::referrals::LIST)?;
+    // A departmental worklist, not a patient record: the filters are
+    // from_department_id / to_department_id and the rows are the referrals
+    // moving between them. The full_name columns are the referring and
+    // receiving DOCTORS, joined from users — no patient name is projected.
+    // Filtering this by permitted patients would empty the inbox for exactly
+    // the roles whose job it is to work it, since a referral arrives before
+    // any care-team tuple for the receiving side exists. Scoped by permission
+    // and by department, which is what a referral queue is.
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -6261,6 +6319,11 @@ pub async fn followup_compliance(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<FollowupComplianceRow>>, AppError> {
     require_permission(&claims, permissions::opd::queue::VIEW)?;
+    // The redaction below does not fire for anybody today: opd.queue.* is held
+    // by audit_officer, doctor, mrd_officer, nurse and receptionist, and all
+    // five also hold patients.view. Correct code, inert control — see
+    // list_verbal_orders in this file for the same test coming out the other
+    // way, where quality_officer holds the code and not patients.view.
     let can_view_patient_identity = medbrains_server_core::middleware::authorization::is_bypass_role(&claims)
         || claims
             .permissions
@@ -6340,6 +6403,19 @@ pub async fn list_verbal_orders(
     Query(query): Query<VerbalOrderQuery>,
 ) -> Result<Json<Vec<VerbalOrderEntry>>, AppError> {
     require_permission(&claims, permissions::doctor::signoffs::VERBAL_REGISTER)?;
+    // doctor.signoffs.verbal_register is held by doctor, nurse AND
+    // quality_officer, and quality_officer does not hold patients.view.
+    // The verbal-order register is a NABH read-back compliance artefact, so a
+    // quality officer legitimately holds the code — what they need is that the
+    // read-back happened and the countersignature landed, not who the patient
+    // was. Same shape as lab::get_analyzer_worklist, and checked the same way:
+    // against roles.rs rather than assumed.
+    let can_view_patient_identity =
+        medbrains_server_core::middleware::authorization::is_bypass_role(&claims)
+            || claims
+                .permissions
+                .iter()
+                .any(|granted| granted == permissions::patients::VIEW);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -6348,8 +6424,10 @@ pub async fn list_verbal_orders(
         "SELECT p.id, p.order_mode, p.read_back_confirmed, p.created_at, \
                 p.countersign_due_at, p.is_signed, \
                 COALESCE(p.patient_id, e.patient_id) AS patient_id, \
-                CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name) AS patient_name, \
-                pat.uhid, \
+                CASE WHEN $2::bool THEN \
+                    CONCAT_WS(' ', NULLIF(pat.prefix, ''), pat.first_name, NULLIF(pat.middle_name, ''), pat.last_name) \
+                    ELSE 'Restricted' END AS patient_name, \
+                CASE WHEN $2::bool THEN pat.uhid ELSE NULL END AS uhid, \
                 p.doctor_id AS ordering_doctor_id, \
                 od.full_name AS ordering_doctor_name, \
                 p.transcribed_by, \
@@ -6379,6 +6457,7 @@ pub async fn list_verbal_orders(
          LIMIT 500",
     )
     .bind(claims.tenant_id)
+    .bind(can_view_patient_identity)
     .fetch_all(&mut *tx)
     .await?;
 

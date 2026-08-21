@@ -36,6 +36,10 @@ pub async fn public_book_appointment(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
 
+    // The booking itself, not just the page that offers it. A tenant that never
+    // opted in is not bookable, and answers as an unknown one does.
+    require_public_booking_enabled(&mut tx, tenant_id).await?;
+
     verify_booking_otp(
         &mut tx,
         tenant_id,
@@ -130,30 +134,7 @@ pub async fn public_bookable_doctors(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
 
-    // Both switches in one read. Two round trips to learn two booleans off the
-    // same row set is the kind of thing that is free once and expensive at a
-    // thousand page loads.
-    let settings = sqlx::query_as::<_, (String, serde_json::Value)>(
-        "SELECT key, value FROM tenant_settings \
-         WHERE tenant_id = $1 AND category = 'appointments' \
-           AND key IN ('public_booking_enabled', 'public_booking_otp_required')",
-    )
-    .bind(tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
-
-    let flag = |name: &str| {
-        settings
-            .iter()
-            .find(|(key, _)| key == name)
-            .map(|(_, value)| value.as_bool().unwrap_or(value.as_str() == Some("true")))
-            .unwrap_or(false)
-    };
-
-    if !flag("public_booking_enabled") {
-        return Err(AppError::NotFound);
-    }
-    let otp_required = flag("public_booking_otp_required");
+    let otp_required = require_public_booking_enabled(&mut tx, tenant_id).await?;
 
     // One query, not a doctor list followed by a schedule lookup each. DISTINCT
     // because a doctor holding several weekday schedules in one department is
@@ -193,6 +174,11 @@ pub async fn public_available_slots(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+
+    // Slot occupancy is a fact about a named doctor's day. The directory already
+    // refused to publish the roster without the opt-in; publishing each doctor's
+    // booked counts without it made that refusal moot.
+    require_public_booking_enabled(&mut tx, tenant_id).await?;
 
     let day_of_week = params.date.weekday().num_days_from_sunday() as i32;
     let schedules = sqlx::query_as::<_, DoctorSchedule>(
@@ -605,6 +591,14 @@ pub async fn request_public_booking_otp(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
 
+    // Without this, a hospital that never enabled public booking still sends an
+    // SMS on demand to any number a caller names — its own credits, its own
+    // sender id. Answered with the same constant ack as every other rejection in
+    // this handler, so the opt-in stays unprobeable.
+    if require_public_booking_enabled(&mut tx, tenant_id).await.is_err() {
+        return Ok(ack);
+    }
+
     sqlx::query(
         "UPDATE public_booking_otps SET used_at = now() \
          WHERE tenant_id = $1 AND phone = $2 AND used_at IS NULL",
@@ -647,6 +641,49 @@ pub async fn request_public_booking_otp(
 
     tx.commit().await?;
     Ok(ack)
+}
+
+/// The public-booking opt-in, and the OTP switch that rides with it.
+///
+/// Publishing a staff roster was already treated as a decision a hospital
+/// makes rather than a default it discovers — but only the directory asked.
+/// Slots, the OTP send and the booking itself did not, so a hospital that
+/// never enabled public booking was still bookable from the internet by
+/// anyone holding its tenant code and a doctor id, and its SMS credits were
+/// spendable the same way. One gate, every entry point, or the switch is
+/// decoration.
+///
+/// Returns whether OTP verification is required, since both switches live on
+/// the same row set and reading them apart costs a second round trip on a
+/// page that is served anonymously and therefore uncached.
+///
+/// Answers `NotFound` when disabled — exactly as an unknown hospital does, so
+/// the setting cannot be probed for.
+pub(super) async fn require_public_booking_enabled(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+) -> Result<bool, AppError> {
+    let settings = sqlx::query_as::<_, (String, serde_json::Value)>(
+        "SELECT key, value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'appointments' \
+           AND key IN ('public_booking_enabled', 'public_booking_otp_required')",
+    )
+    .bind(tenant_id)
+    .fetch_all(&mut **tx)
+    .await?;
+
+    let flag = |name: &str| {
+        settings
+            .iter()
+            .find(|(key, _)| key == name)
+            .map(|(_, value)| value.as_bool().unwrap_or(value.as_str() == Some("true")))
+            .unwrap_or(false)
+    };
+
+    if !flag("public_booking_enabled") {
+        return Err(AppError::NotFound);
+    }
+    Ok(flag("public_booking_otp_required"))
 }
 
 /// Verify a booking OTP inside the booking transaction. Errors when the
