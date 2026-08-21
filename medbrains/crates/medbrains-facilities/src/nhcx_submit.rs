@@ -89,6 +89,13 @@ pub async fn submit_claim_to_nhcx(
     .await?
     .ok_or(AppError::NotFound)?;
 
+    // The path names a claim, not a patient, so the check goes on the value the
+    // next statement actually uses — claim.patient_id, which the SELECT below
+    // turns into a name, a UHID, an ABHA id and a gender bound for an external
+    // payer over NHCX. Guarding the path id would have checked the wrong thing.
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, claim.patient_id)
+        .await?;
+
     let patient = sqlx::query_as::<_, PatientRow>(
         "SELECT uhid, abha_id, first_name, last_name, gender \
          FROM patients WHERE id = $1 AND tenant_id = $2",
@@ -274,6 +281,13 @@ pub async fn check_coverage_eligibility(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    // The path names a claim, not a patient, so the check goes on the value the
+    // next statement actually uses — claim.patient_id, which the SELECT below
+    // turns into a name, a UHID, an ABHA id and a gender bound for an external
+    // payer over NHCX. Guarding the path id would have checked the wrong thing.
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, claim.patient_id)
+        .await?;
     let patient = sqlx::query_as::<_, PatientRow>(
         "SELECT uhid, abha_id, first_name, last_name, gender \
          FROM patients WHERE id = $1 AND tenant_id = $2",

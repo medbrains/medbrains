@@ -389,6 +389,13 @@ pub async fn get_patient_benefits(
     Path(pid): Path<Uuid>,
 ) -> Result<Json<Option<InsuranceVerification>>, AppError> {
     require_permission(&claims, permissions::insurance::verification::LIST)?;
+    // The path names a patient, and the answer is that person's active
+    // insurance cover. Two handlers in this file already check before
+    // touching a patient's policy; this one read it back unguarded.
+    // The billing helper, matching them: the payer relationship is its own
+    // question and treating somebody is not it.
+    medbrains_authz_gate::require_patient_billing_access(&state, &claims, pid)
+        .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
