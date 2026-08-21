@@ -232,7 +232,12 @@ def split_handlers(text: str) -> list[tuple[str, str]]:
     return out
 
 
-LOCAL_FN = re.compile(r"^(?:pub(?:\([^)]*\))?\s+)?fn (\w+)\s*\(", re.M)
+# `async` is not optional here: `tokens` delegates its gate to an async
+# `transition`, and a pattern that only saw sync helpers scored six of its
+# eleven handlers unguarded when every one of them goes through the check.
+LOCAL_FN = re.compile(
+    r"^(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn (\w+)\s*\(", re.M
+)
 
 
 def local_guard_wrappers(text: str) -> re.Pattern | None:
@@ -248,14 +253,38 @@ def local_guard_wrappers(text: str) -> re.Pattern | None:
     Match the wrapper by what it does, not by its name.
     """
     marks = [(m.group(1), m.start()) for m in LOCAL_FN.finditer(text)]
-    names = []
+    bodies = {}
     for i, (name, start) in enumerate(marks):
         end = marks[i + 1][1] if i + 1 < len(marks) else len(text)
-        if PERMISSION_CHECK.search(text[start:end]):
-            names.append(name)
+        bodies[name] = text[start:end]
+
+    names = {name for name, body in bodies.items() if PERMISSION_CHECK.search(body)}
+
+    # A guard reached through one more local call is still a guard, and the
+    # law prefers it: "the service layer is the guard, not HTTP". `tokens`
+    # gates six handlers through `transition`, which calls
+    # `require_queue_manage`, which checks the permission -- because the code
+    # required depends on the module of the row being transitioned, which the
+    # handler has not read yet. Stopping at one hop scored that module 6 of 11
+    # and pointed the sweep at five handlers that were already closed.
+    #
+    # Bounded rather than a fixed point: each pass can only add names, so the
+    # loop terminates in at most `len(bodies)` rounds, and a file with a
+    # thousand local functions is a different problem.
+    for _ in range(len(bodies)):
+        grew = False
+        for name, body in bodies.items():
+            if name in names:
+                continue
+            if any(re.search(rf"\b{re.escape(g)}\s*\(", body) for g in names):
+                names.add(name)
+                grew = True
+        if not grew:
+            break
+
     if not names:
         return None
-    return re.compile(r"\b(?:" + "|".join(sorted(set(names))) + r")\s*\(")
+    return re.compile(r"\b(?:" + "|".join(sorted(names)) + r")\s*\(")
 
 
 def audit_module(paths: list[str]) -> dict:
