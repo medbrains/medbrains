@@ -1,4 +1,60 @@
 #![allow(clippy::too_many_lines)]
+//! Inpatient — admissions, wards, beds and the medication administration
+//! record.
+//!
+//! # Why ten handlers here take no record check
+//!
+//! Five are aggregates that name nobody: `report_occupancy`, `report_alos`,
+//! `report_discharge_stats`, `list_bed_reservations` and
+//! `list_available_beds`. The SELECTs emit counts, averages and bed states.
+//!
+//! `create_admission` is an establishing act — it calls `grant_raw` and names
+//! the treating department and attending doctor, which is how the care
+//! relationship a later check looks for comes into existence. The comment at
+//! the grant says it: the caller is "nobody at 3am in casualty".
+//!
+//! Three are ward worklists. `list_mar_due_now`, `list_ward_beds` and
+//! `bed_dashboard_beds` all carry `ward_id` in the WHERE clause, so the ward
+//! the caller asked for is the scope — the same exemption the ER board, the
+//! theatre list and the care view already hold. `list_mar_due_now` is held by
+//! `nurse` alone.
+//!
+//! `bed_dashboard_beds` additionally redacts, and here the redaction is a
+//! real control rather than a formality: `ipd.bed_dashboard.view` is held by
+//! doctor, nurse **and facilities_manager**, and facilities_manager does not
+//! hold `patients.view`. A facilities manager reading this board sees bed
+//! occupancy with NULL where the names would be, which is exactly right for
+//! somebody whose job is the beds.
+//!
+//! # expected_discharges, and a control that does not currently operate
+//!
+//! `expected_discharges` is the tenth, and it is the one worth reading
+//! carefully. It takes **no scope parameter at all** — no ward, no
+//! department — and returns every admission due for discharge in the
+//! hospital with the patient's name and UHID.
+//!
+//! Its projection gates identity on `patients.view`, and that is where the
+//! honest reading has to start rather than stop. `ipd.admissions.list` is
+//! held by doctor, nurse, audit_officer and mrd_officer. **All four also hold
+//! `patients.view`**, so the CASE expression never evaluates false for any
+//! caller who can reach the handler. The gate is true in the SQL and empty in
+//! practice.
+//!
+//! The `set_full_context` call above it sets a department context, which
+//! reads like a second scope and is not one: the only policy on `admissions`
+//! is `tenant_isolation_admissions`, keyed on `app.tenant_id`. Nothing filters
+//! by department here.
+//!
+//! So what actually bounds this handler is the permission and the tenant, and
+//! discharge planning being house-wide work is the argument for that being
+//! enough. It is a defensible position, and it is not the position the code
+//! appeared to be taking.
+//!
+//! **What retires the exemption:** granting `ipd.admissions.list` to a role
+//! that does not hold `patients.view` — at which point the redaction starts
+//! working and should be tested — or adding a ward filter, which is the
+//! smaller change and the one the three worklists beside it already make.
+
 
 use axum::{
     Extension, Json,
@@ -8522,8 +8578,11 @@ pub async fn expected_discharges(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<ExpectedDischargeRow>>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::LIST)?;
-    // A discharge-planning board is a view of the house, not of one caller's
-    // patients. Identity is gated on `patients.view` in the projection.
+    // A discharge-planning board: a view of the house, not of one caller's
+    // patients, and deliberately unscoped. The identity CASE below gates on
+    // `patients.view`, but every role holding ipd.admissions.list also holds
+    // that code, so it does not currently redact for anybody — see the
+    // module note. The permission and the tenant are what bound this.
     let can_view_patient_identity =
         claims_have_any_permission(&claims, &[permissions::patients::VIEW]);
 
