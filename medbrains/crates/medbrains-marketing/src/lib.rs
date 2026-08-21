@@ -36,6 +36,7 @@
 //! webhook — produces it. That keeps "buy telephony now, own it later" a
 //! configuration change rather than a rewrite.
 
+pub mod campaigns;
 pub mod contacts;
 pub mod interactions;
 pub mod phone;
@@ -46,7 +47,7 @@ pub mod types;
 pub mod webhook;
 
 use axum::Router;
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use medbrains_server_core::state::AppState;
 
 /// Marketing routes.
@@ -67,6 +68,18 @@ pub fn router() -> Router<AppState> {
             post(pipeline::move_stage),
         )
         .route("/api/marketing/screen-pop", get(screen_pop::screen_pop))
+        .route(
+            "/api/marketing/campaigns",
+            get(campaigns::list_campaigns).post(campaigns::create_campaign),
+        )
+        .route(
+            "/api/marketing/campaigns/{id}",
+            put(campaigns::update_campaign),
+        )
+        .route(
+            "/api/marketing/reports/campaign-funnel",
+            get(campaigns::campaign_funnel),
+        )
         .route("/api/marketing/stages", get(pipeline::list_stages))
         .route(
             "/api/marketing/telephony/calls",
