@@ -115,13 +115,31 @@ pub async fn list_sessions(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<BedsideSession>>, AppError> {
     require_permission(&claims, permissions::bedside::sessions::LIST)?;
+    // `bedside_sessions` carries a NOT NULL patient_id and a NOT NULL
+    // admission_id, so the last hundred sessions across the house is a list of
+    // which named patients had a tablet at the bedside. The three handlers
+    // below this one all hop through require_admission_access on the admission
+    // the route names — ten uses in this file — and this list had nothing.
+    //
+    // It takes the permitted-patient set rather than a ward scope, because a
+    // bedside session belongs to one admission rather than to a ward: this is
+    // not a departmental worklist and filtering it does not empty a board.
+    // bedside.sessions.list is held by doctor and nurse, both of whom carry
+    // ReBAC tuples for the patients they treat.
+    let permitted_patients =
+        medbrains_authz_gate::patient_filter(&state, &claims, None).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, BedsideSession>(
-        "SELECT * FROM bedside_sessions ORDER BY started_at DESC LIMIT 100",
+        "SELECT * FROM bedside_sessions \
+         WHERE tenant_id = $1 \
+           AND ($2::uuid[] IS NULL OR patient_id = ANY($2)) \
+         ORDER BY started_at DESC LIMIT 100",
     )
+    .bind(claims.tenant_id)
+    .bind(permitted_patients.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 
