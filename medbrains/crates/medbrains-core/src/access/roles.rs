@@ -31,6 +31,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Doctor",
         description: "Clinical staff — patient care, OPD, orders, admissions",
         permissions: &[
+            // Recall lists are built from diagnoses, so a clinician defines
+            // them; marketing runs them without seeing why anyone qualified.
+            permissions::marketing::cohorts::CLINICAL_DEFINE,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::doctor::dashboard::VIEW_OWN,
@@ -569,6 +572,15 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Receptionist",
         description: "Front desk — registration, OPD visits, billing",
         permissions: &[
+            // Marketing / enquiry desk — the tele-calling and front-desk seat.
+            // Enquiry only: these codes never reach the clinical record.
+            permissions::marketing::contacts::LIST,
+            permissions::marketing::contacts::VIEW,
+            permissions::marketing::contacts::CREATE,
+            permissions::marketing::contacts::UPDATE,
+            permissions::marketing::pipeline::VIEW,
+            permissions::marketing::pipeline::MOVE,
+            permissions::marketing::interactions::LOG,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::patients::LIST,
@@ -1064,6 +1076,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         name: "Quality Officer",
         description: "Quality & compliance — full regulatory access",
         permissions: &[
+            // NMC advertising and the Drugs and Magic Remedies Act are
+            // compliance questions, which is this role's remit.
+            permissions::marketing::outreach::APPROVE,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::doctor::signoffs::VERBAL_REGISTER,
@@ -1390,10 +1405,41 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         ],
     },
     BuiltInRole {
+        code: "marketing_executive",
+        name: "Marketing Executive",
+        description: "Campaigns, enquiry sources and funnel reporting — no clinical access",
+        permissions: &[
+            permissions::dashboard::VIEW,
+            // Campaign attribution needs the enquiry list to be meaningful:
+            // "which campaign produced revenue" is unanswerable from campaign
+            // rows alone. It stops at the enquiry — no patients.* code here.
+            permissions::marketing::contacts::LIST,
+            permissions::marketing::pipeline::VIEW,
+            permissions::marketing::campaigns::VIEW,
+            permissions::marketing::campaigns::MANAGE,
+            permissions::marketing::cohorts::VIEW,
+            permissions::marketing::cohorts::MANAGE,
+            permissions::marketing::outreach::SEND,
+            // NOT cohorts::CLINICAL_DEFINE — building a recall list from
+            // diagnoses is a clinical act, and NOT outreach::APPROVE — the
+            // author of a campaign does not sign it off.
+            permissions::marketing::REPORTS_VIEW,
+        ],
+    },
+    BuiltInRole {
         code: "front_office_staff",
         name: "Front Office Staff",
         description: "Visitor management, gate pass, queue board, enquiry desk",
         permissions: &[
+            // Marketing / enquiry desk — the tele-calling and front-desk seat.
+            // Enquiry only: these codes never reach the clinical record.
+            permissions::marketing::contacts::LIST,
+            permissions::marketing::contacts::VIEW,
+            permissions::marketing::contacts::CREATE,
+            permissions::marketing::contacts::UPDATE,
+            permissions::marketing::pipeline::VIEW,
+            permissions::marketing::pipeline::MOVE,
+            permissions::marketing::interactions::LOG,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::front_office::visitors::LIST,

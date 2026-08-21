@@ -1095,6 +1095,105 @@ pub mod quality {
     }
 }
 
+/// Marketing — enquiries, acquisition pipeline and campaigns.
+///
+/// Deliberately separate from `patients.*`. These codes govern the enquiry
+/// record, which exists before anybody is a patient and often for somebody who
+/// never becomes one. A tele-calling executive needs the enquiry and must not
+/// thereby get the chart.
+pub mod marketing {
+    pub mod contacts {
+        /// List enquiry contacts.
+        ///
+        /// The enquiry record — name, number, what they asked about, which
+        /// campaign produced them. Not the clinical record.
+        pub const LIST: &str = "marketing.contacts.list";
+        /// Open an enquiry contact.
+        pub const VIEW: &str = "marketing.contacts.view";
+        /// Record a new enquiry.
+        pub const CREATE: &str = "marketing.contacts.create";
+        /// Edit an enquiry contact.
+        pub const UPDATE: &str = "marketing.contacts.update";
+        /// Merge duplicate enquiry contacts.
+        ///
+        /// Merging is destructive to the losing record's identity, so it is
+        /// separate from ordinary editing.
+        pub const MERGE: &str = "marketing.contacts.merge";
+    }
+
+    pub mod pipeline {
+        /// View the enquiry pipeline.
+        pub const VIEW: &str = "marketing.pipeline.view";
+        /// Move an enquiry between stages.
+        pub const MOVE: &str = "marketing.pipeline.move";
+        /// Assign or reassign an enquiry.
+        pub const ASSIGN: &str = "marketing.pipeline.assign";
+    }
+
+    pub mod interactions {
+        /// Log a call, message or note.
+        pub const LOG: &str = "marketing.interactions.log";
+        /// Play back a call recording.
+        ///
+        /// A recording carries whatever the caller said, including symptoms
+        /// they were told not to describe. Held apart from reading the
+        /// interaction timeline, which carries only the disposition.
+        pub const PLAY_RECORDING: &str = "marketing.interactions.play_recording";
+    }
+
+    pub mod campaigns {
+        /// View campaigns and their attribution.
+        pub const VIEW: &str = "marketing.campaigns.view";
+        /// Create and edit campaigns.
+        pub const MANAGE: &str = "marketing.campaigns.manage";
+    }
+
+    pub mod cohorts {
+        /// View cohort names and sizes.
+        ///
+        /// A cohort is a list of people to contact. Marketing sees its name,
+        /// its size and when it was built — never why any individual is in it.
+        pub const VIEW: &str = "marketing.cohorts.view";
+        /// Build a cohort from enquiry criteria.
+        ///
+        /// Source, campaign, stage, last-contacted — the enquiry record only.
+        pub const MANAGE: &str = "marketing.cohorts.manage";
+        /// Build a cohort from clinical criteria.
+        ///
+        /// Recall lists — due for a screen, dormant after a procedure. The
+        /// query runs with clinical authority and returns contactable
+        /// identities; the diagnosis never crosses into the marketing tables.
+        /// A clinical act wearing a marketing name, so it is held by
+        /// clinicians and not by the people who run the campaign.
+        pub const CLINICAL_DEFINE: &str = "marketing.cohorts.clinical_define";
+    }
+
+    pub mod outreach {
+        /// Send a campaign to a cohort.
+        ///
+        /// Calls, SMS and WhatsApp alike. Separate from building the cohort,
+        /// because the mistake that reaches thousands of people is the send,
+        /// not the query.
+        pub const SEND: &str = "marketing.outreach.send";
+        /// Approve campaign content before it sends.
+        ///
+        /// NMC advertising rules and the Drugs and Magic Remedies Act bind
+        /// what a hospital may say. Automation scales a wording error to the
+        /// whole list, so approval is a second pair of eyes and deliberately
+        /// not held by whoever wrote the campaign.
+        pub const APPROVE: &str = "marketing.outreach.approve";
+    }
+
+    /// View acquisition funnel reports.
+    ///
+    /// Conversion by source, specialty and agent. Doctor-level conversion is
+    /// deliberately NOT part of this code — see the module RFC.
+    pub const REPORTS_VIEW: &str = "marketing.reports.view";
+
+    /// Configure pipeline stages, templates and routing.
+    pub const SETTINGS_MANAGE: &str = "marketing.settings.manage";
+}
+
 /// Research use of clinical data, as distinct from care use of it.
 pub mod research {
     /// Export a de-identified research dataset.
