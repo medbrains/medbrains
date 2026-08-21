@@ -2390,6 +2390,25 @@ pub mod nurse {
         pub const VIEW: &str = "nurse.restraint.view";
         pub const RECORD: &str = "nurse.restraint.record";
     }
+    pub mod transfusion {
+        /// See the transfusions running on a bed.
+        ///
+        /// Distinct from `blood_bank.transfusion.list`, which is the bank's
+        /// issue register — who was given which bag out of stock. This is the
+        /// bedside record: the two-person identity check, the observation
+        /// schedule, and whether the patient reacted.
+        pub const VIEW: &str = "nurse.transfusion.view";
+
+        /// Start, observe and complete a transfusion at the bed.
+        ///
+        /// The bank issues the unit; a nurse hangs it, checks the patient
+        /// against the bag with a second nurse, and watches for the first
+        /// fifteen minutes. Those are different acts by different people in
+        /// different rooms, and `blood_bank.transfusion.create` — held by
+        /// blood_bank_tech and by nobody at a bedside — could not express the
+        /// second one.
+        pub const ADMINISTER: &str = "nurse.transfusion.administer";
+    }
     pub mod pain {
         pub const VIEW: &str = "nurse.pain.view";
         pub const RECORD: &str = "nurse.pain.record";

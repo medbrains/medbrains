@@ -20,6 +20,7 @@ import { NurseCallBoardScreen } from "./nurse/call-board.js";
 import { MarScheduleScreen } from "./nurse/mar-schedule.js";
 import { PatientWorkspaceScreen } from "./nurse/patient-workspace.js";
 import { ShiftHandoverScreen } from "./nurse/shift-handover.js";
+import { TransfusionMonitorScreen } from "./nurse/transfusion-monitor.js";
 
 function NurseHome(): ReactNode {
   const router = useModuleRouter();
@@ -93,6 +94,7 @@ function NurseScreen(): ReactNode {
         home: <NurseHome />,
         admissions: <AdmissionsListScreen />,
         calls: <NurseCallBoardScreen />,
+        transfusions: (payload) => <TransfusionMonitorScreen admission={payload as AdmissionRow} />,
         "patient-workspace": (payload) => (
           <PatientWorkspaceScreen admission={payload as AdmissionRow} />
         ),

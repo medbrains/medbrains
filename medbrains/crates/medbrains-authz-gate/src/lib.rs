@@ -238,6 +238,17 @@ pub mod links {
 
     /// Bedside portal — the tablet at the patient's bed.
     pub const BEDSIDE_SESSION: ParentLink = ParentLink::on_patient("bedside_sessions");
+
+    /// The bedside transfusion chart hangs off the admission, not the patient.
+    ///
+    /// `transfusions` carries `admission_id` and no `patient_id`, which is the
+    /// honest shape: a unit is hung on a stay, and a patient readmitted next
+    /// month is a different chart.
+    pub const BEDSIDE_TRANSFUSION: ParentLink = ParentLink {
+        table: "transfusions",
+        column: "admission_id",
+        parent: ParentKind::Admission,
+    };
     pub const BEDSIDE_NURSE_REQUEST: ParentLink =
         ParentLink::on_patient("bedside_nurse_requests");
 

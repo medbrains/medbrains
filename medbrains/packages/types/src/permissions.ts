@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 953 permissions, one per constant in the Rust source. */
+/** 955 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -5558,6 +5558,18 @@ export const PERMISSIONS: PermissionDef[] = [
     module: "nurse",
   },
   {
+    code: "nurse.transfusion.view",
+    label: "See the transfusions running on a bed",
+    description: "Distinct from `blood_bank.transfusion.list`, which is the bank's issue register — who was given which bag out of stock. This is the bedside record: the two-person identity check, the observation schedule, and whether the patient reacted.",
+    module: "nurse",
+  },
+  {
+    code: "nurse.transfusion.administer",
+    label: "Administer Transfusion",
+    description: "Start, observe and complete a transfusion at the bed. The bank issues the unit; a nurse hangs it, checks the patient against the bag with a second nurse, and watches for the first fifteen minutes. Those are different acts by different people in different rooms, and `blood_bank.transfusion.create` — held by blood_bank_tech and by nobody at a bedside — could not express the second one.",
+    module: "nurse",
+  },
+  {
     code: "nurse.pain.view",
     label: "View Pain Scores",
     description: "View pain score entries",
@@ -7540,6 +7552,12 @@ export const P = {
     SHIFT_NOTES_EDIT: "nurse.shift_notes.edit",
     SHIFT_NOTES_VIEW: "nurse.shift_notes.view",
     SHIFT_VIEW: "nurse.shift.view",
+    TRANSFUSION: {
+      ADMINISTER: "nurse.transfusion.administer",
+      VIEW: "nurse.transfusion.view",
+    },
+    TRANSFUSION_ADMINISTER: "nurse.transfusion.administer",
+    TRANSFUSION_VIEW: "nurse.transfusion.view",
     VITALS: {
       RECORD: "nurse.vitals.record",
       VIEW: "nurse.vitals.view",
@@ -9071,6 +9089,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.NURSE.SHIFT.VIEW,
       P.NURSE.SHIFT_NOTES.EDIT,
       P.NURSE.SHIFT_NOTES.VIEW,
+      P.NURSE.TRANSFUSION.ADMINISTER,
+      P.NURSE.TRANSFUSION.VIEW,
       P.NURSE.VITALS.RECORD,
       P.NURSE.VITALS.VIEW,
       P.NURSE.WOUND.RECORD,

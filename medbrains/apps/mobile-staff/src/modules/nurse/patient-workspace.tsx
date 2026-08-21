@@ -21,11 +21,11 @@ export interface PatientWorkspaceScreenProps {
 export type BedsideActionMode = "vitals" | "io" | "pain" | "fall-risk";
 
 interface BedsideAction {
-  id: BedsideActionMode | "mar" | "handover";
+  id: BedsideActionMode | "mar" | "handover" | "transfusions";
   label: string;
   description: string;
   permissions: readonly string[];
-  tone?: "info" | "success" | "warn" | "copper";
+  tone?: "info" | "success" | "warn" | "copper" | "alert";
 }
 
 const ACTIONS: readonly BedsideAction[] = [
@@ -35,6 +35,13 @@ const ACTIONS: readonly BedsideAction[] = [
     description: "Administer, hold, or refuse scheduled medication.",
     permissions: [P.IPD.MAR_LIST, P.NURSE.MAR_VIEW],
     tone: "copper",
+  },
+  {
+    id: "transfusions",
+    label: "Transfusion",
+    description: "Hang a unit, chart the fifteen-minute check, close it out.",
+    permissions: [P.NURSE.TRANSFUSION_VIEW],
+    tone: "alert",
   },
   {
     id: "handover",
@@ -113,6 +120,8 @@ export function PatientWorkspaceScreen({ admission }: PatientWorkspaceScreenProp
                 router.push("mar", admission);
               } else if (action.id === "handover") {
                 router.push("handover", admission);
+              } else if (action.id === "transfusions") {
+                router.push("transfusions", admission);
               } else {
                 router.push("bedside-action", { admission, mode: action.id });
               }

@@ -1,5 +1,7 @@
 #![allow(clippy::too_many_lines)]
 
+pub mod bedside_transfusion;
+
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -2000,7 +2002,16 @@ pub async fn record_transfusion_observation(
     Path(transfusion_id): Path<Uuid>,
     Json(body): Json<RecordTransfusionObservationRequest>,
 ) -> Result<Json<TransfusionObservation>, AppError> {
-    require_permission(&claims, permissions::blood_bank::transfusion::CREATE)?;
+    // Either side of the same act. The bank's code stays valid so nothing is
+    // taken away; the nursing code is added because the person holding the
+    // thermometer fifteen minutes in has never held the bank's.
+    medbrains_server_core::middleware::authorization::require_any_permission(
+        &claims,
+        &[
+            permissions::nurse::transfusion::ADMINISTER,
+            permissions::blood_bank::transfusion::CREATE,
+        ],
+    )?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -2066,7 +2077,13 @@ pub async fn list_transfusion_observations(
     Extension(claims): Extension<Claims>,
     Path(transfusion_id): Path<Uuid>,
 ) -> Result<Json<Vec<TransfusionObservation>>, AppError> {
-    require_permission(&claims, permissions::blood_bank::transfusion::LIST)?;
+    medbrains_server_core::middleware::authorization::require_any_permission(
+        &claims,
+        &[
+            permissions::nurse::transfusion::VIEW,
+            permissions::blood_bank::transfusion::LIST,
+        ],
+    )?;
     medbrains_server_core::middleware::entitlement::require_module_enabled(
         &state.db,
         claims.tenant_id,
@@ -2156,6 +2173,17 @@ pub fn router() -> axum::Router<AppState> {
             "/api/blood-bank/transfusions/{id}/observations",
             get(list_transfusion_observations)
                 .post(record_transfusion_observation),
+        )
+        // The bedside chart the observations above actually key to. Nothing
+        // could create one before this, so nothing could be observed.
+        .route(
+            "/api/ipd/admissions/{admission_id}/transfusions",
+            get(bedside_transfusion::list_bedside_transfusions)
+                .post(bedside_transfusion::start_bedside_transfusion),
+        )
+        .route(
+            "/api/ipd/transfusions/{id}/complete",
+            put(bedside_transfusion::complete_bedside_transfusion),
         )
         .route(
             "/api/blood-bank/tti-report",
