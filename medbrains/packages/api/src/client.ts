@@ -1788,6 +1788,7 @@ import type {
   TerminologySearchResult,
   Testimonial,
   ToggleChecklistItemRequest,
+  TokenBoardMetrics,
   TokenSlipPrintData,
   TpaRateCard,
   TrainingCertificatePrintData,
@@ -3600,11 +3601,26 @@ export const api = {
    * hand and the link on their phone both keep working.
    */
   requeueToken: (id: string) => request<ModuleToken>(`/tokens/${id}/requeue`, { method: "POST" }),
-  listTokenBoard: (params: { module: string; scope?: string; scope_id?: string }) => {
+  listTokenBoard: (params: {
+    module: string;
+    scope?: string;
+    scope_id?: string;
+    /** Wall boards keep the number just called and recent misses on screen. */
+    include_finished?: boolean;
+  }) => {
     const qs = new URLSearchParams({ module: params.module });
     if (params.scope) qs.set("scope", params.scope);
     if (params.scope_id) qs.set("scope_id", params.scope_id);
+    if (params.include_finished) qs.set("include_finished", "true");
     return request<ModuleToken[]>(`/tokens/board?${qs.toString()}`);
+  },
+
+  /** The waiting count and mean wait that sit above a board. */
+  tokenBoardMetrics: (params: { module: string; scope?: string; scope_id?: string }) => {
+    const qs = new URLSearchParams({ module: params.module });
+    if (params.scope) qs.set("scope", params.scope);
+    if (params.scope_id) qs.set("scope_id", params.scope_id);
+    return request<TokenBoardMetrics>(`/tokens/board/metrics?${qs.toString()}`);
   },
   myTokens: (patientId: string) => request<ModuleToken[]>(`/tokens/mine?patient_id=${patientId}`),
   callToken: (id: string, counterLabel?: string) =>

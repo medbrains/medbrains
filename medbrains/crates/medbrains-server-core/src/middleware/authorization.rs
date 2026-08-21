@@ -1,4 +1,5 @@
 use medbrains_authz::AuthzContext;
+use medbrains_core::permissions;
 use medbrains_authz::decision::Outcome;
 use uuid::Uuid;
 
@@ -34,6 +35,36 @@ pub fn require_any_permission(claims: &Claims, perms: &[&str]) -> Result<(), App
         .iter()
         .any(|perm| claims.permissions.iter().any(|p| p == perm))
     {
+        return Ok(());
+    }
+    Err(AppError::Forbidden)
+}
+
+/// Whether these claims may read a wall board's live contents.
+///
+/// Two ways in, and they are not the same identity. An operator holds
+/// `admin.tv_displays.board` and may read a board from anywhere, because
+/// looking at a ward's waiting count from a desk is part of running the place.
+/// A wall display holds `display.board.read` and may read one **only while it
+/// is a paired device** — the role exists for screens bolted to corridors, and
+/// a credential lifted off one should not become a way to read every board in
+/// the hospital from a laptop.
+///
+/// Shared rather than per-crate because the boards are: the TV queue endpoints
+/// live in `medbrains-tv`, the unified token board in `medbrains-tokens`, and a
+/// display that could read one but not the other is a display showing half a
+/// hospital.
+///
+/// # Errors
+///
+/// `AppError::Forbidden` when neither route applies.
+pub fn require_board_read(claims: &Claims) -> Result<(), AppError> {
+    if require_permission(claims, permissions::admin::tv_displays::BOARD).is_ok() {
+        return Ok(());
+    }
+    let holds_display_code =
+        require_permission(claims, permissions::display::board::READ).is_ok();
+    if holds_display_code && claims.paired_device_id.is_some() {
         return Ok(());
     }
     Err(AppError::Forbidden)
@@ -338,5 +369,46 @@ mod outcome_tests {
             collapse(any([direct, Outcome::Deny])),
             Err(AppError::NotFound)
         ));
+    }
+}
+
+#[cfg(test)]
+mod board_read_tests {
+    use medbrains_core::permissions;
+
+    use super::require_board_read;
+    use crate::middleware::auth::Claims;
+
+    fn claims(perms: &[&str], paired: Option<uuid::Uuid>) -> Claims {
+        Claims {
+            sub: uuid::Uuid::nil(),
+            tenant_id: uuid::Uuid::nil(),
+            role: "display".to_owned(),
+            permissions: perms.iter().map(|p| (*p).to_owned()).collect(),
+            department_ids: Vec::new(),
+            perm_version: 0,
+            paired_device_id: paired,
+            exp: 0,
+        }
+    }
+
+    #[test]
+    fn a_wall_display_reads_a_board_only_while_it_is_a_paired_device() {
+        let code = permissions::display::board::READ;
+        assert!(require_board_read(&claims(&[code], Some(uuid::Uuid::new_v4()))).is_ok());
+        // The same credential off the wall. This is the whole reason the code
+        // exists rather than granting the operator's.
+        assert!(require_board_read(&claims(&[code], None)).is_err());
+    }
+
+    #[test]
+    fn an_operator_reads_a_board_from_anywhere() {
+        let code = permissions::admin::tv_displays::BOARD;
+        assert!(require_board_read(&claims(&[code], None)).is_ok());
+    }
+
+    #[test]
+    fn holding_neither_code_is_refused() {
+        assert!(require_board_read(&claims(&["opd.queue.list"], Some(uuid::Uuid::new_v4()))).is_err());
     }
 }

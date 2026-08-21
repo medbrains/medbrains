@@ -2,12 +2,26 @@
  * TV → OPD queue board. Auto-refresh per-department token list.
  * Per-display deep-link:
  *   medbrains://tv/queue?department=cardiology
+ *
+ * Reads the unified `tokens` table, not `queue_tokens`.
+ *
+ * OPD check-in wrote three parallel queues and they advanced independently:
+ * the doctor called the next patient in `opd_queues`, this board read
+ * `queue_tokens`, and nothing advanced `queue_tokens` because the endpoints
+ * that do are gated on a code no role holds. A waiting room watched a number
+ * that could not change. `tokens` is the one the doctor now advances, so this
+ * board and the consulting room finally agree.
+ *
+ * `include_finished` is on because a board is not a work queue: the number
+ * just called stays up while the patient walks to the room, and a missed token
+ * stays visible long enough for someone who stepped out to come back and find
+ * out what happened.
  */
 
 import type { Module } from "@medbrains/mobile-shell";
 import {
+  type ModuleToken,
   type QueuePriority,
-  type QueueToken,
   type QueueTokenStatus,
   recentlyMissedTokens,
   TOKEN_BOARD_SURFACES,
@@ -65,22 +79,26 @@ function statusColor(status: QueueTokenStatus | string) {
 
 function QueueScreen({ route }: QueueScreenProps) {
   const departmentId = route?.params?.departmentId ?? route?.params?.department_id;
+  // Absent department means the whole hospital, which is what omitting the
+  // scope asks for — the same behaviour the department filter had.
+  const scope = departmentId ? { scope: "department", scope_id: departmentId } : {};
   const tokensQuery = useQuery({
-    queryKey: ["tv", "queue", "tokens", departmentId ?? "all"],
-    queryFn: () => tvQueueService.listQueueTokens({ department_id: departmentId }),
+    queryKey: ["tv", "opd-board", "tokens", departmentId ?? "all"],
+    queryFn: () => tvQueueService.listOpdBoard({ ...scope, include_finished: true, module: "opd" }),
     refetchInterval: REFRESH_INTERVAL_MS,
   });
   const metricsQuery = useQuery({
-    queryKey: ["tv", "queue", "metrics", departmentId],
-    queryFn: () => tvQueueService.getQueueMetrics(departmentId ?? ""),
-    enabled: Boolean(departmentId),
+    queryKey: ["tv", "opd-board", "metrics", departmentId ?? "all"],
+    queryFn: () => tvQueueService.opdBoardMetrics({ ...scope, module: "opd" }),
     refetchInterval: REFRESH_INTERVAL_MS,
   });
 
   const tokens = tokensQuery.data ?? [];
   const boardState = useMemo(() => {
+    // 'serving' is the unified table's name for what queue_tokens called
+    // 'in_progress'; both are on the board because the patient is in the room.
     const current =
-      tokens.find((token) => token.status === "called" || token.status === "in_progress") ?? null;
+      tokens.find((token) => token.status === "called" || token.status === "serving") ?? null;
     const waiting = tokens.filter((token) => token.status === "waiting");
     const completed = tokens.filter((token) => token.status === "completed");
     // A missed token used to match none of the three lanes above and so left
@@ -105,15 +123,21 @@ function QueueScreen({ route }: QueueScreenProps) {
         items={[
           {
             label: tvTokenBoardSummaryLabel("nowServing"),
-            value: boardState.current?.token_number ?? "—",
+            value: boardState.current?.number ?? "—",
           },
           {
             label: tvTokenBoardSummaryLabel("waiting"),
-            value: String(metricsQuery.data?.current_waiting ?? boardState.waiting.length),
+            value: String(metricsQuery.data?.waiting ?? boardState.waiting.length),
           },
           {
             label: tvTokenBoardSummaryLabel("avgWait"),
-            value: `${metricsQuery.data?.avg_wait_minutes ?? "—"} min`,
+            // Null until somebody has been called today. A waiting room told
+            // the average wait is nought minutes at eight in the morning
+            // learns something false about the day ahead.
+            value:
+              metricsQuery.data?.avg_wait_minutes == null
+                ? "—"
+                : `${Math.round(metricsQuery.data.avg_wait_minutes)} min`,
           },
         ]}
       />
@@ -175,7 +199,7 @@ function TokenLane({
   emptyLabel: string;
   large?: boolean;
   title: string;
-  tokens: QueueToken[];
+  tokens: ModuleToken[];
 }) {
   return (
     <View style={[styles.lane, large && styles.primaryLane]}>
@@ -202,7 +226,7 @@ function TokenLane({
                 <View style={styles.tokenNumberRow}>
                   <TvTokenStatusShape label={statusText} signal={signal} />
                   <Text style={[styles.tokenNumber, large && styles.primaryTokenNumber]}>
-                    {token.token_number}
+                    {token.number}
                   </Text>
                 </View>
                 <View style={styles.tokenMeta}>

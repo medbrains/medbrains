@@ -439,6 +439,17 @@ pub struct BoardQuery {
     pub module: String,
     pub scope: Option<String>,
     pub scope_id: Option<Uuid>,
+    /// Include today's finished tokens — completed and no-show.
+    ///
+    /// A working console wants the live queue and nothing else. A wall board
+    /// wants a little more: the number just called stays up while the patient
+    /// walks to the room, and a missed token has to stay visible long enough
+    /// for someone who stepped out for five minutes to come back and find out
+    /// what happened rather than a screen that has forgotten them.
+    ///
+    /// Off by default, so every existing caller sees exactly what it saw.
+    #[serde(default)]
+    pub include_finished: bool,
 }
 
 /// GET /api/tokens/board — live tokens (waiting/called/serving) for a board.
@@ -447,7 +458,13 @@ pub async fn list_board(
     Extension(claims): Extension<Claims>,
     Query(query): Query<BoardQuery>,
 ) -> Result<Json<Vec<Token>>, AppError> {
-    require_permission(&claims, permissions::front_office::queue::LIST)?;
+    // A desk reads the board it works; a screen on a wall reads the board it
+    // shows. Without the second route the TV modules cannot move off
+    // `queue_tokens`, because a display holds no front-office code — which is
+    // the whole of step 3.
+    if medbrains_server_core::middleware::authorization::require_board_read(&claims).is_err() {
+        require_permission(&claims, permissions::front_office::queue::LIST)?;
+    }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -456,17 +473,67 @@ pub async fn list_board(
          WHERE module = $1 AND token_date = CURRENT_DATE \
            AND ($2::text IS NULL OR scope = $2) \
            AND ($3::uuid IS NULL OR scope_id = $3) \
-           AND status IN ('waiting', 'called', 'serving') \
+           AND (status IN ('waiting', 'called', 'serving') \
+                OR ($4::bool AND status IN ('completed', 'no_show'))) \
          ORDER BY CASE priority WHEN 'stat' THEN 0 WHEN 'urgent' THEN 1 ELSE 2 END, seq ASC"
     ))
     .bind(&query.module)
     .bind(&query.scope)
     .bind(query.scope_id)
+    .bind(query.include_finished)
     .fetch_all(&mut *tx)
     .await?;
 
     tx.commit().await?;
     Ok(Json(tokens))
+}
+
+/// The two numbers a board shows beside the tokens.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct BoardMetrics {
+    pub waiting: i64,
+    /// Mean minutes from issue to call, over today's tokens that were called.
+    ///
+    /// `NULL` until one has been called, and rendered as a dash rather than
+    /// zero: a waiting room told the average wait is nought minutes at eight in
+    /// the morning learns something false about the day ahead.
+    pub avg_wait_minutes: Option<f64>,
+}
+
+/// GET /api/tokens/board/metrics — the counts that sit above a board.
+///
+/// One statement, both numbers. A board refreshing every few seconds on a
+/// screen nobody is standing at is the last place to spend two round trips on
+/// two integers.
+pub async fn board_metrics(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(query): Query<BoardQuery>,
+) -> Result<Json<BoardMetrics>, AppError> {
+    if medbrains_server_core::middleware::authorization::require_board_read(&claims).is_err() {
+        require_permission(&claims, permissions::front_office::queue::LIST)?;
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let metrics = sqlx::query_as::<_, BoardMetrics>(
+        "SELECT \
+           COUNT(*) FILTER (WHERE status = 'waiting') AS waiting, \
+           AVG(EXTRACT(EPOCH FROM (called_at - created_at)) / 60.0) \
+             FILTER (WHERE called_at IS NOT NULL) AS avg_wait_minutes \
+         FROM tokens \
+         WHERE module = $1 AND token_date = CURRENT_DATE \
+           AND ($2::text IS NULL OR scope = $2) \
+           AND ($3::uuid IS NULL OR scope_id = $3)",
+    )
+    .bind(&query.module)
+    .bind(&query.scope)
+    .bind(query.scope_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(metrics))
 }
 
 /// One token as the patient sees it: the queue row plus how many are ahead.
@@ -1166,6 +1233,7 @@ pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/tokens/issue", post(issue_token))
         .route("/api/tokens/board", get(list_board))
+        .route("/api/tokens/board/metrics", get(board_metrics))
         .route("/api/tokens/camp-board", get(camp_board))
         .route("/api/tokens/mine", get(my_tokens))
         .route("/api/tokens/call-next", post(call_next))

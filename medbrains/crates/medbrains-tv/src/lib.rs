@@ -18,7 +18,6 @@ use sqlx::FromRow;
 use uuid::Uuid;
 
 use medbrains_core::permissions::admin::tv_displays;
-use medbrains_core::permissions::display;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::require_permission;
 use medbrains_server_core::queue_broadcast::{
@@ -35,28 +34,13 @@ fn require(claims: &Claims, perm: &str) -> Result<(), (StatusCode, String)> {
         .map_err(|_| (StatusCode::FORBIDDEN, "forbidden".to_owned()))
 }
 
-/// Whether these claims may read a board's live contents.
+/// The shared board gate in this module's older `(StatusCode, String)` shape.
 ///
-/// Two ways in, and they are not the same identity. An operator holds
-/// `admin.tv_displays.board` and may read a board from anywhere, because
-/// looking at a ward's waiting count from a desk is part of running the place.
-/// A wall display holds `display.board.read` and may read one **only while it
-/// is a paired device** — the role exists for screens bolted to corridors, and
-/// a credential lifted off one should not become a way to read every board in
-/// the hospital from a laptop.
-///
-/// Split out rather than folded into `require` because the device condition is
-/// the point: without it the new code is just the admin code with a shorter
-/// name, and the reason for adding it disappears.
+/// The rule itself lives in `medbrains_server_core::middleware::authorization`
+/// so the unified token board answers the same way this one does.
 fn require_board_read(claims: &Claims) -> Result<(), (StatusCode, String)> {
-    if require_permission(claims, tv_displays::BOARD).is_ok() {
-        return Ok(());
-    }
-    let holds_display_code = require_permission(claims, display::board::READ).is_ok();
-    if holds_display_code && claims.paired_device_id.is_some() {
-        return Ok(());
-    }
-    Err((StatusCode::FORBIDDEN, "forbidden".to_owned()))
+    medbrains_server_core::middleware::authorization::require_board_read(claims)
+        .map_err(|_| (StatusCode::FORBIDDEN, "forbidden".to_owned()))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2225,7 +2209,9 @@ pub fn router() -> axum::Router<AppState> {
 
 #[cfg(test)]
 mod permission_tests {
-    use super::{Claims, display, require_board_read, tv_displays};
+    use medbrains_core::permissions::display;
+
+    use super::tv_displays;
 
     /// The TV board handlers were gated in the UI (`P.ADMIN.TV_DISPLAYS.*`) but
     /// not on the server, so any authenticated role could delete a display,
@@ -2240,41 +2226,5 @@ mod permission_tests {
         assert_eq!(tv_displays::DELETE, "admin.tv_displays.delete");
         assert_eq!(tv_displays::BOARD, "admin.tv_displays.board");
         assert_eq!(display::board::READ, "display.board.read");
-    }
-
-    fn claims_with(permissions: &[&str], paired: Option<uuid::Uuid>) -> Claims {
-        Claims {
-            sub: uuid::Uuid::nil(),
-            tenant_id: uuid::Uuid::nil(),
-            role: "nurse".to_owned(),
-            permissions: permissions.iter().map(|p| (*p).to_owned()).collect(),
-            department_ids: Vec::new(),
-            perm_version: 0,
-            paired_device_id: paired,
-            exp: 0,
-        }
-    }
-
-    #[test]
-    fn a_wall_display_reads_a_board_only_while_it_is_a_paired_device() {
-        let device = uuid::Uuid::new_v4();
-        assert!(require_board_read(&claims_with(&[display::board::READ], Some(device))).is_ok());
-        // The same credential off the wall. This is the whole reason the code
-        // exists rather than granting the admin one.
-        assert!(require_board_read(&claims_with(&[display::board::READ], None)).is_err());
-    }
-
-    #[test]
-    fn an_operator_reads_a_board_from_anywhere() {
-        // Looking at a ward's waiting count from a desk is part of running the
-        // place, so the device condition must not apply to the admin code.
-        assert!(require_board_read(&claims_with(&[tv_displays::BOARD], None)).is_ok());
-    }
-
-    #[test]
-    fn holding_neither_code_is_refused() {
-        assert!(require_board_read(&claims_with(&["opd.queue.list"], None)).is_err());
-        assert_eq!(tv_displays::TOKENS, "admin.tv_displays.tokens");
-        assert_eq!(tv_displays::BROADCAST, "admin.tv_displays.broadcast");
     }
 }

@@ -13,4 +13,9 @@ export const tvQueueService = {
   getBillingQueueDisplay: () => api.getBillingQueueDisplay(),
   getCampBoard: (campId: string) => api.getCampBoard(campId),
   getNurseCallBoard: (wardId?: string) => api.getNurseCallBoard(wardId),
+
+  /** The unified token board — the queue the doctor actually advances. */
+  listOpdBoard: (params: Parameters<typeof api.listTokenBoard>[0]) => api.listTokenBoard(params),
+  opdBoardMetrics: (params: Parameters<typeof api.tokenBoardMetrics>[0]) =>
+    api.tokenBoardMetrics(params),
 };

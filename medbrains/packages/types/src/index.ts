@@ -7735,6 +7735,18 @@ export interface UnreadCountResponse {
 }
 
 // ── Unified token / queue system ──
+/**
+ * The two numbers above a token board.
+ *
+ * `avg_wait_minutes` is null until somebody has been called today. Render a
+ * dash: a waiting room told the average wait is nought minutes at eight in the
+ * morning learns something false about the day ahead.
+ */
+export interface TokenBoardMetrics {
+  waiting: number;
+  avg_wait_minutes: number | null;
+}
+
 export interface ModuleToken {
   id: string;
   module: string;
