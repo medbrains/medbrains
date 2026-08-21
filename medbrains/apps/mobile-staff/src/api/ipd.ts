@@ -58,6 +58,8 @@ export interface AdmissionRow {
   uhid: string;
   bed_label: string | null;
   ward_name?: string | null;
+  /** Needed to ask who else is on duty when a dose wants a witness. */
+  ward_id?: string | null;
   status: string;
   admitted_at: string;
 }
@@ -67,6 +69,7 @@ interface AdmissionListResponse {
     Omit<AdmissionRow, "bed_label"> & {
       bed_label?: string | null;
       ward_name?: string | null;
+      ward_id?: string | null;
     }
   >;
   total: number;
@@ -181,4 +184,52 @@ export interface CreateFallRiskPayload {
 
 export async function createFallRisk(payload: CreateFallRiskPayload): Promise<unknown> {
   return request(apiConfig, "POST", "/api/nurse/fall-risk", payload);
+}
+
+// ── Bedside medication administration (BCMA) ───────────────
+// Wire shape mirrors `crates/medbrains-ipd/src/lib.rs`.
+
+/**
+ * The server's answer to a scan pair. `verified` is the only thing that
+ * matters at the bedside; the two flags below it exist so the nurse is told
+ * *which* right failed rather than "not verified".
+ */
+export interface BarcodeVerifyResult {
+  verified: boolean;
+  right_patient: boolean;
+  right_drug: boolean;
+  reason: string | null;
+}
+
+/**
+ * Check the 5 rights against the wristband and the drug barcode.
+ *
+ * The comparison is entirely server-side and so is the `barcode_verified`
+ * stamp — the client sends two strings it read off a camera and is told yes or
+ * no. A client that could set the flag itself would be a client that could
+ * skip the check.
+ */
+export async function verifyMarBarcode(
+  marId: string,
+  patientBarcode: string,
+  drugBarcode: string,
+): Promise<BarcodeVerifyResult> {
+  return request<BarcodeVerifyResult>(apiConfig, "POST", `/api/nurse/mar/${marId}/verify-barcode`, {
+    patient_barcode: patientBarcode,
+    drug_barcode: drugBarcode,
+  });
+}
+
+export interface WardOnDutyRow {
+  nurse_user_id: string;
+  nurse_name: string;
+  shift_type: string;
+  primary_assigned: boolean;
+  is_charge: boolean;
+  patient_count: number;
+}
+
+/** Who is on this ward today — the list a second-nurse witness is picked from. */
+export async function wardOnDuty(wardId: string): Promise<WardOnDutyRow[]> {
+  return request<WardOnDutyRow[]>(apiConfig, "GET", `/api/ipd/wards/${wardId}/on-duty`);
 }

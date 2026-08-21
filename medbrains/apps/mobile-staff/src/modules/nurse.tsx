@@ -7,12 +7,13 @@
 import type { Module } from "@medbrains/mobile-shell";
 import { P } from "@medbrains/types";
 import type { ReactNode } from "react";
-import type { AdmissionRow } from "../api/ipd.js";
+import type { AdmissionRow, MarRow } from "../api/ipd.js";
 import { listActiveAdmissions } from "../api/ipd.js";
 import { listOpenNurseCalls } from "../api/nursing.js";
 import { useModuleCount } from "../components/module-count.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import { AdministerDoseScreen } from "./nurse/administer-dose.js";
 import { AdmissionsListScreen } from "./nurse/admissions-list.js";
 import { BedsideActionScreen } from "./nurse/bedside-action.js";
 import { NurseCallBoardScreen } from "./nurse/call-board.js";
@@ -96,6 +97,10 @@ function NurseScreen(): ReactNode {
           <PatientWorkspaceScreen admission={payload as AdmissionRow} />
         ),
         mar: (payload) => <MarScheduleScreen admission={payload as AdmissionRow} />,
+        administer: (payload) => {
+          const params = payload as { admission: AdmissionRow; dose: MarRow };
+          return <AdministerDoseScreen admission={params.admission} dose={params.dose} />;
+        },
         handover: (payload) => {
           const admission = payload as AdmissionRow;
           return (

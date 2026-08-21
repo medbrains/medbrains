@@ -131,6 +131,13 @@ pub struct AdmissionRow {
     pub patient_name: String,
     pub uhid: String,
     pub ward_name: Option<String>,
+    /// The ward itself, not just its name.
+    ///
+    /// A bedside client needs the id to ask who else is on duty — a high-alert
+    /// dose takes a second-nurse witness, and picking one from a name is a
+    /// free-text UUID field wearing a disguise. The wards join was already
+    /// here; only the projection was missing.
+    pub ward_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1375,7 +1382,7 @@ pub async fn list_admissions(
                a.admitting_doctor, a.status, a.admitted_at, a.discharged_at, \
                CONCAT(p.first_name, ' ', COALESCE(p.last_name, '')) AS patient_name, \
                p.uhid, \
-               w.name AS ward_name \
+               w.name AS ward_name, a.ward_id \
          FROM admissions a \
          JOIN encounters e ON e.id = a.encounter_id \
          JOIN patients p ON p.id = a.patient_id \
@@ -3296,7 +3303,7 @@ pub struct BarcodeVerifyResult {
     pub reason: Option<String>,
 }
 
-/// `POST /api/ipd/mar/{id}/verify-barcode` — BCMA server-side 5-rights check: the scanned wristband
+/// `POST /api/nurse/mar/{id}/verify-barcode` — BCMA server-side 5-rights check: the scanned wristband
 /// must resolve to this MAR's patient and the scanned drug barcode to this MAR's ordered drug. Only
 /// on a full match is `barcode_verified` stamped (server-authoritative). Mismatches are refused with
 /// the specific failure so the client blocks administration — a wrong-patient / wrong-drug guard.
