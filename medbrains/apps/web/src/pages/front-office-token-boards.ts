@@ -1,9 +1,8 @@
 import type {
   BillingQueueToken,
   LabQueueToken,
+  ModuleToken,
   PharmacyQueueToken,
-  QueuePriority,
-  QueueToken,
   RadiologyQueueToken,
   TokenBoardStatusSignal,
   TokenBoardSurfaceFilter,
@@ -66,16 +65,23 @@ export function tokenBoardFilterRoute(
   };
 }
 
-function priorityLabel(value: QueuePriority) {
+function priorityLabel(value: string) {
   return value.replace(/_/g, " ");
 }
 
-export function opdDisplayToken(token: QueueToken): DisplayToken {
+/**
+ * Token, status and priority — never who the patient is.
+ *
+ * `ModuleToken` carries `patient_name`, unlike the `QueueToken` this used to
+ * take. The board it feeds hangs in a waiting room, so the field is dropped
+ * here and `expectPublicTokenOnly` in the tests holds it dropped.
+ */
+export function opdDisplayToken(token: ModuleToken): DisplayToken {
   return {
     meta: token.priority === "normal" ? "Standard priority" : priorityLabel(token.priority),
     signal: tokenBoardStatusSignal(token.status),
     status: token.status,
-    tokenNumber: token.token_number,
+    tokenNumber: token.number,
   };
 }
 

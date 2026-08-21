@@ -23,7 +23,7 @@ export const frontOfficeService = {
   resolveEnquiry: api.resolveEnquiry,
   visitorAnalytics: api.visitorAnalytics,
   queueMetrics: api.queueMetrics,
-  listQueueTokens: api.listQueueTokens,
+  listOpdTokenBoard: () => api.listTokenBoard({ include_finished: true, module: "opd" }),
   getBillingQueueDisplay: api.getBillingQueueDisplay,
   getErQueueDisplay: api.getErQueueDisplay,
   getLabQueueDisplay: api.getLabQueueDisplay,

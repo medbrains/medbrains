@@ -2,8 +2,8 @@ import type {
   BillingQueueDisplay,
   ErQueueDisplay,
   LabQueueDisplay,
+  ModuleToken,
   PharmacyQueueDisplay,
-  QueueToken,
   RadiologyQueueDisplay,
 } from "@medbrains/types";
 import { TOKEN_BOARD_SURFACES } from "@medbrains/types";
@@ -14,10 +14,17 @@ interface FrontOfficeTokenBoardQueryOptions {
   enabled: boolean;
 }
 
+/**
+ * The OPD board, from the unified `tokens` table.
+ *
+ * `queue_tokens` was a queue nothing advanced: the doctor calls the next
+ * patient on the unified queue, so a receptionist watching the old board and a
+ * doctor working the clinic were looking at different days.
+ */
 export function useFrontOfficeOpdTokenBoardQuery({ enabled }: FrontOfficeTokenBoardQueryOptions) {
-  return useQuery<QueueToken[]>({
+  return useQuery<ModuleToken[]>({
     queryKey: ["front-office", "token-board", "opd"],
-    queryFn: () => frontOfficeService.listQueueTokens(),
+    queryFn: () => frontOfficeService.listOpdTokenBoard(),
     enabled,
     refetchInterval: TOKEN_BOARD_SURFACES.opd.refreshIntervalMs,
   });

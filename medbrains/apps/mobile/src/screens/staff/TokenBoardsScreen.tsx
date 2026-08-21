@@ -4,9 +4,9 @@ import type {
   BillingQueueToken,
   ErTriageToken,
   LabQueueToken,
+  ModuleToken,
   PharmacyQueueToken,
   QueuePriority,
-  QueueToken,
   RadiologyQueueToken,
   TokenBoardReadinessItem,
   TokenBoardReadinessTone,
@@ -113,7 +113,7 @@ const BILLING_LANE_TEXT_KEYS: Record<
   },
 };
 
-const PRIORITY_LABEL_KEYS: Record<QueuePriority, string> = {
+const PRIORITY_LABEL_KEYS: Partial<Record<QueuePriority, string>> = {
   disabled: TOKEN_BOARDS_TEXT.priority.disabled,
   elderly: TOKEN_BOARDS_TEXT.priority.elderly,
   emergency_referral: TOKEN_BOARDS_TEXT.priority.emergencyReferral,
@@ -209,8 +209,22 @@ function statusLabel(value: string) {
   });
 }
 
-function priorityLabel(value: QueuePriority) {
-  return tokenBoardsText(PRIORITY_LABEL_KEYS[value]);
+/**
+ * The priority as a word, for any priority.
+ *
+ * The two queues do not share a vocabulary. `queue_tokens` records the kiosk's
+ * categories -- elderly, pregnant, disabled, vip, emergency_referral -- and the
+ * unified `tokens` table knows only normal, urgent and stat. Porting the board
+ * to the unified queue therefore surfaces priorities this map has never seen,
+ * and a lookup that returns undefined would render the word "undefined" on a
+ * board in a waiting room.
+ *
+ * Falling back to the raw value is the honest answer until the vocabularies are
+ * reconciled, which is a data-model decision and belongs with the write path.
+ */
+function priorityLabel(value: string) {
+  const key = PRIORITY_LABEL_KEYS[value as QueuePriority];
+  return key ? tokenBoardsText(key) : value.replace(/_/g, " ");
 }
 
 function lastSyncLabel(updatedAt: number) {
@@ -337,12 +351,12 @@ function TokenStatusShape({ label, signal }: { label: string; signal: TokenBoard
   return <View accessibilityLabel={label} style={statusShapeStyle(signal)} />;
 }
 
-function opdToken(token: QueueToken): DisplayToken {
+function opdToken(token: ModuleToken): DisplayToken {
   return {
     meta: priorityLabel(token.priority),
     signal: tokenBoardStatusSignal(token.status),
     status: token.status,
-    tokenNumber: token.token_number,
+    tokenNumber: token.number,
   };
 }
 
@@ -740,8 +754,10 @@ export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps)
   const er = erQuery.data;
   const pharmacy = pharmacyQuery.data;
   const billing = billingQuery.data;
+  // 'serving' is the unified table's name for what queue_tokens called
+  // 'in_progress' — the patient is with the doctor either way.
   const opdNowServing = opdTokens.filter(
-    (token) => token.status === "called" || token.status === "in_progress",
+    (token) => token.status === "called" || token.status === "serving",
   );
   const opdWaiting = opdTokens.filter((token) => token.status === "waiting");
   const overdueErTokens = TRIAGE_LANES.reduce(

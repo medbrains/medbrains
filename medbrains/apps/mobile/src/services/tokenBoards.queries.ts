@@ -3,8 +3,8 @@ import type {
   BillingQueueDisplay,
   ErQueueDisplay,
   LabQueueDisplay,
+  ModuleToken,
   PharmacyQueueDisplay,
-  QueueToken,
   RadiologyQueueDisplay,
 } from "@medbrains/types";
 import { TOKEN_BOARD_SURFACES } from "@medbrains/types";
@@ -12,10 +12,18 @@ import { useQuery } from "@tanstack/react-query";
 
 const TOKEN_BOARD_QUERY_KEY = ["token-boards"] as const;
 
+/**
+ * The OPD board, from the unified `tokens` table.
+ *
+ * It used to read `queue_tokens`, which nothing advances — the doctor calls
+ * the next patient on the unified queue, so the old board showed a number that
+ * could not change. `include_finished` keeps the token just called and recent
+ * no-shows on screen; a board is not a work queue.
+ */
 export function useOpdTokenBoardQuery(options?: { enabled?: boolean }) {
-  return useQuery<QueueToken[]>({
+  return useQuery<ModuleToken[]>({
     queryKey: [...TOKEN_BOARD_QUERY_KEY, "opd"],
-    queryFn: () => api.listQueueTokens(),
+    queryFn: () => api.listTokenBoard({ include_finished: true, module: "opd" }),
     enabled: options?.enabled ?? true,
     refetchInterval: TOKEN_BOARD_SURFACES.opd.refreshIntervalMs,
   });

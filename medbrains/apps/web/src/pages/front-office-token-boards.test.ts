@@ -6,8 +6,8 @@ import type {
   BillingQueueDisplay,
   BillingQueueToken,
   LabQueueToken,
+  ModuleToken,
   PharmacyQueueToken,
-  QueueToken,
   RadiologyQueueToken,
 } from "@medbrains/types";
 import {
@@ -294,20 +294,26 @@ describe("front-office token-board display mapping", () => {
   });
 
   it("keeps OPD public display tokens free of patient identifiers", () => {
-    const token: QueueToken = {
+    // The board now reads the unified `tokens` table, whose rows carry
+    // `patient_name`. `queue_tokens` never did, so this test used to prove the
+    // mapping dropped a field that was not there. The name is in the fixture on
+    // purpose: it is the thing that must not reach a waiting-room screen.
+    const token: ModuleToken = {
       called_at: null,
       completed_at: null,
       created_at: "2026-06-05T08:00:00.000Z",
-      department_id: "general-medicine",
-      doctor_id: "doctor-1",
       id: "token-1",
+      module: "opd",
+      number: "OPD-014",
       patient_id: "patient-secret",
+      patient_name: "Asha Raman",
       priority: "normal",
+      scope: "department",
+      scope_id: "general-medicine",
+      seq: 14,
+      served_at: null,
       status: "waiting",
-      tenant_id: "tenant-1",
       token_date: "2026-06-05",
-      token_number: "OPD-014",
-      token_seq: 14,
     };
 
     expect(opdDisplayToken(token)).toEqual({

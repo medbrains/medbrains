@@ -555,8 +555,10 @@ export function TokenBoardsTab({
   const pharmacy = pharmacyQuery.data;
   const billing = billingQuery.data;
   const er = erQuery.data;
+  // 'serving' is the unified table's word for what queue_tokens called
+  // 'in_progress' — the patient is with the doctor either way.
   const opdNowServing = opdTokens.filter(
-    (token) => token.status === "called" || token.status === "in_progress",
+    (token) => token.status === "called" || token.status === "serving",
   );
   const opdWaiting = opdTokens.filter((token) => token.status === "waiting");
   const currentPharmacy = pharmacy?.current_token ? [pharmacy.current_token] : [];
@@ -687,7 +689,7 @@ export function TokenBoardsTab({
                 showLaunchMeta={!isKioskDisplay}
                 displayMode={displayMode}
                 summary={[
-                  { label: "Now", value: opdNowServing[0]?.token_number ?? "—" },
+                  { label: "Now", value: opdNowServing[0]?.number ?? "—" },
                   { label: "Waiting", value: opdWaiting.length },
                   {
                     label: "Priority",
