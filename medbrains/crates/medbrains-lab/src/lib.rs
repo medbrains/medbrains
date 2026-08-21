@@ -4637,6 +4637,15 @@ pub async fn get_analyzer_worklist(
     Query(params): Query<AnalyzerWorklistQuery>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
     require_permission(&claims, permissions::lab::orders::LIST)?;
+    // lab.orders.list is held by audit_officer, doctor, lab_technician,
+    // nurse and quality_officer — and quality_officer does not hold
+    // patients.view. A bench worklist needs the barcode and the order, not
+    // the name, so the name is blanked for whoever cannot see one anywhere
+    // else. Checked against roles.rs rather than assumed: a redaction whose
+    // gate no caller can fail is decoration, and this crate has one of
+    // those in list_rx_queue's neighbour module.
+    let can_view_patient_identity =
+        claims_have_any_permission(&claims, &[permissions::patients::VIEW]);
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -4676,7 +4685,11 @@ pub async fn get_analyzer_worklist(
                 "order_id": r.0,
                 "patient_id": r.1,
                 "sample_barcode": r.2.as_deref().unwrap_or(""),
-                "patient_name": r.3,
+                "patient_name": if can_view_patient_identity {
+                    r.3.clone()
+                } else {
+                    "Restricted".to_owned()
+                },
                 "ordered_at": r.4,
             })
         })

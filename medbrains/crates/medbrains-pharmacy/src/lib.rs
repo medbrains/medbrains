@@ -5929,6 +5929,18 @@ pub async fn list_rx_queue(
 
     let mut rows = query.fetch_all(&mut *tx).await?;
 
+    // This redaction does not currently fire for anybody. pharmacy.rx_queue
+    // .list and .review are held by doctor and pharmacist, and both also hold
+    // patients.view, so can_view_patient_identity is true for every non-bypass
+    // caller who can reach this handler. The code is correct and inert — the
+    // same shape as ipd::expected_discharges, and the opposite of
+    // camp::get_camp_packet, where the only holding role lacks patients.view
+    // and the blanking is real.
+    //
+    // Left in place deliberately: it costs nothing and starts working the day
+    // rx_queue.list is granted to a technician or a store role, which is the
+    // likeliest next grant here. What must not happen is somebody reading it
+    // as a control that operates today.
     if !can_view_patient_identity(&claims) {
         for row in &mut rows {
             row.patient_name = "Restricted".to_owned();
