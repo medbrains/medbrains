@@ -99,24 +99,60 @@ async fn record_failed_login(
 }
 
 /// Runtime query (no .sqlx metadata) — column added in 0144.
-async fn fetch_must_change_password(db: &PgPool, user_id: Uuid) -> Result<bool, AppError> {
-    Ok(
-        sqlx::query_scalar::<_, bool>("SELECT must_change_password FROM users WHERE id = $1")
-            .bind(user_id)
-            .fetch_optional(db)
-            .await?
-            .unwrap_or(false),
-    )
+/// Read one flag off a user, on a connection that knows which hospital it is.
+///
+/// `users` is row-level secured. Read straight off the pool this finds nothing
+/// once the application stops being a superuser — and `unwrap_or(false)` turns
+/// "I could not see the row" into "the answer is no", which for
+/// `must_change_password` means letting somebody past a password change they
+/// were required to make.
+async fn fetch_user_flag(
+    db: &PgPool,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    column: UserFlag,
+) -> Result<bool, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
+    let sql = match column {
+        UserFlag::MustChangePassword => {
+            "SELECT must_change_password FROM users WHERE id = $1 AND tenant_id = $2"
+        }
+        UserFlag::EmailVerified => {
+            "SELECT email_verified FROM users WHERE id = $1 AND tenant_id = $2"
+        }
+        UserFlag::MfaEnabled => "SELECT mfa_enabled FROM users WHERE id = $1 AND tenant_id = $2",
+    };
+    Ok(sqlx::query_scalar::<_, bool>(sql)
+        .bind(user_id)
+        .bind(tenant_id)
+        .fetch_optional(&mut *conn)
+        .await?
+        .unwrap_or(false))
 }
 
-async fn fetch_email_verified(db: &PgPool, user_id: Uuid) -> Result<bool, AppError> {
-    Ok(
-        sqlx::query_scalar::<_, bool>("SELECT email_verified FROM users WHERE id = $1")
-            .bind(user_id)
-            .fetch_optional(db)
-            .await?
-            .unwrap_or(false),
-    )
+/// Which flag to read. An enum rather than a column name, so a caller cannot
+/// pass a string into a query.
+#[derive(Debug, Clone, Copy)]
+enum UserFlag {
+    MustChangePassword,
+    EmailVerified,
+    MfaEnabled,
+}
+
+async fn fetch_must_change_password(
+    db: &PgPool,
+    tenant_id: Uuid,
+    user_id: Uuid,
+) -> Result<bool, AppError> {
+    fetch_user_flag(db, tenant_id, user_id, UserFlag::MustChangePassword).await
+}
+
+async fn fetch_email_verified(
+    db: &PgPool,
+    tenant_id: Uuid,
+    user_id: Uuid,
+) -> Result<bool, AppError> {
+    fetch_user_flag(db, tenant_id, user_id, UserFlag::EmailVerified).await
 }
 
 #[derive(Debug, Serialize)]
@@ -193,12 +229,17 @@ async fn password_login_blocked(
     tenant_id: Uuid,
     username: &str,
 ) -> Result<bool, AppError> {
+    // `tenant_settings` is row-level secured, and this decides whether a
+    // password login is allowed at all. Unscoped it reads nothing, which here
+    // means "passwords are fine" — the permissive answer, arrived at by not
+    // being able to see the setting that says otherwise.
+    let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
     let disabled: Option<serde_json::Value> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings \
          WHERE tenant_id = $1 AND category = 'auth' AND key = 'password_login_disabled'",
     )
     .bind(tenant_id)
-    .fetch_optional(db)
+    .fetch_optional(&mut *conn)
     .await?;
     let is_disabled =
         disabled.is_some_and(|v| v.as_bool() == Some(true) || v.as_str() == Some("true"));
@@ -289,10 +330,11 @@ pub async fn login(
 
     // MFA gate — when enabled, credentials alone never open a session.
     // The client resubmits the same credentials with mfa_code.
-    let mfa_enabled: bool = sqlx::query_scalar("SELECT mfa_enabled FROM users WHERE id = $1")
-        .bind(row.id)
-        .fetch_one(&state.db)
-        .await?;
+    // Read on a scoped connection. Unscoped, row level security hides the row
+    // and this becomes "MFA is off" — a second factor skipped because the
+    // database declined to say it was required.
+    let mfa_enabled =
+        fetch_user_flag(&state.db, row.tenant_id, row.id, UserFlag::MfaEnabled).await?;
     if mfa_enabled {
         match body
             .mfa_code
@@ -424,8 +466,8 @@ pub async fn login(
         .add(build_refresh_cookie(&refresh_raw, cfg))
         .add(build_csrf_cookie(&csrf_token, cfg));
 
-    let must_change_password = fetch_must_change_password(&state.db, row.id).await?;
-    let email_verified = fetch_email_verified(&state.db, row.id).await?;
+    let must_change_password = fetch_must_change_password(&state.db, row.tenant_id, row.id).await?;
+    let email_verified = fetch_email_verified(&state.db, row.tenant_id, row.id).await?;
 
     let body = LoginResponse {
         token: include_native_tokens.then(|| access_token.clone()),
@@ -700,8 +742,8 @@ pub async fn refresh_token(
         .add(build_refresh_cookie(&new_refresh_raw, cfg))
         .add(build_csrf_cookie(&csrf_token, cfg));
 
-    let must_change_password = fetch_must_change_password(&state.db, row.user_id).await?;
-    let email_verified = fetch_email_verified(&state.db, row.user_id).await?;
+    let must_change_password = fetch_must_change_password(&state.db, row.tenant_id, row.user_id).await?;
+    let email_verified = fetch_email_verified(&state.db, row.tenant_id, row.user_id).await?;
 
     let resp_body = RefreshResponse {
         token: include_native_tokens.then(|| access_token.clone()),
@@ -941,16 +983,15 @@ pub async fn me(
             .await?,
     );
 
-    let must_change_password = fetch_must_change_password(&state.db, row.id).await?;
+    let must_change_password = fetch_must_change_password(&state.db, row.tenant_id, row.id).await?;
 
-    let mfa_enabled: bool = sqlx::query_scalar("SELECT mfa_enabled FROM users WHERE id = $1")
-        .bind(row.id)
-        .fetch_one(&state.db)
-        .await?;
-    let email_verified: bool = sqlx::query_scalar("SELECT email_verified FROM users WHERE id = $1")
-        .bind(row.id)
-        .fetch_one(&state.db)
-        .await?;
+    // Read on a scoped connection. Unscoped, row level security hides the row
+    // and this becomes "MFA is off" — a second factor skipped because the
+    // database declined to say it was required.
+    let mfa_enabled =
+        fetch_user_flag(&state.db, row.tenant_id, row.id, UserFlag::MfaEnabled).await?;
+    let email_verified =
+        fetch_user_flag(&state.db, row.tenant_id, row.id, UserFlag::EmailVerified).await?;
     let mfa_enrollment_required = !mfa_enabled
         && medbrains_mfa::mfa_required_for_role(&state.db, row.tenant_id, &row.role).await?;
 
@@ -1324,16 +1365,20 @@ fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
                 .map(|s| s.trim().to_owned())
         });
 
-    // Strip port suffix (inet type only accepts IP, not IP:port)
-    raw.map(|ip| {
-        if let Some(colon_pos) = ip.rfind(':') {
-            // Only strip if the part after colon is numeric (port)
-            // and it's not an IPv6 address
-            if !ip.contains('[') && ip[colon_pos + 1..].chars().all(|c| c.is_ascii_digit()) {
-                return ip[..colon_pos].to_owned();
-            }
-        }
-        ip
+    // The column is `inet`, which takes an address and not a socket address.
+    // Both forms arrive here: a proxy that forwards its peer verbatim sends
+    // `1.2.3.4:5678` or `[::1]:5678`, a conforming one sends the bare IP.
+    // Parsing both beats stripping the port by hand -- the hand-rolled version
+    // skipped anything containing '[', which is precisely the IPv6-with-port
+    // form, so every login over IPv6 died on `invalid input syntax for inet`.
+    // Anything that parses as neither is dropped rather than handed to
+    // Postgres: an unparseable address is not worth failing a login over.
+    raw.and_then(|s| {
+        s.parse::<std::net::SocketAddr>()
+            .map(|socket| socket.ip())
+            .or_else(|_| s.parse::<std::net::IpAddr>())
+            .ok()
+            .map(|ip| ip.to_string())
     })
 }
 
@@ -1349,12 +1394,16 @@ async fn resolve_department_ids(
         return Ok(Vec::new());
     }
 
+    // Department scoping narrows access within a hospital. Read unscoped this
+    // comes back empty, and an empty department list means "not restricted to
+    // any department" — the opposite of what an empty read should imply.
+    let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
     let dept_ids = sqlx::query_scalar!(
         "SELECT department_ids FROM users WHERE id = $1 AND tenant_id = $2",
         user_id,
         tenant_id
     )
-    .fetch_optional(db)
+    .fetch_optional(&mut *conn)
     .await?;
 
     Ok(dept_ids.unwrap_or_default())
@@ -1428,7 +1477,7 @@ pub async fn list_revocations(
     .bind(claims.tenant_id)
     .bind(since)
     .bind(REVOCATIONS_PAGE_SIZE + 1)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?)
     .await?;
 
     let has_more = rows.len() as i64 > REVOCATIONS_PAGE_SIZE;
@@ -1513,5 +1562,58 @@ mod native_client_tests {
             );
         }
         assert!(!wants_native_token_response(&HeaderMap::new()));
+    }
+}
+
+#[cfg(test)]
+mod client_ip_tests {
+    use super::extract_client_ip;
+    use axum::http::HeaderMap;
+
+    fn forwarded(value: &str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-forwarded-for", value.parse().expect("header value"));
+        headers
+    }
+
+    #[test]
+    fn a_socket_address_is_reduced_to_its_address() {
+        // The bracketed form is the regression: it reached the `inet` column
+        // intact and 400d every login once the proxy started answering on IPv6.
+        for (raw, want) in [
+            ("[::1]:53579", "::1"),
+            ("127.0.0.1:53579", "127.0.0.1"),
+            ("[2001:db8::1]:443", "2001:db8::1"),
+        ] {
+            assert_eq!(
+                extract_client_ip(&forwarded(raw)).as_deref(),
+                Some(want),
+                "{raw} should reduce to {want}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_bare_address_survives_unchanged() {
+        for raw in ["::1", "1.2.3.4", "2001:db8::1"] {
+            assert_eq!(extract_client_ip(&forwarded(raw)).as_deref(), Some(raw));
+        }
+    }
+
+    #[test]
+    fn an_unparseable_address_is_dropped_rather_than_forwarded() {
+        // Whatever this is, it is not something to hand to an `inet` column.
+        for raw in ["not-an-ip", "", "1.2.3.4.5"] {
+            assert_eq!(extract_client_ip(&forwarded(raw)), None, "{raw:?}");
+        }
+        assert_eq!(extract_client_ip(&HeaderMap::new()), None);
+    }
+
+    #[test]
+    fn the_first_hop_wins_in_a_chain() {
+        assert_eq!(
+            extract_client_ip(&forwarded("[::1]:53579, 10.0.0.1")).as_deref(),
+            Some("::1")
+        );
     }
 }

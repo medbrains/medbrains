@@ -117,6 +117,16 @@ async fn a_service_account_cannot_hold_a_password() {
         let pool = pool.clone();
         async move {
             let mut tx = pool.begin().await.expect("begin");
+            // Claim the tenant before writing. Without it, row level security
+            // refuses the insert first and the test passes on the wrong
+            // rejection — it would prove RLS works, which is not what it is
+            // for. Harmless as a superuser, required as the app role.
+            sqlx::query("SELECT set_config('app.tenant_id', $1, true)")
+                .bind(tenant.to_string())
+                .execute(&mut *tx)
+                .await
+                .expect("scope the transaction to a tenant");
+
             let result = sqlx::query(&format!(
                 "INSERT INTO users (tenant_id, {columns}) VALUES ($1, {values})"
             ))
