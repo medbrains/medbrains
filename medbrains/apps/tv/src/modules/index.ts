@@ -10,6 +10,7 @@ import { bedStatusModule } from "./bed-status";
 import { billingQueueModule } from "./billing-queue";
 import { campQueueModule } from "./camp-queue";
 import { digitalSignageModule } from "./digital-signage";
+import { doctorRoomModule } from "./doctor-room";
 import { emergencyTriageModule } from "./emergency-triage";
 import { labStatusModule } from "./lab-status";
 import { nurseCallsModule } from "./nurse-calls";
@@ -49,5 +50,9 @@ export const MODULES: ReadonlyArray<Module> = [
   ...TOKEN_BOARD_TV_MODULE_LIST,
   bedStatusModule,
   digitalSignageModule,
+  // Not a token-board surface of its own: it reads the OPD board and renders a
+  // door rather than a hall, so it is registered directly instead of through
+  // the surface registry.
+  doctorRoomModule,
   nurseCallsModule,
 ];

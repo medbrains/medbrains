@@ -910,3 +910,52 @@ export interface PortalAppointment {
   status: string;
   department_name: string | null;
 }
+
+/** A token as a door display needs to read it. */
+export interface RoomToken {
+  status: string;
+  counter_label?: string | null;
+  called_at?: string | null;
+}
+
+/** Rooms are typed by people; match on meaning, not on whitespace and case. */
+function sameRoom(label: string | null | undefined, room: string): boolean {
+  return (label ?? "").trim().toLowerCase() === room.trim().toLowerCase();
+}
+
+/**
+ * The token a consulting-room door should show, or null for "please wait".
+ *
+ * A door display answers one question — may I go in? — so it shows exactly one
+ * token and only while that patient is being seen. `called` and `serving` both
+ * qualify: the first means walk in, the second means somebody already has.
+ *
+ * `room` is matched against `counter_label`, which is the room a token was
+ * called to. Omit it where a department has a single consulting room, and the
+ * department's current token is the room's current token. Passing a room that
+ * nothing has been called to yields null rather than the department's token:
+ * showing a neighbouring room's number on this door sends the patient into the
+ * wrong consultation, which is worse than showing nothing.
+ *
+ * Where several qualify, the most recently called wins — a door that keeps
+ * displaying the previous patient is a door people knock on.
+ */
+export function currentRoomToken<T extends RoomToken>(
+  tokens: ReadonlyArray<T>,
+  room?: string | null,
+): T | null {
+  const inRoom = tokens.filter((token) => {
+    if (token.status !== "called" && token.status !== "serving") return false;
+    if (room == null || room.trim() === "") return true;
+    return sameRoom(token.counter_label, room);
+  });
+  if (inRoom.length === 0) return null;
+  return inRoom.reduce((latest, token) => {
+    // Undated calls sort oldest: a token with no time cannot be shown to be
+    // newer than one that has a time, and guessing in the other direction
+    // would let a stale row take over the door.
+    const a = latest.called_at ? Date.parse(latest.called_at) : Number.NEGATIVE_INFINITY;
+    const b = token.called_at ? Date.parse(token.called_at) : Number.NEGATIVE_INFINITY;
+    return b > a ? token : latest;
+  });
+}

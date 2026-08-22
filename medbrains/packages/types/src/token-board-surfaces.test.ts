@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  currentRoomToken,
   MISSED_TOKEN_BOARD_WINDOW_MINUTES,
   type MissableToken,
   recentlyMissedTokens,
@@ -81,5 +82,75 @@ describe("recentlyMissedTokens", () => {
   it("keeps the caller's own token fields intact", () => {
     const rows = [{ ...token(), token_number: "CARD-014" }];
     expect(recentlyMissedTokens(rows, NOW)[0]?.token_number).toBe("CARD-014");
+  });
+});
+
+describe("currentRoomToken", () => {
+  const called = (counter_label: string | null, called_at: string, status = "called") => ({
+    called_at,
+    counter_label,
+    status,
+  });
+
+  it("shows the token called to this room", () => {
+    const token = currentRoomToken(
+      [called("Room 2", "2026-08-22T09:00:00Z"), called("Room 3", "2026-08-22T09:05:00Z")],
+      "Room 3",
+    );
+    expect(token?.counter_label).toBe("Room 3");
+  });
+
+  it("shows nothing rather than a neighbouring room's token", () => {
+    // The failure that matters: a door showing the next room's number sends
+    // the patient into the wrong consultation.
+    expect(currentRoomToken([called("Room 2", "2026-08-22T09:00:00Z")], "Room 3")).toBeNull();
+  });
+
+  it("treats a missing room as the whole department, for single-room clinics", () => {
+    expect(currentRoomToken([called("Room 2", "2026-08-22T09:00:00Z")], undefined)).not.toBeNull();
+    expect(currentRoomToken([called(null, "2026-08-22T09:00:00Z")], "  ")).not.toBeNull();
+  });
+
+  it("matches a room name however it was typed", () => {
+    expect(currentRoomToken([called(" room 3 ", "2026-08-22T09:00:00Z")], "Room 3")).not.toBeNull();
+  });
+
+  it("counts serving as in the room, and nothing else", () => {
+    expect(
+      currentRoomToken([called("Room 3", "2026-08-22T09:00:00Z", "serving")], "Room 3"),
+    ).not.toBeNull();
+    for (const status of ["waiting", "completed", "no_show", "cancelled"]) {
+      expect(
+        currentRoomToken([called("Room 3", "2026-08-22T09:00:00Z", status)], "Room 3"),
+        status,
+      ).toBeNull();
+    }
+  });
+
+  it("shows the most recent call, so the door does not lag a patient behind", () => {
+    const token = currentRoomToken(
+      [
+        called("Room 3", "2026-08-22T09:00:00Z"),
+        called("Room 3", "2026-08-22T09:30:00Z"),
+        called("Room 3", "2026-08-22T09:15:00Z"),
+      ],
+      "Room 3",
+    );
+    expect(token?.called_at).toBe("2026-08-22T09:30:00Z");
+  });
+
+  it("never lets an undated call take the door from a dated one", () => {
+    const token = currentRoomToken(
+      [
+        { called_at: null, counter_label: "Room 3", status: "called" },
+        called("Room 3", "2026-08-22T09:00:00Z"),
+      ],
+      "Room 3",
+    );
+    expect(token?.called_at).toBe("2026-08-22T09:00:00Z");
+  });
+
+  it("says nothing is in the room when the queue is empty", () => {
+    expect(currentRoomToken([], "Room 3")).toBeNull();
   });
 });

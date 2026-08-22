@@ -294,12 +294,14 @@ export type {
   TokenBoardStatusValue,
   TokenBoardSurfaceDefinition,
   TokenBoardSurfaceFilter,
+  RoomToken,
   TokenBoardSurfaceId,
   TokenBoardTvAppCode,
   TokenBoardTvDisplayType,
 } from "./token-board-surfaces.js";
 export {
   BILLING_QUEUE_LANES,
+  currentRoomToken,
   getTokenBoardSurface,
   isTokenBoardStatusValue,
   isTokenBoardSurfaceId,
