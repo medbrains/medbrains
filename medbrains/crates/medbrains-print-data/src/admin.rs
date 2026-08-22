@@ -23,7 +23,6 @@ use medbrains_core::print_data::{
     PmChecklistPrintData, PoItem, PurchaseOrderPrintData, RepairHistoryEntry,
     StockTransferNotePrintData, TransferItem, WorkOrderMaterial, WorkOrderPrintData,
 };
-use sqlx::PgPool;
 use uuid::Uuid;
 
 use medbrains_server_core::error::AppError;
@@ -43,7 +42,11 @@ pub async fn get_indent_form_print_data(
 ) -> Result<axum::Json<IndentFormPrintData>, AppError> {
     require_permission(&claims, permissions::indent::LIST)?;
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     // Query indent header
     let indent = sqlx::query_as::<_, IndentHeaderRow>(
@@ -73,7 +76,7 @@ pub async fn get_indent_form_print_data(
         ",
     )
     .bind(indent_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *conn)
     .await?;
 
     // Query indent items
@@ -95,7 +98,7 @@ pub async fn get_indent_form_print_data(
         ",
     )
     .bind(indent_id)
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?;
 
     let indent_items: Vec<IndentItem> = items
@@ -175,7 +178,11 @@ pub async fn get_purchase_order_print_data(
 ) -> Result<axum::Json<PurchaseOrderPrintData>, AppError> {
     require_permission(&claims, permissions::procurement::purchase_orders::LIST)?;
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     // Query PO header
     let po = sqlx::query_as::<_, PoHeaderRow>(
@@ -212,7 +219,7 @@ pub async fn get_purchase_order_print_data(
         ",
     )
     .bind(po_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *conn)
     .await?;
 
     // Query PO items
@@ -235,7 +242,7 @@ pub async fn get_purchase_order_print_data(
         ",
     )
     .bind(po_id)
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?;
 
     let po_items: Vec<PoItem> = items
@@ -338,7 +345,11 @@ pub async fn get_grn_print_data(
 ) -> Result<axum::Json<GrnPrintData>, AppError> {
     require_permission(&claims, permissions::procurement::grn::LIST)?;
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     // Query GRN header
     let grn = sqlx::query_as::<_, GrnHeaderRow>(
@@ -370,7 +381,7 @@ pub async fn get_grn_print_data(
         ",
     )
     .bind(grn_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *conn)
     .await?;
 
     // Query GRN items
@@ -397,7 +408,7 @@ pub async fn get_grn_print_data(
         ",
     )
     .bind(grn_id)
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?;
 
     let grn_items: Vec<GrnItem> = items
@@ -493,7 +504,11 @@ pub async fn get_material_issue_voucher_print_data(
 ) -> Result<axum::Json<MaterialIssueVoucherPrintData>, AppError> {
     require_permission(&claims, permissions::indent::LIST)?;
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     // Query voucher header
     let voucher = sqlx::query_as::<_, IssueVoucherHeaderRow>(
@@ -524,7 +539,7 @@ pub async fn get_material_issue_voucher_print_data(
         ",
     )
     .bind(voucher_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *conn)
     .await?;
 
     // Query issue items
@@ -547,7 +562,7 @@ pub async fn get_material_issue_voucher_print_data(
         ",
     )
     .bind(voucher_id)
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?;
 
     let issue_items: Vec<IssueItem> = items
@@ -631,7 +646,11 @@ pub async fn get_stock_transfer_note_print_data(
     // Stricter than ideal, and the right way to be wrong here.
     require_permission(&claims, permissions::indent::STOCK_MANAGE)?;
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     // Query transfer header
     let transfer = sqlx::query_as::<_, TransferHeaderRow>(
@@ -662,7 +681,7 @@ pub async fn get_stock_transfer_note_print_data(
         ",
     )
     .bind(transfer_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *conn)
     .await?;
 
     // Query transfer items
@@ -684,7 +703,7 @@ pub async fn get_stock_transfer_note_print_data(
         ",
     )
     .bind(transfer_id)
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?;
 
     let transfer_items: Vec<TransferItem> = items
@@ -768,7 +787,11 @@ pub async fn get_ndps_register_print_data(
     // 1985. Printing it is a controlled-substance disclosure.
     require_permission(&claims, permissions::pharmacy::ndps::LIST)?;
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     // Parse period (YYYY-MM format)
     let parts: Vec<&str> = period.split('-').collect();
@@ -795,7 +818,7 @@ pub async fn get_ndps_register_print_data(
         LIMIT 1
         ",
     )
-    .fetch_one(pool)
+    .fetch_one(&mut *conn)
     .await?;
 
     // Query opening balance (beginning of period)
@@ -814,7 +837,7 @@ pub async fn get_ndps_register_print_data(
         ",
     )
     .bind(&period)
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?;
 
     // Query transactions for the period
@@ -841,7 +864,7 @@ pub async fn get_ndps_register_print_data(
         ",
     )
     .bind(&period)
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?;
 
     // Query closing balance (end of period)
@@ -860,7 +883,7 @@ pub async fn get_ndps_register_print_data(
         ",
     )
     .bind(&period)
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?;
 
     let opening: Vec<NdpsBalance> = opening_balance
@@ -965,7 +988,11 @@ pub async fn get_drug_expiry_alert_print_data(
 ) -> Result<axum::Json<DrugExpiryAlertPrintData>, AppError> {
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     // Query store info
     let store = sqlx::query_as::<_, StoreInfoRow>(
@@ -980,7 +1007,7 @@ pub async fn get_drug_expiry_alert_print_data(
         ",
     )
     .bind(store_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *conn)
     .await?;
 
     let alert_threshold_days = 90; // Default 90 days
@@ -1012,7 +1039,7 @@ pub async fn get_drug_expiry_alert_print_data(
         ",
     )
     .bind(store_id)
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?;
 
     // Query expiring soon
@@ -1044,7 +1071,7 @@ pub async fn get_drug_expiry_alert_print_data(
     )
     .bind(store_id)
     .bind(alert_threshold_days)
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?;
 
     let expired_drugs: Vec<ExpiryDrugItem> = expired
@@ -1134,7 +1161,11 @@ pub async fn get_equipment_condemnation_print_data(
 ) -> Result<axum::Json<EquipmentCondemnationPrintData>, AppError> {
     require_permission(&claims, permissions::indent::CONDEMNATION_LIST)?;
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     // Query condemnation record
     let cond = sqlx::query_as::<_, CondemnationRow>(
@@ -1177,7 +1208,7 @@ pub async fn get_equipment_condemnation_print_data(
         ",
     )
     .bind(condemnation_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *conn)
     .await?;
 
     let repair_history: Vec<RepairHistoryEntry> = cond
@@ -1254,7 +1285,11 @@ pub async fn get_work_order_print_data(
 ) -> Result<axum::Json<WorkOrderPrintData>, AppError> {
     require_permission(&claims, permissions::facilities::work_orders::LIST)?;
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     // Query work order
     let wo = sqlx::query_as::<_, WorkOrderRow>(
@@ -1296,7 +1331,7 @@ pub async fn get_work_order_print_data(
         ",
     )
     .bind(work_order_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *conn)
     .await?;
 
     let materials: Vec<WorkOrderMaterial> = wo
@@ -1371,7 +1406,11 @@ pub async fn get_pm_checklist_print_data(
 ) -> Result<axum::Json<PmChecklistPrintData>, AppError> {
     require_permission(&claims, permissions::bme::pm::LIST)?;
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     // Query PM record
     let pm = sqlx::query_as::<_, PmRow>(
@@ -1409,7 +1448,7 @@ pub async fn get_pm_checklist_print_data(
         ",
     )
     .bind(pm_id)
-    .fetch_one(pool)
+    .fetch_one(&mut *conn)
     .await?;
 
     let checklist_items: Vec<PmChecklistItem> = pm

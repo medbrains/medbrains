@@ -35,7 +35,11 @@ pub async fn get_amc_contract_print_data(
 ) -> Result<Json<AmcContractPrintData>, AppError> {
     require_permission(&claims, permissions::bme::contracts::LIST)?;
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct ContractRow {
@@ -72,7 +76,7 @@ pub async fn get_amc_contract_print_data(
         ",
     )
     .bind(contract_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
@@ -99,7 +103,7 @@ pub async fn get_amc_contract_print_data(
         ",
     )
     .bind(contract_id)
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?;
 
     let equipment_covered: Vec<EquipmentCoverage> = if equipment.is_empty() {
@@ -121,7 +125,7 @@ pub async fn get_amc_contract_print_data(
             .collect()
     };
 
-    let hospital = get_hospital_info(pool).await?;
+    let hospital = get_hospital_info(&state.db).await?;
 
     Ok(Json(AmcContractPrintData {
         contract_number: contract.contract_number,
@@ -181,7 +185,11 @@ pub async fn get_calibration_certificate_print_data(
 ) -> Result<Json<CalibrationCertificatePrintData>, AppError> {
     require_permission(&claims, permissions::bme::calibration::LIST)?;
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct CalibRow {
@@ -232,11 +240,11 @@ pub async fn get_calibration_certificate_print_data(
         ",
     )
     .bind(calibration_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
-    let hospital = get_hospital_info(pool).await?;
+    let hospital = get_hospital_info(&state.db).await?;
 
     // Sample parameters
     let parameters = vec![
@@ -290,7 +298,11 @@ pub async fn get_equipment_breakdown_print_data(
 ) -> Result<Json<EquipmentBreakdownReportPrintData>, AppError> {
     require_permission(&claims, permissions::bme::breakdowns::LIST)?;
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct BreakdownRow {
@@ -350,11 +362,11 @@ pub async fn get_equipment_breakdown_print_data(
         ",
     )
     .bind(breakdown_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
-    let hospital = get_hospital_info(pool).await?;
+    let hospital = get_hospital_info(&state.db).await?;
 
     Ok(Json(EquipmentBreakdownReportPrintData {
         report_number: breakdown.report_number,
@@ -397,7 +409,11 @@ pub async fn get_equipment_history_print_data(
 ) -> Result<Json<EquipmentHistoryCardPrintData>, AppError> {
     require_permission(&claims, permissions::bme::equipment::LIST)?;
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct EquipRow {
@@ -440,7 +456,7 @@ pub async fn get_equipment_history_print_data(
         ",
     )
     .bind(equipment_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
@@ -476,7 +492,7 @@ pub async fn get_equipment_history_print_data(
         next_due: "01-01-2027".to_string(),
     }];
 
-    let hospital = get_hospital_info(pool).await?;
+    let hospital = get_hospital_info(&state.db).await?;
 
     Ok(Json(EquipmentHistoryCardPrintData {
         equipment_name: equip.equipment_name,
@@ -553,7 +569,11 @@ pub async fn get_dg_ups_log_print_data(
     // Diesel generator and UPS logs are the energy record.
     require_permission(&claims, permissions::facilities::energy::LIST)?;
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     let log_date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
         .unwrap_or_else(|_| Utc::now().date_naive());
@@ -579,7 +599,7 @@ pub async fn get_dg_ups_log_print_data(
         ",
     )
     .bind(equipment_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *conn)
     .await?
     .unwrap_or(EquipRow {
         equipment_type: "DG".to_string(),
@@ -588,7 +608,7 @@ pub async fn get_dg_ups_log_print_data(
         capacity: Some("500 KVA".to_string()),
     });
 
-    let hospital = get_hospital_info(pool).await?;
+    let hospital = get_hospital_info(&state.db).await?;
 
     let is_dg = equip.equipment_type.to_uppercase().contains("DG");
 
@@ -687,7 +707,11 @@ pub async fn get_materiovigilance_print_data(
     )
     .await?;
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct ReportRow {
@@ -749,11 +773,11 @@ pub async fn get_materiovigilance_print_data(
         ",
     )
     .bind(report_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
-    let hospital = get_hospital_info(pool).await?;
+    let hospital = get_hospital_info(&state.db).await?;
 
     Ok(Json(MateriovigilanceReportPrintData {
         report_number: report.report_number,
@@ -792,8 +816,7 @@ pub async fn get_fire_mock_drill_print_data(
 ) -> Result<Json<FireMockDrillReportPrintData>, AppError> {
     require_permission(&claims, permissions::facilities::fire::LIST)?;
 
-    let pool: &PgPool = &state.db;
-    let hospital = get_hospital_info(pool).await?;
+    let hospital = get_hospital_info(&state.db).await?;
 
     let observations = vec![
         DrillObservation {

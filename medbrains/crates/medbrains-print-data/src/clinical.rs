@@ -2746,7 +2746,11 @@ pub async fn get_ot_register_print_data(
     require_permission(&claims, permissions::ot::case_records::LIST)?;
     // Not guarded: `operation_theatres` does not exist in the schema.
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     let register_date = chrono::NaiveDate::parse_from_str(&date, "%Y-%m-%d")
         .unwrap_or_else(|_| Utc::now().date_naive());
@@ -2761,7 +2765,7 @@ pub async fn get_ot_register_print_data(
         "SELECT name as ot_name, ot_number FROM operation_theatres WHERE id = $1",
     )
     .bind(ot_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *conn)
     .await?
     .unwrap_or(OtRow {
         ot_name: "Operation Theatre".to_string(),
@@ -2825,7 +2829,7 @@ pub async fn get_ot_register_print_data(
     )
     .bind(ot_id)
     .bind(register_date)
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?;
 
     let mut elective = 0;
@@ -2878,7 +2882,7 @@ pub async fn get_ot_register_print_data(
         .collect();
 
     let total = surgeries.len() as i32;
-    let tenant = get_tenant_info(pool).await?;
+    let tenant = get_tenant_info(&state.db).await?;
 
     Ok(Json(OtRegisterPrintData {
         register_date: register_date.format("%d-%m-%Y").to_string(),
@@ -2904,7 +2908,11 @@ pub async fn get_blood_donor_form_print_data(
     require_permission(&claims, permissions::blood_bank::donors::LIST)?;
     // A donor is not a patient here; `blood_donors` has no patient column.
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct DonorRow {
@@ -2973,11 +2981,11 @@ pub async fn get_blood_donor_form_print_data(
         ",
     )
     .bind(donor_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
-    let tenant = get_tenant_info(pool).await?;
+    let tenant = get_tenant_info(&state.db).await?;
 
     Ok(Json(BloodDonorFormPrintData {
         registration_number: donor.registration_number,
@@ -3038,7 +3046,11 @@ pub async fn get_cross_match_requisition_print_data(
     require_permission(&claims, permissions::patients::VIEW)?;
     // Not guarded: `cross_match_requisitions` does not exist in the schema.
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct ReqRow {
@@ -3100,11 +3112,11 @@ pub async fn get_cross_match_requisition_print_data(
         ",
     )
     .bind(requisition_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
-    let tenant = get_tenant_info(pool).await?;
+    let tenant = get_tenant_info(&state.db).await?;
 
     let age_gender = format!(
         "{}/{}",
@@ -3156,7 +3168,11 @@ pub async fn get_appointment_slip_print_data(
     )
     .await?;
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct ApptRow {
@@ -3199,11 +3215,11 @@ pub async fn get_appointment_slip_print_data(
         ",
     )
     .bind(appointment_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
-    let tenant = get_tenant_info(pool).await?;
+    let tenant = get_tenant_info(&state.db).await?;
 
     Ok(Json(AppointmentSlipPrintData {
         appointment_number: appt.appointment_number,
@@ -3254,7 +3270,11 @@ pub async fn get_dpdp_consent_print_data(
     )
     .await?;
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct ConsentRow {
@@ -3287,11 +3307,11 @@ pub async fn get_dpdp_consent_print_data(
         ",
     )
     .bind(consent_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
-    let tenant = get_tenant_info(pool).await?;
+    let tenant = get_tenant_info(&state.db).await?;
 
     let data_categories = vec![
         DataCategory {
@@ -3389,7 +3409,11 @@ pub async fn get_video_consent_print_data(
     require_permission(&claims, permissions::patients::VIEW)?;
     // Not guarded: `video_consents` does not exist in the schema.
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct VideoRow {
@@ -3437,11 +3461,11 @@ pub async fn get_video_consent_print_data(
         ",
     )
     .bind(video_consent_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
-    let tenant = get_tenant_info(pool).await?;
+    let tenant = get_tenant_info(&state.db).await?;
 
     Ok(Json(VideoConsentPrintData {
         consent_number: video.consent_number,
@@ -3487,7 +3511,11 @@ pub async fn get_restraint_documentation_print_data(
     )
     .await?;
 
-    let pool: &PgPool = &state.db;
+    // A tenant-scoped connection rather than the bare pool: every table below
+    // is row-level secured, and a pool query carries no tenant, so under
+    // enforcement this prints an empty form. A blank statutory register is
+    // worse than a failed one — it looks filed.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
 
     #[derive(sqlx::FromRow)]
     struct RestraintRow {
@@ -3554,11 +3582,11 @@ pub async fn get_restraint_documentation_print_data(
         ",
     )
     .bind(restraint_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
-    let tenant = get_tenant_info(pool).await?;
+    let tenant = get_tenant_info(&state.db).await?;
 
     // Sample monitoring records
     let monitoring = vec![

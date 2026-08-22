@@ -46,16 +46,28 @@ fn hash_recovery_code(code: &str) -> String {
 
 /// Verify a TOTP code or consume a recovery code for `user_id`.
 /// Returns Ok(false) when neither matches.
+/// Check a TOTP code, or spend a recovery code.
+///
+/// Takes the tenant because `users` is row-level secured. Read unscoped, the
+/// row is invisible and this returns false — which fails closed, so nobody
+/// with MFA could log in. The write below is the dangerous half: an unscoped
+/// `UPDATE` matches nothing and reports success, so a single-use recovery code
+/// stays valid after it has been used.
 pub async fn verify_mfa_code(
     db: &sqlx::PgPool,
+    tenant_id: Uuid,
     user_id: Uuid,
     code: &str,
 ) -> Result<bool, AppError> {
-    let row: Option<(Option<String>, String, serde_json::Value)> =
-        sqlx::query_as("SELECT mfa_secret, username, mfa_recovery_codes FROM users WHERE id = $1")
-            .bind(user_id)
-            .fetch_optional(db)
-            .await?;
+    let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
+    let row: Option<(Option<String>, String, serde_json::Value)> = sqlx::query_as(
+        "SELECT mfa_secret, username, mfa_recovery_codes FROM users \
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(user_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut *conn)
+    .await?;
     let Some((Some(secret), username, recovery)) = row else {
         return Ok(false);
     };
@@ -74,11 +86,26 @@ pub async fn verify_mfa_code(
     let hashes: Vec<String> = serde_json::from_value(recovery).unwrap_or_default();
     if hashes.contains(&code_hash) {
         let remaining: Vec<&String> = hashes.iter().filter(|h| **h != code_hash).collect();
-        sqlx::query("UPDATE users SET mfa_recovery_codes = $1 WHERE id = $2")
-            .bind(serde_json::json!(remaining))
-            .bind(user_id)
-            .execute(db)
-            .await?;
+        let spent = sqlx::query(
+            "UPDATE users SET mfa_recovery_codes = $1 WHERE id = $2 AND tenant_id = $3",
+        )
+        .bind(serde_json::json!(remaining))
+        .bind(user_id)
+        .bind(tenant_id)
+        .execute(&mut *conn)
+        .await?
+        .rows_affected();
+
+        if spent == 0 {
+            // The code matched but could not be removed, so it is still valid.
+            // Refusing the login is the only honest answer: accepting it would
+            // hand back a recovery code that can be used again.
+            tracing::error!(%user_id, "MFA recovery code matched but could not be spent");
+            return Err(AppError::Internal(
+                "could not consume the recovery code — try again".to_owned(),
+            ));
+        }
+
         tracing::warn!(%user_id, "MFA recovery code consumed");
         return Ok(true);
     }
@@ -92,12 +119,15 @@ pub async fn mfa_required_for_role(
     tenant_id: Uuid,
     role: &str,
 ) -> Result<bool, AppError> {
+    // Unscoped this finds nothing, and nothing means "MFA is not mandated" —
+    // the permissive reading of a setting the database simply would not show.
+    let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
     let required: Option<serde_json::Value> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings \
          WHERE tenant_id = $1 AND category = 'security' AND key = 'mfa_required_roles'",
     )
     .bind(tenant_id)
-    .fetch_optional(db)
+    .fetch_optional(&mut *conn)
     .await?;
     Ok(required
         .and_then(|v| serde_json::from_value::<Vec<String>>(v).ok())
@@ -109,10 +139,13 @@ pub async fn enroll(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let username: String = sqlx::query_scalar("SELECT username FROM users WHERE id = $1")
-        .bind(claims.sub)
-        .fetch_one(&state.db)
-        .await?;
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
+    let username: String =
+        sqlx::query_scalar("SELECT username FROM users WHERE id = $1 AND tenant_id = $2")
+            .bind(claims.sub)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *conn)
+            .await?;
 
     // 20 random bytes per RFC 4226 — totp-rs's gencode feature pulls in
     // rand; getrandom is already our entropy source elsewhere.
@@ -128,11 +161,15 @@ pub async fn enroll(
 
     // Pending until the first code verifies — re-enroll overwrites but
     // never silently disables an active factor.
-    sqlx::query("UPDATE users SET mfa_secret = $1 WHERE id = $2 AND mfa_enabled = false")
-        .bind(&secret_b32)
-        .bind(claims.sub)
-        .execute(&state.db)
-        .await?;
+    sqlx::query(
+        "UPDATE users SET mfa_secret = $1 \
+         WHERE id = $2 AND tenant_id = $3 AND mfa_enabled = false",
+    )
+    .bind(&secret_b32)
+    .bind(claims.sub)
+    .bind(claims.tenant_id)
+    .execute(&mut *conn)
+    .await?;
 
     Ok(Json(serde_json::json!({
         "secret": secret_b32,
@@ -220,7 +257,7 @@ pub async fn disable(
     Extension(claims): Extension<Claims>,
     Json(body): Json<MfaCodeBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if !verify_mfa_code(&state.db, claims.sub, &body.code).await? {
+    if !verify_mfa_code(&state.db, claims.tenant_id, claims.sub, &body.code).await? {
         return Err(AppError::BadRequest("Invalid code".to_owned()));
     }
 
