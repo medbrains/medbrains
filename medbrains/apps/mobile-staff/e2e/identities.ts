@@ -70,6 +70,22 @@ function authHeaders(session: Session): Record<string, string> {
   };
 }
 
+/**
+ * One bootstrap login per process, reused.
+ *
+ * Provisioning and retiring each signed in as the seeded admin, so a run of
+ * five suites made ten admin logins and the last of them came back 429. The
+ * rate limiter is right -- repeatedly authenticating the most privileged
+ * account is exactly what it is there to notice -- so the harness stops doing
+ * it rather than asking for an exemption.
+ */
+let adminSession: Promise<Session> | null = null;
+
+function admin(): Promise<Session> {
+  adminSession ??= login(BOOTSTRAP_USERNAME, BOOTSTRAP_PASSWORD);
+  return adminSession;
+}
+
 let counter = 0;
 
 /** Unique across runs — the username carries a uniqueness constraint. */
@@ -80,7 +96,7 @@ function uniqueSuffix(): string {
 
 /** A brand-new user in `role`, created by the seeded super admin. */
 export async function provisionIdentity(role: string): Promise<Identity> {
-  const admin = await login(BOOTSTRAP_USERNAME, BOOTSTRAP_PASSWORD);
+  const session = await admin();
   const suffix = uniqueSuffix();
   const username = `e2e_${role.replace(/[^a-z0-9]/g, "").slice(0, 12)}_${suffix}`;
   // Meets the password policy without being derivable from the username.
@@ -101,7 +117,7 @@ export async function provisionIdentity(role: string): Promise<Identity> {
 
   const response = await fetch(`${BACKEND_URL}/api/setup/users`, {
     body: JSON.stringify(payload),
-    headers: authHeaders(admin),
+    headers: authHeaders(session),
     method: "POST",
   });
   if (!response.ok) {
@@ -119,10 +135,10 @@ export async function provisionIdentity(role: string): Promise<Identity> {
  * can do.
  */
 export async function retireIdentity(identity: Identity): Promise<void> {
-  const admin = await login(BOOTSTRAP_USERNAME, BOOTSTRAP_PASSWORD);
+  const session = await admin();
   await fetch(`${BACKEND_URL}/api/setup/users/${identity.id}`, {
     body: JSON.stringify({ full_name: `Retired ${identity.username}`, is_active: false }),
-    headers: authHeaders(admin),
+    headers: authHeaders(session),
     method: "PUT",
   });
 }

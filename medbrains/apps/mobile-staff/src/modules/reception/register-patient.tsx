@@ -87,48 +87,48 @@ export function RegisterPatientScreen(): ReactNode {
     const [departments, doctors, camps, facilities] = await Promise.all([
       listDepartments(),
       listDoctors(),
-      listCamps(),
+      // Active only, and not merely as a filter: a user holding patients.create
+      // rather than camp.list may read active camps and nothing else, so the
+      // unscoped call is a 403. Promise.all made that one refusal fatal for
+      // departments, doctors and facilities too, leaving a form that could
+      // never be submitted.
+      listCamps("active"),
       listFacilities(),
     ]);
     return { departments, doctors, camps, facilities };
   });
 
-  const {
-    control,
-    handleSubmit,
-    setValue,
-    watch,
-    formState: { isValid },
-  } = useForm<MobileStaffPatientRegistrationFormInput>({
-    resolver: zodResolver(mobileStaffPatientRegistrationFormSchema),
-    mode: "onChange",
-    defaultValues: {
-      first_name: "",
-      last_name: "",
-      gender: "male",
-      phone: "",
-      date_of_birth: "",
-      age: "",
-      registration_type: "new",
-      registration_source: "walk_in",
-      camp_id: "",
-      camp_name: "",
-      referred_by_kind: "self",
-      referred_by_user_id: "",
-      referred_by_facility_id: "",
-      referred_by_name: "",
-      referred_by_phone: "",
-      referred_by_facility: "",
-      department_id: "",
-      consultant_id: "",
-      clinical_unit: "",
-      diagnosis_text: "",
-      icd11_code: "",
-      is_medico_legal: false,
-      mlc_number: "",
-      is_vip: false,
-    },
-  });
+  const { control, handleSubmit, setValue, watch } =
+    useForm<MobileStaffPatientRegistrationFormInput>({
+      resolver: zodResolver(mobileStaffPatientRegistrationFormSchema),
+      mode: "onChange",
+      defaultValues: {
+        first_name: "",
+        last_name: "",
+        gender: "male",
+        phone: "",
+        date_of_birth: "",
+        age: "",
+        registration_type: "new",
+        registration_source: "walk_in",
+        camp_id: "",
+        camp_name: "",
+        referred_by_kind: "self",
+        referred_by_user_id: "",
+        referred_by_facility_id: "",
+        referred_by_name: "",
+        referred_by_phone: "",
+        referred_by_facility: "",
+        department_id: "",
+        consultant_id: "",
+        clinical_unit: "",
+        diagnosis_text: "",
+        icd11_code: "",
+        is_medico_legal: false,
+        mlc_number: "",
+        is_vip: false,
+      },
+    });
   const setLinkedValue = <Name extends FieldPath<MobileStaffPatientRegistrationFormInput>>(
     name: Name,
     value: FieldPathValue<MobileStaffPatientRegistrationFormInput, Name>,
@@ -146,7 +146,7 @@ export function RegisterPatientScreen(): ReactNode {
   const values = watch();
   const departments = refs?.departments ?? [];
   const doctors = refs?.doctors ?? [];
-  const camps = refs?.camps.filter((camp) => camp.status !== "cancelled") ?? [];
+  const camps = refs?.camps ?? [];
   const facilities = refs?.facilities.filter((facility) => facility.is_active) ?? [];
   const visibleDoctors = useMemo(
     () =>
@@ -545,12 +545,26 @@ export function RegisterPatientScreen(): ReactNode {
             {error}
           </HelperText>
         )}
+        {/*
+          The testID sits on a plain wrapper, not on the Button. Paper wraps its
+          Button in a rounded Surface with `clipsToBounds`, so the view carrying
+          a Button's own testID always reports as "clipped by one or more of its
+          superviews' bounds" -- it can never satisfy a visibility check, and a
+          tap dispatched at its centre may press nothing at all while still
+          reporting success. An unclipped wrapper makes both honest.
+        */}
         <Button
           testID="register-patient-submit"
           accessibilityLabel="Register this patient"
           mode="contained"
           loading={busy}
-          disabled={!isValid || busy}
+          // Disabled only while the write is in flight, never for validity.
+          // A submit greyed out on `isValid` tells a receptionist nothing about
+          // which field is wrong, and `isValid` lands a tick after the last
+          // keystroke -- so a fast hand (or a test) presses a dead button and
+          // gets silence. Pressing runs the resolver and marks the offending
+          // fields instead.
+          disabled={busy}
           onPress={() => void submit()}
         >
           Register patient

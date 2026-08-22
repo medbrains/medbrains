@@ -9,6 +9,7 @@ import {
   tapAtFormEnd,
   tapId,
   tapIdScrollingIn,
+  waitForIdToExist,
 } from "./helpers";
 import { type Identity, provisionIdentity, retireIdentity } from "./identities";
 
@@ -76,6 +77,8 @@ describe("walk-in registration journey", () => {
     await frame("02-details-entered");
     await tapAtFormEnd("register-patient-submit", "register-patient-form", {
       dismissKeyboardFrom: "field-last_name",
+      // The press is only proven by what it produces.
+      until: "screen-patient-detail",
     });
 
     // Registration lands on the patient, which is the desk's confirmation that
@@ -119,14 +122,16 @@ describe("walk-in registration journey", () => {
     await tapId("start-visit-department-0");
     await frame("07-department-chosen");
 
-    await tapAtFormEnd("start-visit-submit", "start-visit-form");
+    await tapAtFormEnd("start-visit-submit", "start-visit-form", {
+      // Same as the registration submit: the press is proven by the token
+      // coming back, never by the button having been reachable.
+      until: "start-visit-token",
+    });
 
     // The token is the point of the whole journey: it is what the patient is
     // handed and what the waiting-room board shows. Asserting the screen
     // rendered would have let this pass without one, which it did.
-    await waitFor(element(by.id("start-visit-token")))
-      .toBeVisible()
-      .withTimeout(20_000);
+    await waitForIdToExist("start-visit-token", 20_000);
     await frame("08-token-issued");
   });
 });

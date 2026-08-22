@@ -37,6 +37,37 @@ export const COLD_START_TIMEOUT = 120_000;
  */
 export const LAST_ITEM_VISIBILITY = 50;
 
+/**
+ * How much of a control must be on screen before it is pressed.
+ *
+ * Only meaningful when the testID sits on an unclipped view -- see the wrapper
+ * around the register-patient submit. 75 rather than 100 because Detox counts
+ * the debug build's LogBox overlay as an occluding window and never scores a
+ * bottom-of-form control at 100, however plainly visible it is. Well above 50
+ * is what matters: it puts the element's centre, which is where the tap lands,
+ * inside the visible region.
+ */
+export const TAP_TARGET_VISIBILITY = 75;
+
+/** Let scroll momentum and layout finish before trusting a position. */
+function settle(ms = 400): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Wait for an element to be MOUNTED, not scored visible.
+ *
+ * Detox's visibility percentage is not trustworthy on these screens: on the
+ * OPD token it reported "not visible" for a card its own debug capture shows
+ * whole and unobstructed, and it mis-scored the registration submit the same
+ * way. Where a view is mounted only on a real outcome -- the token card renders
+ * only once the server has returned a token -- existence is the honest
+ * assertion, and a stronger one than a threshold that lies in both directions.
+ */
+export async function waitForIdToExist(id: string, timeout = VISIBLE_TIMEOUT): Promise<void> {
+  await waitFor(element(by.id(id))).toExist().withTimeout(timeout);
+}
+
 export async function waitForId(id: string, timeout = VISIBLE_TIMEOUT): Promise<void> {
   await waitFor(element(by.id(id))).toBeVisible().withTimeout(timeout);
 }
@@ -124,39 +155,53 @@ export async function tapIdScrollingIn(
 export async function tapAtFormEnd(
   testID: string,
   formID: string,
-  options: { dismissKeyboardFrom?: string; timeout?: number } = {},
+  options: { dismissKeyboardFrom?: string; until?: string } = {},
 ): Promise<void> {
-  const { dismissKeyboardFrom } = options;
+  const { dismissKeyboardFrom, until } = options;
   if (dismissKeyboardFrom) {
     await element(by.id(dismissKeyboardFrom)).tapReturnKey();
   }
 
-  // Swipe until the control is genuinely visible, then tap.
+  // Press, then prove the press landed by what it caused. Every attempt to
+  // decide beforehand whether the control was pressable failed:
   //
-  // Two wrong turns before this, both worth naming. `whileElement().scroll()`
-  // gives up after a bounded number of attempts and this form is six sections
-  // deep, so it ran out with the submit still below. Replacing it with
-  // try-tap-else-swipe was worse: `tap()` on a partially clipped element
-  // succeeds without pressing anything, so the loop returned happy having
-  // pressed nothing, and the failure surfaced three steps later as "the next
-  // screen never came".
+  // - `whileElement().scroll()` gives up while the submit is still below.
+  // - `scrollTo("bottom")` returns without moving anything on the New
+  //   Architecture, leaving the form at the top.
+  // - A visibility gate cannot be trusted either way. At 50 the centre can sit
+  //   under something and `tap()` reports success having pressed nothing; at 75
+  //   or 100 a plainly visible control still fails, because Detox counts the
+  //   debug build's LogBox overlay as an occluding window.
   //
-  // Checking visibility first is what distinguishes "reached it" from "matched
-  // it". The swipe is slow because a fast one carries momentum the scroll view
-  // bounces back from.
-  for (let attempt = 0; attempt < 8; attempt += 1) {
+  // So the only reliable signal is the consequence. `until` is the screen the
+  // press must produce; without it there is nothing to verify and one tap is
+  // all we can honestly do. Re-tapping cannot double-submit: the button is
+  // disabled while the write is in flight.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
-      await detoxExpect(element(by.id(testID))).toBeVisible(LAST_ITEM_VISIBILITY);
       await element(by.id(testID)).tap();
+    } catch {
+      // Not reachable yet — the swipe below brings it into range.
+    }
+    if (!until) return;
+    try {
+      await waitFor(element(by.id(until))).toExist().withTimeout(8000);
       return;
     } catch {
-      await element(by.id(formID)).swipe("up", "slow");
+      // The form may be gone precisely BECAUSE the press worked and the screen
+      // moved on while we were waiting. Swiping a screen that no longer exists
+      // is not a failure, so do not let it mask the success: fall through and
+      // let the next iteration look for `until` again.
+      try {
+        await element(by.id(formID)).swipe("up", "slow");
+      } catch {
+        // Screen already replaced.
+      }
+      await settle();
     }
   }
-  // Out of swipes: let the matcher raise the real error, which says more than
-  // anything invented here.
-  await detoxExpect(element(by.id(testID))).toBeVisible(LAST_ITEM_VISIBILITY);
-  await element(by.id(testID)).tap();
+  // Out of attempts: let the real matcher raise, naming the screen we wanted.
+  await waitForIdToExist(until ?? testID);
 }
 
 /** Tap a control by id, once it is actually on screen. */
