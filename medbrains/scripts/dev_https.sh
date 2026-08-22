@@ -217,7 +217,14 @@ fi
 MB_RUSTC_THREADS="${MB_RUSTC_THREADS:-8}"
 if [[ "$SKIP_BACKEND_BUILD" != "true" || "$backend_needs_build" == "true" || ! -x "$BACKEND_BIN" ]]; then
   echo "Compiling backend before launch (parallel front-end: ${MB_RUSTC_THREADS} threads)..."
-  RUSTC_BOOTSTRAP=1 RUSTFLAGS="${RUSTFLAGS:-} -Zthreads=${MB_RUSTC_THREADS}" \
+  # CARGO_INCREMENTAL=0 is load-bearing, not tuning: the threaded front-end and
+  # the incremental dep-graph encoder disagree, and rustc 1.94.1 ICEs with
+  # "trying to encode a dep node twice" partway through medbrains-server.
+  # Clearing target/debug/incremental does not help -- the two features simply
+  # cannot both be on. Incremental buys little here anyway, since this builds
+  # one crate that has just changed.
+  RUSTC_BOOTSTRAP=1 CARGO_INCREMENTAL=0 \
+    RUSTFLAGS="${RUSTFLAGS:-} -Zthreads=${MB_RUSTC_THREADS}" \
     cargo build -p medbrains-server --bin medbrains-server
 fi
 
