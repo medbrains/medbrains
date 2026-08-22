@@ -20,7 +20,7 @@ import { useState } from "react";
 import { View } from "react-native";
 import { Button, Text } from "react-native-paper";
 import type { ModuleToken, WorklistToken } from "../../api/queue.js";
-import { callToken, completeToken, serveToken } from "../../api/queue.js";
+import { callToken, completeToken, noShowToken, serveToken } from "../../api/queue.js";
 import { useModuleRouter } from "../../components/module-router.js";
 import { ScreenHeader } from "../../components/screen-header.js";
 import { useHasPermission } from "../../lib/permissions.js";
@@ -99,6 +99,44 @@ export function QueueDetailScreen({ entry: initial }: QueueDetailScreenProps): R
             >
               Patient is in
             </Button>
+          )}
+          {entry.status === "called" && canWorkQueue && (
+            <>
+              {/*
+                Recall is the same call again: it restamps `called_at`, which is
+                what the boards sort and announce on, so the number goes back to
+                the top of the display for somebody who missed it the first
+                time. There is no separate endpoint and there should not be —
+                a recall IS a call.
+              */}
+              <Button
+                testID="queue-recall-patient"
+                accessibilityLabel="Call this token again"
+                mode="contained-tonal"
+                loading={busy}
+                disabled={busy}
+                onPress={() => run(callToken)}
+              >
+                Recall
+              </Button>
+              {/*
+                Marking a no-show had no control on any surface, so the boards'
+                missed lane — which exists, and which the OPD board renders —
+                could never fill. The patient who stepped out came back to a
+                screen that had forgotten them and no way for the desk to say
+                what happened.
+              */}
+              <Button
+                testID="queue-no-show"
+                accessibilityLabel="Mark this patient as not present"
+                mode="outlined"
+                loading={busy}
+                disabled={busy}
+                onPress={() => run(noShowToken)}
+              >
+                No-show
+              </Button>
+            </>
           )}
           {entry.status === "serving" && canWorkQueue && (
             <Button

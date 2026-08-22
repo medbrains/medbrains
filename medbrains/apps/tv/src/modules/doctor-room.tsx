@@ -127,7 +127,7 @@ function DoctorRoomScreen({ route }: DoctorRoomScreenProps) {
 
       {upNext.length > 0 ? (
         <View style={styles.nextStrip}>
-          <Text style={styles.nextLabel}>PLEASE WAIT</Text>
+          <Text style={styles.nextLabel}>NEXT</Text>
           <View
             accessibilityLabel={`Next tokens: ${upNext.map((token) => token.number).join(", ")}`}
             style={styles.nextTokens}
@@ -170,9 +170,9 @@ const styles = StyleSheet.create({
   callToAction: {
     color: COLORS.emerald,
     fontFamily: "JetBrainsMono-Regular",
-    fontSize: 64,
+    fontSize: 40,
     letterSpacing: 6,
-    marginTop: SPACING.lg,
+    marginTop: SPACING.md,
   },
   doctor: {
     color: COLORS.canvas,
@@ -203,12 +203,15 @@ const styles = StyleSheet.create({
     borderTopColor: COLORS.brand,
     borderTopWidth: 2,
     gap: SPACING.sm,
+    // Clear of the call-to-action above: at a tighter spacing "PLEASE ENTER"
+    // sat across the rule, which reads as struck through.
+    marginTop: SPACING.md,
     paddingTop: SPACING.md,
   },
   nextToken: {
     color: COLORS.canvas,
     fontFamily: "Fraunces-Regular",
-    fontSize: 64,
+    fontSize: 44,
   },
   nextTokens: {
     flexDirection: "row",
@@ -222,7 +225,8 @@ const styles = StyleSheet.create({
   screen: {
     backgroundColor: COLORS.brandDeep,
     flex: 1,
-    justifyContent: "space-between",
+    gap: SPACING.sm,
+    justifyContent: "center",
     // Overscan safe area: a TV crops the edges, and a number half off the
     // panel is the one thing this screen exists to show.
     paddingHorizontal: OVERSCAN.horizontal,
@@ -230,8 +234,13 @@ const styles = StyleSheet.create({
   },
   stage: {
     alignItems: "center",
-    flex: 1,
+    // Neither grow nor shrink. `flex: 1` let the stage claim the strip's space
+    // and draw over it; `flexShrink: 1` then compressed the stage below its own
+    // content height, so the call-to-action spilled past its bounds and the
+    // strip's rule was drawn straight through the middle of "PLEASE ENTER".
+    flexShrink: 0,
     justifyContent: "center",
+    paddingVertical: SPACING.xs,
   },
   tokenLabel: {
     color: COLORS.copper,
@@ -243,8 +252,10 @@ const styles = StyleSheet.create({
     color: COLORS.canvas,
     fontFamily: "Fraunces-Regular",
     // Read from across a corridor, which is what a 10-foot UI means here.
-    fontSize: 260,
-    lineHeight: 280,
+    // Sized to leave room for the next-token strip: at 260 the number ran off
+    // the top of a 1080p panel and printed over the strip below it.
+    fontSize: 128,
+    lineHeight: 140,
   },
   waitingHeadline: {
     color: COLORS.canvas,

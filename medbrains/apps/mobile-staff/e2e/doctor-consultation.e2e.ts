@@ -63,6 +63,19 @@ describe("OPD consultation", () => {
     await frame("02-called-next");
   });
 
+  it("offers recall and no-show once a patient has been called", async () => {
+    // Neither control existed. `noShowToken` was in the API client and wired to
+    // nothing on any surface, so the boards' missed lane could never fill.
+    await tapAtFormEnd(`queue-row-${visit.patientId}`, "doctor-queue-list", {
+      until: "screen-queue-detail",
+    });
+    await tapId("queue-call-patient");
+    await detoxExpect(element(by.id("queue-recall-patient"))).toBeVisible();
+    await detoxExpect(element(by.id("queue-no-show"))).toBeVisible();
+    await frame("03-called-controls");
+    await tapId("screen-back");
+  });
+
   it("reaches the consultation from the queue, which used to be a dead end", async () => {
     // The queue is a day's worth of tokens, so the seeded patient is below the
     // fold, and the row's testID sits on a view Detox scores as clipped however
@@ -73,7 +86,7 @@ describe("OPD consultation", () => {
     });
     await tapId("queue-open-consultation");
     await assertScreen("screen-consultation", ["consultation-form", "field-chief_complaint"]);
-    await frame("03-consultation-open");
+    await frame("04-consultation-open");
   });
 
   it("refuses an empty note, on the field, with the button still pressable", async () => {
@@ -82,7 +95,7 @@ describe("OPD consultation", () => {
     // impossible to interrogate.
     await tapAtFormEnd("consultation-save", "consultation-form");
     await detoxExpect(element(by.id("field-chief_complaint"))).toBeVisible();
-    await frame("04-validation-refused");
+    await frame("05-validation-refused");
   });
 
   it("records the consultation against the encounter", async () => {
@@ -91,6 +104,6 @@ describe("OPD consultation", () => {
       // Proven by the outcome, never by the button having been reachable.
       until: "consultation-saved",
     });
-    await frame("05-consultation-saved");
+    await frame("06-consultation-saved");
   });
 });

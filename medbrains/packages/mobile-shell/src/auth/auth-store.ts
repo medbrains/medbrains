@@ -14,6 +14,19 @@ export interface AuthState {
   biometricRequired: boolean;
   hydrate: (store: SecretStore) => Promise<void>;
   signIn: (store: SecretStore, identity: TenantIdentity, refreshToken?: string) => Promise<void>;
+  /**
+   * Sign in from a bare token, for surfaces that are paired rather than
+   * logged in.
+   *
+   * A display has no username to type: it is approved by an administrator and
+   * handed a JWT. The claims already carry the tenant, the role, the
+   * permissions and the departments -- the same fields `hydrate` reads back on
+   * every launch -- so there is nothing to fetch and nothing for the caller to
+   * assemble by hand. Returns false when the token is unreadable, rather than
+   * seating an identity with empty permissions that would silently render an
+   * empty display.
+   */
+  signInWithJwt: (store: SecretStore, jwt: string, refreshToken?: string) => Promise<boolean>;
   signOut: (store: SecretStore) => Promise<void>;
   setBiometricRequired: (required: boolean) => void;
 }
@@ -46,6 +59,21 @@ export const useAuthStore = create<AuthState>((set) => ({
       });
     }
     set({ identity });
+  },
+
+  signInWithJwt: async (store, jwt, refreshToken) => {
+    const identity = decodeJwtIdentity(jwt);
+    if (!identity) return false;
+    await store.setItem(SECRET_KEYS.jwt, jwt, {
+      keychainAccessible: "whenUnlockedThisDeviceOnly",
+    });
+    if (refreshToken) {
+      await store.setItem(SECRET_KEYS.refreshToken, refreshToken, {
+        keychainAccessible: "whenUnlockedThisDeviceOnly",
+      });
+    }
+    set({ identity });
+    return true;
   },
 
   signOut: async (store) => {

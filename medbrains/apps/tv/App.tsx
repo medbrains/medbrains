@@ -7,7 +7,6 @@
  */
 
 import {
-  api,
   clearNativeAuthTokens,
   configureNativeAuth,
   setApiBase,
@@ -18,7 +17,6 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import {
   ExpoSecureStoreAdapter,
-  LoginScreen,
   SECRET_KEYS,
   Shell,
   buildDeviceTheme,
@@ -29,6 +27,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { config } from "./src/config";
 import { Navigator } from "./src/navigator";
+import { TvPairingScreen } from "./src/components/tv-pairing";
 import { MODULES } from "./src/modules";
 
 setApiBase(config.apiBase);
@@ -58,9 +57,19 @@ function NativeAuthBridge({ store }: { store: SecretStore }) {
         return;
       }
 
-      const refreshToken = await store.getItem(SECRET_KEYS.refreshToken, {
-        requireAuthentication: false,
-      });
+      // The refresh token is optional and must never gate the access token.
+      // A paired display is issued a JWT and no refresh token at all, so a
+      // throw or a miss here used to abandon the function before the session
+      // was set -- the screen looked signed in, every request went out
+      // unauthenticated, and the board showed "feed unreachable".
+      let refreshToken: string | null = null;
+      try {
+        refreshToken = await store.getItem(SECRET_KEYS.refreshToken, {
+          requireAuthentication: false,
+        });
+      } catch {
+        refreshToken = null;
+      }
       if (!cancelled) {
         setNativeAuthSession(identity.jwt, refreshToken);
       }
@@ -89,29 +98,7 @@ export default function App() {
             cachePath="medbrains-cache"
             Navigator={Navigator}
             unlockPromptMessage="Unlock MedBrains TV"
-            loginGate={
-              <LoginScreen
-                title="MedBrains TV"
-                subtitle="Sign in to show live hospital display boards"
-                onSubmit={async (identifier, password) => {
-                  const result = await api.login({ username: identifier, password });
-                  if (!result.token) {
-                    throw new Error("Login response did not include a TV session token");
-                  }
-                  return {
-                    identity: {
-                      departmentIds: result.department_ids,
-                      jwt: result.token,
-                      permissions: result.permissions,
-                      role: result.user.role,
-                      tenantId: result.user.tenant_id,
-                      userId: result.user.id,
-                    },
-                    refreshToken: result.refresh_token,
-                  };
-                }}
-              />
-            }
+            loginGate={<TvPairingScreen secretStore={secretStore} />}
           />
         </QueryClientProvider>
       </PaperProvider>
