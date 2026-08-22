@@ -202,7 +202,7 @@ function ChoiceGroup({
         </Text>
       ) : null}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: SPACING.xs }}>
-        {options.map((option) => {
+        {options.map((option, index) => {
           const selected = option.id === selectedId;
           return (
             <Button
@@ -215,7 +215,11 @@ function ChoiceGroup({
               mode={selected ? "contained" : "outlined"}
               onPress={() => onSelect(option.id)}
               style={{ justifyContent: "center", minHeight: TAP_TARGET }}
-              testID={`${testIDPrefix}-${option.id}`}
+              // Positional, not the row's uuid: a spec cannot know the ids the
+              // server will return, and "the first department offered" is a
+              // thing a test can actually address. The semantic identity is in
+              // the accessibility label, where a person reads it.
+              testID={`${testIDPrefix}-${index}`}
             >
               {option.label}
             </Button>

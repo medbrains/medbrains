@@ -37,6 +37,7 @@ export function QueueDetailScreen({ entry: initial }: QueueDetailScreenProps): R
   // One permission for all three, because the server checks one permission for
   // all three.
   const canWorkQueue = useHasPermission(P.OPD.TOKEN_MANAGE);
+  const canRecordConsultation = useHasPermission(P.OPD.VISIT_UPDATE);
 
   const run = async (fn: (id: string) => Promise<ModuleToken>) => {
     setBusy(true);
@@ -54,6 +55,7 @@ export function QueueDetailScreen({ entry: initial }: QueueDetailScreenProps): R
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.canvas }}>
       <ScreenHeader
+        testID="screen-queue-detail"
         eyebrow="QUEUE"
         title={entry.patient_name ?? "Unnamed patient"}
         description={`UHID ${entry.uhid ?? "—"} · Token ${entry.number}`}
@@ -107,6 +109,25 @@ export function QueueDetailScreen({ entry: initial }: QueueDetailScreenProps): R
               testID="queue-mark-complete"
             >
               Mark complete
+            </Button>
+          )}
+          {/*
+            The clinical record, which is what the queue exists to reach. It is
+            deliberately not gated on the queue permission: writing a note and
+            moving a token are different acts, and this one takes
+            opd.visit.update -- the same code the server checks on the
+            consultation endpoint. A control gated on anything else would
+            promise what the server refuses.
+          */}
+          {canRecordConsultation && (
+            <Button
+              testID="queue-open-consultation"
+              accessibilityLabel="Open the consultation for this patient"
+              mode="contained-tonal"
+              disabled={busy}
+              onPress={() => router.push("consultation", entry)}
+            >
+              Consultation
             </Button>
           )}
           <Button mode="outlined" onPress={router.pop} disabled={busy}>

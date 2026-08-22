@@ -25,8 +25,8 @@ import { useMemo, useState } from "react";
 import type { Control, FieldPath, FieldPathValue } from "react-hook-form";
 import { Controller, useForm } from "react-hook-form";
 import { View } from "react-native";
-import { Button, HelperText, SegmentedButtons, Text } from "react-native-paper";
-import type { CreatePatientPayload } from "../../api/patients.js";
+import { Button, HelperText, SegmentedButtons, Snackbar, Text } from "react-native-paper";
+import type { CreatePatientPayload, PatientRow } from "../../api/patients.js";
 import { createPatient } from "../../api/patients.js";
 import { listCamps, listDepartments, listDoctors, listFacilities } from "../../api/references.js";
 import { searchTerminology } from "../../api/terminology.js";
@@ -34,6 +34,7 @@ import { useModuleRouter } from "../../components/module-router.js";
 import { ReferenceMenu } from "../../components/reference-menu.js";
 import { ScreenHeader } from "../../components/screen-header.js";
 import { useFetch } from "../../lib/use-fetch.js";
+import { nextPatientDefaults } from "./registration-desk.js";
 
 type ReferenceState = {
   departments: DepartmentRow[];
@@ -98,7 +99,7 @@ export function RegisterPatientScreen(): ReactNode {
     return { departments, doctors, camps, facilities };
   });
 
-  const { control, handleSubmit, setValue, watch } =
+  const { control, handleSubmit, reset, setValue, watch } =
     useForm<MobileStaffPatientRegistrationFormInput>({
       resolver: zodResolver(mobileStaffPatientRegistrationFormSchema),
       mode: "onChange",
@@ -138,6 +139,8 @@ export function RegisterPatientScreen(): ReactNode {
 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [lastRegistered, setLastRegistered] = useState<PatientRow | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [icd11Search, setIcd11Search] = useState("");
   const [selectedIcd11Result, setSelectedIcd11Result] = useState<TerminologySearchResult | null>(
     null,
@@ -183,63 +186,82 @@ export function RegisterPatientScreen(): ReactNode {
     [icd11Loading, icd11Results, icd11Search],
   );
 
-  const submit = handleSubmit(async (formValues) => {
-    setError(null);
-    setBusy(true);
-    try {
-      const dateOfBirth = formValues.date_of_birth.trim() || estimateDobFromAge(formValues.age);
-      const payload: CreatePatientPayload = {
-        first_name: formValues.first_name.trim(),
-        last_name: formValues.last_name.trim(),
-        gender: formValues.gender,
-        phone: formValues.phone.trim(),
-        date_of_birth: dateOfBirth,
-        is_dob_estimated: !formValues.date_of_birth.trim() && Boolean(formValues.age.trim()),
-        registration_type: formValues.registration_type,
-        registration_source: formValues.registration_source,
-        referred_by_name: blankToUndefined(formValues.referred_by_name),
-        referred_by_phone: blankToUndefined(formValues.referred_by_phone),
-        referred_by_facility: blankToUndefined(formValues.referred_by_facility),
-        department_id: blankToUndefined(formValues.department_id),
-        department_name: selectedDepartment?.name,
-        consultant_id: blankToUndefined(formValues.consultant_id),
-        consultant_name: selectedDoctor?.full_name,
-        clinical_unit: blankToUndefined(formValues.clinical_unit),
-        camp_id: blankToUndefined(formValues.camp_id),
-        camp_name: blankToUndefined(formValues.camp_name),
-        initial_diagnosis_text: blankToUndefined(formValues.diagnosis_text),
-        icd11_code: blankToUndefined(formValues.icd11_code),
-        icd11_display: selectedIcd11Result?.display,
-        icd11_source_url: selectedIcd11Result?.source_url ?? undefined,
-        icd11_source_version: selectedIcd11Result?.source_version ?? undefined,
-        icd11_provider_mode: selectedIcd11Result?.provider_mode,
-        is_medico_legal: formValues.is_medico_legal,
-        mlc_number: formValues.is_medico_legal
-          ? blankToUndefined(formValues.mlc_number)
-          : undefined,
-        is_vip: formValues.is_vip,
-        attributes: {
-          mobile_registration: {
-            source: formValues.registration_source,
-            camp_reference: formValues.camp_id || formValues.camp_name || null,
-            referred_by_kind: formValues.referred_by_kind,
-            referred_by_user_id: formValues.referred_by_user_id || null,
-            referred_by: formValues.referred_by_name || null,
-            referred_by_facility_id: formValues.referred_by_facility_id || null,
-            concerned_department: selectedDepartment?.name ?? null,
-            concerned_consultant: selectedDoctor?.full_name ?? null,
-            provisional_diagnosis: formValues.diagnosis_text || null,
+  /**
+   * Two ways to finish, because a desk has two rhythms.
+   *
+   * "open" is one patient you are about to do something else with -- start
+   * their visit, take a payment -- so it lands on them. "next" is the Monday
+   * morning queue, where the clerk registers forty people and going to a
+   * patient page after each one means navigating back forty times. See rule 9
+   * of docs/MOBILE-FORM-KEYBOARD-RULES.md.
+   */
+  const runSubmit = (mode: "open" | "next") =>
+    handleSubmit(async (formValues) => {
+      setError(null);
+      setBusy(true);
+      try {
+        const dateOfBirth = formValues.date_of_birth.trim() || estimateDobFromAge(formValues.age);
+        const payload: CreatePatientPayload = {
+          first_name: formValues.first_name.trim(),
+          last_name: formValues.last_name.trim(),
+          gender: formValues.gender,
+          phone: formValues.phone.trim(),
+          date_of_birth: dateOfBirth,
+          is_dob_estimated: !formValues.date_of_birth.trim() && Boolean(formValues.age.trim()),
+          registration_type: formValues.registration_type,
+          registration_source: formValues.registration_source,
+          referred_by_name: blankToUndefined(formValues.referred_by_name),
+          referred_by_phone: blankToUndefined(formValues.referred_by_phone),
+          referred_by_facility: blankToUndefined(formValues.referred_by_facility),
+          department_id: blankToUndefined(formValues.department_id),
+          department_name: selectedDepartment?.name,
+          consultant_id: blankToUndefined(formValues.consultant_id),
+          consultant_name: selectedDoctor?.full_name,
+          clinical_unit: blankToUndefined(formValues.clinical_unit),
+          camp_id: blankToUndefined(formValues.camp_id),
+          camp_name: blankToUndefined(formValues.camp_name),
+          initial_diagnosis_text: blankToUndefined(formValues.diagnosis_text),
+          icd11_code: blankToUndefined(formValues.icd11_code),
+          icd11_display: selectedIcd11Result?.display,
+          icd11_source_url: selectedIcd11Result?.source_url ?? undefined,
+          icd11_source_version: selectedIcd11Result?.source_version ?? undefined,
+          icd11_provider_mode: selectedIcd11Result?.provider_mode,
+          is_medico_legal: formValues.is_medico_legal,
+          mlc_number: formValues.is_medico_legal
+            ? blankToUndefined(formValues.mlc_number)
+            : undefined,
+          is_vip: formValues.is_vip,
+          attributes: {
+            mobile_registration: {
+              source: formValues.registration_source,
+              camp_reference: formValues.camp_id || formValues.camp_name || null,
+              referred_by_kind: formValues.referred_by_kind,
+              referred_by_user_id: formValues.referred_by_user_id || null,
+              referred_by: formValues.referred_by_name || null,
+              referred_by_facility_id: formValues.referred_by_facility_id || null,
+              concerned_department: selectedDepartment?.name ?? null,
+              concerned_consultant: selectedDoctor?.full_name ?? null,
+              provisional_diagnosis: formValues.diagnosis_text || null,
+            },
           },
-        },
-      };
-      const created = await createPatient(payload);
-      router.replace("patient-detail", created);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed");
-    } finally {
-      setBusy(false);
-    }
-  });
+        };
+        const created = await createPatient(payload);
+        if (mode === "open") {
+          router.replace("patient-detail", created);
+          return;
+        }
+        // Stay put with a form ready for the next walk-in. The UHID goes on
+        // screen because it is the thing the clerk has to read back to the
+        // patient, and it would otherwise vanish with the form.
+        setLastRegistered(created);
+        reset(nextPatientDefaults(formValues));
+        setToast(`Registered ${created.uhid}`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Registration failed");
+      } finally {
+        setBusy(false);
+      }
+    });
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.canvas }}>
@@ -250,6 +272,23 @@ export function RegisterPatientScreen(): ReactNode {
         description="OPD, referral and camp registration with department, consultant and safety context."
       />
       <FormScrollView testID="register-patient-form">
+        {lastRegistered && (
+          <Card eyebrow="JUST REGISTERED" title={lastRegistered.uhid} pattern="success">
+            <Text variant="bodyMedium" style={{ color: COLORS.ink }}>
+              {lastRegistered.first_name} {lastRegistered.last_name} is registered. Read the UHID
+              back to them.
+            </Text>
+            <Button
+              testID="register-patient-open-last"
+              accessibilityLabel={`Open ${lastRegistered.first_name} ${lastRegistered.last_name}`}
+              mode="text"
+              compact
+              onPress={() => router.push("patient-detail", lastRegistered)}
+            >
+              Open them instead
+            </Button>
+          </Card>
+        )}
         <Card eyebrow="Identity" title="Patient">
           <View style={{ gap: SPACING.sm }}>
             <FormTextField control={control} name="first_name" label="First name" required />
@@ -553,6 +592,20 @@ export function RegisterPatientScreen(): ReactNode {
           tap dispatched at its centre may press nothing at all while still
           reporting success. An unclipped wrapper makes both honest.
         */}
+        {/*
+          Save and add next, ranked first because at a walk-in desk it is the
+          common case. Registering is rarely one patient; it is the next forty.
+        */}
+        <Button
+          testID="register-patient-save-and-next"
+          accessibilityLabel="Register this patient and start a form for the next one"
+          mode="contained"
+          loading={busy}
+          disabled={busy}
+          onPress={() => void runSubmit("next")()}
+        >
+          Save & add next
+        </Button>
         <Button
           testID="register-patient-submit"
           accessibilityLabel="Register this patient"
@@ -565,14 +618,22 @@ export function RegisterPatientScreen(): ReactNode {
           // gets silence. Pressing runs the resolver and marks the offending
           // fields instead.
           disabled={busy}
-          onPress={() => void submit()}
+          onPress={() => void runSubmit("open")()}
         >
-          Register patient
+          Register &amp; open patient
         </Button>
         <Button mode="outlined" onPress={router.pop} disabled={busy}>
           Cancel
         </Button>
       </FormScrollView>
+      <Snackbar
+        visible={toast !== null}
+        onDismiss={() => setToast(null)}
+        duration={2500}
+        testID="register-patient-toast"
+      >
+        <Text style={{ color: COLORS.canvas }}>{toast}</Text>
+      </Snackbar>
     </View>
   );
 }

@@ -13,6 +13,7 @@ import { listOpdWorklistCount } from "../api/queue.js";
 import { useModuleCount } from "../components/module-count.js";
 import { ModuleHome } from "../components/module-home.js";
 import { ModuleRouter, useModuleRouter } from "../components/module-router.js";
+import { ConsultationScreen } from "./doctor/consultation.js";
 import { DoctorIpdRoundDetailScreen, DoctorIpdRoundsScreen } from "./doctor/ipd-rounds.js";
 import { MyClinicScreen } from "./doctor/my-clinic.js";
 import { QueueDetailScreen } from "./doctor/queue-detail.js";
@@ -41,23 +42,12 @@ function DoctorHome(): ReactNode {
         },
         {
           id: "visit",
+          // Reached through the queue because a consultation is written
+          // against a patient, and the queue is where the doctor picks one.
+          // It used to say the same and land on the queue with no way onward.
           label: "Start consultation",
-          description: "Capture chief complaint, vitals, diagnosis.",
-          permission: P.OPD.VISIT_CREATE,
-          onPress: () => router.push("queue"),
-        },
-        {
-          id: "rx",
-          label: "Prescription",
-          description: "Write a prescription with INN, dose, frequency.",
+          description: "Pick a patient from the queue and record the SOAP note.",
           permission: P.OPD.VISIT_UPDATE,
-          onPress: () => router.push("queue"),
-        },
-        {
-          id: "labs",
-          label: "Lab orders",
-          description: "Order panels or individual tests.",
-          permission: P.LAB.ORDERS_CREATE,
           onPress: () => router.push("queue"),
         },
         {
@@ -87,6 +77,7 @@ function DoctorScreen(): ReactNode {
         home: <DoctorHome />,
         queue: <QueueListScreen />,
         "queue-detail": (payload) => <QueueDetailScreen entry={payload as WorklistToken} />,
+        consultation: (payload) => <ConsultationScreen entry={payload as WorklistToken} />,
         "ipd-rounds": <DoctorIpdRoundsScreen />,
         "ipd-round-detail": (payload) => (
           <DoctorIpdRoundDetailScreen admission={payload as AdmissionRow} />

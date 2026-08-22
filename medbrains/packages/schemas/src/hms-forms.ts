@@ -5101,6 +5101,28 @@ export const mobileConsultationNotesFormSchema = z.object({
   plan: z.string(),
 });
 
+/**
+ * The doctor's OPD consultation on the staff handheld.
+ *
+ * Same four SOAP fields as `mobileConsultationNotesFormSchema`, but the chief
+ * complaint is required: a consultation record with no presenting complaint is
+ * not a clinical note, it is an empty row against a patient's name, and NABH
+ * expects the reason for the visit to be recorded. The other three are
+ * genuinely optional -- a doctor who has examined and not yet planned should
+ * be able to save what they have rather than lose it.
+ */
+export const mobileStaffConsultationFormSchema = z.object({
+  chief_complaint: z
+    .string()
+    .max(2000, "Chief complaint is too long")
+    .refine((value) => value.trim().length > 0, "Record why the patient is here"),
+  examination: z.string().max(4000, "Examination is too long"),
+  assessment: z.string().max(4000, "Assessment is too long"),
+  plan: z.string().max(4000, "Plan is too long"),
+});
+
+export type MobileStaffConsultationFormInput = z.infer<typeof mobileStaffConsultationFormSchema>;
+
 const mobilePrescriptionRequiredTrimmed = (requiredMessage: string) =>
   z
     .string()

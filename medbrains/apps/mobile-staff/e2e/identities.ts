@@ -17,6 +17,8 @@ const BACKEND_URL = process.env.E2E_BACKEND_URL ?? "https://medbrains.localhost"
 const BOOTSTRAP_USERNAME = process.env.E2E_ADMIN_USERNAME ?? "admin";
 const BOOTSTRAP_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? "admin123";
 
+export const E2E_BACKEND_URL = BACKEND_URL;
+
 export interface Identity {
   id: string;
   username: string;
@@ -24,7 +26,7 @@ export interface Identity {
   role: string;
 }
 
-interface Session {
+export interface Session {
   cookieHeader: string;
   csrf: string;
 }
@@ -37,6 +39,15 @@ interface Session {
  * recognises. Every mutating call therefore needs both the cookie and
  * `X-CSRF-Token`, which is what `authHeaders` builds.
  */
+export async function signInForApi(username: string, password: string): Promise<Session> {
+  return login(username, password);
+}
+
+/** Headers for a mutating call as `session`: cookie plus CSRF, never bearer. */
+export function apiHeaders(session: Session): Record<string, string> {
+  return authHeaders(session);
+}
+
 async function login(username: string, password: string): Promise<Session> {
   const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
     body: JSON.stringify({ password, username }),
