@@ -76,6 +76,7 @@ pub async fn create_pool_with_config(
             Box::pin(async move {
                 sqlx::query(
                     "RESET app.tenant_id; \
+                     RESET app.scope; \
                      RESET app.user_id; \
                      RESET app.user_department_ids; \
                      RESET app.ip_address; \
@@ -128,6 +129,33 @@ pub async fn tenant_conn(
     // end of the first statement, which is exactly the bug this avoids.
     sqlx::query("SELECT set_config('app.tenant_id', $1, false)")
         .bind(tenant_id.to_string())
+        .execute(&mut *conn)
+        .await?;
+    Ok(conn)
+}
+
+/// A connection scoped to the caller's whole hospital group.
+///
+/// For the screens that are about the group rather than about a hospital:
+/// who works where, the group's drug master, how its hospitals compare. A
+/// group exists because those are shared — that is what makes it a group —
+/// so this does not consult the clinical sharing switch. Whether a clinician
+/// at one location may read a chart written at another is a different
+/// question with its own answer.
+///
+/// Use [`tenant_conn`] for everything else, including anything touching a
+/// patient's record.
+///
+/// This is not the access control. The permission check in front of the
+/// handler is; this only stops row level security from contradicting a query
+/// that was already allowed to be group-wide. Reach is bounded by the
+/// database, which holds one hospital group.
+pub async fn group_conn(
+    pool: &PgPool,
+    tenant_id: &uuid::Uuid,
+) -> Result<sqlx::pool::PoolConnection<Postgres>, DbError> {
+    let mut conn = tenant_conn(pool, tenant_id).await?;
+    sqlx::query("SELECT set_config('app.scope', 'group', false)")
         .execute(&mut *conn)
         .await?;
     Ok(conn)

@@ -5,7 +5,7 @@
 //! Against real Postgres, because the whole question is what the database does
 //! with a connection it has seen before.
 
-#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+#![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic, clippy::print_stderr)]
 
 use medbrains_db::pool::{create_pool_with_config, tenant_conn, PoolConfig};
 use sqlx::Row;
@@ -118,4 +118,204 @@ async fn the_scoped_connection_is_what_makes_rows_visible_under_rls() {
 
     assert_eq!(blind, 0, "an unscoped read should see nothing under RLS");
     assert!(scoped > 0, "a scoped read saw nothing — the helper is not working");
+}
+
+// ============================================================= group scope
+
+/// Held for the length of any test that changes group membership.
+///
+/// These tests share the dev database's two tenants, and cargo runs them in
+/// parallel. Without this, one test's cleanup pulls the group out from under
+/// another's setup and both fail for a reason that has nothing to do with the
+/// code — which is exactly what happened the first time they were run.
+static GROUP_FIXTURE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+/// Put both dev tenants in one group with a known clinical setting.
+///
+/// Everything runs inside a transaction the caller rolls back — a test must
+/// not leave two hospitals joined into a group that nobody created.
+async fn grouped(pool: &sqlx::PgPool, share_clinical: bool) -> (Uuid, Uuid) {
+    // Start from a known state. The previous test may have failed before its
+    // own cleanup ran, and inheriting a group is how one failure becomes
+    // several.
+    ungroup(pool).await;
+
+    let first: Uuid = sqlx::query_scalar(
+        "SELECT id FROM tenants WHERE code <> 'RLS-PROBE' ORDER BY created_at LIMIT 1",
+    )
+    .fetch_one(pool)
+    .await
+    .expect("a tenant");
+    let second: Uuid = sqlx::query_scalar(
+        "INSERT INTO tenants (code, name, hospital_type)
+         VALUES ('RLS-PROBE', 'Isolation probe',
+                 (SELECT hospital_type FROM tenants WHERE code <> 'RLS-PROBE' LIMIT 1))
+         ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name RETURNING id",
+    )
+    .fetch_one(pool)
+    .await
+    .expect("second tenant");
+
+    let group: Uuid = sqlx::query_scalar(
+        "INSERT INTO hospital_groups (code, name, share_clinical_records)
+         VALUES ('TEST-SCOPE', 'Scope test', $1)
+         ON CONFLICT (code) DO UPDATE
+             SET share_clinical_records = $1, deleted_at = NULL RETURNING id",
+    )
+    .bind(share_clinical)
+    .fetch_one(pool)
+    .await
+    .expect("a group");
+
+    sqlx::query("UPDATE tenants SET group_id = $1 WHERE id = ANY($2)")
+        .bind(group)
+        .bind(vec![first, second])
+        .execute(pool)
+        .await
+        .expect("join the group");
+
+    (first, second)
+}
+
+async fn ungroup(pool: &sqlx::PgPool) {
+    let _ = sqlx::query("UPDATE tenants SET group_id = NULL WHERE group_id IN (SELECT id FROM hospital_groups WHERE code = 'TEST-SCOPE')")
+        .execute(pool)
+        .await;
+    // `hospital_groups` is soft-deleted by a trigger, so DELETE marks the row
+    // rather than removing it — which is the behaviour the application wants
+    // and the reason `app_visible_tenants` ignores deleted groups.
+    let _ = sqlx::query("DELETE FROM hospital_groups WHERE code = 'TEST-SCOPE'")
+        .execute(pool)
+        .await;
+}
+
+async fn visible_count(pool: &sqlx::PgPool, tenant: Uuid, group_scope: bool) -> usize {
+    use medbrains_db::pool::group_conn;
+    let mut conn = if group_scope {
+        group_conn(pool, &tenant).await.expect("group connection")
+    } else {
+        tenant_conn(pool, &tenant).await.expect("tenant connection")
+    };
+    let ids: Vec<Uuid> = sqlx::query_scalar("SELECT unnest(public.app_visible_tenants())")
+        .fetch_all(&mut *conn)
+        .await
+        .expect("visibility");
+    ids.len()
+}
+
+#[tokio::test]
+#[ignore = "needs-pg"]
+async fn an_administrative_screen_sees_the_group_without_clinical_sharing() {
+    let _fixture = GROUP_FIXTURE.lock().await;
+    // What management actually wants. A consultant works Monday at one
+    // location and Tuesday at the other; the rota is one record. Nobody should
+    // have to switch on patient record sharing to make an HR screen work.
+    let pool = pool_of("medbrains", 2).await;
+    let (first, _) = grouped(&pool, false).await;
+
+    let admin = visible_count(&pool, first, true).await;
+    let clinical = visible_count(&pool, first, false).await;
+    ungroup(&pool).await;
+
+    assert_eq!(admin, 2, "an administrative screen could not see the group");
+    assert_eq!(clinical, 1, "a clinical read saw another location's hospital");
+}
+
+#[tokio::test]
+#[ignore = "needs-pg"]
+async fn clinical_reads_follow_the_switch_management_sets() {
+    let _fixture = GROUP_FIXTURE.lock().await;
+    // The one decision management deliberates over: may a clinician here open
+    // a chart written there.
+    let pool = pool_of("medbrains", 2).await;
+
+    let (first, _) = grouped(&pool, true).await;
+    let sharing_on = visible_count(&pool, first, false).await;
+
+    let (first, _) = grouped(&pool, false).await;
+    let sharing_off = visible_count(&pool, first, false).await;
+    ungroup(&pool).await;
+
+    assert_eq!(sharing_on, 2, "sharing is on and a clinical read stayed narrow");
+    assert_eq!(sharing_off, 1, "sharing is off and a clinical read went wide");
+}
+
+#[tokio::test]
+#[ignore = "needs-pg"]
+async fn a_hospital_in_no_group_is_alone_however_it_asks() {
+    let _fixture = GROUP_FIXTURE.lock().await;
+    // Every tenant today. Asking for group scope when there is no group must
+    // not widen anything.
+    let pool = pool_of("medbrains", 2).await;
+    ungroup(&pool).await;
+    let alone: Uuid = sqlx::query_scalar(
+        "SELECT id FROM tenants WHERE group_id IS NULL ORDER BY created_at LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("a tenant");
+
+    let asked_wide = visible_count(&pool, alone, true).await;
+    let asked_narrow = visible_count(&pool, alone, false).await;
+    ungroup(&pool).await;
+
+    assert_eq!(asked_wide, 1, "group scope widened a hospital that is in no group");
+    assert_eq!(asked_narrow, 1);
+}
+
+#[tokio::test]
+#[ignore = "needs-pg"]
+async fn group_scope_does_not_survive_the_connection_being_released() {
+    let _fixture = GROUP_FIXTURE.lock().await;
+    // Worse than a leaked tenant: the next request on this connection would
+    // read the whole group without ever asking to.
+    let pool = pool_of("medbrains", 1).await;
+    let (first, _) = grouped(&pool, false).await;
+
+    {
+        let mut scoped = medbrains_db::pool::group_conn(&pool, &first)
+            .await
+            .expect("group connection");
+        let _ = sqlx::query("SELECT 1").fetch_one(&mut *scoped).await;
+    } // released
+
+    let mut reused = pool.acquire().await.expect("the same connection back");
+    let leaked: Option<String> = sqlx::query("SELECT current_setting('app.scope', true) AS s")
+        .fetch_one(&mut *reused)
+        .await
+        .expect("read the setting")
+        .get("s");
+    drop(reused);
+    ungroup(&pool).await;
+
+    assert!(
+        leaked.is_none() || leaked.as_deref() == Some(""),
+        "a released connection was still in group scope: {leaked:?}"
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs-pg"]
+async fn a_deleted_group_stops_sharing_anything() {
+    // Groups are soft-deleted by a trigger, so a removed group is still a row.
+    // Without checking that, management could dissolve a chain and the
+    // hospitals would carry on reading each other's records.
+    let _fixture = GROUP_FIXTURE.lock().await;
+    let pool = pool_of("medbrains", 2).await;
+    let (first, _) = grouped(&pool, true).await;
+
+    let while_alive = visible_count(&pool, first, false).await;
+
+    sqlx::query("DELETE FROM hospital_groups WHERE code = 'TEST-SCOPE'")
+        .execute(&pool)
+        .await
+        .expect("soft-delete the group");
+    let after_deleting = visible_count(&pool, first, false).await;
+    let admin_after = visible_count(&pool, first, true).await;
+
+    ungroup(&pool).await;
+
+    assert_eq!(while_alive, 2, "sharing was on and did not apply");
+    assert_eq!(after_deleting, 1, "a deleted group carried on sharing records");
+    assert_eq!(admin_after, 1, "a deleted group still answered for group scope");
 }
