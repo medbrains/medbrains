@@ -3439,6 +3439,11 @@ pub async fn list_master_religions(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<MasterReligion>>, AppError> {
+    // Scoped: these masters are row-level secured, and the policy admits this
+    // hospital's rows plus the shared ones. Read off the bare pool it admits
+    // neither, and a clinical master list that comes back empty reads as a
+    // hospital that has not configured one.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     require_permission(
         &claims,
         permissions::admin::settings::clinical_masters::LIST,
@@ -3449,7 +3454,7 @@ pub async fn list_master_religions(
          ORDER BY sort_order, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
     Ok(Json(rows))
 }
@@ -3459,6 +3464,11 @@ pub async fn create_master_religion(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateMasterItemRequest>,
 ) -> Result<Json<MasterReligion>, AppError> {
+    // Scoped: these masters are row-level secured, and the policy admits this
+    // hospital's rows plus the shared ones. Read off the bare pool it admits
+    // neither, and a clinical master list that comes back empty reads as a
+    // hospital that has not configured one.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     require_permission(
         &claims,
         permissions::admin::settings::clinical_masters::CREATE,
@@ -3479,7 +3489,7 @@ pub async fn create_master_religion(
     .bind(body.code.trim())
     .bind(body.name.trim())
     .bind(body.sort_order.unwrap_or(0))
-    .fetch_one(&state.db)
+    .fetch_one(&mut *conn)
     .await?;
     Ok(Json(row))
 }
@@ -3490,6 +3500,11 @@ pub async fn update_master_religion(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateMasterItemRequest>,
 ) -> Result<Json<MasterReligion>, AppError> {
+    // Scoped: these masters are row-level secured, and the policy admits this
+    // hospital's rows plus the shared ones. Read off the bare pool it admits
+    // neither, and a clinical master list that comes back empty reads as a
+    // hospital that has not configured one.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     require_permission(
         &claims,
         permissions::admin::settings::clinical_masters::UPDATE,
@@ -3509,7 +3524,7 @@ pub async fn update_master_religion(
     .bind(body.is_active)
     .bind(id)
     .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
     Ok(Json(row))
@@ -3542,6 +3557,11 @@ pub async fn list_master_occupations(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<MasterOccupation>>, AppError> {
+    // Scoped: these masters are row-level secured, and the policy admits this
+    // hospital's rows plus the shared ones. Read off the bare pool it admits
+    // neither, and a clinical master list that comes back empty reads as a
+    // hospital that has not configured one.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     require_permission(
         &claims,
         permissions::admin::settings::clinical_masters::LIST,
@@ -3552,7 +3572,7 @@ pub async fn list_master_occupations(
          ORDER BY sort_order, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
     Ok(Json(rows))
 }
@@ -3562,6 +3582,11 @@ pub async fn create_master_occupation(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateMasterItemRequest>,
 ) -> Result<Json<MasterOccupation>, AppError> {
+    // Scoped: these masters are row-level secured, and the policy admits this
+    // hospital's rows plus the shared ones. Read off the bare pool it admits
+    // neither, and a clinical master list that comes back empty reads as a
+    // hospital that has not configured one.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     require_permission(
         &claims,
         permissions::admin::settings::clinical_masters::CREATE,
@@ -3582,7 +3607,7 @@ pub async fn create_master_occupation(
     .bind(body.code.trim())
     .bind(body.name.trim())
     .bind(body.sort_order.unwrap_or(0))
-    .fetch_one(&state.db)
+    .fetch_one(&mut *conn)
     .await?;
     Ok(Json(row))
 }
@@ -3593,6 +3618,11 @@ pub async fn update_master_occupation(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateMasterItemRequest>,
 ) -> Result<Json<MasterOccupation>, AppError> {
+    // Scoped: these masters are row-level secured, and the policy admits this
+    // hospital's rows plus the shared ones. Read off the bare pool it admits
+    // neither, and a clinical master list that comes back empty reads as a
+    // hospital that has not configured one.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     require_permission(
         &claims,
         permissions::admin::settings::clinical_masters::UPDATE,
@@ -3612,7 +3642,7 @@ pub async fn update_master_occupation(
     .bind(body.is_active)
     .bind(id)
     .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
     Ok(Json(row))
@@ -3645,6 +3675,11 @@ pub async fn list_master_relations(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<MasterRelation>>, AppError> {
+    // Scoped: these masters are row-level secured, and the policy admits this
+    // hospital's rows plus the shared ones. Read off the bare pool it admits
+    // neither, and a clinical master list that comes back empty reads as a
+    // hospital that has not configured one.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     require_permission(
         &claims,
         permissions::admin::settings::clinical_masters::LIST,
@@ -3655,7 +3690,7 @@ pub async fn list_master_relations(
          ORDER BY sort_order, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
     Ok(Json(rows))
 }
@@ -3665,6 +3700,11 @@ pub async fn create_master_relation(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateMasterItemRequest>,
 ) -> Result<Json<MasterRelation>, AppError> {
+    // Scoped: these masters are row-level secured, and the policy admits this
+    // hospital's rows plus the shared ones. Read off the bare pool it admits
+    // neither, and a clinical master list that comes back empty reads as a
+    // hospital that has not configured one.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     require_permission(
         &claims,
         permissions::admin::settings::clinical_masters::CREATE,
@@ -3685,7 +3725,7 @@ pub async fn create_master_relation(
     .bind(body.code.trim())
     .bind(body.name.trim())
     .bind(body.sort_order.unwrap_or(0))
-    .fetch_one(&state.db)
+    .fetch_one(&mut *conn)
     .await?;
     Ok(Json(row))
 }
@@ -3696,6 +3736,11 @@ pub async fn update_master_relation(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateMasterItemRequest>,
 ) -> Result<Json<MasterRelation>, AppError> {
+    // Scoped: these masters are row-level secured, and the policy admits this
+    // hospital's rows plus the shared ones. Read off the bare pool it admits
+    // neither, and a clinical master list that comes back empty reads as a
+    // hospital that has not configured one.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     require_permission(
         &claims,
         permissions::admin::settings::clinical_masters::UPDATE,
@@ -3715,7 +3760,7 @@ pub async fn update_master_relation(
     .bind(body.is_active)
     .bind(id)
     .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
     Ok(Json(row))
@@ -5710,6 +5755,11 @@ pub async fn list_visible_screens(
     Extension(claims): Extension<Claims>,
     Path(user_id): Path<Uuid>,
 ) -> Result<Json<Vec<VisibleScreen>>, AppError> {
+    // Scoped: these masters are row-level secured, and the policy admits this
+    // hospital's rows plus the shared ones. Read off the bare pool it admits
+    // neither, and a clinical master list that comes back empty reads as a
+    // hospital that has not configured one.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     require_permission(&claims, permissions::admin::users::LIST)?;
 
     // Pull the target user's role to resolve the effective permission set.
@@ -5717,7 +5767,7 @@ pub async fn list_visible_screens(
         sqlx::query_scalar("SELECT role::text FROM users WHERE id = $1 AND tenant_id = $2")
             .bind(user_id)
             .bind(claims.tenant_id)
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await?;
     let role = target_role.ok_or(AppError::NotFound)?;
 

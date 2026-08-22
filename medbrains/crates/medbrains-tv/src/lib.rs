@@ -255,10 +255,25 @@ pub struct DepartmentQueueState {
 
 /// GET /api/tv/displays
 /// List all TV display configurations.
+/// A connection that knows which hospital is asking.
+///
+/// Every queue table here is row-level secured. Read off the bare pool they
+/// carry no tenant and come back empty — a waiting-room screen showing no
+/// patients, which looks like a quiet morning rather than a broken query.
+async fn scoped(
+    db: &sqlx::PgPool,
+    tenant_id: Uuid,
+) -> Result<sqlx::pool::PoolConnection<sqlx::Postgres>, (StatusCode, String)> {
+    medbrains_db::pool::tenant_conn(db, &tenant_id)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+}
+
 pub async fn list_displays(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<TvDisplay>>, (StatusCode, String)> {
+    let mut conn = scoped(&state.db, claims.tenant_id).await?;
     require(&claims, tv_displays::LIST)?;
     let displays = sqlx::query_as::<_, TvDisplay>(
         r"
@@ -284,7 +299,7 @@ pub async fn list_displays(
         ",
     )
     .bind(claims.tenant_id)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -298,6 +313,7 @@ pub async fn create_display(
     Extension(claims): Extension<Claims>,
     Json(req): Json<CreateDisplayRequest>,
 ) -> Result<Json<TvDisplay>, (StatusCode, String)> {
+    let mut conn = scoped(&state.db, claims.tenant_id).await?;
     require(&claims, tv_displays::CREATE)?;
     let language_json = serde_json::to_value(&req.language)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
@@ -328,7 +344,7 @@ pub async fn create_display(
     .bind(&language_json)
     .bind(req.announcement_enabled)
     .bind(req.scroll_speed)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -342,6 +358,7 @@ pub async fn get_display(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TvDisplay>, (StatusCode, String)> {
+    let mut conn = scoped(&state.db, claims.tenant_id).await?;
     require(&claims, tv_displays::LIST)?;
     let display = sqlx::query_as::<_, TvDisplay>(
         r"
@@ -367,7 +384,7 @@ pub async fn get_display(
     )
     .bind(id)
     .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
     .ok_or((StatusCode::NOT_FOUND, "Display not found".to_string()))?;
@@ -383,6 +400,7 @@ pub async fn update_display(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateDisplayRequest>,
 ) -> Result<Json<TvDisplay>, (StatusCode, String)> {
+    let mut conn = scoped(&state.db, claims.tenant_id).await?;
     require(&claims, tv_displays::UPDATE)?;
     // Build dynamic update query
     let language_json = req.language.and_then(|l| serde_json::to_value(l).ok());
@@ -428,7 +446,7 @@ pub async fn update_display(
     .bind(language_json)
     .bind(req.announcement_enabled)
     .bind(req.scroll_speed)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
     .ok_or((StatusCode::NOT_FOUND, "Display not found".to_string()))?;
@@ -493,6 +511,9 @@ async fn estimate_wait_minutes(
     today: NaiveDate,
     position: i64,
 ) -> Option<i32> {
+    // A connection this cannot get means no estimate, which is what this
+    // function already returns when there is nothing to measure.
+    let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await.ok()?;
     let measured: Option<(i64, Option<i64>)> = sqlx::query_as(
         r"
         SELECT COUNT(*),
@@ -505,7 +526,7 @@ async fn estimate_wait_minutes(
     .bind(tenant_id)
     .bind(department_id)
     .bind(today)
-    .fetch_optional(db)
+    .fetch_optional(&mut *conn)
     .await
     .ok()
     .flatten();
@@ -545,6 +566,9 @@ pub async fn position_and_wait(
     token_seq: i32,
     priority: &str,
 ) -> Result<(i64, Option<i32>), sqlx::Error> {
+    let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id)
+        .await
+        .map_err(|e| sqlx::Error::Configuration(Box::new(e)))?;
     let ahead: (i64,) = sqlx::query_as(
         r"
         SELECT COUNT(*)
@@ -560,7 +584,7 @@ pub async fn position_and_wait(
     .bind(token_date)
     .bind(token_seq)
     .bind(priority)
-    .fetch_one(db)
+    .fetch_one(&mut *conn)
     .await?;
 
     let wait = estimate_wait_minutes(db, tenant_id, department_id, token_date, ahead.0).await;
@@ -572,6 +596,7 @@ pub async fn create_token(
     Extension(claims): Extension<Claims>,
     Json(req): Json<CreateTokenRequest>,
 ) -> Result<Json<CreateTokenResponse>, (StatusCode, String)> {
+    let mut conn = scoped(&state.db, claims.tenant_id).await?;
     require(&claims, tv_displays::TOKENS)?;
     let today = Utc::now().date_naive();
     let priority = req.priority.as_deref().unwrap_or("normal");
@@ -581,7 +606,7 @@ pub async fn create_token(
         sqlx::query_as("SELECT code FROM departments WHERE id = $1 AND tenant_id = $2")
             .bind(req.department_id)
             .bind(claims.tenant_id)
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -598,7 +623,7 @@ pub async fn create_token(
     .bind(claims.tenant_id)
     .bind(req.department_id)
     .bind(today)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -628,7 +653,7 @@ pub async fn create_token(
     .bind(req.department_id)
     .bind(req.doctor_id)
     .bind(priority)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -646,7 +671,7 @@ pub async fn create_token(
     // Get department name
     let dept_name: (String,) = sqlx::query_as("SELECT name FROM departments WHERE id = $1")
         .bind(req.department_id)
-        .fetch_one(&state.db)
+        .fetch_one(&mut *conn)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -675,6 +700,7 @@ pub async fn list_tokens(
     Extension(claims): Extension<Claims>,
     Query(query): Query<ListTokensQuery>,
 ) -> Result<Json<Vec<QueueToken>>, (StatusCode, String)> {
+    let mut conn = scoped(&state.db, claims.tenant_id).await?;
     require(&claims, tv_displays::TOKENS)?;
     let date = query.date.unwrap_or_else(|| Utc::now().date_naive());
 
@@ -695,7 +721,7 @@ pub async fn list_tokens(
     .bind(date)
     .bind(query.department_id)
     .bind(query.status)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -709,6 +735,7 @@ pub async fn call_token(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<QueueToken>, (StatusCode, String)> {
+    let mut conn = scoped(&state.db, claims.tenant_id).await?;
     require(&claims, tv_displays::TOKENS)?;
     let token = sqlx::query_as::<_, QueueToken>(
         r"
@@ -722,7 +749,7 @@ pub async fn call_token(
     )
     .bind(id)
     .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
     .ok_or((StatusCode::NOT_FOUND, "Token not found".to_string()))?;
@@ -746,6 +773,7 @@ pub async fn complete_token(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<QueueToken>, (StatusCode, String)> {
+    let mut conn = scoped(&state.db, claims.tenant_id).await?;
     require(&claims, tv_displays::TOKENS)?;
     let token = sqlx::query_as::<_, QueueToken>(
         r"
@@ -759,7 +787,7 @@ pub async fn complete_token(
     )
     .bind(id)
     .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
     .ok_or((StatusCode::NOT_FOUND, "Token not found".to_string()))?;
@@ -783,6 +811,7 @@ pub async fn no_show_token(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<QueueToken>, (StatusCode, String)> {
+    let mut conn = scoped(&state.db, claims.tenant_id).await?;
     require(&claims, tv_displays::TOKENS)?;
     let token = sqlx::query_as::<_, QueueToken>(
         r"
@@ -796,7 +825,7 @@ pub async fn no_show_token(
     )
     .bind(id)
     .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
     .ok_or((StatusCode::NOT_FOUND, "Token not found".to_string()))?;
@@ -824,6 +853,7 @@ pub async fn get_queue_state(
     Extension(claims): Extension<Claims>,
     Path(department_id): Path<Uuid>,
 ) -> Result<Json<DepartmentQueueState>, (StatusCode, String)> {
+    let mut conn = scoped(&state.db, claims.tenant_id).await?;
     // The board's live contents, not the screen's settings — see
     // admin.tv_displays.board. These seven read endpoints checked nothing,
     // while the display and token handlers beside them were gated in an
@@ -836,7 +866,7 @@ pub async fn get_queue_state(
         sqlx::query_as("SELECT name FROM departments WHERE id = $1 AND tenant_id = $2")
             .bind(department_id)
             .bind(claims.tenant_id)
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
             .ok_or((StatusCode::NOT_FOUND, "Department not found".to_string()))?;
@@ -859,7 +889,7 @@ pub async fn get_queue_state(
     .bind(claims.tenant_id)
     .bind(department_id)
     .bind(today)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -872,7 +902,7 @@ pub async fn get_queue_state(
     .bind(claims.tenant_id)
     .bind(department_id)
     .bind(today)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -944,6 +974,7 @@ async fn get_queue_tokens(
     date: NaiveDate,
     status: &str,
 ) -> Result<Vec<QueueTokenInfo>, (StatusCode, String)> {
+    let mut conn = scoped(db, tenant_id).await?;
     #[derive(FromRow)]
     struct TokenRow {
         token_number: String,
@@ -976,7 +1007,7 @@ async fn get_queue_tokens(
     .bind(department_id)
     .bind(date)
     .bind(status)
-    .fetch_all(db)
+    .fetch_all(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -1001,6 +1032,12 @@ async fn broadcast_queue_update(
     tenant_id: Uuid,
     department_id: Uuid,
 ) {
+    // Nothing to return and nobody to tell: a screen that misses one update
+    // gets the next one a moment later.
+    let Ok(mut conn) = medbrains_db::pool::tenant_conn(db, &tenant_id).await else {
+        tracing::warn!(%tenant_id, %department_id, "queue broadcast skipped — no connection");
+        return;
+    };
     let today = Utc::now().date_naive();
 
     // Get current queue state
@@ -1019,7 +1056,7 @@ async fn broadcast_queue_update(
     .bind(tenant_id)
     .bind(department_id)
     .bind(today)
-    .fetch_one(db)
+    .fetch_one(&mut *conn)
     .await
     .unwrap_or(0);
 
@@ -1030,7 +1067,7 @@ async fn broadcast_queue_update(
     .bind(tenant_id)
     .bind(department_id)
     .bind(today)
-    .fetch_one(db)
+    .fetch_one(&mut *conn)
     .await
     .unwrap_or(0);
 
@@ -1982,6 +2019,7 @@ pub async fn get_queue_analytics(
     Extension(claims): Extension<Claims>,
     Path(department_id): Path<Uuid>,
 ) -> Result<Json<QueueAnalytics>, (StatusCode, String)> {
+    let mut conn = scoped(&state.db, claims.tenant_id).await?;
     require_board_read(&claims)?;
     let today = Utc::now().date_naive();
 
@@ -1990,7 +2028,7 @@ pub async fn get_queue_analytics(
         sqlx::query_as("SELECT name FROM departments WHERE id = $1 AND tenant_id = $2")
             .bind(department_id)
             .bind(claims.tenant_id)
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -2010,7 +2048,7 @@ pub async fn get_queue_analytics(
     .bind(claims.tenant_id)
     .bind(department_id)
     .bind(today)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -2026,7 +2064,7 @@ pub async fn get_queue_analytics(
     .bind(claims.tenant_id)
     .bind(department_id)
     .bind(today)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -2044,7 +2082,7 @@ pub async fn get_queue_analytics(
     .bind(claims.tenant_id)
     .bind(department_id)
     .bind(today)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -2067,6 +2105,7 @@ pub async fn get_queue_metrics(
     Extension(claims): Extension<Claims>,
     Path(department_id): Path<Uuid>,
 ) -> Result<Json<QueueMetrics>, (StatusCode, String)> {
+    let mut conn = scoped(&state.db, claims.tenant_id).await?;
     require_board_read(&claims)?;
     let today = Utc::now().date_naive();
 
@@ -2081,7 +2120,7 @@ pub async fn get_queue_metrics(
     .bind(claims.tenant_id)
     .bind(department_id)
     .bind(today)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -2097,7 +2136,7 @@ pub async fn get_queue_metrics(
     .bind(claims.tenant_id)
     .bind(department_id)
     .bind(today)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -2114,7 +2153,7 @@ pub async fn get_queue_metrics(
     .bind(claims.tenant_id)
     .bind(department_id)
     .bind(today)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *conn)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
