@@ -90,11 +90,29 @@ impl<P: Permission> Requirement for P {
 /// The caller must hold every one.
 pub struct AllOf<T>(PhantomData<T>);
 
+// Written out rather than derived: a derive bounds `T: Debug`, and `T` here is
+// a tuple of permission markers that exists only in the type system. Nothing
+// holds a `T` to format.
+impl<T> std::fmt::Debug for AllOf<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("AllOf")
+    }
+}
+
 /// The caller must hold at least one.
 ///
 /// Refuses with the whole set named, because "you need one of these three" is
 /// actionable and "forbidden" is not.
 pub struct AnyOf<T>(PhantomData<T>);
+
+// Written out rather than derived: a derive bounds `T: Debug`, and `T` here is
+// a tuple of permission markers that exists only in the type system. Nothing
+// holds a `T` to format.
+impl<T> std::fmt::Debug for AnyOf<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("AnyOf")
+    }
+}
 
 macro_rules! all_of {
     ($($name:ident),+) => {
