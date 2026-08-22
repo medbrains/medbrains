@@ -64,7 +64,7 @@ describe("reception desk", () => {
     await detoxExpect(element(by.id("visitor-name"))).toBeVisible();
   });
 
-  it("still offers the enquiry desk, which was a dead menu entry", async () => {
+  it("opens the enquiry desk, which was a dead menu entry", async () => {
     // The previous test left the register form open, and that button is now
     // "Cancel". Closing it explicitly rather than assuming the state, because
     // a spec that depends on where the last one stopped fails for reasons that
@@ -72,17 +72,7 @@ describe("reception desk", () => {
     await tapId("visitor-desk-register");
     await tapId("screen-back");
     await awaitScreen("module-home-reception");
-
-    // Existence, not a tap. Enquiry is the last action on the module home and
-    // in a Debug build React Native's dev-warning toasts cover the bottom of
-    // the screen — the list scrolls as far as it goes and the row still cannot
-    // clear them. Those toasts do not exist in Release, which is the config
-    // this suite is meant to run in CI, and the tap-through is covered there.
-    //
-    // Asserting existence here is not nothing: this entry was rendered with a
-    // permission and no `onPress` for as long as the module has shipped, and
-    // the screen behind it is exercised by `screen-enquiry-desk` in the
-    // Release run.
-    await detoxExpect(element(by.id("module-action-enquiry"))).toExist();
+    await tapIdScrollingIn("module-action-enquiry", "module-home-reception");
+    await awaitScreen("screen-enquiry-desk");
   });
 });

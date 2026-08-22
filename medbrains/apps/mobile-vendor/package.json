@@ -40,7 +40,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.6",
     "@types/react": "~19.1.10",
-    "typescript": "^7.0.2"
+    "typescript": "5.9.3"
   },
   "medbrains": {
     "draft": true

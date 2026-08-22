@@ -170,8 +170,19 @@ function PatternLayer({ pattern }: { pattern: CardPatternStyle }): ReactNode {
           flexDirection: "row",
         }}
       >
-        {pattern.stops.map((color) => (
-          <View key={color} style={{ flex: 1, backgroundColor: color }} />
+        {/*
+          Keyed by position, not by colour. Several palette tokens resolve to
+          the same hex — `navActiveBg`, `tint` and `navChildActiveBg` are all
+          blue[0] — so a gradient that uses two of them handed React two
+          children with the same key, and every module home in the app logged
+          the warning twice. A gradient stop has no identity beyond where it
+          sits, so its position is the honest key.
+        */}
+        {pattern.stops.map((color, index) => (
+          <View
+            key={`${index}-${color}`}
+            style={{ flex: 1, backgroundColor: color }}
+          />
         ))}
       </View>
       <View
@@ -185,9 +196,9 @@ function PatternLayer({ pattern }: { pattern: CardPatternStyle }): ReactNode {
           opacity: 0.32,
         }}
       >
-        {pattern.stops.map((color) => (
+        {pattern.stops.map((color, index) => (
           <View
-            key={color}
+            key={`${index}-${color}`}
             style={{
               flex: 1,
               backgroundColor: color,
