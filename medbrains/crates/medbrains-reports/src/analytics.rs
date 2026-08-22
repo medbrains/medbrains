@@ -269,7 +269,7 @@ pub async fn clinical_indicators(
            SELECT to_char(a.admitted_at, 'YYYY-MM') AS period, \
              COUNT(*) FILTER (WHERE a.discharged_at IS NOT NULL) AS total_discharged, \
              COUNT(*) FILTER (WHERE a.discharge_type = 'death') AS deaths, \
-             AVG(EXTRACT(EPOCH FROM (COALESCE(a.discharged_at, now()) - a.admitted_at)) / 86400) AS avg_los, \
+             AVG(EXTRACT(EPOCH FROM (COALESCE(a.discharged_at, now()) - a.admitted_at)) / 86400)::float8 AS avg_los, \
              COUNT(DISTINCT ise.patient_id) AS infections, \
              COUNT(DISTINCT re.patient_id) AS readmits \
            FROM admissions a \

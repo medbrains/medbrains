@@ -740,7 +740,7 @@ pub async fn barrier_analytics(
            barrier_type::text AS barrier_type, \
            COUNT(*) AS count, \
            AVG(EXTRACT(EPOCH FROM (NOW() - identified_date::timestamp)) / 86400.0) \
-             AS avg_days_open \
+            ::float8 AS avg_days_open \
          FROM discharge_barriers \
          WHERE is_resolved = false \
          GROUP BY barrier_type \

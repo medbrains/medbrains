@@ -862,7 +862,7 @@ pub async fn visitor_analytics(
         "SELECT vr.ward_id AS department_id, \
          COUNT(*)::bigint AS total_visitors, \
          AVG(EXTRACT(EPOCH FROM (vl.check_out_at - vl.check_in_at)) / 60.0) \
-           FILTER (WHERE vl.check_out_at IS NOT NULL) AS avg_visit_duration_minutes, \
+           FILTER (WHERE vl.check_out_at IS NOT NULL)::float8 AS avg_visit_duration_minutes, \
          MODE() WITHIN GROUP (ORDER BY EXTRACT(HOUR FROM vl.check_in_at)::int) AS peak_hour \
          FROM visitor_registrations vr \
          LEFT JOIN visitor_passes vp ON vp.registration_id = vr.id \
@@ -942,7 +942,7 @@ pub async fn queue_metrics(
          EXTRACT(HOUR FROM called_at)::int AS hour_of_day, \
          COUNT(*) FILTER (WHERE queue_status = 'completed')::bigint AS patients_seen, \
          AVG(EXTRACT(EPOCH FROM (called_at - created_at)) / 60.0) \
-           FILTER (WHERE called_at IS NOT NULL) AS avg_wait_minutes, \
+           FILTER (WHERE called_at IS NOT NULL)::float8 AS avg_wait_minutes, \
          MAX(EXTRACT(EPOCH FROM (called_at - created_at)) / 60.0) \
            FILTER (WHERE called_at IS NOT NULL) AS max_wait_minutes \
          FROM opd_queues \

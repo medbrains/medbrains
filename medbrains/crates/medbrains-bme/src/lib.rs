@@ -1495,12 +1495,12 @@ pub async fn get_uptime_analytics(
                     AS total_days, \
                 COALESCE(SUM(EXTRACT(EPOCH FROM \
                     (COALESCE(b.resolved_at, NOW()) - b.reported_at)) / 86400.0), 0.0) \
-                    AS downtime_days, \
+                   ::float8 AS downtime_days, \
                 CASE WHEN EXTRACT(EPOCH FROM (NOW() - e.installation_date)) > 0 \
                      THEN (1.0 - COALESCE(SUM(EXTRACT(EPOCH FROM \
                           (COALESCE(b.resolved_at, NOW()) - b.reported_at))), 0) \
                           / EXTRACT(EPOCH FROM (NOW() - e.installation_date))) * 100.0 \
-                     ELSE 100.0 END AS uptime_percent \
+                     ELSE 100.0 END::float8 AS uptime_percent \
          FROM bme_equipment e \
          LEFT JOIN bme_breakdowns b ON b.equipment_id = e.id \
          WHERE e.status = 'active' \

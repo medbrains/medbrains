@@ -612,7 +612,7 @@ pub async fn board_metrics(
         "SELECT \
            COUNT(*) FILTER (WHERE status = 'waiting') AS waiting, \
            AVG(EXTRACT(EPOCH FROM (called_at - created_at)) / 60.0) \
-             FILTER (WHERE called_at IS NOT NULL) AS avg_wait_minutes \
+             FILTER (WHERE called_at IS NOT NULL)::float8 AS avg_wait_minutes \
          FROM tokens \
          WHERE module = $1 AND token_date = CURRENT_DATE \
            AND ($2::text IS NULL OR scope = $2) \

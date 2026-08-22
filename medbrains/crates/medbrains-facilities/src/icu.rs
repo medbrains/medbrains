@@ -733,7 +733,7 @@ pub async fn get_device_infection_rates(
                       AND ise.created_at >= CURRENT_DATE - INTERVAL '90 days' \
                  ), 0) / SUM(EXTRACT(EPOCH FROM (COALESCE(d.removed_at, NOW()) - d.inserted_at)) \
                     / 86400.0)::float * 1000.0 \
-                 ELSE 0.0 END AS rate_per_1000 \
+                 ELSE 0.0 END::float8 AS rate_per_1000 \
         FROM icu_devices d \
         WHERE d.inserted_at >= CURRENT_DATE - INTERVAL '90 days' \
         GROUP BY d.device_type \

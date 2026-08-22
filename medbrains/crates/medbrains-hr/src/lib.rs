@@ -1820,7 +1820,7 @@ pub async fn list_duty_hours(
          LEFT JOIN ( \
              SELECT employee_id, \
                     SUM(EXTRACT(EPOCH FROM (COALESCE(check_out, now()) - check_in)) / 60.0 \
-                        - paused_minutes) AS week_minutes, \
+                        - paused_minutes)::float8 AS week_minutes, \
                     SUM(overtime_minutes) AS overtime_minutes \
              FROM attendance_records \
              WHERE tenant_id = $1 AND check_in IS NOT NULL \
