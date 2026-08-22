@@ -98,6 +98,7 @@ fn decrypt(key: &[u8], enc: &str) -> Result<String, AppError> {
 /// Per-tenant OAuth app creds from `tenant_settings` (category `oauth`,
 /// key `<provider>_config` → { client_id, client_secret }).
 async fn read_creds(state: &AppState, tenant_id: &Uuid, provider: &str) -> Result<ProviderCreds, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, tenant_id).await?;
     let key = format!("{provider}_config");
     let row = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT value FROM tenant_settings \
@@ -105,7 +106,7 @@ async fn read_creds(state: &AppState, tenant_id: &Uuid, provider: &str) -> Resul
     )
     .bind(tenant_id)
     .bind(&key)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or_else(|| AppError::ServiceUnavailable(format!("{provider} OAuth app not configured")))?;
 

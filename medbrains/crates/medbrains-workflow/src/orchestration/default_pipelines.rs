@@ -69,13 +69,21 @@ pub const DEFAULT_SUBSCRIBERS: &[(&str, &str)] = &[
 /// Failures (missing table, unparseable value) default to enabled —
 /// the safe choice is "fire the baseline workflow."
 async fn is_disabled(pool: &PgPool, tenant_id: Uuid, event_type: &str) -> bool {
+    // No connection means no answer, and the safe answer here is "not
+    // disabled" only if the caller can tell the difference — it cannot, so
+    // this returns the same as finding no setting, which is what it did
+    // before there was a connection to fail to get.
+    let Ok(mut conn) = medbrains_db::pool::tenant_conn(pool, &tenant_id).await else {
+        tracing::warn!(%tenant_id, event_type, "pipeline setting unreadable");
+        return false;
+    };
     let res: Result<Option<Value>, _> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings \
          WHERE tenant_id = $1 AND category = 'default_pipelines' AND key = 'disabled' \
          LIMIT 1",
     )
     .bind(tenant_id)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *conn)
     .await;
     match res {
         Ok(Some(v)) => v
@@ -392,6 +400,9 @@ async fn on_billing_payment_received(
     tenant_id: Uuid,
     payload: &Value,
 ) -> Result<(), sqlx::Error> {
+    let mut conn = medbrains_db::pool::tenant_conn(pool, &tenant_id)
+        .await
+        .map_err(|e| sqlx::Error::Configuration(Box::new(e)))?;
     let payment_id = uuid_from_payload(payload, "payment_id");
     let invoice_id = uuid_from_payload(payload, "invoice_id");
     let patient_id = uuid_from_payload(payload, "patient_id");
@@ -409,7 +420,7 @@ async fn on_billing_payment_received(
         )
         .bind(p)
         .bind(tenant_id)
-        .fetch_optional(pool)
+        .fetch_optional(&mut *conn)
         .await?
         .flatten(),
         None => None,
@@ -422,7 +433,7 @@ async fn on_billing_payment_received(
         )
         .bind(i)
         .bind(tenant_id)
-        .fetch_optional(pool)
+        .fetch_optional(&mut *conn)
         .await?,
         None => None,
     };

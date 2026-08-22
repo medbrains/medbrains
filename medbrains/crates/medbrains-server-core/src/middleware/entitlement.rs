@@ -38,11 +38,12 @@ pub async fn require_module_enabled(
     tenant_id: Uuid,
     code: &str,
 ) -> Result<(), AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
     let status: Option<String> =
         sqlx::query_scalar("SELECT status::text FROM module_config WHERE tenant_id = $1 AND code = $2")
             .bind(tenant_id)
             .bind(code)
-            .fetch_optional(db)
+            .fetch_optional(&mut *conn)
             .await
             .unwrap_or(None);
     if module_is_disabled(status.as_deref()) {

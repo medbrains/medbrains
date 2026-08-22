@@ -24,6 +24,7 @@ pub async fn resolve_restricted_fields(
     user_id: Uuid,
     role: &str,
 ) -> Result<HashMap<String, FieldAccessLevel>, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
     if role == "super_admin" || role == "hospital_admin" {
         return Ok(HashMap::new());
     }
@@ -34,7 +35,7 @@ pub async fn resolve_restricted_fields(
         tenant_id,
         role
     )
-    .fetch_optional(db)
+    .fetch_optional(&mut *conn)
     .await?;
 
     let user_access_matrix = sqlx::query_scalar!(
@@ -42,7 +43,7 @@ pub async fn resolve_restricted_fields(
         user_id,
         tenant_id
     )
-    .fetch_optional(db)
+    .fetch_optional(&mut *conn)
     .await?;
 
     let mut restricted = HashMap::new();

@@ -16,6 +16,7 @@ pub async fn list_connectors(
     pool: &PgPool,
     tenant_id: Uuid,
 ) -> Result<Vec<ConnectorRow>, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(pool, &tenant_id).await?;
     let rows = sqlx::query_as::<_, ConnectorRow>(
         "SELECT id, tenant_id, connector_type, name, description, config, status, \
                 health_check_url, last_health_check, is_healthy, retry_config, \
@@ -25,7 +26,7 @@ pub async fn list_connectors(
          ORDER BY name",
     )
     .bind(tenant_id)
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?;
 
     Ok(rows)

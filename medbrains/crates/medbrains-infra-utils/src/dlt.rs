@@ -211,6 +211,9 @@ pub async fn lookup_template_for_send(
     scope: &str,
     language: Option<&str>,
 ) -> Option<DltLookupResult> {
+    // Returns Option, and a missing DLT template is already a case every
+    // caller handles: no connection reads the same as no template.
+    let mut conn = medbrains_db::pool::tenant_conn(pool, &tenant_id).await.ok()?;
     let lang = language.unwrap_or("en");
     let row: Option<DltLookupResult> = sqlx::query_as(
         "SELECT template_id, body_pattern, sender_id, entity_id \
@@ -223,7 +226,7 @@ pub async fn lookup_template_for_send(
     .bind(tenant_id)
     .bind(scope)
     .bind(lang)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *conn)
     .await
     .ok()
     .flatten();

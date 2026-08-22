@@ -40,13 +40,14 @@ pub async fn emit_before_event(
     event_code: &str,
     payload: &Value,
 ) -> Result<EventGateResult, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(pool, &tenant_id).await?;
     // 1. Verify event exists and is a before-phase event
     let event_exists: bool = sqlx::query_scalar::<_, bool>(
         "SELECT EXISTS(SELECT 1 FROM event_registry \
          WHERE event_code = $1 AND phase = 'before')",
     )
     .bind(event_code)
-    .fetch_one(pool)
+    .fetch_one(&mut *conn)
     .await?;
 
     if !event_exists {
@@ -70,7 +71,7 @@ pub async fn emit_before_event(
     )
     .bind(tenant_id)
     .bind(&trigger_match)
-    .fetch_all(pool)
+    .fetch_all(&mut *conn)
     .await?;
 
     if pipelines.is_empty() {

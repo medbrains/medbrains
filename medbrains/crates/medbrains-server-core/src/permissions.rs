@@ -19,6 +19,7 @@ pub async fn resolve_permissions(
     user_id: Uuid,
     role: &str,
 ) -> Result<Vec<String>, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(db, &tenant_id).await?;
     // Bypass roles don't need permissions in the token
     if role == "super_admin" || role == "hospital_admin" {
         return Ok(Vec::new());
@@ -30,7 +31,7 @@ pub async fn resolve_permissions(
         tenant_id,
         role
     )
-    .fetch_optional(db)
+    .fetch_optional(&mut *conn)
     .await?;
 
     let mut perms: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -50,7 +51,7 @@ pub async fn resolve_permissions(
     )
     .bind(tenant_id)
     .bind(user_id)
-    .fetch_all(db)
+    .fetch_all(&mut *conn)
     .await?;
 
     for group_permissions in group_permission_rows {
@@ -63,7 +64,7 @@ pub async fn resolve_permissions(
         user_id,
         tenant_id
     )
-    .fetch_optional(db)
+    .fetch_optional(&mut *conn)
     .await?;
 
     if let Some(serde_json::Value::Object(matrix)) = access_matrix {

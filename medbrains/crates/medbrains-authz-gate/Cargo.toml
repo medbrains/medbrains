@@ -19,6 +19,7 @@ rust-version = "1.85"
 # authz_patient — only a `pub mod` line — so the guards can simply move up
 # instead, and server-core stays cached whenever they change.
 [dependencies]
+medbrains-db = { path = "../medbrains-db" }
 medbrains-server-core = { path = "../medbrains-server-core" }
 medbrains-authz = { path = "../medbrains-authz" }
 sqlx = { workspace = true }

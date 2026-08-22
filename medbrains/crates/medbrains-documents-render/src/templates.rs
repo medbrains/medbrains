@@ -17,6 +17,7 @@ async fn patient_id_for(
     table: &str,
     id: Uuid,
 ) -> Result<Option<Uuid>, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?;
     let sql = match table {
         "invoices" => "SELECT patient_id FROM invoices WHERE id = $1 AND tenant_id = $2",
         "payments" => {
@@ -36,7 +37,7 @@ async fn patient_id_for(
     Ok(sqlx::query_scalar(sql)
         .bind(id)
         .bind(tenant_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(&mut *conn)
         .await?)
 }
 
@@ -48,6 +49,7 @@ pub(crate) async fn build_context(
     template_code: &str,
     source_id: Uuid,
 ) -> Result<(serde_json::Value, Option<Uuid>), AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let context = match template_code {
         "invoice_gst" => {
             let Json(data) = medbrains_print_data::billing::get_gst_invoice_print_data(
@@ -149,7 +151,7 @@ pub(crate) async fn build_context(
             )
             .bind(source_id)
             .bind(claims.tenant_id)
-            .fetch_optional(&state.db)
+            .fetch_optional(&mut *conn)
             .await?;
             let Some(label) = row else {
                 return Err(AppError::NotFound);

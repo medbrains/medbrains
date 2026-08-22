@@ -591,6 +591,7 @@ pub async fn require_patient_access(
     claims: &Claims,
     patient_id: Uuid,
 ) -> Result<(), AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let ctx = medbrains_server_core::middleware::authorization::authz_context(claims);
 
     // Fast path: a direct or implied grant on the patient itself
@@ -624,7 +625,7 @@ pub async fn require_patient_access(
     .bind(patient_id)
     .bind(claims.tenant_id)
     .bind(MAX_FANOUT)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
     for eid in encounter_ids {
         items.push(("encounter".to_owned(), medbrains_authz::Relation::Viewer, eid));
@@ -637,7 +638,7 @@ pub async fn require_patient_access(
     .bind(patient_id)
     .bind(claims.tenant_id)
     .bind(MAX_FANOUT)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
     for aid in admission_ids {
         items.push(("admission".to_owned(), medbrains_authz::Relation::Viewer, aid));

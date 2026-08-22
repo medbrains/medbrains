@@ -55,13 +55,14 @@ async fn tenant_setting_days(
     key: &str,
     default: i32,
 ) -> Result<i32, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(pool, &tenant_id).await?;
     let value: Option<serde_json::Value> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings \
          WHERE tenant_id = $1 AND category = 'retention' AND key = $2",
     )
     .bind(tenant_id)
     .bind(key)
-    .fetch_optional(pool)
+    .fetch_optional(&mut *conn)
     .await?;
     Ok(value
         .and_then(|v| v.as_i64())

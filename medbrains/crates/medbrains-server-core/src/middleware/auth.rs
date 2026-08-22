@@ -231,6 +231,7 @@ async fn hydrate_permissions(db: &PgPool, claims: &mut Claims) -> Result<(), App
 /// device-authenticated traffic. Cheaper than the alternative, which is a lost
 /// tablet keeping API access for the rest of its token's life.
 async fn verify_device_not_revoked(db: &PgPool, claims: &Claims) -> Result<(), AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(db, &claims.tenant_id).await?;
     let Some(device_id) = claims.paired_device_id else {
         return Ok(());
     };
@@ -243,7 +244,7 @@ async fn verify_device_not_revoked(db: &PgPool, claims: &Claims) -> Result<(), A
     )
     .bind(device_id)
     .bind(claims.tenant_id)
-    .fetch_optional(db)
+    .fetch_optional(&mut *conn)
     .await?;
 
     if device_admitted(live) {
@@ -270,6 +271,7 @@ const fn device_admitted(live: Option<bool>) -> bool {
 /// Returns `Unauthorized` if the token is outdated, missing a permission
 /// version, or references a user row that no longer exists.
 async fn verify_perm_version(db: &PgPool, claims: &Claims) -> Result<(), AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(db, &claims.tenant_id).await?;
     if claims.perm_version <= 0 {
         return Err(AppError::Unauthorized);
     }
@@ -279,7 +281,7 @@ async fn verify_perm_version(db: &PgPool, claims: &Claims) -> Result<(), AppErro
         claims.sub,
         claims.tenant_id
     )
-    .fetch_optional(db)
+    .fetch_optional(&mut *conn)
     .await?;
 
     match current {

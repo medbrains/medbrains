@@ -594,13 +594,16 @@ pub async fn preview_cost(
 }
 
 async fn lookup_setting_decimal(state: &AppState, tenant_id: &Uuid, key: &str) -> Option<Decimal> {
+    // Returns Option: no connection is the same as no setting, which is what
+    // every caller already handles.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, tenant_id).await.ok()?;
     let val: Option<Value> = sqlx::query_scalar(
         "SELECT value FROM tenant_settings \
          WHERE tenant_id = $1 AND key = $2 LIMIT 1",
     )
     .bind(tenant_id)
     .bind(key)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await
     .ok()
     .flatten();
