@@ -1120,6 +1120,8 @@ fn main() -> anyhow::Result<()> {
         },
     );
     redirect_service.add_tcp(&format!("0.0.0.0:{}", cfg.http_port()));
+    // IPv6 as well, for the same reason as the TLS listener below.
+    redirect_service.add_tcp(&format!("[::]:{}", cfg.http_port()));
 
     let proxy = MedBrainsProxy::from_config(&cfg)?;
     let mut https_service = http_proxy_service(&server.configuration, proxy);
@@ -1134,7 +1136,22 @@ fn main() -> anyhow::Result<()> {
         .ok_or_else(|| anyhow::anyhow!("TLS route missing key_path"))?;
     let tls = TlsSettings::intermediate(cert, key)
         .map_err(|e| anyhow::anyhow!("failed to initialize TLS: {e}"))?;
+    // Both stacks, not just IPv4.
+    //
+    // `localhost` and `*.localhost` resolve to `::1` *and* `127.0.0.1`, and an
+    // iOS simulator tries the IPv6 address first. With only `0.0.0.0` bound
+    // that first attempt is refused, and whether the request succeeds depends
+    // on how quickly the client falls back — so the mobile apps reached the dev
+    // stack intermittently and the failures looked like anything but a missing
+    // listener. A Detox run spent an hour being diagnosed as a scrolling
+    // problem before somebody read the device log and found
+    // `nw_socket_handle_socket_event ... ::1.443 ... Connection refused`.
+    //
+    // TlsSettings is not Clone, so the second listener builds its own.
+    let tls_v6 = TlsSettings::intermediate(cert, key)
+        .map_err(|e| anyhow::anyhow!("failed to initialize TLS for IPv6: {e}"))?;
     https_service.add_tls_with_settings(&format!("0.0.0.0:{}", cfg.https_port()), None, tls);
+    https_service.add_tls_with_settings(&format!("[::]:{}", cfg.https_port()), None, tls_v6);
 
     server.add_service(redirect_service);
     server.add_service(https_service);
