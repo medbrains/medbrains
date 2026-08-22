@@ -59,8 +59,19 @@ fn colour_enabled() -> bool {
 
 /// Whether the stream being written to can show colour.
 ///
-/// `NO_COLOR` is checked first and wins: it is the de facto opt-out, and
-/// somebody who sets it has already decided.
+/// Three answers, in order.
+///
+/// `NO_COLOR` wins: it is the de facto opt-out and somebody who set it has
+/// already decided.
+///
+/// Then `FORCE_COLOR` / `CLICOLOR_FORCE`, which exist for exactly the case
+/// that made this necessary. Running under a dev process manager — turbo,
+/// concurrently, `pnpm dev` — the server's stdout is a pipe, so asking the
+/// terminal correctly answers "no" and the logs come out grey while the
+/// tooling itself is still in colour. The runner is the thing that knows a
+/// human is watching; this lets it say so.
+///
+/// Otherwise: ask.
 #[must_use]
 pub fn terminal_supports_colour() -> bool {
     use std::io::IsTerminal as _;
@@ -68,7 +79,24 @@ pub fn terminal_supports_colour() -> bool {
     if std::env::var_os("NO_COLOR").is_some() {
         return false;
     }
+    if forced("FORCE_COLOR") || forced("CLICOLOR_FORCE") {
+        return true;
+    }
     std::io::stdout().is_terminal()
+}
+
+/// Whether an override is set to something other than an explicit "0".
+///
+/// `FORCE_COLOR=0` means off, and treating a set-but-zero variable as "on"
+/// would make the documented way to disable it turn it on.
+fn forced(name: &str) -> bool {
+    match std::env::var(name) {
+        Ok(value) => {
+            let value = value.trim();
+            !value.is_empty() && value != "0" && !value.eq_ignore_ascii_case("false")
+        }
+        Err(_) => false,
+    }
 }
 
 /// The ANSI colour a status is shown in, or `None` for the ones that are not
@@ -208,6 +236,25 @@ mod tests {
             assert_eq!(shown, code.to_string());
             assert!(!shown.contains('\u{1b}'), "escape code leaked: {shown:?}");
         }
+    }
+
+    #[test]
+    fn an_override_of_zero_means_off_not_on() {
+        // `FORCE_COLOR=0` is the documented way to turn it off. Treating any
+        // set value as "on" would make that switch it on.
+        assert!(!forced_value("0"));
+        assert!(!forced_value("false"));
+        assert!(!forced_value(""));
+        assert!(!forced_value("   "));
+        assert!(forced_value("1"));
+        assert!(forced_value("true"));
+        assert!(forced_value("always"));
+    }
+
+    /// The same rule `forced` applies, without touching the environment.
+    fn forced_value(value: &str) -> bool {
+        let value = value.trim();
+        !value.is_empty() && value != "0" && !value.eq_ignore_ascii_case("false")
     }
 
     #[test]
