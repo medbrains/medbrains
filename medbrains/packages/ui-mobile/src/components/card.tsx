@@ -6,6 +6,7 @@
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import { Card as PaperCard, Text } from "react-native-paper";
+import { mint, rose, sky, violet } from "@medbrains/design-system/tokens";
 import { COLORS, RADIUS, SPACING } from "../tokens.js";
 import type { IntentTone } from "../tokens.js";
 
@@ -115,34 +116,34 @@ const CARD_PATTERNS: Record<CardPattern, CardPatternStyle> = {
     stops: [COLORS.navActiveBg, COLORS.tint, COLORS.panel],
   },
   aqua: {
-    background: "#F9FCFF",
+    background: COLORS.canvas,
     accent: COLORS.brand,
     stops: [COLORS.navActiveBg, COLORS.tint, COLORS.panel],
   },
   sky: {
-    background: "#F8FBFF",
+    background: COLORS.canvas,
     accent: COLORS.brand,
-    stops: ["#E0F2FE", COLORS.tint, COLORS.navActiveBg],
+    stops: [sky[0], COLORS.tint, COLORS.navActiveBg],
   },
   copper: {
-    background: "#FFFBFA",
+    background: COLORS.canvas,
     accent: COLORS.copper,
-    stops: [COLORS.accentMuted, "#FBC8C0", COLORS.navActiveBg],
+    stops: [COLORS.accentMuted, rose[1], COLORS.navActiveBg],
   },
   violet: {
-    background: "#FBFAFF",
-    accent: "#8b5cf6",
-    stops: ["#EFEEFF", "#D7D5FF", COLORS.tint],
+    background: COLORS.canvas,
+    accent: violet[5],
+    stops: [violet[0], violet[1], COLORS.tint],
   },
   success: {
-    background: "#F8FFFC",
+    background: COLORS.canvas,
     accent: COLORS.emerald,
-    stops: ["#D1FAE5", "#B4F1DC", COLORS.navActiveBg],
+    stops: [mint[0], mint[1], COLORS.navActiveBg],
   },
   alert: {
-    background: "#FFFAFA",
+    background: COLORS.canvas,
     accent: COLORS.red,
-    stops: ["#FEE2E2", "#FFE5E3", COLORS.accentMuted],
+    stops: [rose[0], rose[1], COLORS.accentMuted],
   },
 };
 

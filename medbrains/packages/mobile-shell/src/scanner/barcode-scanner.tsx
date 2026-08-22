@@ -17,6 +17,7 @@
  *     setting buried elsewhere.
  */
 
+import { ink } from "@medbrains/design-system/tokens";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import type { BarcodeType } from "expo-camera";
 import type { ReactNode } from "react";
@@ -216,14 +217,14 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   instructions: { gap: 4 },
-  overlayTitle: { color: "#ffffff", fontWeight: "700" },
-  overlayHint: { color: "#ffffff", opacity: 0.85 },
+  overlayTitle: { color: ink[0], fontWeight: "700" },
+  overlayHint: { color: ink[0], opacity: 0.85 },
   reticle: {
     alignSelf: "center",
     width: "78%",
     aspectRatio: 1.4,
     borderWidth: 3,
-    borderColor: "#ffffff",
+    borderColor: ink[0],
     borderRadius: 4,
   },
   controls: {

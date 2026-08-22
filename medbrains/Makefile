@@ -1,4 +1,4 @@
-.PHONY: detox-staff detox-staff-build maestro maestro-camp maestro-staff help dev dev-watch dev-fast dev-icd dev-backend dev-frontend dev-simulator-admin db db-stop db-reset db-icd \
+.PHONY: check-mobile-tokens detox-staff detox-staff-build maestro maestro-camp maestro-staff help dev dev-watch dev-fast dev-icd dev-backend dev-frontend dev-simulator-admin db db-stop db-reset db-icd \
        sim-hospital sim-hospital-batch sim-hospital-clean \
        local-https-cert dev-proxy dev-https \
        build build-backend build-frontend \
@@ -518,6 +518,9 @@ maestro-camp: ## Maestro flows for the camp app (needs a booted device + backend
 maestro-staff: ## Maestro flows for the staff app (needs a booted device + backend)
 	maestro test .maestro/staff-mobile-nurse-calls.yaml .maestro/staff-mobile-bcma.yaml \
 		.maestro/staff-mobile-opd-queue.yaml .maestro/staff-mobile-reception-call-next.yaml
+
+check-mobile-tokens: ## Device UI: colour from Carbon tokens, no colour-valued React keys
+	python3 scripts/check_mobile_design_tokens.py
 
 detox-staff-build: ## Build the staff app for Detox (iOS simulator, debug)
 	pnpm --filter @medbrains/mobile-staff e2e:build

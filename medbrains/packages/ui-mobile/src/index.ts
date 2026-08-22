@@ -32,5 +32,6 @@ export {
   workflowSignalColors,
   workflowSignalShapeStyle,
 } from "./components/workflow-signal-shape-style.js";
+export * from "./surface.js";
 export type { IntentTone } from "./tokens.js";
 export { APP_BAR, COLORS, INTENT_BG, INTENT_FG, OVERSCAN, RADIUS, SPACING } from "./tokens.js";

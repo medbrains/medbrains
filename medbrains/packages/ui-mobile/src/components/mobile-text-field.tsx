@@ -79,7 +79,7 @@ export function MobileTextField({
           },
           outlineStyle,
         ]}
-        placeholderTextColor={placeholderTextColor ?? "#64748b"}
+        placeholderTextColor={placeholderTextColor ?? COLORS.muted}
         selectionColor={COLORS.navActiveBg}
         style={[
           {

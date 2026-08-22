@@ -48,6 +48,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.6",
+    "@medbrains/e2e-mobile": "workspace:*",
     "@types/jest": "^29.5.14",
     "@types/react": "~19.1.10",
     "detox": "^20.51.4",
