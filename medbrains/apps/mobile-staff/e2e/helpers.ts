@@ -1,4 +1,4 @@
-import { by, element, expect as detoxExpect, waitFor } from "detox";
+import { by, device, element, expect as detoxExpect, waitFor } from "detox";
 
 /**
  * How long a first paint is allowed to take on a cold simulator.
@@ -39,6 +39,22 @@ export const LAST_ITEM_VISIBILITY = 50;
 
 export async function waitForId(id: string, timeout = VISIBLE_TIMEOUT): Promise<void> {
   await waitFor(element(by.id(id))).toBeVisible().withTimeout(timeout);
+}
+
+/**
+ * A named frame in the run's filmstrip.
+ *
+ * Detox already snapshots every test start and end, but those are named after
+ * the test. A journey wants frames named after what the desk just did —
+ * `02-registered`, `04-token-issued` — so somebody reviewing the run can see
+ * the sequence without reading the spec. Numbered because artifact directories
+ * sort lexically and a journey out of order is not a journey.
+ *
+ * Cheap enough to call freely: `device.takeScreenshot` is a simulator capture,
+ * not a round trip to the app.
+ */
+export async function frame(name: string): Promise<void> {
+  await device.takeScreenshot(name);
 }
 
 /** Wait for a screen, by its stable id. */

@@ -26,12 +26,17 @@ export function PatientListScreen(): ReactNode {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.canvas }}>
       <ScreenHeader
+        testID="screen-patient-directory"
         eyebrow="RECEPTION"
         title="Patient directory"
         description="Search by UHID, name, or phone."
       />
       <View style={{ padding: SPACING.md, paddingBottom: 0 }}>
         <TextInput
+          testID="patient-search"
+          // A search box with only a placeholder is unlabelled to a screen
+          // reader the moment anything is typed into it.
+          accessibilityLabel="Search patients by UHID, name or phone"
           mode="outlined"
           placeholder="Search…"
           value={search}
@@ -74,6 +79,7 @@ function PatientRowView({ row, onPress }: { row: PatientRow; onPress: () => void
   return (
     <View style={{ marginBottom: SPACING.sm }}>
       <EntityRow
+        testID={`patient-row-${row.uhid}`}
         title={name}
         subtitle={`UHID ${row.uhid}${row.phone ? ` \u00b7 ${row.phone}` : ""}`}
         badge={row.is_active ? undefined : { label: "inactive", tone: "alert" }}

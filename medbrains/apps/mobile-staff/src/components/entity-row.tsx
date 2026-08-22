@@ -14,6 +14,8 @@ const MIN_TOUCH_TARGET = 44;
 
 export interface EntityRowProps {
   title: string;
+  /** A stable handle for end-to-end tests. Rows are matched by id, not title. */
+  testID?: string;
   subtitle?: string;
   badge?: { label: string; tone?: IntentTone };
   accent?: boolean;
@@ -25,6 +27,7 @@ export function EntityRow({
   title,
   subtitle,
   badge,
+  testID,
   accent = false,
   trailing,
   onPress,
@@ -76,6 +79,7 @@ export function EntityRow({
   // open a patient at all.
   return (
     <TouchableRipple
+      testID={testID}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={subtitle ? `${title}. ${subtitle}` : title}

@@ -1036,6 +1036,40 @@ pub async fn create_encounter(
     }
     medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
+    // The unified token, without which this visit is invisible.
+    //
+    // `opd_queues` above is the clinic's own row and no board reads it — the
+    // waiting-room displays, the front-office console and the doctor's screens
+    // all moved to `tokens`. A patient registered through this endpoint
+    // therefore joined a queue nobody was watching: not on the wall, not on the
+    // desk, and not in the list the doctor calls from. Appointment check-in has
+    // always issued one; walk-in registration never did.
+    //
+    // Joins the visit the patient already has if they were registered earlier
+    // today, so one person carries one number through OPD, lab and pharmacy
+    // rather than collecting a fresh one at every counter.
+    let visit_id = medbrains_tokens::current_visit(&mut tx, encounter.patient_id)
+        .await?
+        .or_else(|| Some(Uuid::new_v4()));
+    medbrains_tokens::issue_token_in_tx(
+        &mut tx,
+        claims.tenant_id,
+        medbrains_tokens::IssueToken {
+            visit_id,
+            module: "opd",
+            scope: "department",
+            scope_id: encounter.department_id,
+            scope_label: None,
+            priority: "normal",
+            patient_id: Some(encounter.patient_id),
+            patient_name: None,
+            entity_type: Some("encounter"),
+            entity_id: Some(encounter.id),
+            issued_by: Some(claims.sub),
+        },
+    )
+    .await?;
+
     tx.commit().await?;
 
     // Link the encounter's care team so per-encounter reads resolve (ReBAC).

@@ -34,3 +34,43 @@ export async function listMyAppointments(
   const qs = new URLSearchParams({ doctor_id: doctorId, date });
   return request<AppointmentRow[]>(apiConfig, "GET", `/api/opd/appointments?${qs}`);
 }
+
+// ── Starting an OPD visit ──────────────────────────────────
+// Wire shape mirrors `crates/medbrains-opd/src/lib.rs`.
+
+export interface StartVisitPayload {
+  patient_id: string;
+  department_id: string;
+  doctor_id?: string;
+  chief_complaint?: string;
+  visit_type?: string;
+}
+
+export interface StartedVisit {
+  encounter: {
+    id: string;
+    patient_id: string;
+    department_id: string | null;
+    doctor_id: string | null;
+    status: string;
+    encounter_date: string;
+  };
+  queue: {
+    id: string;
+    token_number: number;
+    status: string;
+    queue_date: string;
+  };
+}
+
+/**
+ * Register a walk-in for OPD: opens the encounter, puts them in the clinic's
+ * queue and issues the token the boards read.
+ *
+ * One call, because at a desk it is one act. The three records it writes are
+ * an implementation detail of the hospital, not a sequence a receptionist
+ * should have to complete by hand while somebody waits.
+ */
+export async function startOpdVisit(payload: StartVisitPayload): Promise<StartedVisit> {
+  return request<StartedVisit>(apiConfig, "POST", "/api/opd/encounters", payload);
+}

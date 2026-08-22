@@ -18,6 +18,7 @@ import { PatientDetailScreen } from "./reception/patient-detail.js";
 import { PatientListScreen } from "./reception/patient-list.js";
 import { QueueBoardScreen } from "./reception/queue-board.js";
 import { RegisterPatientScreen } from "./reception/register-patient.js";
+import { StartVisitScreen } from "./reception/start-visit.js";
 import { VisitorDeskScreen } from "./reception/visitor-desk.js";
 
 function ReceptionHome(): ReactNode {
@@ -89,6 +90,7 @@ function ReceptionScreen(): ReactNode {
         register: <RegisterPatientScreen />,
         directory: <PatientListScreen />,
         "patient-detail": (payload) => <PatientDetailScreen patient={payload as PatientRow} />,
+        "start-visit": (payload) => <StartVisitScreen patient={payload as PatientRow} />,
         "queue-board": <QueueBoardScreen />,
         "visitor-desk": <VisitorDeskScreen />,
         "enquiry-desk": <EnquiryDeskScreen />,
