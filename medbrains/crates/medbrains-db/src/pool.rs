@@ -62,6 +62,32 @@ pub async fn create_pool_with_config(
         .acquire_timeout(config.acquire_timeout)
         .idle_timeout(Some(config.idle_timeout))
         .max_lifetime(Some(config.max_lifetime))
+        // Clear the request's identity before the connection is reused.
+        //
+        // Without this, a session-level `app.tenant_id` outlives the request
+        // that set it and is inherited by whoever gets the connection next.
+        // That is worse than having no context at all: no context returns
+        // nothing and is obvious, while a stale one returns another hospital's
+        // rows and looks entirely normal.
+        //
+        // `RESET` rather than setting an empty string, so a connection that
+        // has never carried a tenant and one that has are indistinguishable.
+        .after_release(|conn, _meta| {
+            Box::pin(async move {
+                sqlx::query(
+                    "RESET app.tenant_id; \
+                     RESET app.user_id; \
+                     RESET app.user_department_ids; \
+                     RESET app.ip_address; \
+                     RESET app.user_agent; \
+                     RESET app.session_id; \
+                     RESET app.correlation_id",
+                )
+                .execute(&mut *conn)
+                .await?;
+                Ok(true)
+            })
+        })
         .connect_with(connect_options)
         .await?;
 
@@ -75,6 +101,36 @@ pub async fn create_pool_with_config(
         "PostgreSQL connection pool established"
     );
     Ok(pool)
+}
+
+/// A pooled connection carrying this tenant's identity for as long as it is
+/// held.
+///
+/// The reason this exists: `set_config(..., true)` is transaction-local, so
+/// the context every handler sets applies only inside its own transaction. A
+/// query run straight on the pool — `.fetch_all(pool)` — carries no tenant at
+/// all, and under row level security returns nothing. Not an error, not a
+/// warning: an empty list, which reads as "this hospital has no patients".
+///
+/// So a read that is not already inside a scoped transaction takes one of
+/// these instead of the pool, and stays correct whether row level security is
+/// enforced or not.
+///
+/// Safe because the pool resets `app.*` when the connection is released — see
+/// `create_pool_with_config`. Without that, this would leak one request's
+/// tenant into the next.
+pub async fn tenant_conn(
+    pool: &PgPool,
+    tenant_id: &uuid::Uuid,
+) -> Result<sqlx::pool::PoolConnection<Postgres>, DbError> {
+    let mut conn = pool.acquire().await?;
+    // `false` — session level. A transaction-local setting would expire at the
+    // end of the first statement, which is exactly the bug this avoids.
+    sqlx::query("SELECT set_config('app.tenant_id', $1, false)")
+        .bind(tenant_id.to_string())
+        .execute(&mut *conn)
+        .await?;
+    Ok(conn)
 }
 
 /// Run embedded `SQLx` migrations.
