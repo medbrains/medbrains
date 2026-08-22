@@ -1,3 +1,6 @@
+pub mod compliance;
+pub mod norms;
+
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 

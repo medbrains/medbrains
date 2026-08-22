@@ -12,6 +12,12 @@ rust-version = "1.85"
 # than inside it costs one dependency edge and stops 10 consumers' worth of
 # compliance code from dirtying everyone else's build.
 [dependencies]
+chrono = { workspace = true }
+serde = { workspace = true }
+tracing = { workspace = true }
 medbrains-server-core = { path = "../medbrains-server-core" }
 sqlx = { workspace = true }
 uuid = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
