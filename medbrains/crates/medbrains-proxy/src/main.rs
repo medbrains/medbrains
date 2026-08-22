@@ -533,9 +533,14 @@ impl ProxyHttp for MedBrainsProxy {
     where
         Self::CTX: Send + Sync,
     {
+        // `X-Forwarded-For` carries an address, not a socket address. Sending
+        // `addr.to_string()` shipped the port with it, and the bracketed IPv6
+        // form `[::1]:5678` is not a value the backend can bind to an `inet`
+        // column -- it 400s the login it is meant to be annotating.
         let ip = session
             .client_addr()
-            .map(|addr| addr.to_string())
+            .and_then(|addr| addr.as_inet())
+            .map(|addr| addr.ip().to_string())
             .unwrap_or_default();
 
         strip_untrusted_proxy_headers(req);

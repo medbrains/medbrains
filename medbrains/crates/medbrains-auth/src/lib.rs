@@ -346,7 +346,7 @@ pub async fn login(
                 return Ok(Json(serde_json::json!({ "mfa_required": true })).into_response());
             }
             Some(code) => {
-                if !medbrains_mfa::verify_mfa_code(&state.db, row.id, code).await? {
+                if !medbrains_mfa::verify_mfa_code(&state.db, row.tenant_id, row.id, code).await? {
                     record_failed_login(&state, row.id, row.tenant_id).await?;
                     return Err(AppError::Unauthorized);
                 }
