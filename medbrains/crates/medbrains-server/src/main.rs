@@ -84,6 +84,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Run migrations
     medbrains_db::pool::run_migrations(&db_pool).await?;
 
+    // A second pool for the background workers.
+    //
+    // They are the one part of the server with no request to take a tenant
+    // from: the outbox drains one queue for every hospital, and the escalation
+    // passes have to find overdue work wherever it is before they can act on
+    // it per tenant. Under row level security a discovery query on the request
+    // pool finds nothing — not an error, an empty list, so the pass runs,
+    // reports success and escalates nobody.
+    //
+    // `WORKER_DATABASE_URL` should name a role that bypasses row level
+    // security; migration 0984 creates `medbrains_outbox_worker` for exactly
+    // this. Unset, this is the request pool, which is right for a development
+    // machine and wrong the moment the application stops being a superuser.
+    let worker_pool = match std::env::var("WORKER_DATABASE_URL") {
+        Ok(url) if !url.trim().is_empty() => {
+            let pool = medbrains_db::pool::create_pool_with_config(&url, &pool_config).await?;
+            tracing::info!("background workers have their own pool");
+            pool
+        }
+        _ => {
+            tracing::warn!(
+                "WORKER_DATABASE_URL unset — background workers share the request pool. \
+                 Set it to a BYPASSRLS role (see migration 0984) before the application \
+                 stops connecting as a superuser, or every background pass will quietly \
+                 find nothing to do."
+            );
+            db_pool.clone()
+        }
+    };
+
     // Build JWT keys from Ed25519 PEM/base64
     let encoding_key = EncodingKey::from_ed_der(&decode_b64_or_pem(&config.jwt_private_key_pem)?);
     let decoding_key = DecodingKey::from_ed_der(&decode_b64_or_pem(&config.jwt_public_key_pem)?);
@@ -449,8 +479,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = medbrains_ai::AI_ROUTER.set(app.clone());
 
     // Start orchestration background tasks
-    orchestration::jobs::start_job_worker(db_pool.clone());
-    orchestration::scheduler::start_scheduler(db_pool.clone());
+    orchestration::jobs::start_job_worker(worker_pool.clone());
+    orchestration::scheduler::start_scheduler(worker_pool.clone());
 
     // Sprint A.8 — start outbox worker. In production the worker should
     // connect with the BYPASSRLS `medbrains_outbox_worker` role; for local
@@ -482,7 +512,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
 
         let outbox_worker =
-            medbrains_outbox::Worker::new(db_pool.clone(), outbox_registry, worker_config);
+            medbrains_outbox::Worker::new(worker_pool.clone(), outbox_registry, worker_config);
         let _shutdown_tx = outbox_worker.spawn();
         tracing::info!("outbox worker spawned");
     }
@@ -497,19 +527,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Room-rent auto-billing — hourly idempotent pass posting one
     // bed charge per occupied admission per hospital-local day.
-    medbrains_server::services::room_rent::spawn(db_pool.clone());
+    medbrains_server::services::room_rent::spawn(worker_pool.clone());
 
     // Appointment reminders — 5-min pass enqueuing outbox SMS events
     // for appointments entering their reminder windows.
-    medbrains_server::services::appointment_reminders::spawn(db_pool.clone());
+    medbrains_server::services::appointment_reminders::spawn(worker_pool.clone());
 
     // Critical-value escalation — unacknowledged lab alerts escalate
     // to the doctor's supervisor after the tenant's ack window.
-    medbrains_server::services::critical_alert_escalation::spawn(db_pool.clone());
+    medbrains_server::services::critical_alert_escalation::spawn(worker_pool.clone());
 
     // Verbal/telephone order countersignature escalation — overdue orders
     // notify the prescriber + supervisor (NABH medication safety).
-    medbrains_server::services::verbal_order_escalation::spawn(db_pool.clone());
+    medbrains_server::services::verbal_order_escalation::spawn(worker_pool.clone());
 
     // Retention enforcement — daily housekeeping purges + MRD
     // destruction-due flagging (MEDBRAINS_RETENTION_DRY_RUN=true to preview).

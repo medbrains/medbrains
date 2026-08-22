@@ -55,7 +55,6 @@ use axum::routing::{get, post, put};
 use medbrains_server_core::state::AppState;
 
 /// Marketing routes.
-#[must_use]
 pub fn router() -> Router<AppState> {
     Router::new()
         .route(

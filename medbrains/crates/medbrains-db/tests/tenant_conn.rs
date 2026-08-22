@@ -319,3 +319,78 @@ async fn a_deleted_group_stops_sharing_anything() {
     assert_eq!(after_deleting, 1, "a deleted group carried on sharing records");
     assert_eq!(admin_after, 1, "a deleted group still answered for group scope");
 }
+
+// ========================================================== the two roles
+
+/// Connect as a named role, or skip when the deployment has not created it.
+async fn as_role(role: &str) -> Option<sqlx::PgPool> {
+    sqlx::PgPool::connect(&format!(
+        "postgres://{role}:medbrains_dev@localhost:5435/medbrains"
+    ))
+    .await
+    .ok()
+}
+
+#[tokio::test]
+#[ignore = "needs-pg"]
+async fn the_request_role_sees_nothing_without_a_tenant_and_the_worker_role_sees_everything() {
+    // The two halves of the same decision, and the reason there are two roles.
+    //
+    // A request always knows which hospital it is for, so the request role is
+    // held to it: a query that forgets returns nothing, loudly wrong rather
+    // than quietly broad.
+    //
+    // A background pass does not. The outbox drains one queue for every
+    // hospital and the escalation passes have to find overdue work before they
+    // can act on it per tenant. On the request role their discovery query
+    // returns an empty list — so the pass runs, reports success, and escalates
+    // nobody.
+    let (Some(app), Some(worker)) = (as_role("medbrains_app").await, as_role("medbrains_outbox_worker").await)
+    else {
+        eprintln!("both roles are needed for this test — skipping");
+        return;
+    };
+
+    let blind: i64 = sqlx::query_scalar("SELECT count(*) FROM patients")
+        .fetch_one(&app)
+        .await
+        .expect("count");
+    let sighted: i64 = sqlx::query_scalar("SELECT count(*) FROM patients")
+        .fetch_one(&worker)
+        .await
+        .expect("count");
+
+    assert_eq!(blind, 0, "the request role read rows without claiming a tenant");
+    assert!(
+        sighted > 0,
+        "the worker role could not see across tenants — background passes would find nothing"
+    );
+}
+
+#[tokio::test]
+#[ignore = "needs-pg"]
+async fn neither_working_role_is_a_superuser() {
+    // A superuser bypasses row level security for a different reason than the
+    // worker role does, and would take the request role with it.
+    let Some(admin) = as_role("medbrains").await else {
+        eprintln!("dev database unavailable — skipping");
+        return;
+    };
+
+    let rows: Vec<(String, bool, bool)> = sqlx::query_as(
+        "SELECT rolname, rolsuper, rolbypassrls FROM pg_roles
+          WHERE rolname IN ('medbrains_app', 'medbrains_outbox_worker')",
+    )
+    .fetch_all(&admin)
+    .await
+    .expect("read the roles");
+
+    for (name, superuser, bypass) in rows {
+        assert!(!superuser, "{name} is a superuser");
+        if name == "medbrains_app" {
+            assert!(!bypass, "the request role bypasses row level security");
+        } else {
+            assert!(bypass, "the worker role cannot see across tenants");
+        }
+    }
+}
