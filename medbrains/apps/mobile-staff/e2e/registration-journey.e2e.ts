@@ -3,9 +3,10 @@ import { by, device, element, expect as detoxExpect, waitFor } from "detox";
 import {
   awaitScreen,
   COLD_START_TIMEOUT,
+  assertScreen,
   frame,
-  LAST_ITEM_VISIBILITY,
   signIn,
+  tapAtFormEnd,
   tapId,
   tapIdScrollingIn,
 } from "./helpers";
@@ -56,22 +57,26 @@ describe("walk-in registration journey", () => {
 
   it("registers the patient", async () => {
     await tapId("module-action-register");
-    await awaitScreen("screen-register-patient");
+    // The screen, not an element on it: the header alone would be satisfied by
+    // a half-rendered form.
+    await assertScreen("screen-register-patient", [
+      "register-patient-form",
+      "field-first_name",
+      "field-last_name",
+    ]);
     await frame("01-registration-form");
 
+    // Phone before the names, so the last field typed into has a return key.
+    // A phone-pad keyboard has none, and `tapReturnKey` on it silently does
+    // nothing — leaving the keyboard up, the form shrunk around it, and the
+    // submit permanently below the fold.
+    await element(by.id("field-phone")).typeText("9876500000");
     await element(by.id("field-first_name")).typeText(firstName);
     await element(by.id("field-last_name")).typeText(lastName);
-    await element(by.id("field-phone")).typeText("9876500000");
-    // Drag to dismiss the keyboard: it covers the lower half, and the form is
-    // keyboard-avoiding, so the submit is underneath until it is gone.
-    await element(by.id("register-patient-form")).swipe("up", "slow");
-
-    await waitFor(element(by.id("register-patient-submit")))
-      .toBeVisible(LAST_ITEM_VISIBILITY)
-      .whileElement(by.id("register-patient-form"))
-      .scroll(240, "down");
     await frame("02-details-entered");
-    await element(by.id("register-patient-submit")).tap();
+    await tapAtFormEnd("register-patient-submit", "register-patient-form", {
+      dismissKeyboardFrom: "field-last_name",
+    });
 
     // Registration lands on the patient, which is the desk's confirmation that
     // a UHID exists.
@@ -105,14 +110,23 @@ describe("walk-in registration journey", () => {
     await element(by.text(`${firstName} ${lastName}`)).tap();
     await awaitScreen("screen-patient-detail");
     await tapId("patient-start-visit");
-    await awaitScreen("screen-start-visit");
-
-    // A department is a foreign key, so it is chosen from real rows the server
-    // returned — the spec cannot know their ids in advance, so it takes the
-    // first the desk is offered.
+    await assertScreen("screen-start-visit", ["start-visit-form"]);
     await frame("06-opd-registration");
-    await waitFor(element(by.id("start-visit-submit"))).toExist().withTimeout(20_000);
-    await element(by.id("start-visit-form")).swipe("up", "slow");
-    await frame("07-departments-offered");
+
+    // The first department the server offered. A spec cannot know the ids in
+    // advance, and which department a walk-in is sent to is not what this
+    // journey is about — that a token comes back is.
+    await tapId("start-visit-department-0");
+    await frame("07-department-chosen");
+
+    await tapAtFormEnd("start-visit-submit", "start-visit-form");
+
+    // The token is the point of the whole journey: it is what the patient is
+    // handed and what the waiting-room board shows. Asserting the screen
+    // rendered would have let this pass without one, which it did.
+    await waitFor(element(by.id("start-visit-token")))
+      .toBeVisible()
+      .withTimeout(20_000);
+    await frame("08-token-issued");
   });
 });

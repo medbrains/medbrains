@@ -63,6 +63,29 @@ export async function awaitScreen(testID: string, timeout = VISIBLE_TIMEOUT): Pr
 }
 
 /**
+ * Assert a screen is the one expected, by more than a single element.
+ *
+ * `awaitScreen` proves one id exists somewhere. That is weaker than it reads:
+ * a screen half-rendered, or the right header over the wrong body, satisfies
+ * it. Naming the header *and* what the screen is for makes the assertion about
+ * the screen rather than about an element that happens to be on it.
+ *
+ * This is still not a check that the screen *looks* right — no matcher-based
+ * runner does that, Maestro included. Visual drift needs a baseline image, and
+ * the automatic frames this suite captures are what a human reviews meanwhile.
+ */
+export async function assertScreen(
+  screenID: string,
+  mustAlsoShow: readonly string[],
+  timeout = VISIBLE_TIMEOUT,
+): Promise<void> {
+  await waitForId(screenID, timeout);
+  for (const id of mustAlsoShow) {
+    await detoxExpect(element(by.id(id))).toExist();
+  }
+}
+
+/**
  * Scroll a container until the control is on screen, then tap it.
  *
  * `toBeVisible` means visible, not merely mounted, so an action near the
@@ -79,6 +102,60 @@ export async function tapIdScrollingIn(
     .toBeVisible(visiblePercent)
     .whileElement(by.id(containerID))
     .scroll(240, "down");
+  await element(by.id(testID)).tap();
+}
+
+/**
+ * Tap the control at the end of a scrollable form.
+ *
+ * Two separate problems, and conflating them cost several red runs.
+ *
+ * The keyboard is dismissed with the return key, not a swipe. A swipe usually
+ * works and sometimes does not, which made this spec pass one run and fail the
+ * next on unchanged code — worse than a failure, because a suite nobody trusts
+ * gets ignored. And it has to go down *before* the scroll: these forms are
+ * keyboard-avoiding, so while it is up the scroll view is shrunk around it and
+ * "the bottom" is the bottom of a shorter view.
+ *
+ * The scroll itself stays incremental. `scrollTo("bottom")` reads as the more
+ * deterministic idiom and lands mid-form on the long registration form, so the
+ * step-until-visible walk is the one that actually works here.
+ */
+export async function tapAtFormEnd(
+  testID: string,
+  formID: string,
+  options: { dismissKeyboardFrom?: string; timeout?: number } = {},
+): Promise<void> {
+  const { dismissKeyboardFrom } = options;
+  if (dismissKeyboardFrom) {
+    await element(by.id(dismissKeyboardFrom)).tapReturnKey();
+  }
+
+  // Swipe until the control is genuinely visible, then tap.
+  //
+  // Two wrong turns before this, both worth naming. `whileElement().scroll()`
+  // gives up after a bounded number of attempts and this form is six sections
+  // deep, so it ran out with the submit still below. Replacing it with
+  // try-tap-else-swipe was worse: `tap()` on a partially clipped element
+  // succeeds without pressing anything, so the loop returned happy having
+  // pressed nothing, and the failure surfaced three steps later as "the next
+  // screen never came".
+  //
+  // Checking visibility first is what distinguishes "reached it" from "matched
+  // it". The swipe is slow because a fast one carries momentum the scroll view
+  // bounces back from.
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      await detoxExpect(element(by.id(testID))).toBeVisible(LAST_ITEM_VISIBILITY);
+      await element(by.id(testID)).tap();
+      return;
+    } catch {
+      await element(by.id(formID)).swipe("up", "slow");
+    }
+  }
+  // Out of swipes: let the matcher raise the real error, which says more than
+  // anything invented here.
+  await detoxExpect(element(by.id(testID))).toBeVisible(LAST_ITEM_VISIBILITY);
   await element(by.id(testID)).tap();
 }
 

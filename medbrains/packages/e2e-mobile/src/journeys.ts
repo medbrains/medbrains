@@ -156,6 +156,43 @@ export const SURFACE_JOURNEYS: readonly SurfaceJourney[] = [
     spec: "front-office.e2e.ts",
   },
   {
+    id: "MJ-REC-005",
+    title: "Walk-in from the front door to a token",
+    actor: "receptionist",
+    surfaces: ["phone", "tablet"],
+    priority: "P0",
+    entryPoint: "reception module home",
+    exitPoint: "OPD token issued and read back to the patient",
+    assertions: [
+      "the patient exists afterwards and is findable by name",
+      "the detail screen offers the visit rather than dead-ending",
+      "a token comes back, which is the point of registering anybody",
+    ],
+    anchors: ["two patient identifiers", "OPD queue integrity"],
+    automationStatus: "candidate",
+    // Written and walks four of five steps; the submit tap is being finished
+    // now that the proxy's missing IPv6 listener is fixed. Listed candidate
+    // rather than automated because the catalogue's own test refuses a claim
+    // of "automated" that a run does not yet back.
+  },
+  {
+    id: "MJ-REC-006",
+    title: "The registration form is short enough to complete on a phone",
+    actor: "receptionist",
+    surfaces: ["phone"],
+    priority: "P2",
+    entryPoint: "register patient",
+    exitPoint: "submit reached without a scroll marathon",
+    assertions: [
+      "a walk-in can be registered without passing six sections",
+    ],
+    anchors: ["a desk registers people while they stand there"],
+    automationStatus: "backlog",
+    blockedOn:
+      "a product decision: the form is identity, referral, clinical ownership, " +
+      "ICD-11 search and safety flags, which is a desktop form on a handset",
+  },
+  {
     id: "MJ-REC-002",
     title: "Register a visitor and issue their pass",
     actor: "receptionist",
