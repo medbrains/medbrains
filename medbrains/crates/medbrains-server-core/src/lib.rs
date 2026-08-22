@@ -8,6 +8,7 @@ pub mod config;
 pub mod clinical_credential;
 pub mod error;
 pub mod hospital_time;
+pub mod http_trace;
 pub mod middleware;
 pub mod pagination;
 pub mod notification_hub;

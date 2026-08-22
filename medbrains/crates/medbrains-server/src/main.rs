@@ -39,14 +39,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load .env file (ignore if missing — production uses real env vars)
     let _ = dotenvy::dotenv();
 
-    // Initialize structured logging
+    // Initialize structured logging.
+    //
+    // Colour follows the terminal rather than being assumed: escape codes
+    // written to a redirected log follow the line into the file and have to be
+    // stripped before anything can read it.
+    let colour = medbrains_server_core::http_trace::terminal_supports_colour();
+    medbrains_server_core::http_trace::init_colour(colour);
+
     tracing_subscriber::registry()
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
             "medbrains_server=debug,tower_http=debug"
                 .parse()
                 .unwrap_or_default()
         }))
-        .with(tracing_subscriber::fmt::layer())
+        .with(tracing_subscriber::fmt::layer().with_ansi(colour))
         .init();
 
     // Load configuration
@@ -428,7 +435,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // on the wire. Picks the best algorithm from the request's
         // Accept-Encoding; passes through when the client offers none.
         .layer(CompressionLayer::new())
-        .layer(TraceLayer::new_for_http())
+        // Responses are logged at a level that matches their status, so a 5xx
+        // arrives in aggregation as an ERROR rather than as another INFO line
+        // among thousands.
+        .layer(
+            TraceLayer::new_for_http()
+                .on_response(medbrains_server_core::http_trace::on_response),
+        )
         .layer(SetRequestIdLayer::new(request_id_header(), MakeRequestUuid));
 
     // Make the finalized router available to the AI assistant's in-process read
