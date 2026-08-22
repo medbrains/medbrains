@@ -15,9 +15,11 @@ export type { EcgLoaderProps } from "./components/ecg-loader.js";
 export { EcgLoader } from "./components/ecg-loader.js";
 export type { EmptyProps } from "./components/empty.js";
 export { Empty } from "./components/empty.js";
+export type { FieldNavigatorProps } from "./components/field-navigator.js";
+export { FieldNavigator } from "./components/field-navigator.js";
 export type { FormScrollViewProps } from "./components/form-scroll-view.js";
 export { FormScrollView } from "./components/form-scroll-view.js";
-export type { MobileTextFieldProps } from "./components/mobile-text-field.js";
+export type { FocusableField, MobileTextFieldProps } from "./components/mobile-text-field.js";
 export { MobileTextField } from "./components/mobile-text-field.js";
 export type { WorkflowSignalMarkerProps } from "./components/workflow-signal-marker.js";
 export { WorkflowSignalMarker } from "./components/workflow-signal-marker.js";
@@ -32,6 +34,14 @@ export {
   workflowSignalColors,
   workflowSignalShapeStyle,
 } from "./components/workflow-signal-shape-style.js";
+export type { ChainKeyboard } from "./field-chain.js";
+export {
+  canChainByReturnKey,
+  needsDoneAccessory,
+  nextField,
+  returnKeyFor,
+  shouldKeepKeyboard,
+} from "./field-chain.js";
 export * from "./surface.js";
 export type { IntentTone } from "./tokens.js";
 export { APP_BAR, COLORS, INTENT_BG, INTENT_FG, OVERSCAN, RADIUS, SPACING } from "./tokens.js";

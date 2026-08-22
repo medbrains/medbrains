@@ -20,6 +20,8 @@ from `CLAUDE.md`; every UI PR must comply.
 | [CARBON-CONTENT-RULES.md](./CARBON-CONTENT-RULES.md) | Voice & tone, sentence case, error messages, clinical accuracy, inclusive/accessible content, i18n |
 | [DEVICE-CONSTRAINED-RULES.md](./DEVICE-CONSTRAINED-RULES.md) | **Low-end device "Power of Ten"** — TV/kiosk/mobile/IoT/edge: bound everything, zero leaks, virtualize lists, memory budgets, fail-safe, share-don't-copy |
 | [DEVICE-SURFACE-DESIGN-RULES.md](./DEVICE-SURFACE-DESIGN-RULES.md) | **Right design system per surface** — web=Carbon 2x-grid; mobile=Carbon-for-RN/Material+44px targets; TV=10-foot UI (D-pad focus, overscan 48/27dp, light-on-dark); kiosk=touch; IoT=minimal. Carbon brand tokens layered on every surface, never the web grid forced onto TV/mobile |
+| [MOBILE-FORM-KEYBOARD-RULES.md](./MOBILE-FORM-KEYBOARD-RULES.md) | **Power of Ten for forms** — keyboard per input type, visible labels (overrides Apple's placeholder-as-label), return-key traversal and where it cannot work (numeric has no return key, multi-line owns it), navigator bar, keyboard never covering the submit, validate-on-submit + never disable on validity, 44/48/64 targets, immediate feedback, save-and-add-next, never lose what was typed |
+| [PLATFORM-ACCESSIBILITY-RULES.md](./PLATFORM-ACCESSIBILITY-RULES.md) | **Power of Ten for native a11y** — iOS/Android/Android TV/webOS: names that say what they do, unique labels in lists, announced state, platform target floors, D-pad focus never trapped, Dynamic Type / fontScale, measured contrast, no auto-play, character-by-character TV entry, and the **no-look test** |
 
 Existing companions: [UI_GUIDELINES.md](./UI_GUIDELINES.md),
 [ACCESSIBILITY.md](./ACCESSIBILITY.md), [ui-plan-before-build.md](./ui-plan-before-build.md).
