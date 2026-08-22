@@ -228,10 +228,20 @@ impl Handler for SmsSendHandler {
             .http_client
             .post(&url)
             .basic_auth(&sid, Some(&token))
+            // The outbox retries on transient failures, and a retried send
+            // without this reaches the patient as a second message. Twilio
+            // deduplicates on this token, and the event id is exactly the
+            // right value: stable across every retry of one event, different
+            // for every other event.
+            .header("I-Idempotency-Token", ctx.event_id.to_string())
             .form(&form)
             .send()
             .await
-            .map_err(|e| HandlerError::Transient(format!("twilio http: {e}")))?;
+            .map_err(|e| {
+                // Named so an operator reading the dead-letter queue can tell a
+                // network failure from a refusal by Twilio.
+                HandlerError::Transient(format!("twilio network error (reqwest): {e}"))
+            })?;
 
         let status = resp.status();
         let body_text = resp
@@ -266,8 +276,19 @@ impl Handler for SmsSendHandler {
                 "status": twilio_status,
                 "dlt_template_id": dlt_lookup.template_id,
             }))
+        } else if status == reqwest::StatusCode::TOO_MANY_REQUESTS
+            || status == reqwest::StatusCode::REQUEST_TIMEOUT
+        {
+            // 429 and 408 are 4xx that mean "later", not "never". Dead-lettering
+            // a rate-limited send is how an appointment reminder or a login OTP
+            // is silently never delivered — the one failure a patient notices
+            // and nobody else does.
+            Err(HandlerError::Transient(format!(
+                "twilio {}: {body_text}",
+                status.as_u16()
+            )))
         } else if status.is_client_error() {
-            // 4xx — bad number, account suspended, body too long. DLQ.
+            // Other 4xx — bad number, account suspended, body too long. DLQ.
             Err(HandlerError::Permanent(format!(
                 "twilio {}: {body_text}",
                 status.as_u16()

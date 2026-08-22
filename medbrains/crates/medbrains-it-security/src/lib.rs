@@ -2708,7 +2708,19 @@ mod authz_coverage_tests {
             if SELF_SCOPED.contains(&name) {
                 continue;
             }
-            if !part.contains("require_permission") && !part.contains("require_step_up") {
+            // `require_any_permission` is a gate too — it accepts a handler
+            // reachable by either of two codes, which is how the security
+            // incident register is reached by both a Security Guard and an IT
+            // security administrator. Left out of this list originally, it made
+            // seven correctly gated handlers look ungated, and the test cried
+            // wolf about the one subsystem whose job is noticing real ones.
+            //
+            // Checked longest-first so `require_permission` cannot claim a
+            // match inside `require_any_permission` if these ever converge.
+            let gated = ["require_any_permission", "require_permission", "require_step_up"]
+                .iter()
+                .any(|form| part.contains(form));
+            if !gated {
                 ungated.push(name);
             }
         }

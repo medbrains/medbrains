@@ -81,6 +81,11 @@ fn make_ctx(secrets: StaticSecrets) -> HandlerCtx {
         attempts: 1,
         secret_resolver: Arc::new(secrets),
         http_client,
+        // Writes under a temporary root: a handler test that reached the real
+        // document store would leave files behind on whoever ran it.
+        object_store: Arc::new(medbrains_core::object_store::LocalFsObjectStore::new(
+            std::env::temp_dir().join("medbrains-outbox-tests"),
+        )),
     }
 }
 

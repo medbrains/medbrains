@@ -266,6 +266,13 @@ fn test_ctx(event_type: &str) -> HandlerCtx {
         attempts: 1,
         secret_resolver: std::sync::Arc::new(medbrains_core::secrets::EnvSecretResolver::new()),
         http_client: reqwest::Client::new(),
+        // Writes under a temporary root: a handler test that reached the real
+        // document store would leave files behind on whoever ran it.
+        object_store: std::sync::Arc::new(
+            medbrains_core::object_store::LocalFsObjectStore::new(
+                std::env::temp_dir().join("medbrains-outbox-tests"),
+            ),
+        ),
     }
 }
 

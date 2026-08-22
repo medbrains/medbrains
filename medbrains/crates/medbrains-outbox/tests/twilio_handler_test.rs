@@ -64,7 +64,24 @@ fn make_ctx(secrets: StaticSecrets) -> HandlerCtx {
         attempts: 1,
         secret_resolver: Arc::new(secrets),
         http_client,
+        // Writes under a temporary root: a handler test that reached the real
+        // document store would leave files behind on whoever ran it.
+        object_store: Arc::new(medbrains_core::object_store::LocalFsObjectStore::new(
+            std::env::temp_dir().join("medbrains-outbox-tests"),
+        )),
     }
+}
+
+/// The base Twilio's real URL has, up to but not including the account SID.
+///
+/// `TWILIO_API_BASE` ends in `/Accounts`, and the handler appends
+/// `/{sid}/Messages.json` to whatever base it is given. Passing a bare mock
+/// URI produced requests to `/{sid}/Messages.json`, which the mocks below —
+/// written against the real path — answered with 404. The tests that never
+/// reached HTTP passed anyway, so the mismatch survived until these files
+/// started compiling again.
+fn accounts_base(server: &MockServer) -> String {
+    format!("{}/Accounts", server.uri())
 }
 
 fn good_secrets() -> StaticSecrets {
@@ -106,7 +123,7 @@ async fn sms_2xx_returns_sid() {
         .await;
 
     let ctx = make_ctx(good_secrets());
-    let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", server.uri());
+    let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", accounts_base(&server));
     let payload = json!({ "to": SAMPLE_TO, "body": SAMPLE_BODY });
 
     let result = handler.handle(&ctx, &payload).await.expect("expected Ok");
@@ -131,7 +148,7 @@ async fn sms_400_dlqs() {
         .await;
 
     let ctx = make_ctx(good_secrets());
-    let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", server.uri());
+    let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", accounts_base(&server));
     let payload = json!({ "to": SAMPLE_TO, "body": SAMPLE_BODY });
 
     let err = handler
@@ -158,7 +175,7 @@ async fn sms_401_dlqs() {
         .await;
 
     let ctx = make_ctx(good_secrets());
-    let handler = SmsSendHandler::with_api_base("sms.otp", server.uri());
+    let handler = SmsSendHandler::with_api_base("sms.otp", accounts_base(&server));
     let payload = json!({ "to": SAMPLE_TO, "body": SAMPLE_BODY });
 
     let err = handler
@@ -180,7 +197,7 @@ async fn sms_500_retries() {
         .await;
 
     let ctx = make_ctx(good_secrets());
-    let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", server.uri());
+    let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", accounts_base(&server));
     let payload = json!({ "to": SAMPLE_TO, "body": SAMPLE_BODY });
 
     let err = handler
@@ -202,7 +219,7 @@ async fn sms_429_retries() {
         .await;
 
     let ctx = make_ctx(good_secrets());
-    let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", server.uri());
+    let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", accounts_base(&server));
     let payload = json!({ "to": SAMPLE_TO, "body": SAMPLE_BODY });
 
     let err = handler
@@ -224,7 +241,7 @@ async fn sms_timeout_retries() {
         .await;
 
     let ctx = make_ctx(good_secrets());
-    let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", server.uri());
+    let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", accounts_base(&server));
     let payload = json!({ "to": SAMPLE_TO, "body": SAMPLE_BODY });
 
     let err = handler
@@ -245,7 +262,7 @@ async fn sms_timeout_retries() {
 async fn sms_missing_secret_retries() {
     let server = MockServer::start().await;
     let ctx = make_ctx(missing_secrets());
-    let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", server.uri());
+    let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", accounts_base(&server));
     let payload = json!({ "to": SAMPLE_TO, "body": SAMPLE_BODY });
 
     let result = handler.handle(&ctx, &payload).await.expect("expected stub");
@@ -258,7 +275,7 @@ async fn sms_missing_secret_retries() {
 async fn sms_missing_payload_dlqs() {
     let server = MockServer::start().await;
     let ctx = make_ctx(good_secrets());
-    let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", server.uri());
+    let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", accounts_base(&server));
     let payload = json!({ "body": SAMPLE_BODY });
 
     let err = handler
@@ -272,7 +289,7 @@ async fn sms_missing_payload_dlqs() {
 async fn sms_non_e164_payload_dlqs() {
     let server = MockServer::start().await;
     let ctx = make_ctx(good_secrets());
-    let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", server.uri());
+    let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", accounts_base(&server));
     let payload = json!({ "to": "919876543210", "body": SAMPLE_BODY });
 
     let err = handler
@@ -310,7 +327,7 @@ async fn sms_sends_basic_auth_and_idempotency_header() {
         .await;
 
     let ctx = make_ctx(good_secrets());
-    let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", server.uri());
+    let handler = SmsSendHandler::with_api_base("sms.appointment_reminder", accounts_base(&server));
     let payload = json!({ "to": SAMPLE_TO, "body": SAMPLE_BODY });
 
     let result = handler.handle(&ctx, &payload).await.expect("expected Ok");
