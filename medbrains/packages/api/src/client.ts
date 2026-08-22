@@ -2450,6 +2450,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   ) {
     headers.Authorization = `Bearer ${nativeAccessToken}`;
   }
+  // Remembered so a 401 can tell "the token we sent was rejected" from "we
+  // sent no token". See the clear below.
+  const sentToken = headers.Authorization ? nativeAccessToken : null;
 
   // Add CSRF header for mutation requests
   if (MUTATION_METHODS.has(method)) {
@@ -2490,7 +2493,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         }
       }
       setCsrfToken(null);
-      clearNativeAuthTokens();
+      // Only discard a session this request actually used and had refused.
+      //
+      // Clearing unconditionally destroyed valid sessions. A cold start fires
+      // its first queries before the async auth bridge has seated the token,
+      // so those go out unauthenticated, come back 401, and used to wipe the
+      // token the bridge had just installed -- after which every later request
+      // was unauthenticated too and the surface never recovered. A paired
+      // display showed "queue feed unreachable" for ever while holding a
+      // perfectly good token.
+      //
+      // The identity check matters as much as the null check: if the token
+      // changed while this request was in flight, the rejection belongs to the
+      // old one and the new session must survive it.
+      if (sentToken && sentToken === nativeAccessToken) {
+        clearNativeAuthTokens();
+      }
       throw new Error("session_expired");
     }
 
