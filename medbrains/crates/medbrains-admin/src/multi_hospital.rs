@@ -409,10 +409,15 @@ pub async fn list_user_assignments(
 ) -> Result<Json<UserWithAssignments>, AppError> {
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
     let is_super = claims.role == "super_admin";
-    // Scoped exactly like the assignments query below. Without the predicate
-    // this returned any user's name and email from any tenant: it runs on the
-    // pool, so no tenant context applies, and `users` carries RLS but not
-    // FORCE, which the owner the app connects as does not honour.
+    // Group scope: who works where is administration, not a patient record, so
+    // this does not consult the clinical sharing switch.
+    //
+    // The predicate below stays. It was added because this ran on the pool with
+    // no tenant context and returned any user's name and email from any tenant;
+    // the scoped connection now makes row level security agree with it rather
+    // than replacing it. Two independent reasons the wrong row cannot come back
+    // is the right number for a query that returns staff contact details.
+    let mut conn = medbrains_db::pool::group_conn(&state.db, &claims.tenant_id).await?;
     let (username, full_name, email) = sqlx::query_as::<_, (String, String, String)>(
         "SELECT username, COALESCE(full_name, ''), COALESCE(email, '') FROM users \
          WHERE id = $1 AND ($2 OR tenant_id = $3 OR tenant_id IN (SELECT id FROM tenants \
@@ -421,7 +426,7 @@ pub async fn list_user_assignments(
     .bind(user_id)
     .bind(is_super)
     .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or(AppError::NotFound)?;
     let assignments = sqlx::query_as::<_, UserHospitalAssignment>(&format!(
@@ -455,6 +460,11 @@ pub async fn list_multi_hospital_users(
 ) -> Result<Json<Vec<UserWithAssignments>>, AppError> {
     require_permission(&claims, permissions::admin::system_state::VIEW)?;
     require_group_access(&state, &claims, query.group_id).await?;
+    // Deliberately group-wide: the query joins `tenants` on `group_id`, and a
+    // single-hospital connection would filter away the other locations it
+    // exists to list. `require_group_access` above is the control; this only
+    // stops row level security contradicting it.
+    let mut conn = medbrains_db::pool::group_conn(&state.db, &claims.tenant_id).await?;
     let assignments = sqlx::query_as::<_, UserHospitalAssignment>(
         "SELECT uha.id, uha.user_id, uha.tenant_id, uha.role, uha.permissions, uha.is_primary, \
                 uha.is_active, uha.valid_from, uha.valid_to, uha.created_at, uha.updated_at \
@@ -462,7 +472,7 @@ pub async fn list_multi_hospital_users(
          WHERE t.group_id = $1 AND uha.deleted_at IS NULL ORDER BY uha.user_id",
     )
     .bind(query.group_id)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
 
     let mut by_user: std::collections::HashMap<Uuid, Vec<UserHospitalAssignment>> =
@@ -474,12 +484,16 @@ pub async fn list_multi_hospital_users(
         return Ok(Json(vec![]));
     }
     let user_ids: Vec<Uuid> = by_user.keys().copied().collect();
+    // Same connection, still group-scoped. This had no tenant predicate at
+    // all — it trusted the ids to have come from the group query above, which
+    // is true today and is one refactor from not being. Row level security now
+    // bounds it to the group regardless of where the ids came from.
     let users = sqlx::query_as::<_, (Uuid, String, String, String)>(
         "SELECT id, username, COALESCE(full_name, ''), COALESCE(email, '') \
          FROM users WHERE id = ANY($1)",
     )
     .bind(&user_ids)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
     let result = users
         .into_iter()
