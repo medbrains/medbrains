@@ -33,16 +33,17 @@ pub async fn list_connectors(
 }
 
 /// Get a single connector by ID.
-pub async fn get_connector(pool: &PgPool, id: Uuid) -> Result<ConnectorRow, AppError> {
+pub async fn get_connector(pool: &PgPool, tenant_id: Uuid, id: Uuid) -> Result<ConnectorRow, AppError> {
     sqlx::query_as::<_, ConnectorRow>(
         "SELECT id, tenant_id, connector_type, name, description, config, status, \
                 health_check_url, last_health_check, is_healthy, retry_config, \
                 rate_limit, stats, created_by, created_at, updated_at \
          FROM connectors \
-         WHERE id = $1",
+         WHERE id = $1 AND tenant_id = $2",
     )
     .bind(id)
-    .fetch_optional(pool)
+    .bind(tenant_id)
+    .fetch_optional(&mut *medbrains_db::pool::tenant_conn(pool, &tenant_id).await?)
     .await?
     .ok_or(AppError::NotFound)
 }
@@ -53,11 +54,12 @@ pub async fn get_connector(pool: &PgPool, id: Uuid) -> Result<ConnectorRow, AppE
 /// client based on `connector_type`, and returns the response JSON.
 pub async fn execute_connector_action(
     pool: &PgPool,
+    tenant_id: Uuid,
     connector_id: Uuid,
     action: &str,
     input: &Value,
 ) -> Result<Value, AppError> {
-    let connector = get_connector(pool, connector_id).await?;
+    let connector = get_connector(pool, tenant_id, connector_id).await?;
 
     if connector.status != "active" {
         return Err(AppError::BadRequest(format!(
@@ -110,8 +112,8 @@ pub async fn execute_connector_action(
 /// Health-check a connector by calling its `health_check_url`.
 ///
 /// Updates `is_healthy` and `last_health_check` in the database.
-pub async fn health_check(pool: &PgPool, connector_id: Uuid) -> Result<bool, AppError> {
-    let connector = get_connector(pool, connector_id).await?;
+pub async fn health_check(pool: &PgPool, tenant_id: Uuid, connector_id: Uuid) -> Result<bool, AppError> {
+    let connector = get_connector(pool, tenant_id, connector_id).await?;
 
     let url = connector.health_check_url.as_deref().unwrap_or("");
     if url.is_empty() {

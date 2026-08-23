@@ -161,7 +161,7 @@ pub async fn create_connector(
 
     tx.commit().await?;
 
-    let connector = orchestration::connectors::get_connector(&state.db, id).await?;
+    let connector = orchestration::connectors::get_connector(&state.db, claims.tenant_id, id).await?;
 
     Ok(Json(connector))
 }
@@ -179,7 +179,7 @@ pub async fn update_connector(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Build dynamic UPDATE
-    let existing = orchestration::connectors::get_connector(&state.db, id).await?;
+    let existing = orchestration::connectors::get_connector(&state.db, claims.tenant_id, id).await?;
 
     let name = body.name.as_deref().unwrap_or(&existing.name);
     let description = body
@@ -214,7 +214,7 @@ pub async fn update_connector(
 
     tx.commit().await?;
 
-    let updated = orchestration::connectors::get_connector(&state.db, id).await?;
+    let updated = orchestration::connectors::get_connector(&state.db, claims.tenant_id, id).await?;
 
     Ok(Json(updated))
 }
@@ -227,7 +227,7 @@ pub async fn test_connector(
 ) -> Result<Json<HealthCheckResponse>, AppError> {
     require_permission(&claims, permissions::integration::EXECUTE)?;
 
-    let is_healthy = orchestration::connectors::health_check(&state.db, id).await?;
+    let is_healthy = orchestration::connectors::health_check(&state.db, claims.tenant_id, id).await?;
 
     Ok(Json(HealthCheckResponse {
         connector_id: id,

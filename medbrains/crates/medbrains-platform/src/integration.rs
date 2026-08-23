@@ -560,6 +560,7 @@ pub async fn list_default_pipelines(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<DefaultPipelineRow>>, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     require_permission(&claims, permissions::integration::LIST)?;
 
     let disabled: Option<serde_json::Value> = sqlx::query_scalar(
@@ -568,7 +569,7 @@ pub async fn list_default_pipelines(
          LIMIT 1",
     )
     .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await?
     .flatten();
 

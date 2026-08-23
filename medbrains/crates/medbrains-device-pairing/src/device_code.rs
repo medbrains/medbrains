@@ -314,6 +314,7 @@ pub async fn list_pairing_requests(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<PendingRequest>>, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     require_permission(&claims, permissions::devices::pairing::TOKEN_CREATE)?;
 
     // Pending requests carry no tenant yet, so this is deliberately global —
@@ -325,7 +326,7 @@ pub async fn list_pairing_requests(
          WHERE status = 'pending' AND expires_at > now() \
          ORDER BY created_at DESC LIMIT 100",
     )
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
 
     Ok(Json(

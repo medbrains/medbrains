@@ -131,6 +131,7 @@ pub async fn list_manufacturers(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<ManufacturerSummary>>, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     require_permission(&claims, permissions::devices::catalog::LIST)?;
 
     let rows = sqlx::query_as::<_, ManufacturerSummary>(
@@ -138,7 +139,7 @@ pub async fn list_manufacturers(
          FROM device_adapter_catalog WHERE is_active = true \
          GROUP BY manufacturer_code, manufacturer ORDER BY manufacturer LIMIT 5000",
     )
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
 
     Ok(Json(rows))

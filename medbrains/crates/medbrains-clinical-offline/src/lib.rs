@@ -30,12 +30,15 @@ use medbrains_server_core::{
 
 // ── Shared helpers ──────────────────────────────────────────────────
 
-async fn author_display_name(pool: &sqlx::PgPool, user_id: Uuid) -> Result<String, AppError> {
-    let row: Option<(String, Option<String>)> =
-        sqlx::query_as("SELECT email, display_name FROM users WHERE id = $1")
-            .bind(user_id)
-            .fetch_optional(pool)
-            .await?;
+async fn author_display_name(pool: &sqlx::PgPool, tenant_id: Uuid, user_id: Uuid) -> Result<String, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(pool, &tenant_id).await?;
+    let row: Option<(String, Option<String>)> = sqlx::query_as(
+        "SELECT email, display_name FROM users WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(user_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut *conn)
+    .await?;
     let (email, display) = row.ok_or(AppError::NotFound)?;
     Ok(display.unwrap_or(email))
 }
@@ -112,7 +115,7 @@ pub async fn create_handoff_entry(
         return Err(AppError::BadRequest("note must not be empty".into()));
     }
 
-    let author = author_display_name(&state.db, claims.sub).await?;
+    let author = author_display_name(&state.db, claims.tenant_id, claims.sub).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -200,7 +203,7 @@ pub async fn create_triage_entry(
         return Err(AppError::BadRequest("chief_complaint required".into()));
     }
 
-    let author = author_display_name(&state.db, claims.sub).await?;
+    let author = author_display_name(&state.db, claims.tenant_id, claims.sub).await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -279,7 +282,7 @@ pub async fn update_patient_notes(
     Json(body): Json<UpdatePatientNotes>,
 ) -> Result<Json<PatientNotes>, AppError> {
     require_permission(&claims, permissions::patients::notes::EDIT)?;
-    let author = author_display_name(&state.db, claims.sub).await?;
+    let author = author_display_name(&state.db, claims.tenant_id, claims.sub).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -389,7 +392,7 @@ pub async fn update_nursing_shift_notes(
             permissions::nurse::shift_notes::EDIT,
         ],
     )?;
-    let author = author_display_name(&state.db, claims.sub).await?;
+    let author = author_display_name(&state.db, claims.tenant_id, claims.sub).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

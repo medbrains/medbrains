@@ -168,7 +168,7 @@ async fn execute_connector_call(pool: &PgPool, job: &JobRow) -> Result<Value, St
         .ok_or("missing action in job payload")?;
     let input = job.payload.get("input").cloned().unwrap_or(Value::Null);
 
-    super::connectors::execute_connector_action(pool, connector_id, action, &input)
+    super::connectors::execute_connector_action(pool, job.tenant_id, connector_id, action, &input)
         .await
         .map_err(|e| format!("connector call error: {e}"))
 }

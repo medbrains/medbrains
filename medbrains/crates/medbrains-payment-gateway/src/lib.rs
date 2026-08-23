@@ -1467,6 +1467,7 @@ pub async fn list_payment_exceptions(
     Extension(claims): Extension<Claims>,
     Query(q): Query<ExceptionsQuery>,
 ) -> Result<Json<Vec<PaymentWebhookException>>, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     require_permission(&claims, permissions::billing::payments::CREATE)?;
 
     let rows = sqlx::query_as::<_, PaymentWebhookException>(
@@ -1475,7 +1476,7 @@ pub async fn list_payment_exceptions(
          ORDER BY created_at DESC LIMIT 500",
     )
     .bind(q.status.as_deref().map(str::trim).filter(|s| !s.is_empty()))
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
 
     Ok(Json(rows))

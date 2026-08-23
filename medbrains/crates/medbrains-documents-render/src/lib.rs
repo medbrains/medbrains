@@ -273,6 +273,7 @@ pub async fn download_document(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     require_permission(&claims, permissions::patients::VIEW)?;
 
     let row: Option<(String, Option<String>, String)> = sqlx::query_as(
@@ -280,7 +281,7 @@ pub async fn download_document(
     )
     .bind(id)
     .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await?;
     let Some((file_key, mime_type, document_number)) = row else {
         return Err(AppError::NotFound);
@@ -417,13 +418,14 @@ pub async fn list_templates(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
 
     let overridden: Vec<String> = sqlx::query_scalar(
         "SELECT code FROM document_templates WHERE tenant_id = $1 AND is_active = true",
     )
     .bind(claims.tenant_id)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
 
     let templates: Vec<serde_json::Value> = SYSTEM_TEMPLATES

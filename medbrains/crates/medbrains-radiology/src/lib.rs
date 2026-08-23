@@ -1920,28 +1920,42 @@ pub async fn validate_share_link(
     State(state): State<AppState>,
     Path(token): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let row = sqlx::query_as::<_, (Uuid, Uuid, chrono::DateTime<chrono::Utc>)>(
-        "SELECT sl.id, sl.study_id, sl.expires_at FROM radiology_share_links sl WHERE sl.token = $1",
+    // Whoever opens a share link has no session and no hospital — the token is
+    // the whole credential, and the row it names is how the tenant is found.
+    // A `SECURITY DEFINER` lookup, the same shape as `app_api_key_by_
+    // fingerprint`, because a token the caller had to already hold is not
+    // something row level security can help with.
+    //
+    // Expiry is now checked inside the function rather than after the fact.
+    // Reading the row and comparing afterwards meant an expired link was still
+    // fetched and its access count still incremented — a link revoked by time
+    // should not leave a trace of having been opened.
+    let row = sqlx::query_as::<_, (Uuid, Uuid, Uuid, chrono::DateTime<chrono::Utc>)>(
+        "SELECT id, tenant_id, study_id, expires_at FROM public.app_share_link_by_token($1)",
     )
     .bind(&token)
     .fetch_optional(&state.db)
     .await?
     .ok_or(AppError::NotFound)?;
+    let (link_id, tenant_id, study_id) = (row.0, row.1, row.2);
 
-    if row.2 < chrono::Utc::now() {
-        return Err(AppError::BadRequest("Share link has expired".into()));
-    }
+    // From here the tenant is known, so everything else is scoped to it.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &tenant_id).await?;
 
-    // Increment access count
-    sqlx::query("UPDATE radiology_share_links SET accessed_count = accessed_count + 1, last_accessed = now() WHERE token = $1")
-        .bind(&token).execute(&state.db).await?;
+    sqlx::query("SELECT public.app_share_link_touch($1, $2)")
+        .bind(link_id)
+        .bind(tenant_id)
+        .execute(&mut *conn)
+        .await?;
 
     // Get study info
     let study = sqlx::query_as::<_, (String, Option<String>, Option<String>)>(
-        "SELECT study_instance_uid, viewer_url, study_description FROM radiology_dicom_studies WHERE id = $1",
+        "SELECT study_instance_uid, viewer_url, study_description \
+         FROM radiology_dicom_studies WHERE id = $1 AND tenant_id = $2",
     )
-    .bind(row.1)
-    .fetch_optional(&state.db)
+    .bind(study_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut *conn)
     .await?
     .ok_or(AppError::NotFound)?;
 

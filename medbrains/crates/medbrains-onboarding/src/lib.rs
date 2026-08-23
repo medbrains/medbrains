@@ -74,10 +74,13 @@ pub async fn status(
 ) -> Result<Json<OnboardingStatusResponse>, AppError> {
     // Multi-tenant: onboarding is always available for new organizations.
     // This is a PUBLIC endpoint — never leak PII (admin emails, hospital names, etc.).
-    let tenant_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM onboarding_progress WHERE is_complete = true")
-            .fetch_one(&state.db)
-            .await?;
+    // Across every tenant on purpose — it is shown to somebody who does not
+    // have one yet. Through a definer function so it keeps working once row
+    // level security applies, and because a count is all it may ever return:
+    // no names, no addresses, no way to ask about a particular organisation.
+    let tenant_count: i64 = sqlx::query_scalar("SELECT public.app_completed_onboardings()")
+        .fetch_one(&state.db)
+        .await?;
 
     Ok(Json(OnboardingStatusResponse {
         // Always allow new orgs to register through the wizard.

@@ -1151,6 +1151,7 @@ pub async fn insurance_receivables_aging(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<PayerAgingBucket>>, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     require_any_permission(
         &claims,
         &[
@@ -1187,7 +1188,7 @@ pub async fn insurance_receivables_aging(
          ORDER BY total_outstanding DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
 
     Ok(Json(rows))

@@ -504,11 +504,12 @@ pub async fn portal_entitlements(
     State(state): State<AppState>,
     Extension(claims): Extension<PatientClaims>,
 ) -> Result<Json<PortalEntitlements>, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let status: Option<String> = sqlx::query_scalar(
         "SELECT status::text FROM module_config WHERE tenant_id = $1 AND code = 'companion'",
     )
     .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await
     .unwrap_or(None);
 

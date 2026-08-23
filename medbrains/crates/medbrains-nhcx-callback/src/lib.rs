@@ -299,6 +299,7 @@ pub async fn list_callbacks(
     Extension(claims): Extension<Claims>,
     Query(q): Query<ListCallbacksQuery>,
 ) -> Result<Json<Vec<NhcxCallbackRow>>, AppError> {
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     require_permission(&claims, permissions::billing::invoices::LIST)?;
 
     let limit = q.limit.unwrap_or(100).clamp(1, 500);
@@ -319,7 +320,7 @@ pub async fn list_callbacks(
     .bind(q.correlation_id)
     .bind(q.matched_id)
     .bind(limit)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *conn)
     .await?;
 
     Ok(Json(rows))
