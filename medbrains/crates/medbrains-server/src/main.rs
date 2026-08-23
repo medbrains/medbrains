@@ -81,8 +81,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let db_pool =
         medbrains_db::pool::create_pool_with_config(&config.database_url, &pool_config).await?;
 
-    // Run migrations
-    medbrains_db::pool::run_migrations(&db_pool).await?;
+    // Run migrations on a connection that is allowed to change the schema.
+    //
+    // The application role deliberately cannot: it has USAGE on the schema and
+    // DML on the tables, and nothing else. That is the point — an application
+    // that can drop a policy can switch off its own isolation. It also means
+    // the application cannot migrate, and `run_migrations` on the request pool
+    // fails at boot with "permission denied for schema public".
+    //
+    // `MIGRATION_DATABASE_URL` names the owner. Unset, this is the request
+    // pool, which is right while everything connects as one role and wrong the
+    // moment they do not.
+    // Held until seeding is done, then closed: nothing serving requests should
+    // keep a connection that can alter the schema.
+    let bootstrap_pool = match std::env::var("MIGRATION_DATABASE_URL") {
+        Ok(url) if !url.trim().is_empty() => {
+            let owner =
+                medbrains_db::pool::create_pool_with_config(&url, &pool_config).await?;
+            medbrains_db::pool::run_migrations(&owner).await?;
+            tracing::info!("migrations ran on the owner connection");
+            owner
+        }
+        _ => {
+            medbrains_db::pool::run_migrations(&db_pool).await?;
+            db_pool.clone()
+        }
+    };
 
     // A second pool for the background workers.
     //
@@ -284,13 +308,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         documents_store: Arc::clone(&documents_store),
     };
 
-    // Run seed (insert default tenant + super_admin if not exists)
-    medbrains_seed::run_seed(&db_pool).await?;
+    // Seeding runs on the bootstrap connection, not the request pool.
+    //
+    // It writes the things a hospital has before it has anybody: the default
+    // tenant, the first administrator, the built-in roles, and the global
+    // widget catalogue whose rows have no tenant at all. Row level security
+    // refuses a tenantless write from the application role — deliberately, so
+    // a request cannot mint a global row by leaving the tenant off — which
+    // makes seeding schema-adjacent work that belongs beside migrations.
+    medbrains_seed::run_seed(&bootstrap_pool).await?;
 
     // Rebuild the code-owned role definitions for every tenant, not just
     // DEFAULT. Cheap, idempotent, and the only thing that repairs a tenant
     // whose roles table was never populated — or was emptied.
-    medbrains_seed::reconcile_built_in_roles(&db_pool).await?;
+    medbrains_seed::reconcile_built_in_roles(&bootstrap_pool).await?;
+
+    if !bootstrap_pool.is_closed() && std::env::var("MIGRATION_DATABASE_URL").is_ok() {
+        bootstrap_pool.close().await;
+    }
 
     // Provision SSO from the local creds file (sso.local.json) if present — turnkey
     // federation without manual /admin/sso setup.
