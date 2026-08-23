@@ -63,6 +63,22 @@ async fn two_tenants(pool: &PgPool) -> (Uuid, Uuid) {
     (first, second)
 }
 
+/// Write a setup row with the tenant claimed.
+///
+/// Harmless as a superuser, required as the application role: an insert on the
+/// bare pool carries no tenant, so row level security refuses it with
+/// `new row violates row-level security policy`. A fixture that cannot write
+/// its own preconditions fails before the test has said anything.
+async fn as_tenant(pool: &PgPool, tenant: Uuid) -> sqlx::pool::PoolConnection<sqlx::Postgres> {
+    let mut conn = pool.acquire().await.expect("a connection");
+    sqlx::query("SELECT set_config('app.tenant_id', $1, false)")
+        .bind(tenant.to_string())
+        .execute(&mut *conn)
+        .await
+        .expect("claim the tenant");
+    conn
+}
+
 /// A workflow row, because state is keyed by one.
 async fn a_workflow(pool: &PgPool, tenant: Uuid) -> Uuid {
     let id = Uuid::new_v4();
@@ -72,7 +88,7 @@ async fn a_workflow(pool: &PgPool, tenant: Uuid) -> Uuid {
     )
     .bind(id)
     .bind(tenant)
-    .execute(pool)
+    .execute(&mut *as_tenant(pool, tenant).await)
     .await
     .expect("insert a workflow");
     id
@@ -226,7 +242,7 @@ async fn a_deployment_reads_the_variables_it_was_given() {
     )
     .bind(tenant)
     .bind(json!("https://hims.example.org"))
-    .execute(&pool)
+    .execute(&mut *as_tenant(&pool, tenant).await)
     .await
     .expect("insert");
 
@@ -248,7 +264,7 @@ async fn one_hospital_is_not_pointed_at_another_s_server() {
     )
     .bind(first)
     .bind(json!("https://first.example.org"))
-    .execute(&pool)
+    .execute(&mut *as_tenant(&pool, first).await)
     .await
     .expect("insert");
 
