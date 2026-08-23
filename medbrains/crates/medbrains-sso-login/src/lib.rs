@@ -262,9 +262,18 @@ pub async fn oidc_callback(
     let code = q.code.ok_or(AppError::Unauthorized)?;
 
     // Load + consume the single-use state (reject expired).
+    //
+    // Through a `SECURITY DEFINER` function, because this runs before there is
+    // a tenant — matching the callback back to the login that started it is
+    // how the tenant is found. Single use is still the database's doing: the
+    // delete and the read are one statement inside the function, so a replayed
+    // token finds nothing.
+    //
+    // The same shape as `sso_provider_for_login` below, which already solves
+    // this for providers.
     let auth = sqlx::query_as::<_, AuthState>(
-        "DELETE FROM sso_auth_state WHERE state = $1 AND expires_at > now() \
-         RETURNING provider_id, nonce, pkce_verifier, return_to",
+        "SELECT provider_id, nonce, pkce_verifier, return_to \
+         FROM public.app_consume_sso_state($1)",
     )
     .bind(&state_tok)
     .fetch_optional(&state.db)

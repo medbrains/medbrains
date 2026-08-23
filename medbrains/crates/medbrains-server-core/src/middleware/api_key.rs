@@ -75,10 +75,17 @@ pub async fn authenticate(db: &PgPool, presented: &str) -> Result<(Claims, Uuid)
     // Looked up by fingerprint, then verified in constant time. The lookup
     // alone is not the check: it proves a row exists with this hash, and the
     // comparison in `verify` is what proves the caller holds the secret.
+    // Through a `SECURITY DEFINER` function, because this runs before anybody
+    // has a tenant — the row is how the tenant is learned. `api_keys` is row
+    // level secured for the sake of the screen that lists and revokes them,
+    // and the function does not weaken that: it takes a fingerprint the caller
+    // had to already hold and cannot be asked to enumerate anything.
+    //
+    // The same shape as `sso_provider_for_login` next door, which solves this
+    // for SSO providers.
     let record = sqlx::query_as::<_, (Uuid, Uuid, String, serde_json::Value, Option<Uuid>)>(
         "SELECT id, tenant_id, key_hash, permissions, service_user_id \
-         FROM api_keys \
-         WHERE key_hash = $1 AND revoked_at IS NULL AND expires_at > now()",
+         FROM public.app_api_key_by_fingerprint($1)",
     )
     .bind(&fingerprint)
     .fetch_optional(db)
@@ -183,10 +190,13 @@ pub async fn record_usage(
     // Coarse on purpose: this answers "is this key still in use", which is the
     // question asked when deciding what to revoke. The per-request detail is
     // the row above.
-    let touch = sqlx::query("UPDATE api_keys SET last_used_at = now() WHERE id = $1")
-        .bind(key_id)
-        .execute(db)
-        .await;
+    let touch = sqlx::query(
+        "UPDATE api_keys SET last_used_at = now() WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(key_id)
+    .bind(tenant_id)
+    .execute(db)
+    .await;
     if let Err(error) = touch {
         tracing::warn!(%error, key = %key_id, "could not update API key last_used_at");
     }
