@@ -162,9 +162,11 @@ fn path_is_phi_list(path: &str) -> bool {
 /// at the last segment alone, which made audit coverage positional: reading a
 /// record was logged, and reading *deeper into* the same record was not.
 ///
-///     /api/patients/{uuid}                    audited
-///     /api/patients/{uuid}/documents          NOT audited
-///     /api/fhir/Patient/{uuid}/$everything    NOT audited
+/// ```text
+/// /api/patients/{uuid}                    audited
+/// /api/patients/{uuid}/documents          NOT audited
+/// /api/fhir/Patient/{uuid}/$everything    NOT audited
+/// ```
 ///
 /// That last one returns a FHIR Bundle with a patient's entire record — the
 /// most complete export the API offers — and it escaped because its final

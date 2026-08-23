@@ -112,12 +112,19 @@ pub async fn authenticate(db: &PgPool, presented: &str) -> Result<(Claims, Uuid)
 
     // The role is read but not trusted for permissions — see the module note.
     // It is carried because handlers and audit records display it.
+    //
+    // Scoped, because by now the key has told us which hospital it belongs to.
+    // The lookup above could not be: it is how the tenant is discovered, and
+    // the fingerprint is the thing being trusted. From here on the tenant is
+    // known and nothing needs to read outside it.
+    let mut conn = medbrains_db::pool::tenant_conn(db, &record.tenant_id).await?;
     let role = sqlx::query_scalar::<_, String>(
         "SELECT role::text FROM users \
-         WHERE id = $1 AND is_active = true AND is_service_account = true",
+         WHERE id = $1 AND tenant_id = $2 AND is_active = true AND is_service_account = true",
     )
     .bind(service_user_id)
-    .fetch_optional(db)
+    .bind(record.tenant_id)
+    .fetch_optional(&mut *conn)
     .await?;
 
     let Some(role) = role else {

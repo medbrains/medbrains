@@ -57,12 +57,17 @@ pub async fn step_up(
 ) -> Result<(CookieJar, Json<serde_json::Value>), AppError> {
     // SSO-only users have no password_hash — password step-up isn't available to
     // them (MFA/passkey step-up is a follow-up); treat as unauthorized here.
+    // Scoped: `users` is row-level secured, and a read that finds nothing here
+    // is refused rather than let through — so unscoped this would lock every
+    // caller out of step-up rather than let anybody past it. Broken in the
+    // safe direction, and still broken.
+    let mut conn = medbrains_db::pool::tenant_conn(&state.db, &claims.tenant_id).await?;
     let hash = sqlx::query_scalar::<_, Option<String>>(
         "SELECT password_hash FROM users WHERE id = $1 AND tenant_id = $2",
     )
     .bind(claims.sub)
     .bind(claims.tenant_id)
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *conn)
     .await?
     .flatten()
     .ok_or(AppError::Unauthorized)?;
