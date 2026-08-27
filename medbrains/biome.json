@@ -26,7 +26,15 @@
         "useHookAtTopLevel": "warn"
       },
       "style": {
-        "noNonNullAssertion": "warn"
+        "noNonNullAssertion": "warn",
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "react-router-dom": "Import from `react-router`. Router v7 ships both, and under Vite they resolve to two modules with two React contexts \u2014 a hook taken from this one looks for a Router in a context the app never filled, and throws `useNavigate() may be used only in the context of a <Router>` at mount."
+            }
+          }
+        }
       },
       "suspicious": {
         "noExplicitAny": "warn",

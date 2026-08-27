@@ -33,6 +33,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components/DataTable";
+import { groupedSelectData } from "@/lib/select-groups";
 import { pharmacyService } from "@/services/pharmacy.service";
 
 const statusColors: Record<PharmacyStoreIndentStatus, string> = {
@@ -270,12 +271,17 @@ function CreateStoreIndentModal({ opened, onClose }: { opened: boolean; onClose:
     staleTime: 300_000,
   });
 
-  // All stores available for both from/to (bidirectional)
-  const allStoreOptions = storeLocations.map((s) => ({
-    value: s.id,
-    label: `${s.name} (${s.code})`,
-    group: s.location_type?.replace(/_/g, " ").toUpperCase() ?? "OTHER",
-  }));
+  // All stores available for both from/to (bidirectional), filed under their
+  // location type. Grouped through the helper because Mantine v7 reads a flat
+  // `{ value, label, group }` as a group and maps its missing `items`, which
+  // crashed this tab on open.
+  const allStoreOptions = groupedSelectData(
+    storeLocations.map((s) => ({
+      value: s.id,
+      label: `${s.name} (${s.code})`,
+      group: s.location_type?.replace(/_/g, " ").toUpperCase() ?? "OTHER",
+    })),
+  );
 
   // Store catalog for item autocomplete
   const { data: storeCatalog = [] } = useQuery({
