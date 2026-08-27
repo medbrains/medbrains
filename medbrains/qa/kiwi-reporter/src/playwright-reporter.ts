@@ -52,7 +52,7 @@ function isEnabled(): boolean {
 
 function configFromEnv(overrides?: Partial<KiwiConfig>): KiwiConfig {
   return {
-    url: overrides?.url ?? process.env["KIWI_URL"] ?? "https://localhost:8443/xml-rpc/",
+    url: overrides?.url ?? process.env["KIWI_URL"] ?? "https://medbrains-kiwi.localhost/xml-rpc/",
     username: overrides?.username ?? process.env["KIWI_USERNAME"] ?? "admin",
     password: overrides?.password ?? process.env["KIWI_PASSWORD"] ?? "admin",
     productName: overrides?.productName ?? process.env["KIWI_PRODUCT"] ?? "Alagappa ERP",

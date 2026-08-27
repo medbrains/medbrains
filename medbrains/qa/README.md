@@ -5,7 +5,7 @@
 ```
 qa/test-cases/*.yml          ← Source of truth (git-tracked)
      │
-     ├── python3 qa/sync.py  → Kiwi TCMS (localhost:8443)
+     ├── python3 qa/sync.py  → Kiwi TCMS (medbrains-kiwi.localhost)
      │
      ├── Playwright tests    → qa/kiwi-results/ → Kiwi
      │   (tcms annotations)
@@ -17,9 +17,10 @@ qa/test-cases/*.yml          ← Source of truth (git-tracked)
 ## Quick Start
 
 ```bash
-# 1. Start Kiwi TCMS
-docker compose up -d kiwi
-# First run: open https://localhost:8443, create admin user
+# 1. Start Kiwi TCMS. It is served through the MedBrains dev proxy on the
+#    shared certificate, so `make dev` must be running for TLS.
+make kiwi-up
+# First run: open https://medbrains-kiwi.localhost, create admin user
 
 # 2. Preview what would sync
 python3 qa/sync.py --dry-run
@@ -33,7 +34,7 @@ make test-e2e                # Playwright E2E
 KIWI_REPORT=1 make test-e2e  # + report results to Kiwi
 
 # 5. View results
-open https://localhost:8443   # Kiwi dashboard
+open https://medbrains-kiwi.localhost   # Kiwi dashboard
 make test-coverage            # CLI coverage matrix
 ```
 

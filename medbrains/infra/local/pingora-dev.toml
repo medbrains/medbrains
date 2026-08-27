@@ -1,5 +1,10 @@
 # MedBrains local HTTPS proxy.
 #
+# Binds UNPRIVILEGED ports; pf (installed once via
+# `make dev-pf-setup`, see scripts/dev_pf_setup.sh) redirects the world's
+# connections from 80 -> 8080 and 443 -> 8443 on loopback so dev URLs stay
+# https://medbrains.localhost without ever running the proxy as root.
+#
 # Local browser/simulator URLs:
 #   https://medbrains.localhost
 #   https://medbrains-desktop.localhost
@@ -13,8 +18,8 @@
 #   medbrains-simulator.localhost -> Simulator Vite UI on 5180
 #   medbrains-icd.localhost -> WHO ICD-API on 8382
 
-http_port = 80
-https_port = 443
+http_port = 8080
+https_port = 8443
 body_limit_bytes = 26214400
 block_source_maps = false
 content_security_policy = """
@@ -185,6 +190,18 @@ key_path = "var/local-https/medbrains.localhost-key.pem"
 [[routes]]
 domain = "medbrains-simulator.localhost"
 upstream = "127.0.0.1:5180"
+cert_path = "var/local-https/medbrains.localhost.pem"
+key_path = "var/local-https/medbrains.localhost-key.pem"
+cors_allowed_origins = [
+  "https://medbrains.localhost",
+]
+
+[[routes]]
+# Kiwi TCMS. Published on loopback as plain HTTP by docker-compose; TLS is
+# terminated here so the test-management console shares the one dev
+# certificate rather than shipping a self-signed one of its own.
+domain = "medbrains-kiwi.localhost"
+upstream = "127.0.0.1:9080"
 cert_path = "var/local-https/medbrains.localhost.pem"
 key_path = "var/local-https/medbrains.localhost-key.pem"
 cors_allowed_origins = [

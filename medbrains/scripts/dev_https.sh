@@ -11,6 +11,34 @@ unset MAKEFLAGS MFLAGS MAKELEVEL
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+# Running the dev stack as root poisons target/ with root-owned build
+# artifacts that later break plain `cargo build` for everyone. The proxy no
+# longer needs root (pf redirects 80/443 -> 8080/8443), so there is no reason.
+if [[ "$(id -u)" == "0" ]]; then
+  echo "ERROR: do not run make dev with sudo."
+  echo "Ports 80/443 are forwarded to unprivileged 8080/8443 by pf — one-time setup:"
+  echo "  make dev-pf-setup"
+  exit 1
+fi
+
+# The proxy binds unprivileged 8080/8443; pf forwards the world's connections
+# from 80/443 to them. Without the anchor every dev URL refuses to connect, and
+# finding that out after a full compile is a bad way to learn it. Stop here,
+# let the one-time setup run, then come back.
+if [[ ! -f /etc/pf.anchors/medbrains-dev ]] || ! grep -q 'medbrains-dev' /etc/pf.conf; then
+  if [[ "${DEV_ALLOW_NO_PF:-false}" != "true" ]]; then
+    echo "One-time setup not done: pf is not yet forwarding ports 80/443 -> 8080/8443."
+    echo "$ORIGIN would refuse to connect."
+    echo
+    echo "Run this first (asks for your password once, never again):"
+    echo "  make dev-pf-setup"
+    echo
+    echo "Then run make dev again."
+    exit 1
+  fi
+  echo "WARNING: pf port-forward not installed — $ORIGIN will refuse connections."
+fi
+
 ORIGIN="${DEV_HTTPS_ORIGIN:-https://medbrains.localhost}"
 DESKTOP_ORIGIN="${DEV_DESKTOP_HTTPS_ORIGIN:-https://medbrains-desktop.localhost}"
 SIMULATOR_ORIGIN="${DEV_SIMULATOR_HTTPS_ORIGIN:-https://medbrains-simulator.localhost}"
@@ -23,7 +51,7 @@ DEV_SIMULATOR_HTTPS_DOMAIN="${DEV_SIMULATOR_HTTPS_DOMAIN#https://}"
 DEV_SIMULATOR_HTTPS_DOMAIN="${DEV_SIMULATOR_HTTPS_DOMAIN%%/*}"
 export DEV_HTTPS_DOMAIN
 export DEV_SIMULATOR_HTTPS_DOMAIN
-export DEV_HTTPS_ALT_DOMAINS="${DEV_HTTPS_ALT_DOMAINS:-medbrains-desktop.localhost,medbrains-simulator.localhost,medbrains-icd.localhost}"
+export DEV_HTTPS_ALT_DOMAINS="${DEV_HTTPS_ALT_DOMAINS:-medbrains-desktop.localhost,medbrains-simulator.localhost,medbrains-icd.localhost,medbrains-kiwi.localhost}"
 PROXY_CONFIG="${DEV_PROXY_CONFIG:-infra/local/pingora-dev.toml}"
 SKIP_BACKEND_BUILD="${SKIP_BACKEND_BUILD:-false}"
 STOP_STALE_DEV_PORTS="${STOP_STALE_DEV_PORTS:-true}"
@@ -41,7 +69,15 @@ port_listeners() {
 
 port_listener_pids() {
   local port="$1"
-  lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null || true
+  # Exclude Docker Desktop / VPNKit processes so we never kill the Docker engine.
+  lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | while read -r pid; do
+    local comm
+    comm="$(ps -p "$pid" -o comm= 2>/dev/null)" || continue
+    case "$comm" in
+      *docker*|*Docker*|vpnkit|hyperkit) continue ;;
+    esac
+    echo "$pid"
+  done || true
 }
 
 port_accepts_connections() {
@@ -71,21 +107,13 @@ stop_stale_port_listeners() {
   fi
 
   echo "Stopping stale $service listener(s) on port $port: $pids"
-  if ! kill $pids 2>/dev/null; then
-    if [[ "$port" == "80" || "$port" == "443" ]]; then
-      sudo kill $pids 2>/dev/null || true
-    fi
-  fi
+  kill $pids 2>/dev/null || true
   sleep 1
 
   remaining="$(port_listener_pids "$port")"
   if [[ -n "$remaining" ]]; then
     echo "Force-stopping stale $service listener(s) on port $port: $remaining"
-    if ! kill -9 $remaining 2>/dev/null; then
-      if [[ "$port" == "80" || "$port" == "443" ]]; then
-        sudo kill -9 $remaining 2>/dev/null || true
-      fi
-    fi
+    kill -9 $remaining 2>/dev/null || true
     sleep 1
   fi
 }
@@ -93,16 +121,37 @@ stop_stale_port_listeners() {
 require_port_free() {
   local port="$1"
   local service="$2"
-  local listeners
+  # Skip Docker Desktop-owned listeners (they're harmless for dev proxy).
+  local docker_pids
+  docker_pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | while read -r pid; do
+    local comm
+    comm="$(ps -p "$pid" -o comm= 2>/dev/null)" || continue
+    case "$comm" in
+      *docker*|*Docker*|vpnkit|hyperkit) echo "$pid" ;;
+    esac
+  done)" || true
 
-  listeners="$(port_listeners "$port")"
-  if [[ -n "$listeners" ]]; then
+  local all_pids
+  all_pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | while read -r pid; do
+    local comm
+    comm="$(ps -p "$pid" -o comm= 2>/dev/null)" || continue
+    case "$comm" in
+      *docker*|*Docker*|vpnkit|hyperkit) continue ;;
+    esac
+    echo "$pid"
+  done)" || true
+
+  if [[ -n "$all_pids" ]]; then
     echo "Cannot start $service: port $port is already in use."
     echo
-    echo "$listeners"
+    lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null
     echo
     echo "Stop the process above, then rerun: make dev"
     exit 1
+  fi
+
+  if [[ -n "$docker_pids" ]]; then
+    echo "  (port $port owned by Docker Desktop — proxy will use alternate port)"
   fi
 }
 
@@ -165,7 +214,7 @@ echo "Internal service ports are implementation details:"
 echo "  backend -> http://127.0.0.1:3000"
 echo "  vite    -> http://127.0.0.1:5173"
 echo "  simulator vite -> http://127.0.0.1:5180"
-echo "  pingora -> https://0.0.0.0:443"
+echo "  pingora -> https://0.0.0.0:8443 (pf redirects 443 -> 8443, see scripts/dev_pf_setup.sh)"
 echo
 echo "Logs:"
 echo "  backend: $log_dir/backend.log"
@@ -177,14 +226,52 @@ echo
 stop_stale_port_listeners 3000 "backend"
 stop_stale_port_listeners 5173 "Vite web"
 stop_stale_port_listeners 5180 "Vite simulator"
-stop_stale_port_listeners 80 "Pingora HTTP proxy"
-stop_stale_port_listeners 443 "Pingora HTTPS proxy"
+stop_stale_port_listeners 8080 "Pingora HTTP proxy"
+stop_stale_port_listeners 8443 "Pingora HTTPS proxy"
 
 require_port_free 3000 "backend"
 require_port_free 5173 "Vite web"
 require_port_free 5180 "Vite simulator"
-require_port_free 80 "Pingora HTTP proxy"
-require_port_free 443 "Pingora HTTPS proxy"
+require_port_free 8080 "Pingora HTTP proxy"
+require_port_free 8443 "Pingora HTTPS proxy"
+
+# If Docker Desktop occupies 8080/8443, auto-select alternate ports for Pingora.
+PROXY_HTTP_PORT=8080
+PROXY_HTTPS_PORT=8443
+
+find_free_port() {
+  local start="$1"
+  local port="$start"
+  while (( port < start + 20 )); do
+    if ! lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+      echo "$port"
+      return
+    fi
+    (( port++ ))
+  done
+  echo "$start"
+}
+
+if lsof -tiTCP:8080 -sTCP:LISTEN >/dev/null 2>&1; then
+  PROXY_HTTP_PORT="$(find_free_port 8081)"
+fi
+if lsof -tiTCP:8443 -sTCP:LISTEN >/dev/null 2>&1; then
+  PROXY_HTTPS_PORT="$(find_free_port 8444)"
+fi
+if [[ "$PROXY_HTTP_PORT" != 8080 || "$PROXY_HTTPS_PORT" != 8443 ]]; then
+  echo "Docker Desktop occupies default proxy ports — using $PROXY_HTTP_PORT/$PROXY_HTTPS_PORT instead"
+  PROXY_CONFIG="$log_dir/pingora-dev-docker.toml"
+  sed -e "s/^http_port = 8080/http_port = $PROXY_HTTP_PORT/" \
+      -e "s/^https_port = 8443/https_port = $PROXY_HTTPS_PORT/" \
+      "$ROOT_DIR/infra/local/pingora-dev.toml" > "$PROXY_CONFIG"
+  echo ""
+  echo "  NOTE: pf port-forward (make dev-pf-setup) still points to 8080/8443."
+  echo "  URLs via https://medbrains.localhost may not work until you re-run:"
+  echo "    sudo DEV_PROXY_HTTP_PORT=$PROXY_HTTP_PORT DEV_PROXY_HTTPS_PORT=$PROXY_HTTPS_PORT make dev-pf-setup"
+  echo ""
+  echo "  Or access the proxy directly: http://localhost:$PROXY_HTTP_PORT"
+  echo ""
+fi
 
 backend_needs_build=false
 migrations_dir="$ROOT_DIR/crates/medbrains-db/src/migrations"
@@ -256,7 +343,7 @@ web_pid="$!"
 DEV_SIMULATOR_HTTPS_DOMAIN="$DEV_SIMULATOR_HTTPS_DOMAIN" VITE_DEV_PORT=5180 \
   pnpm --filter @medbrains/simulator-admin dev >"$log_dir/simulator.log" 2>&1 &
 simulator_pid="$!"
-RUST_LOG="$PROXY_RUST_LOG" sudo -E "$PROXY_BIN" --config "$PROXY_CONFIG" >"$log_dir/proxy.log" 2>&1 &
+RUST_LOG="$PROXY_RUST_LOG" "$PROXY_BIN" --config "$PROXY_CONFIG" >"$log_dir/proxy.log" 2>&1 &
 proxy_pid="$!"
 
 sleep 2
@@ -273,7 +360,7 @@ backend_port_timeout=15
 wait_for_port 3000 "Backend" "$backend_port_timeout" "$backend_pid" "$log_dir/backend.log"
 wait_for_port 5173 "Vite web" 15 "$web_pid" "$log_dir/web.log"
 wait_for_port 5180 "Vite simulator" 15 "$simulator_pid" "$log_dir/simulator.log"
-wait_for_port 443 "Pingora HTTPS proxy" 15 "$proxy_pid" "$log_dir/proxy.log"
+wait_for_port 8443 "Pingora HTTPS proxy" 15 "$proxy_pid" "$log_dir/proxy.log"
 
 echo "Ready URL: $ORIGIN"
 echo "Simulator URL: $SIMULATOR_ORIGIN"

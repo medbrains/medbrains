@@ -1,6 +1,6 @@
 .PHONY: check-mobile-tokens detox-staff detox-staff-build maestro maestro-camp maestro-staff help dev dev-watch dev-fast dev-icd dev-backend dev-frontend dev-simulator-admin db db-stop db-reset db-icd \
        sim-hospital sim-hospital-batch sim-hospital-clean \
-       local-https-cert dev-proxy dev-https \
+       local-https-cert dev-proxy dev-https dev-pf-setup dev-pf-remove \
        build build-backend build-frontend \
        camp-mobile camp-mobile-ios camp-mobile-android \
        mobile-camp-start mobile-camp-start-lan mobile-camp-ios mobile-camp-android mobile-camp-prebuild mobile-camp-typecheck \
@@ -45,11 +45,13 @@ DEV_SIMULATOR_HTTPS_DOMAIN ?= medbrains-simulator.localhost
 DEV_SIMULATOR_HTTPS_ORIGIN ?= https://$(DEV_SIMULATOR_HTTPS_DOMAIN)
 DEV_ICD_HTTPS_DOMAIN ?= medbrains-icd.localhost
 DEV_ICD_HTTPS_ORIGIN ?= https://$(DEV_ICD_HTTPS_DOMAIN)
+DEV_KIWI_HTTPS_DOMAIN ?= medbrains-kiwi.localhost
+DEV_KIWI_HTTPS_ORIGIN ?= https://$(DEV_KIWI_HTTPS_DOMAIN)
 # Mail hostname for the dev Stalwart (Outlook/Apple Mail point here). Included
 # in the mkcert SAN list so the system-trusted dev cert covers it; the cert is
 # mounted into Stalwart (make stalwart-cert) so mail clients get a trusted TLS.
 DEV_MAIL_HTTPS_DOMAIN ?= mail.medbrains.localhost
-DEV_HTTPS_ALT_DOMAINS ?= $(DEV_DESKTOP_HTTPS_DOMAIN),$(DEV_SIMULATOR_HTTPS_DOMAIN),$(DEV_ICD_HTTPS_DOMAIN),$(DEV_MAIL_HTTPS_DOMAIN)
+DEV_HTTPS_ALT_DOMAINS ?= $(DEV_DESKTOP_HTTPS_DOMAIN),$(DEV_SIMULATOR_HTTPS_DOMAIN),$(DEV_ICD_HTTPS_DOMAIN),$(DEV_KIWI_HTTPS_DOMAIN),$(DEV_MAIL_HTTPS_DOMAIN)
 DEV_PROXY_CONFIG ?= infra/local/pingora-dev.toml
 SIM_CONFIG ?= configs/simulators/hospital-stream.demo.json
 SIM_RUN_ID ?= nmc-demo
@@ -114,9 +116,15 @@ dev-simulator-admin: ## Start simulator control UI on http://127.0.0.1:5180
 local-https-cert: ## Generate local HTTPS certificate for MedBrains local domains
 	DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) scripts/local_https_cert.sh
 
-dev-proxy: local-https-cert ## Start local Pingora HTTPS proxy
+dev-proxy: local-https-cert ## Start local Pingora HTTPS proxy (no sudo; binds 8080/8443)
 	cargo build -p medbrains-proxy
-	sudo -E target/debug/medbrains-proxy --config $(DEV_PROXY_CONFIG)
+	target/debug/medbrains-proxy --config $(DEV_PROXY_CONFIG)
+
+dev-pf-setup: ## One-time sudo setup: forward ports 80/443 -> 8080/8443 so make dev needs no sudo
+	sudo scripts/dev_pf_setup.sh
+
+dev-pf-remove: ## Remove the dev pf port-forward rules
+	sudo scripts/dev_pf_setup.sh --remove
 
 dev-https: dev ## Alias for make dev
 
@@ -717,9 +725,11 @@ ship-help: ## Document each ship-pipeline stage
 	@echo "  check-region-pinning, check-no-card-logging,"
 	@echo "  check-egress-allowlist, check-migration-headers, e2e-full, build"
 
-kiwi-up: ## Start Kiwi TCMS
+kiwi-up: ## Start Kiwi TCMS (behind the dev proxy; needs `make dev` running)
 	docker compose up -d kiwi
-	@echo "Kiwi TCMS: https://localhost:8443"
+	@echo "Kiwi TCMS: $(DEV_KIWI_HTTPS_ORIGIN)"
+	@echo "  Served through the MedBrains proxy on the shared dev certificate."
+	@echo "  Its own HTTPS listener is not published; run 'make dev' for TLS."
 
 kiwi-sync: ## Sync YAML test cases → Kiwi TCMS
 	python3 qa/sync.py

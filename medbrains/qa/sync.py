@@ -175,7 +175,7 @@ def sync_file(rpc, product, version_id, filepath):
 
 def main():
     rpc = TCMS(
-        url=os.getenv("TCMS_API_URL", "https://localhost:9443/xml-rpc/"),
+        url=os.getenv("TCMS_API_URL", "https://medbrains-kiwi.localhost/xml-rpc/"),
         username=os.getenv("TCMS_USERNAME", "admin"),
         password=os.getenv("TCMS_PASSWORD", "admin"),
     )

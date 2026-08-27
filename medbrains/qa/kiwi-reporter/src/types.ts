@@ -25,7 +25,7 @@ export interface YamlCase {
 
 /** Configuration needed to connect to a Kiwi TCMS instance. */
 export interface KiwiConfig {
-  /** XML-RPC endpoint, e.g. "https://localhost:8443/xml-rpc/" */
+  /** XML-RPC endpoint, e.g. "https://medbrains-kiwi.localhost/xml-rpc/" */
   url: string;
   /** Kiwi TCMS username */
   username: string;

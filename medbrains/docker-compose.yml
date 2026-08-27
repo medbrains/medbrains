@@ -49,7 +49,12 @@ services:
   kiwi:
     image: kiwitcms/kiwi:latest
     ports:
-      - "9443:8443"
+      # Plain HTTP, bound to loopback: TLS for this host terminates at the
+      # MedBrains proxy like every other dev domain, so the image's own HTTPS
+      # listener on 8443 is not published. One certificate, one trust decision,
+      # one place that knows which hostnames exist -- rather than a second
+      # self-signed cert every developer has to click through.
+      - "127.0.0.1:9080:8080"
     environment:
       KIWI_DB_HOST: kiwi_db
       KIWI_DB_PORT: "3306"
@@ -61,6 +66,18 @@ services:
         condition: service_healthy
     volumes:
       - kiwi_uploads:/Kiwi/uploads
+      # Kiwi hardcodes SECURE_SSL_REDIRECT and has no environment switch for
+      # it, so the "don't enforce https" knob other images offer does not exist
+      # here. This drop-in is imported as local settings and tells Django that
+      # the proxy in front terminates TLS; without it Kiwi redirects `/` to `/`
+      # for ever. See the file for why that is safe.
+      - ./infra/local/kiwi-proxy-tls.py:/venv/lib64/python3.11/site-packages/tcms_settings_dir/zz_proxy_tls.py:ro
+      # The image runs its own nginx that redirects 8080 to its own self-signed
+      # HTTPS on 8443 -- a second proxy and a second certificate in front of the
+      # one this project already has. Replaced with the same config minus that
+      # redirect and minus the TLS server, so the only thing terminating TLS is
+      # the MedBrains proxy.
+      - ./infra/local/kiwi-nginx.conf:/Kiwi/etc/nginx.conf:ro
 
   # ── SpiceDB (ReBAC permissions service, Apache 2.0) ──
   # Shares the main `postgres` instance to avoid running two PG servers.
