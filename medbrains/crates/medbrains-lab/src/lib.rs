@@ -989,6 +989,11 @@ pub async fn verify_results(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<LabOrder>, AppError> {
+    // Still `UPDATE`, which is the same code that enters and edits a value --
+    // so the account that types a result also releases it. Splitting that
+    // needs a new `lab.results.verify` constant in `medbrains-core`, and that
+    // file currently carries another change in progress; the split lands on
+    // its own once that is in.
     require_permission(&claims, permissions::lab::results::UPDATE)?;
 
     // The URL names a child record; the care relationship is one hop away on
@@ -1003,6 +1008,72 @@ pub async fn verify_results(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // Releasing is a clinical signature, not a status change, and the status
+    // was the only thing being checked. An order could travel
+    // ordered → collected → processing → completed → verified carrying no
+    // results at all and be printed as a verified report.
+    let result_count = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM lab_results \
+         WHERE order_id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if result_count == 0 {
+        return Err(AppError::BadRequest(
+            "This order has no results to release. Enter the results first.".to_owned(),
+        ));
+    }
+
+    // A critical value can currently be released and printed while its alert
+    // is still unacknowledged and mid-escalation, which is the one case where
+    // the report reaching the clinician first actively hides that nobody has
+    // been telephoned yet.
+    let unacknowledged = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM lab_critical_alerts \
+         WHERE order_id = $1 AND tenant_id = $2 \
+           AND acknowledged_at IS NULL AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if unacknowledged > 0 {
+        return Err(AppError::BadRequest(
+            "A critical value on this order has not been acknowledged yet. Complete the read-back \
+             with the treating doctor before releasing the report."
+                .to_owned(),
+        ));
+    }
+
+    // Second pair of eyes, on the results where it matters.
+    //
+    // A blanket rule would be wrong here: there is one lab role in this
+    // system, so on a single-technologist night shift it would stop the lab
+    // reporting anything at all -- delayed results being their own patient
+    // harm, and a broader one. A critical value is the result that kills
+    // somebody when it is wrong, so that is where the second person is
+    // required, and only there.
+    let released_own_critical = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM lab_results \
+          WHERE order_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
+            AND entered_by = $3 \
+            AND flag IN ('critical_low'::lab_result_flag, 'critical_high'::lab_result_flag))",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+    if released_own_critical {
+        return Err(AppError::BadRequest(
+            "A critical result cannot be released by the person who entered it. Ask a colleague \
+             to verify this report."
+                .to_owned(),
+        ));
+    }
 
     let order = sqlx::query_as::<_, LabOrder>(
         "UPDATE lab_orders SET \
