@@ -97,6 +97,11 @@ def rust_sql_literals(path: Path) -> list[tuple[int, str]]:
         sql = re.sub(r"\bpublic\.\s*__dynamic__", " __dynamic__ ", sql)
         if len(sql) < 30:
             continue
+        # "Select an active staff member from this tenant" is an error message,
+        # not a query. Requiring a second clause keyword keeps English prose
+        # that happens to start with a verb out of the results.
+        if not re.search(r"\b(FROM|VALUES|SET|WHERE|JOIN)\b", sql, re.I):
+            continue
         out.append((text[: m.start()].count("\n") + 1, sql))
     return out
 

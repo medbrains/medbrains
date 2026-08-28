@@ -293,6 +293,9 @@ check-api: ## Verify frontend↔backend API contract
 check-sql-schema: ## Verify runtime SQL resolves against the migrations
 	python3 ../scripts/check_sql_schema.py
 
+check-sql-prepare: ## Ask Postgres to parse every runtime query (needs a schema DB)
+	python3 ../scripts/check_sql_prepare.py
+
 check-ui-api: ## Verify UI pages ↔ API method coverage
 	python3 ../scripts/check_ui_api_coverage.py
 
