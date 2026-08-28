@@ -481,6 +481,28 @@ export const ipdProgressNoteTypeFormSchema = z.enum([
   "social_worker_note",
   "discharge_note",
 ]);
+/**
+ * Draw containers, named by the additive that decides them.
+ *
+ * The tube is not a preference: the additive is part of the assay. A citrate
+ * tube is 3.2% sodium citrate at a fixed 9:1 blood-to-anticoagulant ratio
+ * because the coagulation assay is calibrated to it, and a potassium drawn
+ * into EDTA reads high because the additive is a potassium salt. A sample in
+ * the wrong tube cannot be salvaged by the laboratory -- it is a second
+ * needle, so the requisition slip has to say which one.
+ */
+export const labContainerValues = [
+  "edta_lavender",
+  "plain_red",
+  "sst_gel_yellow",
+  "fluoride_grey",
+  "citrate_blue",
+  "heparin_green",
+  "sterile_container",
+  "blood_culture_bottle",
+  "other",
+] as const;
+
 export const labSampleTypeValues = [
   "blood",
   "serum",
@@ -1130,6 +1152,7 @@ export const ipdClinicalAssessmentTypeFormSchema = z.enum([
   "custom",
 ]);
 export const ipdNursingTaskTypeFormSchema = z.enum(ipdNursingTaskTypeValues);
+export const labContainerFormSchema = z.enum(labContainerValues);
 export const labSampleTypeFormSchema = z.enum(labSampleTypeValues);
 export const labMethodFormSchema = z.enum(labMethodValues);
 export const labCollectionCenterTypeFormSchema = z.enum(labCollectionCenterTypeValues);
@@ -1654,6 +1677,18 @@ export const miniAddDrugFormSchema = z.object({
   reorder_level: nonNegativeInteger("Enter a valid whole number"),
   drug_schedule: drugScheduleFormSchema,
 });
+
+/**
+ * Why an order left the fulfilment flow without being handed over — release
+ * (nobody came) and cancel (pulled mid-flight) both demand one, because both
+ * return stock and leave a money question open. Mirrors the backend's
+ * required, non-blank reason.
+ */
+export const fulfilmentReasonFormSchema = z.object({
+  reason: requiredTrimmed("Give a reason", 500),
+});
+
+export type FulfilmentReasonFormInput = z.infer<typeof fulfilmentReasonFormSchema>;
 
 export const pharmacyCatalogFormSchema = z.object({
   code: requiredTrimmed("Code is required", 80),
@@ -2518,6 +2553,9 @@ export const labCatalogFormSchema = z.object({
   loinc_code: z.string(),
   method: z.union([labMethodFormSchema, z.literal("")]),
   specimen_volume: z.string(),
+  container: z.union([labContainerFormSchema, z.literal("")]),
+  fasting_required: z.boolean(),
+  fasting_hours: optionalNonNegativeIntegerNumber("Fasting hours must be a whole number"),
   critical_low: optionalNumericFormValue("Critical low must be numeric"),
   critical_high: optionalNumericFormValue("Critical high must be numeric"),
   delta_check_percent: optionalNumericFormValue("Delta check must be between 0 and 100", 0, 100),
@@ -5267,6 +5305,7 @@ export type IpdClinicalAssessmentTypeFormValue = z.infer<
 >;
 export type IpdNursingTaskTypeFormValue = z.infer<typeof ipdNursingTaskTypeFormSchema>;
 export type IpdProgressNoteTypeFormValue = z.infer<typeof ipdProgressNoteTypeFormSchema>;
+export type LabContainerFormValue = z.infer<typeof labContainerFormSchema>;
 export type LabSampleTypeFormValue = z.infer<typeof labSampleTypeFormSchema>;
 export type LabMethodFormValue = z.infer<typeof labMethodFormSchema>;
 export type LabCollectionCenterTypeFormValue = z.infer<typeof labCollectionCenterTypeFormSchema>;

@@ -216,5 +216,9 @@
   "aria.robot": "Robot",
   "aria.refresh": "Refresh",
   "aria.close": "Close",
-  "calculators": "Calculators"
+  "calculators": "Calculators",
+  "label.container": "Container",
+  "label.fastingRequired": "Fasting required",
+  "label.fastingHours": "Fasting hours",
+  "description.containerDecidesTheAssay": "The additive is part of the assay — a sample in the wrong tube cannot be salvaged."
 }

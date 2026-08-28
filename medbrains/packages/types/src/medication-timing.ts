@@ -2005,6 +2005,11 @@ export interface LabTestCatalog {
   delta_check_percent: string | null;
   auto_validation_rules: Record<string, unknown> | null;
   allows_add_on: boolean;
+  /** Draw tube for this assay, printed on the requisition slip. */
+  container: string | null;
+  fasting_required: boolean;
+  /** null means unspecified, not zero. */
+  fasting_hours: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -2063,6 +2068,10 @@ export interface CreateLabCatalogRequest {
   delta_check_percent?: number;
   auto_validation_rules?: Record<string, unknown>;
   allows_add_on?: boolean;
+  /** Draw tube, e.g. "Lavender EDTA". A wrong additive cannot be salvaged. */
+  container?: string;
+  fasting_required?: boolean;
+  fasting_hours?: number;
 }
 
 export interface UpdateLabCatalogRequest {
@@ -2083,6 +2092,10 @@ export interface UpdateLabCatalogRequest {
   delta_check_percent?: number;
   auto_validation_rules?: Record<string, unknown>;
   allows_add_on?: boolean;
+  /** Draw tube, e.g. "Lavender EDTA". A wrong additive cannot be salvaged. */
+  container?: string;
+  fasting_required?: boolean;
+  fasting_hours?: number;
 }
 
 // Lab Panels / Profiles

@@ -2,6 +2,7 @@ import type {
   LabB2bClientTypeFormValue,
   LabBethesdaCategoryFormValue,
   LabCollectionCenterTypeFormValue,
+  LabContainerFormValue,
   LabEqasEvaluationFormValue,
   LabMethodFormValue,
   LabMolecularResultInterpretationFormValue,
@@ -13,6 +14,7 @@ import {
   labB2bClientTypeValues,
   labBethesdaCategoryValues,
   labCollectionCenterTypeValues,
+  labContainerValues,
   labEqasEvaluationValues,
   labMethodValues,
   labMolecularResultInterpretationValues,
@@ -24,6 +26,20 @@ import {
   optionalNumberFromFormValue,
   optionalTextFromFormValue,
 } from "@medbrains/schemas";
+
+// Named by colour as well as additive: the colour is what a phlebotomist
+// reaches for at the trolley, and the additive is what the assay needs.
+const containerLabels: Record<LabContainerFormValue, string> = {
+  edta_lavender: "Lavender — K2/K3 EDTA",
+  plain_red: "Red — plain, no additive",
+  sst_gel_yellow: "Yellow — SST, clot activator + gel",
+  fluoride_grey: "Grey — sodium fluoride / potassium oxalate",
+  citrate_blue: "Blue — 3.2% sodium citrate (9:1 fill)",
+  heparin_green: "Green — lithium/sodium heparin",
+  sterile_container: "Sterile universal container",
+  blood_culture_bottle: "Blood culture bottle",
+  other: "Other",
+};
 
 const sampleTypeLabels: Record<LabSampleTypeFormValue, string> = {
   blood: "Blood",
@@ -121,6 +137,11 @@ const b2bClientTypeLabels: Record<LabB2bClientTypeFormValue, string> = {
   diagnostic_center: "Diagnostic Center",
   other: "Other",
 };
+
+export const labContainerOptions = labContainerValues.map((value) => ({
+  value,
+  label: containerLabels[value],
+}));
 
 export const labSampleTypeOptions = labSampleTypeValues.map((value) => ({
   value,

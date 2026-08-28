@@ -160,6 +160,10 @@ pub struct CreateCatalogRequest {
     pub delta_check_percent: Option<Decimal>,
     pub auto_validation_rules: Option<serde_json::Value>,
     pub allows_add_on: Option<bool>,
+    /// Draw tube, e.g. "Lavender EDTA". Wrong additive cannot be salvaged.
+    pub container: Option<String>,
+    pub fasting_required: Option<bool>,
+    pub fasting_hours: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -181,6 +185,10 @@ pub struct UpdateCatalogRequest {
     pub delta_check_percent: Option<Decimal>,
     pub auto_validation_rules: Option<serde_json::Value>,
     pub allows_add_on: Option<bool>,
+    /// Draw tube, e.g. "Lavender EDTA". Wrong additive cannot be salvaged.
+    pub container: Option<String>,
+    pub fasting_required: Option<bool>,
+    pub fasting_hours: Option<i32>,
 }
 
 // Panel types
@@ -1511,10 +1519,11 @@ pub async fn create_catalog_entry(
           normal_range, unit, price, tat_hours, \
           loinc_code, method, specimen_volume, \
           critical_low, critical_high, delta_check_percent, \
-          auto_validation_rules, allows_add_on) \
+          auto_validation_rules, allows_add_on, \
+          container, fasting_required, fasting_hours) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, \
                  $10, $11, $12, $13, $14, $15, $16, \
-                 COALESCE($17, false)) \
+                 COALESCE($17, false), $18, COALESCE($19, false), $20) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -1534,6 +1543,9 @@ pub async fn create_catalog_entry(
     .bind(body.delta_check_percent)
     .bind(&body.auto_validation_rules)
     .bind(body.allows_add_on)
+    .bind(&body.container)
+    .bind(body.fasting_required)
+    .bind(body.fasting_hours)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -1570,8 +1582,11 @@ pub async fn update_catalog_entry(
          delta_check_percent = COALESCE($14, delta_check_percent), \
          auto_validation_rules = COALESCE($15, auto_validation_rules), \
          allows_add_on = COALESCE($16, allows_add_on), \
+         container = COALESCE($17, container), \
+         fasting_required = COALESCE($18, fasting_required), \
+         fasting_hours = COALESCE($19, fasting_hours), \
          updated_at = now() \
-         WHERE id = $17 AND tenant_id = $18 \
+         WHERE id = $20 AND tenant_id = $21 \
          RETURNING *",
     )
     .bind(&body.name)
@@ -1590,6 +1605,9 @@ pub async fn update_catalog_entry(
     .bind(body.delta_check_percent)
     .bind(&body.auto_validation_rules)
     .bind(body.allows_add_on)
+    .bind(&body.container)
+    .bind(body.fasting_required)
+    .bind(body.fasting_hours)
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)

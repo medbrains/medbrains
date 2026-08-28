@@ -120,6 +120,11 @@ pub struct LabTestCatalog {
     pub delta_check_percent: Option<Decimal>,
     pub auto_validation_rules: Option<serde_json::Value>,
     pub allows_add_on: bool,
+    /// Draw tube for this assay, printed on the requisition slip.
+    pub container: Option<String>,
+    pub fasting_required: bool,
+    /// `None` means unspecified, not zero.
+    pub fasting_hours: Option<i32>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

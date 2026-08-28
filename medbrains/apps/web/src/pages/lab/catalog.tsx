@@ -11,8 +11,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { CsvImportModal, DataTable } from "@/components";
-import { Button } from "@/components/ui";
+import { Button, Switch } from "@/components/ui";
 import {
+  labContainerOptions,
   labMethodOptions,
   labNumberOrFallback,
   labOptionalInteger,
@@ -39,6 +40,9 @@ export function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
     loinc_code: "",
     method: "",
     specimen_volume: "",
+    container: "",
+    fasting_required: false,
+    fasting_hours: "",
     critical_low: "",
     critical_high: "",
     delta_check_percent: "",
@@ -47,6 +51,7 @@ export function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
     control,
     register,
     reset,
+    watch,
     handleSubmit,
     formState: { errors },
   } = useForm<LabCatalogFormInput>({
@@ -80,6 +85,9 @@ export function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
       loinc_code: labOptionalText(values.loinc_code),
       method: labOptionalText(values.method),
       specimen_volume: labOptionalText(values.specimen_volume),
+      container: labOptionalText(values.container),
+      fasting_required: values.fasting_required,
+      fasting_hours: labOptionalInteger(values.fasting_hours),
       critical_low: labOptionalNumber(values.critical_low),
       critical_high: labOptionalNumber(values.critical_high),
       delta_check_percent: labOptionalNumber(values.delta_check_percent),
@@ -289,6 +297,52 @@ export function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
               placeholder={t("placeholder.e.g.5Ml")}
               error={errors.specimen_volume?.message}
               {...register("specimen_volume")}
+            />
+          </Group>
+          <Group grow align="flex-start">
+            <Controller
+              control={control}
+              name="container"
+              render={({ field }) => (
+                <Select
+                  label={t("label.container")}
+                  description={t("description.containerDecidesTheAssay")}
+                  data={labContainerOptions}
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={errors.container?.message}
+                  clearable
+                  searchable
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="fasting_required"
+              render={({ field }) => (
+                <Switch
+                  label={t("label.fastingRequired")}
+                  checked={field.value}
+                  onChange={(event) => field.onChange(event.currentTarget.checked)}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="fasting_hours"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.fastingHours")}
+                  min={0}
+                  // Hours mean nothing unless fasting is required, and a
+                  // number left behind after the switch is turned off would
+                  // print on the slip as an instruction.
+                  disabled={!watch("fasting_required")}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.fasting_hours?.message}
+                />
+              )}
             />
           </Group>
           <Group grow>
