@@ -1,4 +1,6 @@
 // Permissions
+
+import type { PrintSignatureData } from "./emergency-drug-kits";
 import type {
   AdditionalSequence,
   OnboardingBedType,
@@ -232,6 +234,7 @@ export {
   ROLE_TEMPLATES,
 } from "./permissions.js";
 export * from "./pharmacy-credit-indents";
+export * from "./pharmacy-fulfilment";
 export * from "./pharmacy-phase2";
 export * from "./pharmacy-phase3";
 export type {
@@ -283,6 +286,7 @@ export type {
   PublicBookingResponse,
   PublicTokenLink,
   PublicTokenStatus,
+  RoomToken,
   TokenBoardDisplayMode,
   TokenBoardLaunchTargets,
   TokenBoardReadinessItem,
@@ -294,7 +298,6 @@ export type {
   TokenBoardStatusValue,
   TokenBoardSurfaceDefinition,
   TokenBoardSurfaceFilter,
-  RoomToken,
   TokenBoardSurfaceId,
   TokenBoardTvAppCode,
   TokenBoardTvDisplayType,
@@ -3749,49 +3752,66 @@ export interface PrescriptionMedication {
   is_prn: boolean;
 }
 
+/**
+ * Mirrors `LabReportFullPrintData` in `medbrains-core/src/print_data.rs`.
+ *
+ * This interface had drifted a long way from the Rust it describes -- it
+ * named `report_number`, `phone`, `collection_time`, `received_date`,
+ * `critical_values` and `nabl_logo`, none of which the endpoint returns, and
+ * omitted the ward, bed, LOINC code, technician and signatures it does. It is
+ * the declared return type of `getLabReportFullPrintData` and nothing else
+ * consumes it, so the drift went unnoticed.
+ */
 export interface LabReportFullPrintData {
-  report_number: string;
-  report_date: string;
   patient_name: string;
   uhid: string;
-  age: string | null;
+  age_display: string;
   gender: string;
-  phone: string | null;
-  sample_type: string | null;
-  sample_id: string | null;
+  sample_id: string;
+  accession_number: string;
+  order_date: string;
   collection_date: string | null;
-  collection_time: string | null;
-  received_date: string | null;
-  report_time: string | null;
+  report_date: string;
   referring_doctor: string | null;
   department: string | null;
+  ward_name: string | null;
+  bed_number: string | null;
   test_name: string;
   test_code: string | null;
+  loinc_code: string | null;
+  specimen_type: string | null;
+  /** preliminary / final / amended. */
+  report_status: string | null;
   parameters: LabParameter[];
   interpretation: string | null;
   comments: string | null;
-  pathologist_name: string | null;
-  pathologist_registration: string | null;
+  pathologist_name: string;
+  pathologist_registration_number: string | null;
   pathologist_signature_url: string | null;
-  verified_by: string | null;
+  technician_name: string | null;
   verified_at: string | null;
-  is_critical: boolean;
-  critical_values: string[];
-  nabl_logo: boolean;
+  nabl_accredited: boolean;
   nabl_certificate_number: string | null;
+  nabl_logo_url: string | null;
+  barcode_data: string;
   hospital_name: string;
-  hospital_address: string | null;
   hospital_logo_url: string | null;
-  barcode_data: string | null;
+  signatures: PrintSignatureData[];
 }
 
 export interface LabParameter {
   parameter_name: string;
-  result: string;
+  result_value: string;
   unit: string | null;
   reference_range: string | null;
-  flag: string | null;
+  is_abnormal: boolean;
   is_critical: boolean;
+  critical_flag: string | null;
+  method: string | null;
+  /** The same analyte's last value, and how far this one has moved. */
+  previous_value: string | null;
+  delta_percent: string | null;
+  is_delta_flagged: boolean;
 }
 
 export interface CumulativeLabReportPrintData {
@@ -8004,6 +8024,52 @@ export interface ApiKeyUsageRow {
   path: string;
   status_code: number;
   occurred_at: string;
+}
+
+// ── EMI / Installment Payments ──────────────────────────────
+
+export interface PaymentInstallment {
+  id: string;
+  tenant_id: string;
+  invoice_id: string;
+  total_amount: number;
+  installment_count: number;
+  installment_amount: number;
+  frequency: string;
+  interest_rate: number;
+  penalty_rate: number;
+  status: "active" | "completed" | "defaulted" | "cancelled";
+  notes?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+  pending_count?: number;
+  items?: PaymentInstallmentItem[];
+}
+
+export interface PaymentInstallmentItem {
+  id: string;
+  tenant_id: string;
+  installment_id: string;
+  installment_number: number;
+  due_date: string;
+  amount: number;
+  penalty_amount: number;
+  status: "pending" | "paid" | "overdue" | "waived";
+  payment_id?: string;
+  paid_at?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateInstallmentRequest {
+  invoice_id: string;
+  installment_count: number;
+  frequency?: string;
+  interest_rate?: number;
+  penalty_rate?: number;
+  notes?: string;
 }
 
 export type { PermissionGroup } from "./permission-helpers";

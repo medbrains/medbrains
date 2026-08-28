@@ -1985,6 +1985,7 @@ struct LabReportFullRow {
     test_code: Option<String>,
     loinc_code: Option<String>,
     specimen_type: Option<String>,
+    report_status: Option<String>,
     interpretation: Option<String>,
     comments: Option<String>,
     pathologist_name: Option<String>,
@@ -2003,6 +2004,9 @@ struct LabParameterRow {
     is_critical: bool,
     critical_flag: Option<String>,
     method: Option<String>,
+    previous_value: Option<String>,
+    delta_percent: Option<rust_decimal::Decimal>,
+    is_delta_flagged: bool,
 }
 
 pub async fn get_lab_report_full_print_data(
@@ -2041,7 +2045,8 @@ pub async fn get_lab_report_full_print_data(
            tc.name AS test_name, \
            tc.code AS test_code, \
            tc.loinc_code, \
-           tc.specimen_type, \
+           tc.sample_type AS specimen_type, \
+           lo.report_status::text AS report_status, \
            lo.interpretation, \
            lo.comments, \
            path.full_name AS pathologist_name, \
@@ -2050,7 +2055,7 @@ pub async fn get_lab_report_full_print_data(
            lo.verified_at \
          FROM lab_orders lo \
          JOIN patients p ON p.id = lo.patient_id AND p.tenant_id = lo.tenant_id \
-         JOIN test_catalog tc ON tc.id = lo.test_id AND tc.tenant_id = lo.tenant_id \
+         JOIN lab_test_catalog tc ON tc.id = lo.test_id AND tc.tenant_id = lo.tenant_id \
          LEFT JOIN users doc ON doc.id = lo.ordering_doctor_id \
          LEFT JOIN departments d ON d.id = lo.department_id AND d.tenant_id = lo.tenant_id \
          LEFT JOIN admissions a ON a.patient_id = lo.patient_id AND a.status = 'admitted' AND a.tenant_id = lo.tenant_id \
@@ -2066,17 +2071,32 @@ pub async fn get_lab_report_full_print_data(
     .await?;
 
     let parameters = sqlx::query_as::<_, LabParameterRow>(
+        // `lab_results` carries two vocabularies for the same facts. Result
+        // entry writes `value`, `normal_range` and `flag`; this query read
+        // `result_value`, `reference_range`, `is_abnormal` and `is_critical`,
+        // which no code anywhere writes. Every line of every printed report
+        // was therefore blank and unflagged -- and `result_value` is not even
+        // nullable in the row struct, so it failed to decode outright.
+        //
+        // Both are read, the written one first, so a deployment that has
+        // filled either still prints. Abnormality falls back to the `flag`
+        // the entry path does set.
         "SELECT \
            lr.parameter_name, \
-           lr.result_value, \
+           COALESCE(lr.result_value, lr.value) AS result_value, \
            lr.unit, \
-           lr.reference_range, \
-           lr.is_abnormal, \
-           lr.is_critical, \
-           lr.critical_flag, \
-           lr.method \
+           COALESCE(lr.reference_range, lr.normal_range) AS reference_range, \
+           (lr.is_abnormal \
+             OR (lr.flag IS NOT NULL AND lr.flag::text <> 'normal')) AS is_abnormal, \
+           (lr.is_critical \
+             OR lr.flag::text IN ('critical_low', 'critical_high')) AS is_critical, \
+           COALESCE(lr.critical_flag, NULLIF(lr.flag::text, 'normal')) AS critical_flag, \
+           lr.method, \
+           lr.previous_value, \
+           lr.delta_percent, \
+           lr.is_delta_flagged \
          FROM lab_results lr \
-         WHERE lr.order_id = $1 AND lr.tenant_id = $2 \
+         WHERE lr.order_id = $1 AND lr.tenant_id = $2 AND lr.deleted_at IS NULL \
          ORDER BY lr.display_order, lr.parameter_name LIMIT 5000",
     )
     .bind(order_id)
@@ -2126,6 +2146,7 @@ pub async fn get_lab_report_full_print_data(
         test_code: row.test_code,
         loinc_code: row.loinc_code,
         specimen_type: row.specimen_type,
+        report_status: row.report_status,
         parameters: parameters
             .into_iter()
             .map(|p| LabParameter {
@@ -2137,6 +2158,12 @@ pub async fn get_lab_report_full_print_data(
                 is_critical: p.is_critical,
                 critical_flag: p.critical_flag,
                 method: p.method,
+                previous_value: p.previous_value,
+                // Rendered as text: the template prints it, it does not do
+                // arithmetic on it, and a Decimal serialises to a number whose
+                // trailing zeros a report should not invent.
+                delta_percent: p.delta_percent.map(|d| d.normalize().to_string()),
+                is_delta_flagged: p.is_delta_flagged,
             })
             .collect(),
         interpretation: row.interpretation,
@@ -2216,16 +2243,20 @@ pub async fn get_cumulative_lab_report_print_data(
 
     // Get all lab results for the patient in the last 6 months
     let trends = sqlx::query_as::<_, CumulativeTrendRow>(
+        // Same two-vocabulary problem as the single report above: entry
+        // writes `value`/`normal_range`/`flag`, this read the parallel set
+        // that nothing writes, so every point on the trend was blank.
         "SELECT \
            lr.parameter_name, \
            lr.unit, \
-           lr.reference_range, \
+           COALESCE(lr.reference_range, lr.normal_range) AS reference_range, \
            lo.report_date AS result_date, \
-           lr.result_value, \
-           lr.is_abnormal \
+           COALESCE(lr.result_value, lr.value) AS result_value, \
+           (lr.is_abnormal \
+             OR (lr.flag IS NOT NULL AND lr.flag::text <> 'normal')) AS is_abnormal \
          FROM lab_results lr \
          JOIN lab_orders lo ON lo.id = lr.order_id AND lo.tenant_id = lr.tenant_id \
-         WHERE lo.patient_id = $1 AND lo.tenant_id = $2 \
+         WHERE lo.patient_id = $1 AND lo.tenant_id = $2 AND lr.deleted_at IS NULL \
            AND lo.report_date >= NOW() - INTERVAL '6 months' \
            AND lo.status = 'verified' \
          ORDER BY lr.parameter_name, lo.report_date LIMIT 5000",

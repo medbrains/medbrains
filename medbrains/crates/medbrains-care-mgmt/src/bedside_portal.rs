@@ -368,17 +368,31 @@ pub async fn get_lab_results(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LabResultItem>(
-        "SELECT lr.id, ltc.name AS test_name, lr.result_value, lr.unit, \
-                lr.reference_range, lr.is_abnormal, lr.completed_at \
+        // `lab_results` has no `completed_at`, so this failed outright; the
+        // order carries it. It also read `result_value`/`reference_range`/
+        // `is_abnormal`, the vocabulary nothing writes, while entry writes
+        // `value`/`normal_range`/`flag`.
+        //
+        // This is a screen at a patient's bedside, so it shows only what has
+        // been released: an unverified value on the tablet by the bed is a
+        // number the patient reads before their doctor has.
+        "SELECT lr.id, ltc.name AS test_name, \
+                COALESCE(lr.result_value, lr.value) AS result_value, lr.unit, \
+                COALESCE(lr.reference_range, lr.normal_range) AS reference_range, \
+                (lr.is_abnormal \
+                  OR (lr.flag IS NOT NULL AND lr.flag::text <> 'normal')) AS is_abnormal, \
+                COALESCE(lo.completed_at, lr.created_at) AS completed_at \
          FROM lab_results lr \
-         JOIN lab_orders lo ON lo.id = lr.order_id \
-         JOIN lab_test_catalog ltc ON ltc.id = lo.test_id \
-         JOIN encounters e ON e.id = lo.encounter_id \
-         JOIN admissions a ON a.encounter_id = e.id \
-         WHERE a.id = $1 \
-         ORDER BY lr.completed_at DESC NULLS LAST LIMIT 20",
+         JOIN lab_orders lo ON lo.id = lr.order_id AND lo.tenant_id = lr.tenant_id \
+         JOIN lab_test_catalog ltc ON ltc.id = lo.test_id AND ltc.tenant_id = lo.tenant_id \
+         JOIN encounters e ON e.id = lo.encounter_id AND e.tenant_id = lo.tenant_id \
+         JOIN admissions a ON a.encounter_id = e.id AND a.tenant_id = e.tenant_id \
+         WHERE a.id = $1 AND lr.tenant_id = $2 AND lr.deleted_at IS NULL \
+           AND lo.status = 'verified'::lab_order_status \
+         ORDER BY COALESCE(lo.completed_at, lr.created_at) DESC NULLS LAST LIMIT 20",
     )
     .bind(admission_id)
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 

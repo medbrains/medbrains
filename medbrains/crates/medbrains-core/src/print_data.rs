@@ -2507,6 +2507,9 @@ pub struct LabReportFullPrintData {
     pub test_code: Option<String>,
     pub loinc_code: Option<String>,
     pub specimen_type: Option<String>,
+    /// preliminary / final / amended. An amended report that looks exactly
+    /// like the one it replaces is a clinician acting on a withdrawn value.
+    pub report_status: Option<String>,
     pub parameters: Vec<LabParameter>,
     pub interpretation: Option<String>,
     pub comments: Option<String>,
@@ -2536,6 +2539,13 @@ pub struct LabParameter {
     pub is_critical: bool,
     pub critical_flag: Option<String>,
     pub method: Option<String>,
+    /// The same analyte's last value, and how far this one has moved from it.
+    /// Computed and stored at entry, shown on the order screen, and until now
+    /// missing from the printed report -- so a clinician holding the PDF
+    /// could not see that a creatinine had doubled since yesterday.
+    pub previous_value: Option<String>,
+    pub delta_percent: Option<String>,
+    pub is_delta_flagged: bool,
 }
 
 /// Cumulative Lab Report for trending across visits
