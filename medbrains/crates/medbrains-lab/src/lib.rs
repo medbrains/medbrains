@@ -11,7 +11,8 @@ use medbrains_core::lab::{
     LabCytologyReport, LabEqasResult, LabHistopathReport, LabHomeCollection, LabMolecularReport,
     LabNablDocument, LabOrder, LabOutsourcedOrder, LabPanelTest, LabPhlebotomyQueue,
     LabProficiencyTest, LabQcResult, LabReagentLot, LabReportDispatch, LabReportTemplate,
-    LabReportTemplateListItem, LabResult, LabResultAmendment, LabSampleArchive, LabTestCatalog,
+    LabReportTemplateListItem, LabResult, LabResultAmendment, LabResultFlag, LabSampleArchive,
+    LabTestCatalog,
     LabTestPanel,
 };
 use medbrains_core::permissions;
@@ -25,6 +26,13 @@ use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::middleware::authorization::{is_bypass_role, require_any_permission, require_permission};
 use medbrains_notifications::{NewNotification, create_notification};
 use medbrains_server_core::state::AppState;
+
+mod order_filter;
+mod priority;
+mod reference_range;
+use order_filter::{Bind, build_order_filter};
+use priority::{normalize_lab_priority, token_priority};
+use reference_range::{LabRefRow, RefVerdict, judge};
 
 // ══════════════════════════════════════════════════════════
 //  Request / Response types
@@ -60,23 +68,6 @@ pub struct CreateOrderRequest {
     pub is_dummy: Option<bool>,
 }
 
-fn normalize_lab_priority(priority: Option<&str>) -> Result<&'static str, AppError> {
-    let Some(priority) = priority.map(str::trim).filter(|value| !value.is_empty()) else {
-        return Ok("routine");
-    };
-
-    if priority.eq_ignore_ascii_case("routine") {
-        Ok("routine")
-    } else if priority.eq_ignore_ascii_case("urgent") {
-        Ok("urgent")
-    } else if priority.eq_ignore_ascii_case("stat") {
-        Ok("stat")
-    } else {
-        Err(AppError::BadRequest(format!(
-            "unsupported lab priority: {priority}"
-        )))
-    }
-}
 
 #[derive(Debug, Serialize)]
 pub struct OrderDetailResponse {
@@ -402,94 +393,40 @@ pub async fn list_orders(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let mut conditions = vec!["tenant_id = $1".to_owned()];
-    let mut bind_idx: usize = 2;
-    if let Some(ref ids) = visible_ids {
-        if ids.is_empty() {
-            return Ok(Json(OrderListResponse {
-                orders: Vec::new(),
-                total: 0,
-                page,
-                per_page,
-            }));
-        }
-        conditions.push(format!("id = ANY(${bind_idx}::uuid[])"));
-        bind_idx += 1;
+    if visible_ids.as_ref().is_some_and(Vec::is_empty) {
+        return Ok(Json(OrderListResponse {
+            orders: Vec::new(),
+            total: 0,
+            page,
+            per_page,
+        }));
     }
 
-    #[allow(clippy::items_after_statements)]
-    struct Bind {
-        uuid_val: Option<Uuid>,
-        string_val: Option<String>,
-    }
-    let mut binds: Vec<Bind> = Vec::new();
-
-    if let Some(ref status) = params.status {
-        conditions.push(format!("status::text = ${bind_idx}"));
-        binds.push(Bind {
-            uuid_val: None,
-            string_val: Some(status.clone()),
-        });
-        bind_idx += 1;
-    }
-    if let Some(ref priority) = params.priority {
-        conditions.push(format!("priority::text = ${bind_idx}"));
-        binds.push(Bind {
-            uuid_val: None,
-            string_val: Some(priority.clone()),
-        });
-        bind_idx += 1;
-    }
-    if let Some(pid) = params.patient_id {
-        conditions.push(format!("patient_id = ${bind_idx}"));
-        binds.push(Bind {
-            uuid_val: Some(pid),
-            string_val: None,
-        });
-        bind_idx += 1;
-    }
-    if let Some(eid) = params.encounter_id {
-        conditions.push(format!("encounter_id = ${bind_idx}"));
-        binds.push(Bind {
-            uuid_val: Some(eid),
-            string_val: None,
-        });
-        bind_idx += 1;
-    }
-
-    let where_clause = conditions.join(" AND ");
+    let (where_clause, binds, next_idx) = build_order_filter(&params, visible_ids.as_deref());
 
     let count_sql = format!("SELECT COUNT(*) FROM lab_orders WHERE {where_clause}");
     let mut cq = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
-    for b in &binds {
-        if let Some(u) = b.uuid_val {
-            cq = cq.bind(u);
-        }
-        if let Some(ref s) = b.string_val {
-            cq = cq.bind(s.clone());
-        }
-    }
-    if let Some(ref ids) = visible_ids {
-        cq = cq.bind(ids.clone());
+    for bind in &binds {
+        cq = match bind {
+            Bind::Uuid(value) => cq.bind(*value),
+            Bind::Text(value) => cq.bind(value.clone()),
+            Bind::UuidList(value) => cq.bind(value.clone()),
+        };
     }
     let total = cq.fetch_one(&mut *tx).await?;
 
     let data_sql = format!(
         "SELECT * FROM lab_orders WHERE {where_clause} \
-         ORDER BY created_at DESC LIMIT ${bind_idx} OFFSET ${}",
-        bind_idx + 1
+         ORDER BY created_at DESC LIMIT ${next_idx} OFFSET ${}",
+        next_idx + 1
     );
     let mut dq = sqlx::query_as::<_, LabOrder>(&data_sql).bind(claims.tenant_id);
-    for b in &binds {
-        if let Some(u) = b.uuid_val {
-            dq = dq.bind(u);
-        }
-        if let Some(ref s) = b.string_val {
-            dq = dq.bind(s.clone());
-        }
-    }
-    if let Some(ref ids) = visible_ids {
-        dq = dq.bind(ids.clone());
+    for bind in &binds {
+        dq = match bind {
+            Bind::Uuid(value) => dq.bind(*value),
+            Bind::Text(value) => dq.bind(value.clone()),
+            Bind::UuidList(value) => dq.bind(value.clone()),
+        };
     }
     let orders = dq.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
 
@@ -606,7 +543,7 @@ pub async fn create_order_in_tx_with_options(
                 scope: "global",
                 scope_id: None,
                 scope_label: Some("Lab sample collection"),
-                priority: "normal",
+                priority: token_priority(order.priority),
                 patient_id: Some(order.patient_id),
                 patient_name: None,
                 entity_type: Some("lab_order"),
@@ -1195,38 +1132,25 @@ async fn patient_lab_band(
     Ok(band.to_owned())
 }
 
-#[derive(sqlx::FromRow)]
-struct LabRefRow {
-    critical_low: Option<f64>,
-    critical_high: Option<f64>,
-    neonate_low: Option<f64>,
-    neonate_high: Option<f64>,
-    infant_low: Option<f64>,
-    infant_high: Option<f64>,
-    child_low: Option<f64>,
-    child_high: Option<f64>,
-    adult_m_low: Option<f64>,
-    adult_m_high: Option<f64>,
-    adult_f_low: Option<f64>,
-    adult_f_high: Option<f64>,
-    elderly_low: Option<f64>,
-    elderly_high: Option<f64>,
-}
 
-/// Auto-flag a numeric result against the global `cds_lab_reference`: critical
-/// thresholds first, then the patient's age/sex normal band (→ high/low).
-/// Returns `None` for non-numeric values or no match.
+/// Judge a result against the global `cds_lab_reference`.
+///
+/// Three outcomes, not two -- see `reference_range`. A value this table cannot
+/// judge comes back `Unknown`, and `Unknown` is never normality.
 async fn auto_flag(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     parameter_name: &str,
     value: &str,
     band: &str,
-) -> Result<Option<String>, AppError> {
-    let Ok(v) = value.trim().parse::<f64>() else {
-        return Ok(None);
+) -> Result<RefVerdict, AppError> {
+    // Not a number: a culture, a serology, a description. The numeric bands
+    // say nothing about it, and silence is not a pass.
+    let Ok(numeric) = value.trim().parse::<f64>() else {
+        return Ok(RefVerdict::Unknown);
     };
     let row = sqlx::query_as::<_, LabRefRow>(
-        "SELECT critical_low::float8, critical_high::float8, \
+        "SELECT normal_low::float8, normal_high::float8, \
+                critical_low::float8, critical_high::float8, \
                 neonate_low::float8, neonate_high::float8, infant_low::float8, infant_high::float8, \
                 child_low::float8, child_high::float8, adult_m_low::float8, adult_m_high::float8, \
                 adult_f_low::float8, adult_f_high::float8, \
@@ -1236,32 +1160,11 @@ async fn auto_flag(
     .bind(parameter_name.trim())
     .fetch_optional(&mut **tx)
     .await?;
-    let Some(r) = row else {
-        return Ok(None);
+    // The analyte is not in the reference table at all.
+    let Some(row) = row else {
+        return Ok(RefVerdict::Unknown);
     };
-    if r.critical_low.is_some_and(|lo| v < lo) {
-        return Ok(Some("critical_low".to_owned()));
-    }
-    if r.critical_high.is_some_and(|hi| v > hi) {
-        return Ok(Some("critical_high".to_owned()));
-    }
-    let (low, high) = match band {
-        "neonate" => (r.neonate_low, r.neonate_high),
-        "infant" => (r.infant_low, r.infant_high),
-        "child" => (r.child_low, r.child_high),
-        "adult_f" => (r.adult_f_low, r.adult_f_high),
-        // Elderly falls back to the sex-specific adult range when no elderly band.
-        "elderly_f" => (r.elderly_low.or(r.adult_f_low), r.elderly_high.or(r.adult_f_high)),
-        "elderly_m" => (r.elderly_low.or(r.adult_m_low), r.elderly_high.or(r.adult_m_high)),
-        _ => (r.adult_m_low, r.adult_m_high),
-    };
-    if low.is_some_and(|lo| v < lo) {
-        return Ok(Some("low".to_owned()));
-    }
-    if high.is_some_and(|hi| v > hi) {
-        return Ok(Some("high".to_owned()));
-    }
-    Ok(None)
+    Ok(judge(&row, numeric, band))
 }
 
 pub async fn add_results(
@@ -1334,9 +1237,13 @@ pub async fn add_results(
         // Auto-detect a critical value from the global CDS lab reference when
         // the technician hasn't already flagged one (NABL critical-value
         // reporting — a value out of the critical range is never missed).
-        let effective_flag = auto_flag(&mut tx, &r.parameter_name, &r.value, &lab_band)
-            .await?
-            .or_else(|| r.flag.clone());
+        let verdict = auto_flag(&mut tx, &r.parameter_name, &r.value, &lab_band).await?;
+        // The table only overrides the technologist when it actually judged
+        // the value; otherwise their own flag stands.
+        let effective_flag = match &verdict {
+            RefVerdict::Flagged(flag) => Some((*flag).to_owned()),
+            RefVerdict::InRange | RefVerdict::Unknown => r.flag.clone(),
+        };
 
         // Delta check: find previous result for same patient + parameter
         #[derive(sqlx::FromRow)]
@@ -1380,17 +1287,23 @@ pub async fn add_results(
             }
         }
 
-        // Auto-validate: within range, no delta flag, no critical
-        let mut is_auto_validated = false;
-        if !is_delta_flagged {
-            if let Some(ref flag_str) = effective_flag {
-                if flag_str == "normal" {
-                    is_auto_validated = true;
-                }
-            } else {
-                is_auto_validated = true; // no flag = normal
-            }
-        }
+        // Auto-validate only what is affirmatively known to be in range.
+        //
+        // The `else` branch here used to read "no flag = normal", which made an
+        // empty flag mean normality. An empty flag is what you get when the
+        // analyte is not in the reference table, when the patient's age band is
+        // unpopulated, and when the value is not a number at all -- so a
+        // culture growing a resistant organism was auto-validated. This flag is
+        // carried into the signed report payload, so a wrong stamp is a false
+        // assertion inside a signed record.
+        let is_auto_validated = !is_delta_flagged
+            && match effective_flag.as_deref() {
+                // A technologist marking it normal is the human judgement that
+                // autoverification stands in for, so it still counts.
+                Some("normal") => true,
+                None => verdict == RefVerdict::InRange,
+                Some(_) => false,
+            };
 
         let result = sqlx::query_as::<_, LabResult>(
             "INSERT INTO lab_results \
@@ -4453,36 +4366,33 @@ pub async fn auto_validate_result(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // Get result with its order and test catalog info
     let result = sqlx::query_as::<_, LabResult>("SELECT * FROM lab_results WHERE id = $1")
         .bind(id)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(AppError::NotFound)?;
 
-    // Get test catalog for critical ranges (used as auto-validation bounds)
     let order = sqlx::query_as::<_, LabOrder>("SELECT * FROM lab_orders WHERE id = $1")
         .bind(result.order_id)
         .fetch_one(&mut *tx)
         .await?;
 
-    let catalog =
-        sqlx::query_as::<_, LabTestCatalog>("SELECT * FROM lab_test_catalog WHERE id = $1")
-            .bind(order.test_id)
-            .fetch_one(&mut *tx)
-            .await?;
+    // Judged exactly as `add_results` judges it at entry.
+    //
+    // This used to test the value against `lab_test_catalog.critical_low ..
+    // critical_high` -- the panic bounds, not the reference range -- and call
+    // anything between them validated. A potassium of 6.4 against a critical
+    // high of 6.5 is grossly abnormal, and was auto-validated here while the
+    // entry path flagged it: the same column meant two different things
+    // depending on which code last wrote it. Most of the catalog carries no
+    // critical bounds at all, so for most tests this answered a flat no.
+    let band = patient_lab_band(&mut tx, claims.tenant_id, order.patient_id).await?;
+    let verdict = auto_flag(&mut tx, &result.parameter_name, &result.value, &band).await?;
 
-    // Check if value is within critical ranges (critical_low..critical_high)
-    let is_valid = if let (Some(low), Some(high)) = (catalog.critical_low, catalog.critical_high) {
-        if let Ok(val) = result.value.parse::<Decimal>() {
-            val >= low && val <= high
-        } else {
-            false
-        }
-    } else {
-        // No critical range defined — cannot auto-validate
-        false
-    };
+    // A technologist's own flag still stands: the reference table is a second
+    // opinion, never an override of the person who looked at the sample.
+    let flag_permits = matches!(result.flag, None | Some(LabResultFlag::Normal));
+    let is_valid = flag_permits && !result.is_delta_flagged && verdict == RefVerdict::InRange;
 
     if is_valid {
         sqlx::query("UPDATE lab_results SET is_auto_validated = true WHERE id = $1")
@@ -4496,9 +4406,11 @@ pub async fn auto_validate_result(
         "result_id": id,
         "auto_validated": is_valid,
         "message": if is_valid {
-            "Result auto-validated successfully"
+            "Result auto-validated against the reference range"
+        } else if verdict == RefVerdict::Unknown {
+            "No reference range covers this result - manual review required"
         } else {
-            "Result outside normal range, manual review required"
+            "Result outside the reference range - manual review required"
         }
     })))
 }

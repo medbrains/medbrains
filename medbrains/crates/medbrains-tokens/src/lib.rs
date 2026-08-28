@@ -282,6 +282,36 @@ pub async fn issue_token_once_per_patient_day(
     input: IssueToken<'_>,
 ) -> Result<Option<String>, AppError> {
     if let Some(patient_id) = input.patient_id {
+        // A second request for the same patient and module on the same day is
+        // the same trip to the same counter, so it must not mint a second
+        // number. But it can be a more urgent reason to be there: a STAT lab
+        // order raised for a patient who already holds a routine collection
+        // token used to return here with nothing, leaving them queued at the
+        // priority of whatever they walked in for.
+        //
+        // So the existing token is promoted instead of a new one being issued.
+        // The comparison is `token_priority_weight`, the same function the
+        // board and call-next sort by, so promotion cannot disagree with the
+        // order it is trying to change. Demotion is impossible by
+        // construction: a lower-priority second request leaves the token alone.
+        let promoted: Option<String> = sqlx::query_scalar(
+            "UPDATE tokens SET priority = $4, updated_at = now() \
+             WHERE tenant_id = $1 AND module = $2 AND patient_id = $3 \
+               AND token_date = CURRENT_DATE \
+               AND status NOT IN ('completed', 'no_show', 'cancelled') \
+               AND token_priority_weight($4) < token_priority_weight(priority) \
+             RETURNING number",
+        )
+        .bind(tenant_id)
+        .bind(input.module)
+        .bind(patient_id)
+        .bind(input.priority)
+        .fetch_optional(&mut **tx)
+        .await?;
+        if promoted.is_some() {
+            return Ok(promoted);
+        }
+
         let exists: bool = sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM tokens \
              WHERE tenant_id = $1 AND module = $2 AND patient_id = $3 \
