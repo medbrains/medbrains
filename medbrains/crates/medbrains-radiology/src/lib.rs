@@ -57,9 +57,12 @@ async fn latest_egfr(
     patient_id: Uuid,
 ) -> Result<Option<f64>, AppError> {
     let egfr = sqlx::query_scalar::<_, Option<f64>>(
+        // Verified only -- see the same query in telehealth's renal CDS. This
+        // one decides whether a patient is held for review before contrast.
         "SELECT lr.numeric_value::float8 FROM lab_results lr \
          JOIN lab_orders lo ON lo.id = lr.order_id AND lo.tenant_id = lr.tenant_id \
          WHERE lr.tenant_id = $1 AND lo.patient_id = $2 AND lr.numeric_value IS NOT NULL \
+           AND lo.status = 'verified'::lab_order_status \
            AND (lower(lr.parameter_name) LIKE '%egfr%' OR lower(lr.parameter_name) LIKE '%gfr%') \
          ORDER BY lr.created_at DESC LIMIT 1",
     )

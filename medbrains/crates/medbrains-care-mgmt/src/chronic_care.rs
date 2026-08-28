@@ -1333,12 +1333,16 @@ pub async fn outcome_dashboard(
         }
 
         let latest = sqlx::query_as::<_, LatestResult>(
+            // Verified only. `completed` means the value has been typed and
+            // not yet released, and this decides whether a patient is meeting
+            // a disease target -- the timeline below may show provisional
+            // points, but a judgement must not be made on one.
             "SELECT lr.numeric_value, lr.created_at \
              FROM lab_results lr \
              JOIN lab_orders lo ON lo.id = lr.order_id \
              LEFT JOIN lab_test_catalog ltc ON ltc.id = lo.test_id \
              WHERE lo.patient_id = $1 \
-             AND lo.status IN ('completed', 'verified') \
+             AND lo.status = 'verified' \
              AND (lr.parameter_name ILIKE $2 OR ltc.loinc_code = $3) \
              AND lr.numeric_value IS NOT NULL \
              ORDER BY lr.created_at DESC LIMIT 1",

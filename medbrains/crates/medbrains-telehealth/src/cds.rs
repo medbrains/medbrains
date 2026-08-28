@@ -624,9 +624,16 @@ async fn patient_latest_egfr(
     patient_id: Uuid,
 ) -> Result<Option<f64>, AppError> {
     let egfr = sqlx::query_scalar::<_, Option<f64>>(
+        // Verified only. Until now `numeric_value` was NULL on every row, so
+        // this returned None for everybody and no renal alert could fire.
+        // Filling the column arms this query, and without a status predicate
+        // it would begin dosing off whatever a technologist last typed --
+        // unverified, possibly mid-correction. A gap that alerted on nothing
+        // would have become a gate that answered from unreleased values.
         "SELECT lr.numeric_value::float8 FROM lab_results lr \
          JOIN lab_orders lo ON lo.id = lr.order_id AND lo.tenant_id = lr.tenant_id \
          WHERE lr.tenant_id = $1 AND lo.patient_id = $2 AND lr.numeric_value IS NOT NULL \
+           AND lo.status = 'verified'::lab_order_status \
            AND (lower(lr.parameter_name) LIKE '%egfr%' OR lower(lr.parameter_name) LIKE '%gfr%') \
          ORDER BY lr.created_at DESC LIMIT 1",
     )
