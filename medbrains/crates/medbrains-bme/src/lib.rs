@@ -757,7 +757,7 @@ pub async fn create_work_order(
           pm_schedule_id, breakdown_id, notes, created_by) \
          VALUES ($1, $2, $3, $4::bme_work_order_type, \
                  COALESCE($5, 'medium')::bme_breakdown_priority, \
-                 $6, CASE WHEN $6 IS NOT NULL THEN now() ELSE NULL END, \
+                 $6, CASE WHEN $6::uuid IS NOT NULL THEN now() ELSE NULL END, \
                  $7, $8, $9, $10, $11, $12) \
          RETURNING *",
     )

@@ -2628,9 +2628,13 @@ async fn ensure_personal_dashboard(
     let new_id = if let Some(src) = source_id {
         // Clone the source dashboard as personal
         let new_dash_id = sqlx::query_scalar::<_, Uuid>(
+            // `$1::text` pinned this parameter as text while `user_id` and
+            // `created_by` want a uuid, so Postgres deduced two types for it and
+            // refused the statement outright. Resolving it as a uuid and then
+            // converting for the concatenation gives it a single type.
             "INSERT INTO dashboards (tenant_id, user_id, code, name, description,
                     is_default, role_codes, layout_config, cloned_from, created_by)
-             SELECT tenant_id, $1, code || '-' || $1::text, name || ' (Personal)',
+             SELECT tenant_id, $1, code || '-' || $1::uuid::text, name || ' (Personal)',
                     description, false, '[]'::jsonb, layout_config, id, $1
              FROM dashboards WHERE id = $2
              RETURNING id",

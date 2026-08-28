@@ -2406,7 +2406,7 @@ pub async fn update_case_sheet_page_status(
         "UPDATE mrd_case_sheet_pages SET \
            status = $3, \
            deficiency_reason = CASE WHEN $3 = 'deficient' THEN $4 ELSE NULL END, \
-           marked_deficient_by = CASE WHEN $3 = 'deficient' THEN $5 ELSE NULL END, \
+           marked_deficient_by = CASE WHEN $3 = 'deficient' THEN $5::uuid ELSE NULL END, \
            marked_deficient_at = CASE WHEN $3 = 'deficient' THEN now() ELSE NULL END, \
            updated_at = now() \
          WHERE id = $1 AND packet_id = $2 AND tenant_id = $6 \

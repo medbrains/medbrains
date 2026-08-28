@@ -1175,7 +1175,7 @@ pub async fn create_work_order(
           requested_by, priority, description, assigned_to, \
           assigned_at, vendor_id, notes) \
          VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'medium'), $8, $9, \
-                 CASE WHEN $9 IS NOT NULL THEN now() ELSE NULL END, $10, $11) \
+                 CASE WHEN $9::uuid IS NOT NULL THEN now() ELSE NULL END, $10, $11) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -1358,7 +1358,7 @@ pub async fn schedule_pm(
               assigned_at, notes) \
              VALUES ($1, $2, 'preventive_maintenance', \
                      $3, COALESCE($4, 'medium'), $5, $6, \
-                     CASE WHEN $6 IS NOT NULL THEN now() ELSE NULL END, $7) \
+                     CASE WHEN $6::uuid IS NOT NULL THEN now() ELSE NULL END, $7) \
              RETURNING *",
         )
         .bind(claims.tenant_id)

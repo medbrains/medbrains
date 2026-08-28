@@ -463,9 +463,9 @@ pub async fn update_recording(
         "UPDATE tele_consultations SET \
             recording_consent = COALESCE($3, recording_consent), \
             is_recording = CASE \
-                WHEN $4 IS NULL THEN is_recording \
-                WHEN $4 = true AND COALESCE($3, recording_consent) = true THEN true \
-                WHEN $4 = false THEN false \
+                WHEN $4::boolean IS NULL THEN is_recording \
+                WHEN $4::boolean = true AND COALESCE($3, recording_consent) = true THEN true \
+                WHEN $4::boolean = false THEN false \
                 ELSE is_recording END, \
             recording_url = COALESCE($5, recording_url), updated_at = now() \
          WHERE id = $1 AND tenant_id = $2 \

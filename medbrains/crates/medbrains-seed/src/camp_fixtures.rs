@@ -749,7 +749,8 @@ async fn seed_remote_setup(
           $11, '108 ambulance desk', '108', \
           $12, $13, $14, $15, $16, \
           $17, $18, $19, $20, $21, \
-          CASE WHEN $20 = 'ready' THEN $22 ELSE NULL END, CASE WHEN $20 = 'ready' THEN now() ELSE NULL END) \
+          CASE WHEN $20 = 'ready' THEN $22::uuid ELSE NULL END, \
+          CASE WHEN $20 = 'ready' THEN now() ELSE NULL END) \
          ON CONFLICT (tenant_id, camp_id) DO UPDATE SET \
           village_name = EXCLUDED.village_name, status = EXCLUDED.status, \
           readiness_score = EXCLUDED.readiness_score, updated_at = now()",
