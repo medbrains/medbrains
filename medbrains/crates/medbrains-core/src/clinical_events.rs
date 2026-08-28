@@ -70,6 +70,8 @@ pub enum ClinicalEventName {
     LabResultPosted,
     #[serde(rename = "lab.result.verified")]
     LabResultVerified,
+    #[serde(rename = "lab.sample_rejected")]
+    LabSampleRejected,
     #[serde(rename = "radiology.order.completed")]
     RadiologyOrderCompleted,
     #[serde(rename = "radiology.report.created")]
@@ -159,6 +161,7 @@ impl ClinicalEventName {
             Self::LabSampleCollected => "lab.sample_collected",
             Self::LabResultPosted => "lab.result.posted",
             Self::LabResultVerified => "lab.result.verified",
+            Self::LabSampleRejected => "lab.sample_rejected",
             Self::RadiologyOrderCompleted => "radiology.order.completed",
             Self::RadiologyReportCreated => "radiology.report.created",
             Self::RadiologyReportVerified => "radiology.report.verified",
@@ -219,7 +222,8 @@ impl ClinicalEventName {
             Self::LabOrderCompleted
             | Self::LabSampleCollected
             | Self::LabResultPosted
-            | Self::LabResultVerified => ClinicalEventSourceModule::Lab,
+            | Self::LabResultVerified
+            | Self::LabSampleRejected => ClinicalEventSourceModule::Lab,
             Self::RadiologyOrderCompleted
             | Self::RadiologyReportCreated
             | Self::RadiologyReportVerified => ClinicalEventSourceModule::Radiology,
@@ -284,6 +288,7 @@ impl ClinicalEventName {
             Self::OrderCancelled => &["order_id", "order_type", "reason"],
             Self::LabOrderCompleted | Self::LabSampleCollected => &["order_id", "patient_id"],
             Self::LabResultPosted | Self::LabResultVerified => &["order_id", "patient_id"],
+            Self::LabSampleRejected => &["order_id", "patient_id", "rejection_reason"],
             Self::RadiologyOrderCompleted => &["order_id", "patient_id"],
             Self::RadiologyReportCreated | Self::RadiologyReportVerified => {
                 &["report_id", "order_id", "patient_id"]

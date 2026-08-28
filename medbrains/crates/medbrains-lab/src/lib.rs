@@ -1938,11 +1938,28 @@ pub async fn reject_sample(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // Only reject if in ordered or sample_collected state
+    // Back to `ordered`, not `cancelled`.
+    //
+    // Rejecting a specimen says the tube was unusable -- haemolysed, clotted,
+    // underfilled, mislabelled -- not that the test is no longer wanted. The
+    // doctor still wants it. Cancelling is a different act and already has its
+    // own handler, and `cancelled` is terminal: nothing transitions out of it,
+    // `collect_sample` only accepts `ordered`, and no route clones a rejected
+    // order. So a haemolysed tube used to end the test permanently and the
+    // order simply vanished, recoverable only by somebody noticing a result
+    // that never came and hand-raising a new one.
+    //
+    // Returning it to `ordered` puts it back on the collection list, where the
+    // rejection row and `rejection_reason` say why it is there again. No new
+    // status value is invented for this: `lab_order_status` is matched
+    // exhaustively by hardcoded lists in billing, quality and print, and a new
+    // member would go missing from several of them.
     let order = sqlx::query_as::<_, LabOrder>(
         "UPDATE lab_orders SET \
-         status = 'cancelled'::lab_order_status, \
-         rejection_reason = $1, updated_at = now() \
+         status = 'ordered'::lab_order_status, \
+         rejection_reason = $1, \
+         collected_at = NULL, collected_by = NULL, sample_barcode = NULL, \
+         updated_at = now() \
          WHERE id = $2 AND tenant_id = $3 \
            AND status IN ('ordered'::lab_order_status, 'sample_collected'::lab_order_status) \
          RETURNING *",
@@ -1966,6 +1983,57 @@ pub async fn reject_sample(
     .bind(&body.rejection_reason)
     .execute(&mut *tx)
     .await?;
+
+    // Somebody has to be told, because somebody has to go and stick the
+    // patient again. Every other consequential act in this file notifies the
+    // responsible clinician -- verification, amendment, a critical value --
+    // and rejection, the one event that requires a person to physically act,
+    // was silent. The ward found out when a result never arrived.
+    let recipient: Uuid = sqlx::query_scalar(
+        "SELECT COALESCE( \
+           (SELECT doctor_id FROM encounters WHERE id = $1 AND tenant_id = $2), $3)",
+    )
+    .bind(order.encounter_id)
+    .bind(claims.tenant_id)
+    .bind(order.ordered_by)
+    .fetch_one(&mut *tx)
+    .await?;
+    let body_text = format!(
+        "{} - a fresh sample is needed. The order is back on the collection list.",
+        body.rejection_reason
+    );
+    create_notification(
+        &mut tx,
+        claims.tenant_id,
+        NewNotification {
+            user_id: recipient,
+            kind: "warning",
+            title: "Lab sample rejected",
+            body: Some(&body_text),
+            category: Some("Lab"),
+            entity_type: Some("lab_order"),
+            entity_id: Some(id),
+            action_url: Some("/lab"),
+        },
+    )
+    .await?;
+
+    let event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::LabSampleRejected,
+        order.id,
+        claims.sub,
+        serde_json::json!({
+            "order_id": order.id,
+            "patient_id": order.patient_id,
+            "encounter_id": order.encounter_id,
+            "test_id": order.test_id,
+            "rejection_reason": body.rejection_reason,
+        }),
+    )
+    .with_patient(order.patient_id)
+    .with_encounter(order.encounter_id);
+    medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
     Ok(Json(order))
