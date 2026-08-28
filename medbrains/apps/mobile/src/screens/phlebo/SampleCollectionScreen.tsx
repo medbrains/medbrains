@@ -23,7 +23,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { assignBarcode, canComplete } from "../../lib/specimen.js";
+import { assignBarcode, canComplete, primaryBarcode } from "../../lib/specimen.js";
 import { phlebotomyService } from "../../services/phlebotomy.service";
 import { mobilePhlebotomyText } from "./phlebotomyText";
 
@@ -54,6 +54,9 @@ function confirmMessage(sampleCount: number, collectionId: string): string {
   );
 }
 
+/** Sentinel for the scanner: this scan is the patient, not a tube. */
+const PATIENT_SCAN = "__patient__";
+
 export function SampleCollectionScreen({ route, navigation }: SampleCollectionScreenProps) {
   const canUpdateCollection = useHasPermission(P.LAB.SAMPLES_MANAGE);
   const theme = useTheme();
@@ -64,6 +67,11 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
     { sampleId: "sample-1", barcode: "", collected: false },
   ]);
   const [notes, setNotes] = useState("");
+  // Never pre-filled from the collection record, and the record's UHID is
+  // never shown: an identifier the phlebotomist can read off their own screen
+  // is one they can confirm without looking at the patient, which is the
+  // check defeating itself.
+  const [patientIdentifier, setPatientIdentifier] = useState("");
   const [confirmDialogVisible, setConfirmDialogVisible] = useState(false);
   const [scanningFor, setScanningFor] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState({ visible: false, message: "" });
@@ -81,6 +89,8 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
     mutationFn: async () => {
       await phlebotomyService.updateHomeCollectionStatus(orderId, {
         status: "collected",
+        patient_identifier: patientIdentifier.trim(),
+        sample_barcode: primaryBarcode(samples),
         notes: notes || undefined,
       });
     },
@@ -139,20 +149,34 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
   };
 
   const allCollected = canComplete(samples);
+  const patientIdentified = patientIdentifier.trim().length > 0;
 
   // The camera takes the whole screen: a tube label is small, curved and
   // often read in a corridor, so there is nothing to gain from a preview
   // squeezed beside the form.
   if (scanningFor) {
+    const scanningPatient = scanningFor === PATIENT_SCAN;
     return (
       <SafeAreaView style={styles.container}>
         <BarcodeScanner
-          title="Scan the label on this tube"
-          hint="Hold the barcode inside the frame"
+          title={
+            scanningPatient
+              ? mobilePhlebotomyText("phlebotomy.collection.identityScanTitle")
+              : "Scan the label on this tube"
+          }
+          hint={
+            scanningPatient
+              ? mobilePhlebotomyText("phlebotomy.collection.identityScanHint")
+              : "Hold the barcode inside the frame"
+          }
           resumeKey={scanningFor}
           onCancel={() => setScanningFor(null)}
           onScan={(value) => {
-            handleSetBarcode(scanningFor, value);
+            if (scanningPatient) {
+              setPatientIdentifier(value.trim());
+            } else {
+              handleSetBarcode(scanningFor, value);
+            }
             setScanningFor(null);
           }}
         />
@@ -226,6 +250,42 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
                 {collection.contact_phone}
               </Chip>
             )}
+          </Card.Content>
+        </Card>
+
+        {/* Positive patient identification, before any tube is filled */}
+        <Card style={styles.addressCard}>
+          <Card.Content>
+            <View style={styles.addressHeader}>
+              <Avatar.Icon size={32} icon="account-check" style={styles.addressIconStyle} />
+              <Text variant="titleSmall">
+                {mobilePhlebotomyText("phlebotomy.collection.identityTitle")}
+              </Text>
+            </View>
+            <Text variant="bodySmall" style={styles.addressText}>
+              {mobilePhlebotomyText("phlebotomy.collection.identityHint")}
+            </Text>
+            <View style={styles.barcodeRow}>
+              <TextInput
+                mode="outlined"
+                label={mobilePhlebotomyText("phlebotomy.collection.identityLabel")}
+                value={patientIdentifier}
+                onChangeText={setPatientIdentifier}
+                style={styles.barcodeInput}
+                dense
+                autoCapitalize="characters"
+                left={<TextInput.Icon icon="card-account-details" />}
+              />
+              <Button
+                mode="contained"
+                icon="barcode-scan"
+                onPress={() => setScanningFor(PATIENT_SCAN)}
+                compact
+                style={styles.scanButton}
+              >
+                {mobilePhlebotomyText("phlebotomy.action.scan")}
+              </Button>
+            </View>
           </Card.Content>
         </Card>
 
@@ -329,7 +389,7 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
 
             <List.Item
               title={mobilePhlebotomyText("phlebotomy.collection.checklist.patientVerified")}
-              left={() => <Checkbox status="checked" />}
+              left={() => <Checkbox status={patientIdentified ? "checked" : "unchecked"} />}
             />
             <List.Item
               title={mobilePhlebotomyText("phlebotomy.collection.checklist.labeled")}
@@ -346,7 +406,7 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
         <Button
           mode="contained"
           onPress={() => setConfirmDialogVisible(true)}
-          disabled={!allCollected || !canUpdateCollection}
+          disabled={!allCollected || !patientIdentified || !canUpdateCollection}
           style={styles.submitButton}
           contentStyle={styles.submitButtonContent}
           icon="check-circle"

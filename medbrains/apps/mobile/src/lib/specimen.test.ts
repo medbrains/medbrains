@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { assignBarcode, canComplete, type Specimen, unlabelledCount } from "./specimen.js";
+import {
+  assignBarcode,
+  canComplete,
+  primaryBarcode,
+  type Specimen,
+  unlabelledCount,
+} from "./specimen.js";
 
 const tubes = (): Specimen[] => [
   { sampleId: "s1", barcode: "", collected: false },
@@ -86,5 +92,38 @@ describe("unlabelledCount", () => {
     const partial = assignBarcode(tubes(), "s2", "SAM-0002");
     if (!partial.ok) throw new Error("setup failed");
     expect(unlabelledCount(partial.samples)).toBe(2);
+  });
+});
+
+describe("primaryBarcode", () => {
+  it("sends the first labelled tube, which is the one drawn first", () => {
+    expect(
+      primaryBarcode([
+        { sampleId: "s1", barcode: "TUBE-A", collected: true },
+        { sampleId: "s2", barcode: "TUBE-B", collected: true },
+      ]),
+    ).toBe("TUBE-A");
+  });
+
+  it("skips tubes that were never labelled rather than sending an empty string", () => {
+    // An empty barcode written to the order would read downstream as a
+    // barcode that exists and matches nothing.
+    expect(
+      primaryBarcode([
+        { sampleId: "s1", barcode: "   ", collected: false },
+        { sampleId: "s2", barcode: "TUBE-B", collected: true },
+      ]),
+    ).toBe("TUBE-B");
+  });
+
+  it("is undefined when nothing was labelled, so the order keeps what it had", () => {
+    expect(primaryBarcode([{ sampleId: "s1", barcode: "", collected: false }])).toBeUndefined();
+    expect(primaryBarcode([])).toBeUndefined();
+  });
+
+  it("trims, because a scanner can return trailing whitespace", () => {
+    expect(primaryBarcode([{ sampleId: "s1", barcode: " TUBE-A \n", collected: true }])).toBe(
+      "TUBE-A",
+    );
   });
 });

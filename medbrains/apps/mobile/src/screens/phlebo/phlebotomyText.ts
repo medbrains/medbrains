@@ -17,6 +17,12 @@ const MOBILE_PHLEBOTOMY_MESSAGES: Record<string, string> = {
   "phlebotomy.collection.barcodeScanned": "Barcode scanned: {{barcode}}",
   "phlebotomy.collection.checklist.labeled": "All samples labeled correctly",
   "phlebotomy.collection.checklist.patientVerified": "Patient identity verified",
+  "phlebotomy.collection.identityTitle": "Confirm who you are drawing from",
+  "phlebotomy.collection.identityHint":
+    "Scan the patient's health card or key their UHID. The server checks it against this order before accepting the draw.",
+  "phlebotomy.collection.identityLabel": "Patient UHID",
+  "phlebotomy.collection.identityScanTitle": "Scan the patient's ID",
+  "phlebotomy.collection.identityScanHint": "Hold the card's barcode inside the frame",
   "phlebotomy.collection.checklist.stored": "Samples stored properly",
   "phlebotomy.collection.checklistTitle": "Pre-submission Checklist",
   "phlebotomy.collection.collectionId": "Collection #{{id}}",

@@ -2685,6 +2685,13 @@ export interface UpdateHomeCollectionRequest {
 
 export interface HomeCollectionStatusRequest {
   status: LabHomeCollectionStatus;
+  /**
+   * Required when moving to "collected": the identifier read off the patient,
+   * verified server-side against the order's UHID before the draw is accepted.
+   */
+  patient_identifier?: string;
+  /** The label on the tube. Every downstream analyzer match keys on it. */
+  sample_barcode?: string;
   notes?: string;
 }
 

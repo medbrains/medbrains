@@ -66,3 +66,18 @@ export function canComplete(samples: ReadonlyArray<Specimen>): boolean {
 export function unlabelledCount(samples: ReadonlyArray<Specimen>): number {
   return samples.filter((s) => !s.collected || s.barcode.trim() === "").length;
 }
+
+/**
+ * The barcode that stands for the whole order.
+ *
+ * `lab_orders.sample_barcode` is one column and one order is one test, so a
+ * draw sends exactly one label back however many tubes this screen collected.
+ * The first labelled tube wins, in the order the phlebotomist created them,
+ * because that is the one they drew first.
+ *
+ * Extra tubes are not lost by choice -- there is nowhere to record them yet.
+ * When the schema grows a per-specimen row this returns a list instead.
+ */
+export function primaryBarcode(samples: ReadonlyArray<Specimen>): string | undefined {
+  return samples.find((s) => s.barcode.trim() !== "")?.barcode.trim();
+}

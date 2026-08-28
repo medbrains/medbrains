@@ -702,63 +702,60 @@ pub struct CollectSampleRequest {
     /// Scanned/keyed patient wristband identifier (UHID), verified against the order's patient at
     /// the draw to prevent wrong-blood-in-tube.
     pub patient_identifier: String,
+    /// The label on the tube. Nothing else ever set `lab_orders.sample_barcode`,
+    /// which is what every downstream analyzer match keys on.
+    pub sample_barcode: Option<String>,
 }
 
-pub async fn collect_sample(
-    State(state): State<AppState>,
-    Extension(claims): Extension<Claims>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<CollectSampleRequest>,
-) -> Result<Json<LabOrder>, AppError> {
-    require_permission(&claims, permissions::lab::results::CREATE)?;
-
-    // The URL names a child record; the care relationship is one hop away on
-    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
-    medbrains_authz_gate::require_access_via(
-        &state,
-        &claims,
-        medbrains_authz_gate::links::LAB_ORDER,
-        id,
-    )
-    .await?;
-
-    let provided = body.patient_identifier.trim();
+/// Advance an order to `sample_collected`, with positive patient identification.
+///
+/// Shared by the ward/OPD path and the home-collection path, because
+/// identifying the patient is a property of putting a needle into somebody,
+/// not of which screen the phlebotomist opened. The home path -- the draw
+/// where no colleague is present and no wristband exists on a ward rail --
+/// had no identity check at all.
+///
+/// Returns `None` when the order was not `ordered`, so a repeated submission
+/// is a no-op rather than a second collection.
+async fn mark_order_collected(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    order_id: Uuid,
+    patient_identifier: &str,
+    sample_barcode: Option<&str>,
+) -> Result<Option<LabOrder>, AppError> {
+    let provided = patient_identifier.trim();
     if provided.is_empty() {
         return Err(AppError::BadRequest(
-            "Scan the patient's wristband (or key the UHID) to confirm identity before collecting \
-             the sample."
+            "Confirm the patient's identity (scan the wristband or key the UHID) before \
+             collecting the sample."
                 .to_owned(),
         ));
     }
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    // Positive patient identification at the draw (NABH/CAP/IPSG.1) — the single biggest defence
-    // against wrong-blood-in-tube. The provided wristband identifier must match the order's patient
-    // UHID before the sample can be marked collected; a mismatch blocks collection.
+    // Positive patient identification at the draw (NABH/CAP/IPSG.1) -- the single biggest defence
+    // against wrong-blood-in-tube. The provided identifier must match the order's patient UHID
+    // before the sample can be marked collected; a mismatch blocks collection.
     let order_patient = sqlx::query_scalar::<_, Uuid>(
         "SELECT patient_id FROM lab_orders \
          WHERE id = $1 AND tenant_id = $2 AND status = 'ordered'::lab_order_status",
     )
-    .bind(id)
+    .bind(order_id)
     .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
+    .fetch_optional(&mut **tx)
     .await?;
     let Some(patient_id) = order_patient else {
         return Err(AppError::NotFound);
     };
     let uhid = sqlx::query_scalar::<_, Option<String>>("SELECT uhid FROM patients WHERE id = $1")
         .bind(patient_id)
-        .fetch_optional(&mut *tx)
+        .fetch_optional(&mut **tx)
         .await?
         .flatten();
-    let identity_matches =
-        uhid.as_deref().is_some_and(|u| u.trim().eq_ignore_ascii_case(provided));
-    if !identity_matches {
+    if !uhid.as_deref().is_some_and(|u| u.trim().eq_ignore_ascii_case(provided)) {
         return Err(AppError::BadRequest(
-            "The scanned ID does not match this order's patient — do NOT collect. Re-check the \
-             wristband against the order."
+            "The scanned ID does not match this order's patient - do NOT collect. Re-check the \
+             identification against the order."
                 .to_owned(),
         ));
     }
@@ -766,14 +763,17 @@ pub async fn collect_sample(
     let order = sqlx::query_as::<_, LabOrder>(
         "UPDATE lab_orders SET \
          status = 'sample_collected'::lab_order_status, \
-         collected_at = now(), collected_by = $1, updated_at = now() \
+         collected_at = now(), collected_by = $1, \
+         sample_barcode = COALESCE($4, sample_barcode), \
+         updated_at = now() \
          WHERE id = $2 AND tenant_id = $3 AND status = 'ordered'::lab_order_status \
          RETURNING *",
     )
     .bind(claims.sub)
-    .bind(id)
+    .bind(order_id)
     .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
+    .bind(sample_barcode)
+    .fetch_optional(&mut **tx)
     .await?;
 
     if let Some(ref o) = order {
@@ -794,8 +794,41 @@ pub async fn collect_sample(
         )
         .with_patient(o.patient_id)
         .with_encounter(o.encounter_id);
-        medbrains_workflow::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        medbrains_workflow::events::queue_clinical_event_in_tx(tx, &event).await?;
     }
+
+    Ok(order)
+}
+
+pub async fn collect_sample(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<CollectSampleRequest>,
+) -> Result<Json<LabOrder>, AppError> {
+    require_permission(&claims, permissions::lab::results::CREATE)?;
+
+    // The URL names a child record; the care relationship is one hop away on
+    // its parent. Resolve then authorize — see medbrains_authz_gate::links.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        id,
+    )
+    .await?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let order = mark_order_collected(
+        &mut tx,
+        &claims,
+        id,
+        &body.patient_identifier,
+        body.sample_barcode.as_deref(),
+    )
+    .await?;
 
     tx.commit().await?;
     order.map_or_else(|| Err(AppError::NotFound), |o| Ok(Json(o)))
@@ -2912,6 +2945,15 @@ pub struct UpdateHomeCollectionRequest {
 #[derive(Debug, Deserialize)]
 pub struct HomeCollectionStatusRequest {
     pub status: String,
+    /// Required when moving to `collected`: the same positive identification
+    /// the ward draw demands. Optional in the type only because the other
+    /// status transitions -- scheduling, cancelling -- are not a draw.
+    pub patient_identifier: Option<String>,
+    /// The label on the tube. The phlebotomist's app has always scanned this
+    /// and then thrown it away.
+    pub sample_barcode: Option<String>,
+    /// The app has always sent this and the handler has always dropped it.
+    pub notes: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -3299,26 +3341,51 @@ pub async fn update_home_collection_status(
     Json(body): Json<HomeCollectionStatusRequest>,
 ) -> Result<Json<LabHomeCollection>, AppError> {
     require_permission(&claims, permissions::lab::samples::MANAGE)?;
+
+    // The draw at somebody's address is still a clinical act on their record.
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_HOME_COLLECTION,
+        id,
+    )
+    .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let collected_at = if body.status == "collected" {
-        "now()"
-    } else {
-        "collected_at"
-    };
+    let is_collection = body.status == "collected";
+    let collected_at = if is_collection { "now()" } else { "collected_at" };
     let sql = format!(
         "UPDATE lab_home_collections SET \
-         status = $1::lab_home_collection_status, collected_at = {collected_at} \
+         status = $1::lab_home_collection_status, collected_at = {collected_at}, \
+         notes = COALESCE($4, notes), updated_at = now() \
          WHERE id = $2 AND tenant_id = $3 RETURNING *"
     );
     let row = sqlx::query_as::<_, LabHomeCollection>(&sql)
         .bind(&body.status)
         .bind(id)
         .bind(claims.tenant_id)
+        .bind(&body.notes)
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(AppError::NotFound)?;
+
+    // The order itself was never touched here. A home draw left `lab_orders`
+    // sitting at `ordered` for ever -- never collected, never processed,
+    // never reportable -- while the visit record said the sample was taken,
+    // and the tube's barcode, which every analyzer match keys on, was
+    // discarded by the app that scanned it.
+    if is_collection {
+        mark_order_collected(
+            &mut tx,
+            &claims,
+            row.order_id,
+            body.patient_identifier.as_deref().unwrap_or_default(),
+            body.sample_barcode.as_deref(),
+        )
+        .await?;
+    }
 
     tx.commit().await?;
     Ok(Json(row))

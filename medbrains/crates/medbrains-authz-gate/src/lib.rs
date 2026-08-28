@@ -157,6 +157,11 @@ pub mod links {
 
     pub const LAB_ORDER: ParentLink = ParentLink::on_patient("lab_orders");
 
+    /// The draw that happens at somebody's address, where the only person
+    /// present is the phlebotomist. It carries `patient_id` itself.
+    pub const LAB_HOME_COLLECTION: ParentLink =
+        ParentLink::on_patient("lab_home_collections");
+
     /// A result row reaches its patient through its order.
     ///
     /// `auto_validate_result` takes a result id off the path and releases the
