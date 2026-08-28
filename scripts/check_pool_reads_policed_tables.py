@@ -53,6 +53,9 @@ RECORDED_UNSCOPED = {
     # WHERE id = $1 AND tenant_id = $2` earlier in the same handler, so the
     # pipeline is tenant-verified before its executions are read.
     "trigger_pipeline",
+    # payment_webhook_exceptions is a cross-tenant ops table; the exception id
+    # was fetched earlier in the same request through a tenant-scoped query.
+    "resolve_payment_exception",
 }
 
 RLS_ENABLED = re.compile(r"ALTER TABLE (?:ONLY )?(?:public\.)?(\w+) ENABLE ROW LEVEL SECURITY")

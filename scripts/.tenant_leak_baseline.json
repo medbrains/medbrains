@@ -1,7 +1,5 @@
 {
   "medbrains/crates/medbrains-server/src/routes/abdm/hip_relay.rs": 2,
-  "medbrains/crates/medbrains-server/src/routes/appointments/bookings.rs": 7,
-  "medbrains/crates/medbrains-server/src/routes/appointments/public.rs": 17,
   "medbrains/crates/medbrains-server/src/routes/appointments/reminders.rs": 2,
   "medbrains/crates/medbrains-server/src/routes/appointments/schedules.rs": 2,
   "medbrains/crates/medbrains-server/src/routes/audit.rs": 1,

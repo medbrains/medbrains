@@ -56,6 +56,11 @@ def rust_sql_literals(path: Path) -> list[tuple[int, str]]:
         # that happens to start with a verb out of the results.
         if not re.search(r"\b(FROM|VALUES|SET|WHERE|JOIN)\b", sql, re.I):
             continue
+        # "Select an active staff member from this tenant" clears the test
+        # above on the word "from". A real statement also has a placeholder, a
+        # column list or a call in it; a sentence has none of the three.
+        if not re.search(r"\$\d|,|\(", sql):
+            continue
         # Built at run time. The identifiers are not known until it executes,
         # so there is nothing here for the server to parse.
         if "{" in sql:

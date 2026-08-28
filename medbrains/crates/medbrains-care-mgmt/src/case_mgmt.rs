@@ -369,21 +369,32 @@ pub async fn auto_assign(
     // Find the case manager with the fewest active assignments.
     // A "case manager" is a user whose role name is 'case_manager'.
     let manager_row = sqlx::query_as::<_, CaseManagerCandidate>(
+        // Two faults, the second hidden behind the first. The LATERAL join
+        // sat after the WHERE clause, which is not where SQL allows a join,
+        // so nothing parsed; fixing that revealed a join to `roles` on
+        // `u.role_id`, a column `users` does not have. A user's role is the
+        // `user_role` enum on the row itself, and `case_manager` is one of
+        // its values, so there is no join to make. Either way, picking the
+        // least-loaded case manager failed every time it was asked.
+        //
+        // The tenant predicate is new: this read every user in the
+        // deployment and leaned on RLS alone.
         "SELECT u.id AS user_id, \
                 COALESCE(cnt.active_count, 0) AS active_count \
          FROM users u \
-         JOIN roles r ON r.id = u.role_id AND r.tenant_id = u.tenant_id \
-         WHERE r.name = 'case_manager' \
-           AND u.is_active = true \
          LEFT JOIN LATERAL ( \
              SELECT COUNT(*) AS active_count \
              FROM case_assignments ca \
              WHERE ca.case_manager_id = u.id \
                AND ca.status IN ('assigned', 'active', 'pending_discharge') \
          ) cnt ON true \
+         WHERE u.role = 'case_manager'::user_role \
+           AND u.tenant_id = $1 \
+           AND u.is_active = true \
          ORDER BY active_count ASC \
          LIMIT 1",
     )
+    .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?;
 

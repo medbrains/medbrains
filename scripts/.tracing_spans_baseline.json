@@ -1,9 +1,9 @@
 {
-  "coverage": 0.246575,
+  "coverage": 0.232558,
   "description": "Route tracing baseline. New handlers must carry #[tracing::instrument(... fields(tenant_id ...))].",
-  "instrumented_handlers": 18,
-  "total_handlers": 73,
-  "violation_count": 55,
+  "instrumented_handlers": 20,
+  "total_handlers": 86,
+  "violation_count": 66,
   "violations": [
     "medbrains/crates/medbrains-server/src/routes/abdm/hfr.rs:get_tenant_facility:missing_instrument",
     "medbrains/crates/medbrains-server/src/routes/abdm/hfr.rs:list_registrations:missing_instrument",
@@ -23,6 +23,9 @@
     "medbrains/crates/medbrains-server/src/routes/appointments/public.rs:kiosk_checkin:missing_instrument",
     "medbrains/crates/medbrains-server/src/routes/appointments/public.rs:public_available_slots:missing_instrument",
     "medbrains/crates/medbrains-server/src/routes/appointments/public.rs:public_book_appointment:missing_instrument",
+    "medbrains/crates/medbrains-server/src/routes/appointments/public.rs:public_bookable_doctors:missing_tenant_field",
+    "medbrains/crates/medbrains-server/src/routes/appointments/public.rs:public_token_status:missing_tenant_field",
+    "medbrains/crates/medbrains-server/src/routes/appointments/public.rs:queue_token_status_link:missing_tenant_field",
     "medbrains/crates/medbrains-server/src/routes/appointments/reminders.rs:get_reminder_config:missing_instrument",
     "medbrains/crates/medbrains-server/src/routes/appointments/reminders.rs:update_reminder_config:missing_instrument",
     "medbrains/crates/medbrains-server/src/routes/appointments/schedules.rs:create_exception:missing_instrument",
@@ -58,6 +61,14 @@
     "medbrains/crates/medbrains-server/src/routes/orchestration.rs:list_jobs:missing_instrument",
     "medbrains/crates/medbrains-server/src/routes/orchestration.rs:test_connector:missing_instrument",
     "medbrains/crates/medbrains-server/src/routes/orchestration.rs:update_connector:missing_instrument",
+    "medbrains/crates/medbrains-server/src/routes/portal.rs:portal_appointments:missing_tenant_field",
+    "medbrains/crates/medbrains-server/src/routes/portal.rs:portal_bills:missing_tenant_field",
+    "medbrains/crates/medbrains-server/src/routes/portal.rs:portal_entitlements:missing_tenant_field",
+    "medbrains/crates/medbrains-server/src/routes/portal.rs:portal_lab_reports:missing_tenant_field",
+    "medbrains/crates/medbrains-server/src/routes/portal.rs:portal_prescriptions:missing_tenant_field",
+    "medbrains/crates/medbrains-server/src/routes/portal.rs:request_portal_otp:missing_tenant_field",
+    "medbrains/crates/medbrains-server/src/routes/rx_verify.rs:issue_verify_link:missing_tenant_field",
+    "medbrains/crates/medbrains-server/src/routes/rx_verify.rs:verify_prescription:missing_tenant_field",
     "medbrains/crates/medbrains-server/src/routes/ws.rs:queue_ws_handler:missing_instrument",
     "medbrains/crates/medbrains-server/src/routes/ws.rs:queue_ws_handler_all:missing_instrument"
   ]

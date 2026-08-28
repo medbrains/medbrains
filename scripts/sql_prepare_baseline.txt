@@ -11,36 +11,29 @@ crates/medbrains-billing/src/lib.rs:2682  relation "ip_admissions" does not exis
 crates/medbrains-bme/src/lib.rs:754  could not determine data type of parameter $6
 crates/medbrains-bridge/src/buffer.rs:47  relation "pending_messages" does not exist
 crates/medbrains-bridge/src/buffer.rs:65  relation "pending_messages" does not exist
-crates/medbrains-bridge/src/buffer.rs:91  relation "pending_messages" does not exist
 crates/medbrains-bridge/src/buffer.rs:99  relation "pending_messages" does not exist
 crates/medbrains-camp/src/lib.rs:4098  column "father_spouse_name" of relation "camp_registrations" does not exist
 crates/medbrains-camp/src/lib.rs:4175  column "mh_diabetes" of relation "camp_screenings" does not exist
 crates/medbrains-camp/src/lib.rs:5539  column "completed_by" is of type uuid but expression is of type text
-crates/medbrains-camp/src/lib.rs:6497  syntax error at or near "staff"
 crates/medbrains-camp/src/lib.rs:6662  column "father_spouse_name" of relation "camp_registrations" does not exist
 crates/medbrains-camp/src/lib.rs:6795  column r.father_spouse_name does not exist
 crates/medbrains-camp/src/lib.rs:7045  column "mh_diabetes" of relation "camp_screenings" does not exist
 crates/medbrains-care-mgmt/src/bedside_portal.rs:232  column "scheduled_at" does not exist
 crates/medbrains-care-mgmt/src/bedside_portal.rs:328  column v.vital_type does not exist
-crates/medbrains-care-mgmt/src/case_mgmt.rs:372  syntax error at or near "LEFT"
-crates/medbrains-care-mgmt/src/case_mgmt.rs:486  column "identified_date" is of type date but expression is of type text
+crates/medbrains-care-mgmt/src/case_mgmt.rs:497  column "identified_date" is of type date but expression is of type text
 crates/medbrains-clinical-offline/src/lib.rs:36  column "display_name" does not exist
-crates/medbrains-dashboard/src/lib.rs:1592  invalid input value for enum lab_order_status: "pending"
-crates/medbrains-dashboard/src/lib.rs:1603  invalid input value for enum lab_order_status: "pending"
-crates/medbrains-dashboard/src/lib.rs:1697  invalid input value for enum invoice_status: "pending"
-crates/medbrains-dashboard/src/lib.rs:1708  invalid input value for enum invoice_status: "pending"
-crates/medbrains-dashboard/src/lib.rs:1830  column ii.amount does not exist
-crates/medbrains-dashboard/src/lib.rs:1863  relation "opd_visits" does not exist
-crates/medbrains-dashboard/src/lib.rs:1876  relation "opd_visits" does not exist
-crates/medbrains-dashboard/src/lib.rs:1892  column "status" does not exist
-crates/medbrains-dashboard/src/lib.rs:1903  column b.status does not exist
-crates/medbrains-dashboard/src/lib.rs:1963  column a.scheduled_time does not exist
-crates/medbrains-dashboard/src/lib.rs:2069  column r.created_at does not exist
-crates/medbrains-dashboard/src/lib.rs:2103  column "generic_name" does not exist
-crates/medbrains-dashboard/src/lib.rs:2124  column n.drug_id does not exist
-crates/medbrains-dashboard/src/lib.rs:2141  column "payment_date" does not exist
-crates/medbrains-dashboard/src/lib.rs:2184  column r.next_due_date does not exist
-crates/medbrains-dashboard/src/lib.rs:2613  inconsistent types deduced for parameter $1
+crates/medbrains-dashboard/src/lib.rs:1848  column ii.amount does not exist
+crates/medbrains-dashboard/src/lib.rs:1881  relation "opd_visits" does not exist
+crates/medbrains-dashboard/src/lib.rs:1894  relation "opd_visits" does not exist
+crates/medbrains-dashboard/src/lib.rs:1910  column "status" does not exist
+crates/medbrains-dashboard/src/lib.rs:1921  column b.status does not exist
+crates/medbrains-dashboard/src/lib.rs:1981  column a.scheduled_time does not exist
+crates/medbrains-dashboard/src/lib.rs:2087  column r.created_at does not exist
+crates/medbrains-dashboard/src/lib.rs:2121  column "generic_name" does not exist
+crates/medbrains-dashboard/src/lib.rs:2142  column n.drug_id does not exist
+crates/medbrains-dashboard/src/lib.rs:2159  column "payment_date" does not exist
+crates/medbrains-dashboard/src/lib.rs:2202  column r.next_due_date does not exist
+crates/medbrains-dashboard/src/lib.rs:2631  inconsistent types deduced for parameter $1
 crates/medbrains-facilities/src/facilities.rs:1173  could not determine data type of parameter $9
 crates/medbrains-facilities/src/facilities.rs:1355  could not determine data type of parameter $6
 crates/medbrains-facilities/src/nhcx_submit.rs:110  column "line_total" does not exist
@@ -55,7 +48,6 @@ crates/medbrains-it-security/src/lib.rs:1825  relation "security_incident_update
 crates/medbrains-it-security/src/lib.rs:1861  relation "security_incident_updates" does not exist
 crates/medbrains-it-security/src/lib.rs:1899  relation "security_incident_updates" does not exist
 crates/medbrains-it-security/src/lib.rs:2079  relation "system_health_metrics" does not exist
-crates/medbrains-it-security/src/lib.rs:2160  column "wizard_type" does not exist
 crates/medbrains-it-security/src/lib.rs:2241  column "wizard_type" does not exist
 crates/medbrains-marketing/src/cohorts.rs:201  operator does not exist: date < integer
 crates/medbrains-materials/src/procurement.rs:2021  column "received_at" does not exist
@@ -209,7 +201,6 @@ crates/medbrains-print-data/src/surgical.rs:903  relation "postop_monitoring_ord
 crates/medbrains-print-data/src/surgical.rs:913  relation "postop_lab_orders" does not exist
 crates/medbrains-print-data/src/surgical.rs:923  relation "postop_imaging_orders" does not exist
 crates/medbrains-print-data/src/surgical.rs:933  relation "postop_warning_signs" does not exist
-crates/medbrains-quality/src/lib.rs:2404  invalid input value for enum incident_severity: "critical"
 crates/medbrains-radiology/src/lib.rs:1662  column "clinical_notes" of relation "radiology_orders" does not exist
 crates/medbrains-regulatory/src/lib.rs:2038  relation "facility_regulatory_licenses" does not exist
 crates/medbrains-regulatory/src/lib.rs:263  column s.accreditation_body does not exist
@@ -221,8 +212,6 @@ crates/medbrains-seed/src/camp_fixtures.rs:738  column "completed_by" is of type
 crates/medbrains-seed/src/demo_patients.rs:792  operator is not unique: date + unknown
 crates/medbrains-seed/src/demo_patients.rs:944  operator is not unique: date + unknown
 crates/medbrains-seed/src/screens.rs:458  relation "screen_masters" does not exist
-crates/medbrains-server/src/services/simulator/mod.rs:585  invalid input value for enum er_visit_status: "closed"
-crates/medbrains-server/src/services/simulator/mod.rs:659  invalid input value for enum admission_source: "emergency"
 crates/medbrains-telehealth/src/doctor_dashboard.rs:158  relation "opd_appointments" does not exist
 crates/medbrains-telehealth/src/telemedicine.rs:463  could not determine data type of parameter $4
 crates/medbrains-tokens/src/lib.rs:1010  column "returned_from_label" of relation "tokens" does not exist

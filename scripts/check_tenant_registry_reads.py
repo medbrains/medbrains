@@ -39,7 +39,20 @@ CRATES = REPO_ROOT / "medbrains" / "crates"
 
 # Handlers reading `tenants` on a caller-supplied id with no ownership check,
 # and the reason it is not a hole. Empty is the goal; a new one fails.
-RECORDED_UNOWNED: set[str] = set()
+RECORDED_UNOWNED: set[str] = {
+    # Print-data handlers that JOIN tenants via entity.tenant_id on a
+    # tenant_conn already scoped by claims.tenant_id — the path id never
+    # reaches the tenants table, so no cross-tenant leak is possible.
+    "get_indent_form_print_data",
+    "get_purchase_order_print_data",
+    "get_grn_print_data",
+    "get_material_issue_voucher_print_data",
+    "get_stock_transfer_note_print_data",
+    "get_drug_expiry_alert_print_data",
+    "get_equipment_condemnation_print_data",
+    "get_work_order_print_data",
+    "get_pm_checklist_print_data",
+}
 
 FUNCTION = re.compile(r"^(?:pub )?(?:async )?fn (\w+)\(", re.M)
 REGISTRY_READ = re.compile(r"(?:FROM|JOIN) tenants\b")

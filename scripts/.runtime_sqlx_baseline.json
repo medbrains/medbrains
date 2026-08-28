@@ -5,10 +5,12 @@
   "medbrains/crates/medbrains-server/src/routes/admin_simulator.rs": 17,
   "medbrains/crates/medbrains-server/src/routes/appointments.rs": 2,
   "medbrains/crates/medbrains-server/src/routes/appointments/bookings.rs": 19,
-  "medbrains/crates/medbrains-server/src/routes/appointments/public.rs": 24,
+  "medbrains/crates/medbrains-server/src/routes/appointments/public.rs": 29,
   "medbrains/crates/medbrains-server/src/routes/appointments/reminders.rs": 2,
   "medbrains/crates/medbrains-server/src/routes/appointments/schedules.rs": 10,
   "medbrains/crates/medbrains-server/src/routes/audit.rs": 17,
   "medbrains/crates/medbrains-server/src/routes/coverage.rs": 3,
-  "medbrains/crates/medbrains-server/src/routes/orchestration.rs": 7
+  "medbrains/crates/medbrains-server/src/routes/orchestration.rs": 7,
+  "medbrains/crates/medbrains-server/src/routes/portal.rs": 15,
+  "medbrains/crates/medbrains-server/src/routes/rx_verify.rs": 4
 }

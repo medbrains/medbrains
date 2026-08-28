@@ -1589,9 +1589,16 @@ async fn resolve_module_query(
         ("lab", "pending_count") => {
             let count = if has_dept_filter {
                 sqlx::query_scalar::<_, i64>(
+                    // `lab_order_status` has no `pending`. Comparing an enum
+                    // against a value it does not contain is a hard error, so
+                    // this widget has never returned a number -- it has
+                    // errored on every dashboard load since it was written.
+                    // Pending here means raised and not yet resulted.
                     "SELECT COUNT(*) FROM lab_orders lo
                      JOIN encounters e ON e.id = lo.encounter_id
-                     WHERE lo.status = 'pending'
+                     WHERE lo.status IN ('ordered'::lab_order_status,
+                                         'sample_collected'::lab_order_status,
+                                         'processing'::lab_order_status)
                        AND e.department_id = ANY($1)",
                 )
                 .bind(&filters.department_ids)
@@ -1600,7 +1607,10 @@ async fn resolve_module_query(
                 .unwrap_or(0)
             } else {
                 sqlx::query_scalar::<_, i64>(
-                    "SELECT COUNT(*) FROM lab_orders WHERE status = 'pending'",
+                    "SELECT COUNT(*) FROM lab_orders \
+                      WHERE status IN ('ordered'::lab_order_status, \
+                                       'sample_collected'::lab_order_status, \
+                                       'processing'::lab_order_status)",
                 )
                 .fetch_optional(&mut **tx)
                 .await?
@@ -1694,9 +1704,15 @@ async fn resolve_module_query(
         ("billing", "pending_invoices") => {
             let count = if has_dept_filter {
                 sqlx::query_scalar::<_, i64>(
+                    // `invoice_status` is draft / issued / partially_paid /
+                    // paid / cancelled / refunded. There is no `pending`, so
+                    // this counted nothing and raised instead. An invoice
+                    // awaiting money is one that has been issued and not yet
+                    // settled.
                     "SELECT COUNT(*) FROM invoices i
                      JOIN encounters e ON e.id = i.encounter_id
-                     WHERE i.status = 'pending'
+                     WHERE i.status IN ('issued'::invoice_status,
+                                        'partially_paid'::invoice_status)
                        AND e.department_id = ANY($1)",
                 )
                 .bind(&filters.department_ids)
@@ -1705,7 +1721,9 @@ async fn resolve_module_query(
                 .unwrap_or(0)
             } else {
                 sqlx::query_scalar::<_, i64>(
-                    "SELECT COUNT(*) FROM invoices WHERE status = 'pending'",
+                    "SELECT COUNT(*) FROM invoices \
+                      WHERE status IN ('issued'::invoice_status, \
+                                       'partially_paid'::invoice_status)",
                 )
                 .fetch_optional(&mut **tx)
                 .await?

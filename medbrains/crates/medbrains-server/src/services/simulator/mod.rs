@@ -585,7 +585,7 @@ async fn run_er_episode(
         "INSERT INTO er_visits \
          (tenant_id, patient_id, visit_number, status, arrival_mode, arrival_time, \
           chief_complaint, is_mlc, triage_level, attending_doctor_id, is_dummy, created_by) \
-         VALUES ($1, $2, $3, 'closed'::er_visit_status, 'walk_in', $4, \
+         VALUES ($1, $2, $3, 'discharged'::er_visit_status, 'walk_in', $4, \
                  $5, $6, $7::triage_level, $8, true, $9) \
          RETURNING id",
     )
@@ -660,7 +660,7 @@ async fn run_er_episode(
              (tenant_id, encounter_id, patient_id, admitting_doctor, status, \
               admitted_at, admission_source, provisional_diagnosis, is_dummy, created_by) \
              VALUES ($1, $2, $3, $4, 'admitted'::admission_status, \
-                     NOW(), 'emergency'::admission_source, $5, true, $6) \
+                     NOW(), 'er'::admission_source, $5, true, $6) \
              RETURNING id",
         )
         .bind(claims.tenant_id)

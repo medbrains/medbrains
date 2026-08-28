@@ -103,7 +103,6 @@ RECORDED_UNSCOPED_WRITES = {
     ("medbrains-news/src/lib.rs", "delete_article"),
     ("medbrains-order-sets/src/lib.rs", "create_new_version"),
     ("medbrains-order-sets/src/lib.rs", "delete_template"),
-    ("medbrains-server-core/src/notifications.rs", "mark_notification_read"),
     ("medbrains-server/src/routes/admin_simulator.rs", "delete_schedule"),
     ("medbrains-server/src/routes/appointments/schedules.rs", "delete_exception"),
     ("medbrains-server/src/routes/appointments/schedules.rs", "delete_schedule"),

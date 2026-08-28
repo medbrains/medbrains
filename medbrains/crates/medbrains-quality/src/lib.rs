@@ -2401,9 +2401,15 @@ pub async fn list_sentinel_events(
         .await?;
 
     let rows = sqlx::query_as::<_, QualityIncident>(
+        // `incident_severity` is near_miss / minor / moderate / major /
+        // sentinel. There is no `critical`, so this cast raised and the
+        // serious-incident list -- the one an accreditation visit asks for --
+        // returned an error rather than a list. `sentinel` is the NABH term
+        // for the events this screen is about, and `major` sits with it.
         "SELECT * FROM quality_incidents \
          WHERE tenant_id = $1 \
-         AND (severity = 'critical'::incident_severity \
+         AND (severity IN ('sentinel'::incident_severity, \
+                           'major'::incident_severity) \
               OR incident_type LIKE '%sentinel%') \
          ORDER BY incident_date DESC LIMIT 200",
     )
