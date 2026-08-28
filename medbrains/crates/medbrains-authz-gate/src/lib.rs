@@ -162,6 +162,23 @@ pub mod links {
     pub const LAB_HOME_COLLECTION: ParentLink =
         ParentLink::on_patient("lab_home_collections");
 
+    /// A panic value and who was telephoned about it.
+    pub const LAB_CRITICAL_ALERT: ParentLink = ParentLink::on_patient("lab_critical_alerts");
+
+    /// Who is waiting for a needle, and where.
+    pub const LAB_PHLEBOTOMY_QUEUE: ParentLink = ParentLink::on_patient("lab_phlebotomy_queue");
+
+    /// A retained specimen, kept for repeat and add-on testing.
+    pub const LAB_SAMPLE_ARCHIVE: ParentLink = ParentLink::on_patient("lab_sample_archive");
+
+    /// A test sent to a reference laboratory. It reaches its patient through
+    /// the order it was raised from; it has no `patient_id` of its own.
+    pub const LAB_OUTSOURCED_ORDER: ParentLink = ParentLink {
+        table: "lab_outsourced_orders",
+        column: "order_id",
+        parent: ParentKind::Via(&LAB_ORDER),
+    };
+
     /// A result row reaches its patient through its order.
     ///
     /// `auto_validate_result` takes a result id off the path and releases the

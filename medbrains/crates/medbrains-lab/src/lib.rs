@@ -2286,6 +2286,14 @@ pub async fn acknowledge_critical_alert(
 ) -> Result<Json<LabCriticalAlert>, AppError> {
     require_permission(&claims, permissions::lab::results::UPDATE)?;
 
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_CRITICAL_ALERT,
+        alert_id,
+    )
+    .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -2828,6 +2836,14 @@ pub async fn update_phlebotomy_status(
 ) -> Result<Json<LabPhlebotomyQueue>, AppError> {
     require_permission(&claims, permissions::lab::phlebotomy::MANAGE)?;
 
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_PHLEBOTOMY_QUEUE,
+        id,
+    )
+    .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -2958,6 +2974,14 @@ pub async fn update_outsourced_order(
     Json(body): Json<UpdateOutsourcedOrderRequest>,
 ) -> Result<Json<LabOutsourcedOrder>, AppError> {
     require_permission(&claims, permissions::lab::outsourced::MANAGE)?;
+
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_OUTSOURCED_ORDER,
+        id,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3448,6 +3472,14 @@ pub async fn update_home_collection(
     Json(body): Json<UpdateHomeCollectionRequest>,
 ) -> Result<Json<LabHomeCollection>, AppError> {
     require_permission(&claims, permissions::lab::samples::MANAGE)?;
+
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_HOME_COLLECTION,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -3709,6 +3741,14 @@ pub async fn retrieve_sample_archive(
     Path(id): Path<Uuid>,
 ) -> Result<Json<LabSampleArchive>, AppError> {
     require_permission(&claims, permissions::lab::samples::MANAGE)?;
+
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_SAMPLE_ARCHIVE,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, LabSampleArchive>(
@@ -4252,6 +4292,14 @@ pub async fn get_histopath_report(
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<LabHistopathReport>, AppError> {
     require_permission(&claims, permissions::lab::specialized::LIST)?;
+
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        order_id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, LabHistopathReport>(
@@ -4312,6 +4360,14 @@ pub async fn get_cytology_report(
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<LabCytologyReport>, AppError> {
     require_permission(&claims, permissions::lab::specialized::LIST)?;
+
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        order_id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, LabCytologyReport>(
@@ -4369,6 +4425,14 @@ pub async fn get_molecular_report(
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<LabMolecularReport>, AppError> {
     require_permission(&claims, permissions::lab::specialized::LIST)?;
+
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_ORDER,
+        order_id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, LabMolecularReport>(
@@ -4649,18 +4713,36 @@ pub async fn list_doctor_critical_alerts(
     Path(doctor_id): Path<Uuid>,
 ) -> Result<Json<Vec<LabCriticalAlert>>, AppError> {
     require_permission(&claims, permissions::lab::orders::LIST)?;
+
+    // The path names whose list this is, and it was not checked against who
+    // was asking. Any holder of `lab.orders.list` -- a receptionist, a
+    // technologist -- could pass any doctor's id and read that doctor's
+    // patients' panic values, names and results included.
+    //
+    // 404 rather than 403: a refusal that distinguishes "not allowed" from
+    // "no such doctor" is an existence oracle.
+    if doctor_id != claims.sub && !is_bypass_role(&claims) {
+        return Err(AppError::NotFound);
+    }
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    // Every join is tenant-scoped explicitly. The tenant context is set, so
+    // RLS should already contain this, but this query named no tenant on any
+    // of its three tables and a table whose policy is missing would have
+    // leaked across the whole deployment rather than one doctor.
     let rows = sqlx::query_as::<_, LabCriticalAlert>(
         "SELECT ca.* FROM lab_critical_alerts ca \
-         JOIN lab_orders lo ON lo.id = ca.order_id \
-         JOIN encounters e ON e.id = lo.encounter_id \
-         WHERE e.doctor_id = $1 \
+         JOIN lab_orders lo ON lo.id = ca.order_id AND lo.tenant_id = ca.tenant_id \
+         JOIN encounters e ON e.id = lo.encounter_id AND e.tenant_id = lo.tenant_id \
+         WHERE ca.tenant_id = $2 AND e.doctor_id = $1 \
+           AND ca.deleted_at IS NULL \
          ORDER BY ca.created_at DESC \
          LIMIT 50",
     )
     .bind(doctor_id)
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
@@ -4848,6 +4930,14 @@ pub async fn assign_phlebotomist(
     Json(body): Json<AssignPhlebotomistRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::lab::phlebotomy::MANAGE)?;
+
+    medbrains_authz_gate::require_access_via(
+        &state,
+        &claims,
+        medbrains_authz_gate::links::LAB_PHLEBOTOMY_QUEUE,
+        id,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
