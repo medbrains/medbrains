@@ -895,7 +895,8 @@ pub async fn get_investigation_requisition_print_data(
 
     let row = sqlx::query_as::<_, InvestigationRequisitionRow>(
         "SELECT \
-           lo.order_number AS requisition_number, \
+           COALESCE(lo.accession_number, lo.sample_barcode, lo.id::text) \
+             AS requisition_number, \
            lo.created_at AS requisition_date, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
@@ -906,10 +907,21 @@ pub async fn get_investigation_requisition_print_data(
            doc.full_name AS requesting_doctor, \
            d.name AS department, \
            lo.clinical_history, \
-           lo.diagnosis, \
+           (SELECT string_agg(dx.description, '; ' ORDER BY dx.created_at) \
+              FROM diagnoses dx \
+             WHERE dx.tenant_id = lo.tenant_id \
+               AND dx.encounter_id = lo.encounter_id \
+               AND dx.deleted_at IS NULL) AS diagnosis, \
            lo.priority::text AS priority, \
-           COALESCE(lo.fasting_required, false) AS fasting_required, \
-           lo.special_instructions \
+           COALESCE(( \
+             SELECT bool_or(tc.fasting_required) \
+               FROM lab_orders sib \
+               JOIN lab_test_catalog tc \
+                 ON tc.id = sib.test_id AND tc.tenant_id = sib.tenant_id \
+              WHERE sib.tenant_id = lo.tenant_id \
+                AND (sib.id = lo.id OR sib.parent_order_id = lo.id) \
+                AND sib.deleted_at IS NULL), false) AS fasting_required, \
+           lo.notes AS special_instructions \
          FROM lab_orders lo \
          JOIN patients p ON p.id = lo.patient_id AND p.tenant_id = lo.tenant_id \
          LEFT JOIN admissions adm ON adm.patient_id = p.id AND adm.tenant_id = p.tenant_id \
@@ -925,16 +937,23 @@ pub async fn get_investigation_requisition_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
-    // Get ordered tests
+    // The tests on the slip are this order and its add-ons.
+    //
+    // There is no `lab_order_items`: a `lab_orders` row is one test, and a
+    // second test asked for on the same visit is a new row pointing back
+    // through `parent_order_id`. The query used to join a table that no
+    // migration creates, so it failed for every order it was asked about.
     let tests_ordered = sqlx::query_as::<_, OrderedTest>(
         "SELECT \
            tc.name AS test_name, \
            tc.code AS test_code, \
            tc.sample_type, \
            tc.container \
-         FROM lab_order_items loi \
-         JOIN lab_test_catalog tc ON tc.id = loi.test_id AND tc.tenant_id = loi.tenant_id \
-         WHERE loi.order_id = $1 AND loi.tenant_id = $2 \
+         FROM lab_orders sib \
+         JOIN lab_test_catalog tc ON tc.id = sib.test_id AND tc.tenant_id = sib.tenant_id \
+         WHERE sib.tenant_id = $2 \
+           AND (sib.id = $1 OR sib.parent_order_id = $1) \
+           AND sib.deleted_at IS NULL \
          ORDER BY tc.name LIMIT 5000",
     )
     .bind(order_id)
