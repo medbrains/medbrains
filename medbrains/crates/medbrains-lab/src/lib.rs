@@ -1210,11 +1210,19 @@ pub async fn cancel_order(
 /// "adult_m" | "adult_f" | "elderly_m" | "elderly_f"), from age + biological
 /// sex. ≥65y → elderly (falls back to the adult band when no elderly range).
 /// Defaults to adult by sex.
+/// The band for the reference table, plus the age and sex a tenant's own
+/// `critical_value_rules` scope on.
+struct PatientLabContext {
+    band: String,
+    age_years: Option<i32>,
+    sex: Option<String>,
+}
+
 async fn patient_lab_band(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
     patient_id: Uuid,
-) -> Result<String, AppError> {
+) -> Result<PatientLabContext, AppError> {
     let row = sqlx::query_as::<_, (Option<NaiveDate>, Option<String>)>(
         "SELECT date_of_birth, biological_sex::text FROM patients \
          WHERE tenant_id = $1 AND id = $2",
@@ -1226,7 +1234,7 @@ async fn patient_lab_band(
     let (dob, sex) = row.unwrap_or((None, None));
     let adult = if sex.as_deref() == Some("female") { "adult_f" } else { "adult_m" };
     let Some(dob) = dob else {
-        return Ok(adult.to_owned());
+        return Ok(PatientLabContext { band: adult.to_owned(), age_years: None, sex });
     };
     let age_days = chrono::Utc::now().date_naive().signed_duration_since(dob).num_days();
     let elderly = if sex.as_deref() == Some("female") { "elderly_f" } else { "elderly_m" };
@@ -1241,7 +1249,77 @@ async fn patient_lab_band(
     } else {
         adult
     };
-    Ok(band.to_owned())
+    Ok(PatientLabContext {
+        band: band.to_owned(),
+        age_years: i32::try_from(age_days / 365).ok(),
+        sex,
+    })
+}
+
+/// What the tenant's own critical rules say about a value.
+enum TenantCritical {
+    /// Outside a limit this hospital wrote down.
+    Flagged(&'static str),
+    /// A rule applies and the value is inside it. The shared thresholds must
+    /// then stay out of the way.
+    WithinLimits,
+    /// This hospital has no rule for this analyte and this patient.
+    NoRule,
+}
+
+/// Evaluate `critical_value_rules` -- the table with a full settings screen
+/// that nothing has ever read.
+///
+/// A hospital configures a paediatric potassium limit here and it changes
+/// nothing about what gets flagged, silently, because result entry consults
+/// only the global `cds_lab_reference`. That table has no tenant, and no age
+/// or sex scoping beyond its fixed bands, which is usually the reason somebody
+/// wrote a rule of their own.
+///
+/// Rules are matched most specific first: a rule naming an age range or a sex
+/// beats a blanket one, so a paediatric limit wins for a child without having
+/// to disable the adult rule beside it.
+async fn tenant_critical(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    parameter_name: &str,
+    value: f64,
+    ctx: &PatientLabContext,
+) -> Result<TenantCritical, AppError> {
+    let rule = sqlx::query_as::<_, (Option<f64>, Option<f64>)>(
+        "SELECT low_critical::float8, high_critical::float8 \
+           FROM critical_value_rules \
+          WHERE tenant_id = $1 AND is_active = true AND deleted_at IS NULL \
+            AND (lower(test_code) = lower($2) OR lower(test_name) = lower($2)) \
+            AND (age_min IS NULL OR ($3 IS NOT NULL AND $3 >= age_min)) \
+            AND (age_max IS NULL OR ($3 IS NOT NULL AND $3 <= age_max)) \
+            AND (gender IS NULL OR gender = $4) \
+          ORDER BY (gender IS NOT NULL) DESC, \
+                   (age_min IS NOT NULL OR age_max IS NOT NULL) DESC \
+          LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(parameter_name.trim())
+    .bind(ctx.age_years)
+    .bind(ctx.sex.as_deref())
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    let Some((low, high)) = rule else {
+        return Ok(TenantCritical::NoRule);
+    };
+    if low.is_some_and(|limit| value < limit) {
+        return Ok(TenantCritical::Flagged("critical_low"));
+    }
+    if high.is_some_and(|limit| value > limit) {
+        return Ok(TenantCritical::Flagged("critical_high"));
+    }
+    // A rule with neither limit set decides nothing, so it must not silence
+    // the shared thresholds either.
+    if low.is_none() && high.is_none() {
+        return Ok(TenantCritical::NoRule);
+    }
+    Ok(TenantCritical::WithinLimits)
 }
 
 
@@ -1251,15 +1329,24 @@ async fn patient_lab_band(
 /// judge comes back `Unknown`, and `Unknown` is never normality.
 async fn auto_flag(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
     parameter_name: &str,
     value: &str,
-    band: &str,
+    ctx: &PatientLabContext,
 ) -> Result<RefVerdict, AppError> {
     // Not a number: a culture, a serology, a description. The numeric bands
     // say nothing about it, and silence is not a pass.
     let Ok(numeric) = value.trim().parse::<f64>() else {
         return Ok(RefVerdict::Unknown);
     };
+
+    // The hospital's own limits are asked first, and win.
+    let tenant = tenant_critical(tx, tenant_id, parameter_name, numeric, ctx).await?;
+    if let TenantCritical::Flagged(flag) = tenant {
+        return Ok(RefVerdict::Flagged(flag));
+    }
+    let criticals_decided = matches!(tenant, TenantCritical::WithinLimits);
+
     let row = sqlx::query_as::<_, LabRefRow>(
         "SELECT normal_low::float8, normal_high::float8, \
                 critical_low::float8, critical_high::float8, \
@@ -1274,9 +1361,12 @@ async fn auto_flag(
     .await?;
     // The analyte is not in the reference table at all.
     let Some(row) = row else {
+        // No shared reference either. If the tenant ruled the value inside its
+        // own limits that is a real judgement about criticality, but it says
+        // nothing about the normal range, so this is still Unknown.
         return Ok(RefVerdict::Unknown);
     };
-    Ok(judge(&row, numeric, band))
+    Ok(judge(&row, numeric, &ctx.band, criticals_decided))
 }
 
 pub async fn add_results(
@@ -1349,7 +1439,8 @@ pub async fn add_results(
         // Auto-detect a critical value from the global CDS lab reference when
         // the technician hasn't already flagged one (NABL critical-value
         // reporting — a value out of the critical range is never missed).
-        let verdict = auto_flag(&mut tx, &r.parameter_name, &r.value, &lab_band).await?;
+        let verdict =
+            auto_flag(&mut tx, claims.tenant_id, &r.parameter_name, &r.value, &lab_band).await?;
         // The table only overrides the technologist when it actually judged
         // the value; otherwise their own flag stands.
         let effective_flag = match &verdict {
@@ -1482,7 +1573,28 @@ pub async fn add_results(
                 .bind(order.ordered_by)
                 .fetch_one(&mut *tx)
                 .await?;
-                let body = format!("{}: {} ({})", r.parameter_name, r.value, flag_str);
+                // `alert_message` is the third dead column on
+                // `critical_value_rules`: a hospital writes the instruction it
+                // wants its clinicians to see -- "Repeat before treating",
+                // "Call the on-call nephrologist" -- and nothing has ever
+                // shown it. Only looked up when a critical actually fires.
+                let tenant_message = sqlx::query_scalar::<_, String>(
+                    "SELECT alert_message FROM critical_value_rules \
+                      WHERE tenant_id = $1 AND is_active = true AND deleted_at IS NULL \
+                        AND (lower(test_code) = lower($2) OR lower(test_name) = lower($2)) \
+                      ORDER BY (gender IS NOT NULL) DESC, \
+                               (age_min IS NOT NULL OR age_max IS NOT NULL) DESC \
+                      LIMIT 1",
+                )
+                .bind(claims.tenant_id)
+                .bind(r.parameter_name.trim())
+                .fetch_optional(&mut *tx)
+                .await?
+                .filter(|message| !message.trim().is_empty());
+
+                let measurement = format!("{}: {} ({})", r.parameter_name, r.value, flag_str);
+                let body = tenant_message
+                    .map_or_else(|| measurement.clone(), |m| format!("{measurement} — {m}"));
                 create_notification(
                     &mut tx,
                     claims.tenant_id,
@@ -4675,7 +4787,8 @@ pub async fn auto_validate_result(
     // depending on which code last wrote it. Most of the catalog carries no
     // critical bounds at all, so for most tests this answered a flat no.
     let band = patient_lab_band(&mut tx, claims.tenant_id, order.patient_id).await?;
-    let verdict = auto_flag(&mut tx, &result.parameter_name, &result.value, &band).await?;
+    let verdict =
+        auto_flag(&mut tx, claims.tenant_id, &result.parameter_name, &result.value, &band).await?;
 
     // A technologist's own flag still stands: the reference table is a second
     // opinion, never an override of the person who looked at the sample.
