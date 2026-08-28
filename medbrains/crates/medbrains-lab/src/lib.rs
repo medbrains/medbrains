@@ -1313,6 +1313,10 @@ enum TenantCritical {
 /// Rules are matched most specific first: a rule naming an age range or a sex
 /// beats a blanket one, so a paediatric limit wins for a child without having
 /// to disable the adult rule beside it.
+/// The casts on `$3` and `$4` are load-bearing. `$3 IS NOT NULL` gives the
+/// planner nothing to infer a type from, and sqlx parses with unspecified
+/// parameter types, so without them the server answers "could not determine
+/// data type of parameter $3" and the query fails every time it is run.
 async fn tenant_critical(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
@@ -1325,9 +1329,9 @@ async fn tenant_critical(
            FROM critical_value_rules \
           WHERE tenant_id = $1 AND is_active = true AND deleted_at IS NULL \
             AND (lower(test_code) = lower($2) OR lower(test_name) = lower($2)) \
-            AND (age_min IS NULL OR ($3 IS NOT NULL AND $3 >= age_min)) \
-            AND (age_max IS NULL OR ($3 IS NOT NULL AND $3 <= age_max)) \
-            AND (gender IS NULL OR gender = $4) \
+            AND (age_min IS NULL OR ($3::int IS NOT NULL AND $3::int >= age_min)) \
+            AND (age_max IS NULL OR ($3::int IS NOT NULL AND $3::int <= age_max)) \
+            AND (gender IS NULL OR gender = $4::text) \
           ORDER BY (gender IS NOT NULL) DESC, \
                    (age_min IS NOT NULL OR age_max IS NOT NULL) DESC \
           LIMIT 1",
