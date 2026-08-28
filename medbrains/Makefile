@@ -290,6 +290,9 @@ lint: ## Run biome lint + format check
 check-api: ## Verify frontend↔backend API contract
 	python3 ../scripts/check_api_contract.py
 
+check-sql-schema: ## Verify runtime SQL resolves against the migrations
+	python3 ../scripts/check_sql_schema.py
+
 check-ui-api: ## Verify UI pages ↔ API method coverage
 	python3 ../scripts/check_ui_api_coverage.py
 
