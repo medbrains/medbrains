@@ -9,14 +9,14 @@ import { labQcResultFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreateQcResultRequest, LabQcResult, LabReagentLot } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconPlus } from "@tabler/icons-react";
+import { IconCheck, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components";
 import { LabTestSearchSelect } from "@/components/LabTestSearchSelect";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, IconButton, Tooltip } from "@/components/ui";
 import { labOptionalNumber, labOptionalText } from "@/forms/lab.form";
 import { statusColor } from "@/lib/status-colors";
 import { labService } from "@/services/lab.service";
@@ -143,6 +143,7 @@ function LeveyJenningsChart({
 export function QcResultsSection() {
   const { t } = useTranslation("lab");
   const canCreate = useHasPermission(P.LAB.QC_CREATE);
+  const canReview = useHasPermission(P.LAB.QC_MANAGE);
   const queryClient = useQueryClient();
   const [formOpen, formHandlers] = useDisclosure(false);
   const [chartLotId, setChartLotId] = useState<string | null>(null);
@@ -203,6 +204,14 @@ export function QcResultsSection() {
     });
   };
 
+  // A rejected run holds every result for its test until somebody other than
+  // the person who ran it has reviewed it. Without this control that hold has
+  // no way out from the interface at all.
+  const reviewMutation = useMutation({
+    mutationFn: (id: string) => labService.reviewQcResult(id, {}),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["lab-qc-results"] }),
+  });
+
   const columns = [
     {
       key: "test_id",
@@ -255,6 +264,39 @@ export function QcResultsSection() {
       key: "run_date",
       label: "Run Date",
       render: (row: LabQcResult) => <Text size="sm">{row.run_date ?? "—"}</Text>,
+    },
+    {
+      key: "review",
+      label: "Review",
+      render: (row: LabQcResult) => {
+        if (row.reviewed_by) {
+          return (
+            <Text size="sm" c="dimmed">
+              {t("qc.reviewed")}
+            </Text>
+          );
+        }
+        if (!canReview || row.status !== "rejected") {
+          return (
+            <Text size="sm" c="dimmed">
+              —
+            </Text>
+          );
+        }
+        return (
+          <Tooltip label={t("qc.reviewHint")}>
+            <IconButton
+              tone="primary"
+              size="sm"
+              aria-label={t("qc.review")}
+              loading={reviewMutation.isPending}
+              onClick={() => reviewMutation.mutate(row.id)}
+            >
+              <IconCheck size={14} />
+            </IconButton>
+          </Tooltip>
+        );
+      },
     },
   ];
 

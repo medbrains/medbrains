@@ -24,6 +24,7 @@ export const labService = {
     api.acknowledgeCriticalAlert(...args),
   amendLabResult: (...args: Parameters<typeof api.amendLabResult>) => api.amendLabResult(...args),
   addOnLabTest: (...args: Parameters<typeof api.addOnLabTest>) => api.addOnLabTest(...args),
+  reviewQcResult: (...args: Parameters<typeof api.reviewQcResult>) => api.reviewQcResult(...args),
   autoValidateResult: (...args: Parameters<typeof api.autoValidateResult>) =>
     api.autoValidateResult(...args),
   getOrderCrossmatch: (...args: Parameters<typeof api.getOrderCrossmatch>) =>

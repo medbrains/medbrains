@@ -30,6 +30,7 @@ use medbrains_server_core::state::AppState;
 mod order_filter;
 mod priority;
 mod reference_range;
+mod westgard;
 use order_filter::{Bind, build_order_filter};
 use priority::{normalize_lab_priority, token_priority};
 use reference_range::{LabRefRow, RefVerdict, judge};
@@ -1044,6 +1045,39 @@ pub async fn verify_results(
         return Err(AppError::BadRequest(
             "A critical value on this order has not been acknowledged yet. Complete the read-back \
              with the treating doctor before releasing the report."
+                .to_owned(),
+        ));
+    }
+
+    // Quality control has to have passed for the test being released.
+    //
+    // `create_qc_result` could already set a run to `rejected` and nothing
+    // anywhere consulted it: an instrument failing its controls went on
+    // reporting patient results, which is the one thing running controls is
+    // for. ISO 15189 puts it plainly -- results from an analytical run whose
+    // QC failed are not reported.
+    //
+    // Only the most recent run for this test counts, and only while nobody has
+    // reviewed it. A supervisor who looks at a failed run and signs it off --
+    // the control vial was old, the wrong level was loaded -- releases the
+    // hold, which is why the review route exists alongside this.
+    let blocking_qc = sqlx::query_scalar::<_, bool>(
+        "SELECT q.status::text = 'rejected' AND q.reviewed_by IS NULL \
+           FROM lab_qc_results q \
+           JOIN lab_orders lo ON lo.test_id = q.test_id AND lo.tenant_id = q.tenant_id \
+          WHERE lo.id = $1 AND q.tenant_id = $2 AND q.deleted_at IS NULL \
+          ORDER BY q.run_date DESC NULLS LAST, q.run_time DESC \
+          LIMIT 1",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .unwrap_or(false);
+    if blocking_qc {
+        return Err(AppError::BadRequest(
+            "Quality control for this test was rejected and has not been reviewed. Repeat the \
+             controls, or have a supervisor review the failed run, before releasing results."
                 .to_owned(),
         ));
     }
@@ -2746,6 +2780,63 @@ pub async fn list_qc_results(
     Ok(Json(rows))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ReviewQcResultRequest {
+    pub reviewer_notes: Option<String>,
+}
+
+/// Record that a supervisor has looked at a QC run.
+///
+/// `reviewed_by` had no writer anywhere and there was no route to set it, so
+/// supervisory review of quality control was unrecorded -- which NABL and
+/// ISO 15189 both expect to see evidenced.
+///
+/// It is also the release valve for the check in `verify_results`: a rejected
+/// run holds every result for that test until somebody with `lab.qc.manage`
+/// has looked at it and said why it is acceptable to proceed. Without this the
+/// hold would have no way out but a database edit.
+pub async fn review_qc_result(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ReviewQcResultRequest>,
+) -> Result<Json<LabQcResult>, AppError> {
+    require_permission(&claims, permissions::lab::qc::MANAGE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // The reviewer is not the person who ran the control. Reviewing one's own
+    // failed run is the same signature twice.
+    let row = sqlx::query_as::<_, LabQcResult>(
+        "UPDATE lab_qc_results SET \
+         reviewed_by = $1, \
+         reviewer_notes = COALESCE($2, reviewer_notes) \
+         WHERE id = $3 AND tenant_id = $4 AND deleted_at IS NULL \
+           AND performed_by IS DISTINCT FROM $1 \
+         RETURNING *",
+    )
+    .bind(claims.sub)
+    .bind(&body.reviewer_notes)
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let Some(row) = row else {
+        // Either it is not there, or the caller ran it themselves. Both are
+        // refusals a reviewer can act on without being told which.
+        return Err(AppError::BadRequest(
+            "This QC run cannot be reviewed by you. A run is reviewed by somebody other than the \
+             person who performed it."
+                .to_owned(),
+        ));
+    };
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
 pub async fn create_qc_result(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -2756,9 +2847,8 @@ pub async fn create_qc_result(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // Compute SD index and Westgard violations
     let mut sd_index: Option<Decimal> = None;
-    let mut status = "accepted";
+    let mut status = westgard::ACCEPTED;
     let mut westgard_violations: Vec<String> = Vec::new();
 
     if let (Some(mean), Some(sd), Some(obs)) =
@@ -2768,17 +2858,38 @@ pub async fn create_qc_result(
             let sdi = (obs - mean) / sd;
             sd_index = Some(sdi);
 
-            // Westgard rule evaluation
-            let abs_sdi = sdi.abs();
-            if abs_sdi > Decimal::from(3) {
-                westgard_violations.push("1_3s".to_owned());
-                status = "rejected";
-            } else if abs_sdi > Decimal::from(2) {
-                westgard_violations.push("1_2s".to_owned());
-                if status != "rejected" {
-                    status = "warning";
-                }
-            }
+            // The runs before this one, for the same test, lot and level.
+            // Four of the six rules are about a sequence, and nothing used to
+            // fetch it, so they could never fire.
+            //
+            // Nine is the most any rule needs -- 10x counts this run plus
+            // nine -- so the query is bounded there rather than reading a
+            // lot's whole history to look at its tail.
+            let history = sqlx::query_scalar::<_, Option<f64>>(
+                "SELECT sd_index::float8 FROM lab_qc_results \
+                  WHERE tenant_id = $1 AND test_id = $2 AND lot_id = $3 AND level = $4 \
+                    AND sd_index IS NOT NULL AND deleted_at IS NULL \
+                  ORDER BY run_date DESC NULLS LAST, run_time DESC \
+                  LIMIT 9",
+            )
+            .bind(claims.tenant_id)
+            .bind(body.test_id)
+            .bind(body.lot_id)
+            .bind(&body.level)
+            .fetch_all(&mut *tx)
+            .await?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<f64>>();
+
+            let sdi_f64 = f64::try_from(sdi).unwrap_or(0.0);
+            let evaluation = westgard::evaluate(sdi_f64, &history);
+            status = evaluation.status;
+            westgard_violations = evaluation
+                .violations
+                .into_iter()
+                .map(ToOwned::to_owned)
+                .collect();
         }
     }
 
@@ -5485,6 +5596,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/lab/qc-results",
             get(list_qc_results).post(create_qc_result),
         )
+        .route("/api/lab/qc-results/{id}/review", put(review_qc_result))
         .route(
             "/api/lab/calibrations",
             get(list_calibrations).post(create_calibration),

@@ -220,5 +220,8 @@
   "label.container": "Container",
   "label.fastingRequired": "Fasting required",
   "label.fastingHours": "Fasting hours",
-  "description.containerDecidesTheAssay": "The additive is part of the assay — a sample in the wrong tube cannot be salvaged."
+  "description.containerDecidesTheAssay": "The additive is part of the assay — a sample in the wrong tube cannot be salvaged.",
+  "qc.review": "Review this failed run",
+  "qc.reviewed": "Reviewed",
+  "qc.reviewHint": "Records that a supervisor examined this failed run, and releases the hold it places on reporting for this test."
 }

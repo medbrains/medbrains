@@ -239,6 +239,7 @@ import type {
   CampTeamMember,
   CancelAppointmentRequest,
   CancelCampRequest,
+  CancelOrderRequest,
   CancelRadiologyOrderRequest,
   CancerStaging,
   CapaFormPrintData,
@@ -567,6 +568,7 @@ import type {
   CreateIndwellingDeviceRequest,
   CreateInfusionInput,
   CreateInjuryRequest,
+  CreateInstallmentRequest,
   CreateInsuranceClaimRequest,
   CreateInsuranceProviderRequest,
   CreateIntakeOutputRequest,
@@ -993,6 +995,8 @@ import type {
   FormularyCheckResult,
   FrontOfficeEnquiryLog,
   FsnAnalysisRow,
+  FulfilmentQueueRow,
+  FulfilmentStageResponse,
   GcsChartPrintData,
   GcsRequest,
   GcsResult,
@@ -1441,6 +1445,8 @@ import type {
   PatientVisitRow,
   Payment,
   PaymentGatewayTransaction,
+  PaymentInstallment,
+  PaymentInstallmentItem,
   PaymentMethodRow,
   PaymentProvidersResponse,
   PaymentStatusResponse,
@@ -1494,6 +1500,7 @@ import type {
   PharmacyTransferRequest,
   // Pharmacy Phase 2
   PharmacyValidationResult,
+  PickLine,
   PincodeResult,
   PipelineListResponse,
   PmChecklistPrintData,
@@ -1630,6 +1637,7 @@ import type {
   RehabSession,
   RejectAssetMovementRequest,
   RejectSampleRequest,
+  ReleaseOrderRequest,
   RemoteVitalReading,
   RemoveIndwellingDeviceRequest,
   ReorderAlert,
@@ -2038,6 +2046,8 @@ import type {
   VerifiedPrescription,
   VerifyConsentRequest,
   VerifyConsentResponse,
+  VerifyLineRequest,
+  VerifyLineResponse,
   VerifyNewbornIdentityRequest,
   VerifyNewbornIdentityResult,
   VerifyPaymentRequest,
@@ -4897,6 +4907,29 @@ export const api = {
   billingReportReconciliation: (date: string) =>
     request<ReconciliationReport>(`/billing/reports/reconciliation?date=${date}`),
 
+  // -- EMI / Installment Payments --
+  listInstallments: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<PaymentInstallment[]>(`/billing/installments${qs}`);
+  },
+  createInstallment: (data: CreateInstallmentRequest) =>
+    request<PaymentInstallment>("/billing/installments", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getInstallment: (id: string) => request<PaymentInstallment>(`/billing/installments/${id}`),
+  payInstallmentItem: (installmentId: string, itemId: string) =>
+    request<PaymentInstallmentItem>(`/billing/installments/${installmentId}/items/${itemId}/pay`, {
+      method: "POST",
+    }),
+  waiveInstallmentItem: (installmentId: string, itemId: string) =>
+    request<PaymentInstallmentItem>(
+      `/billing/installments/${installmentId}/items/${itemId}/waive`,
+      {
+        method: "POST",
+      },
+    ),
+
   // -- Day Close --
   listDayCloses: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params)}` : "";
@@ -5265,6 +5298,19 @@ export const api = {
   createQcResult: (data: CreateQcResultRequest) =>
     request<LabQcResult>("/lab/qc-results", {
       method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  /**
+   * Record that a supervisor has looked at a QC run.
+   *
+   * A rejected run holds every result for that test until this happens, so
+   * this is the way out of that hold as well as the NABL evidence that
+   * somebody reviewed it.
+   */
+  reviewQcResult: (id: string, data: { reviewer_notes?: string }) =>
+    request<LabQcResult>(`/lab/qc-results/${id}/review`, {
+      method: "PUT",
       body: JSON.stringify(data),
     }),
 
@@ -5915,6 +5961,50 @@ export const api = {
     request<PharmacyStoreIndent>(`/pharmacy/store-indents/${id}/issue`, { method: "PUT" }),
   receivePharmacyStoreIndent: (id: string) =>
     request<PharmacyStoreIndent>(`/pharmacy/store-indents/${id}/receive`, { method: "PUT" }),
+
+  // ── Pharmacy Fulfilment (pick → pack → verify → dispatch → collect) ────
+  //
+  // Only meaningful for a store in `pack_and_collect` mode. Every one of these
+  // is refused with a plain-English reason for a counter pharmacy, and for any
+  // order carrying a controlled line — a narcotic never travels the pack route.
+  listFulfilmentQueue: (storeLocationId?: string) => {
+    const qs = storeLocationId
+      ? `?${new URLSearchParams({ store_location_id: storeLocationId })}`
+      : "";
+    return request<FulfilmentQueueRow[]>(`/pharmacy/fulfilment/queue${qs}`);
+  },
+  getFulfilmentPickList: (orderId: string) =>
+    request<PickLine[]>(`/pharmacy/fulfilment/${orderId}/pick-list`),
+  claimFulfilmentOrder: (orderId: string) =>
+    request<FulfilmentStageResponse>(`/pharmacy/fulfilment/${orderId}/claim`, { method: "POST" }),
+  packFulfilmentOrder: (orderId: string) =>
+    request<FulfilmentStageResponse>(`/pharmacy/fulfilment/${orderId}/pack`, { method: "POST" }),
+  verifyFulfilmentLine: (orderId: string, data: VerifyLineRequest) =>
+    request<VerifyLineResponse>(`/pharmacy/fulfilment/${orderId}/verify`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  markFulfilmentVerified: (orderId: string) =>
+    request<FulfilmentStageResponse>(`/pharmacy/fulfilment/${orderId}/verified`, {
+      method: "POST",
+    }),
+  markFulfilmentReady: (orderId: string) =>
+    request<FulfilmentStageResponse>(`/pharmacy/fulfilment/${orderId}/ready`, { method: "POST" }),
+  collectFulfilmentOrder: (orderId: string) =>
+    request<FulfilmentStageResponse>("/pharmacy/fulfilment/collect", {
+      method: "POST",
+      body: JSON.stringify({ order_id: orderId }),
+    }),
+  releaseFulfilmentOrder: (orderId: string, data: ReleaseOrderRequest) =>
+    request<FulfilmentStageResponse>(`/pharmacy/fulfilment/${orderId}/release`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  cancelFulfilmentOrder: (orderId: string, data: CancelOrderRequest) =>
+    request<FulfilmentStageResponse>(`/pharmacy/fulfilment/${orderId}/cancel`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   returnPosItems: (
     saleId: string,
