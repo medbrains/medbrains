@@ -268,9 +268,12 @@ pub async fn get_preop_assessment_print_data(
     .await?;
 
     let lab_results = sqlx::query_as::<_, PreopLabResult>(
+        // `lab_results` has no `lab_order_id`; the column is `order_id`. This
+        // is the pre-operative bloods on a surgical safety checklist, so the
+        // query failing meant the checklist printed without them.
         "SELECT lr.parameter_name AS test_name, lr.value, lr.unit, lr.flag \
          FROM lab_results lr \
-         JOIN lab_orders lo ON lo.id = lr.lab_order_id AND lo.tenant_id = lr.tenant_id \
+         JOIN lab_orders lo ON lo.id = lr.order_id AND lo.tenant_id = lr.tenant_id \
          WHERE lo.patient_id = (SELECT patient_id FROM admissions WHERE id = $1) \
            AND lr.tenant_id = $2 \
          ORDER BY lr.created_at DESC LIMIT 20",

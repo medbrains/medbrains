@@ -215,12 +215,20 @@ def main() -> int:
     # A ratchet, not a gate. There are hundreds of these already and they are
     # somebody's afternoon each; failing the build on all of them would get the
     # check switched off within a day. What must not happen is a new one.
+    # Keyed on file and finding, never on line number. Keying on the line
+    # meant that editing anything above a known finding re-reported every
+    # finding below it -- fifty-two of them, the first time this was used in
+    # anger -- and the one genuinely new entry was lost in the noise.
+    def key(entry: str) -> str:
+        path, _, rest = entry.partition(":")
+        return path + "::" + rest.split("  ", 1)[-1].strip()
+
     known = set()
     if BASELINE.exists():
-        known = {l for l in BASELINE.read_text().splitlines() if l.strip()}
+        known = {key(l) for l in BASELINE.read_text().splitlines() if l.strip()}
 
-    fresh = [f for f in found if f not in known]
-    fixed = len(known) - len([f for f in found if f in known])
+    fresh = [f for f in found if key(f) not in known]
+    fixed = len(known) - len({key(f) for f in found if key(f) in known})
 
     if fresh:
         print(f"\nSQL references that cannot resolve and are not in the baseline "

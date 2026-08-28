@@ -1374,10 +1374,26 @@ pub async fn get_transfer_summary_print_data(
 
     // Get pending investigations
     let pending_investigations: Vec<String> = sqlx::query_scalar(
+        // Two faults. `lab_orders` has no `admission_id` -- it hangs off the
+        // encounter, and the admission carries that -- so this reached the
+        // admission through a column that does not exist. And `collected` is
+        // not a member of `lab_order_status`; the value is `sample_collected`,
+        // and comparing the enum against a string it does not contain is a
+        // hard error, not an empty result.
+        //
+        // It lists what is still outstanding before a patient is moved to
+        // another ward, so failing meant the transfer summary printed as
+        // though nothing were pending.
         "SELECT tc.name FROM lab_orders lo \
          JOIN lab_test_catalog tc ON tc.id = lo.test_id AND tc.tenant_id = lo.tenant_id \
-         WHERE lo.admission_id = (SELECT admission_id FROM patient_transfers WHERE id = $1) \
-           AND lo.tenant_id = $2 AND lo.status IN ('ordered', 'collected')",
+         JOIN admissions adm ON adm.encounter_id = lo.encounter_id \
+           AND adm.tenant_id = lo.tenant_id \
+         WHERE adm.id = (SELECT admission_id FROM patient_transfers WHERE id = $1) \
+           AND lo.tenant_id = $2 \
+           AND lo.deleted_at IS NULL \
+           AND lo.status IN ('ordered'::lab_order_status, \
+                             'sample_collected'::lab_order_status, \
+                             'processing'::lab_order_status)",
     )
     .bind(transfer_id)
     .bind(claims.tenant_id)
