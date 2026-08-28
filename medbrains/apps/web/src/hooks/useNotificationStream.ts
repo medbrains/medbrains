@@ -47,7 +47,7 @@ export function useNotificationStream(onEvent: (event: NotificationStreamEvent) 
     let attempts = 0;
     let closed = false;
 
-    const url = `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws/notifications`;
+    const url = `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/api/ws/notifications`;
 
     const scheduleReconnect = () => {
       if (closed || reconnectTimer) return;

@@ -50,7 +50,7 @@ A `NotificationHub` (tokio `broadcast` per topic, bounded ~256, lag-drop) held i
   them to publish notification events rather than inventing a parallel bus.
 
 ### Transports
-- **WebSocket `/ws/notifications`** (authed, replaces the placeholder handlers): on connect, the socket
+- **WebSocket `/api/ws/notifications`** (authed, replaces the placeholder handlers): on connect, the socket
   subscribes to `user:{claims.sub}` + the surface's declared topics (department/board/emergency); streams
   `NotificationEvent`s; heartbeats; on reconnect the client pulls missed rows via `GET
   /api/notifications?since=`. Bounded, capped-reconnect, backgrounded-pause on device.
@@ -63,7 +63,7 @@ A `NotificationHub` (tokio `broadcast` per topic, bounded ~256, lag-drop) held i
   (targeting the responsible role/user + `device:{id}`), so IoT alerts ride the same hub.
 
 ## Per-surface consumers
-- **Web** — the notification bell subscribes to `/ws/notifications`, live-prepends, updates the unread badge;
+- **Web** — the notification bell subscribes to `/api/ws/notifications`, live-prepends, updates the unread badge;
   falls back to the existing poll if the socket drops.
 - **Mobile (Expo)** — `@medbrains/mobile-shell` gains a `useNotifications()` hook: WS when foregrounded, Expo
   push when backgrounded, a notification center screen, deep-link via `action_url`. Bounded list (FlatList).
@@ -73,7 +73,7 @@ A `NotificationHub` (tokio `broadcast` per topic, bounded ~256, lag-drop) held i
 - **IoT** — device-bridge critical values surface as notifications to the on-call role.
 
 ## Phased rollout (each its own PR)
-- **P1 — Hub + live web.** `NotificationHub` in `AppState`; authed `/ws/notifications`; `create_notification`
+- **P1 — Hub + live web.** `NotificationHub` in `AppState`; authed `/api/ws/notifications`; `create_notification`
   publishes; fold `QueueBroadcaster` in. Unit-test the pure audience→topics resolution + bounded-channel drop.
 - **P2 — Web bell consumer.** Subscribe the bell to the socket (live + poll fallback), reconnect w/ backoff.
 - **P3 — Mobile in-app.** `mobile-shell useNotifications()` + notification center (WS foreground), FlatList.
@@ -95,6 +95,6 @@ A `NotificationHub` (tokio `broadcast` per topic, bounded ~256, lag-drop) held i
 ## Verification
 Per PR: `cargo clippy 0` + hub unit tests (audience→topics, bounded drop, reconnect cursor); `pnpm typecheck+
 build`, `biome`, `make check-api`. End-to-end: create a notification for user U in department D → U's open web
-bell receives it live over `/ws/notifications`; a TV subscribed to `board:opd` gets a token-called instantly;
+bell receives it live over `/api/ws/notifications`; a TV subscribed to `board:opd` gets a token-called instantly;
 U backgrounded on mobile gets an Expo push; reconnect replays missed rows via `?since=`. Device PRs tick the
 Power-of-Ten checklist (bounded, teardown, capped reconnect, last-good render).

@@ -106,11 +106,14 @@ pub fn build_router(state: AppState) -> Router {
         // WebSocket routes (TV displays)
         .route("/ws/queue/{department_id}", get(ws::queue_ws_handler))
         .route("/ws/queue", get(ws::queue_ws_handler_all))
-        .route("/ws/notifications", get(notifications::notifications_ws_handler))
+        .route("/api/ws/notifications", get(notifications::notifications_ws_handler))
         // Payment Gateway Webhooks (no auth — called by the provider)
         .route("/api/webhooks/razorpay", post(payment_gateway::razorpay_webhook))
         .route("/api/webhooks/cashfree", post(payment_gateway::cashfree_webhook))
-        .route("/api/webhooks/razorpayx", post(payment_gateway::razorpayx_webhook));
+        .route("/api/webhooks/razorpayx", post(payment_gateway::razorpayx_webhook))
+        .route("/api/webhooks/phonepe", post(payment_gateway::phonepe_webhook))
+        .route("/api/webhooks/payu", post(payment_gateway::payu_webhook))
+        .route("/api/webhooks/ccavenue", post(payment_gateway::ccavenue_webhook));
 
     // Protected routes (auth required)
     let protected = Router::new()
@@ -309,6 +312,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_ward_stock::router())
         // ── Pharmacy Finance (credit notes + store indents) ──
         .merge(medbrains_pharmacy_finance::router())
+        .merge(medbrains_pharmacy_fulfilment::router())
         // ── Pharmacy Safety ──────────────────────────────
         .merge(medbrains_pharmacy_safety::router())
         // ── Pharmacy Payments ────────────────────────────

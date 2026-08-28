@@ -3,7 +3,7 @@
 //! One in-process fan-out point that every notification is published to, so
 //! web / mobile / TV / kiosk clients receive it live over WebSocket. This is
 //! the substrate; P2 wires `create_notification` (post-commit) to `publish` and
-//! adds the authed `/ws/notifications` endpoint that calls `subscribe`.
+//! adds the authed `/api/ws/notifications` endpoint that calls `subscribe`.
 //!
 //! DSA / DP / cost discipline (CLAUDE.md + DEVICE-CONSTRAINED-RULES):
 //! - **Topic fan-out is O(subscribers)**, never an O(N) per-event DB scan: an

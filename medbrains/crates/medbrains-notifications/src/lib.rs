@@ -116,14 +116,16 @@ pub async fn mark_notification_read(
 ) -> Result<Json<UnreadCountResponse>, AppError> {
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    sqlx::query("UPDATE notifications SET is_read = true, read_at = now() WHERE id = $1 AND user_id = $2")
+    sqlx::query("UPDATE notifications SET is_read = true, read_at = now() WHERE id = $1 AND user_id = $2 AND tenant_id = $3")
         .bind(id)
         .bind(claims.sub)
+        .bind(claims.tenant_id)
         .execute(&mut *tx)
         .await?;
     let unread_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = false")
+        sqlx::query_scalar("SELECT COUNT(*) FROM notifications WHERE user_id = $1 AND is_read = false AND tenant_id = $2")
             .bind(claims.sub)
+            .bind(claims.tenant_id)
             .fetch_one(&mut *tx)
             .await?;
     tx.commit().await?;
@@ -367,10 +369,18 @@ pub struct WsAuthQuery {
     pub token: Option<String>,
 }
 
-/// `GET /ws/notifications` — the caller's live notification stream. Authed
+/// `GET /api/ws/notifications` — the caller's live notification stream. Authed
 /// inside the handler (WS upgrades bypass the API auth layer): `access_token`
-/// cookie first (browsers send it on upgrade), else `?token=` (mobile). On
+/// cookie first, else `?token=` (mobile, which cannot set a cookie). On
 /// reconnect the client backfills missed rows via `GET /api/notifications`.
+///
+/// The `/api` prefix is load-bearing. `access_token` is deliberately scoped
+/// `Path=/api`, so at the old `/ws/notifications` no browser ever sent it —
+/// every upgrade arrived with no cookie, answered 401, and the bell reconnected
+/// for ever. Widening the cookie to `/` would have fixed the symptom by undoing
+/// the scoping on purpose; moving the socket inside the path the token already
+/// covers keeps both. Anything else served outside `/api` cannot use cookie
+/// auth either.
 pub async fn notifications_ws_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,

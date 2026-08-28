@@ -20,5 +20,5 @@ export interface MobileNotificationEvent {
 export function notificationWsUrl(apiBase: string, token: string): string {
   const origin = apiBase.replace(/\/api\/?$/, "");
   const wsOrigin = origin.replace(/^http/, "ws");
-  return `${wsOrigin}/ws/notifications?token=${encodeURIComponent(token)}`;
+  return `${wsOrigin}/api/ws/notifications?token=${encodeURIComponent(token)}`;
 }

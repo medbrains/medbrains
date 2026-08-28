@@ -101,7 +101,7 @@ allowed_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 # route by path, so notifications failed with a 503 whenever no edge appliance
 # was running. On a dev machine that is always.
 [[edge_policies]]
-prefix = "/ws/notifications"
+prefix = "/api/ws/notifications"
 class = "websocket"
 upstream = "127.0.0.1:3000"
 body_limit_bytes = 1048576
