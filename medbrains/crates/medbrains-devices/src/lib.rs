@@ -14,6 +14,9 @@ use medbrains_server_core::error::AppError;
 use medbrains_server_core::middleware::auth::Claims;
 use medbrains_server_core::state::AppState;
 
+mod hl7_flag;
+use hl7_flag::map_hl7_flag;
+
 fn require_permission(claims: &Claims, perm: &str) -> Result<(), AppError> {
     if claims.role == "super_admin" || claims.role == "hospital_admin" {
         return Ok(());
@@ -987,19 +990,6 @@ async fn route_lab_data(
     }
 
     Ok(created_ids)
-}
-
-/// Map HL7 abnormal flag codes to `lab_result_flag` enum values.
-fn map_hl7_flag(flag: Option<&str>) -> &'static str {
-    match flag {
-        Some("H" | "HH") => "high",
-        Some("L" | "LL") => "low",
-        Some("A" | "AA") => "abnormal",
-        Some("N" | "") | None => "normal",
-        Some("HU") => "critical_high",
-        Some("LU") => "critical_low",
-        _ => "normal",
-    }
 }
 
 /// devices routes.
