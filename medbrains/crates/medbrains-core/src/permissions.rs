@@ -211,6 +211,34 @@ pub mod pharmacy {
     pub mod stores {
         pub const LIST: &str = "pharmacy.stores.list";
         pub const MANAGE: &str = "pharmacy.stores.manage";
+
+        /// The four stages of a store indent, separately.
+        ///
+        /// `MANAGE` alone used to gate create, approve, issue AND receive, so
+        /// whoever could raise a stock movement could approve it and receive it
+        /// on their own. Every stage still accepts `MANAGE`, so no existing
+        /// deployment loses access — but a hospital that wants the stages held
+        /// by different people can now say so, which it could not before.
+        pub mod indents {
+            pub const CREATE: &str = "pharmacy.stores.indents.create";
+            pub const APPROVE: &str = "pharmacy.stores.indents.approve";
+            pub const ISSUE: &str = "pharmacy.stores.indents.issue";
+            pub const RECEIVE: &str = "pharmacy.stores.indents.receive";
+        }
+    }
+
+    /// Pick → pack → verify → dispatch, for pharmacies that hand medicine over
+    /// away from the billing counter.
+    ///
+    /// Separate verbs even where one person holds all of them today: a
+    /// four-eyes rule cannot be added later to a permission that never
+    /// distinguished the acts it was gating.
+    pub mod fulfilment {
+        pub const PICK: &str = "pharmacy.fulfilment.pick";
+        pub const PACK: &str = "pharmacy.fulfilment.pack";
+        pub const VERIFY: &str = "pharmacy.fulfilment.verify";
+        pub const DISPATCH: &str = "pharmacy.fulfilment.dispatch";
+        pub const RELEASE: &str = "pharmacy.fulfilment.release";
     }
 
     pub mod analytics {
@@ -1199,6 +1227,34 @@ pub mod marketing {
         /// Create and edit campaigns.
         pub const MANAGE: &str = "marketing.campaigns.manage";
     }
+
+    pub mod consent {
+        /// View a contact's consent history.
+        ///
+        /// What they agreed to, on which channel, and when they changed
+        /// their mind. Reading it is how the desk knows whether it may ring.
+        pub const VIEW: &str = "marketing.consent.view";
+        /// Record a consent grant.
+        ///
+        /// A legal act, not an edit: it asserts a notice was shown and a
+        /// person agreed. Separate from editing the enquiry so that whoever
+        /// can fix a misspelt name cannot also manufacture a grant.
+        pub const CAPTURE: &str = "marketing.consent.capture";
+        /// Withdraw consent on a contact's behalf.
+        ///
+        /// The patient told somebody to stop. Whoever they told must be able
+        /// to record it without waiting for a campaign manager.
+        pub const WITHDRAW: &str = "marketing.consent.withdraw";
+    }
+
+    /// Add or lift a do-not-contact suppression.
+    ///
+    /// Suppression is keyed on the number rather than the enquiry record, so
+    /// it outlives the record and survives the person being created again.
+    /// Lifting one is why this is a single permission and not a read: the
+    /// people who run campaigns may see that somebody is unreachable, and may
+    /// not make them reachable.
+    pub const SUPPRESSION_MANAGE: &str = "marketing.suppression.manage";
 
     pub mod cohorts {
         /// View cohort names and sizes.

@@ -4,6 +4,7 @@ import { P } from "@medbrains/types";
 import { PageHeader } from "@/components";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { MarketingCallbacksTab } from "./marketing/callbacks-tab";
 import { MarketingCampaignsTab } from "./marketing/campaigns-tab";
 import { MarketingCohortsTab } from "./marketing/cohorts-tab";
 import { MarketingEnquiriesTab } from "./marketing/enquiries-tab";
@@ -87,6 +88,7 @@ export function MarketingPage() {
       <Tabs value={tab} onChange={setTab}>
         <Tabs.List>
           {canListContacts && <Tabs.Tab value="enquiries">Enquiries</Tabs.Tab>}
+          {canViewStages && <Tabs.Tab value="callbacks">Callbacks</Tabs.Tab>}
           {canViewContact && <Tabs.Tab value="screen-pop">Who\u2019s calling</Tabs.Tab>}
           {canViewCampaigns && <Tabs.Tab value="campaigns">Campaigns</Tabs.Tab>}
           {(canViewCohorts || canDefineClinical) && <Tabs.Tab value="cohorts">Cohorts</Tabs.Tab>}
@@ -102,6 +104,9 @@ export function MarketingPage() {
             canMoveStage={canMoveStage}
             canViewStages={canViewStages}
           />
+        </Tabs.Panel>
+        <Tabs.Panel value="callbacks" pt="md">
+          <MarketingCallbacksTab />
         </Tabs.Panel>
         <Tabs.Panel value="screen-pop" pt="md">
           <MarketingScreenPopTab />

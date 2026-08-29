@@ -37,6 +37,7 @@
 //! configuration change rather than a rewrite.
 
 pub mod audit;
+pub mod callbacks;
 pub mod campaigns;
 pub mod cohorts;
 pub mod contacts;
@@ -120,6 +121,22 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/marketing/messaging/messages",
             post(messaging::ingest_message_webhook),
+        )
+        .route(
+            "/api/marketing/callbacks",
+            get(callbacks::list_callbacks),
+        )
+        .route(
+            "/api/marketing/callbacks/summary",
+            get(callbacks::callback_summary),
+        )
+        .route(
+            "/api/marketing/callbacks/{id}/complete",
+            post(callbacks::complete_callback),
+        )
+        .route(
+            "/api/marketing/callbacks/{id}/reschedule",
+            post(callbacks::reschedule_callback),
         )
         .route("/api/marketing/stages", get(pipeline::list_stages))
         .route(

@@ -34,6 +34,14 @@ export const marketingService = {
     api.moveMarketingStage(...args),
   listStages: (...args: Parameters<typeof api.listMarketingStages>) =>
     api.listMarketingStages(...args),
+  listCallbacks: (...args: Parameters<typeof api.listMarketingCallbacks>) =>
+    api.listMarketingCallbacks(...args),
+  callbackSummary: (...args: Parameters<typeof api.marketingCallbackSummary>) =>
+    api.marketingCallbackSummary(...args),
+  completeCallback: (...args: Parameters<typeof api.completeMarketingCallback>) =>
+    api.completeMarketingCallback(...args),
+  rescheduleCallback: (...args: Parameters<typeof api.rescheduleMarketingCallback>) =>
+    api.rescheduleMarketingCallback(...args),
   listOutreachRuns: (...args: Parameters<typeof api.listMarketingOutreachRuns>) =>
     api.listMarketingOutreachRuns(...args),
   submitOutreachRun: (...args: Parameters<typeof api.submitMarketingOutreachRun>) =>

@@ -584,6 +584,12 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::marketing::pipeline::VIEW,
             permissions::marketing::pipeline::MOVE,
             permissions::marketing::interactions::LOG,
+            // The desk is who a patient actually tells. Recording a refusal
+            // must not wait for a campaign manager to be at their desk.
+            permissions::marketing::consent::VIEW,
+            permissions::marketing::consent::CAPTURE,
+            permissions::marketing::consent::WITHDRAW,
+            permissions::marketing::SUPPRESSION_MANAGE,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::patients::LIST,
@@ -617,6 +623,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::front_office::passes::LIST,
             permissions::front_office::passes::MANAGE,
             permissions::front_office::queue::LIST,
+            permissions::front_office::queue::MANAGE,
             permissions::front_office::enquiry::LIST,
             permissions::front_office::enquiry::CREATE,
             permissions::front_office::enquiry::MANAGE,
@@ -703,6 +710,15 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::pharmacy::ndps::MANAGE,
             permissions::pharmacy::stores::LIST,
             permissions::pharmacy::stores::MANAGE,
+            permissions::pharmacy::stores::indents::CREATE,
+            permissions::pharmacy::stores::indents::APPROVE,
+            permissions::pharmacy::stores::indents::ISSUE,
+            permissions::pharmacy::stores::indents::RECEIVE,
+            permissions::pharmacy::fulfilment::PICK,
+            permissions::pharmacy::fulfilment::PACK,
+            permissions::pharmacy::fulfilment::VERIFY,
+            permissions::pharmacy::fulfilment::DISPATCH,
+            permissions::pharmacy::fulfilment::RELEASE,
             permissions::pharmacy::analytics::VIEW,
             permissions::pharmacy::returns::LIST,
             permissions::pharmacy::returns::REQUEST,
@@ -1423,6 +1439,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::marketing::cohorts::VIEW,
             permissions::marketing::cohorts::MANAGE,
             permissions::marketing::outreach::SEND,
+            // View, and not capture or withdraw: the people who run campaigns
+            // may see that somebody is unreachable, and may not make them
+            // reachable. SUPPRESSION_MANAGE is deliberately absent for the
+            // same reason.
+            permissions::marketing::consent::VIEW,
             // NOT cohorts::CLINICAL_DEFINE — building a recall list from
             // diagnoses is a clinical act, and NOT outreach::APPROVE — the
             // author of a campaign does not sign it off.
@@ -1443,6 +1464,12 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::marketing::pipeline::VIEW,
             permissions::marketing::pipeline::MOVE,
             permissions::marketing::interactions::LOG,
+            // The desk is who a patient actually tells. Recording a refusal
+            // must not wait for a campaign manager to be at their desk.
+            permissions::marketing::consent::VIEW,
+            permissions::marketing::consent::CAPTURE,
+            permissions::marketing::consent::WITHDRAW,
+            permissions::marketing::SUPPRESSION_MANAGE,
             permissions::admin::settings::READ,
             permissions::dashboard::VIEW,
             permissions::front_office::visitors::LIST,
@@ -1451,6 +1478,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::front_office::passes::LIST,
             permissions::front_office::passes::MANAGE,
             permissions::front_office::queue::LIST,
+            permissions::front_office::queue::MANAGE,
             permissions::front_office::enquiry::LIST,
             permissions::abdm::abha::VIEW,
             permissions::abdm::abha::MANAGE,

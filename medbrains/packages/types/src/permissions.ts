@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 956 permissions, one per constant in the Rust source. */
+/** 973 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -25,6 +25,31 @@ export const PERMISSIONS: PermissionDef[] = [
     label: "View Dashboard",
     description: "Access the main dashboard",
     module: "dashboard",
+  },
+  // automation
+  {
+    code: "automation.view",
+    label: "View Automation",
+    description: "View Automation",
+    module: "automation",
+  },
+  {
+    code: "automation.manage",
+    label: "Manage Automation",
+    description: "Manage Automation",
+    module: "automation",
+  },
+  {
+    code: "automation.activate",
+    label: "Activate Automation",
+    description: "Activate Automation",
+    module: "automation",
+  },
+  {
+    code: "automation.run",
+    label: "Run Automation",
+    description: "Run Automation",
+    module: "automation",
   },
   // patients
   {
@@ -496,6 +521,60 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "pharmacy.stores.manage",
     label: "Manage Pharmacy Stores",
     description: "Create, approve, issue, and receive pharmacy store requests and transfers",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.stores.indents.create",
+    label: "Create Indents",
+    description: "Create Indents",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.stores.indents.approve",
+    label: "Approve Indents",
+    description: "Approve Indents",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.stores.indents.issue",
+    label: "Issue Indents",
+    description: "Issue Indents",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.stores.indents.receive",
+    label: "Receive Indents",
+    description: "Receive Indents",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.fulfilment.pick",
+    label: "Pick Fulfilment",
+    description: "Pick Fulfilment",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.fulfilment.pack",
+    label: "Pack Fulfilment",
+    description: "Pack Fulfilment",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.fulfilment.verify",
+    label: "Verify Fulfilment",
+    description: "Verify Fulfilment",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.fulfilment.dispatch",
+    label: "Dispatch Fulfilment",
+    description: "Dispatch Fulfilment",
+    module: "pharmacy",
+  },
+  {
+    code: "pharmacy.fulfilment.release",
+    label: "Release Fulfilment",
+    description: "Release Fulfilment",
     module: "pharmacy",
   },
   {
@@ -2882,6 +2961,30 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "marketing.campaigns.manage",
     label: "Create and edit campaigns",
     description: "Create and edit campaigns",
+    module: "marketing",
+  },
+  {
+    code: "marketing.consent.view",
+    label: "View a contact's consent history",
+    description: "What they agreed to, on which channel, and when they changed their mind. Reading it is how the desk knows whether it may ring.",
+    module: "marketing",
+  },
+  {
+    code: "marketing.consent.capture",
+    label: "Record a consent grant",
+    description: "A legal act, not an edit: it asserts a notice was shown and a person agreed. Separate from editing the enquiry so that whoever can fix a misspelt name cannot also manufacture a grant.",
+    module: "marketing",
+  },
+  {
+    code: "marketing.consent.withdraw",
+    label: "Withdraw consent on a contact's behalf",
+    description: "The patient told somebody to stop. Whoever they told must be able to record it without waiting for a campaign manager.",
+    module: "marketing",
+  },
+  {
+    code: "marketing.suppression.manage",
+    label: "Add or lift a do-not-contact suppression",
+    description: "Suppression is keyed on the number rather than the enquiry record, so it outlives the record and survives the person being created again. Lifting one is why this is a single permission and not a read: the people who run campaigns may see that somebody is unreachable, and may not make them reachable.",
     module: "marketing",
   },
   {
@@ -6121,6 +6224,12 @@ export const P = {
     LOG_EXPORT: "audit.log.export",
     LOG_VIEW: "audit.log.view",
   },
+  AUTOMATION: {
+    ACTIVATE: "automation.activate",
+    MANAGE: "automation.manage",
+    RUN: "automation.run",
+    VIEW: "automation.view",
+  },
   BEDSIDE: {
     CALLS: {
       BOARD: "bedside.calls.board",
@@ -7393,6 +7502,14 @@ export const P = {
     COHORTS_CLINICAL_DEFINE: "marketing.cohorts.clinical_define",
     COHORTS_MANAGE: "marketing.cohorts.manage",
     COHORTS_VIEW: "marketing.cohorts.view",
+    CONSENT: {
+      CAPTURE: "marketing.consent.capture",
+      VIEW: "marketing.consent.view",
+      WITHDRAW: "marketing.consent.withdraw",
+    },
+    CONSENT_CAPTURE: "marketing.consent.capture",
+    CONSENT_VIEW: "marketing.consent.view",
+    CONSENT_WITHDRAW: "marketing.consent.withdraw",
     CONTACTS: {
       CREATE: "marketing.contacts.create",
       LIST: "marketing.contacts.list",
@@ -7431,6 +7548,7 @@ export const P = {
     PIPELINE_VIEW: "marketing.pipeline.view",
     REPORTS_VIEW: "marketing.reports.view",
     SETTINGS_MANAGE: "marketing.settings.manage",
+    SUPPRESSION_MANAGE: "marketing.suppression.manage",
     TELEPHONY: {
       INGEST: "marketing.telephony.ingest",
     },
@@ -7846,6 +7964,18 @@ export const P = {
       APPROVE: "pharmacy.formulary.approve",
     },
     FORMULARY_APPROVE: "pharmacy.formulary.approve",
+    FULFILMENT: {
+      DISPATCH: "pharmacy.fulfilment.dispatch",
+      PACK: "pharmacy.fulfilment.pack",
+      PICK: "pharmacy.fulfilment.pick",
+      RELEASE: "pharmacy.fulfilment.release",
+      VERIFY: "pharmacy.fulfilment.verify",
+    },
+    FULFILMENT_DISPATCH: "pharmacy.fulfilment.dispatch",
+    FULFILMENT_PACK: "pharmacy.fulfilment.pack",
+    FULFILMENT_PICK: "pharmacy.fulfilment.pick",
+    FULFILMENT_RELEASE: "pharmacy.fulfilment.release",
+    FULFILMENT_VERIFY: "pharmacy.fulfilment.verify",
     NDPS: {
       LIST: "pharmacy.ndps.list",
       MANAGE: "pharmacy.ndps.manage",
@@ -7913,9 +8043,23 @@ export const P = {
     },
     STOCK_MANAGE: "pharmacy.stock.manage",
     STORES: {
+      INDENTS: {
+        APPROVE: "pharmacy.stores.indents.approve",
+        CREATE: "pharmacy.stores.indents.create",
+        ISSUE: "pharmacy.stores.indents.issue",
+        RECEIVE: "pharmacy.stores.indents.receive",
+      },
+      INDENTS_APPROVE: "pharmacy.stores.indents.approve",
+      INDENTS_CREATE: "pharmacy.stores.indents.create",
+      INDENTS_ISSUE: "pharmacy.stores.indents.issue",
+      INDENTS_RECEIVE: "pharmacy.stores.indents.receive",
       LIST: "pharmacy.stores.list",
       MANAGE: "pharmacy.stores.manage",
     },
+    STORES_INDENTS_APPROVE: "pharmacy.stores.indents.approve",
+    STORES_INDENTS_CREATE: "pharmacy.stores.indents.create",
+    STORES_INDENTS_ISSUE: "pharmacy.stores.indents.issue",
+    STORES_INDENTS_RECEIVE: "pharmacy.stores.indents.receive",
     STORES_LIST: "pharmacy.stores.list",
     STORES_MANAGE: "pharmacy.stores.manage",
     VALIDATION: {
@@ -9209,6 +9353,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.FRONT_OFFICE.PASSES.LIST,
       P.FRONT_OFFICE.PASSES.MANAGE,
       P.FRONT_OFFICE.QUEUE.LIST,
+      P.FRONT_OFFICE.QUEUE.MANAGE,
       P.FRONT_OFFICE.VISITORS.CREATE,
       P.FRONT_OFFICE.VISITORS.LIST,
       P.FRONT_OFFICE.VISITORS.MANAGE,
@@ -9219,6 +9364,9 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.LMS.COURSES.LIST,
       P.LMS.MY_LEARNING.VIEW,
       P.LMS.QUIZZES.ATTEMPT,
+      P.MARKETING.CONSENT.CAPTURE,
+      P.MARKETING.CONSENT.VIEW,
+      P.MARKETING.CONSENT.WITHDRAW,
       P.MARKETING.CONTACTS.CREATE,
       P.MARKETING.CONTACTS.LIST,
       P.MARKETING.CONTACTS.UPDATE,
@@ -9226,6 +9374,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MARKETING.INTERACTIONS.LOG,
       P.MARKETING.PIPELINE.MOVE,
       P.MARKETING.PIPELINE.VIEW,
+      P.MARKETING.SUPPRESSION_MANAGE,
       P.OPD.APPOINTMENT.CANCEL,
       P.OPD.APPOINTMENT.CREATE,
       P.OPD.APPOINTMENT.LIST,
@@ -9303,6 +9452,11 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PHARMACY.DISPENSING.PARTIAL,
       P.PHARMACY.DISPENSING.VOID,
       P.PHARMACY.FORMULARY.APPROVE,
+      P.PHARMACY.FULFILMENT.DISPATCH,
+      P.PHARMACY.FULFILMENT.PACK,
+      P.PHARMACY.FULFILMENT.PICK,
+      P.PHARMACY.FULFILMENT.RELEASE,
+      P.PHARMACY.FULFILMENT.VERIFY,
       P.PHARMACY.NDPS.LIST,
       P.PHARMACY.NDPS.MANAGE,
       P.PHARMACY.POS.CANCEL,
@@ -9325,6 +9479,10 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.PHARMACY.SAFETY.VIEW,
       P.PHARMACY.STEWARDSHIP.APPROVE,
       P.PHARMACY.STOCK.MANAGE,
+      P.PHARMACY.STORES.INDENTS.APPROVE,
+      P.PHARMACY.STORES.INDENTS.CREATE,
+      P.PHARMACY.STORES.INDENTS.ISSUE,
+      P.PHARMACY.STORES.INDENTS.RECEIVE,
       P.PHARMACY.STORES.LIST,
       P.PHARMACY.STORES.MANAGE,
       P.PHARMACY.VALIDATION.BYPASS,
@@ -9915,6 +10073,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MARKETING.CAMPAIGNS.VIEW,
       P.MARKETING.COHORTS.MANAGE,
       P.MARKETING.COHORTS.VIEW,
+      P.MARKETING.CONSENT.VIEW,
       P.MARKETING.CONTACTS.LIST,
       P.MARKETING.OUTREACH.SEND,
       P.MARKETING.PIPELINE.VIEW,
@@ -9948,9 +10107,13 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.FRONT_OFFICE.PASSES.LIST,
       P.FRONT_OFFICE.PASSES.MANAGE,
       P.FRONT_OFFICE.QUEUE.LIST,
+      P.FRONT_OFFICE.QUEUE.MANAGE,
       P.FRONT_OFFICE.VISITORS.CREATE,
       P.FRONT_OFFICE.VISITORS.LIST,
       P.FRONT_OFFICE.VISITORS.MANAGE,
+      P.MARKETING.CONSENT.CAPTURE,
+      P.MARKETING.CONSENT.VIEW,
+      P.MARKETING.CONSENT.WITHDRAW,
       P.MARKETING.CONTACTS.CREATE,
       P.MARKETING.CONTACTS.LIST,
       P.MARKETING.CONTACTS.UPDATE,
@@ -9958,6 +10121,7 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MARKETING.INTERACTIONS.LOG,
       P.MARKETING.PIPELINE.MOVE,
       P.MARKETING.PIPELINE.VIEW,
+      P.MARKETING.SUPPRESSION_MANAGE,
     ],
   },
   infection_control_officer: {

@@ -290,3 +290,26 @@ export interface AddMarketingTouchpointRequest {
   external_ref?: string;
   referrer_label?: string;
 }
+
+/** A call the desk owes, with everything needed to make it. */
+export interface MarketingCallback {
+  id: string;
+  contact_id: string;
+  display_name: string | null;
+  primary_phone: string | null;
+  assigned_to: string | null;
+  assigned_to_name: string | null;
+  due_at: string;
+  kind: string;
+  status: string;
+  note: string | null;
+  /** Seconds the call has been owed. Negative means not yet due. */
+  overdue_seconds: number;
+  stage_name: string | null;
+}
+
+export interface MarketingCallbackSummary {
+  open: number;
+  overdue: number;
+  oldest_overdue_seconds: number | null;
+}

@@ -1256,6 +1256,8 @@ import type {
   ManualAutoChargeRequest,
   ManualAutoChargeResponse,
   ManufacturerSummary,
+  MarketingCallback,
+  MarketingCallbackSummary,
   MarketingCampaign,
   MarketingCampaignAttributionRow,
   MarketingCampaignFunnelRow,
@@ -5414,6 +5416,28 @@ export const api = {
 
   marketingMissedCalls: () =>
     request<MarketingMissedCallSummary>("/marketing/reports/missed-calls"),
+
+  listMarketingCallbacks: (params?: { scope?: string; include_upcoming?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (params?.scope) qs.set("scope", params.scope);
+    if (params?.include_upcoming) qs.set("include_upcoming", "true");
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<MarketingCallback[]>(`/marketing/callbacks${suffix}`);
+  },
+
+  marketingCallbackSummary: () => request<MarketingCallbackSummary>("/marketing/callbacks/summary"),
+
+  completeMarketingCallback: (id: string, data: { note?: string }) =>
+    request<MarketingCallback>(`/marketing/callbacks/${id}/complete`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  rescheduleMarketingCallback: (id: string, data: { due_at: string; note?: string }) =>
+    request<MarketingCallback>(`/marketing/callbacks/${id}/reschedule`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   marketingCampaignFunnel: () =>
     request<MarketingCampaignFunnelRow[]>("/marketing/reports/campaign-funnel"),
