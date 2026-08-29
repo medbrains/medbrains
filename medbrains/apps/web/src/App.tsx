@@ -123,6 +123,15 @@ const PharmacyOrderDetailPage = lazy(() =>
 const PharmacyFinancePage = lazy(() =>
   import("./pages/pharmacy-finance").then((m) => ({ default: m.PharmacyFinancePage })),
 );
+const FulfilmentQueuePage = lazy(() =>
+  import("./pages/pharmacy/fulfilment-queue").then((m) => ({ default: m.FulfilmentQueuePage })),
+);
+const VerifyPackPage = lazy(() =>
+  import("./pages/pharmacy/verify-view").then((m) => ({ default: m.VerifyPackPage })),
+);
+const DispatchPage = lazy(() =>
+  import("./pages/pharmacy/dispatch-view").then((m) => ({ default: m.DispatchPage })),
+);
 const RadiologyPage = lazy(() =>
   import("./pages/radiology").then((m) => ({ default: m.RadiologyPage })),
 );
@@ -281,6 +290,9 @@ const CommandCenterPage = lazy(() =>
   import("./pages/command-center").then((m) => ({ default: m.CommandCenterPage })),
 );
 const ConsentPage = lazy(() => import("./pages/consent").then((m) => ({ default: m.ConsentPage })));
+const MarketingPage = lazy(() =>
+  import("./pages/marketing").then((m) => ({ default: m.MarketingPage })),
+);
 const FacilitiesPage = lazy(() =>
   import("./pages/facilities").then((m) => ({ default: m.FacilitiesPage })),
 );
@@ -491,6 +503,9 @@ export function App() {
               <Route path="pharmacy/orders/new" element={<PharmacyOrderCreatePage />} />
               <Route path="pharmacy/orders/:orderId" element={<PharmacyOrderDetailPage />} />
               <Route path="pharmacy/finance" element={<PharmacyFinancePage />} />
+              <Route path="pharmacy/fulfilment" element={<FulfilmentQueuePage />} />
+              <Route path="pharmacy/fulfilment/:orderId" element={<VerifyPackPage />} />
+              <Route path="pharmacy/dispatch" element={<DispatchPage />} />
               <Route path="billing" element={<BillingPage />} />
               <Route path="billing/counter" element={<BillingCounterPage />} />
               <Route path="billing/worklist" element={<BillingWorklistPage />} />
@@ -538,6 +553,7 @@ export function App() {
               <Route path="command-center" element={<CommandCenterPage />} />
               <Route path="facilities" element={<FacilitiesPage />} />
               <Route path="consent" element={<ConsentPage />} />
+              <Route path="marketing" element={<MarketingPage />} />
               <Route path="infection-control" element={<InfectionControlPage />} />
               <Route path="mrd" element={<MrdPage />} />
               <Route path="security" element={<SecurityPage />} />

@@ -27,6 +27,8 @@
   "wardStock": "Ward Stock",
   "pharmacy": "Pharmacy",
   "pharmacyFinance": "Pharmacy Finance",
+  "pharmacyFulfilment": "Fulfilment Queue",
+  "pharmacyDispatch": "Collection Counter",
   "radiology": "Radiology",
   "bloodBank": "Blood Bank",
   "billing": "Billing",
@@ -121,5 +123,7 @@
   "lms": "Learning (LMS)",
   "nabhIndicators": "NABH Indicators",
   "pairedDevices": "Paired Devices",
-  "materials": "Materials"
+  "materials": "Materials",
+  "approvals": "Approvals",
+  "marketing": "Marketing"
 }

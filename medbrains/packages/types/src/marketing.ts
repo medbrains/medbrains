@@ -103,3 +103,48 @@ export interface LogMarketingInteractionRequest {
   note?: string;
   duration_secs?: number;
 }
+
+/** A spend line. `spend_minor` is paise, never rupees. */
+export interface MarketingCampaign {
+  id: string;
+  name: string;
+  channel: string;
+  source: string;
+  external_ref: string | null;
+  /** Minor units. Money in a float is how a reconciliation stops reconciling. */
+  spend_minor: number;
+  currency: string;
+  started_on: string | null;
+  ended_on: string | null;
+  is_active: boolean;
+}
+
+/**
+ * The PUT is a full replace, not a patch: a field left out is written NULL.
+ * Always send the whole object back.
+ */
+export interface UpsertMarketingCampaignRequest {
+  name: string;
+  channel: string;
+  source: string;
+  external_ref?: string;
+  spend_minor?: number;
+  started_on?: string;
+  ended_on?: string;
+}
+
+/**
+ * One row of the funnel.
+ *
+ * `won` counts contacts on a stage flagged `is_won`, which is how attribution
+ * survives a clinic renaming its own stages.
+ */
+export interface MarketingCampaignFunnelRow {
+  campaign_id: string;
+  campaign_name: string;
+  source: string;
+  spend_minor: number;
+  enquiries: number;
+  contacted: number;
+  won: number;
+}

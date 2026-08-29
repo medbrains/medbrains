@@ -588,6 +588,7 @@ import type {
   CreateLinenCondemnationRequest,
   CreateLinenItemRequest,
   CreateLinenMovementRequest,
+  CreateMarketingContactRequest,
   CreateMarRequest,
   CreateMassCasualtyEventRequest,
   CreateMasterItemRequest,
@@ -1240,6 +1241,7 @@ import type {
   LocationRow,
   LocationStockSummary,
   LogAccessRequest,
+  LogMarketingInteractionRequest,
   LookupTerminologyParams,
   LosComparisonRow,
   LtcMedication,
@@ -1248,6 +1250,11 @@ import type {
   ManualAutoChargeRequest,
   ManualAutoChargeResponse,
   ManufacturerSummary,
+  MarketingCampaign,
+  MarketingCampaignFunnelRow,
+  MarketingContact,
+  MarketingInteraction,
+  MarketingPipelineStage,
   MarkIncentivePaidRequest,
   MarPrintData,
   MassCasualtyEvent,
@@ -1290,6 +1297,7 @@ import type {
   ModuleToken,
   MonthlySurveillanceReport,
   MortuaryRecord,
+  MoveMarketingStageRequest,
   MpiMatchRequest,
   MpiMatchResult,
   MrdAdmissionDischargeSummary,
@@ -2023,6 +2031,7 @@ import type {
   UpsertBlogInput,
   UpsertCampRemoteSetupRequest,
   UpsertDisplayConfigRequest,
+  UpsertMarketingCampaignRequest,
   UpsertParLevelRequest,
   UpsertPreopHandoffInput,
   UpsertQueuePriorityRequest,
@@ -5308,6 +5317,55 @@ export const api = {
    * this is the way out of that hold as well as the NABL evidence that
    * somebody reviewed it.
    */
+  // ── Marketing ─────────────────────────────────────────────────
+  listMarketingCampaigns: () => request<MarketingCampaign[]>("/marketing/campaigns"),
+
+  createMarketingCampaign: (data: UpsertMarketingCampaignRequest) =>
+    request<MarketingCampaign>("/marketing/campaigns", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  /** A full replace — send every field, or the omitted ones are NULLed. */
+  updateMarketingCampaign: (id: string, data: UpsertMarketingCampaignRequest) =>
+    request<MarketingCampaign>(`/marketing/campaigns/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  listMarketingContacts: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<MarketingContact[]>(`/marketing/contacts${qs}`);
+  },
+
+  getMarketingContact: (id: string) => request<MarketingContact>(`/marketing/contacts/${id}`),
+
+  createMarketingContact: (data: CreateMarketingContactRequest) =>
+    request<MarketingContact>("/marketing/contacts", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  listMarketingInteractions: (contactId: string) =>
+    request<MarketingInteraction[]>(`/marketing/contacts/${contactId}/interactions`),
+
+  logMarketingInteraction: (contactId: string, data: LogMarketingInteractionRequest) =>
+    request<MarketingInteraction>(`/marketing/contacts/${contactId}/interactions`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  moveMarketingStage: (contactId: string, data: MoveMarketingStageRequest) =>
+    request<MarketingContact>(`/marketing/contacts/${contactId}/stage`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  listMarketingStages: () => request<MarketingPipelineStage[]>("/marketing/stages"),
+
+  marketingCampaignFunnel: () =>
+    request<MarketingCampaignFunnelRow[]>("/marketing/reports/campaign-funnel"),
+
   reviewQcResult: (id: string, data: { reviewer_notes?: string }) =>
     request<LabQcResult>(`/lab/qc-results/${id}/review`, {
       method: "PUT",

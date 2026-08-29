@@ -3,12 +3,14 @@ import {
   IconAppWindow,
   IconBabyCarriage,
   IconBed,
+  IconBoxSeam,
   IconBrain,
   IconBuildingFactory2,
   IconBuildingHospital,
   IconCalendar,
   IconCalendarStats,
   IconChartBar,
+  IconChecklist,
   IconClipboardCheck,
   IconDashboard,
   IconDental,
@@ -25,6 +27,7 @@ import {
   IconFlask,
   IconForms,
   IconGift,
+  IconHandGrab,
   IconHeadset,
   IconHeartbeat,
   IconHeartHandshake,
@@ -56,6 +59,7 @@ import {
   IconShieldHalfFilled,
   IconShieldLock,
   IconSignature,
+  IconSpeakerphone,
   IconSpray,
   IconStar,
   IconStethoscope,
@@ -104,10 +108,12 @@ export interface NavGroupConfig {
 
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: number }>> = {
   IconLayoutGrid,
+  IconSpeakerphone,
   IconHeadset,
   IconNews,
   IconAmbulance,
   IconAppWindow,
+  IconBoxSeam,
   IconMessage,
   IconBed,
   IconBuildingHospital,
@@ -125,7 +131,9 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: num
   IconDroplet,
   IconFileText,
   IconFlask,
+  IconChecklist,
   IconForms,
+  IconHandGrab,
   IconHeartRateMonitor,
   IconLayoutDashboard,
   IconPackage,
@@ -209,6 +217,8 @@ const MODULE_BADGE_DEFS: Record<string, ModuleBadge> = {
   "/radiology": { abbr: "Rad", color: "#0e6027" },
   "/pharmacy": { abbr: "Rx", color: "#d02670" },
   "/pharmacy/finance": { abbr: "PhF", color: "#343a3f" },
+  "/pharmacy/fulfilment": { abbr: "Pck", color: "#8a3ffc" },
+  "/pharmacy/dispatch": { abbr: "Col", color: "#0e6027" },
   "/blood-bank": { abbr: "BB", color: "#9f1853" },
   "/ipd": { abbr: "IPD", color: "#0f62fe" },
   "/care-view": { abbr: "CV", color: "#007d79" },
@@ -370,6 +380,15 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         path: "/dashboard",
         icon: "IconDashboard",
         requiredPermission: "dashboard.view",
+      },
+      {
+        // Routed since it was written, and reachable only by typing the URL —
+        // an approvals inbox nobody can find is an approvals inbox nobody
+        // clears. Deliberately ungated: it shows the signed-in user their own
+        // pending decisions, and there is no permission for having some.
+        i18nKey: "approvals",
+        path: "/approvals",
+        icon: "IconChecklist",
       },
       {
         i18nKey: "healthPulse",
@@ -584,6 +603,26 @@ export const NAV_GROUPS: NavGroupConfig[] = [
           "pharmacy_finance.free_dispensing.view",
           "pharmacy_finance.finance_reports.view",
         ],
+      },
+      {
+        i18nKey: "pharmacyFulfilment",
+        path: "/pharmacy/fulfilment",
+        icon: "IconPackage",
+        requiredPermission: "pharmacy.fulfilment.pick",
+        requiredPermissions: [
+          "pharmacy.fulfilment.pick",
+          "pharmacy.fulfilment.pack",
+          "pharmacy.fulfilment.verify",
+        ],
+        moduleCode: "pharmacy",
+      },
+      {
+        i18nKey: "pharmacyDispatch",
+        path: "/pharmacy/dispatch",
+        icon: "IconHandGrab",
+        requiredPermission: "pharmacy.fulfilment.dispatch",
+        requiredPermissions: ["pharmacy.fulfilment.dispatch", "pharmacy.fulfilment.release"],
+        moduleCode: "pharmacy",
       },
       {
         i18nKey: "bloodBank",
@@ -920,6 +959,18 @@ export const NAV_GROUPS: NavGroupConfig[] = [
     key: "operations",
     items: [
       {
+        i18nKey: "indent",
+        path: "/indent",
+        icon: "IconBoxSeam",
+        requiredPermission: "indent.list",
+      },
+      {
+        i18nKey: "procurement",
+        path: "/procurement",
+        icon: "IconTruck",
+        requiredPermission: "procurement.vendors.list",
+      },
+      {
         i18nKey: "materials",
         path: "/materials",
         icon: "IconBuildingWarehouse",
@@ -969,6 +1020,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
           "emergency.visits.create",
           "billing.invoices.create",
         ],
+      },
+      {
+        i18nKey: "marketing",
+        path: "/marketing",
+        icon: "IconSpeakerphone",
+        requiredPermission: "marketing.campaigns.view",
       },
       { i18nKey: "hr", path: "/hr", icon: "IconIdBadge2", requiredPermission: "hr.employees.list" },
       {
