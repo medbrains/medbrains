@@ -210,3 +210,15 @@ export interface CreateMarketingClinicalCohortRequest {
   dormant_days: number;
   department_id?: string;
 }
+
+/**
+ * Thirty days of inbound calls, in aggregate.
+ *
+ * The count is the thing a hospital has never been able to see: how many
+ * people rang about treatment and nobody picked up.
+ */
+export interface MarketingMissedCallSummary {
+  inbound_total: number;
+  unanswered: number;
+  callbacks_open: number;
+}

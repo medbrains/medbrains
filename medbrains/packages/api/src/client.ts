@@ -1257,6 +1257,7 @@ import type {
   MarketingCohort,
   MarketingContact,
   MarketingInteraction,
+  MarketingMissedCallSummary,
   MarketingOutreachRun,
   MarketingPipelineStage,
   MarketingScreenPop,
@@ -5400,6 +5401,9 @@ export const api = {
 
   marketingCohortSize: (id: string) =>
     request<{ cohort_id: string; size: number }>(`/marketing/cohorts/${id}/size`),
+
+  marketingMissedCalls: () =>
+    request<MarketingMissedCallSummary>("/marketing/reports/missed-calls"),
 
   marketingCampaignFunnel: () =>
     request<MarketingCampaignFunnelRow[]>("/marketing/reports/campaign-funnel"),

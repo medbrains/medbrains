@@ -56,6 +56,14 @@ export function MarketingFunnelTab() {
     queryFn: () => marketingService.campaignFunnel(),
   });
 
+  // Thirty days of inbound calls. A different question from the funnel — that
+  // one asks which spend worked, this asks how many people rang about
+  // treatment and nobody picked up.
+  const { data: calls, isError: callsFailed } = useQuery({
+    queryKey: ["marketing", "reports", "missed-calls"],
+    queryFn: () => marketingService.missedCalls(),
+  });
+
   const totals = useMemo(
     () =>
       rows.reduce(
@@ -156,6 +164,50 @@ export function MarketingFunnelTab() {
 
   return (
     <Stack>
+      {callsFailed && (
+        <Text size="sm" c="dimmed">
+          The call summary could not be loaded. This is not a statement that no calls were missed.
+        </Text>
+      )}
+      {calls && (
+        <Card>
+          <Stack gap="xs">
+            <Text fw={600} size="sm">
+              Inbound calls, last 30 days
+            </Text>
+            <Group gap="xl">
+              <Stack gap={0}>
+                <Text size="xl" fw={700}>
+                  {calls.inbound_total}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Calls received
+                </Text>
+              </Stack>
+              <Stack gap={0}>
+                {/* The number the hospital has never been able to see. It is
+                    given prominence and named plainly rather than being
+                    softened into "unanswered". */}
+                <Text size="xl" fw={700} c={calls.unanswered > 0 ? "red" : undefined}>
+                  {calls.unanswered}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Rang and nobody picked up ({rate(calls.unanswered, calls.inbound_total)})
+                </Text>
+              </Stack>
+              <Stack gap={0}>
+                <Text size="xl" fw={700}>
+                  {calls.callbacks_open}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Callbacks still owed
+                </Text>
+              </Stack>
+            </Group>
+          </Stack>
+        </Card>
+      )}
+
       <SimpleGrid cols={{ base: 2, md: 4 }}>
         <Metric
           label="Spend"

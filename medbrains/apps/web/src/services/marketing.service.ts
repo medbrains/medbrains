@@ -45,4 +45,6 @@ export const marketingService = {
     api.marketingCohortSize(...args),
   screenPop: (...args: Parameters<typeof api.marketingScreenPop>) =>
     api.marketingScreenPop(...args),
+  missedCalls: (...args: Parameters<typeof api.marketingMissedCalls>) =>
+    api.marketingMissedCalls(...args),
 };
