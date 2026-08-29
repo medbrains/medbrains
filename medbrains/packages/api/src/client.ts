@@ -588,7 +588,9 @@ import type {
   CreateLinenCondemnationRequest,
   CreateLinenItemRequest,
   CreateLinenMovementRequest,
+  CreateMarketingClinicalCohortRequest,
   CreateMarketingContactRequest,
+  CreateMarketingEnquiryCohortRequest,
   CreateMarRequest,
   CreateMassCasualtyEventRequest,
   CreateMasterItemRequest,
@@ -5377,6 +5379,22 @@ export const api = {
     request<MarketingOutreachRun>(`/marketing/outreach/${id}/cancel`, { method: "POST" }),
 
   listMarketingCohorts: () => request<MarketingCohort[]>("/marketing/cohorts"),
+
+  createMarketingEnquiryCohort: (data: CreateMarketingEnquiryCohortRequest) =>
+    request<MarketingCohort>("/marketing/cohorts", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  /** Requires `marketing.cohorts.clinical_define`, which marketing roles do not hold. */
+  createMarketingClinicalCohort: (data: CreateMarketingClinicalCohortRequest) =>
+    request<MarketingCohort>("/marketing/cohorts/clinical", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  marketingCohortSize: (id: string) =>
+    request<{ cohort_id: string; size: number }>(`/marketing/cohorts/${id}/size`),
 
   marketingCampaignFunnel: () =>
     request<MarketingCampaignFunnelRow[]>("/marketing/reports/campaign-funnel"),

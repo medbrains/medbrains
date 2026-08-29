@@ -174,9 +174,39 @@ export interface MarketingOutreachRun {
   failed_count: number;
 }
 
+/**
+ * A list a campaign is sent to.
+ *
+ * Two kinds, and the difference is where the authority came from. An enquiry
+ * cohort filters the marketing tables and stores its `criteria`. A clinical
+ * cohort is defined under `marketing.cohorts.clinical_define` — held by
+ * doctors and by nobody in marketing — and its `criteria` stay NULL by
+ * database constraint, so the reason a person is on the list cannot be
+ * reconstructed from this schema. All the campaign ever shows is
+ * `criteria_label`, which the clinician writes and is deliberately coarse:
+ * "annual review due", not a diagnosis code.
+ */
 export interface MarketingCohort {
   id: string;
   name: string;
-  kind: string;
-  created_at: string;
+  criteria_kind: string;
+  /** Present only for an enquiry cohort. */
+  criteria: Record<string, unknown> | null;
+  criteria_label: string | null;
+  member_count: number;
+  refreshed_at: string | null;
+}
+
+export interface CreateMarketingEnquiryCohortRequest {
+  name: string;
+  criteria: Record<string, unknown>;
+}
+
+export interface CreateMarketingClinicalCohortRequest {
+  name: string;
+  /** The coarse label the campaign will show. Written by the clinician. */
+  criteria_label: string;
+  /** Nobody seen in this many days. */
+  dormant_days: number;
+  department_id?: string;
 }

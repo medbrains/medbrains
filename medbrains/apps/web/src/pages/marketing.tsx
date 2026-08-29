@@ -5,6 +5,7 @@ import { PageHeader } from "@/components";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { MarketingCampaignsTab } from "./marketing/campaigns-tab";
+import { MarketingCohortsTab } from "./marketing/cohorts-tab";
 import { MarketingEnquiriesTab } from "./marketing/enquiries-tab";
 import { MarketingFunnelTab } from "./marketing/funnel-tab";
 import { MarketingOutreachTab } from "./marketing/outreach-tab";
@@ -21,7 +22,7 @@ import { MarketingOutreachTab } from "./marketing/outreach-tab";
  * the viewer actually holds keeps the navigation to a single entry instead of
  * five that mostly 403.
  */
-const TAB_VALUES = ["enquiries", "campaigns", "outreach", "funnel"] as const;
+const TAB_VALUES = ["enquiries", "campaigns", "cohorts", "outreach", "funnel"] as const;
 
 export function MarketingPage() {
   // The desk role holds contacts but not campaigns, so the page guard is the
@@ -40,6 +41,10 @@ export function MarketingPage() {
   const canSendOutreach = useHasPermission(P.MARKETING.OUTREACH_SEND);
   const canApproveOutreach = useHasPermission(P.MARKETING.OUTREACH_APPROVE);
   const canViewCohorts = useHasPermission(P.MARKETING.COHORTS_VIEW);
+  const canManageCohorts = useHasPermission(P.MARKETING.COHORTS_MANAGE);
+  // Held by doctors, not by marketing: a recall list reaches across the
+  // clinical wall the module is explicit about keeping.
+  const canDefineClinical = useHasPermission(P.MARKETING.COHORTS_CLINICAL_DEFINE);
 
   const [tab, setTab] = useHashTabs(canListContacts ? "enquiries" : "campaigns", TAB_VALUES);
 
@@ -53,6 +58,7 @@ export function MarketingPage() {
         <Tabs.List>
           {canListContacts && <Tabs.Tab value="enquiries">Enquiries</Tabs.Tab>}
           {canViewCampaigns && <Tabs.Tab value="campaigns">Campaigns</Tabs.Tab>}
+          {canViewCohorts && <Tabs.Tab value="cohorts">Cohorts</Tabs.Tab>}
           {canViewCohorts && <Tabs.Tab value="outreach">Outreach</Tabs.Tab>}
           {canViewReports && <Tabs.Tab value="funnel">Funnel</Tabs.Tab>}
         </Tabs.List>
@@ -68,6 +74,9 @@ export function MarketingPage() {
         </Tabs.Panel>
         <Tabs.Panel value="campaigns" pt="md">
           <MarketingCampaignsTab canManage={canManageCampaigns} />
+        </Tabs.Panel>
+        <Tabs.Panel value="cohorts" pt="md">
+          <MarketingCohortsTab canManage={canManageCohorts} canDefineClinical={canDefineClinical} />
         </Tabs.Panel>
         <Tabs.Panel value="outreach" pt="md">
           <MarketingOutreachTab canSend={canSendOutreach} canApprove={canApproveOutreach} />

@@ -37,4 +37,10 @@ export const marketingService = {
     api.cancelMarketingOutreachRun(...args),
   listCohorts: (...args: Parameters<typeof api.listMarketingCohorts>) =>
     api.listMarketingCohorts(...args),
+  createEnquiryCohort: (...args: Parameters<typeof api.createMarketingEnquiryCohort>) =>
+    api.createMarketingEnquiryCohort(...args),
+  createClinicalCohort: (...args: Parameters<typeof api.createMarketingClinicalCohort>) =>
+    api.createMarketingClinicalCohort(...args),
+  cohortSize: (...args: Parameters<typeof api.marketingCohortSize>) =>
+    api.marketingCohortSize(...args),
 };
