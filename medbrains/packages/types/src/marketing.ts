@@ -431,3 +431,56 @@ export interface MarketingAreaPerformanceRow {
   channels: number;
   targeted_spend_minor: number;
 }
+
+/** A locality the hospital buys marketing against. */
+export interface MarketingArea {
+  id: string;
+  name: string;
+  latitude: string | null;
+  longitude: string | null;
+  pincode: string | null;
+  population: number | null;
+  is_active: boolean;
+}
+
+export interface UpsertMarketingAreaRequest {
+  name: string;
+  latitude?: string;
+  longitude?: string;
+  pincode?: string;
+  population?: number;
+}
+
+export interface CreateMarketingDistributionRequest {
+  campaign_id?: string;
+  area_id: string;
+  channel: string;
+  quantity: number;
+  distributed_on: string;
+  cost_minor?: number;
+  response_window_days?: number;
+  expected_enquiries?: number;
+  note?: string;
+}
+
+/** A physical run, with what came back from it. */
+export interface MarketingDistributionResult {
+  id: string;
+  area_id: string;
+  area_name: string;
+  latitude: string | null;
+  longitude: string | null;
+  campaign_name: string | null;
+  channel: string;
+  quantity: number;
+  distributed_on: string;
+  cost_minor: number;
+  response_window_days: number;
+  expected_enquiries: number | null;
+  enquiries: number;
+  converted: number;
+  /** What the locality produced in the same stretch of time before the run. */
+  baseline_enquiries: number;
+  /** Other runs covering this area at the same time; they cannot be told apart. */
+  overlapping_runs: number;
+}

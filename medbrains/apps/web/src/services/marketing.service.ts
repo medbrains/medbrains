@@ -20,6 +20,14 @@ export const marketingService = {
     api.marketingChannelJourney(...args),
   areaPerformance: (...args: Parameters<typeof api.marketingAreaPerformance>) =>
     api.marketingAreaPerformance(...args),
+  listAreas: (...args: Parameters<typeof api.listMarketingAreas>) =>
+    api.listMarketingAreas(...args),
+  upsertArea: (...args: Parameters<typeof api.upsertMarketingArea>) =>
+    api.upsertMarketingArea(...args),
+  listDistributions: (...args: Parameters<typeof api.listMarketingDistributions>) =>
+    api.listMarketingDistributions(...args),
+  createDistribution: (...args: Parameters<typeof api.createMarketingDistribution>) =>
+    api.createMarketingDistribution(...args),
   listTouchpoints: (...args: Parameters<typeof api.listMarketingTouchpoints>) =>
     api.listMarketingTouchpoints(...args),
   addTouchpoint: (...args: Parameters<typeof api.addMarketingTouchpoint>) =>

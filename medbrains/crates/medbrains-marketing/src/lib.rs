@@ -41,6 +41,7 @@ pub mod callbacks;
 pub mod campaigns;
 pub mod consent;
 pub mod conversion;
+pub mod distribution;
 pub mod cohorts;
 pub mod contacts;
 pub mod funnel;
@@ -181,6 +182,14 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/marketing/callbacks/{id}/reschedule",
             post(callbacks::reschedule_callback),
+        )
+        .route(
+            "/api/marketing/areas",
+            get(distribution::list_areas).post(distribution::upsert_area),
+        )
+        .route(
+            "/api/marketing/distributions",
+            get(distribution::list_distributions).post(distribution::create_distribution),
         )
         .route("/api/marketing/stages", get(pipeline::list_stages))
         .route(

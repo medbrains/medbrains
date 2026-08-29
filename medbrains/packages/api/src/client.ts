@@ -594,6 +594,7 @@ import type {
   CreateLinenMovementRequest,
   CreateMarketingClinicalCohortRequest,
   CreateMarketingContactRequest,
+  CreateMarketingDistributionRequest,
   CreateMarketingEnquiryCohortRequest,
   CreateMarRequest,
   CreateMassCasualtyEventRequest,
@@ -1259,6 +1260,7 @@ import type {
   ManualAutoChargeRequest,
   ManualAutoChargeResponse,
   ManufacturerSummary,
+  MarketingArea,
   MarketingAreaPerformanceRow,
   MarketingCallback,
   MarketingCallbackSummary,
@@ -1269,6 +1271,7 @@ import type {
   MarketingCohort,
   MarketingConsentEntry,
   MarketingContact,
+  MarketingDistributionResult,
   MarketingFunnelStageRow,
   MarketingInteraction,
   MarketingMissedCallSummary,
@@ -2057,6 +2060,7 @@ import type {
   UpsertBlogInput,
   UpsertCampRemoteSetupRequest,
   UpsertDisplayConfigRequest,
+  UpsertMarketingAreaRequest,
   UpsertMarketingCampaignRequest,
   UpsertParLevelRequest,
   UpsertPreopHandoffInput,
@@ -5508,6 +5512,27 @@ export const api = {
     const suffix = qs.toString() ? `?${qs}` : "";
     return request<MarketingChannelJourneyRow[]>(`/marketing/reports/channel-journey${suffix}`);
   },
+
+  listMarketingAreas: () => request<MarketingArea[]>("/marketing/areas"),
+
+  upsertMarketingArea: (data: UpsertMarketingAreaRequest) =>
+    request<MarketingArea>("/marketing/areas", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  listMarketingDistributions: (params?: { campaign_id?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.campaign_id) qs.set("campaign_id", params.campaign_id);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<MarketingDistributionResult[]>(`/marketing/distributions${suffix}`);
+  },
+
+  createMarketingDistribution: (data: CreateMarketingDistributionRequest) =>
+    request<{ id: string }>("/marketing/distributions", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   marketingAreaPerformance: () =>
     request<MarketingAreaPerformanceRow[]>("/marketing/reports/area-performance"),
