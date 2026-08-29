@@ -47,6 +47,8 @@ export const labService = {
     api.listReagentLots(...args),
   createReagentLot: (...args: Parameters<typeof api.createReagentLot>) =>
     api.createReagentLot(...args),
+  updateReagentLot: (...args: Parameters<typeof api.updateReagentLot>) =>
+    api.updateReagentLot(...args),
   listQcResults: (...args: Parameters<typeof api.listQcResults>) => api.listQcResults(...args),
   createQcResult: (...args: Parameters<typeof api.createQcResult>) => api.createQcResult(...args),
   listCalibrations: (...args: Parameters<typeof api.listCalibrations>) =>
@@ -87,6 +89,8 @@ export const labService = {
     api.listNablDocuments(...args),
   createNablDocument: (...args: Parameters<typeof api.createNablDocument>) =>
     api.createNablDocument(...args),
+  updateNablDocument: (...args: Parameters<typeof api.updateNablDocument>) =>
+    api.updateNablDocument(...args),
   getReagentConsumption: (...args: Parameters<typeof api.getReagentConsumption>) =>
     api.getReagentConsumption(...args),
   getLabTatAnalytics: (...args: Parameters<typeof api.getLabTatAnalytics>) =>

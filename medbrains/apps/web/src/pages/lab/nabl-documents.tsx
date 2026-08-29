@@ -6,14 +6,19 @@ import { useDisclosure } from "@mantine/hooks";
 import type { LabNablDocumentFormInput } from "@medbrains/schemas";
 import { labNablDocumentFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type { CreateNablDocumentRequest, LabNablDocument } from "@medbrains/types";
+import type {
+  CreateNablDocumentRequest,
+  LabNablDocument,
+  UpdateNablDocumentRequest,
+} from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconCheck, IconPlus, IconX } from "@tabler/icons-react";
+import { IconCheck, IconPencil, IconPlus, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, IconButton } from "@/components/ui";
 import { labNablDocumentTypeOptions, labOptionalText } from "@/forms/lab.form";
 import { labService } from "@/services/lab.service";
 
@@ -49,17 +54,58 @@ export function NablDocumentsSection() {
     queryFn: () => labService.listNablDocuments(),
   });
 
-  const createMutation = useMutation({
-    mutationFn: (data: CreateNablDocumentRequest) => labService.createNablDocument(data),
+  // Accreditation documents could be filed and never corrected. A review date
+  // entered wrongly is an audit finding at the next assessment, and there was
+  // no way to change it: `updateNablDocument` had no caller and there is no
+  // delete route.
+  const [editing, setEditing] = useState<LabNablDocument | null>(null);
+
+  const closeForm = () => {
+    formHandlers.close();
+    setEditing(null);
+    reset(nablDocumentDefaults);
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: (data: CreateNablDocumentRequest) => {
+      if (!editing) return labService.createNablDocument(data);
+      // `document_type` and `document_number` identify the document and the
+      // update endpoint does not accept them, so only what it acts on is sent.
+      const patch: UpdateNablDocumentRequest = {
+        title: data.title,
+        version: data.version,
+        effective_date: data.effective_date,
+        review_date: data.review_date,
+        file_path: data.file_path,
+        is_current: data.is_current,
+        notes: data.notes,
+      };
+      return labService.updateNablDocument(editing.id, patch);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-nabl-documents"] });
-      formHandlers.close();
-      reset(nablDocumentDefaults);
+      closeForm();
     },
   });
 
+  const openEdit = (row: LabNablDocument) => {
+    setEditing(row);
+    reset({
+      document_type: (row.document_type ?? "") as LabNablDocumentFormInput["document_type"],
+      document_number: row.document_number,
+      title: row.title,
+      version: row.version ?? "",
+      effective_date: row.effective_date ?? "",
+      review_date: row.review_date ?? "",
+      file_path: row.file_path ?? "",
+      is_current: row.is_current,
+      notes: row.notes ?? "",
+    });
+    formHandlers.open();
+  };
+
   const handleCreateNablDocument = (values: LabNablDocumentFormInput) => {
-    createMutation.mutate({
+    saveMutation.mutate({
       document_type: labOptionalText(values.document_type),
       document_number: values.document_number.trim(),
       title: values.title.trim(),
@@ -113,6 +159,23 @@ export function NablDocumentsSection() {
           <IconX size={14} color="danger" />
         ),
     },
+    ...(canManage
+      ? [
+          {
+            key: "actions",
+            label: "",
+            render: (row: LabNablDocument) => (
+              <IconButton
+                tone="default"
+                aria-label={`Edit ${row.document_number}`}
+                onClick={() => openEdit(row)}
+              >
+                <IconPencil size={14} />
+              </IconButton>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -138,6 +201,11 @@ export function NablDocumentsSection() {
             <TextInput
               label={t("label.documentNumber")}
               required
+              // The number identifies the document to an assessor. The update
+              // endpoint does not accept it, so it is shown and locked rather
+              // than looking editable and discarding the change.
+              disabled={editing !== null}
+              description={editing ? "Fixed once the document is filed" : undefined}
               error={errors.document_number?.message}
               {...register("document_number")}
             />
@@ -158,6 +226,8 @@ export function NablDocumentsSection() {
                   value={field.value || null}
                   onChange={(value) => field.onChange(value ?? "")}
                   error={errors.document_type?.message}
+                  disabled={editing !== null}
+                  description={editing ? "Fixed once the document is filed" : undefined}
                   clearable
                   searchable
                 />
@@ -203,7 +273,7 @@ export function NablDocumentsSection() {
             />
           </Group>
           <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
-          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
+          <Button tone="primary" size="xs" type="submit" loading={saveMutation.isPending}>
             Save
           </Button>
         </Stack>

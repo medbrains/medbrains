@@ -6,21 +6,28 @@ import { useDisclosure } from "@mantine/hooks";
 import type { LabReagentLotFormInput } from "@medbrains/schemas";
 import { labReagentLotFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type { CreateReagentLotRequest, LabReagentLot } from "@medbrains/types";
+import type {
+  CreateReagentLotRequest,
+  LabReagentLot,
+  UpdateReagentLotRequest,
+} from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconCheck, IconPlus, IconX } from "@tabler/icons-react";
+import { IconCheck, IconPencil, IconPlus, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components";
 import { LabTestSearchSelect } from "@/components/LabTestSearchSelect";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, IconButton } from "@/components/ui";
 import { labOptionalNumber, labOptionalText } from "@/forms/lab.form";
 import { labService } from "@/services/lab.service";
 
 export function ReagentLotsSection() {
   const { t } = useTranslation("lab");
   const canCreate = useHasPermission(P.LAB.QC_CREATE);
+  // Correcting a lot is `lab.qc.manage`, a different code from creating one.
+  const canManage = useHasPermission(P.LAB.QC_MANAGE);
   const queryClient = useQueryClient();
   const [formOpen, formHandlers] = useDisclosure(false);
   const reagentLotDefaults: LabReagentLotFormInput = {
@@ -50,17 +57,60 @@ export function ReagentLotsSection() {
     queryFn: () => labService.listReagentLots(),
   });
 
-  const createMutation = useMutation({
-    mutationFn: (data: CreateReagentLotRequest) => labService.createReagentLot(data),
+  // A reagent lot could be recorded and never corrected: `updateReagentLot`
+  // existed in the client with no caller and there is no delete route. A lot
+  // entered with the wrong expiry date stays wrong, and every QC run and every
+  // patient result attributed to it inherits that.
+  const [editing, setEditing] = useState<LabReagentLot | null>(null);
+
+  const closeForm = () => {
+    formHandlers.close();
+    setEditing(null);
+    reset(reagentLotDefaults);
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: (data: CreateReagentLotRequest) => {
+      if (!editing) return labService.createReagentLot(data);
+      // The update accepts eight fields and not `lot_number` or
+      // `received_date`: the lot number identifies the vial and the received
+      // date is a fact about when it arrived, neither of which an edit should
+      // rewrite. Sending only what the server will act on.
+      const patch: UpdateReagentLotRequest = {
+        reagent_name: data.reagent_name,
+        manufacturer: data.manufacturer,
+        test_id: data.test_id,
+        expiry_date: data.expiry_date,
+        quantity: data.quantity,
+        quantity_unit: data.quantity_unit,
+        notes: data.notes,
+      };
+      return labService.updateReagentLot(editing.id, patch);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-reagent-lots"] });
-      formHandlers.close();
-      reset(reagentLotDefaults);
+      closeForm();
     },
   });
 
+  const openEdit = (row: LabReagentLot) => {
+    setEditing(row);
+    reset({
+      reagent_name: row.reagent_name,
+      lot_number: row.lot_number,
+      manufacturer: row.manufacturer ?? "",
+      test_id: row.test_id ?? "",
+      received_date: row.received_date ?? "",
+      expiry_date: row.expiry_date ?? "",
+      quantity: row.quantity ?? "",
+      quantity_unit: row.quantity_unit ?? "",
+      notes: row.notes ?? "",
+    });
+    formHandlers.open();
+  };
+
   const handleCreateReagentLot = (values: LabReagentLotFormInput) => {
-    createMutation.mutate({
+    saveMutation.mutate({
       reagent_name: values.reagent_name.trim(),
       lot_number: values.lot_number.trim(),
       manufacturer: labOptionalText(values.manufacturer),
@@ -119,6 +169,23 @@ export function ReagentLotsSection() {
           <IconX size={14} color="danger" />
         ),
     },
+    ...(canManage
+      ? [
+          {
+            key: "actions",
+            label: "",
+            render: (row: LabReagentLot) => (
+              <IconButton
+                tone="default"
+                aria-label={`Edit lot ${row.lot_number}`}
+                onClick={() => openEdit(row)}
+              >
+                <IconPencil size={14} />
+              </IconButton>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -131,7 +198,13 @@ export function ReagentLotsSection() {
             leftSection={<IconPlus size={14} />}
             onClick={() => {
               if (formOpen) reset(reagentLotDefaults);
-              formHandlers.toggle();
+              if (formOpen) {
+                closeForm();
+                return;
+              }
+              setEditing(null);
+              reset(reagentLotDefaults);
+              formHandlers.open();
             }}
           >
             {t("addReagentLot")}
@@ -150,6 +223,12 @@ export function ReagentLotsSection() {
             <TextInput
               label={t("label.lotNumber")}
               required
+              // Shown but not editable: the lot number identifies the vial,
+              // and the update endpoint does not accept it. A field that
+              // looks editable and silently discards the change is worse
+              // than one that says it cannot.
+              disabled={editing !== null}
+              description={editing ? "Fixed once the lot is recorded" : undefined}
               error={errors.lot_number?.message}
               {...register("lot_number")}
             />
@@ -176,6 +255,9 @@ export function ReagentLotsSection() {
             <TextInput
               label={t("label.receivedDate")}
               type="date"
+              // A fact about when the vial arrived, not a setting.
+              disabled={editing !== null}
+              description={editing ? "Fixed once the lot is recorded" : undefined}
               error={errors.received_date?.message}
               {...register("received_date")}
             />
@@ -206,8 +288,8 @@ export function ReagentLotsSection() {
             />
           </Group>
           <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
-          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
-            {t("save")}
+          <Button tone="primary" size="xs" type="submit" loading={saveMutation.isPending}>
+            {editing ? "Save changes" : t("save")}
           </Button>
         </Stack>
       )}
