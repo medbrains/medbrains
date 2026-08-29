@@ -40,6 +40,7 @@ pub mod audit;
 pub mod callbacks;
 pub mod campaigns;
 pub mod consent;
+pub mod conversion;
 pub mod cohorts;
 pub mod contacts;
 pub mod funnel;
@@ -98,6 +99,14 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/marketing/suppressions",
             get(consent::list_suppressions).post(consent::add_suppression),
+        )
+        .route(
+            "/api/marketing/contacts/{id}/patient-matches",
+            get(conversion::patient_matches),
+        )
+        .route(
+            "/api/marketing/contacts/{id}/convert",
+            post(conversion::convert_contact),
         )
         .route("/api/marketing/screen-pop", get(screen_pop::screen_pop))
         .route(

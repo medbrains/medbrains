@@ -375,3 +375,33 @@ export interface PublicEnquiryResponse {
   received: boolean;
   message: string;
 }
+
+/** A patient who might be the person behind an enquiry. */
+export interface MarketingPatientMatch {
+  patient_id: string;
+  uhid: string;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  date_of_birth: string | null;
+  gender: string;
+  /** True when the enquiry's name matches too, not only the number. */
+  name_matches: boolean;
+}
+
+export type ConvertLeadRequest =
+  | { action: "link"; patient_id: string }
+  | {
+      action: "register";
+      first_name: string;
+      last_name?: string;
+      gender?: string;
+      date_of_birth?: string;
+    };
+
+export interface ConvertLeadResponse {
+  contact_id: string;
+  patient_id: string;
+  uhid: string;
+  registered: boolean;
+}

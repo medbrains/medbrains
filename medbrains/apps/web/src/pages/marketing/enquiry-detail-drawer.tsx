@@ -1,16 +1,20 @@
 import { Group, Stack, Text, Textarea, Timeline } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
+import { useHasPermission } from "@medbrains/stores";
 import type {
   MarketingContact,
   MarketingInteraction,
   MarketingPipelineStage,
 } from "@medbrains/types";
-import { IconMail, IconMessage, IconNote, IconPhone } from "@tabler/icons-react";
+import { P } from "@medbrains/types";
+import { IconMail, IconMessage, IconNote, IconPhone, IconUserPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { Badge, Button, Drawer, Select, toast } from "@/components/ui";
 import { marketingService } from "@/services/marketing.service";
 import { ConsentPanel } from "./consent-panel";
+import { ConvertLeadModal } from "./convert-lead-modal";
 import { TouchpointStrip } from "./touchpoint-strip";
 
 const CHANNEL_OPTIONS = [
@@ -64,6 +68,11 @@ export function EnquiryDetailDrawer({
   const [disposition, setDisposition] = useState<string | null>(null);
 
   const contactId = contact?.id ?? null;
+  const convertModal = useDisclosure(false);
+  // Both halves, deliberately: marketing_executive holds no patients.* code,
+  // so converting is the registration desk's action and not the campaign
+  // desk's. See conversion.rs for why that boundary is the point.
+  const canConvert = useHasPermission(P.PATIENTS.VIEW) && canMoveStage;
 
   const {
     data: timeline = [],
@@ -128,6 +137,28 @@ export function EnquiryDetailDrawer({
               Source: {contact.source} · first seen{" "}
               {new Date(contact.first_seen_at).toLocaleDateString()}
             </Text>
+
+            {/* Whether this enquiry became a patient is the one fact that
+                changes what the desk should do next, so it sits with the
+                identity rather than further down. */}
+            {contact.patient_id ? (
+              <Badge tone="success" size="sm">
+                Registered as a patient
+              </Badge>
+            ) : (
+              canConvert && (
+                <Group>
+                  <Button
+                    tone="primary"
+                    size="xs"
+                    leftSection={<IconUserPlus size={14} />}
+                    onClick={convertModal[1].open}
+                  >
+                    Convert to patient
+                  </Button>
+                </Group>
+              )
+            )}
           </Stack>
 
           {/* Consent governs whether this person may be contacted at all, so
@@ -156,6 +187,15 @@ export function EnquiryDetailDrawer({
           {/* Beside how they arrived, because both are standing facts about
               the enquiry rather than events on its timeline. */}
           {contactId && <ConsentPanel contactId={contactId} />}
+
+          {contactId && canConvert && (
+            <ConvertLeadModal
+              contactId={contactId}
+              contactName={contact.display_name}
+              opened={convertModal[0]}
+              onClose={convertModal[1].close}
+            />
+          )}
 
           {canLog && (
             <Stack gap="xs">

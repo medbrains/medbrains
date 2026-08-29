@@ -357,6 +357,8 @@ import type {
   ConsumptionAnalysisRow,
   ContrastScreeningRequest,
   ContrastScreeningResult,
+  ConvertLeadRequest,
+  ConvertLeadResponse,
   CopayCalculation,
   CorporateClient,
   CorporateEnrollment,
@@ -1269,6 +1271,7 @@ import type {
   MarketingInteraction,
   MarketingMissedCallSummary,
   MarketingOutreachRun,
+  MarketingPatientMatch,
   MarketingPipelineStage,
   MarketingScreenPop,
   MarketingSuppression,
@@ -5449,6 +5452,15 @@ export const api = {
     }),
 
   listMarketingSuppressions: () => request<MarketingSuppression[]>("/marketing/suppressions"),
+
+  marketingPatientMatches: (contactId: string) =>
+    request<MarketingPatientMatch[]>(`/marketing/contacts/${contactId}/patient-matches`),
+
+  convertMarketingContact: (contactId: string, data: ConvertLeadRequest) =>
+    request<ConvertLeadResponse>(`/marketing/contacts/${contactId}/convert`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   submitPublicEnquiry: (data: PublicEnquiryRequest) =>
     request<PublicEnquiryResponse>("/public/marketing/enquiry", {

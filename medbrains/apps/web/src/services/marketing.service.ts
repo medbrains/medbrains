@@ -50,6 +50,10 @@ export const marketingService = {
     api.addMarketingSuppression(...args),
   submitPublicEnquiry: (...args: Parameters<typeof api.submitPublicEnquiry>) =>
     api.submitPublicEnquiry(...args),
+  patientMatches: (...args: Parameters<typeof api.marketingPatientMatches>) =>
+    api.marketingPatientMatches(...args),
+  convertContact: (...args: Parameters<typeof api.convertMarketingContact>) =>
+    api.convertMarketingContact(...args),
   completeCallback: (...args: Parameters<typeof api.completeMarketingCallback>) =>
     api.completeMarketingCallback(...args),
   rescheduleCallback: (...args: Parameters<typeof api.rescheduleMarketingCallback>) =>
