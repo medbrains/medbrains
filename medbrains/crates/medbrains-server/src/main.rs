@@ -571,6 +571,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Critical-value escalation — unacknowledged lab alerts escalate
     // to the doctor's supervisor after the tenant's ack window.
     medbrains_server::services::critical_alert_escalation::spawn(worker_pool.clone());
+    medbrains_server::services::enquiry_sla_escalation::spawn(worker_pool.clone());
 
     // Verbal/telephone order countersignature escalation — overdue orders
     // notify the prescriber + supervisor (NABH medication safety).

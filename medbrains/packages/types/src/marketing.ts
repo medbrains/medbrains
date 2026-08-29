@@ -310,11 +310,15 @@ export interface MarketingCallback {
   /** Seconds the call has been owed. Negative means not yet due. */
   overdue_seconds: number;
   stage_name: string | null;
+  /** When the SLA escalator marked this breached. Null means inside grace. */
+  escalated_at: string | null;
 }
 
 export interface MarketingCallbackSummary {
   open: number;
   overdue: number;
+  /** Breached the stage SLA and escalated to a supervisor. */
+  breached: number;
   oldest_overdue_seconds: number | null;
 }
 

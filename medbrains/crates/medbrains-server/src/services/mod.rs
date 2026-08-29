@@ -7,6 +7,7 @@
 pub mod appointment_reminders;
 pub mod bridge_pusher;
 pub mod critical_alert_escalation;
+pub mod enquiry_sla_escalation;
 // Moved to medbrains-server-core; re-exported so crate::services::notification_hub still resolves.
 pub use medbrains_server_core::notification_hub;
 pub mod notification_listener;

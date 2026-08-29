@@ -129,10 +129,23 @@ export function MarketingCallbacksTab() {
       label: "Owed",
       render: (row: MarketingCallback) => {
         const { label, late } = owedFor(row.overdue_seconds);
-        // Not colour alone — the word "late" carries the state for anyone who
-        // cannot separate the two badge tones.
+        // Three states, not two. "Breached" means it passed the stage's own
+        // SLA and a supervisor was told — different from merely late, and the
+        // word carries it for anyone who cannot separate the badge tones.
+        if (row.escalated_at !== null) {
+          return (
+            <Stack gap={2}>
+              <Badge tone="danger" size="sm">
+                Breached · {label}
+              </Badge>
+              <Text size="xs" c="dimmed">
+                Escalated {new Date(row.escalated_at).toLocaleDateString()}
+              </Text>
+            </Stack>
+          );
+        }
         return late ? (
-          <Badge tone="danger" size="sm">
+          <Badge tone="warning" size="sm">
             {label}
           </Badge>
         ) : (
@@ -225,6 +238,16 @@ export function MarketingCallbacksTab() {
                 Past due
               </Text>
             </Stack>
+            {summary.breached > 0 && (
+              <Stack gap={0}>
+                <Text size="xl" fw={700} c="red">
+                  {summary.breached}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  Past the promised time
+                </Text>
+              </Stack>
+            )}
             {summary.oldest_overdue_seconds !== null && (
               <Stack gap={0}>
                 <Text size="xl" fw={700}>

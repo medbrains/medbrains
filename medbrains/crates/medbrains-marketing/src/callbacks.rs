@@ -64,6 +64,11 @@ pub struct Callback {
     /// The stage the enquiry is parked in, so the caller knows whether they
     /// are chasing a first contact or a booking.
     pub stage_name: Option<String>,
+    /// When the SLA escalator marked this as breached. `None` means it is
+    /// either inside its grace period or has not been through a pass yet —
+    /// distinct from "on time", which is why the column is a timestamp and
+    /// not a boolean.
+    pub escalated_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -80,7 +85,7 @@ const COLUMNS: &str = "t.id, t.contact_id, c.display_name, c.primary_phone, \
                        t.assigned_to, u.full_name AS assigned_to_name, \
                        t.due_at, t.kind, t.status, t.note, \
                        EXTRACT(EPOCH FROM (now() - t.due_at))::bigint AS overdue_seconds, \
-                       s.name AS stage_name";
+                       s.name AS stage_name, t.escalated_at";
 
 /// `GET /api/marketing/callbacks`
 ///
@@ -116,7 +121,7 @@ pub async fn list_callbacks(
          WHERE t.tenant_id = $1 AND t.status = 'open' \
            AND (NOT $2::boolean OR t.assigned_to = $3) \
            AND ($4::boolean OR t.due_at <= now()) \
-         ORDER BY t.due_at ASC \
+         ORDER BY (t.escalated_at IS NOT NULL) DESC, t.due_at ASC \
          LIMIT $5"
     ))
     .bind(claims.tenant_id)
@@ -135,6 +140,8 @@ pub async fn list_callbacks(
 pub struct CallbackSummary {
     pub open: i64,
     pub overdue: i64,
+    /// Breached their stage's SLA and been escalated.
+    pub breached: i64,
     /// The longest anything has been waiting, in seconds. `None` when nothing
     /// is overdue.
     pub oldest_overdue_seconds: Option<i64>,
@@ -155,9 +162,10 @@ pub async fn callback_summary(
     let mut tx = state.db.begin().await?;
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let row: (i64, i64, Option<f64>) = sqlx::query_as(
+    let row: (i64, i64, i64, Option<f64>) = sqlx::query_as(
         "SELECT count(*)::bigint, \
                 count(*) FILTER (WHERE due_at <= now())::bigint, \
+                count(*) FILTER (WHERE escalated_at IS NOT NULL)::bigint, \
                 max(EXTRACT(EPOCH FROM (now() - due_at))) \
                     FILTER (WHERE due_at <= now()) \
          FROM mkt_tasks WHERE tenant_id = $1 AND status = 'open'",
@@ -171,7 +179,8 @@ pub async fn callback_summary(
     Ok(Json(CallbackSummary {
         open: row.0,
         overdue: row.1,
-        oldest_overdue_seconds: row.2.map(|s| s as i64),
+        breached: row.2,
+        oldest_overdue_seconds: row.3.map(|s| s as i64),
     }))
 }
 
