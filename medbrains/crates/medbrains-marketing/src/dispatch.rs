@@ -344,3 +344,130 @@ pub async fn list_run_messages(
     tx.commit().await?;
     Ok(Json(rows))
 }
+
+// ── Delivery receipts ────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct DeliveryReceipt {
+    /// Our own ledger row id, echoed back by the provider.
+    ///
+    /// The dispatcher puts it in the outbox payload and providers carry it as
+    /// a client reference — Twilio through the status-callback URL, Meta
+    /// through `biz_opaque_callback_data`. Correlating on ours rather than
+    /// theirs is not a preference: the outbox worker discards its handler's
+    /// return value and `outbox_events` has no column for it, so the vendor's
+    /// id is never persisted anywhere and could not be joined on.
+    pub message_id: Uuid,
+    /// `delivered` or `failed`. `sent` is not accepted here — that transition
+    /// belongs to the reconciler, which reads what the outbox actually did.
+    pub status: String,
+    /// The vendor's own id, recorded when they send one so a support ticket
+    /// can be traced back to their console.
+    pub provider_msg_id: Option<String>,
+    pub failure_code: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ReceiptResult {
+    /// False when nothing matched. See the handler doc for why that is a 200.
+    pub recorded: bool,
+}
+
+/// `POST /api/marketing/messages/receipts`
+///
+/// Records what the provider says happened to one message.
+///
+/// Machine-only: `marketing.messages.ingest_receipt` is held by no built-in
+/// role, so this is reachable with an API key and an explicit permission list
+/// and by nothing else. The caller is a provider's webhook, not a person.
+///
+/// **An unmatched receipt answers 200, not 404.** Every provider retries a
+/// 4xx, so a receipt for a message this tenant does not have — a stale
+/// callback, a misrouted webhook, a message deleted by retention — would
+/// become an unbounded retry storm against an endpoint that can never succeed.
+/// The body says `recorded: false` and the miss is logged, which is visible
+/// without being self-inflicted load.
+///
+/// Terminal states are not overwritten. A `delivered` arriving after a
+/// `failed`, or a duplicate of either, leaves the row alone: providers deliver
+/// receipts out of order, and the first terminal answer is the one that
+/// happened.
+///
+/// # Errors
+/// Returns 403 without `marketing.messages.ingest_receipt`, 400 on a status
+/// this endpoint does not accept.
+pub async fn ingest_receipt(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<DeliveryReceipt>,
+) -> Result<Json<ReceiptResult>, AppError> {
+    require_permission(&claims, permissions::marketing::messages::INGEST_RECEIPT)?;
+
+    let terminal = match body.status.trim() {
+        "delivered" => "delivered",
+        "failed" | "undelivered" => "failed",
+        other => {
+            return Err(AppError::BadRequest(format!(
+                "a receipt reports 'delivered' or 'failed', not '{other}' — \
+                 the sent transition is read from the outbox, not accepted here"
+            )));
+        }
+    };
+
+    let mut tx = state.db.begin().await?;
+    set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // Only a non-terminal row is moved. `queued` and `sent` are still in
+    // flight; `delivered`, `failed` and `blocked` have already answered.
+    let updated: Option<Uuid> = sqlx::query_scalar(
+        "UPDATE mkt_messages SET \
+            status = $3, \
+            delivered_at = CASE WHEN $3 = 'delivered' THEN now() ELSE delivered_at END, \
+            failed_at = CASE WHEN $3 = 'failed' THEN now() ELSE failed_at END, \
+            failure_code = COALESCE(left($4, 200), failure_code), \
+            provider_msg_id = COALESCE($5, provider_msg_id) \
+         WHERE id = $1 AND tenant_id = $2 AND status IN ('queued', 'sent') \
+         RETURNING id",
+    )
+    .bind(body.message_id)
+    .bind(claims.tenant_id)
+    .bind(terminal)
+    .bind(body.failure_code.as_deref())
+    .bind(body.provider_msg_id.as_deref())
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if updated.is_none() {
+        tx.commit().await?;
+        tracing::info!(
+            message = %body.message_id,
+            status = %terminal,
+            "delivery receipt matched nothing — unknown, or already terminal"
+        );
+        return Ok(Json(ReceiptResult { recorded: false }));
+    }
+
+    // The run's counts are a cache of the ledger, kept in step here so the
+    // outreach list and the recipient drawer cannot disagree about one run.
+    sqlx::query(
+        "UPDATE mkt_outreach_runs r SET \
+            sent_count = agg.sent, failed_count = agg.failed, \
+            status = CASE WHEN agg.pending = 0 THEN 'completed' ELSE r.status END, \
+            completed_at = CASE WHEN agg.pending = 0 THEN now() ELSE r.completed_at END \
+         FROM ( \
+             SELECT run_id, tenant_id, \
+                    count(*) FILTER (WHERE status IN ('sent', 'delivered'))::int AS sent, \
+                    count(*) FILTER (WHERE status = 'failed')::int AS failed, \
+                    count(*) FILTER (WHERE status = 'queued')::int AS pending \
+             FROM mkt_messages WHERE tenant_id = $1 GROUP BY run_id, tenant_id \
+         ) agg \
+         WHERE agg.run_id = r.id AND agg.tenant_id = r.tenant_id \
+           AND r.tenant_id = $1 AND r.status = 'sending'",
+    )
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(ReceiptResult { recorded: true }))
+}

@@ -183,6 +183,10 @@ pub fn router() -> Router<AppState> {
         .route("/api/marketing/outreach/{id}/cancel", post(outreach::cancel_run))
         .route("/api/marketing/outreach/{id}/start", post(dispatch::start_run))
         .route(
+            "/api/marketing/messages/receipts",
+            post(dispatch::ingest_receipt),
+        )
+        .route(
             "/api/marketing/outreach/{id}/messages",
             get(dispatch::list_run_messages),
         )

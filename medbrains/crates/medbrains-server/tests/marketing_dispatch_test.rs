@@ -244,3 +244,174 @@ async fn an_empty_cohort_is_refused_rather_than_sent_to_nobody() {
         .expect("read status");
     assert_eq!(status, "approved", "and the run stays dispatchable once fixed");
 }
+
+/// Put one message into a known state and return its id.
+async fn message_in_state(db: &sqlx::PgPool, tenant_id: Uuid, state: &str) -> Uuid {
+    let (run_id, contacts) = approved_run(db, tenant_id, 1, 1).await;
+    sqlx::query_scalar(
+        "INSERT INTO mkt_messages \
+            (tenant_id, run_id, contact_id, channel, address, traffic_class, purpose, status) \
+         VALUES ($1, $2, $3, 'sms', '+919000000001', 'promotional', 'promotional', $4) \
+         RETURNING id",
+    )
+    .bind(tenant_id)
+    .bind(run_id)
+    .bind(contacts[0])
+    .bind(state)
+    .fetch_one(db)
+    .await
+    .expect("insert message")
+}
+
+/// A receipt moves a sent message to delivered.
+#[tokio::test]
+async fn a_delivery_receipt_records_what_the_provider_reported() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded tenant");
+
+    let message_id = message_in_state(&app.db, tenant_id, "sent").await;
+
+    let body: serde_json::Value = app
+        .client
+        .post(app.url("/api/marketing/messages/receipts"))
+        .header("x-csrf-token", &csrf)
+        .json(&serde_json::json!({
+            "message_id": message_id,
+            "status": "delivered",
+            "provider_msg_id": "SM-provider-123",
+        }))
+        .send()
+        .await
+        .expect("post receipt")
+        .json()
+        .await
+        .expect("receipt json");
+    assert_eq!(body["recorded"], serde_json::json!(true));
+
+    let row: (String, bool, Option<String>) = sqlx::query_as(
+        "SELECT status, delivered_at IS NOT NULL, provider_msg_id \
+         FROM mkt_messages WHERE id = $1",
+    )
+    .bind(message_id)
+    .fetch_one(&app.db)
+    .await
+    .expect("read message");
+    assert_eq!(row.0, "delivered");
+    assert!(row.1, "delivered_at must be stamped");
+    assert_eq!(
+        row.2.as_deref(),
+        Some("SM-provider-123"),
+        "the vendor's own id is kept so a support ticket traces back to their console"
+    );
+}
+
+/// A terminal state is not overwritten by a later receipt.
+///
+/// Providers deliver receipts out of order, so a `delivered` can arrive after
+/// a `failed` for the same message. The first terminal answer is the one that
+/// happened; overwriting it would let the last webhook to arrive decide
+/// history.
+#[tokio::test]
+async fn a_late_receipt_does_not_overwrite_a_terminal_state() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded tenant");
+
+    let message_id = message_in_state(&app.db, tenant_id, "sent").await;
+    let post = |status: &'static str| {
+        app.client
+            .post(app.url("/api/marketing/messages/receipts"))
+            .header("x-csrf-token", &csrf)
+            .json(&serde_json::json!({ "message_id": message_id, "status": status }))
+            .send()
+    };
+
+    let first: serde_json::Value = post("failed")
+        .await
+        .expect("first receipt")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(first["recorded"], serde_json::json!(true));
+
+    let second: serde_json::Value = post("delivered")
+        .await
+        .expect("second receipt")
+        .json()
+        .await
+        .expect("json");
+    assert_eq!(
+        second["recorded"],
+        serde_json::json!(false),
+        "the second receipt must not be applied"
+    );
+
+    let status: String = sqlx::query_scalar("SELECT status FROM mkt_messages WHERE id = $1")
+        .bind(message_id)
+        .fetch_one(&app.db)
+        .await
+        .expect("read status");
+    assert_eq!(status, "failed", "the first terminal answer stands");
+}
+
+/// A receipt for a message we do not have answers 200, not 404.
+///
+/// Every provider retries a 4xx. A receipt for a stale callback, a misrouted
+/// webhook or a message removed by retention would otherwise become an
+/// unbounded retry storm against an endpoint that can never succeed.
+#[tokio::test]
+async fn an_unmatched_receipt_does_not_invite_a_retry_storm() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+
+    let res = app
+        .client
+        .post(app.url("/api/marketing/messages/receipts"))
+        .header("x-csrf-token", &csrf)
+        .json(&serde_json::json!({
+            "message_id": Uuid::new_v4(),
+            "status": "delivered",
+        }))
+        .send()
+        .await
+        .expect("post receipt");
+
+    assert_eq!(res.status().as_u16(), 200, "a 4xx would be retried forever");
+    let body: serde_json::Value = res.json().await.expect("receipt json");
+    assert_eq!(
+        body["recorded"],
+        serde_json::json!(false),
+        "and it must say plainly that nothing was recorded"
+    );
+}
+
+/// `sent` is not a receipt this endpoint accepts.
+///
+/// That transition is read from what the outbox actually did, by the
+/// reconciler. Accepting a provider's word for it would let a webhook mark a
+/// message sent that the outbox never dispatched.
+#[tokio::test]
+async fn a_receipt_cannot_claim_a_message_was_sent() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+
+    let res = app
+        .client
+        .post(app.url("/api/marketing/messages/receipts"))
+        .header("x-csrf-token", &csrf)
+        .json(&serde_json::json!({
+            "message_id": Uuid::new_v4(),
+            "status": "sent",
+        }))
+        .send()
+        .await
+        .expect("post receipt");
+    assert_eq!(res.status().as_u16(), 400);
+}
