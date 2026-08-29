@@ -1283,6 +1283,7 @@ import type {
   MarketingPatientMatch,
   MarketingPipelineStage,
   MarketingScreenPop,
+  MarketingSendPolicy,
   MarketingSuppression,
   MarketingTouchpoint,
   MarkIncentivePaidRequest,
@@ -5535,6 +5536,14 @@ export const api = {
   createMarketingDistribution: (data: CreateMarketingDistributionRequest) =>
     request<{ id: string }>("/marketing/distributions", {
       method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  marketingSendPolicy: () => request<MarketingSendPolicy>("/marketing/send-policy"),
+
+  updateMarketingSendPolicy: (data: MarketingSendPolicy) =>
+    request<MarketingSendPolicy>("/marketing/send-policy", {
+      method: "PUT",
       body: JSON.stringify(data),
     }),
 

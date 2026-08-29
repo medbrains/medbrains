@@ -136,6 +136,9 @@ struct GateRow {
     address: Option<String>,
     latest_action: Option<String>,
     suppressed: bool,
+    /// True when this contact has already had as many promotional messages in
+    /// the policy window as the tenant allows.
+    over_cap: bool,
 }
 
 /// Decides who in a cohort may lawfully be sent to, and why each excluded
@@ -175,8 +178,20 @@ pub async fn resolve_sendable(
         "SELECT c.id AS contact_id, \
                 CASE WHEN $3 = 'email' THEN c.email ELSE c.primary_phone END AS address, \
                 latest.action AS latest_action, \
-                (s.id IS NOT NULL) AS suppressed \
+                (s.id IS NOT NULL) AS suppressed, \
+                ($5::boolean AND ( \
+                    COALESCE(recent.today, 0) >= COALESCE(pol.max_per_day, 1) \
+                 OR COALESCE(recent.week, 0) >= COALESCE(pol.max_per_week, 3) \
+                )) AS over_cap \
          FROM mkt_contacts c \
+         LEFT JOIN mkt_send_policy pol ON pol.tenant_id = c.tenant_id \
+         LEFT JOIN LATERAL ( \
+             SELECT count(*) FILTER (WHERE m.sent_at > now() - interval '1 day') AS today, \
+                    count(*) FILTER (WHERE m.sent_at > now() - interval '7 days') AS week \
+             FROM mkt_messages m \
+             WHERE m.tenant_id = c.tenant_id AND m.contact_id = c.id \
+               AND m.traffic_class = 'promotional' AND m.sent_at IS NOT NULL \
+         ) recent ON true \
          LEFT JOIN LATERAL ( \
              SELECT k.action FROM mkt_consents k \
              WHERE k.tenant_id = c.tenant_id AND k.contact_id = c.id \
@@ -227,6 +242,13 @@ fn decide(row: &GateRow, promotional: bool) -> Sendability {
     }
     if promotional {
         return match row.latest_action.as_deref() {
+            // The cap applies only to somebody who actually agreed. Below
+            // consent on purpose: a person who never agreed is refused for
+            // never agreeing, not for a cap they were never subject to, and
+            // the desk reads the reason to decide which conversation to have.
+            Some("granted") if row.over_cap => {
+                Sendability::Blocked { reason: blocked::OVER_CAP }
+            }
             Some("granted") => Sendability::Sendable { address: address.to_owned() },
             Some("withdrawn") => Sendability::Blocked { reason: blocked::WITHDRAWN },
             // Never asked. Distinct from withdrawn in the ledger, and the same
@@ -518,7 +540,12 @@ mod tests {
             address: address.map(str::to_owned),
             latest_action: action.map(str::to_owned),
             suppressed,
+            over_cap: false,
         }
+    }
+
+    fn capped(action: Option<&str>) -> GateRow {
+        GateRow { over_cap: true, ..row(Some("+919000000001"), action, false) }
     }
 
     /// Silence is not consent. A contact nobody ever asked is refused for
@@ -579,6 +606,36 @@ mod tests {
         );
     }
 
+    /// Somebody messaged too often this week is refused, and told apart from
+    /// somebody who refused us. Both block the send and they are different
+    /// facts: one is our own policy, the other is their answer.
+    #[test]
+    fn a_contact_over_the_frequency_cap_is_refused_for_that_reason() {
+        assert_eq!(
+            decide(&capped(Some("granted")), true),
+            Sendability::Blocked { reason: blocked::OVER_CAP }
+        );
+    }
+
+    /// The cap sits below consent. Somebody who never agreed is refused for
+    /// never agreeing, not for a cap they were never subject to — the desk
+    /// reads the reason to decide which conversation to have.
+    #[test]
+    fn never_asked_outranks_the_cap() {
+        assert_eq!(
+            decide(&capped(None), true),
+            Sendability::Blocked { reason: blocked::NO_CONSENT }
+        );
+    }
+
+    /// A cap is a marketing policy. An appointment reminder is not marketing,
+    /// and a patient who got three offers this week must still be told when to
+    /// come in.
+    #[test]
+    fn the_cap_does_not_apply_to_service_traffic() {
+        assert!(decide(&capped(Some("granted")), false).is_sendable());
+    }
+
     /// The whole point of the module. A fault is not a refusal, and the two
     /// must not be the same value — if `Unknown` compared equal to any
     /// `Blocked`, a caller filtering on "not blocked" would send to contacts
@@ -588,4 +645,151 @@ mod tests {
         assert_ne!(Sendability::Unknown, Sendability::Blocked { reason: blocked::NO_CONSENT });
         assert!(!Sendability::Unknown.is_sendable());
     }
+}
+
+// ── Send policy ──────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct SendPolicy {
+    pub max_per_day: i32,
+    pub max_per_week: i32,
+    pub quiet_from: chrono::NaiveTime,
+    pub quiet_to: chrono::NaiveTime,
+    pub timezone: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpsertSendPolicyRequest {
+    pub max_per_day: i32,
+    pub max_per_week: i32,
+    pub quiet_from: chrono::NaiveTime,
+    pub quiet_to: chrono::NaiveTime,
+    pub timezone: String,
+}
+
+const POLICY_COLUMNS: &str = "max_per_day, max_per_week, quiet_from, quiet_to, timezone";
+
+/// `GET /api/marketing/send-policy`
+///
+/// The caps and quiet hours, with the defaults from `0996` when the tenant has
+/// never set them — so the screen shows what is actually being enforced rather
+/// than an empty form implying nothing is.
+///
+/// # Errors
+/// Returns 403 without `marketing.consent.view`.
+pub async fn get_send_policy(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<SendPolicy>, AppError> {
+    require_permission(&claims, permissions::marketing::consent::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, SendPolicy>(&format!(
+        "SELECT {POLICY_COLUMNS} FROM mkt_send_policy WHERE tenant_id = $1"
+    ))
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row.unwrap_or_else(|| SendPolicy {
+        max_per_day: 1,
+        max_per_week: 3,
+        quiet_from: chrono::NaiveTime::from_hms_opt(21, 0, 0).unwrap_or_default(),
+        quiet_to: chrono::NaiveTime::from_hms_opt(9, 0, 0).unwrap_or_default(),
+        timezone: "Asia/Kolkata".to_owned(),
+    })))
+}
+
+/// `PUT /api/marketing/send-policy`
+///
+/// # Errors
+/// Returns 403 without `marketing.settings.manage`, 400 on a negative cap.
+pub async fn update_send_policy(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<UpsertSendPolicyRequest>,
+) -> Result<Json<SendPolicy>, AppError> {
+    // The permission that until now no handler used.
+    require_permission(&claims, permissions::marketing::SETTINGS_MANAGE)?;
+
+    if body.max_per_day < 0 || body.max_per_week < 0 {
+        return Err(AppError::BadRequest(
+            "a cap cannot be negative — zero stops promotional sending entirely".to_owned(),
+        ));
+    }
+    if body.max_per_day > body.max_per_week {
+        // Not pedantry: a daily cap above the weekly one is silently the
+        // weekly one, and somebody would set it and wonder why it did nothing.
+        return Err(AppError::BadRequest(
+            "the daily cap cannot exceed the weekly one".to_owned(),
+        ));
+    }
+
+    let mut tx = state.db.begin().await?;
+    set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, SendPolicy>(&format!(
+        "INSERT INTO mkt_send_policy \
+            (tenant_id, max_per_day, max_per_week, quiet_from, quiet_to, timezone) \
+         VALUES ($1, $2, $3, $4, $5, $6) \
+         ON CONFLICT (tenant_id) DO UPDATE SET \
+             max_per_day = EXCLUDED.max_per_day, \
+             max_per_week = EXCLUDED.max_per_week, \
+             quiet_from = EXCLUDED.quiet_from, \
+             quiet_to = EXCLUDED.quiet_to, \
+             timezone = EXCLUDED.timezone, \
+             updated_at = now() \
+         RETURNING {POLICY_COLUMNS}"
+    ))
+    .bind(claims.tenant_id)
+    .bind(body.max_per_day)
+    .bind(body.max_per_week)
+    .bind(body.quiet_from)
+    .bind(body.quiet_to)
+    .bind(body.timezone.trim())
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+/// Whether promotional sending is inside the tenant's quiet window right now.
+///
+/// A run-level question, not a per-recipient one: it is a fact about the clock,
+/// so the dispatcher refuses the whole run rather than marking four thousand
+/// people blocked for something that will stop being true at nine.
+///
+/// Evaluated in the tenant's own zone. "No promotional messages after nine" is
+/// a statement about the recipient's evening, and a server in UTC deciding it
+/// would silence a hospital in the afternoon.
+///
+/// # Errors
+/// Propagates the database error. A caller must not read a fault as "quiet" or
+/// as "fine" — both are guesses about the law.
+pub async fn in_quiet_hours(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
+) -> Result<bool, AppError> {
+    let quiet: Option<bool> = sqlx::query_scalar(
+        "SELECT CASE \
+            WHEN p.quiet_from = p.quiet_to THEN false \
+            WHEN p.quiet_from < p.quiet_to THEN \
+                 (now() AT TIME ZONE p.timezone)::time >= p.quiet_from \
+             AND (now() AT TIME ZONE p.timezone)::time < p.quiet_to \
+            ELSE (now() AT TIME ZONE p.timezone)::time >= p.quiet_from \
+              OR (now() AT TIME ZONE p.timezone)::time < p.quiet_to \
+         END \
+         FROM mkt_send_policy p WHERE p.tenant_id = $1",
+    )
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    // No policy row means the tenant has never set one, and the migration's
+    // defaults are not enforced until they do. Silence is not a curfew.
+    Ok(quiet.unwrap_or(false))
 }

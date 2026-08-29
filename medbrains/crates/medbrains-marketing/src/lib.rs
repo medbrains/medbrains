@@ -100,6 +100,10 @@ pub fn router() -> Router<AppState> {
             post(consent::withdraw_consent),
         )
         .route(
+            "/api/marketing/send-policy",
+            get(consent::get_send_policy).put(consent::update_send_policy),
+        )
+        .route(
             "/api/marketing/suppressions",
             get(consent::list_suppressions).post(consent::add_suppression),
         )

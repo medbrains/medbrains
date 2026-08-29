@@ -544,3 +544,13 @@ export interface MarketingDispatchResult {
   /** Why each excluded recipient was excluded, counted. */
   blocked_by_reason: Record<string, number>;
 }
+
+/** Per-tenant sending limits. Applied to promotional traffic only. */
+export interface MarketingSendPolicy {
+  max_per_day: number;
+  max_per_week: number;
+  /** Local clock time in `timezone` — TRAI's promotional window. */
+  quiet_from: string;
+  quiet_to: string;
+  timezone: string;
+}

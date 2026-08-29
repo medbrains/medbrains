@@ -13,6 +13,7 @@ import { MarketingEnquiriesTab } from "./marketing/enquiries-tab";
 import { MarketingFunnelTab } from "./marketing/funnel-tab";
 import { MarketingOutreachTab } from "./marketing/outreach-tab";
 import { MarketingScreenPopTab } from "./marketing/screen-pop-tab";
+import { MarketingSettingsTab } from "./marketing/settings-tab";
 
 /**
  * The marketing shell.
@@ -64,6 +65,7 @@ export function MarketingPage() {
   const canViewCampaigns = useHasPermission(P.MARKETING.CAMPAIGNS_VIEW);
   const canManageCampaigns = useHasPermission(P.MARKETING.CAMPAIGNS_MANAGE);
   const canViewReports = useHasPermission(P.MARKETING.REPORTS_VIEW);
+  const canViewConsent = useHasPermission(P.MARKETING.CONSENT_VIEW);
   const canSendOutreach = useHasPermission(P.MARKETING.OUTREACH_SEND);
   const canApproveOutreach = useHasPermission(P.MARKETING.OUTREACH_APPROVE);
   const canViewCohorts = useHasPermission(P.MARKETING.COHORTS_VIEW);
@@ -98,6 +100,7 @@ export function MarketingPage() {
           {canViewReports && <Tabs.Tab value="funnel">Funnel</Tabs.Tab>}
           {canViewReports && <Tabs.Tab value="channels">Channels</Tabs.Tab>}
           {canViewReports && <Tabs.Tab value="distribution">Distribution</Tabs.Tab>}
+          {canViewConsent && <Tabs.Tab value="settings">Settings</Tabs.Tab>}
         </Tabs.List>
 
         <Tabs.Panel value="enquiries" pt="md">
@@ -132,6 +135,9 @@ export function MarketingPage() {
         </Tabs.Panel>
         <Tabs.Panel value="distribution" pt="md">
           <MarketingDistributionsTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="settings" pt="md">
+          <MarketingSettingsTab />
         </Tabs.Panel>
       </Tabs>
     </div>

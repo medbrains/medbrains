@@ -119,6 +119,18 @@ pub async fn start_run(
         ));
     }
 
+    // A fact about the clock, so it refuses the run rather than marking four
+    // thousand people blocked for something that stops being true at nine.
+    if traffic_class == consent::traffic::PROMOTIONAL
+        && consent::in_quiet_hours(&mut tx, claims.tenant_id).await?
+    {
+        return Err(AppError::Conflict(
+            "promotional sending is inside this hospital's quiet hours \u{2014} \
+             the run is still approved and can be started once they end"
+                .to_owned(),
+        ));
+    }
+
     // One round trip for the whole cohort. Never a check per recipient: five
     // thousand round trips on a path an operator is watching.
     let decisions = consent::resolve_sendable(
