@@ -1252,8 +1252,10 @@ import type {
   ManufacturerSummary,
   MarketingCampaign,
   MarketingCampaignFunnelRow,
+  MarketingCohort,
   MarketingContact,
   MarketingInteraction,
+  MarketingOutreachRun,
   MarketingPipelineStage,
   MarkIncentivePaidRequest,
   MarPrintData,
@@ -5362,6 +5364,19 @@ export const api = {
     }),
 
   listMarketingStages: () => request<MarketingPipelineStage[]>("/marketing/stages"),
+
+  listMarketingOutreachRuns: () => request<MarketingOutreachRun[]>("/marketing/outreach"),
+
+  submitMarketingOutreachRun: (id: string) =>
+    request<MarketingOutreachRun>(`/marketing/outreach/${id}/submit`, { method: "POST" }),
+
+  approveMarketingOutreachRun: (id: string) =>
+    request<MarketingOutreachRun>(`/marketing/outreach/${id}/approve`, { method: "POST" }),
+
+  cancelMarketingOutreachRun: (id: string) =>
+    request<MarketingOutreachRun>(`/marketing/outreach/${id}/cancel`, { method: "POST" }),
+
+  listMarketingCohorts: () => request<MarketingCohort[]>("/marketing/cohorts"),
 
   marketingCampaignFunnel: () =>
     request<MarketingCampaignFunnelRow[]>("/marketing/reports/campaign-funnel"),

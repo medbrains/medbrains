@@ -27,4 +27,14 @@ export const marketingService = {
     api.moveMarketingStage(...args),
   listStages: (...args: Parameters<typeof api.listMarketingStages>) =>
     api.listMarketingStages(...args),
+  listOutreachRuns: (...args: Parameters<typeof api.listMarketingOutreachRuns>) =>
+    api.listMarketingOutreachRuns(...args),
+  submitOutreachRun: (...args: Parameters<typeof api.submitMarketingOutreachRun>) =>
+    api.submitMarketingOutreachRun(...args),
+  approveOutreachRun: (...args: Parameters<typeof api.approveMarketingOutreachRun>) =>
+    api.approveMarketingOutreachRun(...args),
+  cancelOutreachRun: (...args: Parameters<typeof api.cancelMarketingOutreachRun>) =>
+    api.cancelMarketingOutreachRun(...args),
+  listCohorts: (...args: Parameters<typeof api.listMarketingCohorts>) =>
+    api.listMarketingCohorts(...args),
 };

@@ -148,3 +148,35 @@ export interface MarketingCampaignFunnelRow {
   contacted: number;
   won: number;
 }
+
+/**
+ * A batch of messages awaiting a second pair of eyes.
+ *
+ * `draft` → `pending` → `approved`. Cancellable from draft or pending; an
+ * approved run is left alone, because cancelling something part-way through a
+ * cohort is a different problem with a different answer.
+ */
+export interface MarketingOutreachRun {
+  id: string;
+  cohort_id: string;
+  campaign_id: string | null;
+  channel: string;
+  template_ref: string | null;
+  /** The TRAI-registered template id. Without it SMS fails silently at the carrier. */
+  dlt_template_id: string | null;
+  /** What the recipient will actually read, so the approver approves the words. */
+  body_preview: string | null;
+  status: string;
+  created_by: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  sent_count: number;
+  failed_count: number;
+}
+
+export interface MarketingCohort {
+  id: string;
+  name: string;
+  kind: string;
+  created_at: string;
+}
