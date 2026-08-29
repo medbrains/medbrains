@@ -1,8 +1,13 @@
 import { Group, Stack, Text, Tooltip } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
+import { useHasPermission } from "@medbrains/stores";
 import type { MarketingTouchpoint } from "@medbrains/types";
+import { P } from "@medbrains/types";
+import { IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { Badge } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 import { marketingService } from "@/services/marketing.service";
+import { AddTouchpointModal } from "./add-touchpoint-modal";
 
 /** The vocabulary the API accepts, said the way a person would say it. */
 const KIND_LABELS: Record<string, string> = {
@@ -33,6 +38,10 @@ function label(kind: string): string {
  * rather than mysterious.
  */
 export function TouchpointStrip({ contactId }: { contactId: string }) {
+  // Recording how somebody found us is logging an interaction — the same act,
+  // and the same permission.
+  const canRecord = useHasPermission(P.MARKETING.INTERACTIONS_LOG);
+  const adding = useDisclosure(false);
   const {
     data: touchpoints = [],
     isLoading,
@@ -54,7 +63,29 @@ export function TouchpointStrip({ contactId }: { contactId: string }) {
     );
   }
 
-  if (touchpoints.length === 0) return null;
+  if (touchpoints.length === 0) {
+    // Previously this rendered nothing, so the one enquiry whose channel
+    // nobody knows offered no way to say. An unattributed enquiry is the
+    // reason the channel report has a "not recorded" row.
+    return canRecord ? (
+      <Stack gap={4}>
+        <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+          How they found us
+        </Text>
+        <Group>
+          <Button
+            tone="ghost"
+            size="xs"
+            leftSection={<IconPlus size={13} />}
+            onClick={adding[1].open}
+          >
+            Not recorded — add it
+          </Button>
+        </Group>
+        <AddTouchpointModal contactId={contactId} opened={adding[0]} onClose={adding[1].close} />
+      </Stack>
+    ) : null;
+  }
 
   return (
     <Stack gap={4}>
@@ -75,7 +106,18 @@ export function TouchpointStrip({ contactId }: { contactId: string }) {
             </Badge>
           </Tooltip>
         ))}
+        {canRecord && (
+          <Button
+            tone="ghost"
+            size="xs"
+            leftSection={<IconPlus size={13} />}
+            onClick={adding[1].open}
+          >
+            Add
+          </Button>
+        )}
       </Group>
+      <AddTouchpointModal contactId={contactId} opened={adding[0]} onClose={adding[1].close} />
     </Stack>
   );
 }

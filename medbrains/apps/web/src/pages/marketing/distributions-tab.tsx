@@ -1,13 +1,18 @@
 import { BarChart } from "@mantine/charts";
 import { Group, Stack, Text } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
+import { useHasPermission } from "@medbrains/stores";
 import type { MarketingDistributionResult } from "@medbrains/types";
+import { P } from "@medbrains/types";
+import { IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { DataTable } from "@/components";
-import { Badge, Card } from "@/components/ui";
+import { Badge, Button, Card } from "@/components/ui";
 import { paiseToRupees } from "@/forms/marketing.form";
 import { marketingService } from "@/services/marketing.service";
 import { CatchmentMap } from "./catchment-map";
+import { DistributionForm } from "./distribution-form";
 
 const CHANNEL_LABELS: Record<string, string> = {
   pamphlet: "Pamphlets",
@@ -44,6 +49,8 @@ function costPer(spendMinor: number, count: number): string {
  * confident wrong numbers.
  */
 export function MarketingDistributionsTab() {
+  const canManage = useHasPermission(P.MARKETING.CAMPAIGNS_MANAGE);
+  const newRun = useDisclosure(false);
   const {
     data: runs = [],
     isLoading,
@@ -169,6 +176,19 @@ export function MarketingDistributionsTab() {
 
   return (
     <Stack>
+      {canManage && (
+        <Group>
+          <Button
+            tone="primary"
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={newRun[1].open}
+          >
+            Record a run
+          </Button>
+        </Group>
+      )}
+
       <Card>
         <Group gap="xl">
           <Stack gap={0}>
@@ -254,6 +274,8 @@ export function MarketingDistributionsTab() {
             : "Record a pamphlet run or a hoarding against a locality, and what came back from it appears here."
         }
       />
+
+      <DistributionForm opened={newRun[0]} onClose={newRun[1].close} />
 
       <Text size="xs" c="dimmed">
         A pamphlet carries no identifier, so enquiries are credited to a run by locality and timing

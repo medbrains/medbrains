@@ -59,3 +59,64 @@ export const marketingCampaignSchema = z.object({
 });
 
 export type MarketingCampaignFormInput = z.infer<typeof marketingCampaignSchema>;
+
+/**
+ * The physical channels a run can be. Narrower than the touchpoint list: a
+ * hospital distributes pamphlets, it does not distribute a phone call.
+ */
+export const DISTRIBUTION_CHANNEL_OPTIONS = [
+  { value: "pamphlet", label: "Pamphlets" },
+  { value: "hoarding", label: "Hoarding" },
+  { value: "newspaper", label: "Newspaper" },
+  { value: "magazine", label: "Magazine" },
+  { value: "radio", label: "Radio" },
+  { value: "cable_tv", label: "Cable TV" },
+  { value: "bus_panel", label: "Bus panel" },
+  { value: "signage", label: "Signage" },
+  { value: "camp_walkin", label: "Health camp" },
+  { value: "health_talk", label: "Health talk" },
+  { value: "corporate_screening", label: "Corporate screening" },
+] as const;
+
+const DISTRIBUTION_CHANNEL_VALUES = DISTRIBUTION_CHANNEL_OPTIONS.map((o) => o.value) as [
+  string,
+  ...string[],
+];
+
+export const distributionSchema = z.object({
+  area_id: z.string().min(1, "Choose the locality this went to"),
+  campaign_id: z.string(),
+  channel: z.enum(DISTRIBUTION_CHANNEL_VALUES),
+  quantity: z.number().int().min(1, "One hoarding is 1"),
+  distributed_on: z.string().min(1, "When did it go out?"),
+  /** Rupees in the form; converted to paise on submit, like campaign spend. */
+  cost_rupees: z.number().min(0, "Cost cannot be negative"),
+  /**
+   * How long a pamphlet keeps working. Bounded to match the CHECK constraint
+   * in 0998 so a rejected value is caught here rather than by the database.
+   */
+  response_window_days: z.number().int().min(1).max(730),
+  /**
+   * Optional, and worth leaving blank rather than guessing: the report charts
+   * only runs that carry one, because a bar drawn against an invented
+   * expectation is worse than no bar.
+   */
+  expected_enquiries: z.number().int().min(0).nullable(),
+  note: z.string().trim().max(500),
+});
+
+export type DistributionFormInput = z.infer<typeof distributionSchema>;
+
+export const areaSchema = z.object({
+  name: z.string().trim().min(1, "A locality needs a name").max(120),
+  /**
+   * Coordinates are optional — a locality without them still reports, it just
+   * does not appear on the map. Bounds match the CHECK constraints in 0998.
+   */
+  latitude: z.number().min(-90).max(90).nullable(),
+  longitude: z.number().min(-180).max(180).nullable(),
+  pincode: z.string().trim().max(12),
+  population: z.number().int().min(0).nullable(),
+});
+
+export type AreaFormInput = z.infer<typeof areaSchema>;
