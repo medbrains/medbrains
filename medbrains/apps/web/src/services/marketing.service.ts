@@ -38,6 +38,16 @@ export const marketingService = {
     api.listMarketingCallbacks(...args),
   callbackSummary: (...args: Parameters<typeof api.marketingCallbackSummary>) =>
     api.marketingCallbackSummary(...args),
+  listConsent: (...args: Parameters<typeof api.listMarketingConsent>) =>
+    api.listMarketingConsent(...args),
+  recordConsent: (...args: Parameters<typeof api.recordMarketingConsent>) =>
+    api.recordMarketingConsent(...args),
+  withdrawConsent: (...args: Parameters<typeof api.withdrawMarketingConsent>) =>
+    api.withdrawMarketingConsent(...args),
+  listSuppressions: (...args: Parameters<typeof api.listMarketingSuppressions>) =>
+    api.listMarketingSuppressions(...args),
+  addSuppression: (...args: Parameters<typeof api.addMarketingSuppression>) =>
+    api.addMarketingSuppression(...args),
   completeCallback: (...args: Parameters<typeof api.completeMarketingCallback>) =>
     api.completeMarketingCallback(...args),
   rescheduleCallback: (...args: Parameters<typeof api.rescheduleMarketingCallback>) =>

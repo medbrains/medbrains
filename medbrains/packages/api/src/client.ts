@@ -28,6 +28,7 @@ import type {
   AddDocumentSignatureRequest,
   AddIngestionItemInput,
   AddInvoiceItemRequest,
+  AddMarketingSuppressionRequest,
   AddMarketingTouchpointRequest,
   AddOnTestRequest,
   AddOrderSetItemRequest,
@@ -1262,6 +1263,7 @@ import type {
   MarketingCampaignAttributionRow,
   MarketingCampaignFunnelRow,
   MarketingCohort,
+  MarketingConsentEntry,
   MarketingContact,
   MarketingFunnelStageRow,
   MarketingInteraction,
@@ -1269,6 +1271,7 @@ import type {
   MarketingOutreachRun,
   MarketingPipelineStage,
   MarketingScreenPop,
+  MarketingSuppression,
   MarketingTouchpoint,
   MarkIncentivePaidRequest,
   MarPrintData,
@@ -1643,6 +1646,7 @@ import type {
   RecordDeviceDaysRequest,
   RecordDoseRequest,
   RecordIndicatorValueRequest,
+  RecordMarketingConsentRequest,
   RecordPaymentRequest,
   RecordReactionRequest,
   RecordTransfusionObservationRequest,
@@ -5426,6 +5430,29 @@ export const api = {
   },
 
   marketingCallbackSummary: () => request<MarketingCallbackSummary>("/marketing/callbacks/summary"),
+
+  listMarketingConsent: (contactId: string) =>
+    request<MarketingConsentEntry[]>(`/marketing/contacts/${contactId}/consent`),
+
+  recordMarketingConsent: (contactId: string, data: RecordMarketingConsentRequest) =>
+    request<MarketingConsentEntry>(`/marketing/contacts/${contactId}/consent`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  withdrawMarketingConsent: (contactId: string, data: RecordMarketingConsentRequest) =>
+    request<MarketingConsentEntry>(`/marketing/contacts/${contactId}/consent/withdraw`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  listMarketingSuppressions: () => request<MarketingSuppression[]>("/marketing/suppressions"),
+
+  addMarketingSuppression: (data: AddMarketingSuppressionRequest) =>
+    request<MarketingSuppression>("/marketing/suppressions", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   completeMarketingCallback: (id: string, data: { note?: string }) =>
     request<MarketingCallback>(`/marketing/callbacks/${id}/complete`, {

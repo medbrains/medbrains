@@ -313,3 +313,45 @@ export interface MarketingCallbackSummary {
   overdue: number;
   oldest_overdue_seconds: number | null;
 }
+
+/** One row of the consent ledger. Append-only: a withdrawal is a new row. */
+export interface MarketingConsentEntry {
+  id: string;
+  channel: string;
+  purpose: string;
+  action: "granted" | "withdrawn";
+  legal_basis: string;
+  notice_version: string | null;
+  source: string;
+  occurred_at: string;
+}
+
+export interface RecordMarketingConsentRequest {
+  channel: string;
+  purpose: string;
+  source: string;
+  notice_version?: string;
+  evidence_ref?: string;
+}
+
+/**
+ * A do-not-contact entry, keyed on the number rather than the enquiry record
+ * so it outlives the record being deleted and recreated.
+ */
+export interface MarketingSuppression {
+  id: string;
+  channel: string;
+  value: string;
+  reason: string;
+  scope: string;
+  since: string;
+  note: string | null;
+}
+
+export interface AddMarketingSuppressionRequest {
+  channel: string;
+  value: string;
+  reason: string;
+  scope?: string;
+  note?: string;
+}
