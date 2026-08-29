@@ -10,16 +10,18 @@ import type {
   CreateHomeCollectionRequest,
   HomeCollectionStatsRow,
   LabHomeCollection,
+  UpdateHomeCollectionRequest,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconPlus } from "@tabler/icons-react";
+import { IconPencil, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { labOptionalText } from "@/forms/lab.form";
 import { labService } from "@/services/lab.service";
 
@@ -70,13 +72,54 @@ export function HomeCollectionsSection() {
     queryFn: () => labService.getHomeCollectionStats(),
   });
 
+  // A home visit is rescheduled more often than it is cancelled — the patient
+  // is out, the address was wrong, the slot moved. `updateHomeCollection` had
+  // no caller, so the desk had no way to change any of that.
+  const [editing, setEditing] = useState<LabHomeCollection | null>(null);
+
+  const closeForm = () => {
+    formHandlers.close();
+    setEditing(null);
+    reset(homeCollectionDefaults);
+  };
+
+  const openEdit = (row: LabHomeCollection) => {
+    setEditing(row);
+    reset({
+      order_id: row.order_id ?? "",
+      patient_id: row.patient_id,
+      scheduled_date: row.scheduled_date,
+      scheduled_time_slot: row.scheduled_time_slot ?? "",
+      address_line: row.address_line ?? "",
+      city: row.city ?? "",
+      pincode: row.pincode ?? "",
+      contact_phone: row.contact_phone ?? "",
+      special_instructions: row.special_instructions ?? "",
+    });
+    formHandlers.open();
+  };
+
   const createMutation = useMutation({
-    mutationFn: (data: CreateHomeCollectionRequest) => labService.createHomeCollection(data),
+    mutationFn: (data: CreateHomeCollectionRequest) => {
+      if (!editing) return labService.createHomeCollection(data);
+      // `order_id` and `patient_id` say whose draw this is; the update
+      // endpoint does not accept them, and re-pointing a scheduled visit at a
+      // different patient is a new visit rather than an edit.
+      const patch: UpdateHomeCollectionRequest = {
+        scheduled_date: data.scheduled_date,
+        scheduled_time_slot: data.scheduled_time_slot,
+        address_line: data.address_line,
+        city: data.city,
+        pincode: data.pincode,
+        contact_phone: data.contact_phone,
+        special_instructions: data.special_instructions,
+      };
+      return labService.updateHomeCollection(editing.id, patch);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-home-collections"] });
       void queryClient.invalidateQueries({ queryKey: ["lab-home-collection-stats"] });
-      formHandlers.close();
-      reset(homeCollectionDefaults);
+      closeForm();
     },
   });
 
@@ -133,6 +176,23 @@ export function HomeCollectionsSection() {
         <Text size="sm">{row.assigned_phlebotomist?.slice(0, 8) ?? "Unassigned"}</Text>
       ),
     },
+    ...(canManage
+      ? [
+          {
+            key: "actions",
+            label: "",
+            render: (row: LabHomeCollection) => (
+              <IconButton
+                tone="default"
+                aria-label={`Reschedule visit on ${row.scheduled_date}`}
+                onClick={() => openEdit(row)}
+              >
+                <IconPencil size={14} />
+              </IconButton>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (

@@ -38,6 +38,7 @@ export const labService = {
     api.updateLabCatalogEntry(...args),
   listLabPanels: (...args: Parameters<typeof api.listLabPanels>) => api.listLabPanels(...args),
   createLabPanel: (...args: Parameters<typeof api.createLabPanel>) => api.createLabPanel(...args),
+  updateLabPanel: (...args: Parameters<typeof api.updateLabPanel>) => api.updateLabPanel(...args),
   deleteLabPanel: (...args: Parameters<typeof api.deleteLabPanel>) => api.deleteLabPanel(...args),
   listPhlebotomyQueue: (...args: Parameters<typeof api.listPhlebotomyQueue>) =>
     api.listPhlebotomyQueue(...args),
@@ -67,6 +68,8 @@ export const labService = {
     api.getHomeCollectionStats(...args),
   createHomeCollection: (...args: Parameters<typeof api.createHomeCollection>) =>
     api.createHomeCollection(...args),
+  updateHomeCollection: (...args: Parameters<typeof api.updateHomeCollection>) =>
+    api.updateHomeCollection(...args),
   listCollectionCenters: (...args: Parameters<typeof api.listCollectionCenters>) =>
     api.listCollectionCenters(...args),
   createCollectionCenter: (...args: Parameters<typeof api.createCollectionCenter>) =>

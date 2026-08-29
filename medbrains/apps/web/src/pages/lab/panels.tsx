@@ -5,8 +5,8 @@ import { Group, NumberInput, Stack, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { LabPanelFormInput } from "@medbrains/schemas";
 import { labPanelFormSchema } from "@medbrains/schemas";
-import type { CreateLabPanelRequest, LabTestPanel } from "@medbrains/types";
-import { IconCheck, IconPlus, IconX } from "@tabler/icons-react";
+import type { CreateLabPanelRequest, LabTestPanel, UpdateLabPanelRequest } from "@medbrains/types";
+import { IconCheck, IconPencil, IconPlus, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -50,12 +50,49 @@ export function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
     queryFn: () => labService.listLabPanels(),
   });
 
+  // A panel is what a doctor orders and what billing prices, and its member
+  // tests are the whole point of it. `updateLabPanel` had no caller, so the
+  // only correction available was deleting the panel — which is the one
+  // destructive action the lab crate does expose, and a heavier answer than
+  // "the price changed".
+  const [editing, setEditing] = useState<LabTestPanel | null>(null);
+
+  const closeForm = () => {
+    formHandlers.close();
+    setEditing(null);
+    reset(panelDefaults);
+  };
+
+  const openEdit = (row: LabTestPanel) => {
+    setEditing(row);
+    reset({
+      code: row.code,
+      name: row.name,
+      description: row.description ?? "",
+      price: Number(row.price ?? 0),
+      // Members are loaded per panel by the detail endpoint; editing the
+      // header leaves them untouched unless the picker is used.
+      test_ids: [],
+    });
+    formHandlers.open();
+  };
+
   const createMutation = useMutation({
-    mutationFn: (data: CreateLabPanelRequest) => labService.createLabPanel(data),
+    mutationFn: (data: CreateLabPanelRequest) => {
+      if (!editing) return labService.createLabPanel(data);
+      const patch: UpdateLabPanelRequest = {
+        name: data.name,
+        description: data.description,
+        price: data.price,
+        // Only sent when the picker was actually used, because an empty array
+        // here would strip every test out of the panel.
+        ...(data.test_ids.length > 0 ? { test_ids: data.test_ids } : {}),
+      };
+      return labService.updateLabPanel(editing.id, patch);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-panels"] });
-      formHandlers.close();
-      reset(panelDefaults);
+      closeForm();
       setTestIdInput("");
     },
   });
@@ -135,20 +172,29 @@ export function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
             key: "actions",
             label: "Actions",
             render: (row: LabTestPanel) => (
-              <IconButton
-                tone="danger"
-                onClick={() =>
-                  confirmDestructive({
-                    title: "Delete panel",
-                    message: `Permanently delete the panel "${row.name}"? Orders already placed keep their tests, but this panel can no longer be ordered. This cannot be undone.`,
-                    confirmLabel: "Delete panel",
-                    onConfirm: () => deleteMutation.mutate(row.id),
-                  })
-                }
-                aria-label={`Delete panel ${row.name}`}
-              >
-                <IconX size={14} />
-              </IconButton>
+              <Group gap={4} wrap="nowrap">
+                <IconButton
+                  tone="default"
+                  aria-label={`Edit panel ${row.name}`}
+                  onClick={() => openEdit(row)}
+                >
+                  <IconPencil size={14} />
+                </IconButton>
+                <IconButton
+                  tone="danger"
+                  onClick={() =>
+                    confirmDestructive({
+                      title: "Delete panel",
+                      message: `Permanently delete the panel "${row.name}"? Orders already placed keep their tests, but this panel can no longer be ordered. This cannot be undone.`,
+                      confirmLabel: "Delete panel",
+                      onConfirm: () => deleteMutation.mutate(row.id),
+                    })
+                  }
+                  aria-label={`Delete panel ${row.name}`}
+                >
+                  <IconX size={14} />
+                </IconButton>
+              </Group>
             ),
           },
         ]
@@ -168,7 +214,13 @@ export function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
                 reset(panelDefaults);
                 setTestIdInput("");
               }
-              formHandlers.toggle();
+              if (formOpen) {
+                closeForm();
+                return;
+              }
+              setEditing(null);
+              reset(panelDefaults);
+              formHandlers.open();
             }}
           >
             Add Panel
@@ -183,6 +235,10 @@ export function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
               required
               placeholder={t("placeholder.e.g.Cbc")}
               error={errors.code?.message}
+              // The code identifies the panel to ordering and billing; the
+              // update endpoint does not accept it.
+              disabled={editing !== null}
+              description={editing ? "Fixed once created" : undefined}
               {...register("code")}
             />
             <TextInput
