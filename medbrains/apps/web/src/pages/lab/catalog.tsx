@@ -6,12 +6,13 @@ import { useDisclosure } from "@mantine/hooks";
 import type { LabCatalogFormInput } from "@medbrains/schemas";
 import { labCatalogFormSchema } from "@medbrains/schemas";
 import type { CreateLabCatalogRequest, LabTestCatalog } from "@medbrains/types";
-import { IconCheck, IconPlus, IconUpload, IconX } from "@tabler/icons-react";
+import { IconCheck, IconPencil, IconPlus, IconUpload, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { CsvImportModal, DataTable } from "@/components";
-import { Button, Switch } from "@/components/ui";
+import { Button, IconButton, Switch } from "@/components/ui";
 import {
   labContainerOptions,
   labMethodOptions,
@@ -64,17 +65,58 @@ export function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
     queryFn: () => labService.listLabCatalog(),
   });
 
-  const createMutation = useMutation({
-    mutationFn: (data: CreateLabCatalogRequest) => labService.createLabCatalogEntry(data),
+  // `editing` is the row being changed, or null when adding.
+  //
+  // The catalogue had no edit path at all: `updateLabCatalogEntry` existed in
+  // the client with no caller, `create_catalog_entry` is a plain INSERT with
+  // no ON CONFLICT, and there is no DELETE route -- so a test entered with the
+  // wrong tube or price could not be corrected, and its code could not be
+  // reused. That also made `container` and `fasting_required` unreachable for
+  // every test that already existed.
+  const [editing, setEditing] = useState<LabTestCatalog | null>(null);
+
+  const closeForm = () => {
+    formHandlers.close();
+    setEditing(null);
+    reset(catalogDefaults);
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: (data: CreateLabCatalogRequest) =>
+      editing
+        ? labService.updateLabCatalogEntry(editing.id, data)
+        : labService.createLabCatalogEntry(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-catalog"] });
-      formHandlers.close();
-      reset(catalogDefaults);
+      closeForm();
     },
   });
 
+  const openEdit = (row: LabTestCatalog) => {
+    setEditing(row);
+    reset({
+      code: row.code,
+      name: row.name,
+      sample_type: (row.sample_type ?? "") as LabCatalogFormInput["sample_type"],
+      normal_range: row.normal_range ?? "",
+      unit: row.unit ?? "",
+      price: Number(row.price ?? 0),
+      tat_hours: row.tat_hours ?? "",
+      loinc_code: row.loinc_code ?? "",
+      method: (row.method ?? "") as LabCatalogFormInput["method"],
+      specimen_volume: row.specimen_volume ?? "",
+      container: (row.container ?? "") as LabCatalogFormInput["container"],
+      fasting_required: row.fasting_required,
+      fasting_hours: row.fasting_hours ?? "",
+      critical_low: row.critical_low ?? "",
+      critical_high: row.critical_high ?? "",
+      delta_check_percent: row.delta_check_percent ?? "",
+    });
+    formHandlers.open();
+  };
+
   const handleCreateCatalog = (values: LabCatalogFormInput) => {
-    createMutation.mutate({
+    saveMutation.mutate({
       code: values.code.trim(),
       name: values.name.trim(),
       sample_type: labOptionalText(values.sample_type),
@@ -148,6 +190,23 @@ export function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
           <IconX size={14} color="danger" />
         ),
     },
+    ...(canCreate
+      ? [
+          {
+            key: "actions",
+            label: "",
+            render: (row: LabTestCatalog) => (
+              <IconButton
+                tone="default"
+                aria-label={`Edit ${row.name}`}
+                onClick={() => openEdit(row)}
+              >
+                <IconPencil size={14} />
+              </IconButton>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -159,8 +218,13 @@ export function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
             size="xs"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
-              if (formOpen) reset(catalogDefaults);
-              formHandlers.toggle();
+              if (formOpen) {
+                closeForm();
+                return;
+              }
+              setEditing(null);
+              reset(catalogDefaults);
+              formHandlers.open();
             }}
           >
             Add Test
@@ -192,6 +256,9 @@ export function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
           "loinc_code",
           "critical_low",
           "critical_high",
+          "container",
+          "fasting_required",
+          "fasting_hours",
         ]}
         onImport={(data) => labService.importLabCatalog(data)}
       />
@@ -387,8 +454,8 @@ export function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
               )}
             />
           </Group>
-          <Button tone="primary" size="xs" type="submit" loading={createMutation.isPending}>
-            Save
+          <Button tone="primary" size="xs" type="submit" loading={saveMutation.isPending}>
+            {editing ? "Save changes" : "Add test"}
           </Button>
         </Stack>
       )}

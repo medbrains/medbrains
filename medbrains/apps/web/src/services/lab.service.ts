@@ -34,6 +34,8 @@ export const labService = {
     api.importLabCatalog(...args),
   createLabCatalogEntry: (...args: Parameters<typeof api.createLabCatalogEntry>) =>
     api.createLabCatalogEntry(...args),
+  updateLabCatalogEntry: (...args: Parameters<typeof api.updateLabCatalogEntry>) =>
+    api.updateLabCatalogEntry(...args),
   listLabPanels: (...args: Parameters<typeof api.listLabPanels>) => api.listLabPanels(...args),
   createLabPanel: (...args: Parameters<typeof api.createLabPanel>) => api.createLabPanel(...args),
   deleteLabPanel: (...args: Parameters<typeof api.deleteLabPanel>) => api.deleteLabPanel(...args),

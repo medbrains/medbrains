@@ -40,7 +40,13 @@ fn optional(value: &str) -> Option<&str> {
 /// POST /api/lab/catalog/import
 ///
 /// Columns: code*, name*, sample_type, normal_range, unit, price,
-/// tat_hours, loinc_code, critical_low, critical_high
+/// tat_hours, loinc_code, critical_low, critical_high, container,
+/// fasting_required, fasting_hours
+///
+/// The last three are the pre-analytical instructions -- which tube, and
+/// whether the patient must fast. This is the only bulk path into the
+/// catalogue, so without them every imported test arrives with no container
+/// and the phlebotomist gets no guidance.
 pub async fn import_lab_catalog(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -65,6 +71,9 @@ pub async fn import_lab_catalog(
     let loinc_idx = col("loinc_code");
     let crit_low_idx = col("critical_low");
     let crit_high_idx = col("critical_high");
+    let container_idx = col("container");
+    let fasting_required_idx = col("fasting_required");
+    let fasting_hours_idx = col("fasting_hours");
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -93,12 +102,21 @@ pub async fn import_lab_catalog(
             optional(cell(values, crit_low_idx)).and_then(|v| v.parse().ok());
         let critical_high: Option<Decimal> =
             optional(cell(values, crit_high_idx)).and_then(|v| v.parse().ok());
+        // Absent means "not stated", not "no fasting". A column the sheet
+        // omits must leave the existing value alone, which is why this is an
+        // Option and the upsert COALESCEs it.
+        let fasting_required: Option<bool> = optional(cell(values, fasting_required_idx))
+            .map(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "true" | "yes" | "y" | "1"));
+        let fasting_hours: Option<i32> =
+            optional(cell(values, fasting_hours_idx)).and_then(|v| v.parse().ok());
 
         let result = sqlx::query(
             "INSERT INTO lab_test_catalog \
              (tenant_id, code, name, sample_type, normal_range, unit, price, \
-              tat_hours, loinc_code, critical_low, critical_high) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) \
+              tat_hours, loinc_code, critical_low, critical_high, \
+              container, fasting_required, fasting_hours) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, \
+                     $12, COALESCE($13, false), $14) \
              ON CONFLICT (tenant_id, code) DO UPDATE SET \
                name = EXCLUDED.name, \
                sample_type = COALESCE(EXCLUDED.sample_type, lab_test_catalog.sample_type), \
@@ -109,6 +127,9 @@ pub async fn import_lab_catalog(
                loinc_code = COALESCE(EXCLUDED.loinc_code, lab_test_catalog.loinc_code), \
                critical_low = COALESCE(EXCLUDED.critical_low, lab_test_catalog.critical_low), \
                critical_high = COALESCE(EXCLUDED.critical_high, lab_test_catalog.critical_high), \
+               container = COALESCE(EXCLUDED.container, lab_test_catalog.container), \
+               fasting_required = COALESCE($13, lab_test_catalog.fasting_required), \
+               fasting_hours = COALESCE(EXCLUDED.fasting_hours, lab_test_catalog.fasting_hours), \
                is_active = true, updated_at = now()",
         )
         .bind(claims.tenant_id)
@@ -122,6 +143,9 @@ pub async fn import_lab_catalog(
         .bind(optional(cell(values, loinc_idx)))
         .bind(critical_low)
         .bind(critical_high)
+        .bind(optional(cell(values, container_idx)))
+        .bind(fasting_required)
+        .bind(fasting_hours)
         .execute(&mut *tx)
         .await;
 
