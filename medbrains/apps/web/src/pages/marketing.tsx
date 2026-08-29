@@ -6,6 +6,7 @@ import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { MarketingCampaignsTab } from "./marketing/campaigns-tab";
 import { MarketingEnquiriesTab } from "./marketing/enquiries-tab";
+import { MarketingFunnelTab } from "./marketing/funnel-tab";
 
 /**
  * The marketing shell.
@@ -19,7 +20,7 @@ import { MarketingEnquiriesTab } from "./marketing/enquiries-tab";
  * the viewer actually holds keeps the navigation to a single entry instead of
  * five that mostly 403.
  */
-const TAB_VALUES = ["enquiries", "campaigns"] as const;
+const TAB_VALUES = ["enquiries", "campaigns", "funnel"] as const;
 
 export function MarketingPage() {
   // The desk role holds contacts but not campaigns, so the page guard is the
@@ -34,6 +35,7 @@ export function MarketingPage() {
   const canViewStages = useHasPermission(P.MARKETING.PIPELINE_VIEW);
   const canViewCampaigns = useHasPermission(P.MARKETING.CAMPAIGNS_VIEW);
   const canManageCampaigns = useHasPermission(P.MARKETING.CAMPAIGNS_MANAGE);
+  const canViewReports = useHasPermission(P.MARKETING.REPORTS_VIEW);
 
   const [tab, setTab] = useHashTabs(canListContacts ? "enquiries" : "campaigns", TAB_VALUES);
 
@@ -47,6 +49,7 @@ export function MarketingPage() {
         <Tabs.List>
           {canListContacts && <Tabs.Tab value="enquiries">Enquiries</Tabs.Tab>}
           {canViewCampaigns && <Tabs.Tab value="campaigns">Campaigns</Tabs.Tab>}
+          {canViewReports && <Tabs.Tab value="funnel">Funnel</Tabs.Tab>}
         </Tabs.List>
 
         <Tabs.Panel value="enquiries" pt="md">
@@ -60,6 +63,9 @@ export function MarketingPage() {
         </Tabs.Panel>
         <Tabs.Panel value="campaigns" pt="md">
           <MarketingCampaignsTab canManage={canManageCampaigns} />
+        </Tabs.Panel>
+        <Tabs.Panel value="funnel" pt="md">
+          <MarketingFunnelTab />
         </Tabs.Panel>
       </Tabs>
     </div>
