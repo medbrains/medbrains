@@ -20,6 +20,10 @@ export const marketingService = {
     api.marketingChannelJourney(...args),
   areaPerformance: (...args: Parameters<typeof api.marketingAreaPerformance>) =>
     api.marketingAreaPerformance(...args),
+  campAcquisition: (...args: Parameters<typeof api.marketingCampAcquisition>) =>
+    api.marketingCampAcquisition(...args),
+  linkCampAttendees: (...args: Parameters<typeof api.linkCampAttendees>) =>
+    api.linkCampAttendees(...args),
   listAreas: (...args: Parameters<typeof api.listMarketingAreas>) =>
     api.listMarketingAreas(...args),
   upsertArea: (...args: Parameters<typeof api.upsertMarketingArea>) =>

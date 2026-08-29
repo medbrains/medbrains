@@ -484,3 +484,30 @@ export interface MarketingDistributionResult {
   /** Other runs covering this area at the same time; they cannot be told apart. */
   overlapping_runs: number;
 }
+
+/** A health camp seen as an acquisition event. */
+export interface MarketingCampAcquisitionRow {
+  camp_id: string;
+  camp_code: string;
+  name: string;
+  scheduled_date: string;
+  venue_city: string | null;
+  venue_latitude: string | null;
+  venue_longitude: string | null;
+  expected_participants: number | null;
+  budget_spent: string | null;
+  attendees: number;
+  /** Already on the patient register when they arrived. */
+  already_patients: number;
+  new_faces: number;
+  /** What the camp team recorded on follow-up. */
+  team_reported_conversions: number;
+  /** Attendees with a real encounter afterwards. What happened. */
+  attended_hospital: number;
+}
+
+export interface MarketingCampBridgeResult {
+  camp_id: string;
+  linked: number;
+  unreachable: number;
+}

@@ -38,6 +38,7 @@
 
 pub mod audit;
 pub mod callbacks;
+pub mod camp_acquisition;
 pub mod campaigns;
 pub mod consent;
 pub mod conversion;
@@ -123,6 +124,14 @@ pub fn router() -> Router<AppState> {
             get(campaigns::campaign_funnel),
         )
         .route("/api/marketing/reports/funnel", get(funnel::funnel_report))
+        .route(
+            "/api/marketing/reports/camps",
+            get(camp_acquisition::camp_acquisition),
+        )
+        .route(
+            "/api/marketing/camps/{id}/link-attendees",
+            post(camp_acquisition::link_camp_attendees),
+        )
         .route(
             "/api/marketing/reports/channel-journey",
             get(funnel::channel_journey),

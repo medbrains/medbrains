@@ -1264,9 +1264,11 @@ import type {
   MarketingAreaPerformanceRow,
   MarketingCallback,
   MarketingCallbackSummary,
+  MarketingCampAcquisitionRow,
   MarketingCampaign,
   MarketingCampaignAttributionRow,
   MarketingCampaignFunnelRow,
+  MarketingCampBridgeResult,
   MarketingChannelJourneyRow,
   MarketingCohort,
   MarketingConsentEntry,
@@ -5532,6 +5534,14 @@ export const api = {
     request<{ id: string }>("/marketing/distributions", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+
+  marketingCampAcquisition: () =>
+    request<MarketingCampAcquisitionRow[]>("/marketing/reports/camps"),
+
+  linkCampAttendees: (campId: string) =>
+    request<MarketingCampBridgeResult>(`/marketing/camps/${campId}/link-attendees`, {
+      method: "POST",
     }),
 
   marketingAreaPerformance: () =>

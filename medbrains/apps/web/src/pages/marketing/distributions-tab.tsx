@@ -11,6 +11,7 @@ import { DataTable } from "@/components";
 import { Badge, Button, Card } from "@/components/ui";
 import { paiseToRupees } from "@/forms/marketing.form";
 import { marketingService } from "@/services/marketing.service";
+import { CampsPanel } from "./camps-panel";
 import { CatchmentMap } from "./catchment-map";
 import { DistributionForm } from "./distribution-form";
 
@@ -274,6 +275,8 @@ export function MarketingDistributionsTab() {
             : "Record a pamphlet run or a hoarding against a locality, and what came back from it appears here."
         }
       />
+
+      <CampsPanel />
 
       <DistributionForm opened={newRun[0]} onClose={newRun[1].close} />
 
