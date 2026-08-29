@@ -66,6 +66,11 @@ pub mod blocked {
     pub const SUPPRESSED: &str = "suppressed";
     pub const OVER_CAP: &str = "over_cap";
     pub const NO_ADDRESS: &str = "no_address";
+    /// The gate could not decide. Never written by a send — the dispatcher
+    /// refuses to start on an unresolved recipient — but present so a match
+    /// on `Sendability` stays exhaustive without a catch-all that would
+    /// silently treat a future outcome as sendable.
+    pub const UNKNOWN: &str = "unknown";
 }
 
 /// The answer for one contact.

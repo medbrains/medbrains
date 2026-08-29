@@ -42,6 +42,7 @@ pub mod camp_acquisition;
 pub mod campaigns;
 pub mod consent;
 pub mod conversion;
+pub mod dispatch;
 pub mod distribution;
 pub mod cohorts;
 pub mod contacts;
@@ -133,6 +134,10 @@ pub fn router() -> Router<AppState> {
             post(camp_acquisition::link_camp_attendees),
         )
         .route(
+            "/api/marketing/camps/{id}/follow-up-wave",
+            post(camp_acquisition::camp_follow_up_wave),
+        )
+        .route(
             "/api/marketing/reports/channel-journey",
             get(funnel::channel_journey),
         )
@@ -172,6 +177,11 @@ pub fn router() -> Router<AppState> {
         .route("/api/marketing/outreach/{id}/submit", post(outreach::submit_run))
         .route("/api/marketing/outreach/{id}/approve", post(outreach::approve_run))
         .route("/api/marketing/outreach/{id}/cancel", post(outreach::cancel_run))
+        .route("/api/marketing/outreach/{id}/start", post(dispatch::start_run))
+        .route(
+            "/api/marketing/outreach/{id}/messages",
+            get(dispatch::list_run_messages),
+        )
         .route(
             "/api/marketing/messaging/messages",
             post(messaging::ingest_message_webhook),

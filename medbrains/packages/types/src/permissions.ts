@@ -17,7 +17,7 @@ export interface PermissionDef {
   module: string;
 }
 
-/** 973 permissions, one per constant in the Rust source. */
+/** 976 permissions, one per constant in the Rust source. */
 export const PERMISSIONS: PermissionDef[] = [
   // dashboard
   {
@@ -3015,6 +3015,24 @@ export const PERMISSIONS: PermissionDef[] = [
     code: "marketing.outreach.approve",
     label: "Approve campaign content before it sends",
     description: "NMC advertising rules and the Drugs and Magic Remedies Act bind what a hospital may say. Automation scales a wording error to the whole list, so approval is a second pair of eyes and deliberately not held by whoever wrote the campaign.",
+    module: "marketing",
+  },
+  {
+    code: "marketing.outreach.dispatch",
+    label: "Start an approved outreach run",
+    description: "Approval says the words are lawful; dispatch is the act of sending them to four thousand people. Separate, so that whoever signs off the content is not thereby the person who fires it, and so the button can be withheld from a run whose DLT template has lapsed.",
+    module: "marketing",
+  },
+  {
+    code: "marketing.messages.view",
+    label: "View who an outreach run actually reached",
+    description: "Names the individuals in a cohort, which cohort membership itself never does — `cohorts.view` promises marketing a cohort's name and size and never who is in it, so a recipient ledger cannot reuse it. A clinical recall run's recipient list is a patient list.",
+    module: "marketing",
+  },
+  {
+    code: "marketing.messages.ingest_receipt",
+    label: "Ingest Receipt Messages",
+    description: "Accept delivery receipts from the messaging provider. Held by no built-in role. A machine identity with an API key and an explicit permission list, for the same reason telephony ingest is: the caller is a provider's webhook, not a person.",
     module: "marketing",
   },
   {
@@ -7528,15 +7546,23 @@ export const P = {
     },
     INTERACTIONS_LOG: "marketing.interactions.log",
     INTERACTIONS_PLAY_RECORDING: "marketing.interactions.play_recording",
+    MESSAGES: {
+      INGEST_RECEIPT: "marketing.messages.ingest_receipt",
+      VIEW: "marketing.messages.view",
+    },
+    MESSAGES_INGEST_RECEIPT: "marketing.messages.ingest_receipt",
+    MESSAGES_VIEW: "marketing.messages.view",
     MESSAGING: {
       INGEST: "marketing.messaging.ingest",
     },
     MESSAGING_INGEST: "marketing.messaging.ingest",
     OUTREACH: {
       APPROVE: "marketing.outreach.approve",
+      DISPATCH: "marketing.outreach.dispatch",
       SEND: "marketing.outreach.send",
     },
     OUTREACH_APPROVE: "marketing.outreach.approve",
+    OUTREACH_DISPATCH: "marketing.outreach.dispatch",
     OUTREACH_SEND: "marketing.outreach.send",
     PIPELINE: {
       ASSIGN: "marketing.pipeline.assign",
@@ -10075,6 +10101,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.MARKETING.COHORTS.VIEW,
       P.MARKETING.CONSENT.VIEW,
       P.MARKETING.CONTACTS.LIST,
+      P.MARKETING.MESSAGES.VIEW,
+      P.MARKETING.OUTREACH.DISPATCH,
       P.MARKETING.OUTREACH.SEND,
       P.MARKETING.PIPELINE.VIEW,
       P.MARKETING.REPORTS_VIEW,

@@ -1439,6 +1439,11 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::marketing::cohorts::VIEW,
             permissions::marketing::cohorts::MANAGE,
             permissions::marketing::outreach::SEND,
+            permissions::marketing::outreach::DISPATCH,
+            // Seeing who a run reached is not the same as seeing a cohort's
+            // membership, and a clinical run's recipients stay behind a
+            // per-record check on top of this code.
+            permissions::marketing::messages::VIEW,
             // View, and not capture or withdraw: the people who run campaigns
             // may see that somebody is unreachable, and may not make them
             // reachable. SUPPRESSION_MANAGE is deliberately absent for the

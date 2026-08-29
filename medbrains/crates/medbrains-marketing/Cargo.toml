@@ -11,6 +11,9 @@ medbrains-db = { path = "../medbrains-db" }
 # For generate_uhid. Converting a lead must mint a UHID the same way
 # registration does, not invent a second numbering scheme.
 medbrains-patients = { path = "../medbrains-patients" }
+# The dispatcher queues through the existing outbox rather than building a
+# second delivery pipeline with a second set of retry bugs.
+medbrains-outbox = { path = "../medbrains-outbox" }
 axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
