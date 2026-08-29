@@ -269,6 +269,25 @@ pub async fn create_contact(
     .fetch_one(&mut *tx)
     .await?;
 
+    // Attribution as an appended row, not an overwritten column. The UPDATE
+    // above uses COALESCE, which makes `campaign_id` write-once: the campaign
+    // that happened to be first through the door keeps the credit forever,
+    // and a returning caller who arrives via a second campaign records
+    // nothing at all.
+    if let Some(campaign_id) = body.campaign_id {
+        sqlx::query(
+            "INSERT INTO mkt_touchpoints \
+                (tenant_id, contact_id, campaign_id, kind, source) \
+             VALUES ($1, $2, $3, 'manual', $4)",
+        )
+        .bind(claims.tenant_id)
+        .bind(updated.id)
+        .bind(campaign_id)
+        .bind(source)
+        .execute(&mut *tx)
+        .await?;
+    }
+
     tx.commit().await?;
     Ok(Json(updated))
 }

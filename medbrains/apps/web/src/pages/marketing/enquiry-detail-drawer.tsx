@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { Badge, Button, Drawer, Select, toast } from "@/components/ui";
 import { marketingService } from "@/services/marketing.service";
+import { TouchpointStrip } from "./touchpoint-strip";
 
 const CHANNEL_OPTIONS = [
   { value: "phone", label: "Phone" },
@@ -146,6 +147,10 @@ export function EnquiryDetailDrawer({
               allowDeselect={false}
             />
           )}
+
+          {/* Above the timeline rather than in it: how they arrived is
+              context for every row below, not another event in the sequence. */}
+          {contactId && <TouchpointStrip contactId={contactId} />}
 
           {canLog && (
             <Stack gap="xs">

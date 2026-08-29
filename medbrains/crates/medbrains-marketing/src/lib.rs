@@ -40,6 +40,7 @@ pub mod audit;
 pub mod campaigns;
 pub mod cohorts;
 pub mod contacts;
+pub mod funnel;
 pub mod interactions;
 pub mod messaging;
 pub mod outreach;
@@ -82,6 +83,15 @@ pub fn router() -> Router<AppState> {
         .route(
             "/api/marketing/reports/campaign-funnel",
             get(campaigns::campaign_funnel),
+        )
+        .route("/api/marketing/reports/funnel", get(funnel::funnel_report))
+        .route(
+            "/api/marketing/reports/attribution",
+            get(funnel::campaign_attribution),
+        )
+        .route(
+            "/api/marketing/contacts/{id}/touchpoints",
+            get(funnel::list_touchpoints).post(funnel::add_touchpoint),
         )
         .route(
             "/api/marketing/reports/enquiry-audit",

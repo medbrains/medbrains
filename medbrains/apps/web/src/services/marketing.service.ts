@@ -13,6 +13,13 @@ export const marketingService = {
     api.updateMarketingCampaign(...args),
   campaignFunnel: (...args: Parameters<typeof api.marketingCampaignFunnel>) =>
     api.marketingCampaignFunnel(...args),
+  funnel: (...args: Parameters<typeof api.marketingFunnel>) => api.marketingFunnel(...args),
+  attribution: (...args: Parameters<typeof api.marketingAttribution>) =>
+    api.marketingAttribution(...args),
+  listTouchpoints: (...args: Parameters<typeof api.listMarketingTouchpoints>) =>
+    api.listMarketingTouchpoints(...args),
+  addTouchpoint: (...args: Parameters<typeof api.addMarketingTouchpoint>) =>
+    api.addMarketingTouchpoint(...args),
   listContacts: (...args: Parameters<typeof api.listMarketingContacts>) =>
     api.listMarketingContacts(...args),
   getContact: (...args: Parameters<typeof api.getMarketingContact>) =>

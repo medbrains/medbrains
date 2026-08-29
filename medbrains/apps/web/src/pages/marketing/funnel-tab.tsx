@@ -7,6 +7,7 @@ import { DataTable } from "@/components";
 import { Card } from "@/components/ui";
 import { paiseToRupees } from "@/forms/marketing.form";
 import { marketingService } from "@/services/marketing.service";
+import { StageProgression } from "./stage-progression";
 
 /**
  * A rate is only meaningful when it has a denominator.
@@ -164,6 +165,11 @@ export function MarketingFunnelTab() {
 
   return (
     <Stack>
+      {/* Where enquiries are stuck, before which spend produced them: the
+          first has an action attached today, the second is a budget decision
+          for next quarter. */}
+      <StageProgression />
+
       {callsFailed && (
         <Text size="sm" c="dimmed">
           The call summary could not be loaded. This is not a statement that no calls were missed.

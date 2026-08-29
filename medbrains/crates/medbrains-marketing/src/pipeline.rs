@@ -16,6 +16,7 @@ use medbrains_server_core::{
 };
 use uuid::Uuid;
 
+use crate::funnel::{self, StageMove};
 use crate::types::{MoveStageRequest, PipelineStage};
 
 /// `GET /api/marketing/stages`
@@ -74,18 +75,49 @@ pub async fn move_stage(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    let moved: Option<Uuid> = sqlx::query_scalar(
+    // Read the stage the enquiry is leaving before the UPDATE overwrites it.
+    // A separate SELECT rather than a subquery inside RETURNING: the subquery
+    // form does return the pre-update value, but it does so because of the
+    // statement snapshot rather than because it looks like it does, and this
+    // value is the half of the transition the history was missing.
+    //
+    // `FOR UPDATE` so two agents moving the same enquiry at once serialise
+    // here instead of writing two events that each claim the same origin.
+    let previous: Option<Option<Uuid>> = sqlx::query_scalar(
+        "SELECT stage_id FROM mkt_contacts \
+         WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(contact_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let Some(from_stage_id) = previous else {
+        return Err(AppError::NotFound);
+    };
+
+    sqlx::query(
         "UPDATE mkt_contacts SET stage_id = $3, updated_at = now() \
-         WHERE id = $1 AND tenant_id = $2 RETURNING id",
+         WHERE id = $1 AND tenant_id = $2",
     )
     .bind(contact_id)
     .bind(claims.tenant_id)
     .bind(stage.id)
-    .fetch_optional(&mut *tx)
+    .execute(&mut *tx)
     .await?;
-    if moved.is_none() {
-        return Err(AppError::NotFound);
-    }
+
+    funnel::record_stage_move(
+        &mut tx,
+        &StageMove {
+            tenant_id: claims.tenant_id,
+            contact_id,
+            from_stage_id,
+            to_stage_id: stage.id,
+            actor_id: Some(claims.sub),
+            source: funnel::source::AGENT,
+            note: body.note.as_deref(),
+        },
+    )
+    .await?;
 
     sqlx::query(
         "INSERT INTO mkt_interactions \

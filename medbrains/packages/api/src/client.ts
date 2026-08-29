@@ -28,6 +28,7 @@ import type {
   AddDocumentSignatureRequest,
   AddIngestionItemInput,
   AddInvoiceItemRequest,
+  AddMarketingTouchpointRequest,
   AddOnTestRequest,
   AddOrderSetItemRequest,
   AddResultsRequest,
@@ -1256,14 +1257,17 @@ import type {
   ManualAutoChargeResponse,
   ManufacturerSummary,
   MarketingCampaign,
+  MarketingCampaignAttributionRow,
   MarketingCampaignFunnelRow,
   MarketingCohort,
   MarketingContact,
+  MarketingFunnelStageRow,
   MarketingInteraction,
   MarketingMissedCallSummary,
   MarketingOutreachRun,
   MarketingPipelineStage,
   MarketingScreenPop,
+  MarketingTouchpoint,
   MarkIncentivePaidRequest,
   MarPrintData,
   MassCasualtyEvent,
@@ -5410,6 +5414,27 @@ export const api = {
 
   marketingCampaignFunnel: () =>
     request<MarketingCampaignFunnelRow[]>("/marketing/reports/campaign-funnel"),
+
+  marketingFunnel: (params?: { from?: string; to?: string; exclude_backfill?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (params?.from) qs.set("from", params.from);
+    if (params?.to) qs.set("to", params.to);
+    if (params?.exclude_backfill) qs.set("exclude_backfill", "true");
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<MarketingFunnelStageRow[]>(`/marketing/reports/funnel${suffix}`);
+  },
+
+  marketingAttribution: () =>
+    request<MarketingCampaignAttributionRow[]>("/marketing/reports/attribution"),
+
+  listMarketingTouchpoints: (contactId: string) =>
+    request<MarketingTouchpoint[]>(`/marketing/contacts/${contactId}/touchpoints`),
+
+  addMarketingTouchpoint: (contactId: string, data: AddMarketingTouchpointRequest) =>
+    request<MarketingTouchpoint>(`/marketing/contacts/${contactId}/touchpoints`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   reviewQcResult: (id: string, data: { reviewer_notes?: string }) =>
     request<LabQcResult>(`/lab/qc-results/${id}/review`, {

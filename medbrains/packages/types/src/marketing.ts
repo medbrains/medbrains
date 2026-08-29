@@ -222,3 +222,71 @@ export interface MarketingMissedCallSummary {
   unanswered: number;
   callbacks_open: number;
 }
+
+/**
+ * One stage of the acquisition funnel, measured.
+ *
+ * `entered` counts arrivals into the stage over the window; `exited` counts
+ * the ones that left again. The gap between them is `currently_in` — enquiries
+ * sitting in the stage right now.
+ */
+export interface MarketingFunnelStageRow {
+  stage_id: string;
+  stage_name: string;
+  position: number;
+  is_won: boolean;
+  is_lost: boolean;
+  entered: number;
+  exited: number;
+  currently_in: number;
+  /**
+   * Median seconds from entering the stage to leaving it, over closed spans
+   * only. Null when nothing has left the stage yet.
+   *
+   * Enquiries still sitting in the stage are deliberately excluded: they have
+   * no dwell time yet, only a dwell-time-so-far, and counting those as
+   * finished biases the median downward.
+   */
+  median_seconds: number | null;
+}
+
+/**
+ * Campaign credit under both models.
+ *
+ * Both are returned rather than one being chosen, because the disagreement
+ * between them is the finding: a camp that is first touch for four hundred
+ * people and last touch for six is building awareness, not closing.
+ */
+export interface MarketingCampaignAttributionRow {
+  campaign_id: string;
+  campaign_name: string;
+  source: string;
+  spend_minor: number;
+  first_touch_enquiries: number;
+  first_touch_contacted: number;
+  first_touch_attended: number;
+  last_touch_enquiries: number;
+  last_touch_attended: number;
+}
+
+/** How one enquiry reached the hospital. */
+export interface MarketingTouchpoint {
+  id: string;
+  campaign_id: string | null;
+  campaign_name: string | null;
+  kind: string;
+  occurred_at: string;
+  source: string | null;
+  medium: string | null;
+  /** An organisation or coarse label, never a named individual. */
+  referrer_label: string | null;
+}
+
+export interface AddMarketingTouchpointRequest {
+  campaign_id?: string;
+  kind: string;
+  source?: string;
+  medium?: string;
+  external_ref?: string;
+  referrer_label?: string;
+}
