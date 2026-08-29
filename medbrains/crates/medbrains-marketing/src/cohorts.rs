@@ -197,14 +197,24 @@ pub async fn create_clinical_cohort(
     // returns ids and joins straight to mkt_contacts, so nothing about why a
     // patient qualified is ever selected — not the last encounter date, not
     // the department, not a diagnosis.
+    // The department predicate belongs to the JOIN, not the WHERE.
+    //
+    // In the WHERE it discarded every row where `e` was NULL, which silently
+    // turns this outer join into an inner one — so `HAVING max(e.encounter_date)
+    // IS NULL`, the branch that catches patients with no qualifying encounter
+    // at all, could never fire once a department was named.
+    //
+    // Those are the people the list is for. "Diabetics not seen in
+    // ophthalmology for a year" excluded everyone who has never been to
+    // ophthalmology, which is precisely who needs a first retinopathy screen.
     let inserted = sqlx::query(
         "INSERT INTO mkt_cohort_members (tenant_id, cohort_id, contact_id) \
          SELECT $1, $2, c.id \
          FROM patients p \
          JOIN mkt_contacts c ON c.patient_id = p.id AND c.tenant_id = p.tenant_id \
          LEFT JOIN encounters e ON e.patient_id = p.id AND e.tenant_id = p.tenant_id \
+                AND ($3::uuid IS NULL OR e.department_id = $3) \
          WHERE p.tenant_id = $1 \
-           AND ($3::uuid IS NULL OR e.department_id = $3) \
          GROUP BY c.id \
          HAVING max(e.encounter_date) IS NULL \
              OR max(e.encounter_date) < (CURRENT_DATE - $4::int) \

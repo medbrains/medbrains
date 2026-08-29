@@ -33,9 +33,24 @@ const TAB_VALUES = [
 ] as const;
 
 export function MarketingPage() {
-  // The desk role holds contacts but not campaigns, so the page guard is the
-  // one every marketing role has.
-  useRequirePermission(P.MARKETING.CONTACTS_LIST);
+  // Any marketing permission opens the page; the tabs then show only what the
+  // viewer holds.
+  //
+  // Guarding on `contacts.list` alone locked out the one role the clinical
+  // recall list exists for: `doctor` holds `cohorts.clinical_define` and no
+  // other marketing permission, so it was redirected off this page and could
+  // never reach the button. A page guard narrower than its narrowest tab is a
+  // feature nobody can open.
+  useRequirePermission([
+    P.MARKETING.CONTACTS_LIST,
+    P.MARKETING.CONTACTS_VIEW,
+    P.MARKETING.CAMPAIGNS_VIEW,
+    P.MARKETING.COHORTS_VIEW,
+    P.MARKETING.COHORTS_CLINICAL_DEFINE,
+    P.MARKETING.OUTREACH_SEND,
+    P.MARKETING.OUTREACH_APPROVE,
+    P.MARKETING.REPORTS_VIEW,
+  ]);
 
   const canListContacts = useHasPermission(P.MARKETING.CONTACTS_LIST);
   const canViewContact = useHasPermission(P.MARKETING.CONTACTS_VIEW);
@@ -54,7 +69,14 @@ export function MarketingPage() {
   // clinical wall the module is explicit about keeping.
   const canDefineClinical = useHasPermission(P.MARKETING.COHORTS_CLINICAL_DEFINE);
 
-  const [tab, setTab] = useHashTabs(canListContacts ? "enquiries" : "campaigns", TAB_VALUES);
+  const defaultTab = canListContacts
+    ? "enquiries"
+    : canViewCohorts || canDefineClinical
+      ? "cohorts"
+      : canViewCampaigns
+        ? "campaigns"
+        : "funnel";
+  const [tab, setTab] = useHashTabs(defaultTab, TAB_VALUES);
 
   return (
     <div>
@@ -67,7 +89,7 @@ export function MarketingPage() {
           {canListContacts && <Tabs.Tab value="enquiries">Enquiries</Tabs.Tab>}
           {canViewContact && <Tabs.Tab value="screen-pop">Who\u2019s calling</Tabs.Tab>}
           {canViewCampaigns && <Tabs.Tab value="campaigns">Campaigns</Tabs.Tab>}
-          {canViewCohorts && <Tabs.Tab value="cohorts">Cohorts</Tabs.Tab>}
+          {(canViewCohorts || canDefineClinical) && <Tabs.Tab value="cohorts">Cohorts</Tabs.Tab>}
           {canViewCohorts && <Tabs.Tab value="outreach">Outreach</Tabs.Tab>}
           {canViewReports && <Tabs.Tab value="funnel">Funnel</Tabs.Tab>}
         </Tabs.List>
