@@ -6,14 +6,19 @@ import { useDisclosure } from "@mantine/hooks";
 import type { LabB2bClientFormInput } from "@medbrains/schemas";
 import { labB2bClientFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type { CreateB2bClientRequest, LabB2bClient } from "@medbrains/types";
+import type {
+  CreateB2bClientRequest,
+  LabB2bClient,
+  UpdateB2bClientRequest,
+} from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconCheck, IconPlus, IconX } from "@tabler/icons-react";
+import { IconCheck, IconPencil, IconPlus, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components";
-import { Button } from "@/components/ui";
+import { Button, IconButton } from "@/components/ui";
 import {
   labB2bClientTypeOptions,
   labOptionalInteger,
@@ -55,12 +60,55 @@ export function B2bClientsSection() {
     queryFn: () => labService.listB2bClients(),
   });
 
+  // A referring client's credit limit and payment terms are billing terms; entering them wrongly and being unable to correct them is an invoice dispute.
+  // `updateB2bClient` existed in the client with no caller and there is
+  // no delete route, so a wrong value stayed wrong.
+  const [editing, setEditing] = useState<LabB2bClient | null>(null);
+
+  const closeForm = () => {
+    formHandlers.close();
+    setEditing(null);
+    reset(b2bClientDefaults);
+  };
+
+  const openEdit = (row: LabB2bClient) => {
+    setEditing(row);
+    reset({
+      code: row.code,
+      name: row.name,
+      client_type: (row.client_type ?? "") as LabB2bClientFormInput["client_type"],
+      address: row.address ?? "",
+      city: row.city ?? "",
+      phone: row.phone ?? "",
+      email: row.email ?? "",
+      contact_person: row.contact_person ?? "",
+      credit_limit: row.credit_limit ?? "",
+      payment_terms_days: row.payment_terms_days ?? 30,
+    });
+    formHandlers.open();
+  };
+
   const createMutation = useMutation({
-    mutationFn: (data: CreateB2bClientRequest) => labService.createB2bClient(data),
+    mutationFn: (data: CreateB2bClientRequest) => {
+      if (!editing) return labService.createB2bClient(data);
+      // Only what the update endpoint accepts: code identifies
+      // the record and is not among its fields.
+      const patch: UpdateB2bClientRequest = {
+        name: data.name,
+        client_type: data.client_type,
+        address: data.address,
+        city: data.city,
+        phone: data.phone,
+        email: data.email,
+        contact_person: data.contact_person,
+        credit_limit: data.credit_limit,
+        payment_terms_days: data.payment_terms_days,
+      };
+      return labService.updateB2bClient(editing.id, patch);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-b2b-clients"] });
-      formHandlers.close();
-      reset(b2bClientDefaults);
+      closeForm();
     },
   });
 
@@ -123,6 +171,23 @@ export function B2bClientsSection() {
           <IconX size={14} color="danger" />
         ),
     },
+    ...(canManage
+      ? [
+          {
+            key: "actions",
+            label: "",
+            render: (row: LabB2bClient) => (
+              <IconButton
+                tone="default"
+                aria-label={`Edit ${row.name}`}
+                onClick={() => openEdit(row)}
+              >
+                <IconPencil size={14} />
+              </IconButton>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -148,6 +213,11 @@ export function B2bClientsSection() {
             <TextInput
               label={t("label.code")}
               required
+              // The code identifies the record and the update endpoint does
+              // not accept it. Shown and locked rather than looking editable
+              // and silently discarding the change.
+              disabled={editing !== null}
+              description={editing ? "Fixed once created" : undefined}
               error={errors.code?.message}
               {...register("code")}
             />

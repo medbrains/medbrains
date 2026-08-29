@@ -71,6 +71,8 @@ export const labService = {
     api.listCollectionCenters(...args),
   createCollectionCenter: (...args: Parameters<typeof api.createCollectionCenter>) =>
     api.createCollectionCenter(...args),
+  updateCollectionCenter: (...args: Parameters<typeof api.updateCollectionCenter>) =>
+    api.updateCollectionCenter(...args),
   listSampleArchive: (...args: Parameters<typeof api.listSampleArchive>) =>
     api.listSampleArchive(...args),
   createSampleArchive: (...args: Parameters<typeof api.createSampleArchive>) =>
@@ -110,6 +112,8 @@ export const labService = {
   listB2bClients: (...args: Parameters<typeof api.listB2bClients>) => api.listB2bClients(...args),
   createB2bClient: (...args: Parameters<typeof api.createB2bClient>) =>
     api.createB2bClient(...args),
+  updateB2bClient: (...args: Parameters<typeof api.updateB2bClient>) =>
+    api.updateB2bClient(...args),
   listB2bRates: (...args: Parameters<typeof api.listB2bRates>) => api.listB2bRates(...args),
   createB2bRate: (...args: Parameters<typeof api.createB2bRate>) => api.createB2bRate(...args),
 };

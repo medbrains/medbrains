@@ -6,14 +6,19 @@ import { useDisclosure } from "@mantine/hooks";
 import type { LabCollectionCenterFormInput } from "@medbrains/schemas";
 import { labCollectionCenterFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type { CreateCollectionCenterRequest, LabCollectionCenter } from "@medbrains/types";
+import type {
+  CreateCollectionCenterRequest,
+  LabCollectionCenter,
+  UpdateCollectionCenterRequest,
+} from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconCheck, IconPlus, IconX } from "@tabler/icons-react";
+import { IconCheck, IconPencil, IconPlus, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, IconButton } from "@/components/ui";
 import { labCollectionCenterTypeOptions, labOptionalText } from "@/forms/lab.form";
 import { labService } from "@/services/lab.service";
 
@@ -48,12 +53,51 @@ export function CollectionCentersSection() {
     queryFn: () => labService.listCollectionCenters(),
   });
 
+  // A collection centre whose phone number or address is wrong sends a phlebotomist to the wrong place.
+  // `updateCollectionCenter` existed in the client with no caller and there is
+  // no delete route, so a wrong value stayed wrong.
+  const [editing, setEditing] = useState<LabCollectionCenter | null>(null);
+
+  const closeForm = () => {
+    formHandlers.close();
+    setEditing(null);
+    reset(centerDefaults);
+  };
+
+  const openEdit = (row: LabCollectionCenter) => {
+    setEditing(row);
+    reset({
+      code: row.code,
+      name: row.name,
+      center_type: row.center_type as LabCollectionCenterFormInput["center_type"],
+      address: row.address ?? "",
+      city: row.city ?? "",
+      phone: row.phone ?? "",
+      contact_person: row.contact_person ?? "",
+      notes: row.notes ?? "",
+    });
+    formHandlers.open();
+  };
+
   const createMutation = useMutation({
-    mutationFn: (data: CreateCollectionCenterRequest) => labService.createCollectionCenter(data),
+    mutationFn: (data: CreateCollectionCenterRequest) => {
+      if (!editing) return labService.createCollectionCenter(data);
+      // Only what the update endpoint accepts: code identifies
+      // the record and is not among its fields.
+      const patch: UpdateCollectionCenterRequest = {
+        name: data.name,
+        center_type: data.center_type,
+        address: data.address,
+        city: data.city,
+        phone: data.phone,
+        contact_person: data.contact_person,
+        notes: data.notes,
+      };
+      return labService.updateCollectionCenter(editing.id, patch);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-collection-centers"] });
-      formHandlers.close();
-      reset(centerDefaults);
+      closeForm();
     },
   });
 
@@ -106,6 +150,23 @@ export function CollectionCentersSection() {
           <IconX size={14} color="danger" />
         ),
     },
+    ...(canManage
+      ? [
+          {
+            key: "actions",
+            label: "",
+            render: (row: LabCollectionCenter) => (
+              <IconButton
+                tone="default"
+                aria-label={`Edit ${row.name}`}
+                onClick={() => openEdit(row)}
+              >
+                <IconPencil size={14} />
+              </IconButton>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -131,6 +192,11 @@ export function CollectionCentersSection() {
             <TextInput
               label={t("label.code")}
               required
+              // The code identifies the record and the update endpoint does
+              // not accept it. Shown and locked rather than looking editable
+              // and silently discarding the change.
+              disabled={editing !== null}
+              description={editing ? "Fixed once created" : undefined}
               error={errors.code?.message}
               {...register("code")}
             />
