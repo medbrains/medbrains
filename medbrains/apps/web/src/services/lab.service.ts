@@ -83,6 +83,8 @@ export const labService = {
     api.listEqasResults(...args),
   createEqasResult: (...args: Parameters<typeof api.createEqasResult>) =>
     api.createEqasResult(...args),
+  updateEqasResult: (...args: Parameters<typeof api.updateEqasResult>) =>
+    api.updateEqasResult(...args),
   listProficiencyTests: (...args: Parameters<typeof api.listProficiencyTests>) =>
     api.listProficiencyTests(...args),
   createProficiencyTest: (...args: Parameters<typeof api.createProficiencyTest>) =>

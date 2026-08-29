@@ -6,15 +6,20 @@ import { useDisclosure } from "@mantine/hooks";
 import type { LabEqasResultFormInput } from "@medbrains/schemas";
 import { labEqasResultFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type { CreateEqasResultRequest, LabEqasResult } from "@medbrains/types";
+import type {
+  CreateEqasResultRequest,
+  LabEqasResult,
+  UpdateEqasResultRequest,
+} from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconPlus } from "@tabler/icons-react";
+import { IconPencil, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components";
 import { LabTestSearchSelect } from "@/components/LabTestSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { labEqasEvaluationOptions, labOptionalNumber, labOptionalText } from "@/forms/lab.form";
 import { labService } from "@/services/lab.service";
 
@@ -28,6 +33,8 @@ const eqasColors: Record<string, BadgeTone> = {
 export function EqasSection() {
   const { t } = useTranslation("lab");
   const canCreate = useHasPermission(P.LAB.QC_CREATE);
+  // Amending an EQAS result is `lab.qc.manage`, not `qc.create`.
+  const canManage = useHasPermission(P.LAB.QC_MANAGE);
   const queryClient = useQueryClient();
   const [formOpen, formHandlers] = useDisclosure(false);
   const eqasDefaults: LabEqasResultFormInput = {
@@ -60,12 +67,56 @@ export function EqasSection() {
     queryFn: () => labService.listEqasResults(),
   });
 
+  // An external quality assessment result could be filed and never amended,
+  // and amending is the normal case: the lab records what it reported, and the
+  // provider's evaluation and z-score arrive weeks later.
+  //
+  // The update endpoint accepts five fields, and that is the right five. The
+  // survey's identity -- programme, provider, cycle, sample number -- and the
+  // expected value come from the scheme, not from us; rewriting them locally
+  // would make the record disagree with the certificate it is evidence for.
+  const [editing, setEditing] = useState<LabEqasResult | null>(null);
+
+  const closeForm = () => {
+    formHandlers.close();
+    setEditing(null);
+    reset(eqasDefaults);
+  };
+
+  const openEdit = (row: LabEqasResult) => {
+    setEditing(row);
+    reset({
+      program_name: row.program_name,
+      provider: row.provider ?? "",
+      test_id: row.test_id ?? "",
+      cycle: row.cycle ?? "",
+      sample_number: row.sample_number ?? "",
+      expected_value: row.expected_value ?? "",
+      reported_value: row.reported_value ?? "",
+      evaluation: row.evaluation,
+      bias_percent: row.bias_percent ?? "",
+      z_score: row.z_score ?? "",
+      report_date: row.report_date ?? "",
+      notes: row.notes ?? "",
+    });
+    formHandlers.open();
+  };
+
   const createMutation = useMutation({
-    mutationFn: (data: CreateEqasResultRequest) => labService.createEqasResult(data),
+    mutationFn: (data: CreateEqasResultRequest) => {
+      if (!editing) return labService.createEqasResult(data);
+      const patch: UpdateEqasResultRequest = {
+        evaluation: data.evaluation,
+        reported_value: data.reported_value,
+        bias_percent: data.bias_percent,
+        z_score: data.z_score,
+        notes: data.notes,
+      };
+      return labService.updateEqasResult(editing.id, patch);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-eqas"] });
-      formHandlers.close();
-      reset(eqasDefaults);
+      closeForm();
     },
   });
 
@@ -133,6 +184,23 @@ export function EqasSection() {
         <Text size="sm">{row.bias_percent != null ? `${row.bias_percent}%` : "—"}</Text>
       ),
     },
+    ...(canManage
+      ? [
+          {
+            key: "actions",
+            label: "",
+            render: (row: LabEqasResult) => (
+              <IconButton
+                tone="default"
+                aria-label={`Edit ${row.program_name} ${row.cycle ?? ""}`}
+                onClick={() => openEdit(row)}
+              >
+                <IconPencil size={14} />
+              </IconButton>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -159,16 +227,31 @@ export function EqasSection() {
               label={t("label.programName")}
               required
               error={errors.program_name?.message}
+              // Comes from the scheme, not from us: the update endpoint
+              // does not accept it, and rewriting it locally would make
+              // the record disagree with the certificate.
+              disabled={editing !== null}
+              description={editing ? "From the EQAS provider" : undefined}
               {...register("program_name")}
             />
             <TextInput
               label={t("label.provider")}
               error={errors.provider?.message}
+              // Comes from the scheme, not from us: the update endpoint
+              // does not accept it, and rewriting it locally would make
+              // the record disagree with the certificate.
+              disabled={editing !== null}
+              description={editing ? "From the EQAS provider" : undefined}
               {...register("provider")}
             />
             <TextInput
               label={t("label.cycle")}
               error={errors.cycle?.message}
+              // Comes from the scheme, not from us: the update endpoint
+              // does not accept it, and rewriting it locally would make
+              // the record disagree with the certificate.
+              disabled={editing !== null}
+              description={editing ? "From the EQAS provider" : undefined}
               {...register("cycle")}
             />
           </Group>
@@ -180,6 +263,7 @@ export function EqasSection() {
                 <LabTestSearchSelect
                   value={field.value}
                   onChange={(id) => field.onChange(id)}
+                  disabled={editing !== null}
                   error={errors.test_id?.message}
                 />
               )}
@@ -187,6 +271,11 @@ export function EqasSection() {
             <TextInput
               label={t("label.sampleNumber")}
               error={errors.sample_number?.message}
+              // Comes from the scheme, not from us: the update endpoint
+              // does not accept it, and rewriting it locally would make
+              // the record disagree with the certificate.
+              disabled={editing !== null}
+              description={editing ? "From the EQAS provider" : undefined}
               {...register("sample_number")}
             />
             <Controller
@@ -212,6 +301,9 @@ export function EqasSection() {
                 <NumberInput
                   label={t("label.expectedValue")}
                   decimalScale={4}
+                  // The scheme's assigned value. Ours to record, not to revise.
+                  disabled={editing !== null}
+                  description={editing ? "From the EQAS provider" : undefined}
                   value={field.value}
                   onChange={field.onChange}
                   error={errors.expected_value?.message}
@@ -263,6 +355,11 @@ export function EqasSection() {
               label={t("label.reportDate")}
               type="date"
               error={errors.report_date?.message}
+              // Comes from the scheme, not from us: the update endpoint
+              // does not accept it, and rewriting it locally would make
+              // the record disagree with the certificate.
+              disabled={editing !== null}
+              description={editing ? "From the EQAS provider" : undefined}
               {...register("report_date")}
             />
             <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />

@@ -15,6 +15,8 @@ interface LabTestSearchSelectProps {
   label?: string;
   placeholder?: string;
   required?: boolean;
+  /** Passed through to `SearchOrCreate`, which has always supported it. */
+  disabled?: boolean;
   size?: string;
   error?: string;
 }
@@ -25,6 +27,7 @@ export function LabTestSearchSelect({
   label = "Lab Test",
   placeholder = "Search by test name, code, or LOINC...",
   required,
+  disabled,
   size = "sm",
   error,
 }: LabTestSearchSelectProps) {
@@ -47,6 +50,7 @@ export function LabTestSearchSelect({
       label={label}
       placeholder={placeholder}
       required={required}
+      disabled={disabled}
       size={size}
       error={error}
       leftSection={<IconMicroscope size={14} />}
