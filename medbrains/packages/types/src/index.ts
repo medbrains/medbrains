@@ -111,6 +111,7 @@ export * from "./device-integration";
 export * from "./documents-module";
 export * from "./emergency";
 export * from "./emergency-drug-kits";
+export * from "./marketing";
 export * from "./emergency-request";
 export * from "./endoscopy";
 export * from "./enterprise-sso";

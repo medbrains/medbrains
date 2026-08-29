@@ -2023,6 +2023,8 @@ struct LabParameterRow {
     previous_value: Option<String>,
     delta_percent: Option<rust_decimal::Decimal>,
     is_delta_flagged: bool,
+    sample_type: Option<String>,
+    section: Option<String>,
 }
 
 pub async fn get_lab_report_full_print_data(
@@ -2097,6 +2099,15 @@ pub async fn get_lab_report_full_print_data(
         // Both are read, the written one first, so a deployment that has
         // filled either still prints. Abnormality falls back to the `flag`
         // the entry path does set.
+        // The report covers this order and the tests added on to it, which is
+        // how a real one reads: a single slip carrying urea and creatinine, or
+        // sugar and triglycerides, under one sample number. Grouping is by
+        // `parent_order_id` because `sample_id` and `accession_number` have no
+        // writer anywhere yet -- the same gap `sample_barcode` had.
+        //
+        // Each row carries its own specimen and discipline, because a report
+        // spanning several investigations draws from more than one tube and
+        // prints under more than one heading.
         "SELECT \
            lr.parameter_name, \
            COALESCE(lr.result_value, lr.value) AS result_value, \
@@ -2110,10 +2121,18 @@ pub async fn get_lab_report_full_print_data(
            lr.method, \
            lr.previous_value, \
            lr.delta_percent, \
-           lr.is_delta_flagged \
+           lr.is_delta_flagged, \
+           tc.sample_type, \
+           d.name AS section \
          FROM lab_results lr \
-         WHERE lr.order_id = $1 AND lr.tenant_id = $2 AND lr.deleted_at IS NULL \
-         ORDER BY lr.display_order, lr.parameter_name LIMIT 5000",
+         JOIN lab_orders sib ON sib.id = lr.order_id AND sib.tenant_id = lr.tenant_id \
+         LEFT JOIN lab_test_catalog tc \
+           ON tc.id = sib.test_id AND tc.tenant_id = sib.tenant_id \
+         LEFT JOIN departments d \
+           ON d.id = tc.department_id AND d.tenant_id = tc.tenant_id \
+         WHERE sib.tenant_id = $2 AND (sib.id = $1 OR sib.parent_order_id = $1) \
+           AND lr.deleted_at IS NULL AND sib.deleted_at IS NULL \
+         ORDER BY d.name NULLS LAST, lr.display_order, lr.parameter_name LIMIT 5000",
     )
     .bind(order_id)
     .bind(claims.tenant_id)
@@ -2180,6 +2199,8 @@ pub async fn get_lab_report_full_print_data(
                 // trailing zeros a report should not invent.
                 delta_percent: p.delta_percent.map(|d| d.normalize().to_string()),
                 is_delta_flagged: p.is_delta_flagged,
+                sample_type: p.sample_type,
+                section: p.section,
             })
             .collect(),
         interpretation: row.interpretation,

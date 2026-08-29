@@ -570,59 +570,198 @@ const IPD_CONSOLIDATED_BILL_SAMPLE: &str = r#"{
 
 const LAB_REPORT_HTML: &str = r#"{% extends "base.html" %}
 {% block extra_css %}
-  .flag-high, .flag-critical_high { color: #b42828; font-weight: 700; }
-  .flag-low, .flag-critical_low { color: #1e63b8; font-weight: 700; }
+  .lab-head { width:100%; border-collapse:collapse; margin-bottom:4px; }
+  .lab-head td { border:1px solid #333; padding:3px 6px; vertical-align:middle; }
+  .lab-head .lab-name { border:none; padding:0 8px 0 0; }
+  .lab-name b { font-size:20px; letter-spacing:.5px; }
+  .accred { font-size:10px; line-height:1.25; }
+  .idbar { width:100%; margin:8px 0 4px; }
+  .idbar td { padding:1px 0; vertical-align:top; font-size:11px; }
+  .idbar .k { width:78px; color:#444; }
+  .results { width:100%; border-collapse:collapse; }
+  .results th { border:1px solid #333; padding:4px 6px; font-size:11px;
+                letter-spacing:.4px; text-align:left; background:#f2f2f2; }
+  .results td { border:1px solid #333; padding:3px 6px; font-size:11px; }
+  .results .section td { font-weight:700; letter-spacing:.5px; background:#fafafa; }
+  .results .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .range { white-space:pre-line; }
+  /* Never colour alone: an out-of-range value is also marked with a symbol
+     and named in words, so it survives a monochrome printer and a reader
+     who cannot distinguish the hues. */
+  .flag-high, .flag-critical_high { color:#b42828; font-weight:700; }
+  .flag-low, .flag-critical_low { color:#1e63b8; font-weight:700; }
+  .mark { font-weight:700; }
+  .sig { width:100%; margin-top:36px; }
+  .sig td { width:50%; vertical-align:bottom; font-size:11px; }
+  .sig img { max-height:38px; display:block; margin-bottom:2px; }
+  .sig .who { font-weight:700; }
+  .disclaimer { margin-top:18px; font-size:9.5px; color:#444; text-align:center; }
+  .status-band { margin:6px 0; padding:3px 8px; font-size:11px; font-weight:700;
+                 letter-spacing:.5px; border:1px solid #333; display:inline-block; }
 {% endblock extra_css %}
 {% block content %}
-<h2 class="brand">LABORATORY REPORT</h2>
-<table style="margin:6px 0;">
+
+<table class="lab-head">
   <tr>
-    <td><strong>Patient:</strong> {{ lab.patient_name }} <span class="mono">({{ lab.uhid }})</span></td>
-    <td class="right">{{ lab.age | default(value="") }} {{ lab.gender }}</td>
+    <td class="lab-name" rowspan="2">
+      <b>{{ lab.hospital_name }}</b>
+      {% if lab.nabl_accredited %}<div class="accred">NABL accredited</div>{% endif %}
+    </td>
+    {% if lab.nabl_certificate_number %}
+    <td class="accred" rowspan="2">Reg. No. {{ lab.nabl_certificate_number }}</td>
+    {% endif %}
+    <td class="accred">{{ lab.department | default(value="Laboratory") }}</td>
   </tr>
+  <tr><td class="accred">Report: {{ lab.report_date }}</td></tr>
+</table>
+
+{% if lab.report_status and lab.report_status != "final" %}
+  {# An amended report that looks like the one it replaces is a clinician
+     acting on a withdrawn value. It says so, at the top, in words. #}
+  <div class="status-band">{{ lab.report_status | upper }} REPORT</div>
+{% endif %}
+
+<table class="idbar">
   <tr>
-    <td><strong>Test:</strong> {{ lab.test_name }}{% if lab.sample_type %} ({{ lab.sample_type }}){% endif %}</td>
-    <td class="right">{% if lab.order_number %}<span class="mono">{{ lab.order_number }}</span>{% endif %}</td>
-  </tr>
-  <tr>
-    <td class="muted">Collected: {{ lab.collected_at | default(value="—") }}</td>
-    <td class="right muted">Reported: {{ lab.reported_at | default(value="—") }}</td>
+    <td style="width:58%;">
+      <table class="idbar">
+        <tr><td class="k">Pt's Name</td><td>: <b>{{ lab.patient_name }}</b></td></tr>
+        <tr><td class="k">Age &amp; Sex</td><td>: {{ lab.age_display }} / {{ lab.gender | upper }}</td></tr>
+        <tr><td class="k">UHID</td><td>: <span class="mono">{{ lab.uhid }}</span></td></tr>
+        {% if lab.referring_doctor %}<tr><td class="k">Ref by Dr.</td><td>: {{ lab.referring_doctor }}</td></tr>{% endif %}
+        {% if lab.ward_name %}<tr><td class="k">Ward / Bed</td><td>: {{ lab.ward_name }}{% if lab.bed_number %} / {{ lab.bed_number }}{% endif %}</td></tr>{% endif %}
+      </table>
+    </td>
+    <td>
+      <table class="idbar">
+        <tr><td class="k">S. ID No</td><td>: <span class="mono">{{ lab.sample_id }}</span></td></tr>
+        <tr><td class="k">Accession</td><td>: <span class="mono">{{ lab.accession_number }}</span></td></tr>
+        <tr><td class="k">Collected</td><td>: {{ lab.collection_date | default(value="—") }}</td></tr>
+        <tr><td class="k">Reported</td><td>: {{ lab.report_date }}</td></tr>
+      </table>
+    </td>
   </tr>
 </table>
-<table>
-  <thead><tr><th>Parameter</th><th class="right">Result</th><th>Unit</th><th>Reference Range</th><th>Flag</th></tr></thead>
-  <tbody>
-  {% for r in lab.results %}
+
+<table class="results">
+  <thead>
     <tr>
-      <td>{{ r.parameter_name }}</td>
-      <td class="right flag-{{ r.flag | default(value='normal') }}">{{ r.value }}</td>
+      <th style="width:11%;">SAMPLE</th>
+      <th>INVESTIGATION</th>
+      <th style="width:13%;" class="num">RESULT</th>
+      <th style="width:12%;">UNITS</th>
+      <th style="width:26%;">NORMAL RANGE</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% set_global current_section = "" %}
+  {% for r in lab.parameters %}
+    {% set sec = r.section | default(value="Investigations") %}
+    {% if sec != current_section %}
+      <tr class="section"><td colspan="5">{{ sec | upper }}</td></tr>
+      {% set_global current_section = sec %}
+    {% endif %}
+    <tr>
+      <td>{{ r.sample_type | default(value="—") }}</td>
+      <td>
+        {{ r.parameter_name }}
+        {% if r.method %}<div class="muted small">{{ r.method }}</div>{% endif %}
+      </td>
+      <td class="num flag-{{ r.critical_flag | default(value='normal') }}">
+        {{ r.result_value }}{% if r.is_critical %} <span class="mark">!!</span>
+        {% elif r.is_abnormal %} <span class="mark">*</span>{% endif %}
+        {% if r.previous_value %}
+          <div class="muted small">prev {{ r.previous_value }}{% if r.delta_percent %} ({{ r.delta_percent }}%){% endif %}</div>
+        {% endif %}
+      </td>
       <td>{{ r.unit | default(value="") }}</td>
-      <td>{{ r.normal_range | default(value="") }}</td>
-      <td class="flag-{{ r.flag | default(value='normal') }}">{{ r.flag | default(value="") | upper }}</td>
+      <td class="range">{{ r.reference_range | default(value="") }}</td>
     </tr>
   {% endfor %}
   </tbody>
 </table>
-{% if lab.pathologist_name %}<p class="right" style="margin-top:14px;">{{ lab.pathologist_name }}<br><span class="muted small">Pathologist</span></p>{% endif %}
+
+<p class="small muted" style="margin-top:6px;">
+  * outside the reference range &nbsp;&nbsp; !! critical value, telephoned to the requesting clinician
+</p>
+
+{% if lab.interpretation %}<p><b>Interpretation:</b> {{ lab.interpretation }}</p>{% endif %}
+{% if lab.comments %}<p class="muted">{{ lab.comments }}</p>{% endif %}
+
+<table class="sig">
+  <tr>
+    <td>
+      {% if lab.technician_name %}
+        <div class="who">{{ lab.technician_name }}</div>
+        <div class="muted">Lab Technologist</div>
+      {% endif %}
+    </td>
+    <td class="right">
+      {% if lab.pathologist_signature_url %}<img src="{{ lab.pathologist_signature_url }}" alt="">{% endif %}
+      {% if lab.pathologist_name %}
+        <div class="who">{{ lab.pathologist_name }}</div>
+        {% if lab.pathologist_registration_number %}
+          <div class="muted">Reg. No. {{ lab.pathologist_registration_number }}</div>
+        {% endif %}
+        <div class="muted">Verified by{% if lab.verified_at %} · {{ lab.verified_at }}{% endif %}</div>
+      {% endif %}
+    </td>
+  </tr>
+</table>
+
+<p class="disclaimer">
+  This report should be correlated with clinical findings and further investigation.
+  Results relate only to the specimen received. Not valid for medico-legal purposes.
+</p>
 {% endblock content %}"#;
 
 const LAB_REPORT_SAMPLE: &str = r#"{
   "lab": {
-    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
-    "age": "42y", "gender": "F",
-    "order_number": "LAB-2026-08812", "test_name": "Complete Blood Count",
-    "sample_type": "EDTA Whole Blood",
-    "collected_at": "2026-06-12 08:10", "reported_at": "2026-06-12 11:30",
+    "hospital_name": "ACMS Clinical Laboratory",
+    "nabl_accredited": true,
+    "nabl_certificate_number": "MC-9481",
+    "department": "Laboratory Medicine",
+    "report_status": "amended",
+    "patient_name": "MRS. UMA",
+    "uhid": "ACMS-2026-00042",
+    "age_display": "68y",
+    "gender": "female",
     "referring_doctor": "Dr. S. Ravi",
-    "pathologist_name": "Dr. K. Meena, MD (Path)",
-    "results": [
-      {"parameter_name": "Haemoglobin", "value": "9.8", "unit": "g/dL", "normal_range": "12.0 – 15.5", "flag": "low"},
-      {"parameter_name": "Total WBC", "value": "11,400", "unit": "/µL", "normal_range": "4,000 – 11,000", "flag": "high"},
-      {"parameter_name": "Platelets", "value": "2.4", "unit": "lakh/µL", "normal_range": "1.5 – 4.5", "flag": null},
-      {"parameter_name": "Neutrophils", "value": "78", "unit": "%", "normal_range": "40 – 70", "flag": "high"}
-    ]
+    "ward_name": "Ward 3",
+    "bed_number": "12",
+    "sample_id": "012104",
+    "accession_number": "LAB-2026-08812",
+    "collection_date": "21-08-2026 08:10",
+    "report_date": "21-08-2026 11:30",
+    "parameters": [
+      {"parameter_name": "Glucose, Fasting", "sample_type": "Blood", "section": "Biochemistry",
+       "result_value": "90.1", "unit": "mg/dL", "reference_range": "70 - 110",
+       "is_abnormal": false, "is_critical": false, "critical_flag": null,
+       "method": "Hexokinase", "previous_value": null, "delta_percent": null},
+      {"parameter_name": "Triglycerides", "sample_type": "Serum", "section": "Biochemistry",
+       "result_value": "231.5", "unit": "mg/dL",
+       "reference_range": "Male : 60 - 165\nFemale : 40 - 140",
+       "is_abnormal": true, "is_critical": false, "critical_flag": "high",
+       "method": null, "previous_value": "180.0", "delta_percent": "28.6"},
+      {"parameter_name": "Potassium", "sample_type": "Serum", "section": "Biochemistry",
+       "result_value": "6.9", "unit": "mmol/L", "reference_range": "3.5 - 5.1",
+       "is_abnormal": true, "is_critical": true, "critical_flag": "critical_high",
+       "method": null, "previous_value": "4.8", "delta_percent": "43.7"},
+      {"parameter_name": "Haemoglobin", "sample_type": "Blood", "section": "Haematology",
+       "result_value": "9.8", "unit": "g/dL",
+       "reference_range": "Male : 13.0 - 17.0\nFemale : 12.0 - 15.0",
+       "is_abnormal": true, "is_critical": false, "critical_flag": "low",
+       "method": null, "previous_value": null, "delta_percent": null}
+    ],
+    "interpretation": "Triglycerides raised; repeat fasting sample advised.",
+    "comments": null,
+    "technician_name": "K. Anitha",
+    "pathologist_name": "Dr. Vijay, M.D (Pathology)",
+    "pathologist_registration_number": "89171",
+    "pathologist_signature_url": null,
+    "verified_at": "21-08-2026 11:22"
   },
-  "document_number": "LAB-RPT-20260612-0001"
+  "document_number": "LAB-RPT-20260821-0001"
 }"#;
 
 // ── Pharmacy / IPD labels ───────────────────────────────────

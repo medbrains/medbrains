@@ -2546,6 +2546,14 @@ pub struct LabParameter {
     pub previous_value: Option<String>,
     pub delta_percent: Option<String>,
     pub is_delta_flagged: bool,
+    /// Blood / Serum / Urine, per row. A report covering several
+    /// investigations draws from more than one specimen, and the
+    /// phlebotomist's tube is not obvious from the analyte name.
+    pub sample_type: Option<String>,
+    /// The discipline heading this row files under -- Biochemistry,
+    /// Haematology. Printed reports group by it rather than listing
+    /// thirty analytes flat.
+    pub section: Option<String>,
 }
 
 /// Cumulative Lab Report for trending across visits
