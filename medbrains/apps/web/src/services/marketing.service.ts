@@ -16,6 +16,10 @@ export const marketingService = {
   funnel: (...args: Parameters<typeof api.marketingFunnel>) => api.marketingFunnel(...args),
   attribution: (...args: Parameters<typeof api.marketingAttribution>) =>
     api.marketingAttribution(...args),
+  channelJourney: (...args: Parameters<typeof api.marketingChannelJourney>) =>
+    api.marketingChannelJourney(...args),
+  areaPerformance: (...args: Parameters<typeof api.marketingAreaPerformance>) =>
+    api.marketingAreaPerformance(...args),
   listTouchpoints: (...args: Parameters<typeof api.listMarketingTouchpoints>) =>
     api.listMarketingTouchpoints(...args),
   addTouchpoint: (...args: Parameters<typeof api.addMarketingTouchpoint>) =>

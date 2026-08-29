@@ -1259,11 +1259,13 @@ import type {
   ManualAutoChargeRequest,
   ManualAutoChargeResponse,
   ManufacturerSummary,
+  MarketingAreaPerformanceRow,
   MarketingCallback,
   MarketingCallbackSummary,
   MarketingCampaign,
   MarketingCampaignAttributionRow,
   MarketingCampaignFunnelRow,
+  MarketingChannelJourneyRow,
   MarketingCohort,
   MarketingConsentEntry,
   MarketingContact,
@@ -5497,6 +5499,18 @@ export const api = {
     const suffix = qs.toString() ? `?${qs}` : "";
     return request<MarketingFunnelStageRow[]>(`/marketing/reports/funnel${suffix}`);
   },
+
+  marketingChannelJourney: (params?: { from?: string; to?: string; area?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.from) qs.set("from", params.from);
+    if (params?.to) qs.set("to", params.to);
+    if (params?.area) qs.set("area", params.area);
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<MarketingChannelJourneyRow[]>(`/marketing/reports/channel-journey${suffix}`);
+  },
+
+  marketingAreaPerformance: () =>
+    request<MarketingAreaPerformanceRow[]>("/marketing/reports/area-performance"),
 
   marketingAttribution: () =>
     request<MarketingCampaignAttributionRow[]>("/marketing/reports/attribution"),

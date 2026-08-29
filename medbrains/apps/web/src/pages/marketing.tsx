@@ -6,6 +6,7 @@ import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { MarketingCallbacksTab } from "./marketing/callbacks-tab";
 import { MarketingCampaignsTab } from "./marketing/campaigns-tab";
+import { MarketingChannelsTab } from "./marketing/channels-tab";
 import { MarketingCohortsTab } from "./marketing/cohorts-tab";
 import { MarketingEnquiriesTab } from "./marketing/enquiries-tab";
 import { MarketingFunnelTab } from "./marketing/funnel-tab";
@@ -94,6 +95,7 @@ export function MarketingPage() {
           {(canViewCohorts || canDefineClinical) && <Tabs.Tab value="cohorts">Cohorts</Tabs.Tab>}
           {canViewCohorts && <Tabs.Tab value="outreach">Outreach</Tabs.Tab>}
           {canViewReports && <Tabs.Tab value="funnel">Funnel</Tabs.Tab>}
+          {canViewReports && <Tabs.Tab value="channels">Channels</Tabs.Tab>}
         </Tabs.List>
 
         <Tabs.Panel value="enquiries" pt="md">
@@ -122,6 +124,9 @@ export function MarketingPage() {
         </Tabs.Panel>
         <Tabs.Panel value="funnel" pt="md">
           <MarketingFunnelTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="channels" pt="md">
+          <MarketingChannelsTab />
         </Tabs.Panel>
       </Tabs>
     </div>

@@ -278,6 +278,8 @@ export interface MarketingTouchpoint {
   occurred_at: string;
   source: string | null;
   medium: string | null;
+  /** Where the channel was — not where the person lives. */
+  area_label: string | null;
   /** An organisation or coarse label, never a named individual. */
   referrer_label: string | null;
 }
@@ -289,6 +291,8 @@ export interface AddMarketingTouchpointRequest {
   medium?: string;
   external_ref?: string;
   referrer_label?: string;
+  /** The ward a pamphlet covered, the junction a hoarding stands at. */
+  area_label?: string;
 }
 
 /** A call the desk owes, with everything needed to make it. */
@@ -404,4 +408,26 @@ export interface ConvertLeadResponse {
   patient_id: string;
   uhid: string;
   registered: boolean;
+}
+
+/** First contact, second contact, and what the pairing converted. */
+export interface MarketingChannelJourneyRow {
+  first_kind: string;
+  first_medium: string | null;
+  first_area: string | null;
+  /** Null means they never came back — one touch, then nothing. */
+  second_kind: string | null;
+  second_medium: string | null;
+  enquiries: number;
+  converted: number;
+  median_gap_hours: number | null;
+}
+
+/** How one locality performs across every channel that reached it. */
+export interface MarketingAreaPerformanceRow {
+  area_label: string;
+  enquiries: number;
+  converted: number;
+  channels: number;
+  targeted_spend_minor: number;
 }

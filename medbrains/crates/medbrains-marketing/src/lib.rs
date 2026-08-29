@@ -123,6 +123,14 @@ pub fn router() -> Router<AppState> {
         )
         .route("/api/marketing/reports/funnel", get(funnel::funnel_report))
         .route(
+            "/api/marketing/reports/channel-journey",
+            get(funnel::channel_journey),
+        )
+        .route(
+            "/api/marketing/reports/area-performance",
+            get(funnel::area_performance),
+        )
+        .route(
             "/api/marketing/reports/attribution",
             get(funnel::campaign_attribution),
         )
