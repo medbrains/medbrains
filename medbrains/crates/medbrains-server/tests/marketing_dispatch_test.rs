@@ -274,6 +274,10 @@ async fn a_delivery_receipt_records_what_the_provider_reported() {
         .expect("a seeded tenant");
 
     let message_id = message_in_state(&app.db, tenant_id, "sent").await;
+    // Unique per run: `mkt_messages_provider` is a unique index per tenant and
+    // this database is not reset between test runs, so a fixed literal
+    // collides with yesterday's row.
+    let provider_id = format!("SM-{}", Uuid::new_v4());
 
     let body: serde_json::Value = app
         .client
@@ -282,7 +286,7 @@ async fn a_delivery_receipt_records_what_the_provider_reported() {
         .json(&serde_json::json!({
             "message_id": message_id,
             "status": "delivered",
-            "provider_msg_id": "SM-provider-123",
+            "provider_msg_id": provider_id,
         }))
         .send()
         .await
@@ -304,7 +308,7 @@ async fn a_delivery_receipt_records_what_the_provider_reported() {
     assert!(row.1, "delivered_at must be stamped");
     assert_eq!(
         row.2.as_deref(),
-        Some("SM-provider-123"),
+        Some(provider_id.as_str()),
         "the vendor's own id is kept so a support ticket traces back to their console"
     );
 }

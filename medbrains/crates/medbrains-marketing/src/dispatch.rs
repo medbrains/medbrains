@@ -459,12 +459,16 @@ pub async fn ingest_receipt(
                     count(*) FILTER (WHERE status IN ('sent', 'delivered'))::int AS sent, \
                     count(*) FILTER (WHERE status = 'failed')::int AS failed, \
                     count(*) FILTER (WHERE status = 'queued')::int AS pending \
-             FROM mkt_messages WHERE tenant_id = $1 GROUP BY run_id, tenant_id \
+             FROM mkt_messages \
+             WHERE tenant_id = $1 \
+               AND run_id = (SELECT run_id FROM mkt_messages WHERE id = $2) \
+             GROUP BY run_id, tenant_id \
          ) agg \
          WHERE agg.run_id = r.id AND agg.tenant_id = r.tenant_id \
            AND r.tenant_id = $1 AND r.status = 'sending'",
     )
     .bind(claims.tenant_id)
+    .bind(body.message_id)
     .execute(&mut *tx)
     .await?;
 
