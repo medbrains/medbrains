@@ -108,6 +108,12 @@ export const labService = {
     api.createReportDispatch(...args),
   confirmReportDispatch: (...args: Parameters<typeof api.confirmReportDispatch>) =>
     api.confirmReportDispatch(...args),
+  listLabReferralDoctors: (...args: Parameters<typeof api.listLabReferralDoctors>) =>
+    api.listLabReferralDoctors(...args),
+  listLabReferralPayouts: (...args: Parameters<typeof api.listLabReferralPayouts>) =>
+    api.listLabReferralPayouts(...args),
+  getLabB2bCreditSummary: (...args: Parameters<typeof api.getLabB2bCreditSummary>) =>
+    api.getLabB2bCreditSummary(...args),
   getLabTatMonitoring: (...args: Parameters<typeof api.getLabTatMonitoring>) =>
     api.getLabTatMonitoring(...args),
   listStatOrders: (...args: Parameters<typeof api.listStatOrders>) => api.listStatOrders(...args),

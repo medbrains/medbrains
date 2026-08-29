@@ -3349,3 +3349,41 @@ export interface CreateStockTransactionRequest {
   reference_id?: string;
   notes?: string;
 }
+
+/** A doctor who sends work to the laboratory, and what they are paid for it. */
+export interface LabReferralDoctor {
+  id: string;
+  name: string;
+  phone: string | null;
+  specialization: string | null;
+  hospital_name: string | null;
+  commission_pct: number | null;
+  is_active: boolean;
+}
+
+/** One settled or pending commission period. */
+export interface LabReferralPayout {
+  id: string;
+  referral_doctor_id: string;
+  period_start: string;
+  period_end: string;
+  order_count: number;
+  total_revenue: string;
+  commission_amount: string;
+  status: string;
+}
+
+/**
+ * What a referring client owes.
+ *
+ * `credit_available` is computed server-side as limit minus used, so the
+ * screen does not do the subtraction twice and disagree with the backend.
+ */
+export interface LabB2bCreditSummary {
+  id: string;
+  name: string;
+  credit_limit: string | null;
+  credit_used: string | null;
+  credit_available: string | null;
+  payment_terms_days: number | null;
+}

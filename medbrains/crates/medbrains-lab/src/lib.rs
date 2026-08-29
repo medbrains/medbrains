@@ -5344,9 +5344,14 @@ pub async fn list_referral_doctors(
             bool,
         ),
     >(
+        // Tenant-scoped explicitly. These three carried no tenant predicate at
+        // all and leaned entirely on RLS; on a table whose policy is missing
+        // that is a cross-tenant read of who refers to whom and what they are
+        // paid for it.
         "SELECT id, name, phone, specialization, hospital_name, commission_pct, is_active \
-         FROM lab_referral_doctors ORDER BY name LIMIT 5000",
+         FROM lab_referral_doctors WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
     )
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
@@ -5446,8 +5451,10 @@ pub async fn list_referral_payouts(
     >(
         "SELECT p.id, p.referral_doctor_id, p.period_start, p.period_end, \
          p.order_count, p.total_revenue, p.commission_amount, p.status::text \
-         FROM lab_referral_payouts p ORDER BY p.period_end DESC LIMIT 100",
+         FROM lab_referral_payouts p WHERE p.tenant_id = $1 \
+         ORDER BY p.period_end DESC LIMIT 100",
     )
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
@@ -5503,8 +5510,9 @@ pub async fn get_b2b_credit_summary(
 
     let rows = sqlx::query_as::<_, (Uuid, String, Option<Decimal>, Option<Decimal>, Option<i32>)>(
         "SELECT id, name, credit_limit, credit_used, payment_terms_days \
-         FROM lab_b2b_clients WHERE is_active = true ORDER BY name",
+         FROM lab_b2b_clients WHERE tenant_id = $1 AND is_active = true ORDER BY name",
     )
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 

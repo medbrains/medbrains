@@ -1175,6 +1175,7 @@ import type {
   KitchenMenuItem,
   KpiTile,
   LabB2bClient,
+  LabB2bCreditSummary,
   LabB2bRate,
   LabCalibration,
   LabCollectionCenter,
@@ -1200,6 +1201,8 @@ import type {
   LabQueueDisplay,
   LabReagentLot,
   LabReference,
+  LabReferralDoctor,
+  LabReferralPayout,
   LabReportDispatch,
   LabReportFullPrintData,
   LabReportPrintData,
@@ -15848,7 +15851,7 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  listLabReferralDoctors: () => request<unknown>("/lab/referral-doctors"),
+  listLabReferralDoctors: () => request<LabReferralDoctor[]>("/lab/referral-doctors"),
   createLabReferralDoctor: (data: Record<string, unknown>) =>
     request<unknown>("/lab/referral-doctors", {
       method: "POST",
@@ -15859,13 +15862,13 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  listLabReferralPayouts: () => request<unknown>("/lab/referral-payouts"),
+  listLabReferralPayouts: () => request<LabReferralPayout[]>("/lab/referral-payouts"),
   createLabReferralPayout: (data: Record<string, unknown>) =>
     request<unknown>("/lab/referral-payouts", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  getLabB2bCreditSummary: () => request<unknown>("/lab/b2b-credit-summary"),
+  getLabB2bCreditSummary: () => request<LabB2bCreditSummary[]>("/lab/b2b-credit-summary"),
   listRadiologyDicomStudies: (params?: { patient_id?: string }) => {
     const qs = params?.patient_id ? `?patient_id=${encodeURIComponent(params.patient_id)}` : "";
     return request<RadiologyDicomStudy[]>(`/radiology/dicom-studies${qs}`);
