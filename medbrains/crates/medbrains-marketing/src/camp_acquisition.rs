@@ -297,3 +297,132 @@ pub async fn link_camp_attendees(
         unreachable,
     }))
 }
+
+#[derive(Debug, Serialize)]
+pub struct FollowUpWaveResult {
+    pub camp_id: Uuid,
+    /// Callbacks raised.
+    pub raised: i64,
+    /// Attendees skipped because they have already been to the hospital since
+    /// the camp. Ringing them to follow up is the same embarrassment as
+    /// ringing somebody to offer them what they already have.
+    pub already_attended: i64,
+    /// Attendees who already had a callback owed. Not duplicated.
+    pub already_owed: i64,
+}
+
+/// `POST /api/marketing/camps/{id}/follow-up-wave`
+///
+/// Raises a callback for every camp attendee who has not since come to the
+/// hospital.
+///
+/// The camp module already has follow-up CRUD — list, create, update, counts —
+/// so what was missing was never the record, it was the act of deciding who
+/// needs one. Somebody had to open a camp and create five hundred rows by
+/// hand, which means nobody did.
+///
+/// These land in the **callback worklist**, not in a second queue of their
+/// own. The desk already opens one list every morning; a camp wave arriving
+/// somewhere else is a list that gets worked for a week and then forgotten.
+/// `camp_followups` remains the camp team's own record of what they said when
+/// they rang.
+///
+/// Attendees who have already been to the hospital are skipped, not raised and
+/// closed: raising a callback for somebody who acted on the camp a fortnight
+/// ago wastes the call and teaches the desk the list is noise.
+///
+/// Idempotent by omission — an attendee with a callback already owed is
+/// counted and left alone, so running the wave twice after late registrations
+/// picks up only the late ones.
+///
+/// # Errors
+/// Returns 403 without `marketing.interactions.log`, 404 if the camp is not in
+/// this tenant.
+pub async fn camp_follow_up_wave(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(camp_id): Path<Uuid>,
+) -> Result<Json<FollowUpWaveResult>, AppError> {
+    // Raising a callback is scheduling a call, which is what interactions::LOG
+    // already gates on the rest of this module.
+    require_permission(&claims, permissions::marketing::interactions::LOG)?;
+
+    let mut tx = state.db.begin().await?;
+    set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let camp: Option<(chrono::NaiveDate, String)> = sqlx::query_as(
+        "SELECT scheduled_date, name FROM camps \
+         WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(camp_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    let Some((scheduled_date, camp_name)) = camp else {
+        return Err(AppError::NotFound);
+    };
+
+    // Counted before the insert so the two numbers describe the same moment.
+    // A count taken afterwards would exclude the rows just raised and report
+    // a smaller skip figure than actually applied.
+    let counts: (i64, i64) = sqlx::query_as(
+        "SELECT \
+            count(*) FILTER (WHERE EXISTS ( \
+                SELECT 1 FROM encounters e \
+                WHERE e.patient_id = reg.patient_id AND e.tenant_id = reg.tenant_id \
+                  AND e.encounter_date > $3))::bigint, \
+            count(*) FILTER (WHERE EXISTS ( \
+                SELECT 1 FROM mkt_tasks t \
+                JOIN mkt_contacts mc ON mc.id = t.contact_id \
+                WHERE t.tenant_id = reg.tenant_id AND t.status = 'open' \
+                  AND mc.primary_phone = '+91' \
+                      || right(regexp_replace(reg.phone, '\\D', '', 'g'), 10)))::bigint \
+         FROM camp_registrations reg \
+         WHERE reg.camp_id = $1 AND reg.tenant_id = $2 AND reg.deleted_at IS NULL \
+           AND reg.phone IS NOT NULL",
+    )
+    .bind(camp_id)
+    .bind(claims.tenant_id)
+    .bind(scheduled_date)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    // One statement. A camp is a thousand registrations and a round trip each
+    // is a minute of somebody watching a spinner.
+    let raised = sqlx::query(
+        "INSERT INTO mkt_tasks (tenant_id, contact_id, due_at, kind, note) \
+         SELECT $1, mc.id, now(), 'callback', $4 \
+         FROM camp_registrations reg \
+         JOIN mkt_contacts mc \
+              ON mc.tenant_id = $1 \
+             AND mc.primary_phone = '+91' \
+                 || right(regexp_replace(reg.phone, '\\D', '', 'g'), 10) \
+         WHERE reg.camp_id = $2 AND reg.tenant_id = $1 AND reg.deleted_at IS NULL \
+           AND reg.phone IS NOT NULL \
+           AND length(regexp_replace(reg.phone, '\\D', '', 'g')) >= 10 \
+           AND NOT EXISTS ( \
+               SELECT 1 FROM encounters e \
+               WHERE e.patient_id = reg.patient_id AND e.tenant_id = reg.tenant_id \
+                 AND e.encounter_date > $3) \
+           AND NOT EXISTS ( \
+               SELECT 1 FROM mkt_tasks t \
+               WHERE t.tenant_id = $1 AND t.contact_id = mc.id AND t.status = 'open')",
+    )
+    .bind(claims.tenant_id)
+    .bind(camp_id)
+    .bind(scheduled_date)
+    .bind(format!("Follow-up after {camp_name}"))
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    #[allow(clippy::cast_possible_wrap)]
+    let raised = raised.rows_affected() as i64;
+    Ok(Json(FollowUpWaveResult {
+        camp_id,
+        raised,
+        already_attended: counts.0,
+        already_owed: counts.1,
+    }))
+}
