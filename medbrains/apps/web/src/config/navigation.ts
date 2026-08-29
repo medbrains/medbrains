@@ -1025,7 +1025,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         i18nKey: "marketing",
         path: "/marketing",
         icon: "IconSpeakerphone",
-        requiredPermission: "marketing.campaigns.view",
+        requiredPermission: "marketing.contacts.list",
       },
       { i18nKey: "hr", path: "/hr", icon: "IconIdBadge2", requiredPermission: "hr.employees.list" },
       {

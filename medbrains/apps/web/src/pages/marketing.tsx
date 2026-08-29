@@ -5,6 +5,7 @@ import { PageHeader } from "@/components";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { MarketingCampaignsTab } from "./marketing/campaigns-tab";
+import { MarketingEnquiriesTab } from "./marketing/enquiries-tab";
 
 /**
  * The marketing shell.
@@ -18,15 +19,23 @@ import { MarketingCampaignsTab } from "./marketing/campaigns-tab";
  * the viewer actually holds keeps the navigation to a single entry instead of
  * five that mostly 403.
  */
-const TAB_VALUES = ["campaigns"] as const;
+const TAB_VALUES = ["enquiries", "campaigns"] as const;
 
 export function MarketingPage() {
-  useRequirePermission(P.MARKETING.CAMPAIGNS_VIEW);
+  // The desk role holds contacts but not campaigns, so the page guard is the
+  // one every marketing role has.
+  useRequirePermission(P.MARKETING.CONTACTS_LIST);
 
+  const canListContacts = useHasPermission(P.MARKETING.CONTACTS_LIST);
+  const canViewContact = useHasPermission(P.MARKETING.CONTACTS_VIEW);
+  const canCreateContact = useHasPermission(P.MARKETING.CONTACTS_CREATE);
+  const canLogInteraction = useHasPermission(P.MARKETING.INTERACTIONS_LOG);
+  const canMoveStage = useHasPermission(P.MARKETING.PIPELINE_MOVE);
+  const canViewStages = useHasPermission(P.MARKETING.PIPELINE_VIEW);
   const canViewCampaigns = useHasPermission(P.MARKETING.CAMPAIGNS_VIEW);
   const canManageCampaigns = useHasPermission(P.MARKETING.CAMPAIGNS_MANAGE);
 
-  const [tab, setTab] = useHashTabs("campaigns", TAB_VALUES);
+  const [tab, setTab] = useHashTabs(canListContacts ? "enquiries" : "campaigns", TAB_VALUES);
 
   return (
     <div>
@@ -36,9 +45,19 @@ export function MarketingPage() {
       />
       <Tabs value={tab} onChange={setTab}>
         <Tabs.List>
+          {canListContacts && <Tabs.Tab value="enquiries">Enquiries</Tabs.Tab>}
           {canViewCampaigns && <Tabs.Tab value="campaigns">Campaigns</Tabs.Tab>}
         </Tabs.List>
 
+        <Tabs.Panel value="enquiries" pt="md">
+          <MarketingEnquiriesTab
+            canView={canViewContact}
+            canCreate={canCreateContact}
+            canLog={canLogInteraction}
+            canMoveStage={canMoveStage}
+            canViewStages={canViewStages}
+          />
+        </Tabs.Panel>
         <Tabs.Panel value="campaigns" pt="md">
           <MarketingCampaignsTab canManage={canManageCampaigns} />
         </Tabs.Panel>
