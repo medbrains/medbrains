@@ -175,3 +175,139 @@ async fn an_unknown_outcome_is_rejected_rather_than_counted_as_answered() {
 
     assert_eq!(resp.status(), reqwest::StatusCode::BAD_REQUEST);
 }
+
+/// An inbound call becomes a channel, and a repeat caller stays one channel.
+///
+/// `missed_call` and `inbound_call` were both in the touchpoint vocabulary and
+/// nothing wrote either, so a hospital whose enquiries arrive almost entirely
+/// by telephone had a channel report with no telephone in it. A missed call
+/// especially — somebody rings once, hangs up and expects to be rung back — is
+/// India's dominant zero-cost inbound primitive, and it was invisible.
+///
+/// The second assertion is the one that matters. Ten calls must not become ten
+/// touchpoints: the journey report reads first and second touchpoint, and a
+/// repeat caller producing "phone → phone" would bury the hoarding that
+/// actually opened the relationship. Every individual call is already on
+/// `mkt_interactions`.
+#[tokio::test]
+async fn a_missed_call_is_a_channel_and_calling_twice_is_still_one() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded tenant");
+
+    let suffix: String = Uuid::new_v4().as_u128().to_string().chars().take(8).collect();
+    let caller = format!("97{suffix}");
+
+    // Two distinct calls from one person — different call ids, so idempotency
+    // does not do the work the dedupe is being tested for.
+    for _ in 0..2 {
+        let res = app
+            .client
+            .post(app.url("/api/marketing/telephony/calls"))
+            .header("X-CSRF-Token", &csrf)
+            .json(&serde_json::json!({
+                "call_id": format!("test-call-{}", Uuid::new_v4()),
+                "direction": "inbound",
+                "from": caller,
+                "outcome": "no_answer",
+                "started_at": "2026-08-21T09:15:00Z",
+            }))
+            .send()
+            .await
+            .expect("ingest call");
+        assert!(res.status().is_success(), "ingest rejected: {:?}", res.status());
+    }
+
+    let contact_id: Uuid = sqlx::query_scalar(
+        "SELECT id FROM mkt_contacts WHERE tenant_id = $1 AND primary_phone = $2",
+    )
+    .bind(tenant_id)
+    .bind(format!("+91{caller}"))
+    .fetch_one(&app.db)
+    .await
+    .expect("the caller must have a contact");
+
+    let kinds: Vec<String> = sqlx::query_scalar(
+        "SELECT kind FROM mkt_touchpoints WHERE contact_id = $1 AND tenant_id = $2",
+    )
+    .bind(contact_id)
+    .bind(tenant_id)
+    .fetch_all(&app.db)
+    .await
+    .expect("read touchpoints");
+
+    assert_eq!(
+        kinds,
+        vec!["missed_call".to_owned()],
+        "an unanswered inbound call is a missed_call channel, and ringing \
+         twice is still one channel — ten calls must not become ten touchpoints"
+    );
+
+    // Two calls, two interactions. The dedupe is on the channel, not on the
+    // record of what happened.
+    let interactions: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM mkt_interactions WHERE contact_id = $1 AND tenant_id = $2",
+    )
+    .bind(contact_id)
+    .bind(tenant_id)
+    .fetch_one(&app.db)
+    .await
+    .expect("count interactions");
+    assert_eq!(interactions, 2, "every call is still on the timeline");
+}
+
+/// An outbound call is not how somebody found us.
+///
+/// The desk ringing a patient is us contacting them. Counting it as an
+/// acquisition channel would make the busiest entry in the channel report our
+/// own dialler, and every enquiry would appear to have been produced by the
+/// hospital phoning itself.
+#[tokio::test]
+async fn an_outbound_call_is_not_an_acquisition_channel() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded tenant");
+
+    let suffix: String = Uuid::new_v4().as_u128().to_string().chars().take(8).collect();
+    let called = format!("96{suffix}");
+
+    let res = app
+        .client
+        .post(app.url("/api/marketing/telephony/calls"))
+        .header("X-CSRF-Token", &csrf)
+        .json(&serde_json::json!({
+            "call_id": format!("test-call-{}", Uuid::new_v4()),
+            "direction": "outbound",
+            "from": called,
+            "outcome": "answered",
+            "started_at": "2026-08-21T10:00:00Z",
+        }))
+        .send()
+        .await
+        .expect("ingest call");
+    assert!(res.status().is_success(), "ingest rejected: {:?}", res.status());
+
+    let touchpoints: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM mkt_touchpoints t \
+         JOIN mkt_contacts c ON c.id = t.contact_id \
+         WHERE c.tenant_id = $1 AND c.primary_phone = $2",
+    )
+    .bind(tenant_id)
+    .bind(format!("+91{called}"))
+    .fetch_one(&app.db)
+    .await
+    .expect("count touchpoints");
+
+    assert_eq!(
+        touchpoints, 0,
+        "the desk phoning somebody is not how they found us"
+    );
+}

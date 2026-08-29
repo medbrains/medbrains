@@ -21,7 +21,7 @@ use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::contacts::{CHANNEL_PHONE, resolve_or_create};
-use crate::telephony::CallEvent;
+use crate::telephony::{CallDirection, CallEvent};
 use crate::types::Interaction;
 
 /// Record a call against the contact it came from, creating the contact if the
@@ -88,6 +88,47 @@ pub async fn ingest_call(
         .await?;
         return Ok(existing);
     };
+
+    // The call as an acquisition channel, not only as a timeline entry.
+    //
+    // `missed_call` and `inbound_call` have both been in the touchpoint
+    // vocabulary since the taxonomy landed and nothing wrote either, so a
+    // hospital whose enquiries arrive almost entirely by telephone had a
+    // channel report with no telephone in it. A missed call in particular is
+    // India's dominant zero-cost inbound primitive — somebody rings once,
+    // hangs up, and expects to be rung back — and it was invisible.
+    //
+    // Inbound only. An outbound call is the desk contacting them, which is
+    // not how they found us, and counting it would make the busiest channel
+    // in the report our own dialler.
+    //
+    // One per contact per kind. A person who rings ten times is one person
+    // who reached us by phone; ten touchpoints would make the journey report
+    // say "phone → phone" for every repeat caller and bury the hoarding that
+    // actually opened the relationship. `mkt_interactions` already holds
+    // every individual call.
+    if event.direction == CallDirection::Inbound {
+        let kind = if event.outcome.answered() {
+            "inbound_call"
+        } else {
+            "missed_call"
+        };
+        sqlx::query(
+            "INSERT INTO mkt_touchpoints \
+                (tenant_id, contact_id, kind, source, medium, occurred_at) \
+             SELECT $1, $2, $3, 'telephony', 'phone', $4 \
+             WHERE NOT EXISTS ( \
+                 SELECT 1 FROM mkt_touchpoints t \
+                 WHERE t.tenant_id = $1 AND t.contact_id = $2 AND t.kind = $3 \
+             )",
+        )
+        .bind(tenant_id)
+        .bind(contact.id)
+        .bind(kind)
+        .bind(event.started_at)
+        .execute(&mut **tx)
+        .await?;
+    }
 
     if event.outcome.answered() {
         sqlx::query(
