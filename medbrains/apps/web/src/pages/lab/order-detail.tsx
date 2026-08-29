@@ -10,6 +10,7 @@ import type {
   LabCriticalAlert,
   LabOrderDetailResponse,
   LabResult,
+  LabResultAmendment,
   ResultInput,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -86,6 +87,20 @@ export function LabOrderDetail({
     queryKey: ["lab-order-detail", orderId],
     queryFn: () => labService.getLabOrder(orderId),
     enabled: canViewOrder,
+  });
+
+  // What was corrected, and why.
+  //
+  // Amendment overwrites the value in place and flips a badge to "amended".
+  // The prior value, the prior flag and the stated reason all live in
+  // `lab_result_amendments`, and `listLabAmendments` had no caller — so a
+  // corrected report showed a number with no indication of what it replaced.
+  // Fetched only when the report actually says amended, to keep the common
+  // path at one round trip.
+  const { data: amendments = [] } = useQuery({
+    queryKey: ["lab-amendments", orderId],
+    queryFn: () => labService.listLabAmendments(orderId),
+    enabled: data?.order.report_status === "amended",
   });
 
   // Outstanding critical values on THIS order, chosen by the server.
@@ -762,6 +777,35 @@ export function LabOrderDetail({
         )}
 
       {/* Add-on test */}
+      {amendments.length > 0 && (
+        <Stack gap="xs">
+          <Text fw={600} size="sm">
+            Amendments
+          </Text>
+          <Alert tone="warning" title="This report has been corrected">
+            An amended value replaces the one reported before it. Anyone acting on the earlier
+            report needs to know what changed.
+          </Alert>
+          {amendments.map((a: LabResultAmendment) => (
+            <Group key={a.id} justify="space-between" wrap="nowrap">
+              <Stack gap={0}>
+                <Text size="sm">
+                  {a.original_value ?? "—"}
+                  {a.original_flag ? ` (${a.original_flag})` : ""} → {a.amended_value ?? "—"}
+                  {a.amended_flag ? ` (${a.amended_flag})` : ""}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {a.reason}
+                </Text>
+              </Stack>
+              <Text size="xs" c="dimmed">
+                {new Date(a.amended_at).toLocaleString()}
+              </Text>
+            </Group>
+          ))}
+        </Stack>
+      )}
+
       {/* `add_on_test` requires `lab.orders.create` -- adding a test is
           ordering one. */}
       {canCreateOrder && order.status !== "cancelled" && (

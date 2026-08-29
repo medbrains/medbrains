@@ -102,6 +102,22 @@ function LabPageInner() {
       ),
     },
     {
+      key: "rejection",
+      label: "",
+      // A rejected sample sends the order back to `ordered`, where it is
+      // indistinguishable from one never collected. The phlebotomist about to
+      // draw again needs to know the first tube failed, and why, before they
+      // repeat whatever caused it.
+      render: (row: LabOrder) =>
+        row.rejection_reason ? (
+          <Tooltip label={row.rejection_reason}>
+            <Badge size="xs" tone="warning">
+              Re-draw
+            </Badge>
+          </Tooltip>
+        ) : null,
+    },
+    {
       key: "report_status",
       label: "Report",
       render: (row: LabOrder) =>

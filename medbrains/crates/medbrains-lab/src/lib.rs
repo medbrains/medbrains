@@ -2134,6 +2134,27 @@ pub async fn reject_sample(
     .execute(&mut *tx)
     .await?;
 
+    // Put the reason where the person redrawing will actually be looking.
+    //
+    // The order goes back on the collection list, and the phlebotomist works
+    // from the phlebotomy queue rather than the order screen. Without this the
+    // reason sits one click away on a screen they have no reason to open, and
+    // an unmarked re-draw repeats the collection error that caused the
+    // rejection -- the same wrong tube, the same insufficient volume, a second
+    // needle in the same patient for nothing.
+    sqlx::query(
+        "UPDATE lab_phlebotomy_queue SET \
+         status = 'waiting'::lab_phlebotomy_status, \
+         notes = $1, \
+         started_at = NULL, completed_at = NULL, updated_at = now() \
+         WHERE order_id = $2 AND tenant_id = $3 AND deleted_at IS NULL",
+    )
+    .bind(format!("Re-draw — previous sample rejected: {}", body.rejection_reason))
+    .bind(id)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+
     // Somebody has to be told, because somebody has to go and stick the
     // patient again. Every other consequential act in this file notifies the
     // responsible clinician -- verification, amendment, a critical value --
