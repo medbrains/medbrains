@@ -124,25 +124,35 @@ export function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
           <IconX size={14} color="danger" />
         ),
     },
-    {
-      key: "actions",
-      label: "Actions",
-      render: (row: LabTestPanel) => (
-        <IconButton
-          tone="danger"
-          onClick={() =>
-            confirmDestructive({
-              title: "Delete",
-              message: "Permanently delete this record? This cannot be undone.",
-              onConfirm: () => deleteMutation.mutate(row.id),
-            })
-          }
-          aria-label={t("aria.close")}
-        >
-          <IconX size={14} />
-        </IconButton>
-      ),
-    },
+    // Delete had no gate, and the Panels tab renders unconditionally unlike
+    // every sibling -- so anyone holding only the page guard was shown a
+    // delete button on a master that ordering and billing both read from.
+    // `delete_panel` requires `lab.orders.create`, which is what `canCreate`
+    // carries here.
+    ...(canCreate
+      ? [
+          {
+            key: "actions",
+            label: "Actions",
+            render: (row: LabTestPanel) => (
+              <IconButton
+                tone="danger"
+                onClick={() =>
+                  confirmDestructive({
+                    title: "Delete panel",
+                    message: `Permanently delete the panel "${row.name}"? Orders already placed keep their tests, but this panel can no longer be ordered. This cannot be undone.`,
+                    confirmLabel: "Delete panel",
+                    onConfirm: () => deleteMutation.mutate(row.id),
+                  })
+                }
+                aria-label={`Delete panel ${row.name}`}
+              >
+                <IconX size={14} />
+              </IconButton>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (

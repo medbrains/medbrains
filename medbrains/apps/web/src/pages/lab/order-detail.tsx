@@ -44,12 +44,20 @@ import {
 export function LabOrderDetail({
   orderId,
   canCreateResult,
+  canCreateOrder,
   canVerify,
   canAmend,
   canPrintReports,
 }: {
   orderId: string;
   canCreateResult: boolean;
+  /**
+   * Cancelling an order and adding a test on to one both require
+   * `lab.orders.create`, not `lab.results.create`. They were gated on the
+   * results code with the rest of the block, so a doctor -- who orders but
+   * does not enter results -- was hidden two controls they hold.
+   */
+  canCreateOrder: boolean;
   canVerify: boolean;
   canAmend: boolean;
   canPrintReports: boolean;
@@ -312,16 +320,22 @@ export function LabOrderDetail({
               <Text size="sm" fw={500}>
                 {a.parameter_name}: {a.value} ({a.flag.replace(/_/g, " ")})
               </Text>
-              <Button
-                tone="subtle-danger"
-                size="xs"
-                onClick={() => {
-                  setReadback("");
-                  setAckAlert(a);
-                }}
-              >
-                Acknowledge
-              </Button>
+              {/* Ungated until now: `acknowledge_critical_alert` requires
+                  `lab.results.update`, which a nurse does not hold. They were
+                  shown the NABH read-back control, typed the value a critical
+                  result needs documenting against, and got a 403. */}
+              {canVerify && (
+                <Button
+                  tone="subtle-danger"
+                  size="xs"
+                  onClick={() => {
+                    setReadback("");
+                    setAckAlert(a);
+                  }}
+                >
+                  Acknowledge
+                </Button>
+              )}
             </Group>
           ))}
         </Alert>
@@ -429,7 +443,10 @@ export function LabOrderDetail({
               {t("complete")}
             </Button>
           )}
-          {order.status === "ordered" && (
+          {/* Cancelling is an order-level act: `cancel_order` requires
+              `lab.orders.create`, not the results code the rest of this block
+              is gated on. A doctor holds the former and not the latter. */}
+          {order.status === "ordered" && canCreateOrder && (
             <Button
               tone="subtle-danger"
               size="xs"
@@ -556,7 +573,10 @@ export function LabOrderDetail({
                 "—"
               ),
           },
-          ...(canVerify && !order.is_report_locked
+          // `auto_validate_result` requires `lab.results.create`. Gating
+          // it on `update` showed the control to a doctor, who holds
+          // update but not create, and got a 403 on press.
+          ...(canCreateResult && !order.is_report_locked
             ? [
                 {
                   key: "auto-validate",
@@ -727,7 +747,9 @@ export function LabOrderDetail({
         )}
 
       {/* Add-on test */}
-      {canCreateResult && order.status !== "cancelled" && (
+      {/* `add_on_test` requires `lab.orders.create` -- adding a test is
+          ordering one. */}
+      {canCreateOrder && order.status !== "cancelled" && (
         <AddOnTestSection
           onAddOn={(testId) => addOnMutation.mutate(testId)}
           isPending={addOnMutation.isPending}

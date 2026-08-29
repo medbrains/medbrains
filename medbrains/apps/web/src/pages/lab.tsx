@@ -51,7 +51,11 @@ function LabPageInner() {
   const canSamples = useHasPermission(P.LAB.SAMPLES_LIST);
   const canSpecialized = useHasPermission(P.LAB.SPECIALIZED_LIST);
   const canB2b = useHasPermission(P.LAB.B2B_LIST);
-  const canPrintReports = useHasPermission(P.LAB.REPORTS_VIEW);
+  // The report print-data endpoint requires `lab.orders.view`, not
+  // `lab.reports.view` -- that code gates the cumulative and TAT reports,
+  // none of which are wired to a screen. Gating on it hid the print button
+  // from everyone entitled to press it.
+  const canPrintReports = useHasPermission(P.LAB.ORDERS_VIEW);
 
   const [page, setPage] = useState(1);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
@@ -357,6 +361,7 @@ function LabPageInner() {
           <LabOrderDetail
             orderId={selectedOrderId}
             canCreateResult={canCreateResult}
+            canCreateOrder={canCreateOrder}
             canVerify={canVerify}
             canAmend={canAmend}
             canPrintReports={canPrintReports}
