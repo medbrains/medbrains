@@ -5233,11 +5233,20 @@ pub async fn assign_phlebotomist(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    sqlx::query("UPDATE lab_phlebotomy_queue SET assigned_to = $2 WHERE id = $1")
-        .bind(id)
-        .bind(body.assigned_to)
-        .execute(&mut *tx)
-        .await?;
+    // Tenant-scoped, and `updated_at` moved. The per-record gate above
+    // already resolves this row through its patient, so this is defence in
+    // depth rather than the only control -- but a write that names no tenant
+    // is one refactor away from being the only thing standing between two
+    // hospitals' queues.
+    sqlx::query(
+        "UPDATE lab_phlebotomy_queue SET assigned_to = $2, updated_at = now() \
+         WHERE id = $1 AND tenant_id = $3 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(body.assigned_to)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
 
     tx.commit().await?;
     Ok(Json(serde_json::json!({"status": "assigned"})))
