@@ -791,7 +791,7 @@ async fn seed_staff_employees_and_rosters(
             sqlx::query(
                 "INSERT INTO duty_rosters \
                  (tenant_id, employee_id, department_id, shift_id, roster_date, notes, created_by) \
-                 VALUES ($1, $2, $3, $4, CURRENT_DATE + $5, $6, $7) \
+                 VALUES ($1, $2, $3, $4, CURRENT_DATE + $5::int, $6, $7) \
                  ON CONFLICT (tenant_id, employee_id, roster_date) DO UPDATE \
                  SET department_id = EXCLUDED.department_id, \
                      shift_id = EXCLUDED.shift_id, \
@@ -945,7 +945,7 @@ async fn seed_opd_appointments(
              (tenant_id, patient_id, doctor_id, department_id, appointment_date, slot_start, \
               slot_end, appointment_type, status, reason, notes, checked_in_at, completed_at, \
               created_by, booking_source) \
-             SELECT $1, $2, $3, $4, CURRENT_DATE + $5, $6::time, $7::time, \
+             SELECT $1, $2, $3, $4, CURRENT_DATE + $5::int, $6::time, $7::time, \
                     $8::appointment_type, $9::appointment_status, $10, $11, \
                     CASE WHEN $9 IN ('checked_in', 'in_consultation', 'completed') \
                          THEN now() - INTERVAL '30 minutes' END, \

@@ -1,9 +1,6 @@
-crates/medbrains-admin/src/multi_hospital.rs:981  column "t.id" must appear in the GROUP BY clause or be used in an aggregate function
 crates/medbrains-analytics/src/care_view.rs:582  column tat.billing_cleared_at does not exist
 crates/medbrains-analytics/src/command_center.rs:401  column a.location_id does not exist
-crates/medbrains-ancillary/src/clinical_trials.rs:290  operator does not exist: gender = text
-crates/medbrains-ancillary/src/front_office.rs:234  column "max_visitors_per_patient" is of type integer but expression is of type text
-crates/medbrains-ancillary/src/front_office.rs:941  column "queue_status" does not exist
+crates/medbrains-ancillary/src/front_office.rs:942  column "queue_status" does not exist
 crates/medbrains-approvals/src/directory.rs:164  column d.head_employee_id does not exist
 crates/medbrains-billing/src/insurance.rs:648  column "provider_name" does not exist
 crates/medbrains-billing/src/lib.rs:2034  column ob.encounter_id does not exist
@@ -18,7 +15,6 @@ crates/medbrains-camp/src/lib.rs:6795  column r.father_spouse_name does not exis
 crates/medbrains-camp/src/lib.rs:7045  column "mh_diabetes" of relation "camp_screenings" does not exist
 crates/medbrains-care-mgmt/src/bedside_portal.rs:232  column "scheduled_at" does not exist
 crates/medbrains-care-mgmt/src/bedside_portal.rs:328  column v.vital_type does not exist
-crates/medbrains-care-mgmt/src/case_mgmt.rs:497  column "identified_date" is of type date but expression is of type text
 crates/medbrains-clinical-offline/src/lib.rs:36  column "display_name" does not exist
 crates/medbrains-dashboard/src/lib.rs:1848  column ii.amount does not exist
 crates/medbrains-dashboard/src/lib.rs:1881  relation "opd_visits" does not exist
@@ -32,7 +28,6 @@ crates/medbrains-dashboard/src/lib.rs:2142  column n.drug_id does not exist
 crates/medbrains-dashboard/src/lib.rs:2159  column "payment_date" does not exist
 crates/medbrains-dashboard/src/lib.rs:2202  column r.next_due_date does not exist
 crates/medbrains-facilities/src/nhcx_submit.rs:110  column "line_total" does not exist
-crates/medbrains-indent/src/lib.rs:1638  operator does not exist: text * integer
 crates/medbrains-infection-control/src/infection_control.rs:1526  relation "ip_admissions" does not exist
 crates/medbrains-ipd/src/lib.rs:1705  column l.ward_id does not exist
 crates/medbrains-it-security/src/lib.rs:1590  column "title" does not exist
@@ -44,16 +39,13 @@ crates/medbrains-it-security/src/lib.rs:1861  relation "security_incident_update
 crates/medbrains-it-security/src/lib.rs:1899  relation "security_incident_updates" does not exist
 crates/medbrains-it-security/src/lib.rs:2079  relation "system_health_metrics" does not exist
 crates/medbrains-it-security/src/lib.rs:2241  column "wizard_type" does not exist
-crates/medbrains-marketing/src/cohorts.rs:201  operator does not exist: date < integer
 crates/medbrains-materials/src/procurement.rs:2021  column "received_at" does not exist
 crates/medbrains-order-basket/src/lib.rs:519  column "base_price" does not exist
 crates/medbrains-order-sets/src/lib.rs:813  column "clinical_notes" of relation "lab_orders" does not exist
 crates/medbrains-order-sets/src/lib.rs:837  column "prescribed_by" of relation "prescriptions" does not exist
 crates/medbrains-order-sets/src/lib.rs:853  column "drug_catalog_id" of relation "prescription_items" does not exist
 crates/medbrains-order-sets/src/lib.rs:876  column "assigned_by" of relation "nursing_tasks" does not exist
-crates/medbrains-order-sets/src/lib.rs:896  column "diet_type" is of type diet_type but expression is of type text
 crates/medbrains-payment-gateway/src/lib.rs:2215  relation "tenant_payment_config" does not exist
-crates/medbrains-pharmacy-cash-drawer/src/lib.rs:168  operator is not unique: unknown - unknown
 crates/medbrains-pharmacy-fulfilment/src/lib.rs:516  column "barcode" does not exist
 crates/medbrains-pharmacy-payments/src/lib.rs:168  column "transaction_number" of relation "pharmacy_payment_transactions" does not exist
 crates/medbrains-pharmacy-payments/src/lib.rs:209  column "created_by" of relation "payments" does not exist
@@ -63,14 +55,11 @@ crates/medbrains-pharmacy-payments/src/lib.rs:499  column "updated_at" of relati
 crates/medbrains-pharmacy-safety/src/lib.rs:473  column "created_by" of relation "pharmacy_substitutes" does not exist
 crates/medbrains-pharmacy-safety/src/lib.rs:548  inconsistent types deduced for parameter $8
 crates/medbrains-pharmacy/src/lib.rs:2139  column u.role_id does not exist
-crates/medbrains-pharmacy/src/lib.rs:2447  operator is not unique: unknown * unknown
 crates/medbrains-pharmacy/src/lib.rs:3306  relation "doctors" does not exist
 crates/medbrains-pharmacy/src/lib.rs:3940  column "barcode" does not exist
 crates/medbrains-pharmacy/src/lib.rs:3993  column "barcode" of relation "pharmacy_catalog" does not exist
 crates/medbrains-pharmacy/src/lib.rs:4056  column "barcode" does not exist
 crates/medbrains-pharmacy/src/lib.rs:5872  column a.performed_by does not exist
-crates/medbrains-pharmacy/src/lib.rs:7258  operator is not unique: - unknown
-crates/medbrains-pharmacy/src/lib.rs:7418  operator is not unique: - unknown
 crates/medbrains-pharmacy/src/lib.rs:7925  inconsistent types deduced for parameter $8
 crates/medbrains-print-data/src/billing.rs:1310  column pay.patient_id does not exist
 crates/medbrains-print-data/src/billing.rs:1479  relation "preauth_requests" does not exist
@@ -198,11 +187,6 @@ crates/medbrains-radiology/src/lib.rs:1662  column "clinical_notes" of relation 
 crates/medbrains-regulatory/src/lib.rs:2038  relation "facility_regulatory_licenses" does not exist
 crates/medbrains-regulatory/src/lib.rs:263  column s.accreditation_body does not exist
 crates/medbrains-regulatory/src/lib.rs:356  relation "facility_regulatory_licenses" does not exist
-crates/medbrains-regulatory/src/lib.rs:659  column "evidence_documents" is of type jsonb but expression is of type text
-crates/medbrains-regulatory/src/lib.rs:819  column "seriousness_criteria" is of type jsonb but expression is of type text
-crates/medbrains-scheduling/src/scheduling.rs:832  column "a.doctor_id" must appear in the GROUP BY clause or be used in an aggregate function
-crates/medbrains-seed/src/demo_patients.rs:792  operator is not unique: date + unknown
-crates/medbrains-seed/src/demo_patients.rs:944  operator is not unique: date + unknown
 crates/medbrains-seed/src/screens.rs:458  relation "screen_masters" does not exist
 crates/medbrains-telehealth/src/doctor_dashboard.rs:158  relation "opd_appointments" does not exist
 crates/medbrains-tokens/src/lib.rs:1010  column "returned_from_label" of relation "tokens" does not exist

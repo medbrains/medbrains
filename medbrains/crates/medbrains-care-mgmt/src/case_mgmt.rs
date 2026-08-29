@@ -498,7 +498,7 @@ pub async fn create_barrier(
          (tenant_id, case_assignment_id, barrier_type, description, \
           identified_date, escalated_to, notes) \
          VALUES ($1, $2, $3::discharge_barrier_type, $4, \
-                 COALESCE($5, $6), $7, $8) \
+                 COALESCE($5::date, $6::date), $7, $8) \
          RETURNING *",
     )
     .bind(claims.tenant_id)

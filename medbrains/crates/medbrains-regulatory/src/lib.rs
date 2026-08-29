@@ -660,7 +660,7 @@ pub async fn batch_checklist_items(
                  (tenant_id, checklist_id, item_number, criterion, status, \
                   evidence_summary, evidence_documents, gap_description, \
                   corrective_action, target_date, responsible_user_id, created_by) \
-                 VALUES ($1,$2,$3,$4,$5,$6,COALESCE($7,'[]'),$8,$9,$10,$11,$12) \
+                 VALUES ($1,$2,$3,$4,$5,$6,COALESCE($7::jsonb,'[]'::jsonb),$8,$9,$10,$11,$12) \
                  RETURNING *",
             )
             .bind(claims.tenant_id)
@@ -824,8 +824,8 @@ pub async fn create_adr_report(
           seriousness_criteria, dechallenge, rechallenge, \
           concomitant_drugs, relevant_history, created_by) \
          VALUES ($1,$2,$3,$4,COALESCE($5,'doctor'),$6,$7,$8,$9,$10,$11,$12,$13,\
-                 $14,$15,COALESCE($16,'[]'),\
-                 $17,$18,COALESCE($19,'[]'),$20,$4) \
+                 $14,$15,COALESCE($16::jsonb,'[]'::jsonb),\
+                 $17,$18,COALESCE($19::jsonb,'[]'::jsonb),$20,$4) \
          RETURNING *",
     )
     .bind(claims.tenant_id)

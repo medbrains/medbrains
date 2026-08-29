@@ -234,7 +234,8 @@ pub async fn upsert_visiting_hours(
         "INSERT INTO visiting_hours \
          (tenant_id, ward_id, day_of_week, start_time, end_time, \
           max_visitors_per_patient, is_active) \
-         VALUES ($1, $2, $3, $4::time, $5::time, COALESCE($6, $8), COALESCE($7, true)) \
+         VALUES ($1, $2, $3, $4::time, $5::time, COALESCE($6::int, $8::int), \
+                 COALESCE($7, true)) \
          RETURNING *",
     )
     .bind(claims.tenant_id)

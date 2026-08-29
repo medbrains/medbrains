@@ -293,7 +293,7 @@ pub async fn screen_candidates(
          WHERE p.tenant_id = $1 AND p.date_of_birth IS NOT NULL \
            AND ($2::int IS NULL OR date_part('year', age(p.date_of_birth)) >= $2) \
            AND ($3::int IS NULL OR date_part('year', age(p.date_of_birth)) <= $3) \
-           AND ($4::text IS NULL OR p.biological_sex = $4) \
+           AND ($4::text IS NULL OR p.biological_sex::text = $4) \
            AND ($5::text[] IS NULL OR EXISTS ( \
                  SELECT 1 FROM encounter_diagnoses ed JOIN encounters e ON e.id = ed.encounter_id \
                  WHERE e.patient_id = p.id AND ed.icd_code = ANY($5))) \

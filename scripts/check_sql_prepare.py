@@ -45,6 +45,13 @@ def rust_sql_literals(path: Path) -> list[tuple[int, str]]:
         # fragment, and report a syntax error that is entirely its own doing.
         if text[max(0, m.start() - 2) : m.start()].endswith(("r#", 'r')):
             continue
+        # A fragment, not a statement: `String::from("SELECT ... WHERE x = $1")`
+        # and `const SOMETHING: &str = "SELECT ..."` both have their GROUP BY,
+        # ORDER BY and remaining filters pushed on at run time, so handing the
+        # opening half to the server reports a query nobody ever sends.
+        lead = text[max(0, m.start() - 220) : m.start()]
+        if re.search(r"String::from\(\s*$", lead) or re.search(r"const\s+\w+:\s*&str\s*=\s*$", lead):
+            continue
         sql = re.sub(r"\\\s*\n\s*", " ", m.group(1))
         sql = sql.replace('\\"', '"').replace("\\'", "'")
         if not re.match(r"\s*(SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM|WITH)\b", sql, re.I):

@@ -896,7 +896,9 @@ pub async fn activate_order_set(
                         "INSERT INTO diet_orders \
                          (tenant_id, patient_id, diet_type, template_id, \
                           special_instructions, ordered_by) \
-                         VALUES ($1, $2, COALESCE($3, 'regular'), $4, $5, $6) \
+                         VALUES ($1, $2, \
+                                 COALESCE($3::diet_type, 'regular'::diet_type), \
+                                 $4, $5, $6) \
                          RETURNING id",
                     )
                     .bind(claims.tenant_id)

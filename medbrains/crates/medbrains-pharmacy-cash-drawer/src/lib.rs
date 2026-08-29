@@ -172,7 +172,7 @@ pub async fn close_drawer(
            variance_reason = $5, \
            notes = COALESCE($6, notes), \
            status = CASE \
-             WHEN ABS($4 - $3) > 100 THEN 'variance_pending_signoff' \
+             WHEN ABS($4::numeric - $3::numeric) > 100 THEN 'variance_pending_signoff' \
              ELSE 'closed' \
            END, \
            updated_at = now() \

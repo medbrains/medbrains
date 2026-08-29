@@ -1638,8 +1638,8 @@ pub async fn fsn_analysis(
         "SELECT sc.name AS item_name, sc.last_issue_date, \
          EXTRACT(DAY FROM now() - COALESCE(sc.last_issue_date, sc.created_at))::BIGINT AS days_since_last_issue, \
          CASE \
-           WHEN sc.last_issue_date IS NOT NULL AND sc.last_issue_date >= now() - ($2 || ' days')::INTERVAL THEN 'fast' \
-           WHEN sc.last_issue_date IS NOT NULL AND sc.last_issue_date >= now() - (($2 * 3) || ' days')::INTERVAL THEN 'slow' \
+           WHEN sc.last_issue_date IS NOT NULL AND sc.last_issue_date >= now() - ($2::text || ' days')::INTERVAL THEN 'fast' \
+           WHEN sc.last_issue_date IS NOT NULL AND sc.last_issue_date >= now() - (($2::int * 3)::text || ' days')::INTERVAL THEN 'slow' \
            ELSE 'non_moving' \
          END AS fsn_class \
          FROM store_catalog sc \

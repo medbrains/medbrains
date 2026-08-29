@@ -207,7 +207,7 @@ pub async fn create_clinical_cohort(
            AND ($3::uuid IS NULL OR e.department_id = $3) \
          GROUP BY c.id \
          HAVING max(e.encounter_date) IS NULL \
-             OR max(e.encounter_date) < (CURRENT_DATE - $4) \
+             OR max(e.encounter_date) < (CURRENT_DATE - $4::int) \
          LIMIT $5 \
          ON CONFLICT (tenant_id, cohort_id, contact_id) DO NOTHING",
     )
