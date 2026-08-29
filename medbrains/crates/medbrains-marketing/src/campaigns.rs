@@ -34,6 +34,15 @@ pub struct Campaign {
     pub started_on: Option<chrono::NaiveDate>,
     pub ended_on: Option<chrono::NaiveDate>,
     pub is_active: bool,
+    /// The localities this spend is aimed at.
+    ///
+    /// Without it the area report's spend column reads zero for every
+    /// locality, because nothing ever said which areas a campaign was buying.
+    pub target_areas: Vec<String>,
+    /// What the campaign physically was. `channel` is coarse — 'print' does
+    /// not distinguish ten thousand pamphlets in one ward from a full-page
+    /// insert in a daily.
+    pub medium: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -47,6 +56,10 @@ pub struct UpsertCampaignRequest {
     pub spend_minor: Option<i64>,
     pub started_on: Option<chrono::NaiveDate>,
     pub ended_on: Option<chrono::NaiveDate>,
+    /// Locality names. Matched against `mkt_areas.name` by the area report,
+    /// and free text so a campaign can name a ward before somebody defines it.
+    pub target_areas: Option<Vec<String>>,
+    pub medium: Option<String>,
 }
 
 /// One row of the funnel, per campaign.
@@ -79,7 +92,7 @@ pub async fn list_campaigns(
     set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, Campaign>(
-        "SELECT id, name, channel, source, external_ref, spend_minor, currency, \
+        "SELECT id, name, channel, source, external_ref, spend_minor, currency, target_areas, medium, \
                 started_on, ended_on, is_active \
          FROM mkt_campaigns WHERE tenant_id = $1 \
          ORDER BY is_active DESC, started_on DESC NULLS LAST, name",
@@ -113,9 +126,10 @@ pub async fn create_campaign(
     let row = sqlx::query_as::<_, Campaign>(
         "INSERT INTO mkt_campaigns \
             (tenant_id, name, channel, source, external_ref, spend_minor, \
-             started_on, ended_on, created_by) \
-         VALUES ($1, $2, $3, $4, $5, COALESCE($6, 0), $7, $8, $9) \
-         RETURNING id, name, channel, source, external_ref, spend_minor, currency, \
+             started_on, ended_on, created_by, target_areas, medium) \
+         VALUES ($1, $2, $3, $4, $5, COALESCE($6, 0), $7, $8, $9, \
+                 COALESCE($10, '{}'), $11) \
+         RETURNING id, name, channel, source, external_ref, spend_minor, currency, target_areas, medium, \
                    started_on, ended_on, is_active",
     )
     .bind(claims.tenant_id)
@@ -127,6 +141,8 @@ pub async fn create_campaign(
     .bind(body.started_on)
     .bind(body.ended_on)
     .bind(claims.sub)
+    .bind(body.target_areas.as_deref())
+    .bind(body.medium.as_deref().map(str::trim))
     .fetch_one(&mut *tx)
     .await?;
 
@@ -154,9 +170,11 @@ pub async fn update_campaign(
         "UPDATE mkt_campaigns SET \
             name = $3, channel = $4, source = $5, external_ref = $6, \
             spend_minor = COALESCE($7, spend_minor), \
-            started_on = $8, ended_on = $9, updated_at = now() \
+            started_on = $8, ended_on = $9, \
+            target_areas = COALESCE($10, target_areas), \
+            medium = $11, updated_at = now() \
          WHERE id = $1 AND tenant_id = $2 \
-         RETURNING id, name, channel, source, external_ref, spend_minor, currency, \
+         RETURNING id, name, channel, source, external_ref, spend_minor, currency, target_areas, medium, \
                    started_on, ended_on, is_active",
     )
     .bind(id)
@@ -168,6 +186,8 @@ pub async fn update_campaign(
     .bind(body.spend_minor)
     .bind(body.started_on)
     .bind(body.ended_on)
+    .bind(body.target_areas.as_deref())
+    .bind(body.medium.as_deref().map(str::trim))
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;

@@ -56,6 +56,13 @@ export const marketingCampaignSchema = z.object({
   spend_rupees: z.number().min(0, "Spend cannot be negative"),
   started_on: z.string(),
   ended_on: z.string(),
+  /**
+   * Free text rather than a fixed list. A campaign is planned before the
+   * localities are defined in the master, and blocking the plan on data entry
+   * elsewhere is how the field ends up empty forever.
+   */
+  target_areas: z.array(z.string().trim().min(1)),
+  medium: z.string().trim().max(80),
 });
 
 export type MarketingCampaignFormInput = z.infer<typeof marketingCampaignSchema>;

@@ -117,6 +117,10 @@ export interface MarketingCampaign {
   started_on: string | null;
   ended_on: string | null;
   is_active: boolean;
+  /** Localities this spend is aimed at, feeding the area report. */
+  target_areas: string[];
+  /** What it physically was — `channel` is coarser than a pamphlet run. */
+  medium: string | null;
 }
 
 /**
@@ -131,6 +135,8 @@ export interface UpsertMarketingCampaignRequest {
   spend_minor?: number;
   started_on?: string;
   ended_on?: string;
+  target_areas?: string[];
+  medium?: string;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Group, NumberInput, Stack, Text, TextInput } from "@mantine/core";
+import { Group, NumberInput, Stack, TagsInput, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { MarketingCampaign, UpsertMarketingCampaignRequest } from "@medbrains/types";
 import { IconPencil, IconPlus } from "@tabler/icons-react";
@@ -25,6 +25,8 @@ const EMPTY: MarketingCampaignFormInput = {
   spend_rupees: 0,
   started_on: "",
   ended_on: "",
+  target_areas: [],
+  medium: "",
 };
 
 const optionalText = (value: string): string | undefined => {
@@ -75,6 +77,10 @@ export function MarketingCampaignsTab({ canManage }: { canManage: boolean }) {
         spend_minor: rupeesToPaise(values.spend_rupees),
         started_on: optionalText(values.started_on),
         ended_on: optionalText(values.ended_on),
+        // Always sent, never omitted: the PUT is a full replace, so leaving
+        // these off would clear the localities a campaign was already aimed at.
+        target_areas: values.target_areas,
+        medium: optionalText(values.medium),
       };
       return editing
         ? marketingService.updateCampaign(editing.id, body)
@@ -88,6 +94,12 @@ export function MarketingCampaignsTab({ canManage }: { canManage: boolean }) {
     onError: (error: Error) => toast.error(error.message, { title: "Could not save campaign" }),
   });
 
+  const { data: areas = [] } = useQuery({
+    queryKey: ["marketing", "areas"],
+    queryFn: () => marketingService.listAreas(),
+  });
+  const areaNames = areas.map((a) => a.name);
+
   const openEdit = (row: MarketingCampaign) => {
     setEditing(row);
     reset({
@@ -99,6 +111,8 @@ export function MarketingCampaignsTab({ canManage }: { canManage: boolean }) {
       spend_rupees: paiseToRupees(row.spend_minor),
       started_on: row.started_on ?? "",
       ended_on: row.ended_on ?? "",
+      target_areas: row.target_areas ?? [],
+      medium: row.medium ?? "",
     });
     drawer.open();
   };
@@ -257,6 +271,36 @@ export function MarketingCampaignsTab({ canManage }: { canManage: boolean }) {
               />
             )}
           />
+
+          <Controller
+            name="target_areas"
+            control={control}
+            render={({ field }) => (
+              <TagsInput
+                label="Localities this is aimed at"
+                description="Where the spend is pointed. Without it the by-locality report shows no spend against any ward."
+                placeholder="Type a locality and press enter"
+                data={areaNames}
+                value={field.value}
+                onChange={field.onChange}
+                clearable
+              />
+            )}
+          />
+
+          <Controller
+            name="medium"
+            control={control}
+            render={({ field }) => (
+              <TextInput
+                label="Medium"
+                description="What it physically was — 'pamphlet', 'full-page insert'. The channel above is coarser."
+                error={errors.medium?.message}
+                {...field}
+              />
+            )}
+          />
+
           <Group grow>
             <TextInput
               label="Started on"
