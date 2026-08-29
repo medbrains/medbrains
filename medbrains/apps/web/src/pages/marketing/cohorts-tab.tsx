@@ -1,13 +1,20 @@
-import { Group, NumberInput, Stack, Text, TextInput } from "@mantine/core";
+import { Group, NumberInput, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { MarketingCohort } from "@medbrains/types";
-import { IconPlus, IconStethoscope } from "@tabler/icons-react";
+import { IconPlus, IconRefresh, IconStethoscope } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import { Alert, Badge, Button, Drawer, Select, toast } from "@/components/ui";
 import { CAMPAIGN_CHANNEL_OPTIONS } from "@/forms/marketing.form";
 import { marketingService } from "@/services/marketing.service";
+
+/**
+ * A fortnight. Long enough that a weekly campaign cycle is never nagged,
+ * short enough that a list worked a month later is flagged before somebody
+ * dials it.
+ */
+const STALE_AFTER_DAYS = 14;
 
 /**
  * Two kinds of list, and the difference is who was allowed to define it.
@@ -22,6 +29,45 @@ import { marketingService } from "@/services/marketing.service";
  * because the whole point of the distinction is that it is not an
  * implementation detail.
  */
+/**
+ * How old the list is, said in a way that carries the consequence.
+ *
+ * A cohort is a query result, and a query result ages. A recall list built in
+ * March and worked in August calls people who have since come in — the list
+ * is at its least accurate exactly when somebody is halfway down it. The age
+ * is therefore stated in days, not as a date somebody has to subtract from
+ * today, and it changes tone before it becomes a problem rather than after.
+ */
+function Staleness({ cohort }: { cohort: MarketingCohort }) {
+  if (!cohort.refreshed_at) {
+    return (
+      <Text size="sm" c="dimmed">
+        Never run
+      </Text>
+    );
+  }
+  const days = Math.floor((Date.now() - new Date(cohort.refreshed_at).getTime()) / 86_400_000);
+  const label = days === 0 ? "Today" : days === 1 ? "Yesterday" : `${days} days ago`;
+  if (days < STALE_AFTER_DAYS) {
+    return <Text size="sm">{label}</Text>;
+  }
+  return (
+    <Tooltip
+      label={
+        cohort.criteria_kind === "clinical"
+          ? "Define this list again from the clinical side to bring it up to date"
+          : "Re-run it to match the enquiries as they stand now"
+      }
+    >
+      {/* Not colour alone: the word "stale" carries it for anyone who cannot
+          separate the two badge tones. */}
+      <Badge tone="warning" size="sm">
+        Stale · {label}
+      </Badge>
+    </Tooltip>
+  );
+}
+
 export function MarketingCohortsTab({
   canManage,
   canDefineClinical,
@@ -51,6 +97,25 @@ export function MarketingCohortsTab({
 
   const invalidate = () =>
     void queryClient.invalidateQueries({ queryKey: ["marketing", "cohorts"] });
+
+  // Which row's button shows the spinner. Without it every Re-run button
+  // spins at once, which reads as "all of them are running".
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
+
+  const refreshMutation = useMutation({
+    mutationFn: (id: string) => marketingService.refreshCohort(id),
+    onSuccess: (cohort) => {
+      invalidate();
+      toast.success(
+        `${cohort.name} now has ${cohort.member_count} ${
+          cohort.member_count === 1 ? "member" : "members"
+        }`,
+        { title: "List re-run" },
+      );
+    },
+    onError: (error: Error) => toast.error(error.message, { title: "Could not re-run list" }),
+    onSettled: () => setRefreshingId(null),
+  });
 
   const enquiryMutation = useMutation({
     mutationFn: () => {
@@ -120,12 +185,29 @@ export function MarketingCohortsTab({
     },
     {
       key: "refreshed_at",
-      label: "Refreshed",
-      render: (row: MarketingCohort) => (
-        <Text size="sm" c="dimmed">
-          {row.refreshed_at ? new Date(row.refreshed_at).toLocaleDateString() : "Never"}
-        </Text>
-      ),
+      label: "As of",
+      render: (row: MarketingCohort) => <Staleness cohort={row} />,
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (row: MarketingCohort) =>
+        // Only an enquiry cohort can be re-run: a clinical one does not store
+        // its criteria, by constraint, so there is nothing here to re-run.
+        canManage && row.criteria_kind !== "clinical" ? (
+          <Button
+            tone="ghost"
+            size="xs"
+            leftSection={<IconRefresh size={14} />}
+            loading={refreshMutation.isPending && refreshingId === row.id}
+            onClick={() => {
+              setRefreshingId(row.id);
+              refreshMutation.mutate(row.id);
+            }}
+          >
+            Re-run
+          </Button>
+        ) : null,
     },
   ];
 

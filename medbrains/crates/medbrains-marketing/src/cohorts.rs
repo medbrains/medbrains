@@ -108,6 +108,132 @@ pub async fn list_cohorts(
     Ok(Json(rows))
 }
 
+/// Resolves an enquiry cohort's stored criteria into member rows and
+/// returns how many matched.
+///
+/// Shared by creation and refresh so the two cannot drift: a cohort whose
+/// count came from one code path and whose membership came from another is a
+/// list that disagrees with its own label.
+///
+/// A stage filter excludes contacts sitting in no stage at all, which is the
+/// intended reading — "everyone in Contacted" does not mean "everyone,
+/// including those we have not filed yet".
+///
+/// # Errors
+/// Propagates the insert failure.
+async fn resolve_enquiry_members(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    cohort_id: Uuid,
+    criteria: Option<&serde_json::Value>,
+) -> Result<i32, AppError> {
+    let field = |key: &str| {
+        criteria
+            .and_then(|c| c.get(key))
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned)
+    };
+
+    let inserted = sqlx::query(
+        "INSERT INTO mkt_cohort_members (tenant_id, cohort_id, contact_id) \
+         SELECT $1, $2, c.id \
+         FROM mkt_contacts c \
+         LEFT JOIN mkt_pipeline_stages s \
+                ON s.id = c.stage_id AND s.tenant_id = c.tenant_id \
+         WHERE c.tenant_id = $1 \
+           AND ($3::text IS NULL OR c.source = $3) \
+           AND ($4::text IS NULL OR s.code = $4) \
+         LIMIT $5 \
+         ON CONFLICT (tenant_id, cohort_id, contact_id) DO NOTHING",
+    )
+    .bind(tenant_id)
+    .bind(cohort_id)
+    .bind(field("source"))
+    .bind(field("stage"))
+    .bind(MAX_COHORT_MEMBERS)
+    .execute(&mut **tx)
+    .await?;
+
+    #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+    Ok(inserted.rows_affected() as i32)
+}
+
+/// `POST /api/marketing/cohorts/{id}/refresh`
+///
+/// Re-resolves an enquiry cohort against the marketing tables as they stand
+/// now, and stamps `refreshed_at`.
+///
+/// A cohort is a query result, and a query result ages. Left alone, "everyone
+/// who enquired and was never called back" keeps naming the people who have
+/// since been called back, and stops naming the ones who have since been
+/// missed — so the list is at its least accurate exactly when somebody is
+/// working through it.
+///
+/// A clinical cohort is refused rather than refreshed, and the refusal is the
+/// design working: `mkt_cohorts_clinical_opaque` forbids storing its criteria,
+/// so there is nothing here to re-run. Re-defining it is a clinical act that
+/// belongs to whoever holds `clinical_define`.
+///
+/// # Errors
+/// Returns 403 without `marketing.cohorts.manage`, 404 if the cohort is not in
+/// this tenant, 409 for a clinical cohort.
+pub async fn refresh_cohort(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Cohort>, AppError> {
+    require_permission(&claims, permissions::marketing::cohorts::MANAGE)?;
+
+    let mut tx = state.db.begin().await?;
+    set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let existing = sqlx::query_as::<_, Cohort>(
+        "SELECT id, name, criteria_kind, criteria, criteria_label, member_count, refreshed_at \
+         FROM mkt_cohorts WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if existing.criteria_kind == "clinical" {
+        return Err(AppError::Conflict(
+            "a clinical cohort cannot be refreshed here — its criteria are \
+             deliberately not stored in the marketing schema. Define it again \
+             from the clinical side."
+                .to_owned(),
+        ));
+    }
+
+    // Membership is replaced rather than added to. Appending would make the
+    // cohort the union of every filter it has ever had, which grows and never
+    // shrinks — a contact who has moved out of the stage would stay on the
+    // list forever.
+    sqlx::query("DELETE FROM mkt_cohort_members WHERE cohort_id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+
+    let count =
+        resolve_enquiry_members(&mut tx, claims.tenant_id, id, existing.criteria.as_ref()).await?;
+
+    let refreshed = sqlx::query_as::<_, Cohort>(
+        "UPDATE mkt_cohorts SET member_count = $3, refreshed_at = now() \
+         WHERE id = $1 AND tenant_id = $2 \
+         RETURNING id, name, criteria_kind, criteria, criteria_label, member_count, refreshed_at",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(count)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(refreshed))
+}
+
 /// `POST /api/marketing/cohorts`
 ///
 /// An enquiry cohort: source, campaign, stage. Nothing clinical, so marketing
@@ -142,8 +268,26 @@ pub async fn create_enquiry_cohort(
     .fetch_one(&mut *tx)
     .await?;
 
+    // Resolved on creation rather than left at zero. An enquiry cohort used
+    // to store its criteria and never run them, so `member_count` was 0 and
+    // `refreshed_at` NULL for every one of them, permanently — a list that
+    // reported itself as empty on the screen that exists to send to it.
+    let count =
+        resolve_enquiry_members(&mut tx, claims.tenant_id, row.id, Some(&body.criteria)).await?;
+
+    let resolved = sqlx::query_as::<_, Cohort>(
+        "UPDATE mkt_cohorts SET member_count = $3, refreshed_at = now() \
+         WHERE id = $1 AND tenant_id = $2 \
+         RETURNING id, name, criteria_kind, criteria, criteria_label, member_count, refreshed_at",
+    )
+    .bind(row.id)
+    .bind(claims.tenant_id)
+    .bind(count)
+    .fetch_one(&mut *tx)
+    .await?;
+
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(resolved))
 }
 
 /// `POST /api/marketing/cohorts/clinical`

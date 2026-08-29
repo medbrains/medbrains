@@ -5409,6 +5409,9 @@ export const api = {
   marketingCohortSize: (id: string) =>
     request<{ cohort_id: string; size: number }>(`/marketing/cohorts/${id}/size`),
 
+  refreshMarketingCohort: (id: string) =>
+    request<MarketingCohort>(`/marketing/cohorts/${id}/refresh`, { method: "POST" }),
+
   marketingMissedCalls: () =>
     request<MarketingMissedCallSummary>("/marketing/reports/missed-calls"),
 

@@ -107,6 +107,10 @@ pub fn router() -> Router<AppState> {
         )
         .route("/api/marketing/cohorts/{id}/size", get(cohorts::cohort_size))
         .route(
+            "/api/marketing/cohorts/{id}/refresh",
+            post(cohorts::refresh_cohort),
+        )
+        .route(
             "/api/marketing/outreach",
             get(outreach::list_runs).post(outreach::create_run),
         )

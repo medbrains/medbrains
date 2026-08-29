@@ -7,6 +7,7 @@ import { DataTable } from "@/components";
 import { Card } from "@/components/ui";
 import { paiseToRupees } from "@/forms/marketing.form";
 import { marketingService } from "@/services/marketing.service";
+import { AttributionPanel } from "./attribution-panel";
 import { StageProgression } from "./stage-progression";
 
 /**
@@ -276,6 +277,11 @@ export function MarketingFunnelTab() {
             : "Create a campaign and attribute enquiries to it to see conversion here."
         }
       />
+
+      {/* Below the single-attribution table, not instead of it: that one says
+          what a campaign's own enquiries did, this one says who else has a
+          claim on them. */}
+      <AttributionPanel />
     </Stack>
   );
 }
