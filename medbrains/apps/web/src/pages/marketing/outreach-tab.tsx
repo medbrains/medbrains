@@ -1,10 +1,14 @@
 import { Group, Stack, Text } from "@mantine/core";
-import { useAuthStore } from "@medbrains/stores";
+import { useDisclosure } from "@mantine/hooks";
+import { useAuthStore, useHasPermission } from "@medbrains/stores";
 import type { MarketingCohort, MarketingOutreachRun } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { DataTable } from "@/components";
 import { Badge, Button, Tooltip, toast } from "@/components/ui";
 import { marketingService } from "@/services/marketing.service";
+import { RunDetailDrawer } from "./run-detail-drawer";
 
 const STATUS_TONE: Record<string, "neutral" | "info" | "success" | "danger" | "warning"> = {
   draft: "neutral",
@@ -42,6 +46,30 @@ export function MarketingOutreachTab({
 
   const cohortName = (id: string) =>
     cohorts.find((c: MarketingCohort) => c.id === id)?.name ?? "Unknown cohort";
+
+  // Dispatch is separate from approve: approval says the words are lawful,
+  // dispatch is the act of sending them to four thousand people.
+  const canDispatch = useHasPermission(P.MARKETING.OUTREACH_DISPATCH);
+  const canSeeRecipients = useHasPermission(P.MARKETING.MESSAGES_VIEW);
+  const [inspecting, setInspecting] = useState<MarketingOutreachRun | null>(null);
+  const detail = useDisclosure(false);
+
+  const startMutation = useMutation({
+    mutationFn: (id: string) => marketingService.startOutreachRun(id),
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: ["marketing", "outreach"] });
+      toast.success(
+        result.blocked > 0
+          ? `${result.queued} queued. ${result.blocked} were excluded — open the run to see why.`
+          : `${result.queued} queued.`,
+        { title: "Run started" },
+      );
+    },
+    // The server refuses rather than half-sending when the consent gate cannot
+    // decide about somebody, and that message names how many — so it is shown
+    // rather than replaced with a generic failure.
+    onError: (error: Error) => toast.error(error.message, { title: "Could not start the run" }),
+  });
 
   const submitMutation = useMutation({
     mutationFn: (id: string) => marketingService.submitOutreachRun(id),
@@ -159,6 +187,33 @@ export function MarketingOutreachTab({
                 </Button>
               </Tooltip>
             )}
+            {canDispatch && row.status === "approved" && (
+              <Tooltip label="Checks consent for the whole cohort, then queues the sendable ones">
+                <Button
+                  tone="primary"
+                  size="xs"
+                  loading={startMutation.isPending}
+                  onClick={() => startMutation.mutate(row.id)}
+                >
+                  Start sending
+                </Button>
+              </Tooltip>
+            )}
+            {canSeeRecipients &&
+              (row.status === "sending" ||
+                row.status === "completed" ||
+                row.status === "failed") && (
+                <Button
+                  tone="ghost"
+                  size="xs"
+                  onClick={() => {
+                    setInspecting(row);
+                    detail[1].open();
+                  }}
+                >
+                  Who it reached
+                </Button>
+              )}
             {canSend && (row.status === "draft" || row.status === "pending") && (
               <Button
                 tone="danger-ghost"
@@ -188,6 +243,15 @@ export function MarketingOutreachTab({
             ? "This is not a statement that nothing is pending — the list failed to load."
             : "Runs raised against a cohort appear here for approval before anything is sent."
         }
+      />
+
+      <RunDetailDrawer
+        run={inspecting}
+        opened={detail[0]}
+        onClose={() => {
+          detail[1].close();
+          setInspecting(null);
+        }}
       />
     </Stack>
   );

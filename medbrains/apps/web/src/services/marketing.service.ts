@@ -22,6 +22,10 @@ export const marketingService = {
     api.marketingAreaPerformance(...args),
   campAcquisition: (...args: Parameters<typeof api.marketingCampAcquisition>) =>
     api.marketingCampAcquisition(...args),
+  startOutreachRun: (...args: Parameters<typeof api.startMarketingOutreachRun>) =>
+    api.startMarketingOutreachRun(...args),
+  listRunMessages: (...args: Parameters<typeof api.listMarketingRunMessages>) =>
+    api.listMarketingRunMessages(...args),
   linkCampAttendees: (...args: Parameters<typeof api.linkCampAttendees>) =>
     api.linkCampAttendees(...args),
   listAreas: (...args: Parameters<typeof api.listMarketingAreas>) =>

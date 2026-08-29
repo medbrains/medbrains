@@ -1273,9 +1273,11 @@ import type {
   MarketingCohort,
   MarketingConsentEntry,
   MarketingContact,
+  MarketingDispatchResult,
   MarketingDistributionResult,
   MarketingFunnelStageRow,
   MarketingInteraction,
+  MarketingMessageRow,
   MarketingMissedCallSummary,
   MarketingOutreachRun,
   MarketingPatientMatch,
@@ -5535,6 +5537,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  startMarketingOutreachRun: (id: string) =>
+    request<MarketingDispatchResult>(`/marketing/outreach/${id}/start`, { method: "POST" }),
+
+  listMarketingRunMessages: (id: string, params?: { blocked_only?: boolean }) => {
+    const qs = new URLSearchParams();
+    if (params?.blocked_only) qs.set("blocked_only", "true");
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return request<MarketingMessageRow[]>(`/marketing/outreach/${id}/messages${suffix}`);
+  },
 
   marketingCampAcquisition: () =>
     request<MarketingCampAcquisitionRow[]>("/marketing/reports/camps"),

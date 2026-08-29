@@ -521,3 +521,26 @@ export interface MarketingCampBridgeResult {
   linked: number;
   unreachable: number;
 }
+
+/** One recipient of an outreach run, sent or excluded. */
+export interface MarketingMessageRow {
+  id: string;
+  contact_id: string;
+  display_name: string | null;
+  /** Last four digits only — enough to recognise a row, not to redial from it. */
+  address_tail: string | null;
+  status: string;
+  blocked_reason: string | null;
+  queued_at: string;
+  sent_at: string | null;
+  delivered_at: string | null;
+  failure_code: string | null;
+}
+
+export interface MarketingDispatchResult {
+  run_id: string;
+  queued: number;
+  blocked: number;
+  /** Why each excluded recipient was excluded, counted. */
+  blocked_by_reason: Record<string, number>;
+}
