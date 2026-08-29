@@ -153,14 +153,17 @@ function LabPageInner() {
     },
   ];
 
-  // Critical alerts count — general overview
-  const { data: criticalAlerts = [] } = useQuery({
-    queryKey: ["lab-critical-alerts"],
-    queryFn: () => labService.listCriticalAlerts(),
+  // Outstanding critical values.
+  //
+  // Filtered by the server, not here. This used to ask for the last hundred
+  // alerts in the tenant and drop the acknowledged ones in the browser, so an
+  // outstanding potassium fell out of the window as soon as the laboratory
+  // logged a hundred more -- and the banner then said there were none.
+  const { data: unacknowledgedAlerts = [], isError: alertsFailed } = useQuery({
+    queryKey: ["lab-critical-alerts", { acknowledged: false }],
+    queryFn: () => labService.listCriticalAlerts({ acknowledged: "false" }),
     refetchInterval: 30_000,
   });
-
-  const unacknowledgedAlerts = criticalAlerts.filter((a: LabCriticalAlert) => !a.acknowledged_at);
   // NABL: a critical value must be communicated AND acknowledged within a target time. Surface any
   // that have gone unacknowledged past the target so they can be chased.
   const CRITICAL_ACK_TARGET_MINUTES = 30;
@@ -181,6 +184,19 @@ function LabPageInner() {
         color="violet"
       />
 
+      {/* An outage must not look like an all-clear. Rendering only on
+          `length > 0` meant a failed fetch drew nothing, and nothing here
+          reads as "no outstanding critical values". */}
+      {alertsFailed && (
+        <Alert
+          tone="danger"
+          icon={<IconAlertTriangle size={18} />}
+          title="Critical alerts unavailable"
+        >
+          The outstanding critical values could not be loaded. This is not a statement that there
+          are none — check again, and escalate by phone if a result is expected.
+        </Alert>
+      )}
       {unacknowledgedAlerts.length > 0 && (
         <Alert
           tone="danger"

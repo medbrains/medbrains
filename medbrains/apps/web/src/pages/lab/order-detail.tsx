@@ -80,15 +80,15 @@ export function LabOrderDetail({
     enabled: canViewOrder,
   });
 
-  // Critical alerts for this order
-  const { data: alerts = [] } = useQuery({
-    queryKey: ["lab-critical-alerts"],
-    queryFn: () => labService.listCriticalAlerts(),
+  // Outstanding critical values on THIS order, chosen by the server.
+  //
+  // This used to ask for the tenant's last hundred alerts and keep the ones
+  // matching this order, which is two independent ways to miss: the order's
+  // alert need only be the hundred-and-first.
+  const { data: orderAlerts = [], isError: orderAlertsFailed } = useQuery({
+    queryKey: ["lab-critical-alerts", { orderId, acknowledged: false }],
+    queryFn: () => labService.listCriticalAlerts({ order_id: orderId, acknowledged: "false" }),
   });
-
-  const orderAlerts = alerts.filter(
-    (a: LabCriticalAlert) => a.order_id === orderId && !a.acknowledged_at,
-  );
 
   const collectMutation = useMutation({
     mutationFn: (patientIdentifier: string) =>
@@ -291,6 +291,16 @@ export function LabOrderDetail({
       </Group>
 
       {/* Critical alerts banner */}
+      {/* Same rule as the ward banner: a failed fetch is not an all-clear. */}
+      {orderAlertsFailed && (
+        <Alert
+          tone="danger"
+          icon={<IconAlertTriangle size={16} />}
+          title="Critical alerts unavailable"
+        >
+          Could not load critical values for this order. Do not read this as there being none.
+        </Alert>
+      )}
       {orderAlerts.length > 0 && (
         <Alert
           tone="danger"

@@ -2401,9 +2401,31 @@ pub async fn list_amendments(
 //  Phase 2 — Critical Alerts
 // ══════════════════════════════════════════════════════════
 
+#[derive(Debug, Deserialize)]
+pub struct CriticalAlertQuery {
+    pub order_id: Option<Uuid>,
+    /// `false` asks for the ones still outstanding, which is what every
+    /// caller actually wants.
+    pub acknowledged: Option<bool>,
+}
+
+/// The outstanding critical values.
+///
+/// This returned the last hundred alerts in the tenant, acknowledged or not,
+/// including soft-deleted ones -- and `trg_lab_critical_alerts_soft_delete`
+/// means rows never leave the table, so the window fills with dead ones. Both
+/// callers then filtered in the browser: the ward banner dropped the
+/// acknowledged, and the order screen kept only its own order's.
+///
+/// A filter applied after a LIMIT is not a filter. An unacknowledged
+/// potassium from yesterday falls out of the hundred as soon as the
+/// laboratory logs a hundred more, and the screen then says there are no
+/// critical values -- which is a statement about the window, printed as a
+/// statement about the patient.
 pub async fn list_critical_alerts(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(params): Query<CriticalAlertQuery>,
 ) -> Result<Json<Vec<LabCriticalAlert>>, AppError> {
     require_permission(&claims, permissions::lab::orders::LIST)?;
 
@@ -2411,10 +2433,15 @@ pub async fn list_critical_alerts(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LabCriticalAlert>(
-        "SELECT * FROM lab_critical_alerts WHERE tenant_id = $1 \
-         ORDER BY created_at DESC LIMIT 100",
+        "SELECT * FROM lab_critical_alerts \
+          WHERE tenant_id = $1 AND deleted_at IS NULL \
+            AND ($2::uuid IS NULL OR order_id = $2::uuid) \
+            AND ($3::bool IS NULL OR (acknowledged_at IS NOT NULL) = $3::bool) \
+          ORDER BY created_at DESC LIMIT 200",
     )
     .bind(claims.tenant_id)
+    .bind(params.order_id)
+    .bind(params.acknowledged)
     .fetch_all(&mut *tx)
     .await?;
 
