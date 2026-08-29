@@ -43,4 +43,6 @@ export const marketingService = {
     api.createMarketingClinicalCohort(...args),
   cohortSize: (...args: Parameters<typeof api.marketingCohortSize>) =>
     api.marketingCohortSize(...args),
+  screenPop: (...args: Parameters<typeof api.marketingScreenPop>) =>
+    api.marketingScreenPop(...args),
 };

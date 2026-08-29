@@ -9,6 +9,7 @@ import { MarketingCohortsTab } from "./marketing/cohorts-tab";
 import { MarketingEnquiriesTab } from "./marketing/enquiries-tab";
 import { MarketingFunnelTab } from "./marketing/funnel-tab";
 import { MarketingOutreachTab } from "./marketing/outreach-tab";
+import { MarketingScreenPopTab } from "./marketing/screen-pop-tab";
 
 /**
  * The marketing shell.
@@ -22,7 +23,14 @@ import { MarketingOutreachTab } from "./marketing/outreach-tab";
  * the viewer actually holds keeps the navigation to a single entry instead of
  * five that mostly 403.
  */
-const TAB_VALUES = ["enquiries", "campaigns", "cohorts", "outreach", "funnel"] as const;
+const TAB_VALUES = [
+  "enquiries",
+  "screen-pop",
+  "campaigns",
+  "cohorts",
+  "outreach",
+  "funnel",
+] as const;
 
 export function MarketingPage() {
   // The desk role holds contacts but not campaigns, so the page guard is the
@@ -57,6 +65,7 @@ export function MarketingPage() {
       <Tabs value={tab} onChange={setTab}>
         <Tabs.List>
           {canListContacts && <Tabs.Tab value="enquiries">Enquiries</Tabs.Tab>}
+          {canViewContact && <Tabs.Tab value="screen-pop">Who\u2019s calling</Tabs.Tab>}
           {canViewCampaigns && <Tabs.Tab value="campaigns">Campaigns</Tabs.Tab>}
           {canViewCohorts && <Tabs.Tab value="cohorts">Cohorts</Tabs.Tab>}
           {canViewCohorts && <Tabs.Tab value="outreach">Outreach</Tabs.Tab>}
@@ -71,6 +80,9 @@ export function MarketingPage() {
             canMoveStage={canMoveStage}
             canViewStages={canViewStages}
           />
+        </Tabs.Panel>
+        <Tabs.Panel value="screen-pop" pt="md">
+          <MarketingScreenPopTab />
         </Tabs.Panel>
         <Tabs.Panel value="campaigns" pt="md">
           <MarketingCampaignsTab canManage={canManageCampaigns} />

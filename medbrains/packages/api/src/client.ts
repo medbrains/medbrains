@@ -1259,6 +1259,7 @@ import type {
   MarketingInteraction,
   MarketingOutreachRun,
   MarketingPipelineStage,
+  MarketingScreenPop,
   MarkIncentivePaidRequest,
   MarPrintData,
   MassCasualtyEvent,
@@ -5377,6 +5378,10 @@ export const api = {
 
   cancelMarketingOutreachRun: (id: string) =>
     request<MarketingOutreachRun>(`/marketing/outreach/${id}/cancel`, { method: "POST" }),
+
+  /** Who is calling. Requires `marketing.contacts.view`. */
+  marketingScreenPop: (phone: string) =>
+    request<MarketingScreenPop>(`/marketing/screen-pop?${new URLSearchParams({ phone })}`),
 
   listMarketingCohorts: () => request<MarketingCohort[]>("/marketing/cohorts"),
 
