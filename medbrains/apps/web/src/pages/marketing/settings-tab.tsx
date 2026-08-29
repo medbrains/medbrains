@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Alert, Button, Card, toast } from "@/components/ui";
 import { marketingService } from "@/services/marketing.service";
+import { SuppressionList } from "./suppression-list";
 
 /**
  * How often the hospital is willing to message somebody, and when it will not.
@@ -150,6 +151,8 @@ export function MarketingSettingsTab() {
           )}
         </Stack>
       </Card>
+
+      <SuppressionList />
     </Stack>
   );
 }

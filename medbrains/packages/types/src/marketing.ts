@@ -554,3 +554,12 @@ export interface MarketingSendPolicy {
   quiet_to: string;
   timezone: string;
 }
+
+/** Reasons a number lands on the do-not-contact list. */
+export const SUPPRESSION_REASONS = [
+  { value: "opted_out", label: "Asked us to stop" },
+  { value: "dnd", label: "On the national DND registry" },
+  { value: "bounced", label: "Messages keep failing" },
+  { value: "deceased", label: "Deceased" },
+  { value: "complaint", label: "Complained about contact" },
+] as const;
