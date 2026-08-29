@@ -102,6 +102,9 @@ export const labService = {
     api.updateNablDocument(...args),
   getReagentConsumption: (...args: Parameters<typeof api.getReagentConsumption>) =>
     api.getReagentConsumption(...args),
+  getLabTatMonitoring: (...args: Parameters<typeof api.getLabTatMonitoring>) =>
+    api.getLabTatMonitoring(...args),
+  listStatOrders: (...args: Parameters<typeof api.listStatOrders>) => api.listStatOrders(...args),
   getLabTatAnalytics: (...args: Parameters<typeof api.getLabTatAnalytics>) =>
     api.getLabTatAnalytics(...args),
   getHistopathReport: (...args: Parameters<typeof api.getHistopathReport>) =>
