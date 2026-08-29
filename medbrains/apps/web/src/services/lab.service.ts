@@ -114,6 +114,8 @@ export const labService = {
     api.listLabReferralPayouts(...args),
   getLabB2bCreditSummary: (...args: Parameters<typeof api.getLabB2bCreditSummary>) =>
     api.getLabB2bCreditSummary(...args),
+  getLabCumulativeReport: (...args: Parameters<typeof api.getLabCumulativeReport>) =>
+    api.getLabCumulativeReport(...args),
   getLabTatMonitoring: (...args: Parameters<typeof api.getLabTatMonitoring>) =>
     api.getLabTatMonitoring(...args),
   listStatOrders: (...args: Parameters<typeof api.listStatOrders>) => api.listStatOrders(...args),

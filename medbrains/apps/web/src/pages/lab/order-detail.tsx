@@ -34,6 +34,7 @@ import { confirmDestructive } from "@/lib/confirm";
 import { statusColor } from "@/lib/status-colors";
 import { labService } from "@/services/lab.service";
 import { AddOnTestSection } from "./add-on-test";
+import { CumulativeTrendDrawer } from "./cumulative-drawer";
 import {
   flagColors,
   printLabReportPacket,
@@ -216,6 +217,9 @@ export function LabOrderDetail({
     onError: (e: Error) => toast.error(e.message, { title: "Could not lock report" }),
   });
   const [ackAlert, setAckAlert] = useState<LabCriticalAlert | null>(null);
+  // The delta says how far today's value moved; the trend says what it has
+  // been doing. Same delta, different clinical picture.
+  const [trendOpen, setTrendOpen] = useState(false);
   const [readback, setReadback] = useState("");
   const acknowledgeMutation = useMutation({
     mutationFn: (vars: { alertId: string; readback_value: string }) =>
@@ -777,6 +781,21 @@ export function LabOrderDetail({
         )}
 
       {/* Add-on test */}
+      {canPrintReports && (
+        <Group>
+          <Button tone="secondary" size="xs" onClick={() => setTrendOpen(true)}>
+            View trend
+          </Button>
+        </Group>
+      )}
+
+      <CumulativeTrendDrawer
+        opened={trendOpen}
+        onClose={() => setTrendOpen(false)}
+        patientId={order.patient_id}
+        testId={order.test_id}
+      />
+
       {amendments.length > 0 && (
         <Stack gap="xs">
           <Text fw={600} size="sm">

@@ -2645,8 +2645,9 @@ pub async fn get_cumulative_report(
         "SELECT lr.order_id, lr.parameter_name, lr.value, \
          lr.flag::text AS flag, lr.created_at \
          FROM lab_results lr \
-         JOIN lab_orders lo ON lr.order_id = lo.id \
+         JOIN lab_orders lo ON lr.order_id = lo.id AND lo.tenant_id = lr.tenant_id \
          WHERE lo.patient_id = $1 AND lo.test_id = $2 AND lo.tenant_id = $3 \
+           AND lr.deleted_at IS NULL AND lo.deleted_at IS NULL \
          ORDER BY lr.created_at DESC LIMIT 50",
     )
     .bind(patient_id)
