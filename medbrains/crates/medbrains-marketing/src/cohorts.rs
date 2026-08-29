@@ -111,6 +111,23 @@ pub async fn list_cohorts(
 /// Resolves an enquiry cohort's stored criteria into member rows and
 /// returns how many matched.
 ///
+/// The criteria it understands, all optional and combined with AND:
+///
+/// | key                  | meaning                                        |
+/// |----------------------|------------------------------------------------|
+/// | `source`             | how the enquiry was first recorded             |
+/// | `stage`              | stage code the enquiry sits in now             |
+/// | `area`               | reached us through a touchpoint in this ward   |
+/// | `channel`            | reached us through this channel, ever          |
+/// | `campaign_id`        | attributable to this campaign                  |
+/// | `not_contacted_days` | nobody has rung them in this many days         |
+/// | `unconverted_only`   | not yet a patient                              |
+///
+/// The last two are the ones that turn a list into a worklist. "Everyone from
+/// the Gandhipuram pamphlet run who is still not a patient and has not been
+/// called in three weeks" is the campaign a hospital actually wants to send,
+/// and before these it could not be expressed at all.
+///
 /// Shared by creation and refresh so the two cannot drift: a cohort whose
 /// count came from one code path and whose membership came from another is a
 /// list that disagrees with its own label.
@@ -134,6 +151,19 @@ async fn resolve_enquiry_members(
             .map(str::to_owned)
     };
 
+    let number = |key: &str| {
+        criteria
+            .and_then(|c| c.get(key))
+            .and_then(serde_json::Value::as_i64)
+            .and_then(|n| i32::try_from(n).ok())
+    };
+
+    // Every criterion is a filter on one contact row, so this stays a single
+    // pass over `mkt_contacts`. The touchpoint conditions are EXISTS rather
+    // than joins: a person who saw three pamphlets has three touchpoints, and
+    // joining would put them in the cohort three times over — which
+    // ON CONFLICT would swallow, leaving the count right and the query
+    // needlessly quadratic.
     let inserted = sqlx::query(
         "INSERT INTO mkt_cohort_members (tenant_id, cohort_id, contact_id) \
          SELECT $1, $2, c.id \
@@ -143,6 +173,21 @@ async fn resolve_enquiry_members(
          WHERE c.tenant_id = $1 \
            AND ($3::text IS NULL OR c.source = $3) \
            AND ($4::text IS NULL OR s.code = $4) \
+           AND ($6::text IS NULL OR EXISTS ( \
+                 SELECT 1 FROM mkt_touchpoints t \
+                 WHERE t.contact_id = c.id AND t.tenant_id = c.tenant_id \
+                   AND lower(t.area_label) = lower($6))) \
+           AND ($7::text IS NULL OR EXISTS ( \
+                 SELECT 1 FROM mkt_touchpoints t \
+                 WHERE t.contact_id = c.id AND t.tenant_id = c.tenant_id \
+                   AND t.kind = $7)) \
+           AND ($8::uuid IS NULL OR EXISTS ( \
+                 SELECT 1 FROM mkt_touchpoints t \
+                 WHERE t.contact_id = c.id AND t.tenant_id = c.tenant_id \
+                   AND t.campaign_id = $8)) \
+           AND ($9::int IS NULL OR c.last_contacted_at IS NULL \
+                OR c.last_contacted_at < now() - make_interval(days => $9)) \
+           AND (NOT $10::boolean OR c.patient_id IS NULL) \
          LIMIT $5 \
          ON CONFLICT (tenant_id, cohort_id, contact_id) DO NOTHING",
     )
@@ -151,6 +196,21 @@ async fn resolve_enquiry_members(
     .bind(field("source"))
     .bind(field("stage"))
     .bind(MAX_COHORT_MEMBERS)
+    .bind(field("area"))
+    .bind(field("channel"))
+    .bind(
+        criteria
+            .and_then(|c| c.get("campaign_id"))
+            .and_then(serde_json::Value::as_str)
+            .and_then(|v| Uuid::parse_str(v).ok()),
+    )
+    .bind(number("not_contacted_days"))
+    .bind(
+        criteria
+            .and_then(|c| c.get("unconverted_only"))
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false),
+    )
     .execute(&mut **tx)
     .await?;
 

@@ -127,3 +127,28 @@ export const areaSchema = z.object({
 });
 
 export type AreaFormInput = z.infer<typeof areaSchema>;
+
+/**
+ * Touchpoint kinds a cohort can filter on.
+ *
+ * Deliberately not `CAMPAIGN_CHANNEL_OPTIONS`: a campaign's channel is what
+ * the hospital bought, a touchpoint's kind is how somebody arrived, and the
+ * two lists have never been the same. Filtering a cohort on the campaign
+ * vocabulary would silently match nothing.
+ */
+export const COHORT_CHANNEL_OPTIONS = [
+  { value: "inbound_call", label: "Phoned us" },
+  { value: "missed_call", label: "Gave a missed call" },
+  { value: "whatsapp_inbound", label: "WhatsApp" },
+  { value: "web_form", label: "Website form" },
+  { value: "walk_in", label: "Walked in" },
+  { value: "pamphlet", label: "Pamphlet" },
+  { value: "hoarding", label: "Hoarding" },
+  { value: "newspaper", label: "Newspaper" },
+  { value: "camp_walkin", label: "Health camp" },
+  { value: "referral", label: "Referral" },
+  { value: "doctor_referral", label: "Doctor referral" },
+  { value: "social_post", label: "Social media" },
+  { value: "ad_click", label: "Advertisement" },
+  { value: "search", label: "Search" },
+] as const;

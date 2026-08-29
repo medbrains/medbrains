@@ -5,8 +5,8 @@ import { IconPlus, IconRefresh, IconStethoscope } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
-import { Alert, Badge, Button, Drawer, Select, toast } from "@/components/ui";
-import { CAMPAIGN_CHANNEL_OPTIONS } from "@/forms/marketing.form";
+import { Alert, Badge, Button, Checkbox, Drawer, Select, toast } from "@/components/ui";
+import { CAMPAIGN_CHANNEL_OPTIONS, COHORT_CHANNEL_OPTIONS } from "@/forms/marketing.form";
 import { marketingService } from "@/services/marketing.service";
 
 /**
@@ -79,7 +79,15 @@ export function MarketingCohortsTab({
   const [enquiryOpen, enquiryDrawer] = useDisclosure(false);
   const [clinicalOpen, clinicalDrawer] = useDisclosure(false);
 
-  const [enquiryForm, setEnquiryForm] = useState({ name: "", source: "", stage: "" });
+  const [enquiryForm, setEnquiryForm] = useState({
+    name: "",
+    source: "",
+    stage: "",
+    area: "",
+    channel: "",
+    notContactedDays: "",
+    unconvertedOnly: false,
+  });
   const [clinicalForm, setClinicalForm] = useState({
     name: "",
     criteria_label: "",
@@ -93,6 +101,11 @@ export function MarketingCohortsTab({
   } = useQuery({
     queryKey: ["marketing", "cohorts"],
     queryFn: () => marketingService.listCohorts(),
+  });
+
+  const { data: areas = [] } = useQuery({
+    queryKey: ["marketing", "areas"],
+    queryFn: () => marketingService.listAreas(),
   });
 
   const invalidate = () =>
@@ -124,6 +137,15 @@ export function MarketingCohortsTab({
       const criteria: Record<string, unknown> = {};
       if (enquiryForm.source.trim()) criteria.source = enquiryForm.source.trim();
       if (enquiryForm.stage.trim()) criteria.stage = enquiryForm.stage.trim();
+      if (enquiryForm.area.trim()) criteria.area = enquiryForm.area.trim();
+      if (enquiryForm.channel) criteria.channel = enquiryForm.channel;
+      // Zero is a meaningful answer here — "not contacted in 0 days" is
+      // everybody — so the field is only sent when it parses to a number.
+      const days = Number(enquiryForm.notContactedDays);
+      if (enquiryForm.notContactedDays.trim() !== "" && Number.isFinite(days) && days >= 0) {
+        criteria.not_contacted_days = days;
+      }
+      if (enquiryForm.unconvertedOnly) criteria.unconverted_only = true;
       return marketingService.createEnquiryCohort({
         name: enquiryForm.name.trim(),
         criteria,
@@ -131,7 +153,15 @@ export function MarketingCohortsTab({
     },
     onSuccess: () => {
       invalidate();
-      setEnquiryForm({ name: "", source: "", stage: "" });
+      setEnquiryForm({
+        name: "",
+        source: "",
+        stage: "",
+        area: "",
+        channel: "",
+        notContactedDays: "",
+        unconvertedOnly: false,
+      });
       enquiryDrawer.close();
       toast.success("Cohort created");
     },
@@ -279,6 +309,44 @@ export function MarketingCohortsTab({
             value={enquiryForm.stage}
             onChange={(event) =>
               setEnquiryForm((f) => ({ ...f, stage: event.currentTarget.value }))
+            }
+          />
+          <TextInput
+            label="Locality"
+            description="Reached us through a touchpoint in this ward. Leave blank for anywhere."
+            list="cohort-areas"
+            value={enquiryForm.area}
+            onChange={(event) => setEnquiryForm((f) => ({ ...f, area: event.currentTarget.value }))}
+          />
+          <datalist id="cohort-areas">
+            {areas.map((a) => (
+              <option key={a.id} value={a.name} />
+            ))}
+          </datalist>
+          <Select
+            label="Channel"
+            description="Reached us this way at least once."
+            data={COHORT_CHANNEL_OPTIONS}
+            value={enquiryForm.channel || null}
+            onChange={(value) => setEnquiryForm((f) => ({ ...f, channel: value ?? "" }))}
+            clearable
+            searchable
+          />
+          <NumberInput
+            label="Not contacted for (days)"
+            description="Nobody has rung them in this long. Enquiries never contacted at all are always included."
+            min={0}
+            value={enquiryForm.notContactedDays}
+            onChange={(value) =>
+              setEnquiryForm((f) => ({ ...f, notContactedDays: String(value ?? "") }))
+            }
+          />
+          <Checkbox
+            label="Only those who are not patients yet"
+            description="Drops anybody who has already registered — the ones worth another call."
+            checked={enquiryForm.unconvertedOnly}
+            onChange={(event) =>
+              setEnquiryForm((f) => ({ ...f, unconvertedOnly: event.currentTarget.checked }))
             }
           />
           <Group justify="flex-end">

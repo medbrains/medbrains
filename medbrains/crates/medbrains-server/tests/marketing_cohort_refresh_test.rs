@@ -195,3 +195,145 @@ async fn a_clinical_cohort_cannot_be_refreshed_from_the_marketing_side() {
          list was brought up to date, and not 404, which would deny it exists"
     );
 }
+
+/// The criteria that turn a list into a worklist.
+///
+/// Source and stage were the only filters, so "everyone from the Gandhipuram
+/// pamphlet run who is still not a patient and nobody has rung in a fortnight"
+/// — the campaign a hospital actually wants to send — could not be expressed.
+///
+/// The fixture makes every exclusion distinct so a regression names itself:
+/// one already converted, one contacted yesterday, one in the wrong ward, one
+/// in the right ward but converted. Only the two who are unconverted, in the
+/// ward, and cold should survive — and one of those has never been contacted
+/// at all, which must count as cold rather than being dropped for having no
+/// date.
+#[tokio::test]
+async fn a_cohort_can_ask_for_cold_unconverted_enquiries_from_one_ward() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+
+    let tenant_id: Uuid = sqlx::query_scalar("SELECT id FROM tenants LIMIT 1")
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded tenant");
+    let patient_id: Uuid = sqlx::query_scalar("SELECT id FROM patients WHERE tenant_id = $1 LIMIT 1")
+        .bind(tenant_id)
+        .fetch_one(&app.db)
+        .await
+        .expect("a seeded patient");
+
+    let ward = format!("Ward-{}", &Uuid::new_v4().to_string()[..8]);
+    let mut wanted = Vec::new();
+
+    // (converted, last_contacted_days_ago, in_ward, should_match)
+    let cases: [(bool, Option<i32>, bool, bool); 5] = [
+        (true, None, true, false),        // already a patient
+        (false, Some(1), true, false),    // rung yesterday
+        (false, None, false, false),      // wrong ward
+        (true, Some(40), true, false),    // in ward and cold, but converted
+        (false, Some(30), true, true),    // in ward, cold, unconverted
+    ];
+
+    for (i, (converted, contacted_days, in_ward, should_match)) in cases.iter().enumerate() {
+        let contact_id: Uuid = sqlx::query_scalar(
+            "INSERT INTO mkt_contacts \
+                (tenant_id, primary_phone, source, patient_id, last_contacted_at) \
+             VALUES ($1, $2, 'test', $3, \
+                     CASE WHEN $4::int IS NULL THEN NULL \
+                          ELSE now() - make_interval(days => $4) END) \
+             RETURNING id",
+        )
+        .bind(tenant_id)
+        .bind(format!("9{}", &Uuid::new_v4().as_u128().to_string()[..9]))
+        .bind(if *converted { Some(patient_id) } else { None })
+        .bind(contacted_days)
+        .fetch_one(&app.db)
+        .await
+        .unwrap_or_else(|e| panic!("insert contact {i}: {e}"));
+
+        sqlx::query(
+            "INSERT INTO mkt_touchpoints (tenant_id, contact_id, kind, area_label) \
+             VALUES ($1, $2, 'pamphlet', $3)",
+        )
+        .bind(tenant_id)
+        .bind(contact_id)
+        .bind(if *in_ward { ward.clone() } else { "Elsewhere".to_owned() })
+        .execute(&app.db)
+        .await
+        .expect("insert touchpoint");
+
+        if *should_match {
+            wanted.push(contact_id);
+        }
+    }
+
+    // One more: in the ward, unconverted, never contacted at all. Cold by any
+    // reading, and the NULL is the case a naive `<` comparison silently drops.
+    let never_contacted: Uuid = sqlx::query_scalar(
+        "INSERT INTO mkt_contacts (tenant_id, primary_phone, source) \
+         VALUES ($1, $2, 'test') RETURNING id",
+    )
+    .bind(tenant_id)
+    .bind(format!("9{}", &Uuid::new_v4().as_u128().to_string()[..9]))
+    .fetch_one(&app.db)
+    .await
+    .expect("insert never-contacted contact");
+    sqlx::query(
+        "INSERT INTO mkt_touchpoints (tenant_id, contact_id, kind, area_label) \
+         VALUES ($1, $2, 'pamphlet', $3)",
+    )
+    .bind(tenant_id)
+    .bind(never_contacted)
+    .bind(&ward)
+    .execute(&app.db)
+    .await
+    .expect("insert touchpoint");
+    wanted.push(never_contacted);
+
+    let cohort: serde_json::Value = app
+        .client
+        .post(app.url("/api/marketing/cohorts"))
+        .header("x-csrf-token", &csrf)
+        .json(&serde_json::json!({
+            "name": format!("cold-{}", &Uuid::new_v4().to_string()[..8]),
+            "criteria": {
+                "area": ward,
+                "channel": "pamphlet",
+                "not_contacted_days": 14,
+                "unconverted_only": true,
+            },
+        }))
+        .send()
+        .await
+        .expect("create cohort")
+        .json()
+        .await
+        .expect("cohort json");
+
+    assert_eq!(
+        cohort["member_count"].as_i64(),
+        Some(wanted.len() as i64),
+        "exactly the unconverted, cold, in-ward enquiries — got {}",
+        cohort["member_count"]
+    );
+
+    let members: Vec<Uuid> = sqlx::query_scalar(
+        "SELECT contact_id FROM mkt_cohort_members \
+         WHERE cohort_id = $1::uuid AND tenant_id = $2",
+    )
+    .bind(cohort["id"].as_str().expect("cohort id"))
+    .bind(tenant_id)
+    .fetch_all(&app.db)
+    .await
+    .expect("read members");
+
+    for id in &wanted {
+        assert!(members.contains(id), "a matching enquiry was left out: {id}");
+    }
+    assert!(
+        members.contains(&never_contacted),
+        "an enquiry nobody has ever rung is the coldest of all and must not be \
+         dropped for having no last_contacted_at"
+    );
+}
