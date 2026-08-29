@@ -43,6 +43,7 @@ pub mod consent;
 pub mod cohorts;
 pub mod contacts;
 pub mod funnel;
+pub mod intake;
 pub mod interactions;
 pub mod messaging;
 pub mod outreach;
@@ -56,6 +57,19 @@ pub mod webhook;
 use axum::Router;
 use axum::routing::{get, post, put};
 use medbrains_server_core::state::AppState;
+
+/// Unauthenticated marketing routes.
+///
+/// Separate from [`router`] because these must not sit behind the staff auth
+/// stack — somebody enquiring about a hospital has no account there. Merged
+/// into the server's public router so it picks up the same rate limiting as
+/// the rest of `/api/public`.
+pub fn public_router() -> Router<AppState> {
+    Router::new().route(
+        "/api/public/marketing/enquiry",
+        post(intake::public_enquiry),
+    )
+}
 
 /// Marketing routes.
 pub fn router() -> Router<AppState> {

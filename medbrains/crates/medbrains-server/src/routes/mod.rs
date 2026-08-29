@@ -728,7 +728,10 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/public/prescriptions/verify/{token}",
             get(rx_verify::verify_prescription),
-        );
+        )
+        // The hospital's own "contact us" form. Off unless the tenant turns it
+        // on, and 404 either way so this cannot enumerate who runs MedBrains.
+        .merge(medbrains_marketing::public_router());
 
     // ── Patient portal — behind require_patient, never the staff auth stack.
     //    A staff token cannot satisfy this extractor and a patient token cannot

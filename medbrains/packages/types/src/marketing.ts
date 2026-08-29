@@ -355,3 +355,23 @@ export interface AddMarketingSuppressionRequest {
   scope?: string;
   note?: string;
 }
+
+/** A "contact us" submission from the hospital's own website. */
+export interface PublicEnquiryRequest {
+  tenant_code: string;
+  name: string;
+  phone?: string;
+  email?: string;
+  department_id?: string;
+  message?: string;
+  campaign_ref?: string;
+  source?: string;
+  external_ref?: string;
+  /** Honeypot. A real form leaves this empty. */
+  website?: string;
+}
+
+export interface PublicEnquiryResponse {
+  received: boolean;
+  message: string;
+}

@@ -48,6 +48,8 @@ export const marketingService = {
     api.listMarketingSuppressions(...args),
   addSuppression: (...args: Parameters<typeof api.addMarketingSuppression>) =>
     api.addMarketingSuppression(...args),
+  submitPublicEnquiry: (...args: Parameters<typeof api.submitPublicEnquiry>) =>
+    api.submitPublicEnquiry(...args),
   completeCallback: (...args: Parameters<typeof api.completeMarketingCallback>) =>
     api.completeMarketingCallback(...args),
   rescheduleCallback: (...args: Parameters<typeof api.rescheduleMarketingCallback>) =>

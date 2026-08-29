@@ -1581,6 +1581,8 @@ import type {
   PublicBookingDirectory,
   PublicBookingRequest,
   PublicBookingResponse,
+  PublicEnquiryRequest,
+  PublicEnquiryResponse,
   PublicInvite,
   PublicTenant,
   PublicTokenLink,
@@ -5447,6 +5449,12 @@ export const api = {
     }),
 
   listMarketingSuppressions: () => request<MarketingSuppression[]>("/marketing/suppressions"),
+
+  submitPublicEnquiry: (data: PublicEnquiryRequest) =>
+    request<PublicEnquiryResponse>("/public/marketing/enquiry", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   addMarketingSuppression: (data: AddMarketingSuppressionRequest) =>
     request<MarketingSuppression>("/marketing/suppressions", {

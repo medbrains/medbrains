@@ -30,6 +30,9 @@ const VerifyEmailPage = lazy(() =>
 const PatientPortalPage = lazy(() =>
   import("./pages/portal").then((m) => ({ default: m.PatientPortalPage })),
 );
+const PublicEnquiryPage = lazy(() =>
+  import("./pages/public-enquiry").then((m) => ({ default: m.PublicEnquiryPage })),
+);
 const PublicBookingPage = lazy(() =>
   import("./pages/public-booking").then((m) => ({ default: m.PublicBookingPage })),
 );
@@ -443,6 +446,8 @@ export function App() {
             <Route path="/queue/:token" element={<QueueStatusPage />} />
             {/* Public self-service booking — off unless the tenant enables it. */}
             <Route path="/book/:tenantCode" element={<PublicBookingPage />} />
+            {/* The hospital's own "contact us" form — off unless enabled. */}
+            <Route path="/enquire/:tenantCode" element={<PublicEnquiryPage />} />
             {/* A patient reading their own records — own session, not staff auth. */}
             <Route path="/portal/:tenantCode" element={<PatientPortalPage />} />
             {/* Unattended self-service terminal in the lobby. */}
