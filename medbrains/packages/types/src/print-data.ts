@@ -32,6 +32,10 @@ export interface LabResultLine {
   unit: string | null;
   normal_range: string | null;
   flag: string | null;
+  /** The same analyte's last value, so a delta can be read against something. */
+  previous_value: string | null;
+  delta_percent: string | null;
+  is_delta_flagged: boolean;
 }
 
 export interface LabReportPrintData {

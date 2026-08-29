@@ -2813,7 +2813,13 @@ pub async fn list_qc_results(
 
 #[derive(Debug, Deserialize)]
 pub struct ReviewQcResultRequest {
-    pub reviewer_notes: Option<String>,
+    /// Required, and not optional as it first shipped.
+    ///
+    /// This review releases patient results against a control run that
+    /// failed. NABL and ISO 15189 want the reason evidenced, and an optional
+    /// field that falls back to whatever was typed when the run was created
+    /// -- usually nothing, for a rejected run -- is not evidence of anything.
+    pub reviewer_notes: String,
 }
 
 /// Record that a supervisor has looked at a QC run.
@@ -2839,16 +2845,25 @@ pub async fn review_qc_result(
 
     // The reviewer is not the person who ran the control. Reviewing one's own
     // failed run is the same signature twice.
+    let reason = body.reviewer_notes.trim();
+    if reason.is_empty() {
+        return Err(AppError::BadRequest(
+            "Say why this failed run is acceptable to proceed on. The reason is the record that \
+             the results released against it were released deliberately."
+                .to_owned(),
+        ));
+    }
+
     let row = sqlx::query_as::<_, LabQcResult>(
         "UPDATE lab_qc_results SET \
          reviewed_by = $1, \
-         reviewer_notes = COALESCE($2, reviewer_notes) \
+         reviewer_notes = $2 \
          WHERE id = $3 AND tenant_id = $4 AND deleted_at IS NULL \
            AND performed_by IS DISTINCT FROM $1 \
          RETURNING *",
     )
     .bind(claims.sub)
-    .bind(&body.reviewer_notes)
+    .bind(reason)
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)

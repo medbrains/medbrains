@@ -16,7 +16,7 @@ import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { DataTable } from "@/components";
 import { LabTestSearchSelect } from "@/components/LabTestSearchSelect";
-import { Badge, Button, IconButton, Tooltip } from "@/components/ui";
+import { Alert, Badge, Button, IconButton, Modal, Tooltip } from "@/components/ui";
 import { labOptionalNumber, labOptionalText } from "@/forms/lab.form";
 import { statusColor } from "@/lib/status-colors";
 import { labService } from "@/services/lab.service";
@@ -207,9 +207,23 @@ export function QcResultsSection() {
   // A rejected run holds every result for its test until somebody other than
   // the person who ran it has reviewed it. Without this control that hold has
   // no way out from the interface at all.
+  // Reviewing a failed run is the decision to release patient results against
+  // a control that did not pass. It asks for the reason rather than firing on
+  // click: the reason is the record that the release was deliberate, and NABL
+  // expects it evidenced.
+  const [reviewing, setReviewing] = useState<LabQcResult | null>(null);
+  const [reviewReason, setReviewReason] = useState("");
+
   const reviewMutation = useMutation({
-    mutationFn: (id: string) => labService.reviewQcResult(id, {}),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["lab-qc-results"] }),
+    mutationFn: () =>
+      labService.reviewQcResult((reviewing as LabQcResult).id, {
+        reviewer_notes: reviewReason.trim(),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["lab-qc-results"] });
+      setReviewing(null);
+      setReviewReason("");
+    },
   });
 
   const columns = [
@@ -289,8 +303,10 @@ export function QcResultsSection() {
               tone="primary"
               size="sm"
               aria-label={t("qc.review")}
-              loading={reviewMutation.isPending}
-              onClick={() => reviewMutation.mutate(row.id)}
+              onClick={() => {
+                setReviewReason("");
+                setReviewing(row);
+              }}
             >
               <IconCheck size={14} />
             </IconButton>
@@ -422,6 +438,50 @@ export function QcResultsSection() {
         selectedLotId={chartLotId}
         onLotChange={setChartLotId}
       />
+
+      <Modal
+        opened={reviewing !== null}
+        onClose={() => setReviewing(null)}
+        title="Review a failed QC run"
+      >
+        <Stack gap="sm">
+          <Alert tone="warning" title="This releases results against a failed control">
+            Reporting for this test is held until a supervisor accounts for the failure. Recording
+            the reason is what makes the release a decision rather than an override.
+          </Alert>
+          {reviewing && (
+            <Text size="sm">
+              {reviewing.level} · SD index{" "}
+              {reviewing.sd_index ? Number(reviewing.sd_index).toFixed(2) : "—"}
+              {reviewing.westgard_violations?.length
+                ? ` · ${reviewing.westgard_violations.join(", ")}`
+                : ""}
+            </Text>
+          )}
+          <Textarea
+            label="Why is this acceptable to proceed on?"
+            placeholder="Control vial past its open-vial stability; repeated in control and patient results re-checked."
+            autosize
+            minRows={3}
+            value={reviewReason}
+            onChange={(event) => setReviewReason(event.currentTarget.value)}
+          />
+          <Group justify="flex-end">
+            <Button tone="secondary" size="xs" onClick={() => setReviewing(null)}>
+              Cancel
+            </Button>
+            <Button
+              tone="primary"
+              size="xs"
+              disabled={reviewReason.trim() === ""}
+              loading={reviewMutation.isPending}
+              onClick={() => reviewMutation.mutate()}
+            >
+              Record review
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }

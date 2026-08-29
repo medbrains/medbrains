@@ -151,9 +151,10 @@ pub async fn get_lab_report_print_data(
     .await?;
 
     let results = sqlx::query_as::<_, LabResultLine>(
-        "SELECT parameter_name, value, unit, normal_range, flag::text AS flag \
+        "SELECT parameter_name, value, unit, normal_range, flag::text AS flag, \
+                previous_value, delta_percent::text AS delta_percent, is_delta_flagged \
          FROM lab_results \
-         WHERE order_id = $1 AND tenant_id = $2 \
+         WHERE order_id = $1 AND tenant_id = $2 AND deleted_at IS NULL \
          ORDER BY created_at LIMIT 5000",
     )
     .bind(order_id)

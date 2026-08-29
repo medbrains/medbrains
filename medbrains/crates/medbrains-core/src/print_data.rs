@@ -60,6 +60,12 @@ pub struct LabResultLine {
     pub unit: Option<String>,
     pub normal_range: Option<String>,
     pub flag: Option<String>,
+    /// The same analyte's last value. A delta of 42% cannot distinguish a
+    /// real deterioration from a mislabelled tube; the number it moved from
+    /// can, and it has been computed and stored at entry all along.
+    pub previous_value: Option<String>,
+    pub delta_percent: Option<String>,
+    pub is_delta_flagged: bool,
 }
 
 // ── Radiology Report ─────────────────────────────────────

@@ -560,18 +560,33 @@ export function LabOrderDetail({
           {
             key: "delta",
             label: "Delta",
-            render: (r: LabResult) =>
-              r.is_delta_flagged ? (
-                <Badge tone="danger" size="sm">
-                  Δ {r.delta_percent ? `${Number(r.delta_percent).toFixed(1)}%` : "flagged"}
-                </Badge>
-              ) : r.delta_percent ? (
-                <Text size="xs" c="dimmed">
-                  {Number(r.delta_percent).toFixed(1)}%
-                </Text>
-              ) : (
-                "—"
-              ),
+            // A percentage without the value it moved from is not a delta
+            // check, it is a number. "Δ 42%" cannot tell a real deterioration
+            // from a mislabelled tube; "1.1 → 1.6" can. `previous_value` has
+            // been computed and stored at entry all along with no consumer.
+            render: (r: LabResult) => {
+              if (!r.is_delta_flagged && !r.delta_percent) return "—";
+              const move = r.previous_value ? `${r.previous_value} → ${r.value}` : null;
+              const pct = r.delta_percent ? `${Number(r.delta_percent).toFixed(1)}%` : "flagged";
+              return (
+                <Stack gap={0}>
+                  {r.is_delta_flagged ? (
+                    <Badge tone="danger" size="sm">
+                      Δ {pct}
+                    </Badge>
+                  ) : (
+                    <Text size="xs" c="dimmed">
+                      {pct}
+                    </Text>
+                  )}
+                  {move && (
+                    <Text size="xs" c="dimmed">
+                      {move}
+                    </Text>
+                  )}
+                </Stack>
+              );
+            },
           },
           // `auto_validate_result` requires `lab.results.create`. Gating
           // it on `update` showed the control to a doctor, who holds

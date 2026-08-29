@@ -102,18 +102,27 @@ export function buildLabReportContent(data: LabReportPrintData) {
     data.results.length > 0
       ? data.results
           .map(
+            // Previous value and delta are printed, not just shown on screen.
+            // The delta check is a safety control, and the clinician holding
+            // the paper is the one who has to act on it.
             (result) => `
               <tr class="${labFlagClass(result.flag)}">
                 <td>${labPrintValue(result.parameter_name)}</td>
                 <td>${labPrintValue(result.value)}</td>
                 <td>${labPrintValue(result.unit)}</td>
                 <td>${labPrintValue(result.normal_range)}</td>
+                <td>${labPrintValue(result.previous_value, "—")}</td>
+                <td>${
+                  result.delta_percent
+                    ? `${result.is_delta_flagged ? "&#916; " : ""}${result.delta_percent}%`
+                    : "—"
+                }</td>
                 <td>${labPrintValue(result.flag)}</td>
               </tr>
             `,
           )
           .join("")
-      : '<tr><td colspan="5" class="empty-row">No result lines recorded</td></tr>';
+      : '<tr><td colspan="7" class="empty-row">No result lines recorded</td></tr>';
 
   return `
     <section class="lab-report-print">
@@ -141,6 +150,8 @@ export function buildLabReportContent(data: LabReportPrintData) {
             <th>Result</th>
             <th>Unit</th>
             <th>Reference range</th>
+            <th>Previous</th>
+            <th>Delta</th>
             <th>Flag</th>
           </tr>
         </thead>
