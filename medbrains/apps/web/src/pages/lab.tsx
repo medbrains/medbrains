@@ -1,6 +1,7 @@
 import { B2bTab } from "./lab/b2b";
 import { LabCatalogTab } from "./lab/catalog";
 import { CreateLabOrderDrawer } from "./lab/create-order-drawer";
+import { LabDispatchSection } from "./lab/dispatch";
 import { LabOrderDetail } from "./lab/order-detail";
 import { OrderStatusPipeline } from "./lab/order-status-pipeline";
 import { OutsourcedTab } from "./lab/outsourced";
@@ -56,6 +57,8 @@ function LabPageInner() {
   // none of which are wired to a screen. Gating on it hid the print button
   // from everyone entitled to press it.
   const canPrintReports = useHasPermission(P.LAB.ORDERS_VIEW);
+  const canDispatchList = useHasPermission(P.LAB.DISPATCH_LIST);
+  const canDispatchManage = useHasPermission(P.LAB.DISPATCH_MANAGE);
 
   const [page, setPage] = useState(1);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
@@ -251,6 +254,7 @@ function LabPageInner() {
           <Tabs.Tab value="panels">{t("panelsProfiles")}</Tabs.Tab>
           {canPhlebotomy && <Tabs.Tab value="phlebotomy">{t("phlebotomy")}</Tabs.Tab>}
           {canSamples && <Tabs.Tab value="samples">{t("sampleMgmt")}</Tabs.Tab>}
+          {canDispatchList && <Tabs.Tab value="dispatch">Dispatch</Tabs.Tab>}
           {canQc && <Tabs.Tab value="qc">{t("qc&Compliance")}</Tabs.Tab>}
           {canSpecialized && <Tabs.Tab value="specialized">{t("specialized")}</Tabs.Tab>}
           {canB2b && <Tabs.Tab value="b2b">{t("b2b")}</Tabs.Tab>}
@@ -328,6 +332,11 @@ function LabPageInner() {
         {canSamples && (
           <Tabs.Panel value="samples">
             <SampleManagementTab />
+          </Tabs.Panel>
+        )}
+        {canDispatchList && (
+          <Tabs.Panel value="dispatch">
+            <LabDispatchSection canManage={canDispatchManage} />
           </Tabs.Panel>
         )}
 
