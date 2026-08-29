@@ -111,7 +111,6 @@ export * from "./device-integration";
 export * from "./documents-module";
 export * from "./emergency";
 export * from "./emergency-drug-kits";
-export * from "./marketing";
 export * from "./emergency-request";
 export * from "./endoscopy";
 export * from "./enterprise-sso";
@@ -162,6 +161,7 @@ export * from "./ipd-phase3a";
 export * from "./ipd-post-discharge";
 export * from "./lab-bloodbank-print-phase2";
 export * from "./locale-units";
+export * from "./marketing";
 export * from "./maternity-obgyn";
 export * from "./medication-timing";
 export * from "./mrd";
@@ -3798,6 +3798,25 @@ export interface LabReportFullPrintData {
   hospital_name: string;
   hospital_logo_url: string | null;
   signatures: PrintSignatureData[];
+  /** What this report corrected, if anything. */
+  amendments: PrintAmendment[];
+}
+
+/**
+ * One correction to a released report.
+ *
+ * A corrected report that does not say what it corrected is not a corrected
+ * report: the copy already in somebody's hand still shows the old number.
+ */
+export interface PrintAmendment {
+  parameter_name: string;
+  original_value: string | null;
+  amended_value: string | null;
+  original_flag: string | null;
+  amended_flag: string | null;
+  reason: string;
+  amended_at: string;
+  amended_by_name: string | null;
 }
 
 export interface LabParameter {

@@ -598,6 +598,10 @@ const LAB_REPORT_HTML: &str = r#"{% extends "base.html" %}
   .disclaimer { margin-top:18px; font-size:9.5px; color:#444; text-align:center; }
   .status-band { margin:6px 0; padding:3px 8px; font-size:11px; font-weight:700;
                  letter-spacing:.5px; border:1px solid #333; display:inline-block; }
+  .amend { margin:8px 0; border:1px solid #333; padding:6px 8px; font-size:10.5px; }
+  .amend h4 { margin:0 0 4px; font-size:11px; letter-spacing:.4px; }
+  .amend table { width:100%; border-collapse:collapse; }
+  .amend td { padding:2px 4px; vertical-align:top; border:none; }
 {% endblock extra_css %}
 {% block content %}
 
@@ -642,6 +646,32 @@ const LAB_REPORT_HTML: &str = r#"{% extends "base.html" %}
     </td>
   </tr>
 </table>
+
+{% if lab.amendments and lab.amendments | length > 0 %}
+  {# A corrected report that does not say what it corrected is not a corrected
+     report: the copy already in somebody's hand still shows the old number,
+     and nothing on this one tells them which line to re-read. Placed above
+     the results, because it changes how the table below should be read. #}
+  <div class="amend">
+    <h4>THIS REPORT HAS BEEN AMENDED</h4>
+    <table>
+      {% for a in lab.amendments %}
+      <tr>
+        <td style="width:26%;"><b>{{ a.parameter_name }}</b></td>
+        <td style="width:32%;">
+          {{ a.original_value | default(value="—") }}{% if a.original_flag %} ({{ a.original_flag }}){% endif %}
+          &rarr;
+          <b>{{ a.amended_value | default(value="—") }}</b>{% if a.amended_flag %} ({{ a.amended_flag }}){% endif %}
+        </td>
+        <td>{{ a.reason }}</td>
+        <td style="width:22%;" class="right muted">
+          {{ a.amended_at }}{% if a.amended_by_name %}<br>{{ a.amended_by_name }}{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+{% endif %}
 
 <table class="results">
   <thead>
@@ -759,7 +789,13 @@ const LAB_REPORT_SAMPLE: &str = r#"{
     "pathologist_name": "Dr. Vijay, M.D (Pathology)",
     "pathologist_registration_number": "89171",
     "pathologist_signature_url": null,
-    "verified_at": "21-08-2026 11:22"
+    "verified_at": "21-08-2026 11:22",
+    "amendments": [
+      {"parameter_name": "Potassium", "original_value": "4.2", "amended_value": "6.9",
+       "original_flag": "normal", "amended_flag": "critical_high",
+       "reason": "Transcription error at entry; re-checked against the analyser trace.",
+       "amended_at": "21-08-2026 12:40", "amended_by_name": "Dr. Vijay"}
+    ]
   },
   "document_number": "LAB-RPT-20260821-0001"
 }"#;

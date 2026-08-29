@@ -2533,6 +2533,26 @@ pub struct LabReportFullPrintData {
     /// Pathologist + co-signer signatures stamped onto the PDF.
     #[serde(default)]
     pub signatures: Vec<PrintSignatureData>,
+    /// What this report corrected, if anything.
+    ///
+    /// An amendment overwrites the value in place. A corrected report that
+    /// does not say what it corrected is not a corrected report — the copy in
+    /// somebody's hand still shows the old number, and nothing on the new one
+    /// tells them which line to look at.
+    #[serde(default)]
+    pub amendments: Vec<PrintAmendment>,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct PrintAmendment {
+    pub parameter_name: String,
+    pub original_value: Option<String>,
+    pub amended_value: Option<String>,
+    pub original_flag: Option<String>,
+    pub amended_flag: Option<String>,
+    pub reason: String,
+    pub amended_at: String,
+    pub amended_by_name: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

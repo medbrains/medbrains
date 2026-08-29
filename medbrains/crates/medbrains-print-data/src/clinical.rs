@@ -2146,6 +2146,30 @@ pub async fn get_lab_report_full_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
+    // What this report corrected. Covers the order and its add-ons, the same
+    // span the parameters do, so an amendment on an added-on test is not
+    // silently left off the sheet it appears on.
+    let amendments = sqlx::query_as::<_, medbrains_core::print_data::PrintAmendment>(
+        "SELECT lr.parameter_name, \
+                a.original_value, a.amended_value, \
+                a.original_flag::text AS original_flag, \
+                a.amended_flag::text AS amended_flag, \
+                a.reason, \
+                to_char(a.amended_at, 'DD-MM-YYYY HH24:MI') AS amended_at, \
+                u.full_name AS amended_by_name \
+           FROM lab_result_amendments a \
+           JOIN lab_results lr ON lr.id = a.result_id AND lr.tenant_id = a.tenant_id \
+           JOIN lab_orders sib ON sib.id = a.order_id AND sib.tenant_id = a.tenant_id \
+           LEFT JOIN users u ON u.id = a.amended_by \
+          WHERE sib.tenant_id = $2 AND (sib.id = $1 OR sib.parent_order_id = $1) \
+            AND a.deleted_at IS NULL \
+          ORDER BY a.amended_at DESC LIMIT 200",
+    )
+    .bind(order_id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
     let lab_sigs = medbrains_signing::signed_documents::fetch_all_signatures_for_print(
         &mut tx,
         &claims.tenant_id,
@@ -2229,6 +2253,7 @@ pub async fn get_lab_report_full_print_data(
                 legal_class: s.legal_class,
             })
             .collect(),
+        amendments,
     }))
 }
 
