@@ -12,12 +12,29 @@ import { SampleManagementTab } from "./lab/sample-management";
 import { printLabReportPacket, statusColors } from "./lab/shared";
 import { SpecializedReportsTab } from "./lab/specialized-reports";
 import "@mantine/charts/styles.css";
-import { Divider, Drawer, Group, Select, Stack, Tabs, Text, Tooltip } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import {
+  Divider,
+  Drawer,
+  Group,
+  Select,
+  Stack,
+  Tabs,
+  Text,
+  TextInput,
+  Tooltip,
+} from "@mantine/core";
+import { useDebouncedValue, useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { LabCriticalAlert, LabOrder } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconAlertTriangle, IconEye, IconFlask, IconPlus, IconPrinter } from "@tabler/icons-react";
+import {
+  IconAlertTriangle,
+  IconEye,
+  IconFlask,
+  IconPlus,
+  IconPrinter,
+  IconSearch,
+} from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -63,6 +80,11 @@ function LabPageInner() {
   const [page, setPage] = useState(1);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [filterPriority, setFilterPriority] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  // Debounced so a typed UHID does not fire a query per keystroke, and reset
+  // to page 1 because results for "Sundaram" on page 4 of the unfiltered list
+  // are nobody's search results.
+  const [debouncedSearch] = useDebouncedValue(search, 300);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
@@ -70,6 +92,7 @@ function LabPageInner() {
   const params: Record<string, string> = { page: String(page), per_page: "20" };
   if (filterStatus) params.status = filterStatus;
   if (filterPriority) params.priority = filterPriority;
+  if (debouncedSearch.trim()) params.q = debouncedSearch.trim();
 
   const { data, isLoading } = useQuery({
     queryKey: ["lab-orders", params],
@@ -269,6 +292,19 @@ function LabPageInner() {
             onStatusClick={(status) => setFilterStatus(filterStatus === status ? null : status)}
           />
           <Group mb="md">
+            <TextInput
+              placeholder="Patient, UHID, phone, test or barcode"
+              aria-label="Search lab orders"
+              leftSection={<IconSearch size={16} />}
+              value={search}
+              onChange={(event) => {
+                setSearch(event.currentTarget.value);
+                // Page 1: results for a name on page 4 of the unfiltered list
+                // are nobody's search results.
+                setPage(1);
+              }}
+              w={280}
+            />
             <Select
               placeholder={t("placeholder.status")}
               data={[

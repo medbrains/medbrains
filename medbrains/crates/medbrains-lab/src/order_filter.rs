@@ -61,6 +61,28 @@ pub(crate) fn build_order_filter(
         binds.push(Bind::Uuid(patient_id));
         idx += 1;
     }
+    // One box, four haystacks. Anchored with a trailing wildcard only
+    // (`term%`) on the identifier columns so the existing btree indexes are
+    // usable; the name is matched anywhere because people are found by their
+    // second name as often as their first.
+    if let Some(term) = params.q.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+        conditions.push(format!(
+            "(sample_barcode ILIKE ${idx} \
+              OR EXISTS (SELECT 1 FROM patients p \
+                         WHERE p.id = lab_orders.patient_id \
+                           AND p.tenant_id = lab_orders.tenant_id \
+                           AND (p.uhid ILIKE ${idx} OR p.phone ILIKE ${idx} \
+                                OR (p.first_name || ' ' || p.last_name) ILIKE ${wild})) \
+              OR EXISTS (SELECT 1 FROM lab_test_catalog tc \
+                         WHERE tc.id = lab_orders.test_id \
+                           AND (tc.name ILIKE ${wild} OR tc.code ILIKE ${idx})))",
+            idx = idx,
+            wild = idx + 1
+        ));
+        binds.push(Bind::Text(format!("{term}%")));
+        binds.push(Bind::Text(format!("%{term}%")));
+        idx += 2;
+    }
     if let Some(encounter_id) = params.encounter_id {
         conditions.push(format!("encounter_id = ${idx}"));
         binds.push(Bind::Uuid(encounter_id));
@@ -78,6 +100,7 @@ mod tests {
 
     fn query() -> ListOrdersQuery {
         ListOrdersQuery {
+            q: None,
             page: None,
             per_page: None,
             status: None,
@@ -122,6 +145,7 @@ mod tests {
         // bind must fill the nth placeholder after the tenant.
         let ids = vec![Uuid::from_u128(9)];
         let params = ListOrdersQuery {
+            q: None,
             page: None,
             per_page: None,
             status: Some("verified".to_owned()),
@@ -165,6 +189,52 @@ mod tests {
         let (clause, binds, next) = build_order_filter(&query(), None);
 
         assert_eq!(clause, "tenant_id = $1");
+        assert!(binds.is_empty());
+        assert_eq!(next, 2);
+    }
+
+    /// The search term is the only filter that pushes two binds for one
+    /// condition — a prefix form for the identifier columns and a wildcard
+    /// form for names — so it is the one most likely to desynchronise the
+    /// placeholder numbering from the bind list.
+    #[test]
+    fn a_search_term_binds_both_of_its_forms_in_order() {
+        let params = ListOrdersQuery {
+            q: Some("  Sundaram  ".to_owned()),
+            ..query()
+        };
+        let (clause, binds, next) = build_order_filter(&params, None);
+
+        assert_eq!(
+            binds.len(),
+            2,
+            "prefix and wildcard forms, and nothing else"
+        );
+        match (&binds[0], &binds[1]) {
+            (Bind::Text(prefix), Bind::Text(wild)) => {
+                // Trimmed: a term pasted from a requisition slip carries
+                // whitespace, and "Sundaram " would match nothing.
+                assert_eq!(prefix, "Sundaram%");
+                assert_eq!(wild, "%Sundaram%");
+            }
+            other => panic!("expected two text binds, got {other:?}"),
+        }
+
+        assert!(clause.contains("$2"), "the prefix form fills $2");
+        assert!(clause.contains("$3"), "the wildcard form fills $3");
+        assert_eq!(next, 4, "the next free placeholder follows both");
+    }
+
+    /// Whitespace alone is not a search. Treating it as one would replace the
+    /// whole worklist with the orders whose barcode happens to start with a
+    /// space, which is none of them.
+    #[test]
+    fn a_blank_search_term_is_not_a_filter() {
+        let params = ListOrdersQuery {
+            q: Some("   ".to_owned()),
+            ..query()
+        };
+        let (_, binds, next) = build_order_filter(&params, None);
         assert!(binds.is_empty());
         assert_eq!(next, 2);
     }

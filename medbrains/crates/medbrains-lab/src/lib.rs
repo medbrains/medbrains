@@ -47,6 +47,13 @@ pub struct ListOrdersQuery {
     pub priority: Option<String>,
     pub patient_id: Option<Uuid>,
     pub encounter_id: Option<Uuid>,
+    /// Free text: patient name, UHID, phone, test name, or sample barcode.
+    ///
+    /// The bench searches by whatever is in front of them — a requisition
+    /// slip has the UHID, a tube has the barcode, and a phone call has a
+    /// name — so one box matches all of them rather than making somebody
+    /// choose a field before they can look.
+    pub q: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
