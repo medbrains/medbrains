@@ -688,10 +688,22 @@ export interface PatientConsultationHistoryRow {
 export interface PatientLabOrderRow {
   id: string;
   test_name: string | null;
-  status: string;
+  status: LabOrderStatus;
   priority: string;
   ordered_by_name: string | null;
   result_count: number | null;
+  /** When the sample was taken. Null means nobody has drawn it yet — a
+   *  different problem from a slow analyser, needing a different person. */
+  collected_at: string | null;
+  verified_at: string | null;
+  /** The order's override, else the catalogue's `tat_hours` for that test.
+   *  Null where neither is set: an expectation nobody stated is not a
+   *  deadline anybody missed. */
+  expected_tat_minutes: number | null;
+  /** A sample can be rejected and re-collected, so this is a note on the
+   *  order rather than a terminal status. */
+  rejection_reason: string | null;
+  sample_barcode: string | null;
   created_at: string;
   updated_at: string;
 }

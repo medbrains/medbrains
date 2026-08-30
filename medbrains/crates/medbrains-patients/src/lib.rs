@@ -3590,6 +3590,14 @@ pub async fn list_patient_consultations(
 }
 
 /// Patient lab order summary row.
+///
+/// Carries where the order has got to, not only that it exists. The
+/// consulting room's question about an outstanding investigation is "has the
+/// sample been taken, and will it come back before this patient leaves" —
+/// which needs the collection time and the catalogue's expected turnaround,
+/// and neither was selected here. At a weekly camp, where somebody is present
+/// for one short window, that is the difference between chasing a result and
+/// sending them home without one.
 #[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct PatientLabOrderRow {
     pub id: Uuid,
@@ -3598,6 +3606,19 @@ pub struct PatientLabOrderRow {
     pub priority: String,
     pub ordered_by_name: Option<String>,
     pub result_count: Option<i64>,
+    /// When the sample was taken. `None` means nobody has drawn it yet, which
+    /// is a different problem from a slow analyser and needs a different
+    /// person to fix it.
+    pub collected_at: Option<DateTime<Utc>>,
+    pub verified_at: Option<DateTime<Utc>>,
+    /// Expected turnaround: the order's own override, else the catalogue's
+    /// `tat_hours` for that test. `None` where neither is set — an
+    /// expectation nobody stated is not a deadline anybody missed, so the
+    /// screen says nothing rather than inventing a target.
+    pub expected_tat_minutes: Option<i32>,
+    pub rejection_reason: Option<String>,
+    /// Present once the sample is labelled, so the desk can find the tube.
+    pub sample_barcode: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -3625,6 +3646,12 @@ pub async fn list_patient_lab_orders(
             lo.priority::text AS priority,
             u.full_name AS ordered_by_name,
             (SELECT COUNT(*) FROM lab_results lr WHERE lr.order_id = lo.id) AS result_count,
+            lo.collected_at,
+            lo.verified_at,
+            COALESCE(lo.expected_tat_minutes, (tc.tat_hours * 60)::int)
+                AS expected_tat_minutes,
+            lo.rejection_reason,
+            lo.sample_barcode,
             lo.created_at,
             lo.updated_at
          FROM lab_orders lo

@@ -85,6 +85,51 @@ function priorityBadgeTone(color: string | null | undefined): BadgeTone {
   return (color ? STATUS_COLOR_TO_BADGE_TONE[color] : undefined) ?? "neutral";
 }
 
+/**
+ * An order still owed to this patient.
+ *
+ * Anything not yet verified and not rejected is outstanding — the sample may
+ * not be taken, may be in the analyser, or may be waiting on a pathologist,
+ * and from the consulting room all three mean the same thing: no answer yet.
+ */
+function isOutstanding(order: PatientLabOrderRow): boolean {
+  return order.status !== "verified" && order.status !== "cancelled";
+}
+
+/**
+ * Where an order has got to, in the words a clinician would use.
+ *
+ * Elapsed time is shown against the catalogue's expected turnaround rather
+ * than as a bare timestamp. At a weekly camp the only question that matters
+ * is whether the result arrives before this patient leaves, and "38 min —
+ * expected 30" answers it where "ordered at 10:42" does not.
+ */
+function orderProgress(order: PatientLabOrderRow): string {
+  // A rejected sample is a note on the order, not a status: it can be
+  // re-collected and the order carries on. It is shown first regardless of
+  // status, because somebody has to go and draw blood again.
+  if (order.rejection_reason) {
+    return `Sample rejected — ${order.rejection_reason}`;
+  }
+  if (order.status === "cancelled") {
+    return "Cancelled";
+  }
+  if (order.status === "verified") {
+    const when = order.verified_at ?? order.updated_at;
+    return `Verified ${new Date(when).toLocaleString()} · ${order.result_count ?? 0} value(s)`;
+  }
+
+  const startedAt = order.collected_at ?? order.created_at;
+  const mins = Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 60000));
+  const elapsed = mins < 60 ? `${mins} min` : `${(mins / 60).toFixed(1)} h`;
+  const stage = order.collected_at ? "In the lab" : "Sample not collected";
+  // Only compared when the catalogue actually states one. An expectation
+  // nobody set is not a deadline anybody missed.
+  const target = order.expected_tat_minutes;
+  const against = target ? ` · expected ${target} min${mins > target ? " — overdue" : ""}` : "";
+  return `${stage} · ${elapsed}${against}`;
+}
+
 export function InvestigationsTab({
   encounterId,
   patientId,
@@ -151,9 +196,25 @@ export function InvestigationsTab({
     enabled: selectedLabReportId !== null && canViewLabReport,
   });
 
-  const recentLabReports = patientLabOrders
-    .filter((order) => (order.result_count ?? 0) > 0 || order.status === "verified")
-    .slice(0, 5);
+  // Everything ordered for this patient, not only what has come back.
+  //
+  // This list used to filter to `result_count > 0 || status === 'verified'`,
+  // so a test the clinician had just ordered vanished from their own screen
+  // until results arrived. They could not tell an outstanding investigation
+  // from one they had forgotten to place — and at a weekly camp, where the
+  // patient is physically present for one short window, an invisible pending
+  // order is somebody going home without a result.
+  //
+  // Outstanding orders sort first: they are the ones that still need a
+  // decision before this patient leaves.
+  const recentLabReports = [...patientLabOrders]
+    .sort((a, b) => {
+      const pending = (o: PatientLabOrderRow) => (isOutstanding(o) ? 0 : 1);
+      return pending(a) - pending(b) || +new Date(b.updated_at) - +new Date(a.updated_at);
+    })
+    .slice(0, 8);
+
+  const outstandingCount = patientLabOrders.filter(isOutstanding).length;
 
   const recentImagingStudies = imagingStudies.slice(0, 5);
 
@@ -356,8 +417,10 @@ export function InvestigationsTab({
                 <Text size="sm" fw={600}>
                   Lab Reports
                 </Text>
-                <Badge size="xs" tone="info">
-                  {recentLabReports.length}
+                <Badge size="xs" tone={outstandingCount > 0 ? "warning" : "info"}>
+                  {outstandingCount > 0
+                    ? `${outstandingCount} awaiting`
+                    : `${recentLabReports.length}`}
                 </Badge>
               </Group>
               {recentLabReports.length > 0 ? (
@@ -370,8 +433,7 @@ export function InvestigationsTab({
                             {report.test_name ?? "Lab test"}
                           </Text>
                           <Text size="xs" c="dimmed">
-                            {new Date(report.updated_at).toLocaleString()} ·{" "}
-                            {report.result_count ?? 0} result(s)
+                            {orderProgress(report)}
                           </Text>
                         </Table.Td>
                         <Table.Td>
@@ -380,14 +442,22 @@ export function InvestigationsTab({
                           </Badge>
                         </Table.Td>
                         <Table.Td>
-                          <Button
-                            tone="secondary"
-                            size="xs"
-                            leftSection={<IconEye size={14} />}
-                            onClick={() => setSelectedLabReportId(report.id)}
-                          >
-                            View
-                          </Button>
+                          {(report.result_count ?? 0) > 0 ? (
+                            <Button
+                              tone="secondary"
+                              size="xs"
+                              leftSection={<IconEye size={14} />}
+                              onClick={() => setSelectedLabReportId(report.id)}
+                            >
+                              View
+                            </Button>
+                          ) : (
+                            // Nothing to open yet. A View button that shows an
+                            // empty report teaches the clinician not to press it.
+                            <Text size="xs" c="dimmed">
+                              Awaiting result
+                            </Text>
+                          )}
                         </Table.Td>
                       </Table.Tr>
                     ))}
@@ -395,7 +465,7 @@ export function InvestigationsTab({
                 </Table>
               ) : (
                 <Text size="sm" c="dimmed">
-                  No completed lab reports yet.
+                  Nothing ordered for this patient yet.
                 </Text>
               )}
             </Stack>
