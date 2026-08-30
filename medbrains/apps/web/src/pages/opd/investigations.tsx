@@ -92,6 +92,54 @@ function priorityBadgeTone(color: string | null | undefined): BadgeTone {
  * not be taken, may be in the analyser, or may be waiting on a pathologist,
  * and from the consulting room all three mean the same thing: no answer yet.
  */
+/**
+ * How far this value has moved since the patient's last one.
+ *
+ * A reference range answers "is this normal for a population". A delta
+ * answers "is this normal for this person", and the two disagree in the case
+ * that matters: a creatinine going 0.7 to 1.2 sits inside the range at both
+ * ends and is a kidney changing. The lab already computes `previous_value`,
+ * `delta_percent` and `is_delta_flagged` on every result and nothing showed
+ * them.
+ *
+ * `is_delta_flagged` is the lab's own judgement against that analyte's
+ * threshold — a 20% move means something different for sodium than for a
+ * white count — so the flag is trusted rather than recomputed from the
+ * percentage here.
+ */
+function DeltaCell({ result }: { result: LabResult }) {
+  if (result.previous_value === null || result.delta_percent === null) {
+    // No prior value is not a zero change. First results are common and
+    // rendering "0%" would assert a comparison that was never made.
+    return (
+      <Text size="sm" c="dimmed">
+        First result
+      </Text>
+    );
+  }
+
+  const pct = Number(result.delta_percent);
+  const arrow = pct > 0 ? "\u2191" : pct < 0 ? "\u2193" : "";
+  const label = `${arrow}${Math.abs(pct).toFixed(0)}%`;
+
+  return (
+    <Stack gap={0}>
+      {result.is_delta_flagged ? (
+        // Not colour alone — "changed" carries it in words.
+        <Badge size="xs" tone="warning">
+          Changed {label}
+        </Badge>
+      ) : (
+        <Text size="sm">{label}</Text>
+      )}
+      <Text size="xs" c="dimmed">
+        was {result.previous_value}
+        {result.unit ? ` ${result.unit}` : ""}
+      </Text>
+    </Stack>
+  );
+}
+
 function isOutstanding(order: PatientLabOrderRow): boolean {
   return order.status !== "verified" && order.status !== "cancelled";
 }
@@ -640,6 +688,7 @@ export function InvestigationsTab({
                 <Table.Th>Parameter</Table.Th>
                 <Table.Th>Result</Table.Th>
                 <Table.Th>Range</Table.Th>
+                <Table.Th>Since last</Table.Th>
                 <Table.Th>Flag</Table.Th>
               </Table.Tr>
             </Table.Thead>
@@ -650,6 +699,11 @@ export function InvestigationsTab({
                     <Text size="sm" fw={500}>
                       {result.parameter_name}
                     </Text>
+                    {result.notes && (
+                      <Text size="xs" c="dimmed">
+                        {result.notes}
+                      </Text>
+                    )}
                   </Table.Td>
                   <Table.Td>
                     <Text size="sm">
@@ -661,6 +715,14 @@ export function InvestigationsTab({
                     <Text size="sm" c="dimmed">
                       {result.normal_range ?? "—"}
                     </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    {/* The delta. A value inside its reference range that has
+                        moved sharply since last time is the finding a range
+                        cannot show — a creatinine going 0.7 → 1.2 is still
+                        "normal" and is still a kidney changing. The lab
+                        already computes and stores this; nothing rendered it. */}
+                    <DeltaCell result={result} />
                   </Table.Td>
                   <Table.Td>
                     {result.flag ? (
