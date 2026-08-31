@@ -11,6 +11,7 @@ of six cost-aware packages; terraform wires the matching compute + DB
 | **Test** | Engineering smoke / short-lived demos | EC2 t4g.small | postgres docker on same box | LocalFs + backups | None | lowest, temporary only | active |
 | **Demo** | Board demo / training / sandbox | EC2 t4g.medium | postgres docker on same box | LocalFs + backups | None | low, single-host | active |
 | **Starter** | 1 hospital, ≤ 100 beds | EC2 t4g.medium | postgres-17 docker on the same box | LocalFs + ColdLocal on EBS | None — vertical via instance-type | low single-host baseline | ✅ active |
+| **Attach** | Hospital already owns a host | *none created* — deploys onto an existing VM | postgres-17 already on the host, or docker | LocalFs + ColdLocal | None | **no infra cost** | ✅ active |
 | **Growth** | 1-3 hospitals, 100-300 beds, peak/off-peak load | ECS Fargate (0.5-2 vCPU) behind ALB | RDS db.t4g.micro | S3 (hot) + S3 IA (cold) | Fargate target-tracking + EventBridge scale-to-zero overnight | **₹3,500** | scaffold |
 | **Enterprise-k3s** | 3+ hospitals on a budget | EC2 t4g.medium running k3s | RDS db.t4g.small | S3 + Glacier | k3s HPA on a fixed-size node | **₹4,500** | scaffold |
 | **Enterprise** | Multi-region, ABDM compliant | EKS + Karpenter (spot) | Aurora Postgres-compatible | S3 + Glacier | HPA + Cluster Autoscaler | **₹9,000+ shared** | scaffold |
@@ -34,6 +35,28 @@ module "hospital" {
   aws_ssh_key_name = "medbrains-deploy"
 }
 ```
+
+## The Attach tier
+
+For a hospital that already has a server — on-prem, another cloud, or an
+existing EC2 box carrying other applications. Terraform creates the KMS keys,
+the uploads bucket and the IAM role, then deploys onto the host over SSH. It
+does **not** create an instance, a security group or a DNS record, because the
+buyer already has all three.
+
+Two switches exist because the standalone install assumes it owns the box:
+
+- `attach_reuse_postgres` (default true) — use the Postgres already running
+  rather than starting one in Docker on the same port.
+- `attach_reuse_tls` (default true) — leave 80/443 to whatever already
+  terminates TLS, and have it proxy `domain` to `medbrains-server`.
+
+That second one is not a preference. `deploy/standalone/install.sh` runs
+`systemctl stop caddy`, `systemctl disable caddy` and `certbot --standalone`.
+On a dedicated host that is correct. On a host already serving other names it
+takes every one of them down and then cannot renew, because certbot needs the
+port the other proxy is holding. Anything driving the Attach tier must honour
+these flags before running the deploy kit.
 
 ## What every tier includes (regardless of tier)
 

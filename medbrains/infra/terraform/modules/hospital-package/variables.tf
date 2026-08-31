@@ -6,8 +6,8 @@ variable "tier" {
   type        = string
   default     = "starter"
   validation {
-    condition     = contains(["test", "demo", "starter", "growth", "enterprise", "enterprise-k3s"], var.tier)
-    error_message = "tier must be one of: test, demo, starter, growth, enterprise, enterprise-k3s."
+    condition     = contains(["test", "demo", "starter", "attach", "growth", "enterprise", "enterprise-k3s"], var.tier)
+    error_message = "tier must be one of: test, demo, starter, attach, growth, enterprise, enterprise-k3s."
   }
 }
 
@@ -164,4 +164,53 @@ variable "alarm_email" {
   description = "Email for CloudWatch alarm notifications on EC2-backed tiers. Defaults to admin_email when unset."
   type        = string
   default     = ""
+}
+
+# ── Attach tier ───────────────────────────────────────────────────────
+# The hospital already owns a host. Everything else about the deployment is
+# identical to starter - same binary, same SPA, same 67 modules - but no EC2
+# instance, security group or DNS record is created, because the buyer already
+# has all three.
+
+variable "existing_ipv4" {
+  description = "Public address of the host to deploy onto. Required for tier = attach."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.tier != "attach" || var.existing_ipv4 != ""
+    error_message = "tier = attach requires existing_ipv4."
+  }
+}
+
+variable "attach_reuse_postgres" {
+  description = <<-EOT
+    Use a Postgres already running on the host instead of starting one in
+    Docker. The starter shape assumes it owns the box and can bind 5432; a host
+    that is already serving other applications usually cannot give that up, and
+    a second Postgres on a different port is one more thing to patch, back up
+    and forget about.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "attach_reuse_tls" {
+  description = <<-EOT
+    Leave TLS and port 80/443 to whatever already terminates them on the host,
+    and expect it to proxy `domain` to medbrains-server.
+
+    This matters more than it looks. The standalone install stops and disables
+    Caddy and runs `certbot --standalone`, both of which assume nothing else
+    serves HTTP on the box. On a host already terminating TLS for other names,
+    that takes every one of them down and cannot renew afterwards.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "ssh_user_attach" {
+  description = "Login user on the existing host. Ubuntu images use ubuntu; Amazon Linux uses ec2-user."
+  type        = string
+  default     = "ubuntu"
 }

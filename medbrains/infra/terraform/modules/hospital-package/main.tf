@@ -19,6 +19,7 @@ locals {
 
   is_single_host    = contains(["test", "demo", "starter"], var.tier)
   is_starter        = local.is_single_host
+  is_attach         = var.tier == "attach"
   is_growth         = var.tier == "growth"
   is_enterprise     = var.tier == "enterprise"
   is_enterprise_k3s = var.tier == "enterprise-k3s"
@@ -43,6 +44,10 @@ locals {
     enterprise-k3s = {
       instance_type = "t4g.medium"
       cost_guard    = "k3s-rds-enterprise"
+    }
+    attach = {
+      instance_type = "unused"
+      cost_guard    = "attach-existing-host"
     }
     enterprise = {
       instance_type = "unused"
@@ -158,6 +163,46 @@ module "starter" {
 
   ssh_allowed_cidrs = var.ssh_allowed_cidrs
   alarm_email       = var.alarm_email != "" ? var.alarm_email : var.admin_email
+}
+
+# ── Attach (deploy onto a host the hospital already runs) ─────────────
+#
+# Same binary, same SPA, same 67 modules as starter. What it does not do is
+# create an instance, a security group or a DNS record - the buyer already has
+# all three, and creating a second set is how a hospital ends up paying twice
+# and pointing DNS at the wrong one.
+#
+# Reaches for existing-host, which was already wired into standalone-vm but had
+# no tier above it.
+#
+# The care needed here is not in Terraform, it is in what runs afterwards: the
+# standalone install script stops and disables Caddy and runs certbot in
+# standalone mode. On a dedicated box that is correct. On a host already serving
+# other names it takes all of them down and then cannot renew, which is why
+# attach_reuse_tls defaults to true and the deploy kit must honour it.
+
+module "attach" {
+  count  = local.is_attach ? 1 : 0
+  source = "../standalone-vm"
+
+  provider_kind = "existing-host"
+
+  hostname             = local.hostname
+  domain               = var.domain
+  admin_email          = var.admin_email
+  edge_proxy           = var.edge_proxy
+  existing_ipv4        = var.existing_ipv4
+  ssh_user             = var.ssh_user_attach
+  ssh_private_key      = file(var.ssh_private_key_path)
+  ssh_private_key_path = var.ssh_private_key_path
+
+  binaries_dir   = var.binaries_dir
+  spa_dist_dir   = var.spa_dist_dir
+  deploy_kit_dir = var.deploy_kit_dir
+  reset_pgdata   = var.reset_pgdata
+  kms_key_arns   = local.kms_key_arns
+
+  alarm_email = var.alarm_email != "" ? var.alarm_email : var.admin_email
 }
 
 # ── Growth (Fargate + RDS + S3) — Phase 1 scaffold ────────────────────
