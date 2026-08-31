@@ -205,6 +205,16 @@ export const campWorkPath = (
 export const campRegistrationCreatePath = (campId: string, patientId: string) =>
   `/camp/${campId}/work/registrations/new${patientContextQuery(patientId)}`;
 
+export const campScreeningCreatePath = (
+  campId: string,
+  registrationId: string,
+  patientId: string,
+) => {
+  const query = patientContextQuery(patientId);
+  const join = query ? "&" : "?";
+  return `/camp/${campId}/work/screenings/new${query}${join}registration_id=${registrationId}`;
+};
+
 export const campClinicalRoutePath = (campId: string, registrationId: string, patientId: string) =>
   `/camp/${campId}/work/registrations/${registrationId}/clinical-route${patientContextQuery(
     patientId,

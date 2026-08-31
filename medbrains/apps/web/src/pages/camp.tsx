@@ -28,7 +28,12 @@ import { FollowupsTab } from "./camp/followups-tab";
 import { CampPatientContextPanel } from "./camp/patient-context-panel";
 import { RegistrationsTab } from "./camp/registrations-tab";
 import { ScreeningsTab } from "./camp/screenings-tab";
-import { CAMP_STATUS_COLORS, campLandingPath, campWorkPath } from "./camp/shared";
+import {
+  CAMP_STATUS_COLORS,
+  campLandingPath,
+  campScreeningCreatePath,
+  campWorkPath,
+} from "./camp/shared";
 import classes from "./camp.module.scss";
 import {
   CAMP_LANDING_TAB_VALUES,
@@ -173,9 +178,13 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
     ? activeTab
     : "registrations";
 
+  // Screening is its own screen now, so handing a participant to it is a
+  // navigation carrying the registration rather than a tab switch plus a
+  // drawer that opened itself. The focused id is still tracked because the
+  // journey rail reads it.
   const openRegistrationClinicalFlow = (registrationId: string) => {
     setFocusedRegistrationId(registrationId);
-    setActiveTab("screenings");
+    navigate(campScreeningCreatePath(campId ?? "", registrationId, contextPatientId));
   };
 
   return (
@@ -270,8 +279,6 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
                   key={`${campId ?? "none"}-${focusedRegistrationId ?? "none"}`}
                   campId={campId ?? null}
                   selectedCamp={selectedCamp}
-                  focusedRegistrationId={focusedRegistrationId}
-                  onClearFocusedRegistration={() => setFocusedRegistrationId(null)}
                 />
               </Tabs.Panel>
               <Tabs.Panel id="camp-followups" value="followups" pt="md">
