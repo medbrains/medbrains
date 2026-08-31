@@ -2715,21 +2715,12 @@ pub async fn get_tat_monitoring(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, TatMonitoringRow>(
-        "SELECT id AS order_id, test_id, patient_id, \
-         expected_tat_minutes, \
-         EXTRACT(EPOCH FROM (COALESCE(completed_at, now()) - created_at))::bigint / 60 \
-           AS actual_minutes, \
-         CASE WHEN expected_tat_minutes IS NOT NULL \
-              AND EXTRACT(EPOCH FROM (COALESCE(completed_at, now()) - created_at)) / 60 \
-                  > expected_tat_minutes \
-              THEN true ELSE false END AS is_breached, \
-         created_at AS ordered_at, \
-         completed_at \
-         FROM lab_orders WHERE tenant_id = $1 \
-           AND status NOT IN ('cancelled'::lab_order_status) \
-         ORDER BY created_at DESC LIMIT 100",
-    )
+    let rows = sqlx::query_as::<_, TatMonitoringRow>(&format!(
+        "{TAT_MONITORING_SELECT} \
+         WHERE lo.tenant_id = $1 \
+           AND lo.status NOT IN ('cancelled'::lab_order_status) \
+         ORDER BY lo.created_at DESC LIMIT 100"
+    ))
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
@@ -4285,6 +4276,35 @@ pub async fn update_report_template(
 //  Phase 3 — STAT Orders
 // ══════════════════════════════════════════════════════════
 
+/// Turnaround monitoring: the promise, the elapsed time, and whether it was
+/// missed.
+///
+/// The promise is the order's own `expected_tat_minutes` when it carries one,
+/// and the catalogue's `tat_hours` otherwise. Checking only the order column
+/// -- which both callers used to do -- made `is_breached` false for every row
+/// a laboratory has ever produced: all 82 catalogue tests declare a TAT and no
+/// order has ever been written with `expected_tat_minutes` set. Two screens
+/// existed to show breaches and neither could report one.
+///
+/// The same COALESCE already sits in `medbrains-patients`, which is where the
+/// pattern comes from.
+///
+/// The elapsed window is order to completion, so it is the turnaround the
+/// patient experiences rather than the bench-only one. A laboratory measured
+/// against it also carries the time a patient took to come for collection;
+/// `collected_at` and `received_at` are recorded if that ever needs splitting.
+const TAT_MONITORING_SELECT: &str = "SELECT lo.id AS order_id, lo.test_id, lo.patient_id, \
+     COALESCE(lo.expected_tat_minutes, (tc.tat_hours * 60)::int) AS expected_tat_minutes, \
+     EXTRACT(EPOCH FROM (COALESCE(lo.completed_at, now()) - lo.created_at))::bigint / 60 \
+       AS actual_minutes, \
+     COALESCE( \
+       EXTRACT(EPOCH FROM (COALESCE(lo.completed_at, now()) - lo.created_at)) / 60 \
+         > COALESCE(lo.expected_tat_minutes, (tc.tat_hours * 60)::int), \
+       false) AS is_breached, \
+     lo.created_at AS ordered_at, lo.completed_at \
+     FROM lab_orders lo \
+     LEFT JOIN lab_test_catalog tc ON tc.id = lo.test_id";
+
 pub async fn list_stat_orders(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -4292,20 +4312,14 @@ pub async fn list_stat_orders(
     require_permission(&claims, permissions::lab::orders::LIST)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-    let rows = sqlx::query_as::<_, TatMonitoringRow>(
-        "SELECT id AS order_id, test_id, patient_id, expected_tat_minutes, \
-         EXTRACT(EPOCH FROM (COALESCE(completed_at, now()) - created_at))::bigint / 60 \
-           AS actual_minutes, \
-         CASE WHEN expected_tat_minutes IS NOT NULL \
-              AND EXTRACT(EPOCH FROM (COALESCE(completed_at, now()) - created_at)) / 60 \
-                  > expected_tat_minutes THEN true ELSE false END AS is_breached, \
-         created_at AS ordered_at, completed_at \
-         FROM lab_orders WHERE tenant_id = $1 \
-           AND (is_stat = true OR priority = 'stat'::lab_priority \
-                OR priority = 'urgent'::lab_priority) \
-           AND status NOT IN ('cancelled'::lab_order_status) \
-         ORDER BY created_at DESC LIMIT 100",
-    )
+    let rows = sqlx::query_as::<_, TatMonitoringRow>(&format!(
+        "{TAT_MONITORING_SELECT} \
+         WHERE lo.tenant_id = $1 \
+           AND (lo.is_stat = true OR lo.priority = 'stat'::lab_priority \
+                OR lo.priority = 'urgent'::lab_priority) \
+           AND lo.status NOT IN ('cancelled'::lab_order_status) \
+         ORDER BY lo.created_at DESC LIMIT 100"
+    ))
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
