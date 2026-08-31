@@ -128,7 +128,11 @@ export function RxQueueTab({
           ...(rxQueueIdFilter ? { rx_queue_id: rxQueueIdFilter } : {}),
         }
       : undefined;
-  const { data: queue = [], isLoading } = useQuery({
+  const {
+    data: queue = [],
+    isLoading,
+    isError: queueFailed,
+  } = useQuery({
     queryKey: ["pharmacy-rx-queue", params],
     queryFn: () => pharmacyService.listRxQueue(params),
     refetchInterval: 15_000,
@@ -415,6 +419,15 @@ export function RxQueueTab({
               {t("button.clearHandoff")}
             </Button>
           </Group>
+        </Alert>
+      )}
+      {/* An empty review queue means every prescription has been seen. On a
+          failed read it means nothing of the kind, and a pharmacist who
+          believes it stops looking. */}
+      {queueFailed && (
+        <Alert tone="danger">
+          The prescription queue could not be read. This is a fault, not an empty queue — do not
+          treat it as everything having been reviewed.
         </Alert>
       )}
       <DataTable

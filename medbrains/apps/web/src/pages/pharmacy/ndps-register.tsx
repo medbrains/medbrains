@@ -15,7 +15,7 @@ import type { DataTableFilter } from "@/components";
 import { DataTable, useClinicalEmit } from "@/components";
 import { DrugSearchSelect } from "@/components/DrugSearchSelect";
 import type { BadgeTone } from "@/components/ui";
-import { Badge, Button, toast } from "@/components/ui";
+import { Alert, Badge, Button, toast } from "@/components/ui";
 import { formIntegerOrFallback, ndpsActionOptions } from "@/forms/pharmacy.form";
 import { pharmacyService } from "@/services/pharmacy.service";
 import {
@@ -51,12 +51,16 @@ export function NdpsRegisterTab() {
     },
   });
 
-  const { data, isLoading } = useQuery({
+  const {
+    data,
+    isLoading,
+    isError: registerFailed,
+  } = useQuery({
     queryKey: ["pharmacy-ndps"],
     queryFn: () => pharmacyService.listNdpsEntries(),
   });
 
-  const { data: balance } = useQuery({
+  const { data: balance, isError: balanceFailed } = useQuery({
     queryKey: ["pharmacy-ndps-balance"],
     queryFn: () => pharmacyService.getNdpsBalance(),
   });
@@ -175,6 +179,18 @@ export function NdpsRegisterTab() {
 
   return (
     <Stack>
+      {/* This is a statutory register under the NDPS Act, and both reads fail
+          quietly: the table falls back to [] and the balance strip is hidden
+          when `balance` is undefined. An empty register reads as "no
+          controlled-drug transactions" and a missing balance strip as "none
+          held" — neither of which anyone should conclude from an outage,
+          least of all during a stock reconciliation or an inspection. */}
+      {(registerFailed || balanceFailed) && (
+        <Alert tone="danger" title="The narcotics register could not be read">
+          This is a fault, not an empty register. Do not treat what is shown as a record of
+          controlled-drug movements or of stock in hand.
+        </Alert>
+      )}
       {balance?.entries && balance.entries.length > 0 && (
         <Group gap="sm">
           {balance.entries.map((b) => (
