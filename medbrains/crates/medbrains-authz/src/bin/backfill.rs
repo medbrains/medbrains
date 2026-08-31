@@ -105,6 +105,13 @@ async fn main() -> anyhow::Result<()> {
          writing to relation_tuples (source='derived'); the outbox worker syncs SpiceDB"
     );
 
+    let run = BackfillRun {
+        pg: &pg,
+        tenant,
+        granted_by,
+        dry_run,
+    };
+
     let mut total_written = 0u64;
 
     // ── 1. patients.registered_by → patient#owner ───────────
@@ -116,15 +123,12 @@ async fn main() -> anyhow::Result<()> {
     .fetch_all(&pg)
     .await?;
     total_written += write_derived_batch(
-        &pg,
-        tenant,
-        granted_by,
+        &run,
         "patient",
         "owner",
         &rows,
         |(id, by)| (*id, Subject::User(*by)),
         "patients.registered_by",
-        dry_run,
     )
     .await?;
 
@@ -137,15 +141,12 @@ async fn main() -> anyhow::Result<()> {
     .fetch_all(&pg)
     .await?;
     total_written += write_derived_batch(
-        &pg,
-        tenant,
-        granted_by,
+        &run,
         "encounter",
         "attending",
         &rows,
         |(id, by)| (*id, Subject::User(*by)),
         "encounters.doctor_id",
-        dry_run,
     )
     .await?;
 
@@ -162,15 +163,12 @@ async fn main() -> anyhow::Result<()> {
     .fetch_all(&pg)
     .await?;
     total_written += write_derived_batch(
-        &pg,
-        tenant,
-        granted_by,
+        &run,
         "encounter",
         "owner",
         &rows,
         |(id, by)| (*id, Subject::User(*by)),
         "encounters.created_by",
-        dry_run,
     )
     .await?;
 
@@ -183,15 +181,12 @@ async fn main() -> anyhow::Result<()> {
     .fetch_all(&pg)
     .await?;
     total_written += write_derived_batch(
-        &pg,
-        tenant,
-        granted_by,
+        &run,
         "encounter",
         "dept_member",
         &rows,
         |(id, dept)| (*id, Subject::Department(*dept)),
         "encounters.department_id",
-        dry_run,
     )
     .await?;
 
@@ -202,15 +197,12 @@ async fn main() -> anyhow::Result<()> {
             .fetch_all(&pg)
             .await?;
     total_written += write_derived_batch(
-        &pg,
-        tenant,
-        granted_by,
+        &run,
         "admission",
         "attending",
         &rows,
         |(id, by)| (*id, Subject::User(*by)),
         "admissions.admitting_doctor",
-        dry_run,
     )
     .await?;
 
@@ -221,15 +213,12 @@ async fn main() -> anyhow::Result<()> {
             .fetch_all(&pg)
             .await?;
     total_written += write_derived_batch(
-        &pg,
-        tenant,
-        granted_by,
+        &run,
         "lab_order",
         "ordering_provider",
         &rows,
         |(id, by)| (*id, Subject::User(*by)),
         "lab_orders.ordered_by",
-        dry_run,
     )
     .await?;
 
@@ -240,15 +229,12 @@ async fn main() -> anyhow::Result<()> {
             .fetch_all(&pg)
             .await?;
     total_written += write_derived_batch(
-        &pg,
-        tenant,
-        granted_by,
+        &run,
         "pharmacy_order",
         "prescriber",
         &rows,
         |(id, by)| (*id, Subject::User(*by)),
         "pharmacy_orders.ordered_by",
-        dry_run,
     )
     .await?;
 
@@ -259,15 +245,12 @@ async fn main() -> anyhow::Result<()> {
             .fetch_all(&pg)
             .await?;
     total_written += write_derived_batch(
-        &pg,
-        tenant,
-        granted_by,
+        &run,
         "radiology_order",
         "ordering_provider",
         &rows,
         |(id, by)| (*id, Subject::User(*by)),
         "radiology_orders.ordered_by",
-        dry_run,
     )
     .await?;
 
@@ -281,15 +264,12 @@ async fn main() -> anyhow::Result<()> {
     .fetch_all(&pg)
     .await?;
     total_written += write_derived_batch(
-        &pg,
-        tenant,
-        granted_by,
+        &run,
         "access_group",
         "member",
         &rows,
         |(g, u)| (*g, Subject::User(*u)),
         "access_group_members",
-        dry_run,
     )
     .await?;
 
@@ -308,15 +288,12 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     total_written += write_derived_batch(
-        &pg,
-        tenant,
-        granted_by,
+        &run,
         "department",
         "member",
         &dept_pairs,
         |(d, u)| (*d, Subject::User(*u)),
         "users.department_ids",
-        dry_run,
     )
     .await?;
 
@@ -342,17 +319,32 @@ async fn main() -> anyhow::Result<()> {
 ///
 /// Idempotent by `NOT EXISTS` on the logical triple rather than `ON CONFLICT`:
 /// the table has no unique index on it, only a primary key on `tuple_id`.
-async fn write_derived_batch<T>(
-    pg: &PgPool,
+/// The parts of a backfill run that do not change between batches.
+///
+/// All eight call sites passed the same pool, tenant, grantor and dry-run
+/// flag; only the relation being derived differs. Grouping them says that,
+/// and keeps the argument count under the workspace's clippy limit.
+struct BackfillRun<'a> {
+    pg: &'a PgPool,
     tenant: Uuid,
     granted_by: Uuid,
+    dry_run: bool,
+}
+
+async fn write_derived_batch<T>(
+    run: &BackfillRun<'_>,
     object_type: &str,
     relation_name: &str,
     rows: &[T],
     map: impl Fn(&T) -> (Uuid, Subject),
     label: &str,
-    dry_run: bool,
 ) -> anyhow::Result<u64> {
+    let BackfillRun {
+        pg,
+        tenant,
+        granted_by,
+        dry_run,
+    } = *run;
     if rows.is_empty() {
         println!("  {label:<32} 0 rows");
         return Ok(0);
