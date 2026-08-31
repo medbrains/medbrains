@@ -427,6 +427,14 @@ if [[ -n "${BACKUP_BUCKET:-}" ]]; then
     fi
 fi
 
+if [[ -n "${BACKUP_DIR:-}" ]]; then
+    if grep -q '^BACKUP_DIR=' /etc/medbrains/env 2>/dev/null; then
+        sed -i "s|^BACKUP_DIR=.*|BACKUP_DIR=$BACKUP_DIR|" /etc/medbrains/env
+    else
+        echo "BACKUP_DIR=$BACKUP_DIR" >> /etc/medbrains/env
+    fi
+fi
+
 # SNS topic the OnFailure= notifier publishes to. Absent on tiers with
 # no AWS notification path; medbrains-alert@.service no-ops without it.
 if [[ -n "${ALERT_TOPIC_ARN:-}" ]]; then
@@ -468,14 +476,33 @@ systemctl enable --now medbrains-server.service
 systemctl restart medbrains-server.service
 systemctl enable --now medbrains-archive.timer
 BACKUP_BUCKET="${BACKUP_BUCKET:-$(env_value BACKUP_BUCKET)}"
-if [[ -n "${BACKUP_BUCKET:-}" ]]; then
+BACKUP_DIR="${BACKUP_DIR:-$(env_value BACKUP_DIR)}"
+
+# Attach has no bucket and should not be given one: that would mean a
+# long-lived AWS key on a machine the hospital owns and we do not. The
+# host already has a disk the hospital backs up — that regime is the
+# premise of the tier — so dump to it and let their backup carry it off.
+if [[ -z "$BACKUP_BUCKET" && -z "$BACKUP_DIR" && "$ATTACH_MODE" == "1" ]]; then
+    BACKUP_DIR="/var/backups/medbrains"
+    if grep -q '^BACKUP_DIR=' /etc/medbrains/env 2>/dev/null; then
+        sed -i "s|^BACKUP_DIR=.*|BACKUP_DIR=$BACKUP_DIR|" /etc/medbrains/env
+    else
+        echo "BACKUP_DIR=$BACKUP_DIR" >> /etc/medbrains/env
+    fi
+    echo "    No S3 bucket on this tier — nightly dumps go to $BACKUP_DIR"
+    echo "    (kept ${BACKUP_KEEP_DAYS:-14} days). This is NOT offsite: it survives a"
+    echo "    dropped table, not a dead disk. Confirm the hospital's own"
+    echo "    backup covers that path."
+fi
+
+if [[ -n "$BACKUP_BUCKET" || -n "$BACKUP_DIR" ]]; then
     systemctl enable --now medbrains-pg-backup.timer
 else
     systemctl disable --now medbrains-pg-backup.timer 2>/dev/null || true
-    echo "    WARNING: no BACKUP_BUCKET — postgres backups are NOT running."
-    echo "             The timer is disabled rather than left to fail nightly,"
-    echo "             because an enabled unit that always errors reads as a"
-    echo "             backup that is running."
+    echo "    WARNING: no BACKUP_BUCKET and no BACKUP_DIR — postgres backups"
+    echo "             are NOT running. The timer is disabled rather than left"
+    echo "             to fail nightly, because an enabled unit that always"
+    echo "             errors reads as a backup that is running."
 fi
 systemctl enable --now medbrains-host-check.timer
 if [[ -z "$(env_value ALERT_TOPIC_ARN)" ]]; then
