@@ -1,7 +1,6 @@
 // CAMP CampsTab — split from camp.tsx (pure move).
 
-import { Drawer, Group, Select, Text, Tooltip } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import { Group, Select, Text, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
 import type { Camp } from "@medbrains/types";
@@ -22,7 +21,6 @@ import type { Column } from "@/components/DataTable";
 import { Badge, Button, IconButton } from "@/components/ui";
 import { campTypeOptions } from "@/forms/camp.form";
 import { campService } from "@/services/camp.service";
-import { CampDetail } from "./camp-detail";
 import { CAMP_STATUS_COLORS } from "./shared";
 
 export function CampsTab({ onWorkCamp }: { onWorkCamp: (campId: string) => void }) {
@@ -31,8 +29,6 @@ export function CampsTab({ onWorkCamp }: { onWorkCamp: (campId: string) => void 
   const canCreate = useHasPermission(P.CAMP.CREATE);
   const canUpdate = useHasPermission(P.CAMP.UPDATE);
   const qc = useQueryClient();
-  const [detailOpen, detailHandlers] = useDisclosure(false);
-  const [selectedCamp, setSelectedCamp] = useState<Camp | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const { data: camps = [], isLoading } = useQuery({
     queryKey: ["camps", statusFilter],
@@ -126,10 +122,7 @@ export function CampsTab({ onWorkCamp }: { onWorkCamp: (campId: string) => void 
           <Tooltip label="View Details">
             <IconButton
               size="sm"
-              onClick={() => {
-                setSelectedCamp(r);
-                detailHandlers.open();
-              }}
+              onClick={() => navigate(`/camp/${r.id}`)}
               aria-label="View Details"
             >
               <IconPencil size={14} />
@@ -231,17 +224,6 @@ export function CampsTab({ onWorkCamp }: { onWorkCamp: (campId: string) => void 
       <DataTable columns={columns} data={camps} loading={isLoading} rowKey={(r) => r.id} />
 
       {/* Create Drawer */}
-
-      {/* Detail Drawer */}
-      <Drawer
-        opened={detailOpen}
-        onClose={detailHandlers.close}
-        title={selectedCamp?.name ?? "Camp Detail"}
-        position="right"
-        size="lg"
-      >
-        {selectedCamp && <CampDetail camp={selectedCamp} />}
-      </Drawer>
     </>
   );
 }
