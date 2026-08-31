@@ -41,9 +41,16 @@ export function CameBackPanel() {
   const queryClient = useQueryClient();
   const canManage = useHasPermission(P.FRONT_OFFICE.QUEUE_MANAGE);
 
+  // `listOpdTokenBoard` rather than a plain board read, and the distinction
+  // is the whole panel: `/api/tokens/board` returns only waiting, called and
+  // serving unless `include_finished` is set, so a board read without it can
+  // never contain a no_show row. This panel filtered that result for
+  // no_show and therefore always found none — it rendered null every time it
+  // was mounted. The key carries the flag so it cannot silently share a cache
+  // entry with a board that excludes finished tokens.
   const { data, isLoading, isError } = useQuery({
-    queryKey: ["token-board", MODULE],
-    queryFn: () => frontOfficeService.listTokenBoard({ module: MODULE }),
+    queryKey: ["token-board", MODULE, "include-finished"],
+    queryFn: () => frontOfficeService.listOpdTokenBoard(),
     refetchInterval: REFRESH_MS,
   });
 
@@ -56,7 +63,7 @@ export function CameBackPanel() {
     mutationFn: (id: string) => frontOfficeService.requeueToken(id),
     onSuccess: (token) => {
       notifications.show({ message: `${token.number} is back in the queue.` });
-      void queryClient.invalidateQueries({ queryKey: ["token-board", MODULE] });
+      void queryClient.invalidateQueries({ queryKey: ["token-board", MODULE, "include-finished"] });
       void queryClient.invalidateQueries({ queryKey: ["front-office", "queue-stats"] });
     },
     onError: (error: Error) => notifications.show({ color: "red", message: error.message }),
