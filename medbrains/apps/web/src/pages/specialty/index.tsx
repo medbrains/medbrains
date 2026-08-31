@@ -1,5 +1,5 @@
 import { Card, SimpleGrid, Text, ThemeIcon, UnstyledButton } from "@mantine/core";
-import { useHasPermission } from "@medbrains/stores";
+import { usePermissionStore } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import {
   IconBabyCarriage,
@@ -10,6 +10,7 @@ import {
   IconStethoscope,
   IconStretching,
 } from "@tabler/icons-react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router";
 import { PageHeader } from "@/components";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -77,11 +78,28 @@ export function SpecialtyIndexPage() {
   useRequirePermission(P.SPECIALTY.CATH_LAB.PROCEDURES_LIST);
   const navigate = useNavigate();
 
+  // The filter used to call useHasPermission per specialty, inside the
+  // callback — a hook in a loop. It survives only because SPECIALTIES is a
+  // module constant, so the count never varies between renders; add one
+  // conditionally and the page starts throwing.
+  //
+  // `hasPermission` reads through get() and its reference never changes, so
+  // selecting it alone would leave this list stale after a permission
+  // change. Subscribing to the two values it actually reads is what makes
+  // the recompute fire.
+  const hasPermission = usePermissionStore((state) => state.hasPermission);
+  const userRole = usePermissionStore((state) => state.userRole);
+  const userPermissions = usePermissionStore((state) => state.userPermissions);
+  const visibleSpecialties = useMemo(
+    () => SPECIALTIES.filter((specialty) => hasPermission(specialty.permission)),
+    [hasPermission, userRole, userPermissions],
+  );
+
   return (
     <div>
       <PageHeader title="Specialty Clinical" subtitle="Access specialty department modules" />
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="lg" mt="md">
-        {SPECIALTIES.filter((s) => useHasPermission(s.permission)).map((s) => (
+        {visibleSpecialties.map((s) => (
           <UnstyledButton key={s.path} onClick={() => navigate(s.path)}>
             <Card shadow="sm" padding="lg" radius="md" withBorder style={{ height: "100%" }}>
               <ThemeIcon size={40} radius="md" color={s.color} mb="sm">

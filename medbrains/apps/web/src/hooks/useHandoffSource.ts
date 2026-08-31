@@ -37,16 +37,31 @@ export interface HandoffSourceResult {
 
 export function useHandoffSource(shiftId: string): HandoffSourceResult {
   const config = useTenantConfig();
-  if (config.mode === "crdt") return useHandoffCrdt(shiftId, config);
-  return useHandoffRest(shiftId, config.authorName);
+  const isCrdt = config.mode === "crdt";
+
+  // Both are called on every render, and the inactive one is switched off
+  // rather than skipped. Branching on `config.mode` around the call meant a
+  // crdt render ran a different set of hooks from a rest render, so React
+  // threw "rendered more hooks than during the previous render" the moment
+  // the mode changed — and the handoff screen went down rather than
+  // degrading. `useCrdtDoc` already takes `enabled` for exactly this:
+  // "Disable storage and WebSocket work while still preserving hook call
+  // order." Nothing was passing it.
+  const crdt = useHandoffCrdt(shiftId, config, isCrdt);
+  const rest = useHandoffRest(shiftId, config.authorName, !isCrdt);
+  return isCrdt ? crdt : rest;
 }
 
-function useHandoffRest(shiftId: string, _authorName: string): HandoffSourceResult {
+function useHandoffRest(
+  shiftId: string,
+  _authorName: string,
+  enabled: boolean,
+): HandoffSourceResult {
   const qc = useQueryClient();
   const query = useQuery<HandoffEntry[]>({
     queryKey: ["handoff", shiftId],
     queryFn: async () => (await api.listClinicalHandoffEntries(shiftId)).map(toHandoffEntry),
-    enabled: !!shiftId,
+    enabled: enabled && !!shiftId,
   });
   const mutation = useMutation({
     mutationFn: async (entry: HandoffEntryInput) =>
@@ -83,11 +98,13 @@ function toHandoffEntry(entry: ClinicalHandoffEntry): HandoffEntry {
 function useHandoffCrdt(
   shiftId: string,
   config: { edgeUrl: string; tenantId: string; deviceId: string; authorName: string },
+  enabled: boolean,
 ): HandoffSourceResult {
   const list = useAppendOnlyCrdtList<HandoffEntry>(`handoff/${shiftId}`, {
     edgeUrl: config.edgeUrl,
     tenantId: config.tenantId,
     deviceId: config.deviceId,
+    enabled,
   });
   const append = useCallback(
     (e: HandoffEntryInput) => {
