@@ -389,24 +389,8 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
   );
 }
 
-export function CampCreatePage() {
-  return <CampPage />;
-}
-
 export function CampPlanEditPage() {
   return <CampWorkPage initialTab="analytics" />;
-}
-
-export function CampClinicalRoutePage() {
-  return <CampWorkPage initialTab="screenings" />;
-}
-
-export function CampScreeningCreatePage() {
-  return <CampWorkPage initialTab="screenings" />;
-}
-
-export function CampLabSampleCreatePage() {
-  return <CampWorkPage initialTab="screenings" />;
 }
 
 export function CampTeamMemberAddPage() {

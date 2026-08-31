@@ -265,7 +265,7 @@ const TelemedicinePage = lazy(() =>
   import("./pages/telemedicine").then((m) => ({ default: m.TelemedicinePage })),
 );
 const CampCreatePage = lazy(() =>
-  import("./pages/camp").then((m) => ({ default: m.CampCreatePage })),
+  import("./pages/camp/camp-create").then((m) => ({ default: m.CampCreatePage })),
 );
 const CampWorkPage = lazy(() => import("./pages/camp").then((m) => ({ default: m.CampWorkPage })));
 const CampPlanEditPage = lazy(() =>
