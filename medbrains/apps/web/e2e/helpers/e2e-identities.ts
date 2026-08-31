@@ -256,7 +256,7 @@ function authHeaders(session: AuthSession): Record<string, string> {
   };
 }
 
-function cookieHeaderFromResponse(resp: {
+export function cookieHeaderFromResponse(resp: {
   headersArray: () => Array<{ name: string; value: string }>;
 }): string {
   return resp

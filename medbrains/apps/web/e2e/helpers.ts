@@ -6,7 +6,11 @@
  */
 
 import type { Page, APIRequestContext } from "@playwright/test";
-import { getE2EIdentity } from "./helpers/e2e-identities";
+import {
+  browserCookiesFromLogin,
+  cookieHeaderFromResponse,
+  getE2EIdentity,
+} from "./helpers/e2e-identities";
 
 export const BACKEND_URL =
   process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
@@ -128,6 +132,27 @@ export async function loginAsRole(
     throw new Error(`loginAsRole(${username}) → ${resp.status()}`);
   }
   const data = await resp.json();
+
+  // Put the session on every origin the run uses, not just the backend's.
+  //
+  // `page.request.post` stores its cookies against the backend origin
+  // (127.0.0.1:3000). The page itself is served from localhost:5173, and
+  // `routeApiDirect` re-issues /api/* calls through `route.fetch`, which does
+  // not carry the backend-origin jar across. So localStorage said "logged in",
+  // the shell rendered, and every API call came back 401 — the app bounced to
+  // /login and each UI assertion failed on a page that was never reached.
+  //
+  // global-setup has always done this for the admin session via
+  // browserCookiesFromLogin; loginAsRole was the asymmetry, which is why the
+  // role-based UI specs were the ones failing.
+  const browserCookies = browserCookiesFromLogin({
+    csrf: data.csrf_token ?? "",
+    cookieHeader: cookieHeaderFromResponse(resp),
+    user: data.user,
+  });
+  if (browserCookies.length > 0) {
+    await page.context().addCookies(browserCookies);
+  }
 
   await page.goto("/login");
   await page.evaluate(
