@@ -43,6 +43,23 @@ import {
   toLabResultFlag,
 } from "./shared";
 
+/**
+ * One row of the result-entry grid.
+ *
+ * `rowId` is local bookkeeping and never leaves the browser: it exists so
+ * React can keep an input mounted while somebody types into it. The key was
+ * previously derived from the values themselves, which changed on every
+ * keystroke and cost the field its focus each time.
+ */
+type ResultRow = ResultInput & { rowId: string };
+
+let nextResultRowId = 0;
+
+function newResultRow(): ResultRow {
+  nextResultRowId += 1;
+  return { rowId: `result-${nextResultRowId}`, parameter_name: "", value: "" };
+}
+
 export function LabOrderDetail({
   orderId,
   canCreateResult,
@@ -74,9 +91,11 @@ export function LabOrderDetail({
   const [resultFormOpen, resultFormHandlers] = useDisclosure(false);
   const [collectOpened, { open: openCollect, close: closeCollect }] = useDisclosure(false);
   const [scannedId, setScannedId] = useState("");
-  const [resultInputs, setResultInputs] = useState<ResultInput[]>([
-    { parameter_name: "", value: "" },
-  ]);
+  // Each row carries an id of its own. The key used to be built from the
+  // values being typed, so every keystroke produced a new key, React
+  // unmounted the input and remounted it, and the field lost focus after
+  // each character. That is the whole of "the value entering is not clear".
+  const [resultInputs, setResultInputs] = useState<ResultRow[]>([newResultRow()]);
   const [rejectionReason, setRejectionReason] = useState("");
   const [amendData, setAmendData] = useState<{
     resultId: string;
@@ -185,7 +204,11 @@ export function LabOrderDetail({
     onError: (e: Error) => toast.error(e.message, { title: "Could not reject sample" }),
   });
   const addResultsMutation = useMutation({
-    mutationFn: () => labService.addLabResults(orderId, { results: resultInputs }),
+    mutationFn: () =>
+      labService.addLabResults(orderId, {
+        // The row id is local bookkeeping and is not part of the record.
+        results: resultInputs.map(({ rowId: _rowId, ...result }) => result),
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
       void queryClient.invalidateQueries({ queryKey: ["lab-critical-alerts"] });
@@ -195,7 +218,7 @@ export function LabOrderDetail({
         result_count: resultInputs.length,
       });
       resultFormHandlers.close();
-      setResultInputs([{ parameter_name: "", value: "" }]);
+      setResultInputs([newResultRow()]);
     },
     onError: (e: Error) => toast.error(e.message, { title: "Could not save results" }),
   });
@@ -713,56 +736,79 @@ export function LabOrderDetail({
             </Button>
             {resultFormOpen && (
               <Stack gap="xs">
-                {resultInputs.map((ri, idx) => (
-                  <Group
-                    key={`${ri.parameter_name || "parameter"}-${ri.value || "value"}-${ri.unit || "unit"}`}
-                    grow
-                  >
-                    <TextInput
-                      placeholder={t("parameter")}
-                      value={ri.parameter_name}
-                      onChange={(e) => {
-                        const updated = [...resultInputs];
-                        updated[idx] = { ...ri, parameter_name: e.currentTarget.value };
-                        setResultInputs(updated);
-                      }}
-                    />
-                    <TextInput
-                      placeholder={t("value")}
-                      value={ri.value}
-                      onChange={(e) => {
-                        const updated = [...resultInputs];
-                        updated[idx] = { ...ri, value: e.currentTarget.value };
-                        setResultInputs(updated);
-                      }}
-                    />
-                    <TextInput
-                      placeholder={t("unit")}
-                      onChange={(e) => {
-                        const updated = [...resultInputs];
-                        updated[idx] = { ...ri, unit: e.currentTarget.value || undefined };
-                        setResultInputs(updated);
-                      }}
-                    />
-                    <Select
-                      placeholder={t("flag")}
-                      data={["normal", "low", "high", "critical_low", "critical_high", "abnormal"]}
-                      clearable
-                      onChange={(v) => {
-                        const updated = [...resultInputs];
-                        updated[idx] = { ...ri, flag: toLabResultFlag(v) };
-                        setResultInputs(updated);
-                      }}
-                    />
-                  </Group>
-                ))}
+                {resultInputs.map((ri, idx) => {
+                  const patch = (change: Partial<ResultRow>) =>
+                    setResultInputs((rows) =>
+                      rows.map((row, i) => (i === idx ? { ...row, ...change } : row)),
+                    );
+                  return (
+                    <Group key={ri.rowId} align="flex-end" grow>
+                      <TextInput
+                        // Real labels, not placeholders. A placeholder
+                        // disappears the moment somebody types, so a
+                        // half-filled row stops saying which column is which —
+                        // and a screen reader never announced them at all.
+                        label={idx === 0 ? t("parameter") : undefined}
+                        aria-label={t("parameter")}
+                        placeholder="Haemoglobin"
+                        value={ri.parameter_name}
+                        onChange={(e) => patch({ parameter_name: e.currentTarget.value })}
+                      />
+                      <TextInput
+                        label={idx === 0 ? t("value") : undefined}
+                        aria-label={t("value")}
+                        placeholder="13.4"
+                        value={ri.value}
+                        onChange={(e) => patch({ value: e.currentTarget.value })}
+                      />
+                      <TextInput
+                        label={idx === 0 ? t("unit") : undefined}
+                        aria-label={t("unit")}
+                        placeholder="g/dL"
+                        // This field had an onChange and no value — an
+                        // uncontrolled input whose contents and state could
+                        // drift apart, and which survived a form reset.
+                        value={ri.unit ?? ""}
+                        onChange={(e) => patch({ unit: e.currentTarget.value || undefined })}
+                      />
+                      <TextInput
+                        // normal_range has always been part of ResultInput and
+                        // the form never offered it, so every result was
+                        // recorded without the range it should be read against
+                        // — and the printed report had nothing to put in that
+                        // column.
+                        label={idx === 0 ? "Reference range" : undefined}
+                        aria-label="Reference range"
+                        placeholder="13.0-17.0"
+                        value={ri.normal_range ?? ""}
+                        onChange={(e) =>
+                          patch({ normal_range: e.currentTarget.value || undefined })
+                        }
+                      />
+                      <Select
+                        label={idx === 0 ? t("flag") : undefined}
+                        aria-label={t("flag")}
+                        placeholder="—"
+                        data={[
+                          "normal",
+                          "low",
+                          "high",
+                          "critical_low",
+                          "critical_high",
+                          "abnormal",
+                        ]}
+                        clearable
+                        value={ri.flag ?? null}
+                        onChange={(v) => patch({ flag: toLabResultFlag(v) })}
+                      />
+                    </Group>
+                  );
+                })}
                 <Group>
                   <Button
                     tone="secondary"
                     size="xs"
-                    onClick={() =>
-                      setResultInputs([...resultInputs, { parameter_name: "", value: "" }])
-                    }
+                    onClick={() => setResultInputs([...resultInputs, newResultRow()])}
                   >
                     Add Row
                   </Button>
