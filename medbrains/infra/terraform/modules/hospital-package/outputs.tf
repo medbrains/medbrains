@@ -12,9 +12,10 @@ output "cost_guard" {
 }
 
 output "public_endpoint" {
-  description = "Public IP (Starter / Enterprise-k3s) or ALB DNS (Growth) or EKS ingress hostname (Enterprise)."
+  description = "Public IP (Starter / Attach / Enterprise-k3s), ALB DNS (Growth), or EKS ingress hostname (Enterprise)."
   value = try(
     module.starter[0].public_ip,
+    module.attach[0].public_ip,
     module.growth[0].public_endpoint,
     module.enterprise_k3s[0].public_ip,
     module.enterprise[0].public_endpoint,
@@ -26,6 +27,7 @@ output "ssh_endpoint" {
   description = "user@host string for SSH-capable single-host tiers. Empty for image-based tiers."
   value = try(
     module.starter[0].ssh_endpoint,
+    module.attach[0].ssh_endpoint,
     module.enterprise_k3s[0].ssh_endpoint,
     "",
   )

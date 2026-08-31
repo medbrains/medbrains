@@ -1,10 +1,10 @@
 variable "tier" {
   type        = string
-  description = "Buyer tier: test | demo | starter | growth | enterprise | enterprise-k3s. Set TF_VAR_tier in medbrains/infra/.env."
+  description = "Buyer tier: test | demo | starter | attach | growth | enterprise | enterprise-k3s. Set TF_VAR_tier in medbrains/infra/.env."
   default     = "starter"
   validation {
-    condition     = contains(["test", "demo", "starter", "growth", "enterprise", "enterprise-k3s"], var.tier)
-    error_message = "tier must be one of: test, demo, starter, growth, enterprise, enterprise-k3s."
+    condition     = contains(["test", "demo", "starter", "attach", "growth", "enterprise", "enterprise-k3s"], var.tier)
+    error_message = "tier must be one of: test, demo, starter, attach, growth, enterprise, enterprise-k3s."
   }
 }
 

@@ -27,6 +27,7 @@ use crate::sync::{Frame, SyncServer};
 /// Deliberately tiny: the only thing a session remembers is which tenant
 /// completed the handshake. Everything else is per-frame, so a dropped
 /// connection cannot leave a half-authorised session behind.
+#[derive(Debug)]
 pub struct SyncSession {
     server: Arc<SyncServer>,
     tenant: Option<Uuid>,

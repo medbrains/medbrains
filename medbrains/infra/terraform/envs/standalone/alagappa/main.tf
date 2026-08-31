@@ -92,8 +92,15 @@ module "uptime" {
 # DNS — single GoDaddy A record. Skipped for tiers whose endpoint is
 # a hostname (Fargate ALB, EKS) — those need a CNAME, which the env
 # can wire up in a follow-up once the tier ships.
+#
+# attach is included by operator decision (2026-08-31). Note what that
+# means: the host belongs to the hospital and its DNS usually does too,
+# so this writes an A record into a zone we do not own. Point `domain`
+# at a NAME NOBODY IS USING — a fresh subdomain, not the name currently
+# serving patients. Terraform will overwrite an existing record of the
+# same name without asking.
 resource "godaddy-dns_record" "hims" {
-  count = var.tier == "starter" || var.tier == "enterprise-k3s" ? 1 : 0
+  count = contains(["starter", "attach", "enterprise-k3s"], var.tier) ? 1 : 0
 
   domain = var.zone_name
   type   = "A"
