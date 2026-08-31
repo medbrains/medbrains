@@ -452,6 +452,14 @@ export interface AppManifest {
 export interface Station {
   id: string;
   department_id: string | null;
+  /**
+   * The room this service point occupies, from the `locations` tree.
+   *
+   * Null for a station with no fixed room — a camp counter under a tent, or a
+   * trolley. Prefer this over `location_scope`, whose free-text label nothing
+   * ever populated and which the TV boards were reduced to string-matching on.
+   */
+  location_id: string | null;
   code: string;
   name: string;
   station_type: string;

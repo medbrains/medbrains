@@ -4591,6 +4591,9 @@ export const stationCreateSchema = z.object({
   name: requiredTrimmed("Station name is required", 200),
   station_type: z.string().min(1),
   department_id: z.string().nullable().optional(),
+  // Optional on purpose. A camp counter has no room, and a station forced to
+  // name one would send patients to a building that is shut.
+  location_id: z.string().nullable().optional(),
 });
 
 export type StationCreateInput = z.infer<typeof stationCreateSchema>;

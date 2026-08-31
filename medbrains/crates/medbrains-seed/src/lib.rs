@@ -21,6 +21,7 @@ mod widget_catalog;
 // dead code for git history but not compiled.
 // mod screens;
 mod services;
+mod stations;
 mod store_catalog;
 mod tax_categories;
 
@@ -204,6 +205,7 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     store_catalog::seed_store_catalog(pool, tenant_id).await?;
     insurance_providers::seed_insurance_providers(pool, tenant_id).await?;
     locations::seed_locations(pool, tenant_id).await?;
+    stations::seed_stations(pool, tenant_id).await?;
     default_dashboard::seed_default_dashboard(pool, tenant_id).await?;
     role_dashboards::seed_role_dashboards(pool, tenant_id).await?;
 

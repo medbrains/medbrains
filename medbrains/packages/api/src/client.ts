@@ -15786,7 +15786,10 @@ export const api = {
 
   listStations: () => request<Station[]>("/stations"),
   createStation: (data: {
-    department_id?: string;
+    department_id?: string | null;
+    // The room the counter sits in. Null is meaningful: a camp counter has no
+    // room, and guessing one would put a patient in a building that is shut.
+    location_id?: string | null;
     code: string;
     name: string;
     station_type?: string;
@@ -15795,7 +15798,8 @@ export const api = {
   updateStation: (
     id: string,
     data: {
-      department_id?: string;
+      department_id?: string | null;
+      location_id?: string | null;
       name?: string;
       station_type?: string;
       location_scope?: Record<string, unknown>;

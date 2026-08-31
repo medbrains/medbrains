@@ -59,6 +59,7 @@ export {
   useProtectedFieldValue,
 } from "./PermissionedFieldValue";
 export { ProtectedRoute } from "./ProtectedRoute";
+export { RoomSelect } from "./RoomSelect";
 export { SearchOrCreate } from "./SearchOrCreate";
 export { SelectLabel } from "./SelectLabel";
 export { ShareDrawer } from "./Sharing/ShareDrawer";

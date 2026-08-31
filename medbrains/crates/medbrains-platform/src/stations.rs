@@ -28,13 +28,16 @@ const STATION_TYPES: &[&str] = &[
     "other",
 ];
 
-const STATION_COLS: &str =
-    "id, department_id, code, name, station_type, location_scope, is_active, created_at";
+const STATION_COLS: &str = "id, department_id, location_id, code, name, station_type, \
+     location_scope, is_active, created_at";
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct Station {
     pub id: Uuid,
     pub department_id: Option<Uuid>,
+    /// The room this service point occupies. Null for a station with no
+    /// fixed room -- a camp counter, or a trolley that moves.
+    pub location_id: Option<Uuid>,
     pub code: String,
     pub name: String,
     pub station_type: String,
@@ -65,6 +68,7 @@ pub async fn list_stations(
 #[derive(Debug, Deserialize)]
 pub struct CreateStationRequest {
     pub department_id: Option<Uuid>,
+    pub location_id: Option<Uuid>,
     pub code: String,
     pub name: String,
     pub station_type: Option<String>,
@@ -97,11 +101,13 @@ pub async fn create_station(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, Station>(&format!(
         "INSERT INTO stations \
-         (tenant_id, department_id, code, name, station_type, location_scope, created_by) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING {STATION_COLS}"
+         (tenant_id, department_id, location_id, code, name, station_type, \
+          location_scope, created_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING {STATION_COLS}"
     ))
     .bind(claims.tenant_id)
     .bind(body.department_id)
+    .bind(body.location_id)
     .bind(body.code.trim())
     .bind(body.name.trim())
     .bind(station_type)
@@ -116,6 +122,7 @@ pub async fn create_station(
 #[derive(Debug, Deserialize)]
 pub struct UpdateStationRequest {
     pub department_id: Option<Uuid>,
+    pub location_id: Option<Uuid>,
     pub name: Option<String>,
     pub station_type: Option<String>,
     pub location_scope: Option<serde_json::Value>,
@@ -138,16 +145,18 @@ pub async fn update_station(
     let row = sqlx::query_as::<_, Station>(&format!(
         "UPDATE stations SET \
             department_id = COALESCE($3, department_id), \
-            name = COALESCE($4, name), \
-            station_type = COALESCE($5, station_type), \
-            location_scope = COALESCE($6, location_scope), \
-            is_active = COALESCE($7, is_active), \
+            location_id = COALESCE($4, location_id), \
+            name = COALESCE($5, name), \
+            station_type = COALESCE($6, station_type), \
+            location_scope = COALESCE($7, location_scope), \
+            is_active = COALESCE($8, is_active), \
             updated_at = now() \
          WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL RETURNING {STATION_COLS}"
     ))
     .bind(id)
     .bind(claims.tenant_id)
     .bind(body.department_id)
+    .bind(body.location_id)
     .bind(body.name.as_deref())
     .bind(body.station_type.as_deref())
     .bind(body.location_scope)

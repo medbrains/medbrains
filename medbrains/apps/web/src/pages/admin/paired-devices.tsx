@@ -35,9 +35,11 @@ import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "@/components";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
+import { RoomSelect } from "@/components/RoomSelect";
 import { Alert, Badge, Button, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminDevicesService, type PairingToken } from "@/services/adminDevices.service";
+import { settingsSetupService } from "@/services/settingsSetup.service";
 import { SyncKeyBadge, SyncKeyModal } from "./paired-device-sync-key";
 
 // Surface catalog for the mint picker. Location-scoped (TV/kiosk) surfaces are grouped separately
@@ -424,6 +426,7 @@ const STATION_DEFAULTS: StationCreateInput = {
   name: "",
   station_type: "other",
   department_id: null,
+  location_id: null,
 };
 
 function StationsManager() {
@@ -432,6 +435,18 @@ function StationsManager() {
     queryKey: ["stations"],
     queryFn: () => adminDevicesService.listStations(),
   });
+  const { data: directory = [] } = useQuery({
+    queryKey: ["location-directory"],
+    queryFn: () => settingsSetupService.listLocationDirectory(),
+    staleTime: 600_000,
+  });
+
+  // Index once. The alternative is a find() per row inside the table body,
+  // which is the N-squared scan this codebase keeps paying for.
+  const roomName = useMemo(() => {
+    const byId = new Map(directory.map((row) => [row.id, row.name]));
+    return (id: string | null) => (id ? (byId.get(id) ?? null) : null);
+  }, [directory]);
   const {
     control,
     handleSubmit,
@@ -450,6 +465,7 @@ function StationsManager() {
         name: v.name.trim(),
         station_type: v.station_type,
         department_id: v.department_id || undefined,
+        location_id: v.location_id || undefined,
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["stations"] });
@@ -474,6 +490,7 @@ function StationsManager() {
             <Table.Th>Code</Table.Th>
             <Table.Th>Name</Table.Th>
             <Table.Th>Type</Table.Th>
+            <Table.Th>Room</Table.Th>
             <Table.Th />
           </Table.Tr>
         </Table.Thead>
@@ -484,6 +501,9 @@ function StationsManager() {
               <Table.Td>{s.name}</Table.Td>
               <Table.Td>
                 <Badge>{s.station_type}</Badge>
+              </Table.Td>
+              <Table.Td>
+                {roomName(s.location_id) ?? <Badge tone="warning">No room</Badge>}
               </Table.Td>
               <Table.Td>
                 <Button
@@ -548,6 +568,13 @@ function StationsManager() {
           render={({ field }) => (
             <DepartmentSelect value={field.value ?? ""} onChange={field.onChange} />
           )}
+        />
+      </Group>
+      <Group align="flex-start" grow>
+        <Controller
+          control={control}
+          name="location_id"
+          render={({ field }) => <RoomSelect value={field.value ?? ""} onChange={field.onChange} />}
         />
       </Group>
       <Group justify="flex-end">

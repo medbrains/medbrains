@@ -118,7 +118,11 @@ async fn resolve_scope(
     let Some(scope_id) = scope_id else {
         return Ok(given_label.map(ToOwned::to_owned));
     };
-    if !matches!(scope, "department" | "counter" | "station") {
+    // A queue can belong to a department, a camp counter, a service point, or
+    // any level of the physical tree -- a room, a wing, a floor, a building.
+    // `token_scopes` resolves all four, so the only scope left unvalidated is
+    // `global`, which has no id to check.
+    if !matches!(scope, "department" | "counter" | "station" | "location") {
         return Ok(given_label.map(ToOwned::to_owned));
     }
 
