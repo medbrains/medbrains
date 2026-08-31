@@ -29,7 +29,7 @@ import type {
 import { P } from "@medbrains/types";
 import { IconAlertTriangle, IconEye, IconFlask, IconPlus, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useClinicalEmit } from "@/components";
 import { Alert, Badge, type BadgeTone, Button, IconButton, Table, toast } from "@/components/ui";
@@ -312,6 +312,17 @@ export function InvestigationsTab({
     return test ? `${test.code} — ${test.name}` : testId;
   };
 
+  // The fasting requirement, at the one moment it can still be acted on: the
+  // patient is in the room. The catalogue has carried this field and the API
+  // has returned it since the catalogue existed, and no screen ever showed it
+  // — so a patient sent for a fasting glucose was never told, arrived having
+  // eaten, and either gave a meaningless sample or was sent home to return
+  // tomorrow.
+  const fastingTest = useMemo(() => {
+    const test = catalog.find((t: LabTestCatalog) => t.id === selectedTestId);
+    return test?.fasting_required ? test : null;
+  }, [catalog, selectedTestId]);
+
   return (
     <Stack>
       {canUpdate && (
@@ -367,6 +378,18 @@ export function InvestigationsTab({
                 />
               )}
             />
+            {fastingTest && (
+              <Alert icon={<IconAlertTriangle size={14} />} tone="info" title="Patient must fast">
+                <Text size="xs">
+                  {fastingTest.name} requires
+                  {fastingTest.fasting_hours
+                    ? ` ${fastingTest.fasting_hours} hours of`
+                    : " a period of"}{" "}
+                  fasting before the sample is drawn. Tell the patient before they leave — water is
+                  allowed.
+                </Text>
+              </Alert>
+            )}
             {dupeCheckUnavailable && (
               <Alert
                 icon={<IconAlertTriangle size={14} />}
