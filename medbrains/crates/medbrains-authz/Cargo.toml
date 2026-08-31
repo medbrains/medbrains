@@ -16,8 +16,13 @@ prost-types = "0.14.3"
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2.workspace = true
-spicedb-rs-client = "1.49"
-spicedb-rs-proto = "1.49"
+# Pinned exactly, not "1.49". Cargo.lock is gitignored in this repo, so a
+# caret range is not a pin - every fresh checkout re-resolves forward. 1.53
+# added a `with_debug` field to LookupResourcesRequest, which is a struct
+# this crate constructs literally, so the range silently turned into a
+# compile error on any machine that had not already accumulated a lockfile.
+spicedb-rs-client = "=1.49.2"
+spicedb-rs-proto = "=1.49.2"
 sqlx = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
