@@ -3,7 +3,8 @@ import type { ReactNode } from "react";
 import styles from "./empty-state.module.scss";
 
 interface EmptyStateProps {
-  icon: ReactNode;
+  /** Optional: a table that supplies only a message still renders one. */
+  icon?: ReactNode;
   title: string;
   description?: string;
   action?: { label: string; onClick: () => void };
@@ -12,14 +13,16 @@ interface EmptyStateProps {
 export function EmptyState({ icon, title, description, action }: EmptyStateProps) {
   return (
     <div className={styles.wrapper}>
-      <div className={styles.iconContainer}>
-        <div className={styles.glowCircle} />
-        <div className={styles.iconFloat}>
-          <ThemeIcon variant="light" color="primary" size={80} radius="xl">
-            {icon}
-          </ThemeIcon>
+      {icon && (
+        <div className={styles.iconContainer}>
+          <div className={styles.glowCircle} />
+          <div className={styles.iconFloat}>
+            <ThemeIcon variant="light" color="primary" size={80} radius="xl">
+              {icon}
+            </ThemeIcon>
+          </div>
         </div>
-      </div>
+      )}
       <Stack align="center" gap="xs">
         <Title order={4} c="var(--mb-text-secondary)">
           {title}

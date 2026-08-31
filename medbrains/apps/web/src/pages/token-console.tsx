@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Alert, Badge, Button, Input, Select } from "@/components/ui";
+import { Alert, Badge, Button, Input, Select, toast } from "@/components/ui";
 import { resolveTokenActions, tokenStatusLabel } from "@/config/token-workflows";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 
@@ -53,7 +53,11 @@ export function TokenConsolePage() {
   const scope = departmentId ? "department" : undefined;
   const scopeId = departmentId ?? undefined;
   const queryKey = ["token-board", module, scope, scopeId];
-  const { data: tokens } = useQuery({
+  const {
+    data: tokens,
+    isError: boardFailed,
+    isLoading: boardLoading,
+  } = useQuery({
     queryKey,
     queryFn: () => api.listTokenBoard({ module, scope, scope_id: scopeId }),
     refetchInterval: 5000,
@@ -61,15 +65,31 @@ export function TokenConsolePage() {
   });
   const invalidate = () => void queryClient.invalidateQueries({ queryKey });
 
+  // Both mutations report failure. Without this a 403 from a stale
+  // permission, or a 409 from the colleague who advanced the same token a
+  // second earlier, left the button looking pressed and nothing happening —
+  // and the operator pressed it again.
+  const onActionError = (error: Error) =>
+    toast.error(error.message, { title: t("tokenConsole.actionFailed") });
+
   const advance = useMutation({
     mutationFn: (input: { id: string; status: string }) =>
       api.advanceToken(input.id, input.status, counter || undefined),
     onSuccess: invalidate,
+    onError: onActionError,
   });
   const callNext = useMutation({
     mutationFn: () =>
       api.callNextToken({ module, scope, scope_id: scopeId, counter_label: counter || undefined }),
-    onSuccess: invalidate,
+    // `call-next` answers null for an empty queue rather than failing, so
+    // success alone does not mean somebody was called. Silence here read as
+    // a call that had been made, and the counter waited for a patient who
+    // was never summoned.
+    onSuccess: (token) => {
+      invalidate();
+      if (!token) toast.info(t("tokenConsole.queueEmpty"));
+    },
+    onError: onActionError,
   });
 
   const columns: Column<ModuleToken>[] = [
@@ -144,12 +164,20 @@ export function TokenConsolePage() {
         </Button>
       </Group>
       {!canViewBoard && <Alert tone="warning">{t("tokenConsole.boardNotPermitted")}</Alert>}
-      <DataTable<ModuleToken>
-        columns={columns}
-        data={tokens ?? []}
-        rowKey={(row) => row.id}
-        emptyTitle={t("tokenConsole.empty")}
-      />
+      {/* An outage must not be drawn as an empty waiting room. "No tokens in
+          the queue" is a statement about the queue, and a desk that believes
+          it starts telling people to go home. */}
+      {boardFailed ? (
+        <Alert tone="danger">{t("tokenConsole.boardUnavailable")}</Alert>
+      ) : (
+        <DataTable<ModuleToken>
+          columns={columns}
+          data={tokens ?? []}
+          loading={boardLoading}
+          rowKey={(row) => row.id}
+          emptyTitle={t("tokenConsole.empty")}
+        />
+      )}
     </Stack>
   );
 }

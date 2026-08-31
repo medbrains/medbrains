@@ -405,7 +405,11 @@ export function DataTable<T>({
     );
   }
 
-  if (sortedData.length === 0 && emptyIcon) {
+  // Gated on `emptyIcon` until now, so a table that supplied only an
+  // `emptyTitle` rendered an empty grid and swallowed its own message —
+  // 126 of the 150 `emptyTitle` values in this app, across 97 files, never
+  // reached a screen. The default title exists precisely to be shown.
+  if (sortedData.length === 0) {
     return (
       <Card padding={0} className={styles.card}>
         {headerToolbar}
