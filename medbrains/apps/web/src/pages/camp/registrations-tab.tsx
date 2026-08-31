@@ -1,6 +1,7 @@
 // CAMP RegistrationsTab — split from camp.tsx (pure move).
 
 import { Group, Stack, Tabs, Text, TextInput, Tooltip } from "@mantine/core";
+import { useDebouncedValue } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { CampClinicalVisitFormInput } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
@@ -55,33 +56,30 @@ export function RegistrationsTab({
   const [statusTab, setStatusTab] = useState<string | null>("all");
   const [patientSearch, setPatientSearch] = useState("");
 
+  // Debounced so a typed name does not fire a query per keystroke.
+  const [debouncedSearch] = useDebouncedValue(patientSearch, 300);
+
+  // The search is the server's now. It used to filter in the browser over
+  // whatever this query had returned, and the handler caps at 500 rows
+  // ordered newest-first — so at a camp that registered more than five
+  // hundred people, searching found nobody from earlier in the day and said
+  // so in the same words it uses for "not registered".
   const { data: regs = [], isLoading } = useQuery({
-    queryKey: ["camp-registrations", campId, contextPatientId],
+    queryKey: ["camp-registrations", campId, contextPatientId, debouncedSearch],
     queryFn: () =>
       campService.listCampRegistrations({
         camp_id: campId ?? "",
         patient_id: contextPatientId || undefined,
+        q: debouncedSearch.trim() || undefined,
       }),
     enabled: !!campId,
   });
-  const filteredRegs = useMemo(() => {
-    const byStatus = statusTab === "all" ? regs : regs.filter((row) => row.status === statusTab);
-    const needle = patientSearch.trim().toLowerCase();
-    if (!needle) return byStatus;
-
-    return byStatus.filter((row) => {
-      const haystack = [
-        row.registration_number,
-        row.person_name,
-        row.phone,
-        row.id_proof_number,
-        row.patient_id,
-        row.chief_complaint,
-      ].filter((value): value is string => Boolean(value));
-
-      return haystack.some((value) => value.toLowerCase().includes(needle));
-    });
-  }, [patientSearch, regs, statusTab]);
+  // Status stays client-side: it is a tab over a set already in hand, not a
+  // way of reaching rows the query did not return.
+  const filteredRegs = useMemo(
+    () => (statusTab === "all" ? regs : regs.filter((row) => row.status === statusTab)),
+    [regs, statusTab],
+  );
 
   const openClinicalVisitMut = useMutation({
     mutationFn: ({

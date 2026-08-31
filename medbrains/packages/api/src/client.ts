@@ -8016,11 +8016,18 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
-  listCampRegistrations: (params: { camp_id?: string; status?: string; patient_id?: string }) => {
+  listCampRegistrations: (params: {
+    camp_id?: string;
+    status?: string;
+    patient_id?: string;
+    /** One box over registration number, phone, ID number, name and complaint. */
+    q?: string;
+  }) => {
     const sp = new URLSearchParams();
     if (params.camp_id) sp.set("camp_id", params.camp_id);
     if (params.status) sp.set("status", params.status);
     if (params.patient_id) sp.set("patient_id", params.patient_id);
+    if (params.q) sp.set("q", params.q);
     return request<CampRegistration[]>(`/camp/registrations?${sp.toString()}`);
   },
   createCampRegistration: (data: CreateCampRegistrationRequest) =>

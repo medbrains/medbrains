@@ -65,6 +65,10 @@
 // in-progress scaffolding doesn't block CI.
 #![allow(dead_code)]
 
+mod registration_filter;
+
+use registration_filter::{Bind, build_registration_filter};
+
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -474,6 +478,10 @@ pub struct ListRegistrationsQuery {
     pub camp_id: Option<Uuid>,
     pub status: Option<String>,
     pub patient_id: Option<Uuid>,
+    /// One box over the registration number, phone, ID number, name and
+    /// complaint. The screen filtered these in the browser, across only the
+    /// rows already fetched.
+    pub q: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -6623,20 +6631,19 @@ pub async fn list_registrations(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, CampRegistration>(
-        "SELECT * FROM camp_registrations \
-         WHERE ($1::uuid IS NULL OR camp_id = $1) \
-         AND tenant_id = $2 \
-         AND ($3::text IS NULL OR status::text = $3) \
-         AND ($4::uuid IS NULL OR patient_id = $4) \
-         ORDER BY created_at DESC LIMIT 500",
-    )
-    .bind(params.camp_id)
-    .bind(claims.tenant_id)
-    .bind(&params.status)
-    .bind(params.patient_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    let (where_clause, binds, _next_idx) = build_registration_filter(&params);
+    let sql = format!(
+        "SELECT * FROM camp_registrations WHERE {where_clause} \
+         ORDER BY created_at DESC LIMIT 500"
+    );
+    let mut query = sqlx::query_as::<_, CampRegistration>(&sql).bind(claims.tenant_id);
+    for bind in &binds {
+        query = match bind {
+            Bind::Uuid(value) => query.bind(*value),
+            Bind::Text(value) => query.bind(value.clone()),
+        };
+    }
+    let rows = query.fetch_all(&mut *tx).await?;
 
     tx.commit().await?;
     let rows = rows
