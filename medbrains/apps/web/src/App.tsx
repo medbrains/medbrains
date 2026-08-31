@@ -297,7 +297,7 @@ const CampBillingCreatePage = lazy(() =>
   import("./pages/camp").then((m) => ({ default: m.CampBillingCreatePage })),
 );
 const CampFollowupCreatePage = lazy(() =>
-  import("./pages/camp").then((m) => ({ default: m.CampFollowupCreatePage })),
+  import("./pages/camp/followup-create").then((m) => ({ default: m.CampFollowupCreatePage })),
 );
 const BedsidePortalPage = lazy(() =>
   import("./pages/bedside-portal").then((m) => ({ default: m.BedsidePortalPage })),

@@ -1,29 +1,8 @@
 // CAMP FollowupsTab — split from camp.tsx (pure move).
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Drawer,
-  Group,
-  Select,
-  SimpleGrid,
-  Stack,
-  Tabs,
-  Text,
-  Textarea,
-  Tooltip,
-} from "@mantine/core";
-import { DateInput } from "@mantine/dates";
-import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
-import type { CampFollowupFormInput } from "@medbrains/schemas";
-import { campFollowupFormSchema } from "@medbrains/schemas";
+import { Group, SimpleGrid, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
-import type {
-  Camp,
-  CampFollowup,
-  CreateCampFollowupRequest,
-  UpdateCampFollowupRequest,
-} from "@medbrains/types";
+import type { Camp, CampFollowup, UpdateCampFollowupRequest } from "@medbrains/types";
 import {
   CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY,
   CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY,
@@ -32,16 +11,15 @@ import {
 import { IconCheck, IconPlus, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router";
 import { DataTable, useProtectedFieldAccess } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
-import { campFollowupTypeOptions, campOptionalText } from "@/forms/camp.form";
+import { campFollowupTypeOptions } from "@/forms/camp.form";
 import { campService } from "@/services/camp.service";
 import type { CampTranslate } from "./shared";
 import {
-  campRegistrationOptionLabel,
   campWorkflowLabel,
   protectedCampParticipantName,
   protectedCampPhone,
@@ -67,6 +45,7 @@ export function FollowupsTab({
   selectedCamp: Camp | null;
 }) {
   const { t } = useTranslation("camp");
+  const navigate = useNavigate();
   // Gate each action on the permission its handler actually requires:
   // POST /camp/followups checks followups.schedule, PUT checks followups.outcome.
   const canSchedule = useHasPermission(P.CAMP.FOLLOWUPS_SCHEDULE);
@@ -74,25 +53,7 @@ export function FollowupsTab({
   const campNameAccess = useProtectedFieldAccess(CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY);
   const campPhoneAccess = useProtectedFieldAccess(CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY);
   const qc = useQueryClient();
-  const [createOpen, createHandlers] = useDisclosure(false);
   const [statusTab, setStatusTab] = useState<string | null>("all");
-  const followupDefaults: CampFollowupFormInput = {
-    registration_id: "",
-    followup_date: "",
-    followup_type: "phone_call",
-    notes: "",
-  };
-  const {
-    control,
-    register,
-    reset,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<CampFollowupFormInput>({
-    resolver: zodResolver(campFollowupFormSchema),
-    defaultValues: followupDefaults,
-  });
-
   const { data: followups = [], isLoading } = useQuery({
     queryKey: ["camp-followups", campId],
     queryFn: () => campService.listCampFollowups(campId ? { camp_id: campId } : undefined),
@@ -111,17 +72,6 @@ export function FollowupsTab({
     enabled: !!campId,
   });
 
-  const registrationOptions = useMemo(
-    () =>
-      registrations.map((registration) => ({
-        value: registration.id,
-        label: campRegistrationOptionLabel(registration, {
-          name: campNameAccess,
-          phone: campPhoneAccess,
-        }),
-      })),
-    [campNameAccess, campPhoneAccess, registrations],
-  );
   const followupTypeOptions = useMemo(
     () =>
       campFollowupTypeOptions.map((followupType) => ({
@@ -166,30 +116,6 @@ export function FollowupsTab({
         </Text>
       </Stack>
     );
-  };
-
-  const createMut = useMutation({
-    mutationFn: (data: CreateCampFollowupRequest) => campService.createCampFollowup(data),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["camp-followups"] });
-      void qc.invalidateQueries({ queryKey: ["camp-stats"] });
-      createHandlers.close();
-      reset(followupDefaults);
-      notifications.show({
-        title: t("notify.followupCreated"),
-        message: t("notify.followupScheduled"),
-        color: "success",
-      });
-    },
-  });
-
-  const handleCreateFollowup = (values: CampFollowupFormInput) => {
-    createMut.mutate({
-      registration_id: values.registration_id.trim(),
-      followup_date: values.followup_date.trim(),
-      followup_type: values.followup_type,
-      notes: campOptionalText(values.notes),
-    });
   };
 
   const completeMut = useMutation({
@@ -282,7 +208,11 @@ export function FollowupsTab({
           </Text>
         </Stack>
         {canSchedule && campId && (
-          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
+          <Button
+            tone="primary"
+            leftSection={<IconPlus size={16} />}
+            onClick={() => navigate(`/camp/${campId}/work/followups/new`)}
+          >
             {t("followups.actions.scheduleFollowup")}
           </Button>
         )}
@@ -332,72 +262,6 @@ export function FollowupsTab({
           {t("followups.openActiveCamp")}
         </Text>
       )}
-
-      <Drawer
-        opened={createOpen}
-        onClose={() => {
-          createHandlers.close();
-          reset(followupDefaults);
-        }}
-        title={t("followups.drawer.title")}
-        position="right"
-        size="sm"
-      >
-        <Stack component="form" onSubmit={handleSubmit(handleCreateFollowup)}>
-          <Controller
-            control={control}
-            name="registration_id"
-            render={({ field }) => (
-              <Select
-                label={t("common.campParticipant")}
-                placeholder={t("common.searchRegistrationNamePhone")}
-                data={registrationOptions}
-                value={field.value || null}
-                onChange={(value) => field.onChange(value ?? "")}
-                required
-                searchable
-                error={errors.registration_id?.message}
-              />
-            )}
-          />
-          <Controller
-            control={control}
-            name="followup_date"
-            render={({ field }) => (
-              <DateInput
-                label={t("followups.form.followupDate")}
-                required
-                value={field.value ? new Date(field.value) : null}
-                onChange={(date) =>
-                  field.onChange(date ? new Date(date).toISOString().slice(0, 10) : "")
-                }
-                error={errors.followup_date?.message}
-              />
-            )}
-          />
-          <Controller
-            control={control}
-            name="followup_type"
-            render={({ field }) => (
-              <Select
-                label={t("followups.form.followupType")}
-                data={followupTypeOptions}
-                value={field.value}
-                onChange={(value) => field.onChange(value ?? "phone_call")}
-                error={errors.followup_type?.message}
-              />
-            )}
-          />
-          <Textarea
-            label={t("followups.form.notes")}
-            error={errors.notes?.message}
-            {...register("notes")}
-          />
-          <Button tone="primary" type="submit" loading={createMut.isPending}>
-            {t("followups.actions.schedule")}
-          </Button>
-        </Stack>
-      </Drawer>
     </>
   );
 }

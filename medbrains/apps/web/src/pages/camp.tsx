@@ -400,7 +400,3 @@ export function CampAssetReturnPage() {
 export function CampBillingCreatePage() {
   return <CampWorkPage initialTab="registrations" />;
 }
-
-export function CampFollowupCreatePage() {
-  return <CampWorkPage initialTab="followups" />;
-}
