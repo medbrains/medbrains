@@ -14,7 +14,7 @@ import "@mantine/charts/styles.css";
 import { Divider, Group, Select, Stack, Tabs, Text, TextInput, Tooltip } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
-import type { LabCriticalAlert, LabOrder } from "@medbrains/types";
+import type { LabCriticalAlert, LabOrder, LabTestCatalog } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
@@ -26,7 +26,7 @@ import {
   IconSearch,
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router";
 import { ClinicalEventProvider, DataTable, PageHeader, StatusDot } from "@/components";
@@ -37,6 +37,7 @@ import { statusColor } from "@/lib/status-colors";
 import { AnionGapTab } from "@/pages/lab/AnionGapTab";
 import { OsmolarGapTab } from "@/pages/lab/OsmolarGapTab";
 import { labService } from "@/services/lab.service";
+import { lookupsService } from "@/services/lookups.service";
 
 export function LabPage() {
   useRequirePermission(P.LAB.ORDERS_LIST);
@@ -66,6 +67,20 @@ function LabPageInner() {
   const canDispatchList = useHasPermission(P.LAB.DISPATCH_LIST);
   const canDispatchManage = useHasPermission(P.LAB.DISPATCH_MANAGE);
 
+  // The worklist showed `test_id.slice(0, 8)` — eight characters of a UUID
+  // in the column headed "Test". The catalogue is read once here and indexed
+  // by id; a lookup per row would be a request per visible order, and a
+  // fresh set on every page.
+  const { data: catalogue = [] } = useQuery({
+    queryKey: ["lab-catalog-index"],
+    queryFn: () => lookupsService.listLabCatalog(),
+    staleTime: 600_000,
+  });
+  const testsById = useMemo(
+    () => new Map(catalogue.map((test: LabTestCatalog) => [test.id, test])),
+    [catalogue],
+  );
+
   const [page, setPage] = useState(1);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [filterPriority, setFilterPriority] = useState<string | null>(null);
@@ -94,7 +109,21 @@ function LabPageInner() {
     {
       key: "test_id",
       label: "Test",
-      render: (row: LabOrder) => <Text size="sm">{row.test_id.slice(0, 8)}...</Text>,
+      render: (row: LabOrder) => {
+        const test = testsById.get(row.test_id);
+        // Falls back to the code, then to nothing recognisable at all — but
+        // an em dash is honest where a truncated UUID pretended to be a name.
+        return (
+          <Stack gap={0}>
+            <Text size="sm">{test ? test.name : "—"}</Text>
+            {test?.code && (
+              <Text size="xs" c="dimmed">
+                {test.code}
+              </Text>
+            )}
+          </Stack>
+        );
+      },
     },
     {
       key: "priority",
