@@ -12,23 +12,14 @@ import { SampleManagementTab } from "./lab/sample-management";
 import { printLabReportPacket, statusColors } from "./lab/shared";
 import { SpecializedReportsTab } from "./lab/specialized-reports";
 import "@mantine/charts/styles.css";
-import {
-  Divider,
-  Drawer,
-  Group,
-  Select,
-  Stack,
-  Tabs,
-  Text,
-  TextInput,
-  Tooltip,
-} from "@mantine/core";
+import { Divider, Group, Select, Stack, Tabs, Text, TextInput, Tooltip } from "@mantine/core";
 import { useDebouncedValue, useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { LabCriticalAlert, LabOrder } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
+  IconArrowLeft,
   IconEye,
   IconFlask,
   IconPlus,
@@ -38,6 +29,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate, useParams } from "react-router";
 import { ClinicalEventProvider, DataTable, PageHeader, StatusDot } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { Alert, Badge, Button, IconButton } from "@/components/ui";
@@ -59,10 +51,8 @@ export function LabPage() {
 
 function LabPageInner() {
   const { t } = useTranslation("lab");
+  const navigate = useNavigate();
   const canCreateOrder = useHasPermission(P.LAB.ORDERS_CREATE);
-  const canCreateResult = useHasPermission(P.LAB.RESULTS_CREATE);
-  const canVerify = useHasPermission(P.LAB.RESULTS_UPDATE);
-  const canAmend = useHasPermission(P.LAB.RESULTS_AMEND);
   const canQc = useHasPermission(P.LAB.QC_LIST);
   const canPhlebotomy = useHasPermission(P.LAB.PHLEBOTOMY_LIST);
   const canOutsourced = useHasPermission(P.LAB.OUTSOURCED_LIST);
@@ -85,9 +75,7 @@ function LabPageInner() {
   // to page 1 because results for "Sundaram" on page 4 of the unfiltered list
   // are nobody's search results.
   const [debouncedSearch] = useDebouncedValue(search, 300);
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
-  const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
 
   const params: Record<string, string> = { page: String(page), per_page: "20" };
   if (filterStatus) params.status = filterStatus;
@@ -172,10 +160,7 @@ function LabPageInner() {
         <Group gap="xs">
           <Tooltip label={t("label.view")}>
             <IconButton
-              onClick={() => {
-                setSelectedOrderId(row.id);
-                openDetail();
-              }}
+              onClick={() => navigate(`/lab/orders/${row.id}`)}
               aria-label={t("aria.viewDetails")}
             >
               <IconEye size={16} />
@@ -410,25 +395,65 @@ function LabPageInner() {
       </Tabs>
 
       <CreateLabOrderDrawer opened={createOpened} onClose={closeCreate} />
-
-      <Drawer
-        opened={detailOpened}
-        onClose={closeDetail}
-        title={t("title.labOrderDetail")}
-        position="right"
-        size="lg"
-      >
-        {selectedOrderId && (
-          <LabOrderDetail
-            orderId={selectedOrderId}
-            canCreateResult={canCreateResult}
-            canCreateOrder={canCreateOrder}
-            canVerify={canVerify}
-            canAmend={canAmend}
-            canPrintReports={canPrintReports}
-          />
-        )}
-      </Drawer>
     </div>
+  );
+}
+
+/**
+ * The lab order on a route of its own rather than in a right-hand drawer.
+ *
+ * The detail is the bench's working screen — result entry, verification,
+ * amendment, the printed report — and a drawer made all of that share the
+ * worklist's width, could not be linked to, and lost its place on a refresh.
+ * A technician handed "order for Sundaram" now gets a URL.
+ */
+export function LabOrderDetailPage() {
+  useRequirePermission(P.LAB.ORDERS_VIEW);
+
+  return (
+    <ClinicalEventProvider moduleCode="lab" contextCode="lab-order-detail">
+      <LabOrderDetailPageInner />
+    </ClinicalEventProvider>
+  );
+}
+
+function LabOrderDetailPageInner() {
+  const { t } = useTranslation("lab");
+  const navigate = useNavigate();
+  const { orderId } = useParams();
+  const canCreateOrder = useHasPermission(P.LAB.ORDERS_CREATE);
+  const canCreateResult = useHasPermission(P.LAB.RESULTS_CREATE);
+  const canVerify = useHasPermission(P.LAB.RESULTS_UPDATE);
+  const canAmend = useHasPermission(P.LAB.RESULTS_AMEND);
+  const canPrintReports = useHasPermission(P.LAB.ORDERS_VIEW);
+
+  return (
+    <Stack>
+      <PageHeader
+        title={t("title.labOrderDetail")}
+        icon={<IconFlask size={20} stroke={1.5} />}
+        actions={
+          <Button
+            tone="secondary"
+            leftSection={<IconArrowLeft size={14} />}
+            onClick={() => navigate("/lab")}
+          >
+            {t("title.laboratory")}
+          </Button>
+        }
+      />
+      {orderId ? (
+        <LabOrderDetail
+          orderId={orderId}
+          canCreateResult={canCreateResult}
+          canCreateOrder={canCreateOrder}
+          canVerify={canVerify}
+          canAmend={canAmend}
+          canPrintReports={canPrintReports}
+        />
+      ) : (
+        <Alert tone="warning">Lab order id is missing from the route.</Alert>
+      )}
+    </Stack>
   );
 }

@@ -111,6 +111,9 @@ const PgLogbookPage = lazy(() =>
   import("./pages/pg-logbook").then((m) => ({ default: m.PgLogbookPage })),
 );
 const LabPage = lazy(() => import("./pages/lab").then((m) => ({ default: m.LabPage })));
+const LabOrderDetailPage = lazy(() =>
+  import("./pages/lab").then((m) => ({ default: m.LabOrderDetailPage })),
+);
 const PharmacyPage = lazy(() =>
   import("./pages/pharmacy").then((m) => ({ default: m.PharmacyPage })),
 );
@@ -502,6 +505,7 @@ export function App() {
               <Route path="opd/pg-logbook" element={<PgLogbookPage />} />
               <Route path="doctor/signoffs" element={<DoctorSignoffsPage />} />
               <Route path="lab" element={<LabPage />} />
+              <Route path="lab/orders/:orderId" element={<LabOrderDetailPage />} />
               <Route path="radiology" element={<RadiologyPage />} />
               <Route path="pharmacy" element={<PharmacyPage />} />
               <Route path="ward-stock" element={<WardStockPage />} />
