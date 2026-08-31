@@ -69,6 +69,7 @@ members = [
     "crates/medbrains-consent",
     "crates/medbrains-security",
     "crates/medbrains-pharmacy-finance",
+    "crates/medbrains-pharmacy-fulfilment",
     "crates/medbrains-cms",
     "crates/medbrains-pharmacy-safety",
     "crates/medbrains-pharmacy-payments",
@@ -138,6 +139,23 @@ members = [
     "apps/edge",
     "crates/medbrains-printing",
     "apps/desktop/src-tauri",
+]
+# What a bare `cargo build` builds. Naming the four deploy binaries is
+# enough: cargo builds each one's dependency closure, which is ~130 of
+# the crates above. What it skips is what a hospital API server never
+# needs -- the Tauri desktop app and its entire macOS GUI tree (tauri,
+# wry, tao, objc2-app-kit, muda, tray-icon), the uniffi bindgen that
+# medbrains-edge-rn runs twice, and the goose loadtest harness.
+#
+# Measured from target/cargo-timings: 9.3 of 79.4 CPU-minutes, 11.7%.
+#
+# This is NOT a coverage change for CI. A library crate that nothing
+# here depends on is no longer type-checked by a bare `cargo build`, so
+# CI and the pre-merge gate must say `--workspace` explicitly.
+default-members = [
+    "crates/medbrains-server",
+    "crates/medbrains-proxy",
+    "apps/edge",
 ]
 
 [workspace.package]

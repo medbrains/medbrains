@@ -1,0 +1,21 @@
+[package]
+name = "medbrains-pharmacy-fulfilment"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+medbrains-authz-gate = { path = "../medbrains-authz-gate" }
+medbrains-server-core = { path = "../medbrains-server-core" }
+medbrains-core = { path = "../medbrains-core" }
+medbrains-db = { path = "../medbrains-db" }
+medbrains-tokens = { path = "../medbrains-tokens" }
+axum = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+sqlx = { workspace = true }
+chrono = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true
