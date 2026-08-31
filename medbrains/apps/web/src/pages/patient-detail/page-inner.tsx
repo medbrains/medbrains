@@ -51,6 +51,7 @@ import { PatientContextBanner } from "@/components/Patient/PatientContextBanner"
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import { deriveCampJourneyCompletedEvents } from "@/components/Patient/patient-journey-events";
+import { PrintPatientCardButton } from "@/components/Patients/PatientCard";
 import { ShareDrawer } from "@/components/Sharing/ShareDrawer";
 import { Badge, Button } from "@/components/ui";
 import { useHashTabs } from "@/hooks/useHashTabs";
@@ -365,6 +366,7 @@ export function PatientDetailPageInner() {
               context={{ patient_id: patient.id }}
               label="Ask AI"
             />
+            <PrintPatientCardButton patientId={patient.id} />
             {canViewBillingLedger && (
               <Button
                 tone="secondary"

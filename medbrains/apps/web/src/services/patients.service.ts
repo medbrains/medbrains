@@ -5,6 +5,8 @@ export type ListPatientsInput = Parameters<typeof api.listPatients>[0];
 export type ListCampsInput = Parameters<typeof api.listCamps>[0];
 
 export const patientsService = {
+  getPatientCardPrintData: (...args: Parameters<typeof api.getPatientCardPrintData>) =>
+    api.getPatientCardPrintData(...args),
   listPatients: (params: ListPatientsInput) => api.listPatients(params),
   getPatient: (...args: Parameters<typeof api.getPatient>) => api.getPatient(...args),
   getPatientContext: (...args: Parameters<typeof api.getPatientContext>) =>
