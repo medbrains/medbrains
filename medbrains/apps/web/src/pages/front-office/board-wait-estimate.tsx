@@ -39,9 +39,15 @@ export function BoardWaitEstimate({ isKiosk = false }: BoardWaitEstimateProps) {
   if (!estimate) return null;
 
   const minutes = estimate.estimated_minutes;
-  // An estimate of zero reads as "you are next", not as "no wait recorded".
+  // Three outcomes, not two. `null` means this queue has never been measured,
+  // which is not the same as a wait of zero -- and on a kiosk in a waiting
+  // room, the difference is a patient who leaves and one who does not.
   const headline =
-    minutes <= 0 ? t("tokenBoards.wait.next") : t("tokenBoards.wait.minutes", { count: minutes });
+    minutes === null
+      ? t("tokenBoards.wait.unknown", "Wait time not yet known")
+      : minutes <= 0
+        ? t("tokenBoards.wait.next")
+        : t("tokenBoards.wait.minutes", { count: minutes });
 
   return (
     <Card withBorder padding={isKiosk ? "lg" : "md"}>
@@ -58,11 +64,13 @@ export function BoardWaitEstimate({ isKiosk = false }: BoardWaitEstimateProps) {
           <Text size="xs" c="dimmed">
             {t("tokenBoards.wait.ahead", { count: estimate.queue_position })}
           </Text>
-          <Text size="xs" c="dimmed">
-            {t("tokenBoards.wait.pace", {
-              minutes: Math.round(estimate.avg_consultation_minutes),
-            })}
-          </Text>
+          {estimate.median_consultation_minutes !== null && (
+            <Text size="xs" c="dimmed">
+              {t("tokenBoards.wait.pace", {
+                minutes: Math.round(estimate.median_consultation_minutes),
+              })}
+            </Text>
+          )}
         </Stack>
       </Group>
     </Card>

@@ -1927,9 +1927,20 @@ export interface LookupTerminologyParams {
 // -- Wait Time Estimation --
 
 export interface WaitEstimate {
-  estimated_minutes: number;
+  /**
+   * Minutes, or `null` when this queue has not been measured yet.
+   *
+   * It was previously always `queue_position * 10`: the server averaged
+   * `completed_at - called_at`, no row had ever carried both, and the fallback
+   * turned "never measured" into a figure shown to desks and to patients'
+   * phones as fact. Render the position alone when this is null.
+   */
+  estimated_minutes: number | null;
   queue_position: number;
-  avg_consultation_minutes: number;
+  /** Median, not mean — consultation times are right-skewed. */
+  median_consultation_minutes: number | null;
+  /** How many completed consultations back this, so a guess reads as one. */
+  sample_count: number;
 }
 
 // -- Multi-Doctor Appointment Group --

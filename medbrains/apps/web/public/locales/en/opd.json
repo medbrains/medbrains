@@ -84,6 +84,7 @@
   "appointmentHandoff.sendToOpd": "Send to OPD",
   "waitEstimate.position": "{{position}} in queue",
   "waitEstimate.minutes": "~{{minutes}} min",
+  "waitEstimate.learning": "learning",
   "vitals.error.queueEntryNotLoaded": "OPD queue entry was not loaded",
   "vitals.notify.recorded": "Vitals recorded",
   "vitals.notify.saved": "{{patient}} vitals were saved",

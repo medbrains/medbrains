@@ -72,5 +72,6 @@
   "tokenBoards.wait.minutes": "About {{count}} min",
   "tokenBoards.wait.next": "You are next",
   "tokenBoards.wait.ahead": "{{count}} waiting ahead",
-  "tokenBoards.wait.pace": "~{{minutes}} min per consultation"
+  "tokenBoards.wait.pace": "~{{minutes}} min per consultation",
+  "tokenBoards.wait.unknown": "Wait time not yet known"
 }

@@ -132,3 +132,45 @@ async fn an_unmeasured_queue_reports_nothing_rather_than_a_default() {
          measurement is the defect this replaces"
     );
 }
+
+/// The OPD wait estimate says nothing when it knows nothing.
+///
+/// It used to return `queue_position * 10.0` unconditionally: the average was
+/// taken over `completed_at - called_at`, no row in the database had ever
+/// carried both, and `unwrap_or(10.0)` turned "never measured" into a figure
+/// that reached a kiosk in the waiting room and a patient's own phone.
+#[tokio::test]
+async fn the_wait_estimate_reports_nothing_until_it_has_measured() {
+    let app = common::spawn_app().await;
+    let csrf = app.login_admin().await;
+
+    let body: serde_json::Value = app
+        .client
+        .get(app.url("/api/opd/queue/wait-estimate"))
+        .header("x-csrf-token", &csrf)
+        .send()
+        .await
+        .expect("wait estimate")
+        .json()
+        .await
+        .expect("wait estimate json");
+
+    let samples = body["sample_count"].as_i64().expect("sample_count");
+    if samples < 10 {
+        assert!(
+            body["estimated_minutes"].is_null(),
+            "with {samples} completed consultations the estimate must be null, \
+             not arithmetic on a constant -- got {}",
+            body["estimated_minutes"]
+        );
+        assert!(
+            body["median_consultation_minutes"].is_null() || samples > 0,
+            "a median with no samples behind it is not a median"
+        );
+    }
+
+    assert!(
+        body["queue_position"].is_number(),
+        "the position is always knowable and must still be reported"
+    );
+}

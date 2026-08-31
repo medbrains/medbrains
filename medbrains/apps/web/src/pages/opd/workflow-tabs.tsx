@@ -2449,7 +2449,14 @@ export function WaitTimeBadge({
       label={t("waitEstimate.position", { position: estimate.queue_position })}
       shape="diamond"
       tone="blocked"
-      value={t("waitEstimate.minutes", { minutes: estimate.estimated_minutes })}
+      // Position is always known; the time is not. Showing the queue position
+      // alone is honest and still useful -- inventing minutes from a constant
+      // is neither.
+      value={
+        estimate.estimated_minutes === null
+          ? t("waitEstimate.learning", "learning")
+          : t("waitEstimate.minutes", { minutes: estimate.estimated_minutes })
+      }
     />
   );
 }

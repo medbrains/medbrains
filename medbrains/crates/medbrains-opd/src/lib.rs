@@ -5941,11 +5941,32 @@ pub struct WaitEstimateQuery {
     pub doctor_id: Option<Uuid>,
 }
 
+/// Below this the history is reported but is not yet an estimate.
+const WAIT_ESTIMATE_MIN_SAMPLES: i64 = 10;
+
+/// A consultation nobody closed is not a long consultation.
+const WAIT_ESTIMATE_OUTLIER_CEILING_MINUTES: i32 = 240;
+
+/// How far back the estimate learns from.
+const WAIT_ESTIMATE_LOOKBACK_DAYS: i32 = 90;
+
 #[derive(Debug, Serialize)]
 pub struct WaitEstimate {
-    pub estimated_minutes: i64,
+    /// `None` until this queue has been measured.
+    ///
+    /// It used to be an `i64` that was always `queue_position * 10.0`: the
+    /// average was computed over `completed_at - called_at`, no row in the
+    /// database had ever carried both, and `unwrap_or(10.0)` turned "we have
+    /// never measured this" into a number a desk and a patient's phone both
+    /// displayed as fact.
+    pub estimated_minutes: Option<i64>,
     pub queue_position: i64,
-    pub avg_consultation_minutes: f64,
+    /// The median, not the mean. Consultation times are right-skewed, so a
+    /// mean sits above almost every real visit.
+    pub median_consultation_minutes: Option<f64>,
+    /// How many completed consultations this is drawn from, so the caller can
+    /// tell an estimate from a guess.
+    pub sample_count: i64,
 }
 
 pub async fn get_wait_estimate(
@@ -5974,34 +5995,57 @@ pub async fn get_wait_estimate(
     .fetch_one(&mut *tx)
     .await?;
 
-    // Average consultation duration from completed consultations in last 7 days
-    let avg: (Option<f64>,) = sqlx::query_as(
-        "SELECT AVG(EXTRACT(EPOCH FROM (q.completed_at - q.called_at)) / 60.0)::float8 \
-         FROM opd_queues q \
-         WHERE q.tenant_id = $1 AND q.status = 'completed' \
-           AND q.called_at IS NOT NULL AND q.completed_at IS NOT NULL \
-           AND ($2::uuid IS NULL OR q.department_id = $2) \
-           AND ($3::uuid IS NULL OR q.doctor_id = $3) \
-           AND q.queue_date >= $4::date - INTERVAL '7 days'",
+    // What this queue has actually been taking, as a median over completed
+    // consultations. Rows past the outlier ceiling are excluded rather than
+    // outweighed: before the day rollover existed, entries sat `called`
+    // indefinitely, and one such row arriving as a nine-hour consultation
+    // moves a mean from fourteen minutes to sixty-two.
+    let learned: (Option<f64>, i64) = sqlx::query_as(
+        "SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY mins)::float8, \
+                COUNT(*)::bigint \
+         FROM ( \
+           SELECT EXTRACT(EPOCH FROM (q.completed_at - q.called_at)) / 60.0 AS mins \
+             FROM opd_queues q \
+            WHERE q.tenant_id = $1 AND q.status = 'completed' \
+              AND q.called_at IS NOT NULL AND q.completed_at IS NOT NULL \
+              AND q.completed_at > q.called_at \
+              AND q.completed_at - q.called_at < make_interval(mins => $5) \
+              AND ($2::uuid IS NULL OR q.department_id = $2) \
+              AND ($3::uuid IS NULL OR q.doctor_id = $3) \
+              AND q.queue_date >= $4::date - make_interval(days => $6) \
+         ) measured",
     )
     .bind(claims.tenant_id)
     .bind(q.department_id)
     .bind(q.doctor_id)
     .bind(today)
+    .bind(WAIT_ESTIMATE_OUTLIER_CEILING_MINUTES)
+    .bind(WAIT_ESTIMATE_LOOKBACK_DAYS)
     .fetch_one(&mut *tx)
     .await?;
 
     tx.commit().await?;
 
-    let avg_minutes = avg.0.unwrap_or(10.0);
+    let (median_consultation_minutes, sample_count) = learned;
     let queue_position = waiting.0;
-    #[allow(clippy::cast_possible_truncation)]
-    let estimated_minutes = (queue_position as f64 * avg_minutes) as i64;
+
+    // No number at all until there is something to base one on. A waiting room
+    // told "50 minutes" by arithmetic on a constant plans around a figure the
+    // hospital never measured, and a patient sent away on it does not come
+    // back at the right time.
+    let estimated_minutes = median_consultation_minutes.filter(|_| {
+        sample_count >= WAIT_ESTIMATE_MIN_SAMPLES
+    }).map(|median| {
+        #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+        let minutes = (queue_position as f64 * median) as i64;
+        minutes
+    });
 
     Ok(Json(WaitEstimate {
         estimated_minutes,
         queue_position,
-        avg_consultation_minutes: avg_minutes,
+        median_consultation_minutes,
+        sample_count,
     }))
 }
 

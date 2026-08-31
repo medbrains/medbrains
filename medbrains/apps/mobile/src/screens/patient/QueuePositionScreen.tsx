@@ -100,7 +100,11 @@ export function QueuePositionScreen({ route, navigation }: QueuePositionScreenPr
 
   const tokenNumber = appointment.token_number || 0;
   const queuePosition = waitEstimate?.queue_position || 0;
-  const estimatedWait = waitEstimate?.estimated_minutes || 0;
+  // `null` means this queue has never been measured; `|| 0` turned that into
+  // "0 minutes" on a patient's own phone, which reads as "you are next". The
+  // server used to fabricate this number from a constant; now it says nothing
+  // when it knows nothing, and so does this screen.
+  const estimatedWait = waitEstimate?.estimated_minutes ?? null;
 
   const getStatusInfo = () => {
     switch (appointment.status) {
@@ -205,7 +209,7 @@ export function QueuePositionScreen({ route, navigation }: QueuePositionScreenPr
 
               <View style={styles.progressItem}>
                 <Text variant="headlineMedium" style={[styles.progressValue, styles.yourToken]}>
-                  ~{estimatedWait}
+                  {estimatedWait === null ? "—" : `~${estimatedWait}`}
                 </Text>
                 <Text variant="labelSmall" style={styles.progressLabel}>
                   {mobileAppointmentText("appointments.queue.minutesWait")}
@@ -221,7 +225,9 @@ export function QueuePositionScreen({ route, navigation }: QueuePositionScreenPr
                   {mobileAppointmentText("appointments.queue.estimatedWaitTime")}
                 </Text>
                 <Text variant="titleLarge" style={styles.waitTime}>
-                  {waitTimeText(estimatedWait)}
+                  {estimatedWait === null
+                    ? mobileAppointmentText("appointments.queue.waitUnknown")
+                    : waitTimeText(estimatedWait)}
                 </Text>
               </View>
             </Surface>

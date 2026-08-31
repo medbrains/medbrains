@@ -27,6 +27,9 @@ const MOBILE_APPOINTMENT_MESSAGES: Record<string, string> = {
   "appointments.loading.queue": "Loading queue status...",
   "appointments.queue.appointmentNotFound": "Appointment not found",
   "appointments.queue.estimatedWaitTime": "Estimated Wait Time",
+  // Shown when the queue has never been measured. Not "0 minutes", which a
+  // patient reads as "you are next".
+  "appointments.queue.waitUnknown": "Not yet known",
   "appointments.queue.lastUpdated": "Last updated: {{time}}",
   "appointments.queue.minutesWait": "Minutes Wait",
   "appointments.queue.patientsAhead": "Patients Ahead",
