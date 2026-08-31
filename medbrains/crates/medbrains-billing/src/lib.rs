@@ -3065,7 +3065,7 @@ async fn list_installments(
          GROUP BY installment_id",
     )
     .bind(tenant_id)
-    .bind(&plans.iter().map(|p| p.id).collect::<Vec<_>>())
+    .bind(plans.iter().map(|p| p.id).collect::<Vec<_>>())
     .fetch_all(&state.db)
     .await?;
     let pending_map: HashMap<Uuid, i64> = pending.into_iter().collect();
