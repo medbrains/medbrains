@@ -3505,6 +3505,45 @@ async fn find_or_create_camp_encounter(
     .fetch_one(&mut **tx)
     .await?;
 
+    // The unified token, without which this camp visit is invisible.
+    //
+    // `opd_queues` above is the clinic's own row and no board reads it: the
+    // waiting-room displays, the front-office console and the doctor's
+    // worklist all read `tokens`, and the call announcement fires from
+    // `tokens::transition`. OPD walk-in registration and appointment
+    // check-in both issue one; this path — a camp participant sent into a
+    // consultation — never did, so camp patients joined a queue nobody was
+    // watching and were never called on the board or over the speaker.
+    //
+    // Camps are exactly where that hurts most: one afternoon, a room full of
+    // people who travelled to get there, and a number on a slip that no
+    // display will ever show.
+    //
+    // Joins the visit the patient already has today, so one person carries
+    // one number through the camp, the lab and the pharmacy rather than
+    // collecting a fresh one at each counter.
+    let visit_id = medbrains_tokens::current_visit(tx, patient_id)
+        .await?
+        .or_else(|| Some(Uuid::new_v4()));
+    medbrains_tokens::issue_token_in_tx(
+        tx,
+        claims.tenant_id,
+        medbrains_tokens::IssueToken {
+            visit_id,
+            module: "opd",
+            scope: "department",
+            scope_id: Some(department_id),
+            scope_label: None,
+            priority: "normal",
+            patient_id: Some(patient_id),
+            patient_name: None,
+            entity_type: Some("encounter"),
+            entity_id: Some(encounter_id),
+            issued_by: Some(claims.sub),
+        },
+    )
+    .await?;
+
     Ok(CampEncounterLink {
         encounter_id,
         queue_id: Some(queue_id),
