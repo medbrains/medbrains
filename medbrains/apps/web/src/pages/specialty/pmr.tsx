@@ -19,6 +19,7 @@ import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, Button } from "@/components/ui";
+import { usePatientScope } from "@/hooks/usePatientScope";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
 
@@ -43,6 +44,9 @@ function toRehabDiscipline(value: string | null): RehabDiscipline {
 }
 
 export function PmrPage() {
+  // Opened from a patient's encounter rather than the navigation: start
+  // the form on them instead of making the clinician find them again.
+  const { patientId: scopedPatientId } = usePatientScope();
   useRequirePermission(P.SPECIALTY.PMR.PLANS_LIST);
   const qc = useQueryClient();
   const canPlan = useHasPermission(P.SPECIALTY.PMR.PLANS_CREATE);
@@ -73,7 +77,7 @@ export function PmrPage() {
   });
 
   const [planForm, setPlanForm] = useState<CreateRehabPlanRequest>({
-    patient_id: "",
+    patient_id: scopedPatientId,
     discipline: "physiotherapy",
   });
 

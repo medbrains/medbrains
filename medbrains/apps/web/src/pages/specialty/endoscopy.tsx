@@ -18,6 +18,7 @@ import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { usePatientScope } from "@/hooks/usePatientScope";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { specialtyService } from "@/services/specialty.service";
@@ -44,6 +45,9 @@ function statusTone(status: string): BadgeTone {
 }
 
 export function EndoscopyPage() {
+  // Opened from a patient's encounter rather than the navigation: start
+  // the form on them instead of making the clinician find them again.
+  const { patientId: scopedPatientId } = usePatientScope();
   useRequirePermission(P.SPECIALTY.ENDOSCOPY.PROCEDURES_LIST);
   const qc = useQueryClient();
   const canCreate = useHasPermission(P.SPECIALTY.ENDOSCOPY.PROCEDURES_CREATE);
@@ -70,7 +74,7 @@ export function EndoscopyPage() {
 
   // ── Create Procedure ──
   const [procForm, setProcForm] = useState<CreateEndoscopyProcedureRequest>({
-    patient_id: "",
+    patient_id: scopedPatientId,
     procedure_type: "",
   });
 

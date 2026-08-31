@@ -21,6 +21,7 @@ import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, Button, IconButton } from "@/components/ui";
+import { usePatientScope } from "@/hooks/usePatientScope";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
 
@@ -53,6 +54,9 @@ function toCathProcedureType(value: string | null): CathProcedureType {
 }
 
 export function CathLabPage() {
+  // Opened from a patient's encounter rather than the navigation: start
+  // the form on them instead of making the clinician find them again.
+  const { patientId: scopedPatientId } = usePatientScope();
   useRequirePermission(P.SPECIALTY.CATH_LAB.PROCEDURES_LIST);
   const qc = useQueryClient();
   const canCreate = useHasPermission(P.SPECIALTY.CATH_LAB.PROCEDURES_CREATE);
@@ -100,7 +104,7 @@ export function CathLabPage() {
 
   // ── Create Procedure ──
   const [procForm, setProcForm] = useState<CreateCathProcedureRequest>({
-    patient_id: "",
+    patient_id: scopedPatientId,
     procedure_type: "diagnostic_cath",
     operator_id: "",
   });

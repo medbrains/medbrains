@@ -20,6 +20,7 @@ import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, Button, IconButton } from "@/components/ui";
+import { usePatientScope } from "@/hooks/usePatientScope";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
 
@@ -42,6 +43,9 @@ function toPsychAdmissionCategory(value: string | null): PsychAdmissionCategory 
 }
 
 export function PsychiatryPage() {
+  // Opened from a patient's encounter rather than the navigation: start
+  // the form on them instead of making the clinician find them again.
+  const { patientId: scopedPatientId } = usePatientScope();
   useRequirePermission(P.SPECIALTY.PSYCHIATRY.PATIENTS_LIST);
   const qc = useQueryClient();
   const canCreate = useHasPermission(P.SPECIALTY.PSYCHIATRY.PATIENTS_CREATE);
@@ -81,7 +85,7 @@ export function PsychiatryPage() {
   });
 
   const [patForm, setPatForm] = useState<CreatePsychPatientRequest>({
-    patient_id: "",
+    patient_id: scopedPatientId,
     admission_category: "independent",
   });
 

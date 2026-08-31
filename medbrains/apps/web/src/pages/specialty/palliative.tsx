@@ -21,6 +21,7 @@ import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { usePatientScope } from "@/hooks/usePatientScope";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { specialtyService } from "@/services/specialty.service";
@@ -65,6 +66,9 @@ const PALLIATIVE_PAGE_PERMISSIONS = [
 ] as const;
 
 export function PalliativePage() {
+  // Opened from a patient's encounter rather than the navigation: start
+  // the form on them instead of making the clinician find them again.
+  const { patientId: scopedPatientId } = usePatientScope();
   useRequirePermission(PALLIATIVE_PAGE_PERMISSIONS);
   const qc = useQueryClient();
   const [searchParams] = useSearchParams();
@@ -125,9 +129,9 @@ export function PalliativePage() {
     enabled: canViewNucmed,
   });
 
-  const [dnrForm, setDnrForm] = useState<CreateDnrOrderRequest>({ patient_id: "" });
+  const [dnrForm, setDnrForm] = useState<CreateDnrOrderRequest>({ patient_id: scopedPatientId });
   const [painForm, setPainForm] = useState<CreatePainAssessmentRequest>({
-    patient_id: "",
+    patient_id: scopedPatientId,
     pain_score: 0,
   });
   const [mortForm, setMortForm] = useState<CreateMortuaryRecordRequest>({

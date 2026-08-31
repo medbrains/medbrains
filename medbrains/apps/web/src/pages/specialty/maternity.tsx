@@ -20,6 +20,7 @@ import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { usePatientScope } from "@/hooks/usePatientScope";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { specialtyService } from "@/services/specialty.service";
@@ -132,6 +133,9 @@ function NewbornVerifyDrawer({
 }
 
 export function MaternityPage() {
+  // Opened from a patient's encounter rather than the navigation: start
+  // the form on them instead of making the clinician find them again.
+  const { patientId: scopedPatientId } = usePatientScope();
   useRequirePermission(P.SPECIALTY.MATERNITY.REGISTRATIONS_LIST);
   const qc = useQueryClient();
   const canCreate = useHasPermission(P.SPECIALTY.MATERNITY.REGISTRATIONS_CREATE);
@@ -176,7 +180,7 @@ export function MaternityPage() {
   });
 
   const [regForm, setRegForm] = useState<CreateMaternityRegistrationRequest>({
-    patient_id: "",
+    patient_id: scopedPatientId,
     registration_number: "",
   });
 

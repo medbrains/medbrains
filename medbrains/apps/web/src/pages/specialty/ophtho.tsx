@@ -13,6 +13,7 @@ import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { Badge, Button, Drawer, Input, NumberField, TextArea, toast } from "@/components/ui";
+import { usePatientScope } from "@/hooks/usePatientScope";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
 
@@ -38,6 +39,9 @@ type ExamForm = z.infer<typeof examSchema>;
 const blank = (s?: string) => (s && s.trim() !== "" ? s : undefined);
 
 export function OphthoPage() {
+  // Opened from a patient's encounter rather than the navigation: start
+  // the form on them instead of making the clinician find them again.
+  const { patientId: scopedPatientId } = usePatientScope();
   useRequirePermission(P.SPECIALTY.OPHTHALMOLOGY.EXAMS_LIST);
   const canCreate = useHasPermission(P.SPECIALTY.OPHTHALMOLOGY.EXAMS_CREATE);
   const queryClient = useQueryClient();
@@ -50,7 +54,7 @@ export function OphthoPage() {
 
   const { control, register, handleSubmit, reset, formState } = useForm<ExamForm>({
     resolver: zodResolver(examSchema),
-    defaultValues: { patient_id: "" },
+    defaultValues: { patient_id: scopedPatientId },
   });
 
   const createMutation = useMutation({
