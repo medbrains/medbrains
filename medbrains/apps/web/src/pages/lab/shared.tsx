@@ -236,3 +236,13 @@ export async function printLabReportPacket(orderId: string) {
     });
   }
 }
+
+/** How a finished report can leave the lab. */
+export const LAB_DISPATCH_METHOD_OPTIONS = [
+  { value: "counter", label: "Collected at the counter" },
+  { value: "email", label: "Email" },
+  { value: "sms", label: "SMS" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "portal", label: "Patient portal" },
+  { value: "courier", label: "Courier" },
+];

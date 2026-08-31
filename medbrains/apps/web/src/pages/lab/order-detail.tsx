@@ -23,10 +23,12 @@ import {
   IconPrinter,
   IconRefresh,
   IconRobot,
+  IconSend,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router";
 import { DataTable, DocumentActions, useClinicalEmit } from "@/components";
 import { PrintLabReportButton } from "@/components/Lab/LabReportPrint";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
@@ -112,6 +114,8 @@ export function LabOrderDetail({
   // order carries lab.orders.view. Refused, `data` never arrives and the
   // panel renders as though the order has no results.
   const canViewOrder = useHasPermission(P.LAB.ORDERS_VIEW);
+  const canDispatch = useHasPermission(P.LAB.DISPATCH_MANAGE);
+  const navigate = useNavigate();
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const [resultFormOpen, resultFormHandlers] = useDisclosure(false);
@@ -754,6 +758,25 @@ export function LabOrderDetail({
           status and enabled at one. */}
       <Group>
         <PrintLabReportButton orderId={orderId} disabled={order.status !== "verified"} />
+        {/* Both identifiers travel in the URL. The dispatch screen otherwise
+            asks a clerk to type two UUIDs, and a copy that slips by one
+            character files the delivery against a different person. */}
+        {canDispatch && (
+          <Button
+            tone="secondary"
+            size="xs"
+            leftSection={<IconSend size={14} />}
+            disabled={order.status !== "verified"}
+            onClick={() =>
+              navigate(
+                `/lab/dispatch/new?order_id=${orderId}&patient_id=${order.patient_id}` +
+                  `&return=${encodeURIComponent(`/lab/orders/${orderId}`)}`,
+              )
+            }
+          >
+            Record dispatch
+          </Button>
+        )}
       </Group>
 
       {/* Add results form */}
