@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { DataTable, useProtectedFieldAccess } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
+import { Alert, Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { campFollowupTypeOptions } from "@/forms/camp.form";
 import { campService } from "@/services/camp.service";
 import type { CampTranslate } from "./shared";
@@ -54,7 +54,11 @@ export function FollowupsTab({
   const campPhoneAccess = useProtectedFieldAccess(CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY);
   const qc = useQueryClient();
   const [statusTab, setStatusTab] = useState<string | null>("all");
-  const { data: followups = [], isLoading } = useQuery({
+  const {
+    data: followups = [],
+    isLoading,
+    isError: followupsFailed,
+  } = useQuery({
     queryKey: ["camp-followups", campId],
     queryFn: () => campService.listCampFollowups(campId ? { camp_id: campId } : undefined),
     enabled: !!campId,
@@ -250,6 +254,16 @@ export function FollowupsTab({
               <Tabs.Tab value="cancelled">{t("followups.status.cancelled")}</Tabs.Tab>
             </Tabs.List>
           </Tabs>
+          {/* A camp's follow-ups are the whole conversion mechanism: the
+              screening found something and somebody has to ring. An empty
+              list says nobody is owed a call, and on a failed read it says
+              that untruthfully. */}
+          {followupsFailed && (
+            <Alert tone="danger">
+              The follow-up list could not be read. This is a fault, not an empty list — calls may
+              still be owed.
+            </Alert>
+          )}
           <DataTable
             columns={columns}
             data={filteredFollowups}

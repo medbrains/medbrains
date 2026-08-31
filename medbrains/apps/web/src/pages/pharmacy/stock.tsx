@@ -197,7 +197,11 @@ export function StockTab({ canManage }: { canManage: boolean }) {
   );
   const [locationOverride, setLocationOverride] = useState<string | null | undefined>(undefined);
   const stockLocationId = locationOverride !== undefined ? locationOverride : defaultPharmacyId;
-  const { data: stock = [], isLoading } = useQuery({
+  const {
+    data: stock = [],
+    isLoading,
+    isError: stockFailed,
+  } = useQuery({
     queryKey: ["pharmacy-stock", stockLocationId],
     queryFn: () =>
       pharmacyService.listStock(
@@ -402,6 +406,16 @@ export function StockTab({ canManage }: { canManage: boolean }) {
           w={280}
         />
       </Group>
+      {/* An empty stock list is read as "we do not hold this", and a
+          pharmacist acts on it by turning a patient away or ordering
+          against stock that is actually there. On a failed read `stock` is
+          [] and says the same thing. */}
+      {stockFailed && (
+        <Alert tone="danger">
+          Stock could not be read. This is a fault, not an empty shelf — do not treat it as what the
+          pharmacy holds.
+        </Alert>
+      )}
       <DataTable
         columns={columns}
         data={stock}
