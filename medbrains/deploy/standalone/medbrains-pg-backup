@@ -1,20 +1,41 @@
 #!/usr/bin/env bash
 # /usr/local/bin/medbrains-pg-backup — invoked by the systemd timer.
-# Streams pg_dump (custom format, gzipped) directly to S3.
-# Object Lock + versioning on the bucket make these tamper-proof for
-# 5 years (configured in terraform).
+#
+# Two destinations, because the tiers do not all have the same one.
+#
+#   BACKUP_BUCKET  S3, with Object Lock + versioning making the dumps
+#                  tamper-proof for 5 years (configured in terraform).
+#                  The tiers whose host we own.
+#
+#   BACKUP_DIR     a directory on the host. The attach tier: the machine
+#                  belongs to the hospital, there is no bucket, and
+#                  getting one would mean shipping a long-lived AWS key
+#                  to a server we do not control. A local dump that the
+#                  hospital's own backup regime already collects is the
+#                  better trade — that regime is the premise of the tier.
+#
+# BACKUP_DIR is NOT a substitute for offsite. It survives "somebody
+# dropped a table" and does not survive the disk. Say so to the hospital
+# rather than letting a directory of dumps read as disaster recovery.
 
 set -euo pipefail
 
-: "${BACKUP_BUCKET:?BACKUP_BUCKET must be set in /etc/medbrains/env}"
 : "${POSTGRES_USER:?POSTGRES_USER must be in /etc/medbrains/.compose-env}"
 : "${POSTGRES_DB:?POSTGRES_DB must be in /etc/medbrains/.compose-env}"
+
+BACKUP_BUCKET="${BACKUP_BUCKET:-}"
+BACKUP_DIR="${BACKUP_DIR:-}"
+BACKUP_KEEP_DAYS="${BACKUP_KEEP_DAYS:-14}"
+
+if [[ -z "$BACKUP_BUCKET" && -z "$BACKUP_DIR" ]]; then
+    echo "ERROR: no backup destination. Set BACKUP_BUCKET (S3) or BACKUP_DIR" >&2
+    echo "       (local path) in /etc/medbrains/env." >&2
+    exit 1
+fi
 
 DATE="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
 HOSTNAME_TAG="$(hostname)"
 KEY="pg-backups/${HOSTNAME_TAG}/${DATE}.sql.gz"
-
-echo "==> dumping postgres → s3://${BACKUP_BUCKET}/${KEY}"
 
 # --format=custom + --compress=9 = small, restorable via pg_restore.
 # Streams straight to S3 — no /tmp staging.
@@ -35,15 +56,55 @@ else
     dump_postgres() { pg_dump "$DATABASE_URL" "$@"; }
 fi
 
-dump_postgres \
-    --format=custom \
-    --compress=9 \
-    --no-owner \
-    --no-privileges \
-  | aws s3 cp - "s3://${BACKUP_BUCKET}/${KEY}" \
-    --expected-size 1073741824 \
-    --content-type application/octet-stream \
-    --metadata "host=${HOSTNAME_TAG},captured-utc=${DATE}"
+if [[ -n "$BACKUP_BUCKET" ]]; then
+    echo "==> dumping postgres → s3://${BACKUP_BUCKET}/${KEY}"
+    dump_postgres \
+        --format=custom \
+        --compress=9 \
+        --no-owner \
+        --no-privileges \
+      | aws s3 cp - "s3://${BACKUP_BUCKET}/${KEY}" \
+        --expected-size 1073741824 \
+        --content-type application/octet-stream \
+        --metadata "host=${HOSTNAME_TAG},captured-utc=${DATE}"
+    DEST="s3://${BACKUP_BUCKET}/${KEY}"
+else
+    # Refuse to prune anywhere that is not a plain absolute path well
+    # below the root. This script runs as root on a machine belonging to
+    # somebody else and ends in `find -delete`; a BACKUP_DIR of "/" or
+    # "/var" would be the last mistake it ever made.
+    case "$BACKUP_DIR" in
+        /|/var|/etc|/home|/usr|/root|/tmp) echo "ERROR: refusing BACKUP_DIR=$BACKUP_DIR" >&2; exit 1 ;;
+        /*/*) : ;;
+        *) echo "ERROR: BACKUP_DIR must be an absolute path at least two levels deep, got '$BACKUP_DIR'" >&2; exit 1 ;;
+    esac
+
+    install -d -m 0700 "$BACKUP_DIR"
+    DEST="${BACKUP_DIR}/${HOSTNAME_TAG}-${DATE}.dump"
+
+    echo "==> dumping postgres → ${DEST}"
+    # Written under .partial and renamed. A dump interrupted halfway
+    # otherwise sits in the directory carrying a perfectly good-looking
+    # name, sorts newest-first, and is the one somebody reaches for.
+    # rename(2) within a directory is atomic, so the final name only ever
+    # appears on a dump pg_dump finished writing.
+    umask 077
+    dump_postgres \
+        --format=custom \
+        --compress=9 \
+        --no-owner \
+        --no-privileges \
+      > "${DEST}.partial"
+    mv "${DEST}.partial" "$DEST"
+
+    echo "==> pruning dumps older than ${BACKUP_KEEP_DAYS} days"
+    find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump' \
+        -mtime "+${BACKUP_KEEP_DAYS}" -print -delete
+    # A .partial left behind is a dump that died; it is not a backup and
+    # it is not small. Clear yesterday's wreckage.
+    find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump.partial' \
+        -mtime +1 -print -delete
+fi
 
 # ponytail: no separate integrity check here. `pg_dump | aws s3 cp` under
 # `set -o pipefail` already fails this unit when pg_dump dies mid-stream,
@@ -58,4 +119,4 @@ dump_postgres \
 # infra/k8s/cronjobs/pgbackrest-restore-test.yaml, pointed at a tier
 # nothing instantiates. Wire it to the tiers carrying patients; do not
 # approximate it here.
-echo "==> backup complete: s3://${BACKUP_BUCKET}/${KEY}"
+echo "==> backup complete: ${DEST}"

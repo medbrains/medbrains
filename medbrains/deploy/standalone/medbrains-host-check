@@ -11,6 +11,10 @@
 #   Postgres read-only: writes fail, reads succeed, the screen looks
 #   alive and nothing is being recorded. A CT series clears 40 GB.
 #
+#   Backup. OnFailure= catches a dump that fails. It cannot catch a timer
+#   that stopped firing, which produces no failure at all. Only the
+#   presence of a recent dump answers "did it actually run".
+#
 #   Certificate. certbot.timer renews unattended. When renewal fails -
 #   port 80 taken, DNS moved, rate limit - nothing says so until the cert
 #   expires and every browser refuses the hospital's own system.
@@ -53,6 +57,27 @@ if [[ -r "$CERT" ]]; then
     fi
 else
     echo "cert: $CERT absent — TLS is not ours on this host, skipping"
+fi
+
+# Backups. OnFailure= on the backup unit only fires when that unit RUNS -
+# a timer that stopped firing produces no failure and therefore no page.
+# The dump on disk is the evidence that it ran, so check the evidence.
+#
+# Local destination only. The S3 tiers need an `aws s3 ls` to answer the
+# same question; worth adding, but it is a network call with its own
+# failure modes and this check must not page about AWS being slow.
+if [[ -n "${BACKUP_DIR:-}" && -d "${BACKUP_DIR:-/nonexistent}" ]]; then
+    # 26h, not 24h: the timer carries RandomizedDelaySec and Persistent,
+    # so a run can legitimately land later than exactly a day apart.
+    if [[ -z "$(find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump' -mmin -1560 2>/dev/null)" ]]; then
+        newest="$(ls -t "$BACKUP_DIR"/*.dump 2>/dev/null | head -1)"
+        echo "BACKUP: no dump newer than 26h in $BACKUP_DIR" >&2
+        echo "        newest: ${newest:-<none at all>}" >&2
+        systemctl status medbrains-pg-backup.timer --no-pager -l 2>&1 | tail -5 >&2 || true
+        failed=1
+    else
+        echo "backup: a dump landed in the last 26h"
+    fi
 fi
 
 exit "$failed"

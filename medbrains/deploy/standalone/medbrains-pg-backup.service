@@ -1,5 +1,5 @@
 [Unit]
-Description=MedBrains daily postgres dump → S3 (versioned + Object Lock)
+Description=MedBrains daily postgres dump → S3, or to disk on the attach tier
 After=docker.service medbrains-postgres.service
 Requires=docker.service
 # Silence from the nightly PHI dump reads as success and is discovered at restore
@@ -14,6 +14,7 @@ ExecStart=/usr/local/bin/medbrains-pg-backup
 StandardOutput=journal
 StandardError=journal
 # IAM instance profile gives this process s3:PutObject — no static creds.
+# Unused on the attach tier, which dumps to BACKUP_DIR and touches no AWS.
 Environment="AWS_DEFAULT_REGION=ap-south-1"
 
 # No restart — the timer will fire again tomorrow if today fails.
