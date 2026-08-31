@@ -92,7 +92,10 @@ fn class_of(name: &str) -> Option<&'static str> {
 /// Match a single drug name against a single allergen name. Direct substring
 /// match (either direction) wins; otherwise a shared cross-reactivity class.
 #[must_use]
-pub fn match_drug_allergy(drug: &str, allergen: &str) -> Option<(AllergyMatchKind, Option<String>)> {
+pub fn match_drug_allergy(
+    drug: &str,
+    allergen: &str,
+) -> Option<(AllergyMatchKind, Option<String>)> {
     let d = drug.trim().to_lowercase();
     let a = allergen.trim().to_lowercase();
     if d.is_empty() || a.is_empty() {

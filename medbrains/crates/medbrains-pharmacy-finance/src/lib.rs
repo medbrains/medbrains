@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
+use axum::routing::{get, put};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
-use axum::routing::{get,put};
 use chrono::{DateTime, Utc};
 use medbrains_core::{form::FieldAccessLevel, permissions};
 use rust_decimal::Decimal;
@@ -745,7 +745,13 @@ pub async fn create_store_indent(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateStoreIndentRequest>,
 ) -> Result<Json<PharmacyStoreIndent>, AppError> {
-    require_permission(&claims, permissions::pharmacy::stores::MANAGE)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::stores::indents::CREATE,
+            permissions::pharmacy::stores::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -787,10 +793,37 @@ pub async fn approve_store_indent(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<PharmacyStoreIndent>, AppError> {
-    require_permission(&claims, permissions::pharmacy::stores::MANAGE)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::stores::indents::APPROVE,
+            permissions::pharmacy::stores::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    // Four eyes. One permission used to gate raise, approve, issue and receive,
+    // so a storekeeper could move stock between stores entirely alone and the
+    // approval step meant nothing. Splitting the verbs makes separation
+    // expressible; refusing self-approval makes it true even where one person
+    // still holds every verb.
+    let requested_by: Option<Uuid> = sqlx::query_scalar(
+        "SELECT requested_by FROM pharmacy_store_indents \
+         WHERE id = $1 AND tenant_id = $2 AND status = 'pending' AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if requested_by == Some(claims.sub) {
+        return Err(AppError::ForbiddenReason(
+            "You raised this indent — it must be approved by someone else".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, PharmacyStoreIndent>(
         "UPDATE pharmacy_store_indents SET \
@@ -809,25 +842,60 @@ pub async fn approve_store_indent(
     Ok(Json(row))
 }
 
+/// POST /api/pharmacy/store-indents/{id}/issue — the goods leave the source store.
+///
+/// This used to be the status UPDATE alone, which meant the screen turned green
+/// and neither store's count changed. Issuing now takes the stock, oldest expiry
+/// first, and records which batches went so that receipt can credit the same
+/// ones. If the source cannot cover a line the whole indent is refused — a
+/// partial issue that nobody was told about is worse than a rejection.
 pub async fn issue_store_indent(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<PharmacyStoreIndent>, AppError> {
-    require_permission(&claims, permissions::pharmacy::stores::MANAGE)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::stores::indents::ISSUE,
+            permissions::pharmacy::stores::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let (from_store_id, items): (Option<Uuid>, serde_json::Value) = sqlx::query_as(
+        "SELECT from_store_id, items FROM pharmacy_store_indents \
+         WHERE id = $1 AND tenant_id = $2 AND status = 'approved' AND deleted_at IS NULL \
+         FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let from_store_id = from_store_id.ok_or_else(|| {
+        AppError::BadRequest("Indent has no source store — stock cannot be taken".to_owned())
+    })?;
+
+    let requests = medbrains_db::stock::requests_from_json(&items)?;
+    let issued =
+        medbrains_db::stock::issue_fefo(&mut tx, claims.tenant_id, from_store_id, &requests)
+            .await?;
+
     let row = sqlx::query_as::<_, PharmacyStoreIndent>(
         "UPDATE pharmacy_store_indents SET \
-         status = 'issued', issued_by = $3, issued_at = now(), updated_at = now() \
+         status = 'issued', issued_by = $3, issued_at = now(), issued_lines = $4, \
+         updated_at = now() \
          WHERE id = $1 AND tenant_id = $2 AND status = 'approved' \
          RETURNING *",
     )
     .bind(id)
     .bind(claims.tenant_id)
     .bind(claims.sub)
+    .bind(serde_json::to_value(&issued).unwrap_or_else(|_| serde_json::json!([])))
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
@@ -836,15 +904,49 @@ pub async fn issue_store_indent(
     Ok(Json(row))
 }
 
+/// POST /api/pharmacy/store-indents/{id}/receive — the goods arrive at the destination.
+///
+/// Credits exactly the batches that were issued: same batch number, same expiry,
+/// same cost. Re-deriving them here would break batch traceability at the one
+/// point it matters, since a recall has to be able to follow a batch through
+/// every store that ever held it.
 pub async fn receive_store_indent(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<PharmacyStoreIndent>, AppError> {
-    require_permission(&claims, permissions::pharmacy::stores::MANAGE)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::stores::indents::RECEIVE,
+            permissions::pharmacy::stores::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let (to_store_id, issued_lines): (Option<Uuid>, serde_json::Value) = sqlx::query_as(
+        "SELECT to_store_id, issued_lines FROM pharmacy_store_indents \
+         WHERE id = $1 AND tenant_id = $2 AND status = 'issued' AND deleted_at IS NULL \
+         FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let to_store_id = to_store_id.ok_or_else(|| {
+        AppError::BadRequest(
+            "Indent has no destination store — stock cannot be credited".to_owned(),
+        )
+    })?;
+
+    let lines: Vec<medbrains_db::stock::StockLine> = serde_json::from_value(issued_lines)
+        .map_err(|_| AppError::BadRequest("Issued lines are malformed".to_owned()))?;
+
+    medbrains_db::stock::receive_lines(&mut tx, claims.tenant_id, to_store_id, &lines).await?;
 
     let row = sqlx::query_as::<_, PharmacyStoreIndent>(
         "UPDATE pharmacy_store_indents SET \
@@ -903,7 +1005,7 @@ pub async fn list_patient_orders_for_return(
            WHERE pr.order_item_id = poi.id AND pr.tenant_id = poi.tenant_id \
          ) return_totals ON TRUE \
          WHERE po.patient_id = $1 AND po.tenant_id = $2 \
-           AND po.status IN ('dispensed', 'ordered') \
+           AND po.status IN ('dispensed', 'ordered', 'collected') \
          GROUP BY po.id, po.created_at, po.status \
          ORDER BY po.created_at DESC LIMIT 20",
     )
@@ -999,10 +1101,7 @@ pub fn router() -> axum::Router<AppState> {
             "/api/pharmacy/credit-notes",
             get(list_credit_notes).post(create_credit_note),
         )
-        .route(
-            "/api/pharmacy/credit-notes/{id}",
-            get(get_credit_note),
-        )
+        .route("/api/pharmacy/credit-notes/{id}", get(get_credit_note))
         .route(
             "/api/pharmacy/credit-notes/{id}/approve",
             put(approve_credit_note),
@@ -1035,8 +1134,5 @@ pub fn router() -> axum::Router<AppState> {
             "/api/pharmacy/patient-orders/{patient_id}",
             get(list_patient_orders_for_return),
         )
-        .route(
-            "/api/pharmacy/pos/lookup",
-            get(lookup_pos_sale),
-        )
+        .route("/api/pharmacy/pos/lookup", get(lookup_pos_sale))
 }

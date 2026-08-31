@@ -22,7 +22,11 @@ pub struct FatigueThresholds {
 
 impl Default for FatigueThresholds {
     fn default() -> Self {
-        Self { continuous_h: 12.0, rest_h: 8.0, week_h: 60.0 }
+        Self {
+            continuous_h: 12.0,
+            rest_h: 8.0,
+            week_h: 60.0,
+        }
     }
 }
 
@@ -76,15 +80,24 @@ pub fn evaluate(
 ) -> Vec<FatigueFlag> {
     let mut flags = Vec::new();
     if continuous_h > t.continuous_h {
-        flags.push(FatigueFlag::LongContinuous { hours: continuous_h, limit: t.continuous_h });
+        flags.push(FatigueFlag::LongContinuous {
+            hours: continuous_h,
+            limit: t.continuous_h,
+        });
     }
     if let Some(rest) = rest_h {
         if rest < t.rest_h {
-            flags.push(FatigueFlag::ShortRest { hours: rest, limit: t.rest_h });
+            flags.push(FatigueFlag::ShortRest {
+                hours: rest,
+                limit: t.rest_h,
+            });
         }
     }
     if week_h > t.week_h {
-        flags.push(FatigueFlag::HeavyWeek { hours: week_h, limit: t.week_h });
+        flags.push(FatigueFlag::HeavyWeek {
+            hours: week_h,
+            limit: t.week_h,
+        });
     }
     flags
 }
@@ -112,7 +125,13 @@ mod tests {
     #[test]
     fn short_rest_flagged() {
         let flags = evaluate(2.0, Some(6.0), 30.0, th());
-        assert_eq!(flags, vec![FatigueFlag::ShortRest { hours: 6.0, limit: 8.0 }]);
+        assert_eq!(
+            flags,
+            vec![FatigueFlag::ShortRest {
+                hours: 6.0,
+                limit: 8.0
+            }]
+        );
     }
 
     #[test]

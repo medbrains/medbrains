@@ -26,6 +26,8 @@
   "lab": "ஆய்வகம்",
   "pharmacy": "மருந்தகம்",
   "pharmacyFinance": "மருந்தக நிதி",
+  "pharmacyFulfilment": "நிறைவேற்ற வரிசை",
+  "pharmacyDispatch": "பெறும் இடம்",
   "radiology": "கதிரியக்கவியல்",
   "bloodBank": "இரத்த வங்கி",
   "billing": "கட்டணம்",
@@ -105,5 +107,6 @@
   "lms": "கற்றல் (LMS)",
   "nabhIndicators": "NABH குறிகாட்டிகள்",
   "pairedDevices": "இணைக்கப்பட்ட சாதனங்கள்",
-  "materials": "பொருள் மேலாண்மை"
+  "materials": "பொருள் மேலாண்மை",
+  "approvals": "ஒப்புதல்கள்"
 }

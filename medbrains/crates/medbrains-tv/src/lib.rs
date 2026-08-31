@@ -6,12 +6,12 @@
 //! - Queue management
 //! - Announcements
 
+use axum::routing::{get, post};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
     http::StatusCode,
 };
-use axum::routing::{get,post};
 use chrono::{NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -30,8 +30,7 @@ use medbrains_server_core::state::AppState;
 /// The handlers here predate the shared `AppError` convention, so
 /// `require_permission`'s `AppError::Forbidden` is mapped by hand.
 fn require(claims: &Claims, perm: &str) -> Result<(), (StatusCode, String)> {
-    require_permission(claims, perm)
-        .map_err(|_| (StatusCode::FORBIDDEN, "forbidden".to_owned()))
+    require_permission(claims, perm).map_err(|_| (StatusCode::FORBIDDEN, "forbidden".to_owned()))
 }
 
 /// The shared board gate in this module's older `(StatusCode, String)` shape.
@@ -1377,7 +1376,11 @@ pub async fn get_pharmacy_queue(
                po.created_at AS queued_at
         FROM pharmacy_orders po
         WHERE po.tenant_id = $1
-          AND po.status = 'ordered'
+          -- 'ordered' is where a counter pharmacy sits for its whole life; the
+          -- three after it only exist in a pack-and-collect store. Both belong
+          -- in 'preparing', because from the waiting area they are the same
+          -- thing: somebody is working on it.
+          AND po.status IN ('ordered', 'picking', 'packed', 'verified')
         ORDER BY po.created_at ASC
         LIMIT 40
         ",
@@ -1397,12 +1400,17 @@ pub async fn get_pharmacy_queue(
                      AND poi.order_id = po.id
                      AND poi.removed_at IS NULL
                ), 0)::bigint AS prescription_count,
-               COALESCE(po.dispensed_at, po.updated_at) AS queued_at
+               COALESCE(po.ready_at, po.dispensed_at, po.updated_at) AS queued_at
         FROM pharmacy_orders po
         WHERE po.tenant_id = $1
-          AND po.status = 'dispensed'
-          AND (COALESCE(po.dispensed_at, po.updated_at) >= CURRENT_DATE AND COALESCE(po.dispensed_at, po.updated_at) < CURRENT_DATE + 1)
-        ORDER BY COALESCE(po.dispensed_at, po.updated_at) DESC
+          -- 'ready' is an order waiting to be collected. 'dispensed' is an order
+          -- already handed over, and this lane derived ready-for-pickup from it
+          -- alone — telling the waiting area about medicine that had already left
+          -- the building. Kept, because in a counter pharmacy it is the only signal
+          -- there is, and dropping it would empty every existing board.
+          AND po.status IN ('ready', 'dispensed')
+          AND (COALESCE(po.ready_at, po.dispensed_at, po.updated_at) >= CURRENT_DATE AND COALESCE(po.ready_at, po.dispensed_at, po.updated_at) < CURRENT_DATE + 1)
+        ORDER BY COALESCE(po.ready_at, po.dispensed_at, po.updated_at) DESC
         LIMIT 20
         ",
     )
@@ -1425,28 +1433,28 @@ pub async fn get_pharmacy_queue(
             SELECT COUNT(*)
             FROM pharmacy_orders po
             WHERE po.tenant_id = $1
-              AND po.status = 'ordered'
+              AND po.status IN ('ordered', 'picking', 'packed', 'verified')
           )::bigint AS preparing_count,
           (
             SELECT COUNT(*)
             FROM pharmacy_orders po
             WHERE po.tenant_id = $1
-              AND po.status = 'dispensed'
-              AND (COALESCE(po.dispensed_at, po.updated_at) >= CURRENT_DATE AND COALESCE(po.dispensed_at, po.updated_at) < CURRENT_DATE + 1)
+              AND po.status IN ('ready', 'dispensed')
+              AND (COALESCE(po.ready_at, po.dispensed_at, po.updated_at) >= CURRENT_DATE AND COALESCE(po.ready_at, po.dispensed_at, po.updated_at) < CURRENT_DATE + 1)
           )::bigint AS ready_count,
           (
             SELECT COUNT(*)
             FROM pharmacy_orders po
             WHERE po.tenant_id = $1
-              AND po.status = 'dispensed'
-              AND (COALESCE(po.dispensed_at, po.updated_at) >= CURRENT_DATE AND COALESCE(po.dispensed_at, po.updated_at) < CURRENT_DATE + 1)
+              AND po.status IN ('dispensed', 'collected')
+              AND (COALESCE(po.collected_at, po.dispensed_at, po.updated_at) >= CURRENT_DATE AND COALESCE(po.collected_at, po.dispensed_at, po.updated_at) < CURRENT_DATE + 1)
           )::bigint AS dispensed_today,
           (
-            SELECT FLOOR(EXTRACT(EPOCH FROM AVG(COALESCE(po.dispensed_at, po.updated_at) - po.created_at)) / 60)::int
+            SELECT FLOOR(EXTRACT(EPOCH FROM AVG(COALESCE(po.collected_at, po.dispensed_at, po.updated_at) - po.created_at)) / 60)::int
             FROM pharmacy_orders po
             WHERE po.tenant_id = $1
-              AND po.status = 'dispensed'
-              AND (COALESCE(po.dispensed_at, po.updated_at) >= CURRENT_DATE AND COALESCE(po.dispensed_at, po.updated_at) < CURRENT_DATE + 1)
+              AND po.status IN ('dispensed', 'collected')
+              AND (COALESCE(po.collected_at, po.dispensed_at, po.updated_at) >= CURRENT_DATE AND COALESCE(po.collected_at, po.dispensed_at, po.updated_at) < CURRENT_DATE + 1)
           ) AS avg_wait_minutes
         ",
     )
@@ -2178,64 +2186,26 @@ pub async fn get_queue_metrics(
 /// TV displays / token boards routes.
 pub fn router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/tv/displays",
-            get(list_displays).post(create_display),
-        )
+        .route("/api/tv/displays", get(list_displays).post(create_display))
         .route(
             "/api/tv/displays/{id}",
-            get(get_display)
-                .put(update_display)
-                .delete(delete_display),
+            get(get_display).put(update_display).delete(delete_display),
         )
-        .route(
-            "/api/tv/tokens",
-            get(list_tokens).post(create_token),
-        )
-        .route(
-            "/api/tv/tokens/{id}/call",
-            post(call_token),
-        )
-        .route(
-            "/api/tv/tokens/{id}/complete",
-            post(complete_token),
-        )
-        .route(
-            "/api/tv/tokens/{id}/no-show",
-            post(no_show_token),
-        )
-        .route(
-            "/api/tv/queue/{department_id}",
-            get(get_queue_state),
-        )
-        .route(
-            "/api/tv/announcements",
-            post(broadcast_announcement),
-        )
-        .route(
-            "/api/tv/queue/pharmacy",
-            get(get_pharmacy_queue),
-        )
-        .route(
-            "/api/tv/queue/lab",
-            get(get_lab_queue),
-        )
+        .route("/api/tv/tokens", get(list_tokens).post(create_token))
+        .route("/api/tv/tokens/{id}/call", post(call_token))
+        .route("/api/tv/tokens/{id}/complete", post(complete_token))
+        .route("/api/tv/tokens/{id}/no-show", post(no_show_token))
+        .route("/api/tv/queue/{department_id}", get(get_queue_state))
+        .route("/api/tv/announcements", post(broadcast_announcement))
+        .route("/api/tv/queue/pharmacy", get(get_pharmacy_queue))
+        .route("/api/tv/queue/lab", get(get_lab_queue))
         .route(
             "/api/tv/queue/radiology/{modality}",
             get(get_radiology_queue),
         )
-        .route(
-            "/api/tv/queue/er",
-            get(get_er_queue),
-        )
-        .route(
-            "/api/tv/queue/billing",
-            get(get_billing_queue),
-        )
-        .route(
-            "/api/tv/queue/beds/{ward_type}",
-            get(get_bed_availability),
-        )
+        .route("/api/tv/queue/er", get(get_er_queue))
+        .route("/api/tv/queue/billing", get(get_billing_queue))
+        .route("/api/tv/queue/beds/{ward_type}", get(get_bed_availability))
         .route(
             "/api/tv/queue/analytics/{department_id}",
             get(get_queue_analytics),

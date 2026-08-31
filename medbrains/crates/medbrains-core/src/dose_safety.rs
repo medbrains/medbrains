@@ -132,7 +132,11 @@ pub fn evaluate_weight_dose(
         prescribed_per_day: prescribed,
         recommended_per_day: recommended,
         unit: dose_unit,
-        direction: if ratio > 1.0 { DoseDirection::Over } else { DoseDirection::Under },
+        direction: if ratio > 1.0 {
+            DoseDirection::Over
+        } else {
+            DoseDirection::Under
+        },
         ratio,
     })
 }

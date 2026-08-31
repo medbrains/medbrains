@@ -49,6 +49,7 @@ pub struct RequestTypeSummary {
     /// the config-only case, and the catalog shows it because "what happens
     /// when this is approved" is the first question an administrator asks.
     pub effect_key: Option<String>,
+    pub requires_attachment: bool,
     pub field_count: i64,
     pub open_requests: i64,
 }
@@ -84,6 +85,8 @@ pub struct NewRequestType {
     pub description: Option<String>,
     #[serde(default = "yes")]
     pub requires_justification: bool,
+    #[serde(default)]
+    pub requires_attachment: bool,
     #[serde(default)]
     pub max_duration_hours: Option<i32>,
     /// Left unset for a config-only type. Naming one that no server implements
@@ -128,6 +131,7 @@ pub async fn list_types(
     // of forty types would otherwise be eighty round trips to render a list.
     let rows = sqlx::query(
         "SELECT t.id, t.code, t.name, t.module, t.description, t.is_active, t.effect_key, \
+                t.requires_attachment, \
                 (SELECT count(*) FROM request_type_fields f \
                   WHERE f.request_type_id = t.id AND f.deleted_at IS NULL) AS field_count, \
                 (SELECT count(*) FROM approval_requests r \
@@ -151,6 +155,7 @@ pub async fn list_types(
                 description: row.try_get("description")?,
                 is_active: row.try_get("is_active")?,
                 effect_key: row.try_get("effect_key")?,
+                requires_attachment: row.try_get("requires_attachment")?,
                 field_count: row.try_get("field_count")?,
                 open_requests: row.try_get("open_requests")?,
             })
@@ -175,7 +180,7 @@ pub async fn get_type(
 
     let row = sqlx::query(
         "SELECT t.id, t.code, t.name, t.module, t.description, t.is_active, t.effect_key, \
-                t.requires_justification, t.max_duration_hours, \
+                t.requires_justification, t.requires_attachment, t.max_duration_hours, \
                 (SELECT count(*) FROM request_type_fields f \
                   WHERE f.request_type_id = t.id AND f.deleted_at IS NULL) AS field_count, \
                 (SELECT count(*) FROM approval_requests r \
@@ -213,6 +218,7 @@ pub async fn get_type(
             description: row.try_get("description")?,
             is_active: row.try_get("is_active")?,
             effect_key: row.try_get("effect_key")?,
+            requires_attachment: row.try_get("requires_attachment")?,
             field_count: row.try_get("field_count")?,
             open_requests: row.try_get("open_requests")?,
         },
@@ -292,8 +298,8 @@ pub async fn create_type(
     let type_id: Uuid = sqlx::query_scalar(
         "INSERT INTO request_types \
            (tenant_id, code, name, module, description, requires_justification, \
-            max_duration_hours, effect_key, created_by) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) \
+            requires_attachment, max_duration_hours, effect_key, created_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) \
          ON CONFLICT (tenant_id, code) WHERE deleted_at IS NULL DO NOTHING \
          RETURNING id",
     )
@@ -303,6 +309,7 @@ pub async fn create_type(
     .bind(body.module.trim())
     .bind(body.description.as_deref())
     .bind(body.requires_justification)
+    .bind(body.requires_attachment)
     .bind(body.max_duration_hours)
     .bind(body.effect_key.as_deref())
     .bind(claims.sub)
@@ -369,6 +376,7 @@ pub async fn create_type(
         description: body.description,
         is_active: true,
         effect_key: body.effect_key,
+        requires_attachment: body.requires_attachment,
         field_count: i64::try_from(body.fields.len()).unwrap_or(i64::MAX),
         open_requests: 0,
     }))

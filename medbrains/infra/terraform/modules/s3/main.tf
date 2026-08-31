@@ -40,7 +40,7 @@ variable "compliance_mode" {
 resource "aws_s3_bucket" "audit_archive" {
   bucket              = "medbrains-${var.environment}-audit-archive-${var.region}"
   force_destroy       = !var.compliance_mode
-  object_lock_enabled = var.compliance_mode
+  object_lock_enabled = true
 }
 
 resource "aws_s3_bucket_versioning" "audit_archive" {

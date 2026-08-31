@@ -1916,9 +1916,13 @@ pub async fn trigger_auto_charge(
                 }
             }
             "pharmacy" => {
+                // `collected` is the pack-and-collect handover: the order never
+                // becomes `dispensed`, and a flow that billed only `dispensed`
+                // would quietly give away every pack-and-collect order's stock.
                 let orders = sqlx::query_as::<_, PharmOrderInfo>(
                     "SELECT id, patient_id FROM pharmacy_orders \
-                     WHERE encounter_id = $1 AND tenant_id = $2 AND status = 'dispensed'",
+                     WHERE encounter_id = $1 AND tenant_id = $2 \
+                       AND status IN ('dispensed', 'collected')",
                 )
                 .bind(body.encounter_id)
                 .bind(claims.tenant_id)
@@ -2908,6 +2912,350 @@ pub async fn er_fast_invoice(
 }
 
 // ══════════════════════════════════════════════════════════
+//  EMI / Installment Payments
+// ══════════════════════════════════════════════════════════
+
+#[derive(serde::Deserialize)]
+struct CreateInstallmentRequest {
+    invoice_id: Uuid,
+    installment_count: i32,
+    frequency: Option<String>,
+    interest_rate: Option<Decimal>,
+    penalty_rate: Option<Decimal>,
+    notes: Option<String>,
+}
+
+async fn create_installment(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(req): Json<CreateInstallmentRequest>,
+) -> Result<Json<medbrains_core::billing::PaymentInstallment>, AppError> {
+    require_permission(&claims, "billing.invoices.update")?;
+    let tenant_id = claims.tenant_id;
+    let mut tx = state.db.begin().await?;
+
+    // Fetch invoice to get total
+    let invoice: Invoice = sqlx::query_as(
+        "SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(req.invoice_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let total = invoice.total_amount;
+    let count = req.installment_count;
+    if count <= 0 {
+        return Err(AppError::BadRequest(
+            "installment_count must be > 0".into(),
+        ));
+    }
+    let installment_amount = (total / Decimal::from(count))
+        .round_dp(2)
+        .normalize();
+
+    let frequency = req.frequency.unwrap_or_else(|| "monthly".into());
+    let interest_rate = req.interest_rate.unwrap_or_default();
+    let penalty_rate = req.penalty_rate.unwrap_or_default();
+
+    let plan_id = Uuid::new_v4();
+    let now = chrono::Utc::now();
+
+    sqlx::query(
+        "INSERT INTO payment_installments (id, tenant_id, invoice_id, total_amount, installment_count, installment_amount, frequency, interest_rate, penalty_rate, status, notes, created_by, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', $10, $11, $12, $12)",
+    )
+    .bind(plan_id)
+    .bind(tenant_id)
+    .bind(req.invoice_id)
+    .bind(total)
+    .bind(count)
+    .bind(installment_amount)
+    .bind(&frequency)
+    .bind(interest_rate)
+    .bind(penalty_rate)
+    .bind(&req.notes)
+    .bind(claims.sub)
+    .bind(now)
+    .execute(&mut *tx)
+    .await?;
+
+    // Generate installment items
+    let base_date = chrono::Utc::now().date_naive();
+    for i in 1..=count {
+        let due = match frequency.as_str() {
+            "weekly" => base_date + chrono::Duration::weeks(i64::from(i)),
+            "biweekly" => base_date + chrono::Duration::weeks(2 * i64::from(i)),
+            "quarterly" => base_date + chrono::Duration::days(90 * i64::from(i)),
+            _ => base_date + chrono::Duration::days(30 * i64::from(i)),
+        };
+        let item_id = Uuid::new_v4();
+        let amount = if i < count {
+            installment_amount
+        } else {
+            // last installment absorbs rounding
+            total - installment_amount * Decimal::from(count - 1)
+        };
+        sqlx::query(
+            "INSERT INTO payment_installment_items (id, tenant_id, installment_id, installment_number, due_date, amount, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, 'pending', $7, $7)",
+        )
+        .bind(item_id)
+        .bind(tenant_id)
+        .bind(plan_id)
+        .bind(i)
+        .bind(due)
+        .bind(amount)
+        .bind(now)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+
+    let plan = sqlx::query_as::<_, medbrains_core::billing::PaymentInstallment>(
+        "SELECT * FROM payment_installments WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(plan_id)
+    .bind(tenant_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    Ok(Json(plan))
+}
+
+#[derive(serde::Deserialize)]
+struct ListInstallmentsQuery {
+    status: Option<String>,
+    invoice_id: Option<Uuid>,
+    page: Option<i64>,
+    limit: Option<i64>,
+}
+
+async fn list_installments(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<ListInstallmentsQuery>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_permission(&claims, "billing.invoices.list")?;
+    let tenant_id = claims.tenant_id;
+    let page = q.page.unwrap_or(1).max(1);
+    let limit = q.limit.unwrap_or(50).min(200);
+    let offset = (page - 1) * limit;
+
+    let plans = sqlx::query_as::<_, medbrains_core::billing::PaymentInstallment>(
+        "SELECT * FROM payment_installments pi
+         WHERE pi.tenant_id = $1 AND pi.deleted_at IS NULL
+         AND ($2::text IS NULL OR pi.status = $2)
+         AND ($3::uuid IS NULL OR pi.invoice_id = $3)
+         ORDER BY pi.created_at DESC
+         LIMIT $4 OFFSET $5",
+    )
+    .bind(tenant_id)
+    .bind(&q.status)
+    .bind(q.invoice_id)
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(&state.db)
+    .await?;
+
+    let pending: Vec<(Uuid, i64)> = sqlx::query_as(
+        "SELECT installment_id, count(*) FROM payment_installment_items
+         WHERE tenant_id = $1 AND status = 'pending'
+         AND installment_id = ANY($2::uuid[])
+         GROUP BY installment_id",
+    )
+    .bind(tenant_id)
+    .bind(&plans.iter().map(|p| p.id).collect::<Vec<_>>())
+    .fetch_all(&state.db)
+    .await?;
+    let pending_map: HashMap<Uuid, i64> = pending.into_iter().collect();
+
+    let result: Vec<serde_json::Value> = plans
+        .into_iter()
+        .map(|plan| {
+            let mut val = serde_json::to_value(&plan).unwrap_or_default();
+            if let Some(obj) = val.as_object_mut() {
+                obj.insert(
+                    "pending_count".into(),
+                    serde_json::Value::Number(
+                        pending_map.get(&plan.id).copied().unwrap_or(0).into(),
+                    ),
+                );
+            }
+            val
+        })
+        .collect();
+
+    Ok(Json(result))
+}
+
+async fn get_installment(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, "billing.invoices.list")?;
+    let tenant_id = claims.tenant_id;
+
+    let plan = sqlx::query_as::<_, medbrains_core::billing::PaymentInstallment>(
+        "SELECT * FROM payment_installments WHERE id = $1 AND tenant_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(id)
+    .bind(tenant_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let items = sqlx::query_as::<_, medbrains_core::billing::PaymentInstallmentItem>(
+        "SELECT * FROM payment_installment_items WHERE installment_id = $1 AND tenant_id = $2 ORDER BY installment_number",
+    )
+    .bind(id)
+    .bind(tenant_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let mut val = serde_json::to_value(&plan).unwrap_or_default();
+    if let Some(obj) = val.as_object_mut() {
+        obj.insert("items".into(), serde_json::to_value(&items).unwrap_or_default());
+    }
+
+    Ok(Json(val))
+}
+
+async fn pay_installment_item(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((id, item_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, "billing.invoices.update")?;
+    let tenant_id = claims.tenant_id;
+    let mut tx = state.db.begin().await?;
+
+    // Verify installment item belongs to plan
+    let item = sqlx::query_as::<_, medbrains_core::billing::PaymentInstallmentItem>(
+        "SELECT * FROM payment_installment_items WHERE id = $1 AND installment_id = $2 AND tenant_id = $3",
+    )
+    .bind(item_id)
+    .bind(id)
+    .bind(tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if item.status != "pending" {
+        return Err(AppError::BadRequest(format!(
+            "Installment item is already {}",
+            item.status
+        )));
+    }
+
+    let now = chrono::Utc::now();
+
+    // Mark item as paid
+    sqlx::query(
+        "UPDATE payment_installment_items SET status = 'paid', paid_at = $1, updated_at = $1 WHERE id = $2",
+    )
+    .bind(now)
+    .bind(item_id)
+    .execute(&mut *tx)
+    .await?;
+
+    // Check if all items are paid → mark plan complete
+    let pending_count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM payment_installment_items WHERE installment_id = $1 AND status = 'pending'",
+    )
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if pending_count == 0 {
+        sqlx::query(
+            "UPDATE payment_installments SET status = 'completed', updated_at = $1 WHERE id = $2",
+        )
+        .bind(now)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+
+    let updated_item = sqlx::query_as::<_, medbrains_core::billing::PaymentInstallmentItem>(
+        "SELECT * FROM payment_installment_items WHERE id = $1",
+    )
+    .bind(item_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    Ok(Json(serde_json::to_value(&updated_item).unwrap_or_default()))
+}
+
+async fn waive_installment_item(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((id, item_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, "billing.invoices.update")?;
+    let tenant_id = claims.tenant_id;
+    let mut tx = state.db.begin().await?;
+
+    let item = sqlx::query_as::<_, medbrains_core::billing::PaymentInstallmentItem>(
+        "SELECT * FROM payment_installment_items WHERE id = $1 AND installment_id = $2 AND tenant_id = $3",
+    )
+    .bind(item_id)
+    .bind(id)
+    .bind(tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if item.status != "pending" {
+        return Err(AppError::BadRequest(format!(
+            "Installment item is already {}",
+            item.status
+        )));
+    }
+
+    let now = chrono::Utc::now();
+    sqlx::query(
+        "UPDATE payment_installment_items SET status = 'waived', updated_at = $1 WHERE id = $2",
+    )
+    .bind(now)
+    .bind(item_id)
+    .execute(&mut *tx)
+    .await?;
+
+    // Check if all items resolved → mark plan complete
+    let pending_count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM payment_installment_items WHERE installment_id = $1 AND status = 'pending'",
+    )
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if pending_count == 0 {
+        sqlx::query(
+            "UPDATE payment_installments SET status = 'completed', updated_at = $1 WHERE id = $2",
+        )
+        .bind(now)
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+
+    let updated_item = sqlx::query_as::<_, medbrains_core::billing::PaymentInstallmentItem>(
+        "SELECT * FROM payment_installment_items WHERE id = $1",
+    )
+    .bind(item_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    Ok(Json(serde_json::to_value(&updated_item).unwrap_or_default()))
+}
+
+// ══════════════════════════════════════════════════════════
 //  Public service charge helper (used by other modules)
 // ══════════════════════════════════════════════════════════
 
@@ -3190,5 +3538,22 @@ pub fn router() -> axum::Router<AppState> {
         .route(
             "/api/billing/concessions/{id}/reject",
             put(reject_concession),
+        )
+        // ── EMI / Installment Payments ─────────────────────
+        .route(
+            "/api/billing/installments",
+            get(list_installments).post(create_installment),
+        )
+        .route(
+            "/api/billing/installments/{id}",
+            get(get_installment),
+        )
+        .route(
+            "/api/billing/installments/{id}/items/{item_id}/pay",
+            post(pay_installment_item),
+        )
+        .route(
+            "/api/billing/installments/{id}/items/{item_id}/waive",
+            post(waive_installment_item),
         )
 }

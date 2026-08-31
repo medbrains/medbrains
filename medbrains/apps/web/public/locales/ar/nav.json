@@ -26,6 +26,8 @@
   "lab": "المختبر",
   "pharmacy": "الصيدلية",
   "pharmacyFinance": "مالية الصيدلية",
+  "pharmacyFulfilment": "قائمة التجهيز",
+  "pharmacyDispatch": "منضدة الاستلام",
   "radiology": "الأشعة",
   "bloodBank": "بنك الدم",
   "billing": "الفوترة",
@@ -105,5 +107,6 @@
   "lms": "التعلّم (LMS)",
   "nabhIndicators": "مؤشرات NABH",
   "pairedDevices": "الأجهزة المقترنة",
-  "materials": "إدارة المواد"
+  "materials": "إدارة المواد",
+  "approvals": "الموافقات"
 }

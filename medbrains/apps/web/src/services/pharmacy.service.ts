@@ -153,5 +153,26 @@ export const pharmacyService = {
     api.listStoreCatalog(...args),
   createPharmacyStoreIndent: (...args: Parameters<typeof api.createPharmacyStoreIndent>) =>
     api.createPharmacyStoreIndent(...args),
+  // ── Fulfilment ────────────────────────────────────────
+  listFulfilmentQueue: (...args: Parameters<typeof api.listFulfilmentQueue>) =>
+    api.listFulfilmentQueue(...args),
+  getFulfilmentPickList: (...args: Parameters<typeof api.getFulfilmentPickList>) =>
+    api.getFulfilmentPickList(...args),
+  claimFulfilmentOrder: (...args: Parameters<typeof api.claimFulfilmentOrder>) =>
+    api.claimFulfilmentOrder(...args),
+  packFulfilmentOrder: (...args: Parameters<typeof api.packFulfilmentOrder>) =>
+    api.packFulfilmentOrder(...args),
+  verifyFulfilmentLine: (...args: Parameters<typeof api.verifyFulfilmentLine>) =>
+    api.verifyFulfilmentLine(...args),
+  markFulfilmentVerified: (...args: Parameters<typeof api.markFulfilmentVerified>) =>
+    api.markFulfilmentVerified(...args),
+  markFulfilmentReady: (...args: Parameters<typeof api.markFulfilmentReady>) =>
+    api.markFulfilmentReady(...args),
+  collectFulfilmentOrder: (...args: Parameters<typeof api.collectFulfilmentOrder>) =>
+    api.collectFulfilmentOrder(...args),
+  releaseFulfilmentOrder: (...args: Parameters<typeof api.releaseFulfilmentOrder>) =>
+    api.releaseFulfilmentOrder(...args),
+  cancelFulfilmentOrder: (...args: Parameters<typeof api.cancelFulfilmentOrder>) =>
+    api.cancelFulfilmentOrder(...args),
   lookupPosSale: (...args: Parameters<typeof api.lookupPosSale>) => api.lookupPosSale(...args),
 };

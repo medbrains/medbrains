@@ -169,4 +169,16 @@ export const billingService = {
     api.rejectConcession(...args),
   updateAutoConcessionRules: (...args: Parameters<typeof api.updateAutoConcessionRules>) =>
     api.updateAutoConcessionRules(...args),
+
+  // EMI / Installment Payments
+  listInstallments: (...args: Parameters<typeof api.listInstallments>) =>
+    api.listInstallments(...args),
+  createInstallment: (...args: Parameters<typeof api.createInstallment>) =>
+    api.createInstallment(...args),
+  getInstallment: (...args: Parameters<typeof api.getInstallment>) =>
+    api.getInstallment(...args),
+  payInstallmentItem: (...args: Parameters<typeof api.payInstallmentItem>) =>
+    api.payInstallmentItem(...args),
+  waiveInstallmentItem: (...args: Parameters<typeof api.waiveInstallmentItem>) =>
+    api.waiveInstallmentItem(...args),
 };

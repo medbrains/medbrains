@@ -807,3 +807,42 @@ pub struct BillingConcession {
     pub source_entity_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
 }
+
+// ══════════════════════════════════════════════════════════
+//  EMI / Installment Payments
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
+pub struct PaymentInstallment {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub invoice_id: Uuid,
+    pub total_amount: rust_decimal::Decimal,
+    pub installment_count: i32,
+    pub installment_amount: rust_decimal::Decimal,
+    pub frequency: String,
+    pub interest_rate: rust_decimal::Decimal,
+    pub penalty_rate: rust_decimal::Decimal,
+    pub status: String,
+    pub notes: Option<String>,
+    pub created_by: Option<Uuid>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
+pub struct PaymentInstallmentItem {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub installment_id: Uuid,
+    pub installment_number: i32,
+    pub due_date: NaiveDate,
+    pub amount: rust_decimal::Decimal,
+    pub penalty_amount: rust_decimal::Decimal,
+    pub status: String,
+    pub payment_id: Option<Uuid>,
+    pub paid_at: Option<DateTime<Utc>>,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}

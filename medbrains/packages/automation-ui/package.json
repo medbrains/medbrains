@@ -1,0 +1,28 @@
+{
+  "name": "@medbrains/automation-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": ["*.css"],
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@medbrains/design-system": "workspace:*",
+    "@r8r/editor": "file:../../../r8r/editor-ui"
+  },
+  "peerDependencies": {
+    "@mantine/core": "^9.3.2",
+    "@mantine/notifications": "^9.3.2",
+    "@xyflow/react": "^12.10.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "typescript": "^5.8.0"
+  }
+}

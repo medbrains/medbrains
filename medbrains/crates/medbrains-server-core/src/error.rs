@@ -257,6 +257,20 @@ impl From<sqlx::Error> for AppError {
     }
 }
 
+/// A refused stock movement is the caller's problem, not the server's.
+///
+/// "Short by 12" and "this line was never linked to the catalogue" are both
+/// things the storekeeper can act on, so they come back as 400 with the detail
+/// intact rather than collapsing into a 500 that says `database error`.
+impl From<medbrains_db::stock::StockError> for AppError {
+    fn from(err: medbrains_db::stock::StockError) -> Self {
+        match err {
+            medbrains_db::stock::StockError::Sqlx(e) => Self::from(e),
+            other => Self::BadRequest(other.to_string()),
+        }
+    }
+}
+
 impl From<argon2::password_hash::Error> for AppError {
     fn from(_: argon2::password_hash::Error) -> Self {
         Self::Internal("password hashing error".to_owned())

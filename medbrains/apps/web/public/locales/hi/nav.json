@@ -26,6 +26,8 @@
   "lab": "प्रयोगशाला",
   "pharmacy": "फार्मेसी",
   "pharmacyFinance": "फार्मेसी वित्त",
+  "pharmacyFulfilment": "पूर्ति कतार",
+  "pharmacyDispatch": "संग्रह काउंटर",
   "radiology": "रेडियोलॉजी",
   "bloodBank": "ब्लड बैंक",
   "billing": "बिलिंग",
@@ -105,5 +107,6 @@
   "lms": "लर्निंग (LMS)",
   "nabhIndicators": "NABH संकेतक",
   "pairedDevices": "युग्मित डिवाइस",
-  "materials": "सामग्री प्रबंधन"
+  "materials": "सामग्री प्रबंधन",
+  "approvals": "अनुमोदन"
 }

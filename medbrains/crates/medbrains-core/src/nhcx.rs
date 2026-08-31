@@ -33,8 +33,7 @@ pub const CLAIM_BUNDLE_PROFILE: &str =
 pub const COVERAGE_ELIGIBILITY_BUNDLE_PROFILE: &str =
     "https://nrces.in/ndhm/fhir/r4/StructureDefinition/CoverageEligibilityRequestBundle";
 /// HL7 v3 Confidentiality code system (for the bundle `meta.security` tag).
-pub const CONFIDENTIALITY_SYSTEM: &str =
-    "http://terminology.hl7.org/CodeSystem/v3-Confidentiality";
+pub const CONFIDENTIALITY_SYSTEM: &str = "http://terminology.hl7.org/CodeSystem/v3-Confidentiality";
 /// SNOMED institutional-claim code used for `Claim.type` (per the NHCX sample).
 pub const SNOMED_INSTITUTIONAL_CLAIM_CODE: &str = "737481003";
 /// SNOMED code for the careTeam role "Healthcare professional (occupation)".

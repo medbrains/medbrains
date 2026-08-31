@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": [],
+    "paths": {
+      "@r8r/editor": ["../../../r8r/editor-ui/dist-lib/index.d.ts"],
+      "@r8r/editor/styles.css": ["../../../r8r/editor-ui/dist-lib/editor.css"],
+      "@xyflow/react/dist/style.css": ["../../../r8r/editor-ui/dist-lib/editor.css"]
+    },
+    "baseUrl": "."
+  },
+  "include": ["src"]
+}

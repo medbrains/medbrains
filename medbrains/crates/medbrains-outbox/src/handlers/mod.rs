@@ -17,12 +17,15 @@
 pub mod abdm_hfr;
 pub mod abdm_stub;
 pub mod cashfree;
+pub mod ccavenue;
 pub mod email_stub;
 pub mod google_meet;
 pub mod hl7_stub;
 pub mod nhcx;
 pub mod pinelabs;
 pub mod pipeline_fallback;
+pub mod payu;
+pub mod phonepe;
 pub mod razorpay;
 pub mod razorpayx;
 pub mod teams;

@@ -65,6 +65,7 @@ import { CreateInvoiceDrawer } from "./create-invoice-drawer";
 import { CreditPatientsTab } from "./credit-patients";
 import { DayCloseTab } from "./day-close";
 import { InsuranceClaimsTab } from "./insurance-claims";
+import { InstallmentsTab } from "./installments";
 import { PackagesTab } from "./packages";
 import { RatePlansTab } from "./rate-plans";
 import { RefundsCreditsTab } from "./refunds-credits";
@@ -488,6 +489,9 @@ export function BillingPageInner() {
           <Tabs.Tab value="advances" leftSection={<IconWallet size={14} />}>
             {t("advances")}
           </Tabs.Tab>
+          <Tabs.Tab value="installments" leftSection={<IconCreditCard size={14} />}>
+            EMI / Installments
+          </Tabs.Tab>
           <Tabs.Tab value="corporate" leftSection={<IconBuildingBank size={14} />}>
             {t("corporate")}
           </Tabs.Tab>
@@ -598,6 +602,10 @@ export function BillingPageInner() {
 
         <Tabs.Panel value="advances">
           <AdvancesTab />
+        </Tabs.Panel>
+
+        <Tabs.Panel value="installments">
+          <InstallmentsTab />
         </Tabs.Panel>
 
         <Tabs.Panel value="corporate">

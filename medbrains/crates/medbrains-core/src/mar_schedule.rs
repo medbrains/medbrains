@@ -134,7 +134,10 @@ pub fn schedule_doses(frequency: &str, duration: &str, start: DateTime<Utc>) -> 
         return Vec::new();
     }
     if is_stat(frequency) {
-        return vec![DoseSlot { scheduled_at: start, needs_review: false }];
+        return vec![DoseSlot {
+            scheduled_at: start,
+            needs_review: false,
+        }];
     }
 
     let (hours, freq_unknown) = match round_hours(frequency) {
@@ -158,7 +161,10 @@ pub fn schedule_doses(frequency: &str, duration: &str, start: DateTime<Utc>) -> 
                 continue;
             };
             if let chrono::LocalResult::Single(at) = Utc.from_local_datetime(&naive) {
-                slots.push(DoseSlot { scheduled_at: at, needs_review });
+                slots.push(DoseSlot {
+                    scheduled_at: at,
+                    needs_review,
+                });
             }
         }
     }
@@ -171,7 +177,9 @@ mod tests {
     use super::*;
 
     fn start() -> DateTime<Utc> {
-        Utc.with_ymd_and_hms(2026, 6, 21, 9, 30, 0).single().expect("valid date")
+        Utc.with_ymd_and_hms(2026, 6, 21, 9, 30, 0)
+            .single()
+            .expect("valid date")
     }
 
     #[test]
