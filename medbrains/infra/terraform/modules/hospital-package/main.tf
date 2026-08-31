@@ -73,7 +73,13 @@ locals {
     audit   = "Audit logs, backup archives, and operational logs"
     secrets = "Secrets Manager and Kubernetes secret envelope encryption"
   }
-  kms_purposes = local.is_starter ? {
+  # Single-host shapes get two keys, not four. db and secrets exist for RDS
+  # storage encryption and Kubernetes secret envelopes, neither of which a
+  # single host has - and an unused CMK still bills $1/month each.
+  #
+  # attach belongs here for the same reason starter does: it is the same
+  # single-host deployment, just on a machine the buyer already owns.
+  kms_purposes = (local.is_starter || local.is_attach) ? {
     app   = local.kms_purposes_all.app
     audit = local.kms_purposes_all.audit
   } : local.kms_purposes_all
@@ -201,6 +207,11 @@ module "attach" {
   deploy_kit_dir = var.deploy_kit_dir
   reset_pgdata   = var.reset_pgdata
   kms_key_arns   = local.kms_key_arns
+
+  attach_mode           = true
+  attach_reuse_tls      = var.attach_reuse_tls
+  attach_reuse_postgres = var.attach_reuse_postgres
+  attach_database_url   = var.attach_database_url
 
   alarm_email = var.alarm_email != "" ? var.alarm_email : var.admin_email
 }
