@@ -13,6 +13,7 @@ pub mod marketing_message_status;
 pub use medbrains_server_core::notification_hub;
 pub mod notification_listener;
 pub mod on_call;
+pub mod queue_rollover;
 pub mod retention;
 pub mod room_rent;
 pub mod simulator;

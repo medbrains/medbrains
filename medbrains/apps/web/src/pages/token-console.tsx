@@ -1,13 +1,13 @@
 import { Group, Stack } from "@mantine/core";
 import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
-import { type ModuleToken, P } from "@medbrains/types";
+import { type ModuleToken, P, TOKEN_PRIORITY_LABEL, TOKEN_PRIORITY_REASON } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Alert, Badge, Button, Input, Select, toast } from "@/components/ui";
+import { Alert, Badge, Button, Input, Select, Tooltip, toast } from "@/components/ui";
 import { resolveTokenActions, tokenStatusLabel } from "@/config/token-workflows";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 
@@ -21,10 +21,13 @@ const MODULE_VALUES = [
   "dispatch",
 ] as const;
 
-const STATUS_TONE: Record<string, "neutral" | "warning" | "info"> = {
+const STATUS_TONE: Record<string, "neutral" | "warning" | "info" | "danger"> = {
   waiting: "neutral",
   called: "warning",
   serving: "info",
+  // Closed by the day rollover, never served. Only visible with
+  // include_finished, and it must not look like an ordinary finish.
+  expired: "danger",
 };
 
 /** Staff console — call the next token and walk each one through its workflow. */
@@ -107,8 +110,19 @@ export function TokenConsolePage() {
     {
       key: "priority",
       label: "Priority",
+      // A patient ahead of the queue for a reason nobody at the desk witnessed
+      // looks like a queue-jump, and the desk is who has to explain it. So the
+      // badge says why on hover, and never shows a raw database value.
       render: (row) =>
-        row.priority === "normal" ? "—" : <Badge tone="warning">{row.priority}</Badge>,
+        row.priority === "normal" ? (
+          "—"
+        ) : (
+          <Tooltip label={TOKEN_PRIORITY_REASON[row.priority] ?? row.priority}>
+            <Badge tone={row.priority === "carried_over" ? "accent" : "warning"}>
+              {TOKEN_PRIORITY_LABEL[row.priority] ?? row.priority}
+            </Badge>
+          </Tooltip>
+        ),
     },
     {
       key: "actions",

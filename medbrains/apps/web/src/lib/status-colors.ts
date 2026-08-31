@@ -142,6 +142,7 @@ const STATUS_COLORS: Record<string, string> = {
   disposed: "slate",
   disputed: "violet",
   doctor: "primary",
+  carried_over: "orange",
   documentation: "slate",
   dose_changed: "primary",
   downloaded: "teal",

@@ -302,6 +302,7 @@ export type {
   TokenBoardSurfaceId,
   TokenBoardTvAppCode,
   TokenBoardTvDisplayType,
+  TokenPriority,
 } from "./token-board-surfaces.js";
 export {
   BILLING_QUEUE_LANES,
@@ -317,6 +318,9 @@ export {
   TOKEN_BOARD_STATUS_VALUES,
   TOKEN_BOARD_SURFACE_LIST,
   TOKEN_BOARD_SURFACES,
+  TOKEN_PRIORITY_LABEL,
+  TOKEN_PRIORITY_ORDER,
+  TOKEN_PRIORITY_REASON,
   tokenBoardFeedIsStale,
   tokenBoardFeedReadiness,
   tokenBoardMobileRouteParams,

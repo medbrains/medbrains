@@ -1,0 +1,28 @@
+-- RLS-Posture: not-tenant-scoped
+-- Tenant-Column: none
+-- New-Tables: none
+-- Drops: none
+-- A queue entry the day ended on.
+--
+-- `queue_status` could say waiting, called, in_consultation, completed,
+-- no_show and cancelled. None of those is true of a patient the hospital
+-- simply never reached before closing time, and nothing ever closed them: the
+-- seeded database holds 363 rows still `waiting` from the 11th of August and
+-- 380 in total from days long past. They survive only because every read
+-- filters on today's date, which means they are invisible rather than closed.
+--
+-- Reusing an existing value would have been cheaper and wrong in a way that
+-- matters. `no_show` is a clinical and accreditation statistic -- it means the
+-- patient was called and did not come -- and rolling every uncleared row into
+-- it would inflate the hospital's own no-show rate with the hospital's own
+-- backlog. `cancelled` implies somebody decided. Neither happened here: the
+-- day ended.
+--
+-- ## Why this migration does nothing else
+--
+-- `ALTER TYPE ... ADD VALUE` may be issued inside a transaction, but the new
+-- value cannot be *used* until that transaction commits. sqlx runs each
+-- migration in its own transaction, so everything that writes 'expired' lives
+-- in the next file. Same reason as 0972_service_account_role.
+
+ALTER TYPE public.queue_status ADD VALUE IF NOT EXISTS 'expired';

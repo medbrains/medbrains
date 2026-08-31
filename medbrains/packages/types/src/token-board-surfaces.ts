@@ -959,3 +959,56 @@ export function currentRoomToken<T extends RoomToken>(
     return b > a ? token : latest;
   });
 }
+
+/**
+ * The token priority vocabulary, in the order the queue sorts them.
+ *
+ * Mirrors `public.token_priority_weight` (migration 1004). Lower sorts first.
+ * Keep the two in step: the board orders by the SQL function, so a label here
+ * that the function does not know sorts last rather than where it reads.
+ */
+export const TOKEN_PRIORITY_ORDER = [
+  "stat",
+  "urgent",
+  "emergency_referral",
+  "elderly",
+  "disabled",
+  "pregnant",
+  "carried_over",
+  "vip",
+  "normal",
+] as const;
+
+export type TokenPriority = (typeof TOKEN_PRIORITY_ORDER)[number];
+
+/** Human labels. A queue badge reading "carried_over" is a database value. */
+export const TOKEN_PRIORITY_LABEL: Record<string, string> = {
+  stat: "STAT",
+  urgent: "Urgent",
+  emergency_referral: "Emergency referral",
+  elderly: "Elderly",
+  disabled: "Disabled",
+  pregnant: "Pregnant",
+  carried_over: "Carried over",
+  vip: "VIP",
+  normal: "Normal",
+};
+
+/**
+ * Why a token carries its priority, for a tooltip beside the badge.
+ *
+ * "Carried over" in particular needs saying out loud: a patient ahead of the
+ * queue for a reason nobody at the desk witnessed will otherwise look like a
+ * queue-jump, and the desk is the party who has to defend it.
+ */
+export const TOKEN_PRIORITY_REASON: Record<string, string> = {
+  stat: "A clinical emergency.",
+  urgent: "Clinically ahead of the routine list.",
+  emergency_referral: "Sent here by another facility, still waiting.",
+  elderly: "Vulnerability category.",
+  disabled: "Vulnerability category.",
+  pregnant: "Vulnerability category.",
+  carried_over: "Waited on an earlier day and was not seen before the day ended.",
+  vip: "A courtesy — behind every clinical and vulnerability reason.",
+  normal: "No priority claim.",
+};

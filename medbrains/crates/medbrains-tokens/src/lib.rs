@@ -182,7 +182,7 @@ pub async fn current_visit(
     Ok(sqlx::query_scalar(
         "SELECT visit_id FROM tokens \
          WHERE patient_id = $1 AND token_date = CURRENT_DATE AND visit_id IS NOT NULL \
-           AND status NOT IN ('completed', 'no_show', 'cancelled') \
+           AND status NOT IN ('completed', 'no_show', 'cancelled', 'expired') \
          ORDER BY created_at DESC LIMIT 1",
     )
     .bind(patient_id)
@@ -206,6 +206,56 @@ pub struct IssueToken<'a> {
     pub entity_type: Option<&'a str>,
     pub entity_id: Option<Uuid>,
     pub issued_by: Option<Uuid>,
+}
+
+/// How far back a patient may be "carried over" from.
+///
+/// Somebody sent home unseen on Tuesday and returning on Wednesday is owed a
+/// place. Somebody returning six months later is a new visit, and treating
+/// them as owed would quietly seed the queue with priority nobody granted.
+const CARRIED_OVER_LOOKBACK_DAYS: i32 = 30;
+
+/// The priority a token should actually be issued at.
+///
+/// Returns `carried_over` when this patient held a token for this module on an
+/// earlier day that the day-rollover closed unserved -- they waited, the
+/// hospital did not reach them, and they came back.
+///
+/// Only a `normal` request is promoted. Anything already carrying a clinical
+/// or vulnerability reason outranks being owed a slot and must not be
+/// *demoted* by having waited, and anything already more urgent than
+/// `carried_over` is left exactly as the caller asked. The comparison is
+/// `token_priority_weight`, the same function the board and call-next sort by,
+/// so this cannot disagree with the order it is trying to change.
+async fn carried_over_priority<'a>(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    module: &str,
+    patient_id: Option<Uuid>,
+    requested: &'a str,
+) -> Result<&'a str, AppError> {
+    let Some(patient_id) = patient_id else {
+        return Ok(requested);
+    };
+
+    let owed: bool = sqlx::query_scalar(
+        "SELECT EXISTS( \
+             SELECT 1 FROM tokens \
+              WHERE tenant_id = $1 AND module = $2 AND patient_id = $3 \
+                AND status = 'expired' \
+                AND token_date < CURRENT_DATE \
+                AND token_date >= CURRENT_DATE - ($4 || ' days')::interval \
+         ) AND token_priority_weight($5) > token_priority_weight('carried_over')",
+    )
+    .bind(tenant_id)
+    .bind(module)
+    .bind(patient_id)
+    .bind(CARRIED_OVER_LOOKBACK_DAYS.to_string())
+    .bind(requested)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    Ok(if owed { "carried_over" } else { requested })
 }
 
 /// Issue a token inside an existing tenant-scoped transaction (auto-issuance
@@ -260,6 +310,10 @@ pub async fn issue_token_in_tx(
     // name. Resolve it here, where every path goes through.
     let scope_label =
         resolve_scope(tx, input.scope, input.scope_id, input.scope_label).await?;
+
+    let priority =
+        carried_over_priority(tx, tenant_id, input.module, input.patient_id, input.priority)
+            .await?;
     sqlx::query(
         "INSERT INTO tokens \
          (tenant_id, module, scope, scope_id, scope_label, number, seq, priority, \
@@ -273,7 +327,7 @@ pub async fn issue_token_in_tx(
     .bind(scope_label.as_deref())
     .bind(&number)
     .bind(seq)
-    .bind(input.priority)
+    .bind(priority)
     .bind(input.patient_id)
     .bind(input.patient_name)
     .bind(input.entity_type)
@@ -311,7 +365,7 @@ pub async fn issue_token_once_per_patient_day(
             "UPDATE tokens SET priority = $4, updated_at = now() \
              WHERE tenant_id = $1 AND module = $2 AND patient_id = $3 \
                AND token_date = CURRENT_DATE \
-               AND status NOT IN ('completed', 'no_show', 'cancelled') \
+               AND status NOT IN ('completed', 'no_show', 'cancelled', 'expired') \
                AND token_priority_weight($4) < token_priority_weight(priority) \
              RETURNING number",
         )
@@ -329,7 +383,7 @@ pub async fn issue_token_once_per_patient_day(
             "SELECT EXISTS(SELECT 1 FROM tokens \
              WHERE tenant_id = $1 AND module = $2 AND patient_id = $3 \
                AND token_date = CURRENT_DATE \
-               AND status NOT IN ('completed', 'no_show', 'cancelled'))",
+               AND status NOT IN ('completed', 'no_show', 'cancelled', 'expired'))",
         )
         .bind(tenant_id)
         .bind(input.module)
@@ -601,7 +655,7 @@ pub async fn list_board(
            AND ($2::text IS NULL OR scope = $2) \
            AND ($3::uuid IS NULL OR scope_id = $3) \
            AND (status IN ('waiting', 'called', 'serving') \
-                OR ($4::bool AND status IN ('completed', 'no_show'))) \
+                OR ($4::bool AND status IN ('completed', 'no_show', 'expired'))) \
          ORDER BY token_priority_weight(priority), seq ASC"
     ))
     .bind(&query.module)

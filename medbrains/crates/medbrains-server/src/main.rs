@@ -613,6 +613,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Retention enforcement — daily housekeeping purges + MRD
     // destruction-due flagging (MEDBRAINS_RETENTION_DRY_RUN=true to preview).
     medbrains_server::services::retention::spawn(db_pool.clone());
+    medbrains_server::services::queue_rollover::spawn(db_pool.clone());
 
     // Start server
     let addr: SocketAddr = config.bind_addr().parse()?;
