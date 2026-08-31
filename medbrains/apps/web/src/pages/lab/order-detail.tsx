@@ -28,6 +28,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DataTable, DocumentActions, useClinicalEmit } from "@/components";
+import { PrintLabReportButton } from "@/components/Lab/LabReportPrint";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { Alert, Badge, Button, IconButton, Input, Modal, toast } from "@/components/ui";
@@ -746,6 +747,14 @@ export function LabOrderDetail({
           </Group>
         </Stack>
       )}
+
+      {/* Only a verified report is handed to a patient. Printing an
+          unverified one puts a number nobody has signed off into somebody's
+          hand, and it cannot be recalled — so the button is present at every
+          status and enabled at one. */}
+      <Group>
+        <PrintLabReportButton orderId={orderId} disabled={order.status !== "verified"} />
+      </Group>
 
       {/* Add results form */}
       {canCreateResult &&

@@ -1,6 +1,8 @@
 import { api } from "@medbrains/api";
 
 export const labService = {
+  getLabReportFullPrintData: (...args: Parameters<typeof api.getLabReportFullPrintData>) =>
+    api.getLabReportFullPrintData(...args),
   listLabOrders: (...args: Parameters<typeof api.listLabOrders>) => api.listLabOrders(...args),
   listCriticalAlerts: (...args: Parameters<typeof api.listCriticalAlerts>) =>
     api.listCriticalAlerts(...args),
