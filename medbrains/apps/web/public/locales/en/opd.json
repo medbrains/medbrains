@@ -289,6 +289,7 @@
   "aria.fileCheck": "File Check",
   "aria.delete": "Delete",
   "queue.noComplaint": "Not recorded",
+  "queue.unavailable": "The queue could not be read. This is a fault, not an empty waiting room — do not send anyone away. Retrying automatically.",
   "vitalsCounter.tab": "Vitals counter",
   "vitalsCounter.record": "Record vitals",
   "vitalsCounter.recorded": "Vitals saved. The patient is now with the doctor.",

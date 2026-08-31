@@ -39,7 +39,7 @@ import {
   useClinicalEmit,
   useProtectedFieldAccess,
 } from "@/components";
-import { Button, IconButton, toast } from "@/components/ui";
+import { Alert, Button, IconButton, toast } from "@/components/ui";
 import { opdService } from "@/services/opd.service";
 import type {
   OpdQueueRowActionId,
@@ -167,7 +167,11 @@ export function OpdPageInner() {
     queueParams.visit_type = queueVisitTypeTab;
   }
 
-  const { data: queue = [], isLoading } = useQuery({
+  const {
+    data: queue = [],
+    isLoading,
+    isError: queueFailed,
+  } = useQuery({
     queryKey: ["opd-queue", queueParams],
     queryFn: () => opdService.listQueue(queueParams),
   });
@@ -600,6 +604,11 @@ export function OpdPageInner() {
               ))}
             </Tabs.List>
           </Tabs>
+          {/* A failed read must not be drawn as an empty waiting room. The
+              table renders its empty state for any zero-row list, and on an
+              outage `queue` is [] — so without this the busiest screen on the
+              path tells the desk that nobody is waiting. */}
+          {queueFailed && <Alert tone="danger">{t("queue.unavailable")}</Alert>}
           <DataTable
             columns={columns}
             data={queue}
