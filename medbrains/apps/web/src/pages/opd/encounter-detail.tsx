@@ -76,6 +76,7 @@ import { GroupAppointmentModal } from "./group-appointment-modal";
 import { InvestigationsTab } from "./investigations";
 import { PharmacyDispatchTab } from "./pharmacy-dispatch";
 import { PrescriptionsTab } from "./prescriptions";
+import { SpecialtyTab } from "./specialty-tab";
 import { VitalsTab } from "./vitals";
 import {
   CertificatesTab,
@@ -545,6 +546,11 @@ export function EncounterDetail({
                   },
                   { value: "prescriptions", icon: <IconPill size={14} />, label: "Prescriptions" },
                   { value: "referrals", icon: <IconArrowRight size={14} />, label: "Referrals" },
+                  {
+                    value: "specialty",
+                    icon: <IconStethoscope size={14} />,
+                    label: "Specialty",
+                  },
                 ],
               },
               {
@@ -688,6 +694,13 @@ export function EncounterDetail({
                 departmentId={departmentId}
               />
             </PermissionGate>
+          </Tabs.Panel>
+          <Tabs.Panel value="specialty">
+            <SpecialtyTab
+              patientId={patientId}
+              encounterId={encounterId}
+              departmentId={departmentId}
+            />
           </Tabs.Panel>
           <Tabs.Panel value="rx-history">
             <RxHistoryTab patientId={patientId} />
