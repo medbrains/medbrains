@@ -11,6 +11,7 @@ import type {
   LabOrderDetailResponse,
   LabResult,
   LabResultAmendment,
+  LabTestDefaults,
   ResultInput,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -44,6 +45,22 @@ import {
 } from "./shared";
 
 /**
+ * A catalogue value worth pre-filling.
+ *
+ * A panel row carries placeholders rather than a measurement — the seeded CBC
+ * has unit "-" and range "See parameters" — because a panel has no single
+ * unit. Copying those onto every result line would put "-" in the unit column
+ * of a printed report, which is worse than leaving it blank: blank invites the
+ * technologist to fill it, and "-" looks answered.
+ */
+function usableDefault(value: string | null | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === "-" || trimmed === "--") return undefined;
+  if (/^see\b/i.test(trimmed)) return undefined;
+  return trimmed;
+}
+
+/**
  * One row of the result-entry grid.
  *
  * `rowId` is local bookkeeping and never leaves the browser: it exists so
@@ -55,9 +72,17 @@ type ResultRow = ResultInput & { rowId: string };
 
 let nextResultRowId = 0;
 
-function newResultRow(): ResultRow {
+function newResultRow(test?: LabTestDefaults | null): ResultRow {
   nextResultRowId += 1;
-  return { rowId: `result-${nextResultRowId}`, parameter_name: "", value: "" };
+  return {
+    rowId: `result-${nextResultRowId}`,
+    // A single-analyte test names itself; a panel does not, so the parameter
+    // stays empty and the bench says which analyte this line is.
+    parameter_name: "",
+    value: "",
+    unit: usableDefault(test?.unit),
+    normal_range: usableDefault(test?.normal_range),
+  };
 }
 
 export function LabOrderDetail({
@@ -218,7 +243,7 @@ export function LabOrderDetail({
         result_count: resultInputs.length,
       });
       resultFormHandlers.close();
-      setResultInputs([newResultRow()]);
+      setResultInputs([newResultRow(data?.test)]);
     },
     onError: (e: Error) => toast.error(e.message, { title: "Could not save results" }),
   });
@@ -730,7 +755,16 @@ export function LabOrderDetail({
               tone="secondary"
               size="xs"
               leftSection={<IconPlus size={14} />}
-              onClick={resultFormHandlers.toggle}
+              onClick={() => {
+                // Seed the first row from the catalogue when the form opens,
+                // not when the component mounts: at mount the order has not
+                // loaded yet, and the first row is the one most likely to be
+                // the only one.
+                if (!resultFormOpen) {
+                  setResultInputs([newResultRow(data?.test)]);
+                }
+                resultFormHandlers.toggle();
+              }}
             >
               Add Results
             </Button>
@@ -808,7 +842,7 @@ export function LabOrderDetail({
                   <Button
                     tone="secondary"
                     size="xs"
-                    onClick={() => setResultInputs([...resultInputs, newResultRow()])}
+                    onClick={() => setResultInputs([...resultInputs, newResultRow(data?.test)])}
                   >
                     Add Row
                   </Button>

@@ -81,6 +81,25 @@ pub struct CreateOrderRequest {
 pub struct OrderDetailResponse {
     pub order: LabOrder,
     pub results: Vec<LabResult>,
+    /// What the catalogue says this test is measured in.
+    ///
+    /// The bench was free-typing the unit on every result, so one analyte
+    /// accumulated "mg/dL", "mg/dl" and "mg%" across orders. That is not
+    /// untidiness: the delta comparison and the cumulative report both join
+    /// on parameter name, and a unit that drifts makes two readings of the
+    /// same substance incomparable — while a wrong unit on a printed report
+    /// is a dosing error waiting to happen.
+    pub test: Option<TestDefaults>,
+}
+
+/// The catalogue's answer for a test, used to pre-fill result entry.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct TestDefaults {
+    pub name: String,
+    pub code: String,
+    pub unit: Option<String>,
+    pub normal_range: Option<String>,
+    pub sample_type: Option<String>,
 }
 
 const LAB_OPERATIONAL_ORDER_SCOPE_PERMISSIONS: &[&str] = &[
@@ -697,8 +716,24 @@ pub async fn get_order(
     .fetch_all(&mut *tx)
     .await?;
 
+    // Optional on purpose: a catalogue row can be retired after an order was
+    // placed against it, and a historical order must still open. The screen
+    // falls back to free text when this is absent rather than blocking entry.
+    let test = sqlx::query_as::<_, TestDefaults>(
+        "SELECT name, code, unit, normal_range, sample_type \
+         FROM lab_test_catalog WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(order.test_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
     tx.commit().await?;
-    Ok(Json(OrderDetailResponse { order, results }))
+    Ok(Json(OrderDetailResponse {
+        order,
+        results,
+        test,
+    }))
 }
 
 // ══════════════════════════════════════════════════════════

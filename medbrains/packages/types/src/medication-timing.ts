@@ -2060,6 +2060,17 @@ export interface ResultInput {
 export interface LabOrderDetailResponse {
   order: LabOrder;
   results: LabResult[];
+  /** What the catalogue says this test is measured in. Absent when the
+   *  catalogue row has been retired since the order was placed. */
+  test: LabTestDefaults | null;
+}
+
+export interface LabTestDefaults {
+  name: string;
+  code: string;
+  unit: string | null;
+  normal_range: string | null;
+  sample_type: string | null;
 }
 
 export interface CreateLabCatalogRequest {
