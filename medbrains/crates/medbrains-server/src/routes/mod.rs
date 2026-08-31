@@ -101,8 +101,10 @@ pub fn build_router(state: AppState) -> Router {
         // CMS Public API (no auth required)
         .route("/api/public/tenant-by-host", get(setup::tenant_by_host))
         .merge(medbrains_onboarding::email_verification::router())
-        .merge(medbrains_invitations::router())
-        .merge(medbrains_cms::router())
+        // Accepting an invitation happens before the account exists.
+        .merge(medbrains_invitations::public_router())
+        // The public website — published posts, pages, subscribe/unsubscribe.
+        .merge(medbrains_cms::public_router())
         // WebSocket routes (TV displays)
         .route("/ws/queue/{department_id}", get(ws::queue_ws_handler))
         .route("/ws/queue", get(ws::queue_ws_handler_all))
@@ -121,6 +123,12 @@ pub fn build_router(state: AppState) -> Router {
         .merge(medbrains_auth::protected_router())
         .merge(medbrains_client_errors::router())
         .merge(medbrains_device_pairing::device_code_admin_router())
+        // Admin halves of three routers that used to sit on the public side,
+        // where their handlers' `Claims` extension never arrived and every
+        // call answered 500 — see each crate's admin_router doc comment.
+        .merge(medbrains_device_pairing::admin_router())
+        .merge(medbrains_invitations::admin_router())
+        .merge(medbrains_cms::admin_router())
         .route("/api/access/manifest", get(access::get_manifest))
         .merge(medbrains_app_manifest::router())
         .merge(medbrains_clinical_scores::router())

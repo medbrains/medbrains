@@ -710,7 +710,11 @@ pub async fn public_get_page(
 }
 
 /// cms routes.
-pub fn router() -> axum::Router<AppState> {
+/// The reader-facing half of the CMS — the public website.
+///
+/// Published posts, pages, and the subscribe/confirm/unsubscribe loop. None of
+/// these take `Claims`: a visitor reading the hospital's blog has no account.
+pub fn public_router() -> axum::Router<AppState> {
     axum::Router::new()
         .route("/api/public/cms/posts", get(public_list_posts))
         .route("/api/public/cms/posts/featured", get(public_featured_posts))
@@ -720,6 +724,16 @@ pub fn router() -> axum::Router<AppState> {
         .route("/api/public/cms/subscribe", post(public_subscribe))
         .route("/api/public/cms/confirm/{token}", get(public_confirm_subscription))
         .route("/api/public/cms/unsubscribe/{token}", get(public_unsubscribe))
+}
+
+/// The authoring half — everything that writes or reads editorial state.
+///
+/// These handlers extract `Claims`. Mounted on the public router the extension
+/// is absent and Axum answers 500 before any permission check, which took the
+/// entire CMS — authoring, media, the subscriber list and its export — out of
+/// service for authenticated administrators as much as for anyone else.
+pub fn admin_router() -> axum::Router<AppState> {
+    axum::Router::new()
         .route(
             "/api/cms/dashboard",
             get(get_dashboard_stats),

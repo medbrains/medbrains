@@ -455,9 +455,22 @@ pub(crate) fn sha256_hex(input: &[u8]) -> String {
 }
 
 /// device_pairing routes.
+/// The one pairing route a device can reach before it has credentials.
+///
+/// Gated by the short-lived one-time pairing token in the body, not by a JWT —
+/// a device presenting itself for the first time has nothing else to present.
 pub fn router() -> axum::Router<AppState> {
+    axum::Router::new().route("/api/device-pairing/pair", post(pair_device))
+}
+
+/// Device administration, all of which requires an authenticated operator.
+///
+/// Every handler here extracts `Claims` and checks a `devices::pairing`
+/// permission. Merged into the public router they never receive that
+/// extension, so Axum rejects with a 500 before the permission check runs and
+/// the whole device estate becomes unmanageable.
+pub fn admin_router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route("/api/device-pairing/pair", post(pair_device))
         .route(
             "/api/device-pairing/paired/{id}/node-key",
             get(get_device_node_key)

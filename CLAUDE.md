@@ -482,6 +482,37 @@ When picking up a ticket or story (incl. the generated stories in `medbrains/doc
 2. **Expand into scenario-based, business-logic acceptance criteria** — the generated stories carry only generic module-tailored AC. Rewrite them as concrete **Given/When/Then scenarios** grounded in real-world use, covering the actual business logic and edge cases: happy path, conflict/error states, permission-denied, the regulatory rule, boundary values, and what the system does to which records/users. Not a generic checklist — real scenarios (e.g. "Given a Schedule-X drug with no duplicate record, When the pharmacist dispenses, Then the system blocks it and logs the attempt"). Agree them if non-trivial (plan mode).
 3. **Then start** — implement to the scenario AC, following the Module Build Workflow below; verify each scenario; ship one focused PR.
 
+## Every Change Ships Its UI (MANDATORY)
+
+**For every change, the UI change is needed.** A piece of work is not finished
+at the API boundary. Backend and frontend land together, in the same phase, and
+the phase is verified through the screen — not through `curl`.
+
+This is not a style preference; it is the specific failure this codebase keeps
+repeating. `stations`, `camp_counters`, `staff_location_assignments` and
+`doctor_schedules` all shipped with full schema, CRUD handlers, permissions,
+API-client methods and types — and **zero rows**, for months, because no screen
+ever created one. The location hierarchy has 75 seeded rows and 38 tables
+referencing it; the queue could still not name a room. Work that stops at the
+handler is how that happens.
+
+**The rule:**
+
+1. **Plan the screen with the endpoint**, not after it. A migration, a new
+   column, a new route or a fixed one names the screen it changes before any of
+   it is written. Pairs with **Plan UI before build** above.
+2. **A phase ends on the screen.** Verify by using the feature in the running
+   app, as the role that would use it. A 200 from `curl` is evidence the API
+   works, never evidence the feature exists.
+3. **Seed data needs a maker.** If a table is seeded, the screen that creates,
+   edits and retires those rows ships with it — otherwise the seed is the only
+   data that will ever exist.
+4. **A change with genuinely no surface must say so, explicitly**, and name the
+   screen it unblocks: a scheduled job, a router-wiring fix, a backfill. Say
+   "backend-only, unblocks X" out loud. Never let it pass silently as "done".
+5. **Both directions.** A screen with no endpoint is equally incomplete —
+   `make check-api` and `check-ui-api` enforce the pair.
+
 ## Permissions First (MANDATORY)
 
 **Every feature defines its permission before any code is written** — before the

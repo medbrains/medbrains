@@ -8,7 +8,17 @@ import { IconMailForward, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
-import { Badge, Button, IconButton, Input, Modal, Panel, Select, Table } from "@/components/ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  IconButton,
+  Input,
+  Modal,
+  Panel,
+  Select,
+  Table,
+} from "@/components/ui";
 import { toast } from "@/components/ui/toast";
 
 // Invites assign a built-in role (the user_role enum); super_admin is excluded.
@@ -39,7 +49,17 @@ export function InviteUsersPanel() {
   const queryClient = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
 
-  const { data: invites = [] } = useQuery({
+  // Three outcomes, not two. This panel read `data = []` and rendered "No
+  // pending invitations" while the endpoint answered 500 to every caller for
+  // months — the admin routes were merged onto the public router, so the
+  // handler's Claims extension never arrived. An administrator saw a settled
+  // fact about their hospital where there was an outage, and re-invited people
+  // who already had an invite waiting.
+  const {
+    data: invites = [],
+    isError: invitesFailed,
+    isLoading: invitesLoading,
+  } = useQuery({
     queryKey: ["invitations"],
     queryFn: () => api.listInvitations(),
   });
@@ -84,7 +104,17 @@ export function InviteUsersPanel() {
         </Button>
       }
     >
-      {invites.length > 0 ? (
+      {invitesFailed ? (
+        <Alert tone="danger">
+          The pending invitations could not be loaded. This list is not empty — it is unknown.
+          Refresh before inviting anyone, or you may send a second invite to someone who already has
+          one.
+        </Alert>
+      ) : invitesLoading ? (
+        <Text size="sm" c="dimmed">
+          Loading invitations…
+        </Text>
+      ) : invites.length > 0 ? (
         <Table>
           <Table.Thead>
             <Table.Tr>

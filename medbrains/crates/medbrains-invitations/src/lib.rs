@@ -289,20 +289,25 @@ pub async fn accept(
     Ok(Json(json!({ "status": "ok" })))
 }
 
-/// invitations routes.
-pub fn router() -> axum::Router<AppState> {
+/// Invitation routes reachable without a JWT.
+///
+/// Someone accepting an invitation has no account yet, so these cannot sit
+/// behind the auth layer. They are gated by the single-use token in the path.
+pub fn public_router() -> axum::Router<AppState> {
     axum::Router::new()
-        .route(
-            "/api/public/invitations/{token}",
-            get(get_public),
-        )
-        .route(
-            "/api/public/invitations/{token}/accept",
-            post(accept),
-        )
-        .route(
-            "/api/admin/invitations",
-            get(list).post(create),
-        )
+        .route("/api/public/invitations/{token}", get(get_public))
+        .route("/api/public/invitations/{token}/accept", post(accept))
+}
+
+/// Invitation routes that require an authenticated administrator.
+///
+/// These must be merged into the protected router. Mounted on the public one
+/// they never receive the `Claims` extension their handlers extract, and Axum
+/// rejects every call with a 500 before the permission check is ever reached —
+/// which is how issuing an invitation, and with it creating a user, stayed
+/// broken for everyone.
+pub fn admin_router() -> axum::Router<AppState> {
+    axum::Router::new()
+        .route("/api/admin/invitations", get(list).post(create))
         .route("/api/admin/invitations/{id}", delete(revoke))
 }
