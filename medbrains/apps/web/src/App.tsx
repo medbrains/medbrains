@@ -277,7 +277,7 @@ const CampRegistrationCreatePage = lazy(() =>
   })),
 );
 const CampClinicalRoutePage = lazy(() =>
-  import("./pages/camp").then((m) => ({ default: m.CampClinicalRoutePage })),
+  import("./pages/camp/clinical-route").then((m) => ({ default: m.CampClinicalRoutePage })),
 );
 const CampScreeningCreatePage = lazy(() =>
   import("./pages/camp").then((m) => ({ default: m.CampScreeningCreatePage })),

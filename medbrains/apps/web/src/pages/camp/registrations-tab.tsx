@@ -1,13 +1,10 @@
 // CAMP RegistrationsTab — split from camp.tsx (pure move).
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, Select, Stack, Tabs, Text, TextInput, Tooltip } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
+import { Group, Stack, Tabs, Text, TextInput, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { CampClinicalVisitFormInput } from "@medbrains/schemas";
-import { campClinicalVisitFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type { Camp, CampRegistration, DepartmentRow } from "@medbrains/types";
+import type { Camp, CampRegistration } from "@medbrains/types";
 import {
   CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY,
   CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY,
@@ -23,24 +20,17 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
-import {
-  DataTable,
-  DoctorSearchSelect,
-  useClinicalEmit,
-  useProtectedFieldAccess,
-} from "@/components";
+import { DataTable, useClinicalEmit, useProtectedFieldAccess } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { Button, IconButton } from "@/components/ui";
 import { campService } from "@/services/camp.service";
-import { lookupsService } from "@/services/lookups.service";
 import {
   CampRegistrationSignals,
+  campClinicalRoutePath,
   campRegistrationCreatePath,
   campWorkPath,
-  protectedCampParticipantName,
 } from "./shared";
 
 export function RegistrationsTab({
@@ -62,39 +52,8 @@ export function RegistrationsTab({
   const canEditCampName = campNameAccess === "edit";
   const qc = useQueryClient();
   const emit = useClinicalEmit();
-  const [routeOpen, routeHandlers] = useDisclosure(false);
-  const [selectedRegistrationForClinical, setSelectedRegistrationForClinical] =
-    useState<CampRegistration | null>(null);
   const [statusTab, setStatusTab] = useState<string | null>("all");
   const [patientSearch, setPatientSearch] = useState("");
-  const clinicalVisitDefaults: CampClinicalVisitFormInput = {
-    department_id: null,
-    doctor_id: null,
-  };
-  const {
-    control: clinicalControl,
-    reset: resetClinicalVisit,
-    handleSubmit: handleClinicalVisitSubmit,
-    formState: { errors: clinicalErrors },
-  } = useForm<CampClinicalVisitFormInput>({
-    resolver: zodResolver(campClinicalVisitFormSchema),
-    defaultValues: clinicalVisitDefaults,
-  });
-
-  const { data: departments = [] } = useQuery<DepartmentRow[]>({
-    queryKey: ["departments"],
-    queryFn: () => lookupsService.listDepartments(),
-    staleTime: 600_000,
-  });
-  const departmentOptions = useMemo(
-    () =>
-      departments
-        .filter((department) =>
-          ["clinical", "para_clinical", "diagnostic"].includes(department.department_type),
-        )
-        .map((department) => ({ value: department.id, label: department.name })),
-    [departments],
-  );
 
   const { data: regs = [], isLoading } = useQuery({
     queryKey: ["camp-registrations", campId, contextPatientId],
@@ -149,9 +108,6 @@ export function RegistrationsTab({
         registration_number: registration.registration_number,
         source_record_id: result.encounter_id,
       });
-      routeHandlers.close();
-      setSelectedRegistrationForClinical(null);
-      resetClinicalVisit(clinicalVisitDefaults);
       void qc.invalidateQueries({ queryKey: ["camp-registrations"] });
       void qc.invalidateQueries({ queryKey: ["opd-queue"] });
       // The consultation screen already exists at its own address. The camp
@@ -186,17 +142,7 @@ export function RegistrationsTab({
       return;
     }
 
-    setSelectedRegistrationForClinical(registration);
-    resetClinicalVisit(values);
-    routeHandlers.open();
-  };
-
-  const submitClinicalRouting = (values: CampClinicalVisitFormInput) => {
-    if (!selectedRegistrationForClinical) return;
-    openClinicalVisitMut.mutate({
-      registration: selectedRegistrationForClinical,
-      values,
-    });
+    navigate(campClinicalRoutePath(registration.camp_id, registration.id, contextPatientId));
   };
 
   const columns: Column<CampRegistration>[] = [
@@ -388,67 +334,6 @@ export function RegistrationsTab({
           {t("registrations.selectActiveCampToView")}
         </Text>
       )}
-
-      <Drawer
-        opened={routeOpen}
-        onClose={() => {
-          routeHandlers.close();
-          setSelectedRegistrationForClinical(null);
-          resetClinicalVisit(clinicalVisitDefaults);
-        }}
-        title={
-          selectedRegistrationForClinical?.clinical_department_id
-            ? t("registrations.routeDrawer.changeTitle")
-            : t("registrations.routeDrawer.openTitle")
-        }
-        position="right"
-        size="md"
-      >
-        <Stack component="form" onSubmit={handleClinicalVisitSubmit(submitClinicalRouting)}>
-          <Stack gap={2}>
-            <Text fw={600}>
-              {protectedCampParticipantName(
-                selectedRegistrationForClinical?.person_name,
-                campNameAccess,
-              )}
-            </Text>
-            <Text size="xs" c="dimmed">
-              {t("registrations.routeDrawer.description")}
-            </Text>
-          </Stack>
-          <Controller
-            control={clinicalControl}
-            name="department_id"
-            render={({ field }) => (
-              <Select
-                label={t("registrations.routeDrawer.department")}
-                placeholder={t("registrations.routeDrawer.selectDepartment")}
-                data={departmentOptions}
-                value={field.value}
-                onChange={(value) => field.onChange(value ?? null)}
-                error={clinicalErrors.department_id?.message}
-                searchable
-                required
-              />
-            )}
-          />
-          <Controller
-            control={clinicalControl}
-            name="doctor_id"
-            render={({ field }) => (
-              <DoctorSearchSelect
-                label={t("registrations.routeDrawer.doctor")}
-                placeholder={t("registrations.routeDrawer.selectDoctor")}
-                value={field.value ?? ""}
-                onChange={(value) => field.onChange(value || null)}
-              />
-            )}
-          />
-          <Button tone="primary" type="submit" loading={openClinicalVisitMut.isPending}>
-            {t("registrations.routeDrawer.openOpd")}
-          </Button>
-        </Stack>
-      </Drawer>
     </>
   );
 }
