@@ -23,6 +23,7 @@ import {
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { Alert, Badge, Button, toast } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { safeReturnPath } from "@/lib/return-path";
 import { opdService } from "@/services/opd.service";
 import { EncounterDetail } from "./opd/encounter-detail";
 import { OpdPageInner } from "./opd/page-inner";
@@ -57,6 +58,12 @@ export function OpdEncounterPage() {
   useRequirePermission(P.OPD.QUEUE_VIEW);
   const { encounterId } = useParams<{ encounterId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // This page is reached from the OPD queue and from camp work. Without a
+  // return path, a camp clinician who finishes a consultation lands in the
+  // OPD queue, having lost the camp they were working.
+  const backTo = safeReturnPath(searchParams.get("return"), "/opd");
+  const backLabel = backTo === "/opd" ? "Back to Queue" : "Back";
   const canUpdate = useHasPermission(P.OPD.VISIT_UPDATE);
   // opd.queue.view opens this page; the demographics fetch below needs
   // patients.view. Refused, `patient` stays undefined and the page falls
@@ -97,7 +104,7 @@ export function OpdEncounterPage() {
         <Text c="dimmed">
           This visit exists, but you do not have permission to view the patient's record.
         </Text>
-        <Button tone="secondary" onClick={() => navigate("/opd")}>
+        <Button tone="secondary" onClick={() => navigate(backTo)}>
           Back to OPD queue
         </Button>
       </Stack>
@@ -108,7 +115,7 @@ export function OpdEncounterPage() {
     return (
       <Stack align="center" py="xl">
         <Text c="dimmed">OPD visit not found.</Text>
-        <Button tone="secondary" onClick={() => navigate("/opd")}>
+        <Button tone="secondary" onClick={() => navigate(backTo)}>
           Back to OPD queue
         </Button>
       </Stack>
@@ -135,9 +142,9 @@ export function OpdEncounterPage() {
             tone="ghost"
             size="xs"
             leftSection={<IconArrowRight size={14} style={{ transform: "rotate(180deg)" }} />}
-            onClick={() => navigate("/opd")}
+            onClick={() => navigate(backTo)}
           >
-            Back to Queue
+            {backLabel}
           </Button>
         </Group>
 

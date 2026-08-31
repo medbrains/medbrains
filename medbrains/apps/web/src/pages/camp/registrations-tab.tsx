@@ -7,21 +7,12 @@ import { notifications } from "@mantine/notifications";
 import type { CampClinicalVisitFormInput } from "@medbrains/schemas";
 import { campClinicalVisitFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type {
-  Camp,
-  CampOpenEncounterResponse,
-  CampRegistration,
-  DepartmentRow,
-  FieldAccessLevel,
-} from "@medbrains/types";
+import type { Camp, CampRegistration, DepartmentRow } from "@medbrains/types";
 import {
   CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY,
   CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY,
   P,
-  PATIENT_NAME_FIELD_ACCESS_KEYS,
-  PATIENT_UHID_FIELD_ACCESS_KEY,
 } from "@medbrains/types";
-import { fieldAccessText } from "@medbrains/utils";
 import {
   IconArrowRight,
   IconPlus,
@@ -43,30 +34,14 @@ import {
 } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { Button, IconButton } from "@/components/ui";
-import { EncounterDetail } from "@/pages/opd";
 import { campService } from "@/services/camp.service";
 import { lookupsService } from "@/services/lookups.service";
 import {
   CampRegistrationSignals,
   campRegistrationCreatePath,
+  campWorkPath,
   protectedCampParticipantName,
 } from "./shared";
-
-function protectedPatientName(
-  patientName: string | null | undefined,
-  access: FieldAccessLevel,
-): string {
-  const displayValue = fieldAccessText(access, patientName, "name");
-  return displayValue === "—" ? "Patient" : displayValue;
-}
-
-function protectedPatientIdentifier(
-  identifier: string | null | undefined,
-  access: FieldAccessLevel,
-): string {
-  const displayValue = fieldAccessText(access, identifier, "identifier");
-  return displayValue === "—" ? "No UHID" : displayValue;
-}
 
 export function RegistrationsTab({
   campId,
@@ -85,13 +60,9 @@ export function RegistrationsTab({
   const canOpenClinicalVisit = useHasPermission(P.OPD.VISIT_CREATE);
   const campNameAccess = useProtectedFieldAccess(CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY);
   const canEditCampName = campNameAccess === "edit";
-  const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
-  const patientUhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
   const qc = useQueryClient();
   const emit = useClinicalEmit();
   const [routeOpen, routeHandlers] = useDisclosure(false);
-  const [clinicalOpen, clinicalHandlers] = useDisclosure(false);
-  const [clinicalContext, setClinicalContext] = useState<CampOpenEncounterResponse | null>(null);
   const [selectedRegistrationForClinical, setSelectedRegistrationForClinical] =
     useState<CampRegistration | null>(null);
   const [statusTab, setStatusTab] = useState<string | null>("all");
@@ -178,13 +149,19 @@ export function RegistrationsTab({
         registration_number: registration.registration_number,
         source_record_id: result.encounter_id,
       });
-      setClinicalContext(result);
       routeHandlers.close();
       setSelectedRegistrationForClinical(null);
       resetClinicalVisit(clinicalVisitDefaults);
-      clinicalHandlers.open();
       void qc.invalidateQueries({ queryKey: ["camp-registrations"] });
       void qc.invalidateQueries({ queryKey: ["opd-queue"] });
+      // The consultation screen already exists at its own address. The camp
+      // copy was the same EncounterDetail in a full-height drawer, with no
+      // URL and none of the real page's loading and permission handling.
+      navigate(
+        `/opd/encounters/${result.encounter_id}?return=${encodeURIComponent(
+          campWorkPath(registration.camp_id, contextPatientId, "registrations"),
+        )}`,
+      );
     },
     onError: () => {
       notifications.show({
@@ -471,50 +448,6 @@ export function RegistrationsTab({
             {t("registrations.routeDrawer.openOpd")}
           </Button>
         </Stack>
-      </Drawer>
-
-      <Drawer
-        opened={clinicalOpen}
-        onClose={() => {
-          clinicalHandlers.close();
-          setClinicalContext(null);
-        }}
-        position="right"
-        size="100%"
-        withCloseButton
-        title={
-          <Button
-            tone="ghost"
-            size="xs"
-            onClick={() => {
-              clinicalHandlers.close();
-              setClinicalContext(null);
-            }}
-            leftSection={<IconArrowRight size={14} style={{ transform: "rotate(180deg)" }} />}
-          >
-            Back to Camp Work
-          </Button>
-        }
-        styles={{
-          header: {
-            padding: "6px 12px",
-            minHeight: 36,
-            borderBottom: "1px solid var(--fc-rule, #e7ebe8)",
-          },
-          body: { padding: 0, height: "calc(100vh - 36px)", overflow: "hidden" },
-        }}
-      >
-        {clinicalContext && (
-          <EncounterDetail
-            encounterId={clinicalContext.encounter_id}
-            patientId={clinicalContext.patient_id}
-            patientName={protectedPatientName(clinicalContext.patient_name, patientNameAccess)}
-            uhid={protectedPatientIdentifier(clinicalContext.uhid, patientUhidAccess)}
-            doctorId={clinicalContext.doctor_id ?? null}
-            departmentId={clinicalContext.department_id}
-            canUpdate={canOpenClinicalVisit}
-          />
-        )}
       </Drawer>
     </>
   );
