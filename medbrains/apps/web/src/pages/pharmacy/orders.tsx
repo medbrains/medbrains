@@ -1,7 +1,6 @@
 // Pharmacy PharmacyOrdersTab — split from pharmacy.tsx (pure move).
 
 import { Group, Select, Stack, Text, Tooltip } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
 import type { PharmacyOrder } from "@medbrains/types";
 import { P, PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS } from "@medbrains/types";
 import { IconCheck, IconEye, IconPlus, IconShoppingCart, IconX } from "@tabler/icons-react";
@@ -14,7 +13,6 @@ import { DataTable, StatusDot, TableValueBadge, useClinicalEmit } from "@/compon
 import { Alert, Button, IconButton, toast } from "@/components/ui";
 import { confirmDestructive } from "@/lib/confirm-destructive";
 import { pharmacyService } from "@/services/pharmacy.service";
-import { OtcSaleDrawer } from "./otc-sale-drawer";
 import {
   dispensingTypeLabels,
   PHARMACY_ORDER_STATUS_OPTIONS,
@@ -45,7 +43,6 @@ export function PharmacyOrdersTab({
   const [page, setPage] = useState(1);
   const [orderSort, setOrderSort] = useState<SortState | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
-  const [otcOpened, { open: openOtc, close: closeOtc }] = useDisclosure(false);
   const patientIdFilter = searchParams.get("patient_id") ?? "";
   const isDispenseHandoff = searchParams.get("action") === "dispense";
   const effectiveFilterStatus = filterStatus ?? (isDispenseHandoff ? "ordered" : null);
@@ -281,7 +278,7 @@ export function PharmacyOrdersTab({
                 size="xs"
                 tone="secondary"
                 leftSection={<IconShoppingCart size={14} />}
-                onClick={openOtc}
+                onClick={() => navigate("/pharmacy/otc-sale")}
               >
                 OTC Sale
               </Button>
@@ -359,8 +356,6 @@ export function PharmacyOrdersTab({
           hidden until `pharmacy.prescriptions.list` is granted.
         </Alert>
       )}
-
-      <OtcSaleDrawer opened={otcOpened} onClose={closeOtc} />
     </Stack>
   );
 }

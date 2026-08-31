@@ -1,4 +1,5 @@
-// IPD RxQueueTab — split from pharmacy.tsx (pure move).
+// RxQueueTab — split from pharmacy.tsx (pure move). Not IPD despite the original label:
+// every row in pharmacy_prescriptions belongs to an OPD encounter.
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Drawer, Group, Select, Stack, Text, Textarea, Tooltip } from "@mantine/core";

@@ -129,6 +129,9 @@ const PharmacyOrderCreatePage = lazy(() =>
 const PharmacyOrderDetailPage = lazy(() =>
   import("./pages/pharmacy").then((m) => ({ default: m.PharmacyOrderDetailPage })),
 );
+const PharmacyOtcSalePage = lazy(() =>
+  import("./pages/pharmacy/otc-sale").then((m) => ({ default: m.PharmacyOtcSalePage })),
+);
 const PharmacyFinancePage = lazy(() =>
   import("./pages/pharmacy-finance").then((m) => ({ default: m.PharmacyFinancePage })),
 );
@@ -525,6 +528,7 @@ export function App() {
               <Route path="ward-stock" element={<WardStockPage />} />
               <Route path="pharmacy/orders/new" element={<PharmacyOrderCreatePage />} />
               <Route path="pharmacy/orders/:orderId" element={<PharmacyOrderDetailPage />} />
+              <Route path="pharmacy/otc-sale" element={<PharmacyOtcSalePage />} />
               <Route path="pharmacy/finance" element={<PharmacyFinancePage />} />
               <Route path="pharmacy/fulfilment" element={<FulfilmentQueuePage />} />
               <Route path="pharmacy/fulfilment/:orderId" element={<VerifyPackPage />} />

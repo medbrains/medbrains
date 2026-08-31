@@ -1,6 +1,7 @@
 import type { PharmacyRxReviewFormInput } from "@medbrains/schemas";
 
-// IPD RxDetailView — split from pharmacy.tsx (pure move).
+// RxDetailView — split from pharmacy.tsx (pure move). Not IPD despite the original label:
+// every row in pharmacy_prescriptions belongs to an OPD encounter.
 
 import { Card, Group, Loader, Stack, Text } from "@mantine/core";
 import type {
