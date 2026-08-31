@@ -76,6 +76,55 @@ export function TransformChain({ chain, onChange, compact }: TransformChainProps
     [chain, onChange],
   );
 
+  // Every hook this component uses is called here, above the compact-mode
+  // early return below. They used to sit after it, so a compact render
+  // called three hooks and a full render called seven — and React throws
+  // "rendered more hooks than during the previous render" the moment the
+  // `compact` prop changes, taking the whole tree down with it.
+  const handleInsertBefore = useCallback(
+    (stepId: string, type: MappingOperationType) => {
+      const idx = chain.findIndex((s) => s.id === stepId);
+      if (idx === -1) return;
+      const step: TransformStep = { id: newStepId(), operation: type, config: {} };
+      const next = [...chain];
+      next.splice(idx, 0, step);
+      onChange(next);
+    },
+    [chain, onChange],
+  );
+
+  const handleInsertAfter = useCallback(
+    (stepId: string, type: MappingOperationType) => {
+      const idx = chain.findIndex((s) => s.id === stepId);
+      if (idx === -1) return;
+      const step: TransformStep = { id: newStepId(), operation: type, config: {} };
+      const next = [...chain];
+      next.splice(idx + 1, 0, step);
+      onChange(next);
+    },
+    [chain, onChange],
+  );
+
+  const stepIds = useMemo(() => chain.map((s) => s.id), [chain]);
+
+  const sortSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
+
+  const handleSortEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const oldIdx = chain.findIndex((s) => s.id === active.id);
+      const newIdx = chain.findIndex((s) => s.id === over.id);
+      if (oldIdx !== -1 && newIdx !== -1) {
+        onChange(arrayMove(chain, oldIdx, newIdx));
+      }
+    },
+    [chain, onChange],
+  );
+
+
   // ── Compact mode: horizontal badges ──
   if (compact) {
     const maxVisible = 3;
@@ -124,48 +173,6 @@ export function TransformChain({ chain, onChange, compact }: TransformChainProps
     );
   }
 
-  const handleInsertBefore = useCallback(
-    (stepId: string, type: MappingOperationType) => {
-      const idx = chain.findIndex((s) => s.id === stepId);
-      if (idx === -1) return;
-      const step: TransformStep = { id: newStepId(), operation: type, config: {} };
-      const next = [...chain];
-      next.splice(idx, 0, step);
-      onChange(next);
-    },
-    [chain, onChange],
-  );
-
-  const handleInsertAfter = useCallback(
-    (stepId: string, type: MappingOperationType) => {
-      const idx = chain.findIndex((s) => s.id === stepId);
-      if (idx === -1) return;
-      const step: TransformStep = { id: newStepId(), operation: type, config: {} };
-      const next = [...chain];
-      next.splice(idx + 1, 0, step);
-      onChange(next);
-    },
-    [chain, onChange],
-  );
-
-  const stepIds = useMemo(() => chain.map((s) => s.id), [chain]);
-
-  const sortSensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-  );
-
-  const handleSortEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
-      if (!over || active.id === over.id) return;
-      const oldIdx = chain.findIndex((s) => s.id === active.id);
-      const newIdx = chain.findIndex((s) => s.id === over.id);
-      if (oldIdx !== -1 && newIdx !== -1) {
-        onChange(arrayMove(chain, oldIdx, newIdx));
-      }
-    },
-    [chain, onChange],
-  );
 
   // ── Full mode: vertical chain with drag-sort ──
   return (

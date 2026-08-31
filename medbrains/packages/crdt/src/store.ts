@@ -11,7 +11,7 @@
  */
 
 import { type DBSchema, type IDBPDatabase, openDB } from "idb";
-import { LoroDoc, VersionVector } from "loro-crdt";
+import { LoroDoc, type VersionVector } from "loro-crdt";
 import type { CrdtConnectionStatus, CrdtStoreOptions } from "./types";
 
 interface MedbrainsCrdtSchema extends DBSchema {

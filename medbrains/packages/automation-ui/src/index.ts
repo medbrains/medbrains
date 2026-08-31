@@ -11,5 +11,5 @@
  * the host's theme.
  */
 
-export { AutomationScreen } from './AutomationScreen'
-export type { AutomationScreenProps } from './AutomationScreen'
+export type { AutomationScreenProps } from "./AutomationScreen";
+export { AutomationScreen } from "./AutomationScreen";

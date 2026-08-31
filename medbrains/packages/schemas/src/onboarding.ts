@@ -14,7 +14,10 @@ const codeField = z
   .string()
   .min(2, "Code must be at least 2 characters")
   .max(20, "Code must be at most 20 characters")
-  .regex(codePattern, "Code must be uppercase alphanumeric with optional hyphens, no leading/trailing hyphen");
+  .regex(
+    codePattern,
+    "Code must be uppercase alphanumeric with optional hyphens, no leading/trailing hyphen",
+  );
 
 const nameField = z
   .string()
@@ -44,7 +47,10 @@ export const onboardingInitSchema = z.object({
     .string()
     .min(3, "Username must be at least 3 characters")
     .max(30, "Username must be at most 30 characters")
-    .regex(usernamePattern, "Username must start with a letter and contain only lowercase letters, digits, and underscores"),
+    .regex(
+      usernamePattern,
+      "Username must start with a letter and contain only lowercase letters, digits, and underscores",
+    ),
   admin_email: z.string().email("Invalid email address"),
   admin_password: z
     .string()
@@ -81,7 +87,11 @@ export const updateTenantSchema = z.object({
   accreditation: z.string().max(100).optional().nullable(),
   timezone: z.string().min(1, "Timezone is required"),
   currency: z.string().length(3, "Currency must be exactly 3 characters"),
-  fy_start_month: z.coerce.number().int().min(1, "Month must be 1-12").max(12, "Month must be 1-12"),
+  fy_start_month: z.coerce
+    .number()
+    .int()
+    .min(1, "Month must be 1-12")
+    .max(12, "Month must be 1-12"),
 });
 
 export type UpdateTenantInput = z.infer<typeof updateTenantSchema>;
@@ -139,10 +149,12 @@ const timeSlotSchema = z.object({
   end: z.string().regex(/^\d{2}:\d{2}$/, "Time must be HH:MM"),
 });
 
-const dayScheduleSchema = z.object({
-  morning: timeSlotSchema.optional(),
-  evening: timeSlotSchema.optional(),
-}).nullable();
+const dayScheduleSchema = z
+  .object({
+    morning: timeSlotSchema.optional(),
+    evening: timeSlotSchema.optional(),
+  })
+  .nullable();
 
 export const workingHoursSchema = z.record(z.string(), dayScheduleSchema).optional();
 
@@ -174,7 +186,10 @@ export const createUserSchema = z.object({
     .string()
     .min(3, "Username must be at least 3 characters")
     .max(30, "Username must be at most 30 characters")
-    .regex(usernamePattern, "Username must start with a letter and contain only lowercase letters, digits, and underscores"),
+    .regex(
+      usernamePattern,
+      "Username must start with a letter and contain only lowercase letters, digits, and underscores",
+    ),
   email: z.string().email("Invalid email address"),
   password: z
     .string()
@@ -200,12 +215,20 @@ export const sequencesSchema = z.object({
     .string()
     .max(10, "Prefix must be at most 10 characters")
     .regex(prefixPattern, "Prefix must be alphanumeric with optional hyphens"),
-  uhid_pad_width: z.coerce.number().int().min(3, "Pad width must be 3-10").max(10, "Pad width must be 3-10"),
+  uhid_pad_width: z.coerce
+    .number()
+    .int()
+    .min(3, "Pad width must be 3-10")
+    .max(10, "Pad width must be 3-10"),
   invoice_prefix: z
     .string()
     .max(10, "Prefix must be at most 10 characters")
     .regex(prefixPattern, "Prefix must be alphanumeric with optional hyphens"),
-  invoice_pad_width: z.coerce.number().int().min(3, "Pad width must be 3-10").max(10, "Pad width must be 3-10"),
+  invoice_pad_width: z.coerce
+    .number()
+    .int()
+    .min(3, "Pad width must be 3-10")
+    .max(10, "Pad width must be 3-10"),
 });
 
 export type SequencesInput = z.infer<typeof sequencesSchema>;
@@ -257,7 +280,10 @@ export type CreateBedTypeInput = z.infer<typeof createBedTypeSchema>;
 export const createTaxCategorySchema = z.object({
   code: codeField,
   name: nameField,
-  rate_percent: z.coerce.number().min(0, "Rate cannot be negative").max(100, "Rate cannot exceed 100"),
+  rate_percent: z.coerce
+    .number()
+    .min(0, "Rate cannot be negative")
+    .max(100, "Rate cannot exceed 100"),
   applicability: z.enum(["taxable", "exempt", "zero_rated"]),
   description: z.string().max(500).optional(),
 });
@@ -282,7 +308,11 @@ export const additionalSequenceSchema = z.object({
     .string()
     .max(10, "Prefix must be at most 10 characters")
     .regex(prefixPattern, "Prefix must be alphanumeric with optional hyphens"),
-  pad_width: z.coerce.number().int().min(3, "Pad width must be 3-10").max(10, "Pad width must be 3-10"),
+  pad_width: z.coerce
+    .number()
+    .int()
+    .min(3, "Pad width must be 3-10")
+    .max(10, "Pad width must be 3-10"),
 });
 
 export type AdditionalSequenceInput = z.infer<typeof additionalSequenceSchema>;

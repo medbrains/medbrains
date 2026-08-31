@@ -122,9 +122,7 @@ export function isISODate(value: unknown): value is string {
   // Ensure the parsed date matches input (catches invalid dates like Feb 30)
   const [year, month, day] = value.split("-").map(Number);
   return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() + 1 === month &&
-    date.getUTCDate() === day
+    date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month && date.getUTCDate() === day
   );
 }
 
@@ -240,7 +238,7 @@ export function hasKeys<T extends Record<string, unknown>>(
 ): v is T {
   if (!isObject(v)) return false;
   for (const key of keys) {
-    if (!(key as string in v)) return false;
+    if (!((key as string) in v)) return false;
   }
   return true;
 }
@@ -292,9 +290,7 @@ export function optBool(v: Record<string, unknown>, key: string): boolean {
 }
 
 /** Creates enum guard */
-export function isOneOf<T extends string | number>(
-  allowed: readonly T[],
-): (v: unknown) => v is T {
+export function isOneOf<T extends string | number>(allowed: readonly T[]): (v: unknown) => v is T {
   const set = new Set<string | number>(allowed);
   return (v): v is T => (typeof v === "string" || typeof v === "number") && set.has(v);
 }
@@ -315,24 +311,17 @@ export function optEnum<T extends string | number>(
 // ══════════════════════════════════════════════════════════════════════════════
 
 /** Create a guard for nullable values */
-export function isNullable<T>(
-  guard: (v: unknown) => v is T,
-): (v: unknown) => v is T | null {
+export function isNullable<T>(guard: (v: unknown) => v is T): (v: unknown) => v is T | null {
   return (value: unknown): value is T | null => value === null || guard(value);
 }
 
 /** Create a guard for optional values (undefined allowed) */
-export function isOptional<T>(
-  guard: (v: unknown) => v is T,
-): (v: unknown) => v is T | undefined {
-  return (value: unknown): value is T | undefined =>
-    value === undefined || guard(value);
+export function isOptional<T>(guard: (v: unknown) => v is T): (v: unknown) => v is T | undefined {
+  return (value: unknown): value is T | undefined => value === undefined || guard(value);
 }
 
 /** Create a guard for arrays of a specific type */
-export function isArrayOf<T>(
-  guard: (v: unknown) => v is T,
-): (v: unknown) => v is T[] {
+export function isArrayOf<T>(guard: (v: unknown) => v is T): (v: unknown) => v is T[] {
   return (value: unknown): value is T[] => {
     return Array.isArray(value) && value.every(guard);
   };

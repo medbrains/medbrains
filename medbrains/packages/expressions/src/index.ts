@@ -16,29 +16,8 @@
  *   - Read-only data, no side effects
  */
 
-// Tier 1: Templates
-export { compileTemplate, renderTemplate, validateTemplate } from "./template.js";
-
 // Tier 2: Computed Fields
-export { evaluateComputed, validateComputed, extractVariables } from "./computed.js";
-
-// Tier 3: Logic / Conditions
-export {
-  evaluateLogic,
-  validateLogic,
-  evaluateFieldCondition,
-  fieldConditionToJsonLogic,
-} from "./logic.js";
-
-// Sandbox utilities
-export {
-  createSandboxedContext,
-  resolveContextPath,
-  validateExpressionString,
-  validateTemplateString,
-  validateJsonLogicRule,
-} from "./sandbox.js";
-
+export { evaluateComputed, extractVariables, validateComputed } from "./computed.js";
 // Function registry
 export {
   FUNCTION_REGISTRY,
@@ -47,22 +26,41 @@ export {
   isFunctionRegistered,
 } from "./functions.js";
 
+// Tier 3: Logic / Conditions
+export {
+  evaluateFieldCondition,
+  evaluateLogic,
+  fieldConditionToJsonLogic,
+  validateLogic,
+} from "./logic.js";
+
+// Sandbox utilities
+export {
+  createSandboxedContext,
+  resolveContextPath,
+  validateExpressionString,
+  validateJsonLogicRule,
+  validateTemplateString,
+} from "./sandbox.js";
+// Tier 1: Templates
+export { compileTemplate, renderTemplate, validateTemplate } from "./template.js";
+
 // Types
 export type {
-  SafeFunction,
+  CompiledTemplate,
+  ComputedOptions,
+  EvaluationResult,
+  ExpressionContext,
+  ExpressionTier,
   FunctionCategory,
   FunctionMeta,
   FunctionParam,
-  ValidationResult,
-  EvaluationResult,
-  ExpressionContext,
-  TemplateOptions,
-  CompiledTemplate,
-  ComputedOptions,
-  JsonLogicRule,
   JsonLogicData,
-  ExpressionTier,
+  JsonLogicRule,
   MbxErrorCode,
+  SafeFunction,
+  TemplateOptions,
+  ValidationResult,
 } from "./types.js";
 
-export { MbxError, BLOCKED_KEYS, MAX_AST_NODES, MAX_DEPTH, MAX_EVAL_MS } from "./types.js";
+export { BLOCKED_KEYS, MAX_AST_NODES, MAX_DEPTH, MAX_EVAL_MS, MbxError } from "./types.js";

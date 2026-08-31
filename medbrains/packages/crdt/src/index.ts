@@ -31,16 +31,16 @@
  */
 
 export { CrdtStore } from "./store";
-export { useCrdtDoc } from "./use-crdt-doc";
-export { useAppendOnlyCrdtList } from "./use-append-only-list";
-export type { AppendOnlyCrdtListResult } from "./use-append-only-list";
-export { useCrdtText } from "./use-crdt-text";
-export type { CrdtTextResult } from "./use-crdt-text";
-export { CrdtSyncBadge } from "./sync-badge";
 export type { CrdtSyncBadgeProps } from "./sync-badge";
+export { CrdtSyncBadge } from "./sync-badge";
 export type {
   CrdtConnectionStatus,
   CrdtStoreOptions,
   UseCrdtDocOptions,
   UseCrdtDocResult,
 } from "./types";
+export type { AppendOnlyCrdtListResult } from "./use-append-only-list";
+export { useAppendOnlyCrdtList } from "./use-append-only-list";
+export { useCrdtDoc } from "./use-crdt-doc";
+export type { CrdtTextResult } from "./use-crdt-text";
+export { useCrdtText } from "./use-crdt-text";

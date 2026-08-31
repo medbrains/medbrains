@@ -11,39 +11,39 @@
  */
 
 import type {
-  Patient,
-  User,
-  Tenant,
-  DepartmentRow,
-  Encounter,
-  Consultation,
-  Diagnosis,
-  Vital,
-  LabOrder,
-  Invoice,
   Admission,
+  Consultation,
+  DepartmentRow,
+  Diagnosis,
+  Encounter,
+  Invoice,
+  LabOrder,
   OpdQueue,
+  Patient,
+  Tenant,
+  User,
+  Vital,
 } from "@medbrains/types";
 
 // Import primitives - foundation for all guards
 import {
-  isObject,
-  isString,
-  isBoolean,
-  isInteger,
-  isUUID,
-  isNonEmptyString,
-  isISODate,
-  isArray,
-  TypeAssertionError,
   createAssert,
   hasKeys,
-  optStr,
-  optInt,
-  optUUID,
-  optObj,
-  optEnum,
+  isArray,
+  isBoolean,
+  isInteger,
+  isISODate,
+  isNonEmptyString,
+  isObject,
   isOneOf,
+  isString,
+  isUUID,
+  optEnum,
+  optInt,
+  optObj,
+  optStr,
+  optUUID,
+  TypeAssertionError,
 } from "./primitives.js";
 
 // Re-export primitives for consumers
@@ -57,13 +57,40 @@ const createAssertion = createAssert;
 // ══════════════════════════════════════════════════════════════════════════════
 
 const PATIENT_GENDERS = ["male", "female", "other", "unknown"] as const;
-const PATIENT_CATEGORIES = ["general", "private", "insurance", "pmjay", "cghs", "staff", "vip", "mlc"] as const;
+const PATIENT_CATEGORIES = [
+  "general",
+  "private",
+  "insurance",
+  "pmjay",
+  "cghs",
+  "staff",
+  "vip",
+  "mlc",
+] as const;
 
 const isGender = isOneOf(PATIENT_GENDERS);
 const isCategory = isOneOf(PATIENT_CATEGORIES);
 
 export function isPatient(v: unknown): v is Patient {
-  if (!hasKeys(v, ["id", "tenant_id", "uhid", "first_name", "last_name", "date_of_birth", "gender", "phone", "address", "category", "attributes", "is_active", "created_at", "updated_at"])) return false;
+  if (
+    !hasKeys(v, [
+      "id",
+      "tenant_id",
+      "uhid",
+      "first_name",
+      "last_name",
+      "date_of_birth",
+      "gender",
+      "phone",
+      "address",
+      "category",
+      "attributes",
+      "is_active",
+      "created_at",
+      "updated_at",
+    ])
+  )
+    return false;
   if (!isUUID(v.id)) return false;
   if (!isUUID(v.tenant_id)) return false;
   if (!isNonEmptyString(v.uhid)) return false;
@@ -143,15 +170,37 @@ export const assertPatientArray = createAssertion(isPatientArray, "Patient[]");
 // ══════════════════════════════════════════════════════════════════════════════
 
 const USER_ROLES = [
-  "super_admin", "hospital_admin", "doctor", "nurse", "receptionist",
-  "lab_technician", "pharmacist", "billing_clerk", "housekeeping_staff",
-  "facilities_manager", "audit_officer",
+  "super_admin",
+  "hospital_admin",
+  "doctor",
+  "nurse",
+  "receptionist",
+  "lab_technician",
+  "pharmacist",
+  "billing_clerk",
+  "housekeeping_staff",
+  "facilities_manager",
+  "audit_officer",
 ] as const;
 
 const isRole = isOneOf(USER_ROLES);
 
 export function isUser(v: unknown): v is User {
-  if (!hasKeys(v, ["id", "tenant_id", "username", "email", "full_name", "role", "access_matrix", "is_active", "created_at", "updated_at"])) return false;
+  if (
+    !hasKeys(v, [
+      "id",
+      "tenant_id",
+      "username",
+      "email",
+      "full_name",
+      "role",
+      "access_matrix",
+      "is_active",
+      "created_at",
+      "updated_at",
+    ])
+  )
+    return false;
   if (!isUUID(v.id)) return false;
   if (!isUUID(v.tenant_id)) return false;
   if (!isNonEmptyString(v.username)) return false;
@@ -213,14 +262,32 @@ export const assertUserArray = createAssertion(isUserArray, "User[]");
 // ══════════════════════════════════════════════════════════════════════════════
 
 const HOSPITAL_TYPES = [
-  "medical_college", "multi_specialty", "district_hospital", "community_health",
-  "primary_health", "standalone_clinic", "eye_hospital", "dental_college",
+  "medical_college",
+  "multi_specialty",
+  "district_hospital",
+  "community_health",
+  "primary_health",
+  "standalone_clinic",
+  "eye_hospital",
+  "dental_college",
 ] as const;
 
 const isHospitalType = isOneOf(HOSPITAL_TYPES);
 
 export function isTenant(v: unknown): v is Tenant {
-  if (!hasKeys(v, ["id", "code", "name", "hospital_type", "config", "is_active", "created_at", "updated_at"])) return false;
+  if (
+    !hasKeys(v, [
+      "id",
+      "code",
+      "name",
+      "hospital_type",
+      "config",
+      "is_active",
+      "created_at",
+      "updated_at",
+    ])
+  )
+    return false;
   if (!isUUID(v.id)) return false;
   if (!isNonEmptyString(v.code)) return false;
   if (!isNonEmptyString(v.name)) return false;
@@ -238,11 +305,31 @@ export const assertTenant = createAssertion(isTenant, "Tenant");
 // DEPARTMENT
 // ══════════════════════════════════════════════════════════════════════════════
 
-const DEPT_TYPES = ["clinical", "pre_clinical", "para_clinical", "administrative", "support", "academic"] as const;
+const DEPT_TYPES = [
+  "clinical",
+  "pre_clinical",
+  "para_clinical",
+  "administrative",
+  "support",
+  "academic",
+] as const;
 const isDeptType = isOneOf(DEPT_TYPES);
 
 export function isDepartment(v: unknown): v is DepartmentRow {
-  if (!hasKeys(v, ["id", "tenant_id", "code", "name", "department_type", "config", "is_active", "created_at", "updated_at"])) return false;
+  if (
+    !hasKeys(v, [
+      "id",
+      "tenant_id",
+      "code",
+      "name",
+      "department_type",
+      "config",
+      "is_active",
+      "created_at",
+      "updated_at",
+    ])
+  )
+    return false;
   if (!isUUID(v.id)) return false;
   if (!isUUID(v.tenant_id)) return false;
   if (!optUUID(v, "parent_id")) return false;
@@ -282,13 +369,32 @@ export const assertDepartmentCreate = createAssertion(isDepartmentCreate, "Depar
 // ══════════════════════════════════════════════════════════════════════════════
 
 const ENCOUNTER_TYPES = ["opd", "ipd", "emergency", "daycare", "teleconsult"] as const;
-const ENCOUNTER_STATUSES = ["registered", "triaged", "in_consultation", "admitted", "discharged", "cancelled", "no_show"] as const;
+const ENCOUNTER_STATUSES = [
+  "registered",
+  "triaged",
+  "in_consultation",
+  "admitted",
+  "discharged",
+  "cancelled",
+  "no_show",
+] as const;
 
 const isEncounterType = isOneOf(ENCOUNTER_TYPES);
 const isEncounterStatus = isOneOf(ENCOUNTER_STATUSES);
 
 export function isEncounter(v: unknown): v is Encounter {
-  if (!hasKeys(v, ["id", "tenant_id", "patient_id", "encounter_type", "status", "created_at", "updated_at"])) return false;
+  if (
+    !hasKeys(v, [
+      "id",
+      "tenant_id",
+      "patient_id",
+      "encounter_type",
+      "status",
+      "created_at",
+      "updated_at",
+    ])
+  )
+    return false;
   if (!isUUID(v.id)) return false;
   if (!isUUID(v.tenant_id)) return false;
   if (!isUUID(v.patient_id)) return false;
@@ -335,7 +441,8 @@ export const assertEncounterArray = createAssertion(isEncounterArray, "Encounter
 // ══════════════════════════════════════════════════════════════════════════════
 
 export function isConsultation(v: unknown): v is Consultation {
-  if (!hasKeys(v, ["id", "tenant_id", "encounter_id", "doctor_id", "created_at", "updated_at"])) return false;
+  if (!hasKeys(v, ["id", "tenant_id", "encounter_id", "doctor_id", "created_at", "updated_at"]))
+    return false;
   if (!isUUID(v.id)) return false;
   if (!isUUID(v.tenant_id)) return false;
   if (!isUUID(v.encounter_id)) return false;
@@ -380,7 +487,18 @@ export const assertConsultationCreate = createAssertion(isConsultationCreate, "C
 // ══════════════════════════════════════════════════════════════════════════════
 
 export function isDiagnosis(v: unknown): v is Diagnosis {
-  if (!hasKeys(v, ["id", "tenant_id", "encounter_id", "icd_code", "description", "is_primary", "created_at"])) return false;
+  if (
+    !hasKeys(v, [
+      "id",
+      "tenant_id",
+      "encounter_id",
+      "icd_code",
+      "description",
+      "is_primary",
+      "created_at",
+    ])
+  )
+    return false;
   if (!isUUID(v.id)) return false;
   if (!isUUID(v.tenant_id)) return false;
   if (!isUUID(v.encounter_id)) return false;
@@ -470,14 +588,35 @@ export const assertVitalCreate = createAssertion(isVitalCreate, "VitalCreate");
 // LAB ORDER
 // ══════════════════════════════════════════════════════════════════════════════
 
-const LAB_STATUSES = ["ordered", "sample_collected", "processing", "completed", "verified", "cancelled"] as const;
+const LAB_STATUSES = [
+  "ordered",
+  "sample_collected",
+  "processing",
+  "completed",
+  "verified",
+  "cancelled",
+] as const;
 const LAB_PRIORITIES = ["routine", "urgent", "stat"] as const;
 
 const isLabStatus = isOneOf(LAB_STATUSES);
 const isLabPriority = isOneOf(LAB_PRIORITIES);
 
 export function isLabOrder(v: unknown): v is LabOrder {
-  if (!hasKeys(v, ["id", "tenant_id", "encounter_id", "patient_id", "test_id", "ordered_by", "status", "priority", "created_at", "updated_at"])) return false;
+  if (
+    !hasKeys(v, [
+      "id",
+      "tenant_id",
+      "encounter_id",
+      "patient_id",
+      "test_id",
+      "ordered_by",
+      "status",
+      "priority",
+      "created_at",
+      "updated_at",
+    ])
+  )
+    return false;
   if (!isUUID(v.id)) return false;
   if (!isUUID(v.tenant_id)) return false;
   if (!isUUID(v.encounter_id)) return false;
@@ -531,7 +670,19 @@ const INVOICE_STATUSES = ["draft", "issued", "partially_paid", "paid", "cancelle
 const isInvoiceStatus = isOneOf(INVOICE_STATUSES);
 
 export function isInvoice(v: unknown): v is Invoice {
-  if (!hasKeys(v, ["id", "tenant_id", "invoice_number", "patient_id", "status", "total_amount", "created_at", "updated_at"])) return false;
+  if (
+    !hasKeys(v, [
+      "id",
+      "tenant_id",
+      "invoice_number",
+      "patient_id",
+      "status",
+      "total_amount",
+      "created_at",
+      "updated_at",
+    ])
+  )
+    return false;
   if (!isUUID(v.id)) return false;
   if (!isUUID(v.tenant_id)) return false;
   if (!isNonEmptyString(v.invoice_number)) return false;
@@ -585,13 +736,34 @@ export const assertInvoiceArray = createAssertion(isInvoiceArray, "Invoice[]");
 // ADMISSION
 // ══════════════════════════════════════════════════════════════════════════════
 
-const ADMISSION_STATUSES = ["admitted", "transferred", "discharged", "deceased", "lama", "dama", "absconded"] as const;
+const ADMISSION_STATUSES = [
+  "admitted",
+  "transferred",
+  "discharged",
+  "deceased",
+  "lama",
+  "dama",
+  "absconded",
+] as const;
 const DISCHARGE_TYPES = ["normal", "lama", "dama", "absconded", "referred", "deceased"] as const;
 
 const isAdmissionStatus = isOneOf(ADMISSION_STATUSES);
 
 export function isAdmission(v: unknown): v is Admission {
-  if (!hasKeys(v, ["id", "tenant_id", "encounter_id", "patient_id", "admitting_doctor_id", "status", "admitted_at", "created_at", "updated_at"])) return false;
+  if (
+    !hasKeys(v, [
+      "id",
+      "tenant_id",
+      "encounter_id",
+      "patient_id",
+      "admitting_doctor_id",
+      "status",
+      "admitted_at",
+      "created_at",
+      "updated_at",
+    ])
+  )
+    return false;
   if (!isUUID(v.id)) return false;
   if (!isUUID(v.tenant_id)) return false;
   if (!isUUID(v.encounter_id)) return false;
@@ -637,11 +809,30 @@ export const assertAdmissionArray = createAssertion(isAdmissionArray, "Admission
 // OPD QUEUE
 // ══════════════════════════════════════════════════════════════════════════════
 
-const QUEUE_STATUSES = ["waiting", "called", "in_consultation", "completed", "no_show", "cancelled"] as const;
+const QUEUE_STATUSES = [
+  "waiting",
+  "called",
+  "in_consultation",
+  "completed",
+  "no_show",
+  "cancelled",
+] as const;
 const isQueueStatus = isOneOf(QUEUE_STATUSES);
 
 export function isOpdQueue(v: unknown): v is OpdQueue {
-  if (!hasKeys(v, ["id", "tenant_id", "encounter_id", "token_number", "department_id", "status", "priority", "created_at"])) return false;
+  if (
+    !hasKeys(v, [
+      "id",
+      "tenant_id",
+      "encounter_id",
+      "token_number",
+      "department_id",
+      "status",
+      "priority",
+      "created_at",
+    ])
+  )
+    return false;
   if (!isUUID(v.id)) return false;
   if (!isUUID(v.tenant_id)) return false;
   if (!isUUID(v.encounter_id)) return false;

@@ -1,4 +1,3 @@
-import { useLocaleStore } from "./locale-store.js";
 import type {
   HeightUnit,
   LocaleConfig,
@@ -6,6 +5,7 @@ import type {
   TemperatureUnit,
   WeightUnit,
 } from "@medbrains/types";
+import { useLocaleStore } from "./locale-store.js";
 
 export function useLocaleConfig(): LocaleConfig {
   return useLocaleStore((s) => s.config);

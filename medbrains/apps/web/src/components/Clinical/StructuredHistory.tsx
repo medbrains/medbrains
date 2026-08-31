@@ -229,6 +229,7 @@ export function StructuredHistory({
               </Group>
             )}
             {pastMedical.map((entry, idx) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: PastMedicalEntry has no id and is removed by index; a content key would collide on repeats
               <Card key={idx} padding="xs" withBorder>
                 <Group justify="space-between">
                   <Group gap={8}>
@@ -321,6 +322,7 @@ export function StructuredHistory({
               </Group>
             )}
             {pastSurgical.map((entry, idx) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: PastSurgicalEntry has no id and is removed by index; a content key would collide on repeats
               <Card key={idx} padding="xs" withBorder>
                 <Group justify="space-between">
                   <Text size="sm">
@@ -401,6 +403,7 @@ export function StructuredHistory({
               </Group>
             )}
             {familyHistory.map((entry, idx) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: PastFamilyEntry has no id and is removed by index; a content key would collide on repeats
               <Card key={idx} padding="xs" withBorder>
                 <Group justify="space-between">
                   <Group gap={8}>

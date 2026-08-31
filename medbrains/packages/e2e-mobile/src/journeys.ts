@@ -183,9 +183,7 @@ export const SURFACE_JOURNEYS: readonly SurfaceJourney[] = [
     priority: "P2",
     entryPoint: "register patient",
     exitPoint: "submit reached without a scroll marathon",
-    assertions: [
-      "a walk-in can be registered without passing six sections",
-    ],
+    assertions: ["a walk-in can be registered without passing six sections"],
     anchors: ["a desk registers people while they stand there"],
     automationStatus: "backlog",
     blockedOn:

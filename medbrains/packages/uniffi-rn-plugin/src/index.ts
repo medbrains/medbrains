@@ -39,10 +39,10 @@
  * — apps don't manage it manually.
  */
 
-import { type ConfigPlugin } from "@expo/config-plugins";
+import type { ConfigPlugin } from "@expo/config-plugins";
 import { withMedbrainsUniffiAndroid } from "./android.js";
-import { withMedbrainsUniffiIos } from "./ios.js";
 import { withMedbrainsUniffiBindings } from "./bindings.js";
+import { withMedbrainsUniffiIos } from "./ios.js";
 
 export interface UniffiRnPluginOptions {
   /**
@@ -109,10 +109,7 @@ export function resolveOptions(
   return { ...DEFAULTS, ...(options ?? {}) };
 }
 
-const withMedbrainsUniffiRn: ConfigPlugin<UniffiRnPluginOptions | void> = (
-  config,
-  rawOptions,
-) => {
+const withMedbrainsUniffiRn: ConfigPlugin<UniffiRnPluginOptions | void> = (config, rawOptions) => {
   const options = resolveOptions(rawOptions ?? undefined);
 
   // Order matters:

@@ -1,47 +1,47 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
+  assertPatient,
+  // Admission
+  isAdmission,
+  isAdmissionCreate,
+  // Consultation
+  isConsultation,
+  isConsultationCreate,
+  // Department
+  isDepartment,
+  isDepartmentCreate,
+  // Diagnosis
+  isDiagnosis,
+  isDiagnosisCreate,
+  // Encounter
+  isEncounter,
+  isEncounterCreate,
+  // Invoice
+  isInvoice,
+  isInvoiceCreate,
+  // Lab Order
+  isLabOrder,
+  isLabOrderCreate,
+  // OPD Queue
+  isOpdQueue,
   // Patient
   isPatient,
+  isPatientArray,
   isPatientCreate,
   isPatientUpdate,
-  isPatientArray,
-  assertPatient,
+  // Tenant
+  isTenant,
   // User
   isUser,
   isUserCreate,
   isUserUpdate,
-  // Tenant
-  isTenant,
-  // Department
-  isDepartment,
-  isDepartmentCreate,
-  // Encounter
-  isEncounter,
-  isEncounterCreate,
-  // Consultation
-  isConsultation,
-  isConsultationCreate,
-  // Diagnosis
-  isDiagnosis,
-  isDiagnosisCreate,
   // Vital
   isVital,
   isVitalCreate,
-  // Lab Order
-  isLabOrder,
-  isLabOrderCreate,
-  // Invoice
-  isInvoice,
-  isInvoiceCreate,
-  // Admission
-  isAdmission,
-  isAdmissionCreate,
-  // OPD Queue
-  isOpdQueue,
+  TypeAssertionError,
+  validateApiArrayResponse,
   // API Response helpers
   validateApiResponse,
-  validateApiArrayResponse,
-  TypeAssertionError,
 } from "./guards.js";
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -361,9 +361,17 @@ describe("isUser", () => {
 
   it("validates all user roles", () => {
     const roles = [
-      "super_admin", "hospital_admin", "doctor", "nurse", "receptionist",
-      "lab_technician", "pharmacist", "billing_clerk", "housekeeping_staff",
-      "facilities_manager", "audit_officer",
+      "super_admin",
+      "hospital_admin",
+      "doctor",
+      "nurse",
+      "receptionist",
+      "lab_technician",
+      "pharmacist",
+      "billing_clerk",
+      "housekeeping_staff",
+      "facilities_manager",
+      "audit_officer",
     ];
     for (const role of roles) {
       expect(isUser({ ...validUser, role })).toBe(true);
@@ -413,8 +421,14 @@ describe("isTenant", () => {
 
   it("validates all hospital types", () => {
     const types = [
-      "medical_college", "multi_specialty", "district_hospital", "community_health",
-      "primary_health", "standalone_clinic", "eye_hospital", "dental_college",
+      "medical_college",
+      "multi_specialty",
+      "district_hospital",
+      "community_health",
+      "primary_health",
+      "standalone_clinic",
+      "eye_hospital",
+      "dental_college",
     ];
     for (const hospital_type of types) {
       expect(isTenant({ ...validTenant, hospital_type })).toBe(true);
@@ -436,7 +450,14 @@ describe("isDepartment", () => {
   });
 
   it("validates all department types", () => {
-    const types = ["clinical", "pre_clinical", "para_clinical", "administrative", "support", "academic"];
+    const types = [
+      "clinical",
+      "pre_clinical",
+      "para_clinical",
+      "administrative",
+      "support",
+      "academic",
+    ];
     for (const department_type of types) {
       expect(isDepartment({ ...validDepartment, department_type })).toBe(true);
     }
@@ -485,7 +506,15 @@ describe("isEncounter", () => {
   });
 
   it("validates all encounter statuses", () => {
-    const statuses = ["registered", "triaged", "in_consultation", "admitted", "discharged", "cancelled", "no_show"];
+    const statuses = [
+      "registered",
+      "triaged",
+      "in_consultation",
+      "admitted",
+      "discharged",
+      "cancelled",
+      "no_show",
+    ];
     for (const status of statuses) {
       expect(isEncounter({ ...validEncounter, status })).toBe(true);
     }
@@ -646,7 +675,14 @@ describe("isLabOrder", () => {
   });
 
   it("validates all lab statuses", () => {
-    const statuses = ["ordered", "sample_collected", "processing", "completed", "verified", "cancelled"];
+    const statuses = [
+      "ordered",
+      "sample_collected",
+      "processing",
+      "completed",
+      "verified",
+      "cancelled",
+    ];
     for (const status of statuses) {
       expect(isLabOrder({ ...validLabOrder, status })).toBe(true);
     }
@@ -731,7 +767,15 @@ describe("isAdmission", () => {
   });
 
   it("validates all admission statuses", () => {
-    const statuses = ["admitted", "transferred", "discharged", "deceased", "lama", "dama", "absconded"];
+    const statuses = [
+      "admitted",
+      "transferred",
+      "discharged",
+      "deceased",
+      "lama",
+      "dama",
+      "absconded",
+    ];
     for (const status of statuses) {
       expect(isAdmission({ ...validAdmission, status })).toBe(true);
     }

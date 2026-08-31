@@ -16,6 +16,8 @@
  * No function calls, no string interpolation, no code execution.
  */
 
+// We also need the existing FieldCondition type for backward compat
+import type { FieldCondition } from "@medbrains/types";
 import jsonLogic, { type RulesLogic } from "json-logic-js";
 import { createSandboxedContext, validateJsonLogicRule } from "./sandbox.js";
 import type {
@@ -25,9 +27,6 @@ import type {
   JsonLogicRule,
   ValidationResult,
 } from "./types.js";
-
-// We also need the existing FieldCondition type for backward compat
-import type { FieldCondition } from "@medbrains/types";
 
 /**
  * Evaluate a JSON Logic rule against a data context.
@@ -60,15 +59,10 @@ export function evaluateLogic(
   }
 
   try {
-    const sandboxed = createSandboxedContext(
-      data as Record<string, unknown>,
-    );
+    const sandboxed = createSandboxedContext(data as Record<string, unknown>);
     // Flatten proxy for json-logic-js compatibility
     const flatData = flattenForJsonLogic(sandboxed);
-    const result = jsonLogic.apply(
-      rule as RulesLogic,
-      flatData,
-    );
+    const result = jsonLogic.apply(rule as RulesLogic, flatData);
     return { success: true, value: Boolean(result) };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Logic evaluation failed";
@@ -95,9 +89,7 @@ export function validateLogic(rule: unknown): ValidationResult {
  * @param condition - Legacy FieldCondition from field_masters
  * @returns JsonLogicRule equivalent
  */
-export function fieldConditionToJsonLogic(
-  condition: FieldCondition,
-): JsonLogicRule {
+export function fieldConditionToJsonLogic(condition: FieldCondition): JsonLogicRule {
   // Handle composite conditions
   if (condition.all) {
     return {
@@ -134,17 +126,11 @@ export function fieldConditionToJsonLogic(
       return { in: [condition.value, varRef] };
     case "is_empty":
       return {
-        or: [
-          { "===": [varRef, null] },
-          { "===": [varRef, ""] },
-        ],
+        or: [{ "===": [varRef, null] }, { "===": [varRef, ""] }],
       };
     case "is_not_empty":
       return {
-        and: [
-          { "!==": [varRef, null] },
-          { "!==": [varRef, ""] },
-        ],
+        and: [{ "!==": [varRef, null] }, { "!==": [varRef, ""] }],
       };
     default:
       return true; // Unknown operator — always true (safe default)
@@ -182,10 +168,7 @@ export function evaluateFieldCondition(
 /**
  * Flatten proxy-wrapped context to plain objects for json-logic-js.
  */
-function flattenForJsonLogic(
-  obj: unknown,
-  depth = 0,
-): JsonLogicData {
+function flattenForJsonLogic(obj: unknown, depth = 0): JsonLogicData {
   if (depth > 5) return {};
   if (obj === null || obj === undefined) return {};
   if (typeof obj !== "object") return {};

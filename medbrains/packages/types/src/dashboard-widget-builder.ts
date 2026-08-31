@@ -1,9 +1,7 @@
 // Dashboard widget builder types — split from index.ts, barrel-re-exported.
-import type { RxOrderMode } from "./medication-timing";
-import type { CreatePoItemInput } from "./index";
-import type { AppointmentType } from "./medication-timing";
-import type { AppointmentStatus } from "./medication-timing";
-import type { Admission } from "./index";
+
+import type { Admission, CreatePoItemInput } from "./index";
+import type { AppointmentStatus, AppointmentType, RxOrderMode } from "./medication-timing";
 
 // ── Dashboard Widget Builder Types ──────────────────────
 
@@ -1982,4 +1980,3 @@ export interface Prescription {
   created_at: string;
   updated_at: string;
 }
-

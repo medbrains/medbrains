@@ -64,6 +64,7 @@ export function CombinerNode({ data, selected }: NodeProps) {
       {/* Multiple input handles */}
       {Array.from({ length: inputCount }).map((_, i) => (
         <Handle
+          // biome-ignore lint/suspicious/noArrayIndexKey: the index IS the handle identity — the id rendered is input-${i}
           key={`input-${i}`}
           type="target"
           position={Position.Left}

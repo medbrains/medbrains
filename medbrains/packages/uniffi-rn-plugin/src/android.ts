@@ -4,22 +4,16 @@
  * app `build.gradle` so Gradle picks them up.
  */
 
-import {
-  withDangerousMod,
-  type ConfigPlugin,
-} from "@expo/config-plugins";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { type ConfigPlugin, withDangerousMod } from "@expo/config-plugins";
 import type { UniffiRnPluginOptions } from "./index.js";
 
 type ResolvedOptions = Required<UniffiRnPluginOptions>;
 
 const LIB_BASENAME = "libmedbrains_edge_rn";
 
-export const withMedbrainsUniffiAndroid: ConfigPlugin<ResolvedOptions> = (
-  config,
-  options,
-) =>
+export const withMedbrainsUniffiAndroid: ConfigPlugin<ResolvedOptions> = (config, options) =>
   withDangerousMod(config, [
     "android",
     async (cfg) => {
@@ -41,13 +35,7 @@ function copyAndroidArtifacts(
 
   for (const abi of options.androidAbis) {
     const triple = abiToTriple(abi);
-    const src = path.join(
-      crateRoot,
-      "target",
-      triple,
-      profileDir,
-      `${LIB_BASENAME}.so`,
-    );
+    const src = path.join(crateRoot, "target", triple, profileDir, `${LIB_BASENAME}.so`);
     if (!fs.existsSync(src)) {
       throw new Error(
         `expected Android shared library missing: ${src}\n` +
@@ -56,14 +44,7 @@ function copyAndroidArtifacts(
       );
     }
 
-    const destDir = path.join(
-      androidRoot,
-      "app",
-      "src",
-      "main",
-      "jniLibs",
-      abi,
-    );
+    const destDir = path.join(androidRoot, "app", "src", "main", "jniLibs", abi);
     fs.mkdirSync(destDir, { recursive: true });
     const dest = path.join(destDir, `${LIB_BASENAME}.so`);
     fs.copyFileSync(src, dest);

@@ -11,7 +11,7 @@ import type {
   OnboardingUser,
 } from "@medbrains/types";
 import { create } from "zustand";
-import { persist, createJSONStorage, type StateStorage } from "zustand/middleware";
+import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 
 // Platform-agnostic UUID generation
 function generateUUID(): string {
@@ -27,8 +27,7 @@ function generateUUID(): string {
 }
 
 // Platform-agnostic sessionStorage
-const isBrowser =
-  typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
+const isBrowser = typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
 
 const sessionStorageAdapter: StateStorage = {
   getItem: (name) => {
@@ -194,10 +193,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       // Step 4
       addFacility: (facility) =>
         set((state) => ({
-          facilities: [
-            ...state.facilities,
-            { ...facility, local_id: generateUUID() },
-          ],
+          facilities: [...state.facilities, { ...facility, local_id: generateUUID() }],
         })),
       removeFacility: (localId) =>
         set((state) => ({
@@ -208,10 +204,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       // Step 5
       addLocation: (location) =>
         set((state) => ({
-          locations: [
-            ...state.locations,
-            { ...location, local_id: generateUUID() },
-          ],
+          locations: [...state.locations, { ...location, local_id: generateUUID() }],
         })),
       removeLocation: (localId) =>
         set((state) => ({
@@ -222,10 +215,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       // Step 6
       addDepartment: (department) =>
         set((state) => ({
-          departments: [
-            ...state.departments,
-            { ...department, local_id: generateUUID() },
-          ],
+          departments: [...state.departments, { ...department, local_id: generateUUID() }],
         })),
       removeDepartment: (localId) =>
         set((state) => ({
@@ -236,10 +226,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       // Step 7
       addUser: (user) =>
         set((state) => ({
-          users: [
-            ...state.users,
-            { ...user, local_id: generateUUID() },
-          ],
+          users: [...state.users, { ...user, local_id: generateUUID() }],
         })),
       removeUser: (localId) =>
         set((state) => ({
@@ -247,10 +234,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         })),
       addRole: (role) =>
         set((state) => ({
-          roles: [
-            ...state.roles,
-            { ...role, local_id: generateUUID() },
-          ],
+          roles: [...state.roles, { ...role, local_id: generateUUID() }],
         })),
       removeRole: (localId) =>
         set((state) => ({
@@ -271,10 +255,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       // Step 10: Services
       addService: (service) =>
         set((state) => ({
-          services: [
-            ...state.services,
-            { ...service, local_id: generateUUID() },
-          ],
+          services: [...state.services, { ...service, local_id: generateUUID() }],
         })),
       removeService: (localId) =>
         set((state) => ({
@@ -285,10 +266,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       // Step 11: Bed Types
       addBedType: (bedType) =>
         set((state) => ({
-          bedTypes: [
-            ...state.bedTypes,
-            { ...bedType, local_id: generateUUID() },
-          ],
+          bedTypes: [...state.bedTypes, { ...bedType, local_id: generateUUID() }],
         })),
       removeBedType: (localId) =>
         set((state) => ({
@@ -299,10 +277,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       // Step 12: Billing & Tax
       addTaxCategory: (cat) =>
         set((state) => ({
-          taxCategories: [
-            ...state.taxCategories,
-            { ...cat, local_id: generateUUID() },
-          ],
+          taxCategories: [...state.taxCategories, { ...cat, local_id: generateUUID() }],
         })),
       removeTaxCategory: (localId) =>
         set((state) => ({
@@ -312,10 +287,7 @@ export const useOnboardingStore = create<OnboardingState>()(
 
       addPaymentMethod: (pm) =>
         set((state) => ({
-          paymentMethods: [
-            ...state.paymentMethods,
-            { ...pm, local_id: generateUUID() },
-          ],
+          paymentMethods: [...state.paymentMethods, { ...pm, local_id: generateUUID() }],
         })),
       removePaymentMethod: (localId) =>
         set((state) => ({

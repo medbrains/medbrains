@@ -1,4 +1,3 @@
-import { create } from "zustand";
 import type {
   HeightUnit,
   LocaleConfig,
@@ -6,6 +5,7 @@ import type {
   TemperatureUnit,
   WeightUnit,
 } from "@medbrains/types";
+import { create } from "zustand";
 
 interface TenantSettingRow {
   category: string;

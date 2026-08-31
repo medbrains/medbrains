@@ -221,8 +221,10 @@ export function CsvImportModal({
                 </Table.Thead>
                 <Table.Tbody>
                   {parsed.rows.slice(0, 10).map((row, i) => (
+                    // biome-ignore lint/suspicious/noArrayIndexKey: a preview of parsed CSV; rows have no identity and the snapshot never reorders
                     <Table.Tr key={i}>
                       {row.map((cell, j) => (
+                        // biome-ignore lint/suspicious/noArrayIndexKey: cells within a preview row are positional by definition
                         <Table.Td key={j}>{cell}</Table.Td>
                       ))}
                     </Table.Tr>
@@ -265,6 +267,7 @@ export function CsvImportModal({
             {result.errors.length > 0 && (
               <ScrollArea h={100} mt="xs">
                 {result.errors.map((err, i) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: a preview of parsed CSV; rows have no identity and the snapshot never reorders
                   <Text key={i} size="xs" c="dimmed">
                     {err}
                   </Text>

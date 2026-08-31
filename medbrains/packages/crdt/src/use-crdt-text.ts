@@ -9,8 +9,8 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { useCrdtDoc } from "./use-crdt-doc";
 import type { CrdtConnectionStatus, UseCrdtDocOptions } from "./types";
+import { useCrdtDoc } from "./use-crdt-doc";
 
 export interface CrdtTextResult {
   text: string;

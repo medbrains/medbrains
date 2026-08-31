@@ -1,4 +1,3 @@
-import { z } from "zod";
 import type {
   FieldCondition,
   FieldDataType,
@@ -6,6 +5,7 @@ import type {
   ResolvedField,
   ResolvedFormDefinition,
 } from "@medbrains/types";
+import { z } from "zod";
 
 /**
  * Build a Zod schema dynamically from a ResolvedFormDefinition.
@@ -59,10 +59,7 @@ export function buildFormSchema(
  * Build a Zod schema for a single field based on its data_type,
  * validation rules, and requirement level.
  */
-function buildFieldSchema(
-  field: ResolvedField,
-  conditionMet: boolean,
-): z.ZodTypeAny {
+function buildFieldSchema(field: ResolvedField, conditionMet: boolean): z.ZodTypeAny {
   const isMandatory =
     field.requirement_level === "mandatory" ||
     (field.requirement_level === "conditional" && conditionMet);
@@ -202,14 +199,10 @@ export function evaluateCondition(
 ): boolean {
   // Composite conditions
   if (condition.all) {
-    return condition.all.every((c) =>
-      evaluateCondition(c, formValues, tenantContext),
-    );
+    return condition.all.every((c) => evaluateCondition(c, formValues, tenantContext));
   }
   if (condition.any) {
-    return condition.any.some((c) =>
-      evaluateCondition(c, formValues, tenantContext),
-    );
+    return condition.any.some((c) => evaluateCondition(c, formValues, tenantContext));
   }
 
   // Resolve field value

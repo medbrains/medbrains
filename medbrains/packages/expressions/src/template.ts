@@ -10,13 +10,13 @@
  */
 
 import Handlebars from "handlebars";
-import { createSandboxedContext, validateTemplateString } from "./sandbox.js";
 import { getFunctionMap } from "./functions.js";
+import { createSandboxedContext, validateTemplateString } from "./sandbox.js";
 import {
-  MbxError,
   type CompiledTemplate,
   type EvaluationResult,
   type ExpressionContext,
+  MbxError,
   type TemplateOptions,
 } from "./types.js";
 
@@ -49,43 +49,57 @@ function createIsolatedEnvironment(options?: TemplateOptions): typeof Handlebars
   }
 
   // Register block helpers: #IF, #EACH, #UNLESS
-  env.registerHelper("IF", function (this: unknown, condition: unknown, hbOptions: Handlebars.HelperOptions) {
-    if (condition) {
-      return hbOptions.fn(this);
-    }
-    if (hbOptions.inverse) {
-      return hbOptions.inverse(this);
-    }
-    return "";
-  });
+  env.registerHelper(
+    "IF",
+    function (this: unknown, condition: unknown, hbOptions: Handlebars.HelperOptions) {
+      if (condition) {
+        return hbOptions.fn(this);
+      }
+      if (hbOptions.inverse) {
+        return hbOptions.inverse(this);
+      }
+      return "";
+    },
+  );
 
-  env.registerHelper("EACH", function (this: unknown, context: unknown, hbOptions: Handlebars.HelperOptions) {
-    if (!Array.isArray(context)) return "";
-    let result = "";
-    // Limit iteration to prevent DoS
-    const maxItems = Math.min(context.length, 1000);
-    for (let i = 0; i < maxItems; i++) {
-      const blockParams = hbOptions.hash?.["AS"]
-        ? { [String(hbOptions.hash["AS"])]: context[i] }
-        : context[i];
-      result += hbOptions.fn(
-        typeof blockParams === "object" && blockParams !== null
-          ? { ...blockParams, "@index": i, "@first": i === 0, "@last": i === maxItems - 1 }
-          : { "@value": blockParams, "@index": i, "@first": i === 0, "@last": i === maxItems - 1 },
-      );
-    }
-    return result;
-  });
+  env.registerHelper(
+    "EACH",
+    function (this: unknown, context: unknown, hbOptions: Handlebars.HelperOptions) {
+      if (!Array.isArray(context)) return "";
+      let result = "";
+      // Limit iteration to prevent DoS
+      const maxItems = Math.min(context.length, 1000);
+      for (let i = 0; i < maxItems; i++) {
+        const blockParams = hbOptions.hash?.["AS"]
+          ? { [String(hbOptions.hash["AS"])]: context[i] }
+          : context[i];
+        result += hbOptions.fn(
+          typeof blockParams === "object" && blockParams !== null
+            ? { ...blockParams, "@index": i, "@first": i === 0, "@last": i === maxItems - 1 }
+            : {
+                "@value": blockParams,
+                "@index": i,
+                "@first": i === 0,
+                "@last": i === maxItems - 1,
+              },
+        );
+      }
+      return result;
+    },
+  );
 
-  env.registerHelper("UNLESS", function (this: unknown, condition: unknown, hbOptions: Handlebars.HelperOptions) {
-    if (!condition) {
-      return hbOptions.fn(this);
-    }
-    if (hbOptions.inverse) {
-      return hbOptions.inverse(this);
-    }
-    return "";
-  });
+  env.registerHelper(
+    "UNLESS",
+    function (this: unknown, condition: unknown, hbOptions: Handlebars.HelperOptions) {
+      if (!condition) {
+        return hbOptions.fn(this);
+      }
+      if (hbOptions.inverse) {
+        return hbOptions.inverse(this);
+      }
+      return "";
+    },
+  );
 
   return env;
 }
@@ -108,10 +122,7 @@ function stripRawExpressions(template: string): string {
  * @returns CompiledTemplate with a render() method
  * @throws MbxError if the template is invalid or too complex
  */
-export function compileTemplate(
-  templateStr: string,
-  options?: TemplateOptions,
-): CompiledTemplate {
+export function compileTemplate(templateStr: string, options?: TemplateOptions): CompiledTemplate {
   // Validate template complexity
   const validation = validateTemplateString(templateStr);
   if (!validation.valid) {
@@ -119,9 +130,7 @@ export function compileTemplate(
   }
 
   // Strip raw expressions unless explicitly allowed (system templates)
-  const safeTemplate = options?.allowRawOutput
-    ? templateStr
-    : stripRawExpressions(templateStr);
+  const safeTemplate = options?.allowRawOutput ? templateStr : stripRawExpressions(templateStr);
 
   // Create isolated Handlebars environment
   const env = createIsolatedEnvironment(options);
@@ -141,9 +150,7 @@ export function compileTemplate(
   return {
     render(context: ExpressionContext): EvaluationResult<string> {
       try {
-        const sandboxed = createSandboxedContext(
-          context as Record<string, unknown>,
-        );
+        const sandboxed = createSandboxedContext(context as Record<string, unknown>);
         // Handlebars needs a plain object, not a Proxy.
         // Flatten the sandboxed context to a plain object for rendering.
         const plainContext = flattenProxy(sandboxed);
@@ -183,10 +190,7 @@ export function renderTemplate(
  * for Handlebars compatibility. Handlebars does internal
  * property access that doesn't work well with Proxies.
  */
-function flattenProxy(
-  obj: unknown,
-  depth = 0,
-): unknown {
+function flattenProxy(obj: unknown, depth = 0): unknown {
   if (depth > 5) return undefined;
   if (obj === null || obj === undefined) return obj;
   if (typeof obj !== "object") return obj;
@@ -197,10 +201,7 @@ function flattenProxy(
 
   const result: Record<string, unknown> = {};
   for (const key of Object.keys(obj)) {
-    result[key] = flattenProxy(
-      (obj as Record<string, unknown>)[key],
-      depth + 1,
-    );
+    result[key] = flattenProxy((obj as Record<string, unknown>)[key], depth + 1);
   }
   return result;
 }

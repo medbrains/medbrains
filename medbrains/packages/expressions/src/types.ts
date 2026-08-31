@@ -55,13 +55,7 @@ export const MAX_EVAL_MS = 50;
 export type SafeFunction = (...args: unknown[]) => unknown;
 
 /** Function category for documentation/UI grouping */
-export type FunctionCategory =
-  | "math"
-  | "string"
-  | "date"
-  | "logic"
-  | "medical"
-  | "format";
+export type FunctionCategory = "math" | "string" | "date" | "logic" | "medical" | "format";
 
 /** Metadata about a registered function */
 export interface FunctionMeta {
@@ -133,10 +127,7 @@ export interface ComputedOptions {
  *   { "===": [{ "var": "patient.category" }, "insurance"] }
  *   { "and": [{ ">": [{ "var": "age" }, 18] }, { "!==": [{ "var": "id" }, null] }] }
  */
-export type JsonLogicRule =
-  | Record<string, unknown>
-  | boolean
-  | null;
+export type JsonLogicRule = Record<string, unknown> | boolean | null;
 
 /** Data object for JSON Logic evaluation */
 export type JsonLogicData = Record<string, unknown>;

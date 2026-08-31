@@ -1,4 +1,4 @@
-import type { UseFormSetError, FieldValues, Path } from "react-hook-form";
+import type { FieldValues, Path, UseFormSetError } from "react-hook-form";
 
 /**
  * Error thrown when the server returns 422 validation errors.

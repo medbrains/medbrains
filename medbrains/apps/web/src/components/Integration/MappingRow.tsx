@@ -241,6 +241,7 @@ export function MappingRow({
             {isMultiSource ? (
               <Stack gap={2}>
                 {sources.map((src, si) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: src.path is the value being typed: a content key would remount the input and drop focus every keystroke. The input is controlled, so index reuse re-renders correctly
                   <Group key={si} gap={4} wrap="nowrap">
                     <TextInput
                       size="xs"

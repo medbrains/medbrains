@@ -13,8 +13,8 @@
  */
 
 import { Parser, type Value } from "expr-eval-fork";
-import { createSandboxedContext, validateExpressionString } from "./sandbox.js";
 import { getFunctionMap } from "./functions.js";
+import { createSandboxedContext, validateExpressionString } from "./sandbox.js";
 import type {
   ComputedOptions,
   EvaluationResult,
@@ -35,7 +35,7 @@ function createParser(): Parser {
       concatenate: true,
       conditional: true,
       divide: true,
-      factorial: false,   // Not needed, potential DoS
+      factorial: false, // Not needed, potential DoS
       multiply: true,
       power: true,
       remainder: true,
@@ -44,7 +44,7 @@ function createParser(): Parser {
       logical: true,
       comparison: true,
       // Disabled — unsafe
-      assignment: false,   // CRITICAL: No assignments
+      assignment: false, // CRITICAL: No assignments
       in: true,
     },
   });
@@ -61,9 +61,7 @@ function buildEvalContext(
   extraFunctions?: Record<string, SafeFunction>,
 ): Record<string, unknown> {
   const functions = getFunctionMap();
-  const sandboxed = createSandboxedContext(
-    context as Record<string, unknown>,
-  );
+  const sandboxed = createSandboxedContext(context as Record<string, unknown>);
 
   // Flatten the proxy for expr-eval compatibility
   const flat: Record<string, unknown> = {};
@@ -95,10 +93,7 @@ function flattenForExprEval(val: unknown, depth = 0): unknown {
 
   const result: Record<string, unknown> = {};
   for (const key of Object.keys(val as Record<string, unknown>)) {
-    result[key] = flattenForExprEval(
-      (val as Record<string, unknown>)[key],
-      depth + 1,
-    );
+    result[key] = flattenForExprEval((val as Record<string, unknown>)[key], depth + 1);
   }
   return result;
 }

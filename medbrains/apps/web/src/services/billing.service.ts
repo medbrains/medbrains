@@ -175,8 +175,7 @@ export const billingService = {
     api.listInstallments(...args),
   createInstallment: (...args: Parameters<typeof api.createInstallment>) =>
     api.createInstallment(...args),
-  getInstallment: (...args: Parameters<typeof api.getInstallment>) =>
-    api.getInstallment(...args),
+  getInstallment: (...args: Parameters<typeof api.getInstallment>) => api.getInstallment(...args),
   payInstallmentItem: (...args: Parameters<typeof api.payInstallmentItem>) =>
     api.payInstallmentItem(...args),
   waiveInstallmentItem: (...args: Parameters<typeof api.waiveInstallmentItem>) =>

@@ -38,15 +38,17 @@ export const REDACTABLE_FIELDS: RedactableFieldGroup[] = [
   {
     module: "billing",
     label: "Billing",
-    fields: [
-      { key: "billing.amount", label: "amount" },
-    ],
+    fields: [{ key: "billing.amount", label: "amount" }],
   },
   {
     module: "camp",
     label: "Camp registration",
     fields: [
-      { key: "camp.registrations.id_proof_number", label: "registrations · id proof number", note: "government ID" },
+      {
+        key: "camp.registrations.id_proof_number",
+        label: "registrations · id proof number",
+        note: "government ID",
+      },
       { key: "camp.registrations.person_name", label: "registrations · person name" },
       { key: "camp.registrations.phone", label: "registrations · phone" },
     ],
@@ -63,7 +65,11 @@ export const REDACTABLE_FIELDS: RedactableFieldGroup[] = [
       { key: "emergency.mlc.informant_name", label: "mlc · informant name" },
       { key: "emergency.mlc.informant_relation", label: "mlc · informant relation" },
       { key: "emergency.mlc.medical_opinion", label: "mlc · medical opinion" },
-      { key: "emergency.mlc.pocso_report", label: "mlc · pocso report", note: "POCSO — statutory confidentiality" },
+      {
+        key: "emergency.mlc.pocso_report",
+        label: "mlc · pocso report",
+        note: "POCSO — statutory confidentiality",
+      },
       { key: "emergency.mlc.police_station", label: "mlc · police station" },
     ],
   },
@@ -78,7 +84,10 @@ export const REDACTABLE_FIELDS: RedactableFieldGroup[] = [
       { key: "ipd.attenders.name", label: "attenders · name" },
       { key: "ipd.attenders.phone", label: "attenders · phone" },
       { key: "ipd.attenders.relationship", label: "attenders · relationship" },
-      { key: "ipd.discharge_summary.final_diagnosis", label: "discharge summary · final diagnosis" },
+      {
+        key: "ipd.discharge_summary.final_diagnosis",
+        label: "discharge summary · final diagnosis",
+      },
     ],
   },
   {
@@ -99,13 +108,21 @@ export const REDACTABLE_FIELDS: RedactableFieldGroup[] = [
       { key: "patients.email", label: "email" },
       { key: "patients.first_name", label: "first name" },
       { key: "patients.full_name_local", label: "full name local" },
-      { key: "patients.identifiers.id_number", label: "identifiers · id number", note: "government ID" },
+      {
+        key: "patients.identifiers.id_number",
+        label: "identifiers · id number",
+        note: "government ID",
+      },
       { key: "patients.last_name", label: "last name" },
       { key: "patients.middle_name", label: "middle name" },
       { key: "patients.mlc_number", label: "mlc number", note: "medico-legal" },
       { key: "patients.phone", label: "phone" },
       { key: "patients.phone_secondary", label: "phone secondary" },
-      { key: "patients.uhid", label: "uhid", note: "hospital identifier — hiding it breaks patient lookup" },
+      {
+        key: "patients.uhid",
+        label: "uhid",
+        note: "hospital identifier — hiding it breaks patient lookup",
+      },
     ],
   },
   {
@@ -120,7 +137,11 @@ export const REDACTABLE_FIELDS: RedactableFieldGroup[] = [
       { key: "pharmacy.catalog.base_price", label: "catalog · base price" },
       { key: "pharmacy.ndps.balance_after", label: "ndps · balance after" },
       { key: "pharmacy.ndps.user_ids", label: "ndps · user ids", note: "NDPS register" },
-      { key: "pharmacy.ndps.witnessed_by", label: "ndps · witnessed by", note: "NDPS witness record" },
+      {
+        key: "pharmacy.ndps.witnessed_by",
+        label: "ndps · witnessed by",
+        note: "NDPS witness record",
+      },
       { key: "pharmacy.pos.patient_name", label: "pos · patient name" },
       { key: "pharmacy.pos.patient_phone", label: "pos · patient phone" },
       { key: "pharmacy.pricing.unit_price", label: "pricing · unit price" },
@@ -129,4 +150,6 @@ export const REDACTABLE_FIELDS: RedactableFieldGroup[] = [
 ];
 
 /** Every key, flat — for validating what the server returns. */
-export const REDACTABLE_FIELD_KEYS: readonly string[] = REDACTABLE_FIELDS.flatMap((g) => g.fields.map((f) => f.key));
+export const REDACTABLE_FIELD_KEYS: readonly string[] = REDACTABLE_FIELDS.flatMap((g) =>
+  g.fields.map((f) => f.key),
+);

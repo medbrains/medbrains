@@ -19,8 +19,8 @@ import type {
   DepartmentRevenueRow,
   DoctorRevenueRow,
   InsurancePanelRow,
+  ReconSummary,
 } from "@medbrains/types";
-import type { ReconSummary } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Badge, Table } from "@/components/ui";
@@ -167,13 +167,11 @@ function GatewayReconPanel({ recon }: { recon: ReconSummary }) {
                     ? "danger"
                     : "blue";
             return (
-              <Tooltip key={row.status} label={`${row.txn_count} txns — ${fmtINR(row.total_amount)}`}>
-                <Progress
-                  value={pct}
-                  size="sm"
-                  color={color}
-                  style={{ flex: 1 }}
-                />
+              <Tooltip
+                key={row.status}
+                label={`${row.txn_count} txns — ${fmtINR(row.total_amount)}`}
+              >
+                <Progress value={pct} size="sm" color={color} style={{ flex: 1 }} />
               </Tooltip>
             );
           })}

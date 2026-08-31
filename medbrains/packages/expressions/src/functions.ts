@@ -71,17 +71,13 @@ const MOD: SafeFunction = (a: unknown, b: unknown) => {
 const CONCAT: SafeFunction = (...args: unknown[]) =>
   args.map((a) => (a == null ? "" : String(a))).join("");
 
-const UPPER: SafeFunction = (s: unknown) =>
-  String(s ?? "").toUpperCase();
+const UPPER: SafeFunction = (s: unknown) => String(s ?? "").toUpperCase();
 
-const LOWER: SafeFunction = (s: unknown) =>
-  String(s ?? "").toLowerCase();
+const LOWER: SafeFunction = (s: unknown) => String(s ?? "").toLowerCase();
 
-const TRIM: SafeFunction = (s: unknown) =>
-  String(s ?? "").trim();
+const TRIM: SafeFunction = (s: unknown) => String(s ?? "").trim();
 
-const LEN: SafeFunction = (s: unknown) =>
-  String(s ?? "").length;
+const LEN: SafeFunction = (s: unknown) => String(s ?? "").length;
 
 const LEFT: SafeFunction = (s: unknown, n: unknown) => {
   const str = String(s ?? "");
@@ -106,7 +102,9 @@ const SUBSTRING: SafeFunction = (s: unknown, start: unknown, length?: unknown) =
 };
 
 const REPLACE: SafeFunction = (s: unknown, search: unknown, replacement: unknown) =>
-  String(s ?? "").split(String(search ?? "")).join(String(replacement ?? ""));
+  String(s ?? "")
+    .split(String(search ?? ""))
+    .join(String(replacement ?? ""));
 
 const STARTS_WITH: SafeFunction = (s: unknown, prefix: unknown) =>
   String(s ?? "").startsWith(String(prefix ?? ""));
@@ -175,8 +173,7 @@ const DATEDIFF: SafeFunction = (d1: unknown, d2: unknown, unit: unknown = "days"
       return Math.floor(diffMs / (1000 * 60));
     case "months": {
       const months =
-        (date2.getFullYear() - date1.getFullYear()) * 12 +
-        (date2.getMonth() - date1.getMonth());
+        (date2.getFullYear() - date1.getFullYear()) * 12 + (date2.getMonth() - date1.getMonth());
       return months;
     }
     case "years":
@@ -210,11 +207,7 @@ const FORMAT_DATE: SafeFunction = (date: unknown, fmt: unknown = "DD/MM/YYYY") =
     .replace("ss", pad(seconds));
 };
 
-const DATE_ADD: SafeFunction = (
-  date: unknown,
-  amount: unknown,
-  unit: unknown = "days",
-) => {
+const DATE_ADD: SafeFunction = (date: unknown, amount: unknown, unit: unknown = "days") => {
   const d = date instanceof Date ? new Date(date.getTime()) : new Date(String(date ?? ""));
   if (Number.isNaN(d.getTime())) return null;
   const n = Math.floor(Number(amount));
@@ -261,31 +254,22 @@ const DAY: SafeFunction = (date: unknown) => {
 
 // ── Logic Functions (pure) ───────────────────────────────
 
-const IF: SafeFunction = (cond: unknown, t: unknown, f: unknown) =>
-  cond ? t : f;
+const IF: SafeFunction = (cond: unknown, t: unknown, f: unknown) => (cond ? t : f);
 
-const AND: SafeFunction = (...args: unknown[]) =>
-  args.every(Boolean);
+const AND: SafeFunction = (...args: unknown[]) => args.every(Boolean);
 
-const OR: SafeFunction = (...args: unknown[]) =>
-  args.some(Boolean);
+const OR: SafeFunction = (...args: unknown[]) => args.some(Boolean);
 
 const NOT: SafeFunction = (val: unknown) => !val;
 
-const COALESCE: SafeFunction = (...args: unknown[]) =>
-  args.find((a) => a != null) ?? null;
+const COALESCE: SafeFunction = (...args: unknown[]) => args.find((a) => a != null) ?? null;
 
 const IS_EMPTY: SafeFunction = (val: unknown) =>
-  val === null ||
-  val === undefined ||
-  val === "" ||
-  (Array.isArray(val) && val.length === 0);
+  val === null || val === undefined || val === "" || (Array.isArray(val) && val.length === 0);
 
-const IS_NUMBER: SafeFunction = (val: unknown) =>
-  typeof val === "number" && Number.isFinite(val);
+const IS_NUMBER: SafeFunction = (val: unknown) => typeof val === "number" && Number.isFinite(val);
 
-const IS_STRING: SafeFunction = (val: unknown) =>
-  typeof val === "string";
+const IS_STRING: SafeFunction = (val: unknown) => typeof val === "string";
 
 // ── Medical Functions (domain-specific, pure) ────────────
 
@@ -307,11 +291,7 @@ const BSA: SafeFunction = (weightKg: unknown, heightCm: unknown) => {
 };
 
 /** Estimated GFR (CKD-EPI simplified for demonstration) */
-const GFR: SafeFunction = (
-  creatinine: unknown,
-  age: unknown,
-  isFemale: unknown,
-) => {
+const GFR: SafeFunction = (creatinine: unknown, age: unknown, isFemale: unknown) => {
   const cr = Number(creatinine);
   const a = Number(age);
   const female = Boolean(isFemale);
@@ -342,9 +322,7 @@ const IBW: SafeFunction = (heightCm: unknown, isMale: unknown) => {
   const heightInches = h / 2.54;
   const baseHeight = 60; // 5 feet in inches
   const inchesOver = Math.max(0, heightInches - baseHeight);
-  return Boolean(isMale)
-    ? 50 + 2.3 * inchesOver
-    : 45.5 + 2.3 * inchesOver;
+  return isMale ? 50 + 2.3 * inchesOver : 45.5 + 2.3 * inchesOver;
 };
 
 // ── Format Functions (pure, locale-aware) ────────────────
@@ -394,65 +372,637 @@ const FORMAT_NUMBER: SafeFunction = (num: unknown, decimals: unknown = 0) => {
 /** Complete function registry with metadata */
 export const FUNCTION_REGISTRY: ReadonlyMap<string, FunctionMeta> = new Map<string, FunctionMeta>([
   // Math
-  ["ROUND", { name: "ROUND", category: "math", description: "Round to N decimal places", params: [{ name: "value", type: "number", required: true }, { name: "decimals", type: "number", required: false }], returnType: "number", fn: ROUND }],
-  ["CEIL", { name: "CEIL", category: "math", description: "Round up to nearest integer", params: [{ name: "value", type: "number", required: true }], returnType: "number", fn: CEIL }],
-  ["FLOOR", { name: "FLOOR", category: "math", description: "Round down to nearest integer", params: [{ name: "value", type: "number", required: true }], returnType: "number", fn: FLOOR }],
-  ["ABS", { name: "ABS", category: "math", description: "Absolute value", params: [{ name: "value", type: "number", required: true }], returnType: "number", fn: ABS }],
-  ["MIN", { name: "MIN", category: "math", description: "Minimum of values", params: [{ name: "values", type: "number[]", required: true }], returnType: "number", fn: MIN }],
-  ["MAX", { name: "MAX", category: "math", description: "Maximum of values", params: [{ name: "values", type: "number[]", required: true }], returnType: "number", fn: MAX }],
-  ["POW", { name: "POW", category: "math", description: "Base raised to power", params: [{ name: "base", type: "number", required: true }, { name: "exponent", type: "number", required: true }], returnType: "number", fn: POW }],
-  ["SQRT", { name: "SQRT", category: "math", description: "Square root", params: [{ name: "value", type: "number", required: true }], returnType: "number", fn: SQRT }],
-  ["MOD", { name: "MOD", category: "math", description: "Modulo (remainder)", params: [{ name: "a", type: "number", required: true }, { name: "b", type: "number", required: true }], returnType: "number", fn: MOD }],
+  [
+    "ROUND",
+    {
+      name: "ROUND",
+      category: "math",
+      description: "Round to N decimal places",
+      params: [
+        { name: "value", type: "number", required: true },
+        { name: "decimals", type: "number", required: false },
+      ],
+      returnType: "number",
+      fn: ROUND,
+    },
+  ],
+  [
+    "CEIL",
+    {
+      name: "CEIL",
+      category: "math",
+      description: "Round up to nearest integer",
+      params: [{ name: "value", type: "number", required: true }],
+      returnType: "number",
+      fn: CEIL,
+    },
+  ],
+  [
+    "FLOOR",
+    {
+      name: "FLOOR",
+      category: "math",
+      description: "Round down to nearest integer",
+      params: [{ name: "value", type: "number", required: true }],
+      returnType: "number",
+      fn: FLOOR,
+    },
+  ],
+  [
+    "ABS",
+    {
+      name: "ABS",
+      category: "math",
+      description: "Absolute value",
+      params: [{ name: "value", type: "number", required: true }],
+      returnType: "number",
+      fn: ABS,
+    },
+  ],
+  [
+    "MIN",
+    {
+      name: "MIN",
+      category: "math",
+      description: "Minimum of values",
+      params: [{ name: "values", type: "number[]", required: true }],
+      returnType: "number",
+      fn: MIN,
+    },
+  ],
+  [
+    "MAX",
+    {
+      name: "MAX",
+      category: "math",
+      description: "Maximum of values",
+      params: [{ name: "values", type: "number[]", required: true }],
+      returnType: "number",
+      fn: MAX,
+    },
+  ],
+  [
+    "POW",
+    {
+      name: "POW",
+      category: "math",
+      description: "Base raised to power",
+      params: [
+        { name: "base", type: "number", required: true },
+        { name: "exponent", type: "number", required: true },
+      ],
+      returnType: "number",
+      fn: POW,
+    },
+  ],
+  [
+    "SQRT",
+    {
+      name: "SQRT",
+      category: "math",
+      description: "Square root",
+      params: [{ name: "value", type: "number", required: true }],
+      returnType: "number",
+      fn: SQRT,
+    },
+  ],
+  [
+    "MOD",
+    {
+      name: "MOD",
+      category: "math",
+      description: "Modulo (remainder)",
+      params: [
+        { name: "a", type: "number", required: true },
+        { name: "b", type: "number", required: true },
+      ],
+      returnType: "number",
+      fn: MOD,
+    },
+  ],
 
   // String
-  ["CONCAT", { name: "CONCAT", category: "string", description: "Concatenate strings", params: [{ name: "values", type: "string[]", required: true }], returnType: "string", fn: CONCAT }],
-  ["UPPER", { name: "UPPER", category: "string", description: "Convert to uppercase", params: [{ name: "text", type: "string", required: true }], returnType: "string", fn: UPPER }],
-  ["LOWER", { name: "LOWER", category: "string", description: "Convert to lowercase", params: [{ name: "text", type: "string", required: true }], returnType: "string", fn: LOWER }],
-  ["TRIM", { name: "TRIM", category: "string", description: "Remove leading/trailing whitespace", params: [{ name: "text", type: "string", required: true }], returnType: "string", fn: TRIM }],
-  ["LEN", { name: "LEN", category: "string", description: "String length", params: [{ name: "text", type: "string", required: true }], returnType: "number", fn: LEN }],
-  ["LEFT", { name: "LEFT", category: "string", description: "First N characters", params: [{ name: "text", type: "string", required: true }, { name: "count", type: "number", required: true }], returnType: "string", fn: LEFT }],
-  ["RIGHT", { name: "RIGHT", category: "string", description: "Last N characters", params: [{ name: "text", type: "string", required: true }, { name: "count", type: "number", required: true }], returnType: "string", fn: RIGHT }],
-  ["SUBSTRING", { name: "SUBSTRING", category: "string", description: "Extract substring", params: [{ name: "text", type: "string", required: true }, { name: "start", type: "number", required: true }, { name: "length", type: "number", required: false }], returnType: "string", fn: SUBSTRING }],
-  ["REPLACE", { name: "REPLACE", category: "string", description: "Replace all occurrences", params: [{ name: "text", type: "string", required: true }, { name: "search", type: "string", required: true }, { name: "replacement", type: "string", required: true }], returnType: "string", fn: REPLACE }],
-  ["STARTS_WITH", { name: "STARTS_WITH", category: "string", description: "Check if string starts with prefix", params: [{ name: "text", type: "string", required: true }, { name: "prefix", type: "string", required: true }], returnType: "boolean", fn: STARTS_WITH }],
-  ["ENDS_WITH", { name: "ENDS_WITH", category: "string", description: "Check if string ends with suffix", params: [{ name: "text", type: "string", required: true }, { name: "suffix", type: "string", required: true }], returnType: "boolean", fn: ENDS_WITH }],
-  ["CONTAINS", { name: "CONTAINS", category: "string", description: "Check if string contains substring", params: [{ name: "text", type: "string", required: true }, { name: "search", type: "string", required: true }], returnType: "boolean", fn: CONTAINS }],
-  ["REPEAT", { name: "REPEAT", category: "string", description: "Repeat string N times", params: [{ name: "text", type: "string", required: true }, { name: "count", type: "number", required: true }], returnType: "string", fn: REPEAT }],
-  ["PAD_START", { name: "PAD_START", category: "string", description: "Pad start of string", params: [{ name: "text", type: "string", required: true }, { name: "length", type: "number", required: true }, { name: "fill", type: "string", required: false }], returnType: "string", fn: PAD_START }],
-  ["PAD_END", { name: "PAD_END", category: "string", description: "Pad end of string", params: [{ name: "text", type: "string", required: true }, { name: "length", type: "number", required: true }, { name: "fill", type: "string", required: false }], returnType: "string", fn: PAD_END }],
+  [
+    "CONCAT",
+    {
+      name: "CONCAT",
+      category: "string",
+      description: "Concatenate strings",
+      params: [{ name: "values", type: "string[]", required: true }],
+      returnType: "string",
+      fn: CONCAT,
+    },
+  ],
+  [
+    "UPPER",
+    {
+      name: "UPPER",
+      category: "string",
+      description: "Convert to uppercase",
+      params: [{ name: "text", type: "string", required: true }],
+      returnType: "string",
+      fn: UPPER,
+    },
+  ],
+  [
+    "LOWER",
+    {
+      name: "LOWER",
+      category: "string",
+      description: "Convert to lowercase",
+      params: [{ name: "text", type: "string", required: true }],
+      returnType: "string",
+      fn: LOWER,
+    },
+  ],
+  [
+    "TRIM",
+    {
+      name: "TRIM",
+      category: "string",
+      description: "Remove leading/trailing whitespace",
+      params: [{ name: "text", type: "string", required: true }],
+      returnType: "string",
+      fn: TRIM,
+    },
+  ],
+  [
+    "LEN",
+    {
+      name: "LEN",
+      category: "string",
+      description: "String length",
+      params: [{ name: "text", type: "string", required: true }],
+      returnType: "number",
+      fn: LEN,
+    },
+  ],
+  [
+    "LEFT",
+    {
+      name: "LEFT",
+      category: "string",
+      description: "First N characters",
+      params: [
+        { name: "text", type: "string", required: true },
+        { name: "count", type: "number", required: true },
+      ],
+      returnType: "string",
+      fn: LEFT,
+    },
+  ],
+  [
+    "RIGHT",
+    {
+      name: "RIGHT",
+      category: "string",
+      description: "Last N characters",
+      params: [
+        { name: "text", type: "string", required: true },
+        { name: "count", type: "number", required: true },
+      ],
+      returnType: "string",
+      fn: RIGHT,
+    },
+  ],
+  [
+    "SUBSTRING",
+    {
+      name: "SUBSTRING",
+      category: "string",
+      description: "Extract substring",
+      params: [
+        { name: "text", type: "string", required: true },
+        { name: "start", type: "number", required: true },
+        { name: "length", type: "number", required: false },
+      ],
+      returnType: "string",
+      fn: SUBSTRING,
+    },
+  ],
+  [
+    "REPLACE",
+    {
+      name: "REPLACE",
+      category: "string",
+      description: "Replace all occurrences",
+      params: [
+        { name: "text", type: "string", required: true },
+        { name: "search", type: "string", required: true },
+        { name: "replacement", type: "string", required: true },
+      ],
+      returnType: "string",
+      fn: REPLACE,
+    },
+  ],
+  [
+    "STARTS_WITH",
+    {
+      name: "STARTS_WITH",
+      category: "string",
+      description: "Check if string starts with prefix",
+      params: [
+        { name: "text", type: "string", required: true },
+        { name: "prefix", type: "string", required: true },
+      ],
+      returnType: "boolean",
+      fn: STARTS_WITH,
+    },
+  ],
+  [
+    "ENDS_WITH",
+    {
+      name: "ENDS_WITH",
+      category: "string",
+      description: "Check if string ends with suffix",
+      params: [
+        { name: "text", type: "string", required: true },
+        { name: "suffix", type: "string", required: true },
+      ],
+      returnType: "boolean",
+      fn: ENDS_WITH,
+    },
+  ],
+  [
+    "CONTAINS",
+    {
+      name: "CONTAINS",
+      category: "string",
+      description: "Check if string contains substring",
+      params: [
+        { name: "text", type: "string", required: true },
+        { name: "search", type: "string", required: true },
+      ],
+      returnType: "boolean",
+      fn: CONTAINS,
+    },
+  ],
+  [
+    "REPEAT",
+    {
+      name: "REPEAT",
+      category: "string",
+      description: "Repeat string N times",
+      params: [
+        { name: "text", type: "string", required: true },
+        { name: "count", type: "number", required: true },
+      ],
+      returnType: "string",
+      fn: REPEAT,
+    },
+  ],
+  [
+    "PAD_START",
+    {
+      name: "PAD_START",
+      category: "string",
+      description: "Pad start of string",
+      params: [
+        { name: "text", type: "string", required: true },
+        { name: "length", type: "number", required: true },
+        { name: "fill", type: "string", required: false },
+      ],
+      returnType: "string",
+      fn: PAD_START,
+    },
+  ],
+  [
+    "PAD_END",
+    {
+      name: "PAD_END",
+      category: "string",
+      description: "Pad end of string",
+      params: [
+        { name: "text", type: "string", required: true },
+        { name: "length", type: "number", required: true },
+        { name: "fill", type: "string", required: false },
+      ],
+      returnType: "string",
+      fn: PAD_END,
+    },
+  ],
 
   // Date
-  ["NOW", { name: "NOW", category: "date", description: "Current date and time", params: [], returnType: "Date", fn: NOW }],
-  ["TODAY", { name: "TODAY", category: "date", description: "Current date (midnight)", params: [], returnType: "Date", fn: TODAY }],
-  ["AGE", { name: "AGE", category: "date", description: "Age in years from date of birth", params: [{ name: "dob", type: "string|Date", required: true }], returnType: "number", fn: AGE }],
-  ["DATEDIFF", { name: "DATEDIFF", category: "date", description: "Difference between two dates", params: [{ name: "date1", type: "string|Date", required: true }, { name: "date2", type: "string|Date", required: true }, { name: "unit", type: "string", required: false, description: "days|hours|minutes|months|years" }], returnType: "number", fn: DATEDIFF }],
-  ["FORMAT_DATE", { name: "FORMAT_DATE", category: "date", description: "Format a date", params: [{ name: "date", type: "string|Date", required: true }, { name: "format", type: "string", required: false, description: "DD/MM/YYYY HH:mm:ss" }], returnType: "string", fn: FORMAT_DATE }],
-  ["DATE_ADD", { name: "DATE_ADD", category: "date", description: "Add time to a date", params: [{ name: "date", type: "string|Date", required: true }, { name: "amount", type: "number", required: true }, { name: "unit", type: "string", required: false }], returnType: "Date", fn: DATE_ADD }],
-  ["YEAR", { name: "YEAR", category: "date", description: "Extract year from date", params: [{ name: "date", type: "string|Date", required: true }], returnType: "number", fn: YEAR }],
-  ["MONTH", { name: "MONTH", category: "date", description: "Extract month (1-12) from date", params: [{ name: "date", type: "string|Date", required: true }], returnType: "number", fn: MONTH }],
-  ["DAY", { name: "DAY", category: "date", description: "Extract day from date", params: [{ name: "date", type: "string|Date", required: true }], returnType: "number", fn: DAY }],
+  [
+    "NOW",
+    {
+      name: "NOW",
+      category: "date",
+      description: "Current date and time",
+      params: [],
+      returnType: "Date",
+      fn: NOW,
+    },
+  ],
+  [
+    "TODAY",
+    {
+      name: "TODAY",
+      category: "date",
+      description: "Current date (midnight)",
+      params: [],
+      returnType: "Date",
+      fn: TODAY,
+    },
+  ],
+  [
+    "AGE",
+    {
+      name: "AGE",
+      category: "date",
+      description: "Age in years from date of birth",
+      params: [{ name: "dob", type: "string|Date", required: true }],
+      returnType: "number",
+      fn: AGE,
+    },
+  ],
+  [
+    "DATEDIFF",
+    {
+      name: "DATEDIFF",
+      category: "date",
+      description: "Difference between two dates",
+      params: [
+        { name: "date1", type: "string|Date", required: true },
+        { name: "date2", type: "string|Date", required: true },
+        {
+          name: "unit",
+          type: "string",
+          required: false,
+          description: "days|hours|minutes|months|years",
+        },
+      ],
+      returnType: "number",
+      fn: DATEDIFF,
+    },
+  ],
+  [
+    "FORMAT_DATE",
+    {
+      name: "FORMAT_DATE",
+      category: "date",
+      description: "Format a date",
+      params: [
+        { name: "date", type: "string|Date", required: true },
+        { name: "format", type: "string", required: false, description: "DD/MM/YYYY HH:mm:ss" },
+      ],
+      returnType: "string",
+      fn: FORMAT_DATE,
+    },
+  ],
+  [
+    "DATE_ADD",
+    {
+      name: "DATE_ADD",
+      category: "date",
+      description: "Add time to a date",
+      params: [
+        { name: "date", type: "string|Date", required: true },
+        { name: "amount", type: "number", required: true },
+        { name: "unit", type: "string", required: false },
+      ],
+      returnType: "Date",
+      fn: DATE_ADD,
+    },
+  ],
+  [
+    "YEAR",
+    {
+      name: "YEAR",
+      category: "date",
+      description: "Extract year from date",
+      params: [{ name: "date", type: "string|Date", required: true }],
+      returnType: "number",
+      fn: YEAR,
+    },
+  ],
+  [
+    "MONTH",
+    {
+      name: "MONTH",
+      category: "date",
+      description: "Extract month (1-12) from date",
+      params: [{ name: "date", type: "string|Date", required: true }],
+      returnType: "number",
+      fn: MONTH,
+    },
+  ],
+  [
+    "DAY",
+    {
+      name: "DAY",
+      category: "date",
+      description: "Extract day from date",
+      params: [{ name: "date", type: "string|Date", required: true }],
+      returnType: "number",
+      fn: DAY,
+    },
+  ],
 
   // Logic
-  ["IF", { name: "IF", category: "logic", description: "Conditional: IF(condition, trueValue, falseValue)", params: [{ name: "condition", type: "boolean", required: true }, { name: "trueValue", type: "any", required: true }, { name: "falseValue", type: "any", required: true }], returnType: "any", fn: IF }],
-  ["AND", { name: "AND", category: "logic", description: "Logical AND of all arguments", params: [{ name: "values", type: "boolean[]", required: true }], returnType: "boolean", fn: AND }],
-  ["OR", { name: "OR", category: "logic", description: "Logical OR of all arguments", params: [{ name: "values", type: "boolean[]", required: true }], returnType: "boolean", fn: OR }],
-  ["NOT", { name: "NOT", category: "logic", description: "Logical NOT", params: [{ name: "value", type: "boolean", required: true }], returnType: "boolean", fn: NOT }],
-  ["COALESCE", { name: "COALESCE", category: "logic", description: "First non-null value", params: [{ name: "values", type: "any[]", required: true }], returnType: "any", fn: COALESCE }],
-  ["IS_EMPTY", { name: "IS_EMPTY", category: "logic", description: "Check if value is null, undefined, empty string, or empty array", params: [{ name: "value", type: "any", required: true }], returnType: "boolean", fn: IS_EMPTY }],
-  ["IS_NUMBER", { name: "IS_NUMBER", category: "logic", description: "Check if value is a finite number", params: [{ name: "value", type: "any", required: true }], returnType: "boolean", fn: IS_NUMBER }],
-  ["IS_STRING", { name: "IS_STRING", category: "logic", description: "Check if value is a string", params: [{ name: "value", type: "any", required: true }], returnType: "boolean", fn: IS_STRING }],
+  [
+    "IF",
+    {
+      name: "IF",
+      category: "logic",
+      description: "Conditional: IF(condition, trueValue, falseValue)",
+      params: [
+        { name: "condition", type: "boolean", required: true },
+        { name: "trueValue", type: "any", required: true },
+        { name: "falseValue", type: "any", required: true },
+      ],
+      returnType: "any",
+      fn: IF,
+    },
+  ],
+  [
+    "AND",
+    {
+      name: "AND",
+      category: "logic",
+      description: "Logical AND of all arguments",
+      params: [{ name: "values", type: "boolean[]", required: true }],
+      returnType: "boolean",
+      fn: AND,
+    },
+  ],
+  [
+    "OR",
+    {
+      name: "OR",
+      category: "logic",
+      description: "Logical OR of all arguments",
+      params: [{ name: "values", type: "boolean[]", required: true }],
+      returnType: "boolean",
+      fn: OR,
+    },
+  ],
+  [
+    "NOT",
+    {
+      name: "NOT",
+      category: "logic",
+      description: "Logical NOT",
+      params: [{ name: "value", type: "boolean", required: true }],
+      returnType: "boolean",
+      fn: NOT,
+    },
+  ],
+  [
+    "COALESCE",
+    {
+      name: "COALESCE",
+      category: "logic",
+      description: "First non-null value",
+      params: [{ name: "values", type: "any[]", required: true }],
+      returnType: "any",
+      fn: COALESCE,
+    },
+  ],
+  [
+    "IS_EMPTY",
+    {
+      name: "IS_EMPTY",
+      category: "logic",
+      description: "Check if value is null, undefined, empty string, or empty array",
+      params: [{ name: "value", type: "any", required: true }],
+      returnType: "boolean",
+      fn: IS_EMPTY,
+    },
+  ],
+  [
+    "IS_NUMBER",
+    {
+      name: "IS_NUMBER",
+      category: "logic",
+      description: "Check if value is a finite number",
+      params: [{ name: "value", type: "any", required: true }],
+      returnType: "boolean",
+      fn: IS_NUMBER,
+    },
+  ],
+  [
+    "IS_STRING",
+    {
+      name: "IS_STRING",
+      category: "logic",
+      description: "Check if value is a string",
+      params: [{ name: "value", type: "any", required: true }],
+      returnType: "boolean",
+      fn: IS_STRING,
+    },
+  ],
 
   // Medical
-  ["BMI", { name: "BMI", category: "medical", description: "Body Mass Index: weight(kg) / height(m)^2", params: [{ name: "weightKg", type: "number", required: true }, { name: "heightCm", type: "number", required: true }], returnType: "number", fn: BMI }],
-  ["BSA", { name: "BSA", category: "medical", description: "Body Surface Area (Mosteller formula)", params: [{ name: "weightKg", type: "number", required: true }, { name: "heightCm", type: "number", required: true }], returnType: "number", fn: BSA }],
-  ["GFR", { name: "GFR", category: "medical", description: "Estimated Glomerular Filtration Rate (CKD-EPI simplified)", params: [{ name: "creatinine", type: "number", required: true }, { name: "age", type: "number", required: true }, { name: "isFemale", type: "boolean", required: true }], returnType: "number", fn: GFR }],
-  ["APGAR", { name: "APGAR", category: "medical", description: "APGAR score (sum of 0-2 scores)", params: [{ name: "scores", type: "number[]", required: true, description: "Each 0-2" }], returnType: "number", fn: APGAR }],
-  ["IBW", { name: "IBW", category: "medical", description: "Ideal Body Weight (Devine formula)", params: [{ name: "heightCm", type: "number", required: true }, { name: "isMale", type: "boolean", required: true }], returnType: "number", fn: IBW }],
+  [
+    "BMI",
+    {
+      name: "BMI",
+      category: "medical",
+      description: "Body Mass Index: weight(kg) / height(m)^2",
+      params: [
+        { name: "weightKg", type: "number", required: true },
+        { name: "heightCm", type: "number", required: true },
+      ],
+      returnType: "number",
+      fn: BMI,
+    },
+  ],
+  [
+    "BSA",
+    {
+      name: "BSA",
+      category: "medical",
+      description: "Body Surface Area (Mosteller formula)",
+      params: [
+        { name: "weightKg", type: "number", required: true },
+        { name: "heightCm", type: "number", required: true },
+      ],
+      returnType: "number",
+      fn: BSA,
+    },
+  ],
+  [
+    "GFR",
+    {
+      name: "GFR",
+      category: "medical",
+      description: "Estimated Glomerular Filtration Rate (CKD-EPI simplified)",
+      params: [
+        { name: "creatinine", type: "number", required: true },
+        { name: "age", type: "number", required: true },
+        { name: "isFemale", type: "boolean", required: true },
+      ],
+      returnType: "number",
+      fn: GFR,
+    },
+  ],
+  [
+    "APGAR",
+    {
+      name: "APGAR",
+      category: "medical",
+      description: "APGAR score (sum of 0-2 scores)",
+      params: [{ name: "scores", type: "number[]", required: true, description: "Each 0-2" }],
+      returnType: "number",
+      fn: APGAR,
+    },
+  ],
+  [
+    "IBW",
+    {
+      name: "IBW",
+      category: "medical",
+      description: "Ideal Body Weight (Devine formula)",
+      params: [
+        { name: "heightCm", type: "number", required: true },
+        { name: "isMale", type: "boolean", required: true },
+      ],
+      returnType: "number",
+      fn: IBW,
+    },
+  ],
 
   // Format
-  ["FORMAT_PHONE", { name: "FORMAT_PHONE", category: "format", description: "Format Indian phone number", params: [{ name: "phone", type: "string", required: true }], returnType: "string", fn: FORMAT_PHONE }],
-  ["FORMAT_CURRENCY", { name: "FORMAT_CURRENCY", category: "format", description: "Format as currency (default INR)", params: [{ name: "amount", type: "number", required: true }, { name: "currency", type: "string", required: false }], returnType: "string", fn: FORMAT_CURRENCY }],
-  ["FORMAT_NUMBER", { name: "FORMAT_NUMBER", category: "format", description: "Format number with locale", params: [{ name: "number", type: "number", required: true }, { name: "decimals", type: "number", required: false }], returnType: "string", fn: FORMAT_NUMBER }],
+  [
+    "FORMAT_PHONE",
+    {
+      name: "FORMAT_PHONE",
+      category: "format",
+      description: "Format Indian phone number",
+      params: [{ name: "phone", type: "string", required: true }],
+      returnType: "string",
+      fn: FORMAT_PHONE,
+    },
+  ],
+  [
+    "FORMAT_CURRENCY",
+    {
+      name: "FORMAT_CURRENCY",
+      category: "format",
+      description: "Format as currency (default INR)",
+      params: [
+        { name: "amount", type: "number", required: true },
+        { name: "currency", type: "string", required: false },
+      ],
+      returnType: "string",
+      fn: FORMAT_CURRENCY,
+    },
+  ],
+  [
+    "FORMAT_NUMBER",
+    {
+      name: "FORMAT_NUMBER",
+      category: "format",
+      description: "Format number with locale",
+      params: [
+        { name: "number", type: "number", required: true },
+        { name: "decimals", type: "number", required: false },
+      ],
+      returnType: "string",
+      fn: FORMAT_NUMBER,
+    },
+  ],
 ]);
 
 /**

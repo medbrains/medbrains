@@ -12,7 +12,11 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
-import type { CreateInstallmentRequest, PaymentInstallment, PaymentInstallmentItem } from "@medbrains/types";
+import type {
+  CreateInstallmentRequest,
+  PaymentInstallment,
+  PaymentInstallmentItem,
+} from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconCheck, IconEye, IconForbid, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -108,12 +112,39 @@ export function InstallmentsTab() {
   });
 
   const columns = [
-    { key: "invoice_id", label: "Invoice", render: (row: PaymentInstallment) => <Text size="sm" style={{ fontFamily: "monospace" }}>{row.invoice_id.slice(0, 8)}...</Text> },
-    { key: "total_amount", label: "Total", render: (row: PaymentInstallment) => `₹${row.total_amount.toLocaleString()}` },
-    { key: "installment_count", label: "EMIs", render: (row: PaymentInstallment) => `${row.installment_count} × ₹${row.installment_amount.toLocaleString()}` },
+    {
+      key: "invoice_id",
+      label: "Invoice",
+      render: (row: PaymentInstallment) => (
+        <Text size="sm" style={{ fontFamily: "monospace" }}>
+          {row.invoice_id.slice(0, 8)}...
+        </Text>
+      ),
+    },
+    {
+      key: "total_amount",
+      label: "Total",
+      render: (row: PaymentInstallment) => `₹${row.total_amount.toLocaleString()}`,
+    },
+    {
+      key: "installment_count",
+      label: "EMIs",
+      render: (row: PaymentInstallment) =>
+        `${row.installment_count} × ₹${row.installment_amount.toLocaleString()}`,
+    },
     { key: "frequency", label: "Freq", render: (row: PaymentInstallment) => row.frequency },
-    { key: "status", label: "Status", render: (row: PaymentInstallment) => <Badge tone={statusTone(row.status)}>{row.status}</Badge> },
-    { key: "pending_count", label: "Pending", render: (row: PaymentInstallment) => `${row.pending_count ?? 0}` },
+    {
+      key: "status",
+      label: "Status",
+      render: (row: PaymentInstallment) => (
+        <Badge tone={statusTone(row.status)}>{row.status}</Badge>
+      ),
+    },
+    {
+      key: "pending_count",
+      label: "Pending",
+      render: (row: PaymentInstallment) => `${row.pending_count ?? 0}`,
+    },
     {
       key: "_actions",
       label: "",
@@ -128,11 +159,30 @@ export function InstallmentsTab() {
   ];
 
   const itemColumns = [
-    { key: "installment_number", label: "#", render: (row: PaymentInstallmentItem) => `${row.installment_number}` },
+    {
+      key: "installment_number",
+      label: "#",
+      render: (row: PaymentInstallmentItem) => `${row.installment_number}`,
+    },
     { key: "due_date", label: "Due Date", render: (row: PaymentInstallmentItem) => row.due_date },
-    { key: "amount", label: "Amount", render: (row: PaymentInstallmentItem) => `₹${row.amount.toLocaleString()}` },
-    { key: "penalty_amount", label: "Penalty", render: (row: PaymentInstallmentItem) => row.penalty_amount > 0 ? `₹${row.penalty_amount.toLocaleString()}` : "—" },
-    { key: "status", label: "Status", render: (row: PaymentInstallmentItem) => <Badge tone={statusTone(row.status)}>{row.status}</Badge> },
+    {
+      key: "amount",
+      label: "Amount",
+      render: (row: PaymentInstallmentItem) => `₹${row.amount.toLocaleString()}`,
+    },
+    {
+      key: "penalty_amount",
+      label: "Penalty",
+      render: (row: PaymentInstallmentItem) =>
+        row.penalty_amount > 0 ? `₹${row.penalty_amount.toLocaleString()}` : "—",
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (row: PaymentInstallmentItem) => (
+        <Badge tone={statusTone(row.status)}>{row.status}</Badge>
+      ),
+    },
     {
       key: "_actions",
       label: "",
@@ -140,12 +190,22 @@ export function InstallmentsTab() {
         row.status === "pending" && viewId ? (
           <Group gap={4}>
             <Tooltip label="Mark paid">
-              <ActionIcon size="sm" color="green" variant="subtle" onClick={() => payMutation.mutate({ installmentId: viewId, itemId: row.id })}>
+              <ActionIcon
+                size="sm"
+                color="green"
+                variant="subtle"
+                onClick={() => payMutation.mutate({ installmentId: viewId, itemId: row.id })}
+              >
                 <IconCheck size={14} />
               </ActionIcon>
             </Tooltip>
             <Tooltip label="Waive">
-              <ActionIcon size="sm" color="red" variant="subtle" onClick={() => waiveMutation.mutate({ installmentId: viewId, itemId: row.id })}>
+              <ActionIcon
+                size="sm"
+                color="red"
+                variant="subtle"
+                onClick={() => waiveMutation.mutate({ installmentId: viewId, itemId: row.id })}
+              >
                 <IconForbid size={14} />
               </ActionIcon>
             </Tooltip>
@@ -173,7 +233,13 @@ export function InstallmentsTab() {
         searchPlaceholder="Search by invoice"
       />
 
-      <Drawer opened={showCreate} onClose={() => setShowCreate(false)} title="Create Installment Plan" position="right" size="sm">
+      <Drawer
+        opened={showCreate}
+        onClose={() => setShowCreate(false)}
+        title="Create Installment Plan"
+        position="right"
+        size="sm"
+      >
         <Stack component="form" onSubmit={createForm.handleSubmit((d) => createMutation.mutate(d))}>
           <TextInput
             label="Invoice ID"
@@ -209,34 +275,46 @@ export function InstallmentsTab() {
         </Stack>
       </Drawer>
 
-      <Drawer opened={!!viewId} onClose={() => setViewId(null)} title="Installment Schedule" position="right" size="lg">
+      <Drawer
+        opened={!!viewId}
+        onClose={() => setViewId(null)}
+        title="Installment Schedule"
+        position="right"
+        size="lg"
+      >
         {viewLoading ? (
-          <Text size="sm" c="dimmed">Loading...</Text>
+          <Text size="sm" c="dimmed">
+            Loading...
+          </Text>
         ) : viewPlan ? (
           <Stack gap="md">
             <Group gap="xl">
               <div>
-                <Text size="xs" c="dimmed">Total</Text>
+                <Text size="xs" c="dimmed">
+                  Total
+                </Text>
                 <Text fw={600}>₹{viewPlan.total_amount.toLocaleString()}</Text>
               </div>
               <div>
-                <Text size="xs" c="dimmed">EMIs</Text>
+                <Text size="xs" c="dimmed">
+                  EMIs
+                </Text>
                 <Text fw={600}>{viewPlan.installment_count}</Text>
               </div>
               <div>
-                <Text size="xs" c="dimmed">Per EMI</Text>
+                <Text size="xs" c="dimmed">
+                  Per EMI
+                </Text>
                 <Text fw={600}>₹{viewPlan.installment_amount.toLocaleString()}</Text>
               </div>
               <div>
-                <Text size="xs" c="dimmed">Status</Text>
+                <Text size="xs" c="dimmed">
+                  Status
+                </Text>
                 <Badge tone={statusTone(viewPlan.status)}>{viewPlan.status}</Badge>
               </div>
             </Group>
-            <DataTable
-              columns={itemColumns}
-              data={viewPlan.items ?? []}
-              rowKey={(row) => row.id}
-            />
+            <DataTable columns={itemColumns} data={viewPlan.items ?? []} rowKey={(row) => row.id} />
           </Stack>
         ) : null}
       </Drawer>

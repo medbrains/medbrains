@@ -192,6 +192,7 @@ function TableSection({ section, ctx }: { section: SectionDef; ctx: Record<strin
         </thead>
         <tbody>
           {rows.map((row, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: rows of a rendered document table; the row number is printed from the index
             <tr key={i}>
               <td>{i + 1}</td>
               {cols.map((c) => (
@@ -260,6 +261,7 @@ function SignaturesSection({
   return (
     <div className={classes.signaturesRow}>
       {blocks.map((blk, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: signature blocks are positional on the page and carry no id
         <div key={i} className={classes.signatureBlock}>
           <div className={classes.sigLine}>
             {blk.key ? fmtVal(getNestedValue(ctx, blk.key)) : ""}
@@ -339,6 +341,7 @@ export function DocumentRenderer({ template, context, hospitalInfo }: DocumentRe
   const renderSections = (sections: SectionDef[], prefix: string) =>
     sections.map((sec, i) => (
       <RenderSection
+        // biome-ignore lint/suspicious/noArrayIndexKey: sections of a rendered document: position is the identity on a printed page
         key={`${prefix}-${i}`}
         section={sec}
         ctx={context}
