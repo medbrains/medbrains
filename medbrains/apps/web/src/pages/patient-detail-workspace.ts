@@ -22,6 +22,7 @@ export const PATIENT_DETAIL_TAB_VALUES = [
   "imaging",
   "billing",
   "appointments",
+  "camps",
   "family",
   "documents",
   "chronic",

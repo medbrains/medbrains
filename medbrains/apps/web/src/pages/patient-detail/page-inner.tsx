@@ -32,6 +32,7 @@ import {
   IconReceipt,
   IconReportMedical,
   IconStethoscope,
+  IconTent,
   IconTimeline,
   IconUser,
 } from "@tabler/icons-react";
@@ -73,6 +74,7 @@ import {
 import { AllergiesTab } from "./allergies-tab";
 import { AppointmentsTab } from "./appointments-tab";
 import { BillingTab } from "./billing-tab";
+import { CampsTab } from "./camps-tab";
 import { ChronicCareTab } from "./chronic-care-tab";
 import { DetailDocumentsTab } from "./documents-tab";
 import { DetailFamilyLinksTab } from "./family-links-tab";
@@ -328,6 +330,7 @@ export function PatientDetailPageInner() {
       section: "Workflow",
       icon: <IconCalendar size={14} />,
     },
+    { value: "camps", label: "Camps", section: "Workflow", icon: <IconTent size={14} /> },
     { value: "family", label: "Family", section: "Records", icon: <IconLink size={14} /> },
     { value: "documents", label: "Documents", section: "Records", icon: <IconFile size={14} /> },
     {
@@ -509,6 +512,10 @@ export function PatientDetailPageInner() {
               <Tabs.Panel id="patient-billing" value="billing" pt="md">
                 <BillingTab patientId={patient.id} />
               </Tabs.Panel>
+              <Tabs.Panel id="patient-camps" value="camps" pt="md">
+                <CampsTab patientId={patient.id} />
+              </Tabs.Panel>
+
               <Tabs.Panel id="patient-appointments" value="appointments" pt="md">
                 <AppointmentsTab patientId={patient.id} />
               </Tabs.Panel>
