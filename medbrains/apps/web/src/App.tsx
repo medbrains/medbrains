@@ -288,7 +288,7 @@ const CampLabSampleCreatePage = lazy(() =>
   })),
 );
 const CampTeamMemberAddPage = lazy(() =>
-  import("./pages/camp").then((m) => ({ default: m.CampTeamMemberAddPage })),
+  import("./pages/camp/team-member-add").then((m) => ({ default: m.CampTeamMemberAddPage })),
 );
 const CampAssetReturnPage = lazy(() =>
   import("./pages/camp").then((m) => ({ default: m.CampAssetReturnPage })),

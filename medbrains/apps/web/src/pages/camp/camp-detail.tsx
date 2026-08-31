@@ -2,7 +2,6 @@
 
 import {
   Card,
-  Drawer,
   Group,
   NumberInput,
   Select,
@@ -13,7 +12,6 @@ import {
   Textarea,
   TextInput,
 } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
 import type { Camp, CampIncident, CampSupplyItem, CampTeamMember } from "@medbrains/types";
@@ -21,30 +19,20 @@ import { P } from "@medbrains/types";
 import { IconDownload, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { Badge, Button, IconButton } from "@/components/ui";
 import { campService } from "@/services/camp.service";
-import { StatCard } from "./shared";
-
-const TEAM_ROLES = [
-  { value: "coordinator", label: "Coordinator" },
-  { value: "doctor", label: "Doctor" },
-  { value: "nurse", label: "Nurse" },
-  { value: "lab_tech", label: "Lab Technician" },
-  { value: "volunteer", label: "Volunteer" },
-  { value: "driver", label: "Driver" },
-];
+import { CAMP_TEAM_ROLES, StatCard } from "./shared";
 
 export function CampDetail({ camp }: { camp: Camp }) {
+  const navigate = useNavigate();
   const canUpdate = useHasPermission(P.CAMP.UPDATE);
   const canListRegistrations = useHasPermission(P.CAMP.REGISTRATIONS_LIST);
   const canListScreenings = useHasPermission(P.CAMP.SCREENINGS_LIST);
   const canListLab = useHasPermission(P.CAMP.LAB_LIST);
   const qc = useQueryClient();
-  const [addOpen, addHandlers] = useDisclosure(false);
-  const [teamForm, setTeamForm] = useState({ employee_id: "", role_in_camp: "volunteer" });
   const [supplyForm, setSupplyForm] = useState<{
     category: CampSupplyItem["category"];
     item_name: string;
@@ -82,19 +70,6 @@ export function CampDetail({ camp }: { camp: Camp }) {
   const { data: remoteOps } = useQuery({
     queryKey: ["camp-remote-operations", camp.id],
     queryFn: () => campService.getCampRemoteOperations(camp.id),
-  });
-
-  const addMut = useMutation({
-    mutationFn: () =>
-      campService.addCampTeamMember(camp.id, {
-        employee_id: teamForm.employee_id,
-        role_in_camp: teamForm.role_in_camp,
-      }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["camp-team", camp.id] });
-      addHandlers.close();
-      setTeamForm({ employee_id: "", role_in_camp: "volunteer" });
-    },
   });
 
   const removeMut = useMutation({
@@ -164,7 +139,8 @@ export function CampDetail({ camp }: { camp: Camp }) {
     {
       key: "role_in_camp",
       label: "Role",
-      render: (r) => TEAM_ROLES.find((t) => t.value === r.role_in_camp)?.label ?? r.role_in_camp,
+      render: (r) =>
+        CAMP_TEAM_ROLES.find((role) => role.value === r.role_in_camp)?.label ?? r.role_in_camp,
     },
     {
       key: "is_confirmed",
@@ -520,7 +496,7 @@ export function CampDetail({ camp }: { camp: Camp }) {
             tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
-            onClick={addHandlers.open}
+            onClick={() => navigate(`/camp/${camp.id}/work/team/new`)}
           >
             Add Member
           </Button>
@@ -528,36 +504,6 @@ export function CampDetail({ camp }: { camp: Camp }) {
       </Group>
 
       <DataTable columns={teamCols} data={team} rowKey={(r) => r.id} />
-
-      <Drawer
-        opened={addOpen}
-        onClose={addHandlers.close}
-        title="Add Team Member"
-        position="right"
-        size="sm"
-      >
-        <Stack>
-          <EmployeeSearchSelect
-            value={teamForm.employee_id}
-            onChange={(id) => setTeamForm({ ...teamForm, employee_id: id })}
-            required
-          />
-          <Select
-            label="Role"
-            data={TEAM_ROLES}
-            value={teamForm.role_in_camp}
-            onChange={(v) => setTeamForm({ ...teamForm, role_in_camp: v ?? "volunteer" })}
-          />
-          <Button
-            tone="primary"
-            onClick={() => addMut.mutate()}
-            loading={addMut.isPending}
-            disabled={!teamForm.employee_id}
-          >
-            Add
-          </Button>
-        </Stack>
-      </Drawer>
     </Stack>
   );
 }

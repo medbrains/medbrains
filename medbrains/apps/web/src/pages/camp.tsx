@@ -393,10 +393,6 @@ export function CampPlanEditPage() {
   return <CampWorkPage initialTab="analytics" />;
 }
 
-export function CampTeamMemberAddPage() {
-  return <CampWorkPage initialTab="analytics" />;
-}
-
 export function CampAssetReturnPage() {
   return <CampWorkPage initialTab="analytics" />;
 }

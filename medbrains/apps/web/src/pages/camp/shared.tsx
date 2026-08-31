@@ -291,3 +291,13 @@ export const CAMP_CREATE_DEFAULTS: CampCreateFormInput = {
   is_free: true,
   logistics_notes: "",
 };
+
+/** Roles a person can hold on a camp team. */
+export const CAMP_TEAM_ROLES = [
+  { value: "coordinator", label: "Coordinator" },
+  { value: "doctor", label: "Doctor" },
+  { value: "nurse", label: "Nurse" },
+  { value: "lab_tech", label: "Lab Technician" },
+  { value: "volunteer", label: "Volunteer" },
+  { value: "driver", label: "Driver" },
+];
