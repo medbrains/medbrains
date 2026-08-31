@@ -214,3 +214,38 @@ variable "ssh_user_attach" {
   type        = string
   default     = "ubuntu"
 }
+
+variable "attach_database_url" {
+  description = <<-EOT
+    Connection string for the Postgres already running on the host, with
+    an empty database already created for MedBrains.
+
+    Give the deploy its own role and its own database. Reusing the role
+    that owns the ERP's schema means a migration bug in an HMS under
+    active development has write access to the ERP.
+
+    Left empty, attach_reuse_postgres is ignored and a Postgres 17
+    container is started on the first free port instead - which still
+    leaves the host's own Postgres untouched.
+  EOT
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "attach_instance_role_name" {
+  description = <<-EOT
+    Name of an IAM role already attached to the host, when the host is an EC2
+    instance in this account. The uploads and KMS policy is attached to it and
+    the application authenticates through the instance metadata service.
+
+    Leave empty when the host is not an EC2 instance in this account - on-prem,
+    another cloud, another AWS account. An IAM user with an access key is
+    created instead and the credentials are written to Secrets Manager.
+
+    Prefer the role. A long-lived access key on a hospital server is a
+    credential nobody rotates and everybody copies.
+  EOT
+  type        = string
+  default     = ""
+}

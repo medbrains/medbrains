@@ -330,6 +330,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
   rule {
     id     = "transition-phi-to-glacier"
     status = "Enabled"
+    # Empty filter = every object. Required since AWS provider v5;
+    # without it the rule is ambiguous and a future version rejects it.
+    filter {}
     transition {
       days          = 90
       storage_class = "GLACIER"
@@ -363,11 +366,22 @@ resource "aws_s3_bucket_cors_configuration" "uploads" {
 module "uploads_iam" {
   source = "../iam-uploads"
 
-  environment            = var.tier
-  uploads_bucket_arn     = aws_s3_bucket.uploads.arn
-  kms_key_arn            = local.app_kms_key_arn
-  ec2_instance_role_name = local.is_starter ? "${local.hostname}-instance" : ""
-  create_iam_user        = false
+  environment        = var.tier
+  uploads_bucket_arn = aws_s3_bucket.uploads.arn
+  kms_key_arn        = local.app_kms_key_arn
 
-  depends_on = [module.starter]
+  # starter creates its own instance role. attach uses whatever role the host
+  # already carries, when the host is an EC2 instance in this account.
+  ec2_instance_role_name = (
+    local.is_starter ? "${local.hostname}-instance" :
+    local.is_attach ? var.attach_instance_role_name : ""
+  )
+
+  # An attach host that is not an EC2 instance in this account has no role to
+  # attach to and no metadata service to read, so it needs a user and a key.
+  # Without this the deployment comes up and then fails on the first upload -
+  # the policy exists and is attached to nothing.
+  create_iam_user = local.is_attach && var.attach_instance_role_name == ""
+
+  depends_on = [module.starter, module.attach]
 }

@@ -55,8 +55,42 @@ That second one is not a preference. `deploy/standalone/install.sh` runs
 `systemctl stop caddy`, `systemctl disable caddy` and `certbot --standalone`.
 On a dedicated host that is correct. On a host already serving other names it
 takes every one of them down and then cannot renew, because certbot needs the
-port the other proxy is holding. Anything driving the Attach tier must honour
-these flags before running the deploy kit.
+port the other proxy is holding.
+
+### What the deploy kit does differently in this mode
+
+Terraform sets `ATTACH_MODE=1` on the host and `install.sh` changes shape:
+
+- **Every port is probed before it is bound.** `medbrains-server`,
+  `medbrains-edge`, gotenberg, the ICD sidecar and Postgres each start from
+  their usual port and step past anything already listening. The choices are
+  recorded in `/etc/medbrains/ports`, so the second deploy keeps the ports the
+  first one took instead of walking the service somewhere new and quietly
+  breaking the reverse-proxy block the operator wrote.
+- **Pingora is not installed.** It requires a certificate and both 80 and 443,
+  which on this host belong to something else. The existing proxy — Caddy,
+  nginx, whatever is already there — forwards to `medbrains-server` instead,
+  and `install.sh` prints the block to paste in for both. Nothing is stopped,
+  disabled, or written into another application's config.
+- **Certbot is neither installed nor hooked.** The renewal hooks that stop and
+  start our proxy would otherwise fire on every *other* certificate this host
+  renews.
+- **Postgres is the hospital's own** when `attach_database_url` is set — no
+  container, and no Docker installed at all. Give it a dedicated role and
+  database: reusing the role that owns the ERP schema hands an HMS under
+  active development write access to the ERP. Without that URL the flag is
+  ignored and a Postgres 17 container starts on the first free port, which
+  still leaves the host's own Postgres untouched.
+- **Backups still run.** `medbrains-pg-backup` dumps through the container when
+  there is one and over `DATABASE_URL` when there is not. A backup that stops
+  running looks exactly like a backup that is running.
+
+Port arbitration has a runnable check: `bash deploy/standalone/test-attach-preflight.sh`.
+
+None of this is a substitute for the separation argument. Attach puts hospital
+records on the same kernel and the same disk as whatever else the host runs.
+It is the right tier for a buyer who will not purchase a second machine, and
+the wrong one for a hospital that will.
 
 ## What every tier includes (regardless of tier)
 
