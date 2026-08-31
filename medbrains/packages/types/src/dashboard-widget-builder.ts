@@ -876,7 +876,25 @@ export interface QueueEntry {
   encounter_id: string;
   department_id: string;
   doctor_id: string | null;
+  /**
+   * The legacy per-tenant integer, from a sequence that never resets by date.
+   * Not what the patient is called by — prefer `token_code`.
+   */
   token_number: number;
+  /**
+   * What the patient is actually called by, and what every board and the token
+   * console show. Stable across the whole visit: registration's number follows
+   * them to OPD, the lab and the pharmacy.
+   *
+   * Null only when no token was issued for the encounter — which is a defect,
+   * not a state: such a patient is in the queue and on no board.
+   */
+  token_code: string | null;
+  /** The room or counter the token was last called to. */
+  token_counter_label: string | null;
+  /** The queue this token belongs to — a department, room, or station. */
+  token_room: string | null;
+  token_priority: string | null;
   status: string;
   queue_date: string;
   called_at: string | null;

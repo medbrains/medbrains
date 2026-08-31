@@ -169,7 +169,24 @@ pub struct QueueEntry {
     pub encounter_id: Uuid,
     pub department_id: Uuid,
     pub doctor_id: Option<Uuid>,
+    /// The legacy per-tenant integer. Kept because older surfaces still read
+    /// it, but it is not what anybody is called by: `sequences.OPD_TOKEN`
+    /// never resets by date, so it had climbed past 400 while the board was
+    /// calling T-001.
     pub token_number: i32,
+    /// What the patient is actually called by -- the unified token's number,
+    /// resolved through the encounter id.
+    ///
+    /// The same string the token console and every board shows, and stable
+    /// across the whole visit: `number_for_visit` hands registration's number
+    /// to OPD and on to the lab, so one person keeps one number from the front
+    /// door to the pharmacy.
+    pub token_code: Option<String>,
+    /// The room or counter the token was last called to.
+    pub token_counter_label: Option<String>,
+    /// The queue the token belongs to -- a department, a room, or a station.
+    pub token_room: Option<String>,
+    pub token_priority: Option<String>,
     pub status: String,
     pub queue_date: NaiveDate,
     pub called_at: Option<DateTime<Utc>>,
@@ -1366,6 +1383,10 @@ pub async fn list_queue(
     let sql = format!(
         "SELECT q.id, q.encounter_id, q.department_id, q.doctor_id, q.token_number, \
                 q.status::text AS status, q.queue_date, q.called_at, q.completed_at, \
+                tok.number AS token_code, \
+                tok.counter_label AS token_counter_label, \
+                tok.scope_label AS token_room, \
+                tok.priority AS token_priority, \
                 e.patient_id, \
                 CASE WHEN $3::bool THEN CONCAT(p.first_name, ' ', p.last_name) ELSE NULL END AS patient_name, \
                 CASE WHEN $3::bool THEN p.uhid ELSE NULL END AS uhid, \
@@ -1385,6 +1406,14 @@ pub async fn list_queue(
          JOIN encounters e ON e.id = q.encounter_id \
          JOIN patients p ON p.id = e.patient_id \
          LEFT JOIN appointments a ON a.tenant_id = q.tenant_id AND a.encounter_id = e.id \
+         LEFT JOIN LATERAL ( \
+             SELECT t.number, t.counter_label, t.scope_label, t.priority \
+               FROM tokens t \
+              WHERE t.tenant_id = q.tenant_id AND t.module = 'opd' \
+                AND t.entity_type = 'encounter' AND t.entity_id = q.encounter_id \
+                AND t.token_date = q.queue_date \
+              ORDER BY t.created_at LIMIT 1 \
+         ) tok ON TRUE \
          WHERE {where_clause} \
          ORDER BY q.token_number ASC LIMIT 5000"
     );

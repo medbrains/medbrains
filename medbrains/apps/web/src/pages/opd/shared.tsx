@@ -170,6 +170,27 @@ export function formatQueueToken(tokenNumber: number): string {
   return `T${String(tokenNumber).padStart(3, "0")}`;
 }
 
+/**
+ * The number this patient is actually called by.
+ *
+ * Two numbering schemes exist for one patient. `opd_queues.token_number` is an
+ * integer from a per-tenant sequence that never resets by date -- it had
+ * climbed past 400 while the boards were calling T-001 -- and `tokens.number`
+ * is the code the token console, every board and the patient's own slip show,
+ * held stable across the whole visit.
+ *
+ * Prefer the token. When there is none, show the legacy integer *and say so*:
+ * a queue row without a token is a patient sitting in this queue and appearing
+ * on no board, which is a defect the desk needs to see rather than a number
+ * that looks as trustworthy as its neighbours.
+ */
+export function queueTokenLabel(entry: {
+  token_code?: string | null;
+  token_number: number;
+}): string {
+  return entry.token_code ?? `${formatQueueToken(entry.token_number)} (no token)`;
+}
+
 export function protectedOpdQueueIdentity(
   entry: QueueEntry,
   access: { name: FieldAccessLevel; uhid: FieldAccessLevel },

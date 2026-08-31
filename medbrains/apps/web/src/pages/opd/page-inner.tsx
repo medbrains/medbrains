@@ -52,12 +52,12 @@ import { QueueAppointmentMarker, QueuePatientCell, QueueVisitTypeBadge } from ".
 import { OpdRegistrationPolicyToggle } from "./registration-policy-toggle";
 import {
   appointmentVisitType,
-  formatQueueToken,
   type OpdTranslate,
   queueStatusIcon,
   queueStatusLabel,
   queueStatusShape,
   queueStatusTone,
+  queueTokenLabel,
   queueVisitTypeLabel,
   todayIsoDate,
 } from "./shared";
@@ -108,7 +108,12 @@ export function OpdPageInner() {
   );
 
   const queryClient = useQueryClient();
-  const [filterDate, setFilterDate] = useState("");
+  // Today, shown. The server already defaults to the tenant's local today when
+  // no date is sent, so an empty box and a filled one fetched the same rows --
+  // but the box read as "no date filter", and a desk looking at an empty date
+  // beside yesterday's leftovers cannot tell whether it is seeing today's
+  // queue or every queue. Say which day this is.
+  const [filterDate, setFilterDate] = useState(todayIsoDate);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [filterDeptId, setFilterDeptId] = useState<string | null>(null);
   const [filterDoctorId, setFilterDoctorId] = useState<string | null>(null);
@@ -390,16 +395,39 @@ export function OpdPageInner() {
       label: t("queueColumns.token"),
       sortable: true,
       searchable: true,
+      // Sort on the queue's own integer, which is monotonic within the day and
+      // is what ORDER BY on the server uses. The displayed code is shared
+      // across a visit, so sorting by it would interleave modules.
       sortValue: (row: QueueEntry) => row.token_number,
-      accessor: (row: QueueEntry) => formatQueueToken(row.token_number),
+      accessor: (row: QueueEntry) => queueTokenLabel(row),
       render: (row: QueueEntry) => (
         <OperationalSignal
           label={t("queueSignals.token")}
           shape="token"
           tone={queueStatusTone(row.status)}
-          value={formatQueueToken(row.token_number)}
+          value={queueTokenLabel(row)}
         />
       ),
+    },
+    {
+      key: "token_room",
+      label: t("queueColumns.room", "Room"),
+      sortable: true,
+      sortValue: (row: QueueEntry) => row.token_counter_label ?? row.token_room ?? "",
+      accessor: (row: QueueEntry) => row.token_counter_label ?? row.token_room ?? "",
+      // Where they were actually called to wins over the queue they belong to:
+      // "Cardiology" tells a patient which corridor, "OPD Counter 3" tells them
+      // which door.
+      render: (row: QueueEntry) => {
+        const room = row.token_counter_label ?? row.token_room;
+        return room ? (
+          <Text size="sm">{room}</Text>
+        ) : (
+          <Text size="sm" c="dimmed">
+            —
+          </Text>
+        );
+      },
     },
     {
       key: "patient_name",

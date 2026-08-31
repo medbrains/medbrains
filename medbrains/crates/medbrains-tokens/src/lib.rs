@@ -251,6 +251,15 @@ pub async fn issue_token_in_tx(
     let number = number_for_visit(tx, input.visit_id)
         .await?
         .unwrap_or_else(|| format!("{}-{seq:03}", token_prefix(input.module)));
+
+    // Name the queue. Only the manual POST /api/tokens/issue handler resolved
+    // its scope, and every automatic path -- OPD check-in, camp registration,
+    // the lab, the pharmacy -- passed `scope_label: None`. So a token issued by
+    // the system knew which department it belonged to and could not say the
+    // name aloud, and the board announced a number to a room it could not
+    // name. Resolve it here, where every path goes through.
+    let scope_label =
+        resolve_scope(tx, input.scope, input.scope_id, input.scope_label).await?;
     sqlx::query(
         "INSERT INTO tokens \
          (tenant_id, module, scope, scope_id, scope_label, number, seq, priority, \
@@ -261,7 +270,7 @@ pub async fn issue_token_in_tx(
     .bind(input.module)
     .bind(input.scope)
     .bind(input.scope_id)
-    .bind(input.scope_label)
+    .bind(scope_label.as_deref())
     .bind(&number)
     .bind(seq)
     .bind(input.priority)
