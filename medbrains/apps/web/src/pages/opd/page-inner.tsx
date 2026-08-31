@@ -47,6 +47,7 @@ import type {
   ResolvedOpdQueueRowAction,
 } from "../opd-queue-actions";
 import { resolveOpdQueueRowActions } from "../opd-queue-actions";
+import { isStaleRowError } from "./queue-action-error";
 import { QueueAppointmentMarker, QueuePatientCell, QueueVisitTypeBadge } from "./queue-cells";
 import { OpdRegistrationPolicyToggle } from "./registration-policy-toggle";
 import {
@@ -224,6 +225,26 @@ export function OpdPageInner() {
     },
   });
 
+  /**
+   * Every queue action reports failure, and refetches when it fails.
+   *
+   * All four of these ran without an `onError`. The server guards each
+   * transition on the row's current status — `call` updates only where the
+   * status is still `waiting` — and returns 404 when it does not match, so a
+   * row somebody else already called made the button do nothing at all, with
+   * no message and no change on screen. The operator pressed it again.
+   *
+   * The refetch is the actual repair: the usual cause is a stale row, and
+   * re-reading the queue shows its real status instead of leaving the screen
+   * asserting something the server has already rejected.
+   */
+  const onQueueActionError = (error: Error) => {
+    void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
+    toast.error(isStaleRowError(error) ? t("notify.queueRowMoved") : error.message, {
+      title: t("notify.queueActionFailed"),
+    });
+  };
+
   const callMutation = useMutation({
     mutationFn: (row: QueueEntry) => opdService.callQueueEntry(row.id),
     onSuccess: (_result, row) => {
@@ -231,6 +252,7 @@ export function OpdPageInner() {
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
       emit("opd.queue.called", queueEntryEventPayload(row));
     },
+    onError: onQueueActionError,
   });
   const startMutation = useMutation({
     mutationFn: (row: QueueEntry) => opdService.startConsultation(row.id),
@@ -239,6 +261,7 @@ export function OpdPageInner() {
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
       emit("opd.consultation.started", queueEntryEventPayload(row));
     },
+    onError: onQueueActionError,
   });
   const completeMutation = useMutation({
     mutationFn: (row: QueueEntry) => opdService.completeQueueEntry(row.id),
@@ -247,6 +270,7 @@ export function OpdPageInner() {
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
       emit("opd.encounter.completed", queueEntryEventPayload(row));
     },
+    onError: onQueueActionError,
   });
   const noShowMutation = useMutation({
     mutationFn: (id: string) => opdService.markNoShow(id),
@@ -254,6 +278,7 @@ export function OpdPageInner() {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
     },
+    onError: onQueueActionError,
   });
   const queueActionPermissions: OpdQueueRowActionPermissions = {
     canManageToken,

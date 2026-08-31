@@ -277,6 +277,8 @@
   "notify.appointmentMovedToOpd": "Appointment moved to OPD",
   "notify.appointmentAddedToOpdQueue": "{{patient}} added to the OPD queue",
   "notify.unableToMoveAppointment": "Unable to move appointment",
+  "notify.queueActionFailed": "The queue did not accept that",
+  "notify.queueRowMoved": "This patient is no longer waiting — someone may have called them already. The queue has been refreshed.",
   "notify.appointmentMoveBlocked": "Check whether this appointment is already closed or linked to OPD",
   "aria.viewDetails": "View details",
   "aria.call": "Call",

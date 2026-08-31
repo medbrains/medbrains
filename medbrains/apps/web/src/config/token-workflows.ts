@@ -20,6 +20,29 @@ export interface TokenWorkflow {
 
 const MANAGE = "front_office.queue.manage";
 
+/**
+ * Call an already-called token again.
+ *
+ * The commonest thing that goes wrong in a waiting room: the number was
+ * announced, and the patient was in the toilet, outside on the phone, or
+ * simply did not hear it over the room. Until now the desk's only options
+ * were to mark them no-show or to leave the token sitting in `called`
+ * indefinitely, because Call was offered from `waiting` alone.
+ *
+ * The server has always supported this — `transition` has no from-state
+ * guard, setting `called` again refreshes `called_at` and `called_by`, and
+ * it re-broadcasts `TokenCalled`, which is what makes the board announce.
+ * Nothing in the console asked for it.
+ */
+const RECALL: TokenWorkflowAction = {
+  id: "recall",
+  label: "Call again",
+  from: ["called"],
+  to: "called",
+  permission: MANAGE,
+  tone: "secondary",
+};
+
 const NO_SHOW: TokenWorkflowAction = {
   id: "no_show",
   label: "No-show",
@@ -59,6 +82,7 @@ export const TOKEN_WORKFLOWS: Record<string, TokenWorkflow> = {
         permission: MANAGE,
         tone: "secondary",
       },
+      RECALL,
       NO_SHOW,
     ],
   },
@@ -95,6 +119,7 @@ export const TOKEN_WORKFLOWS: Record<string, TokenWorkflow> = {
         permission: MANAGE,
         tone: "secondary",
       },
+      RECALL,
       NO_SHOW,
     ],
   },
@@ -131,6 +156,7 @@ export const TOKEN_WORKFLOWS: Record<string, TokenWorkflow> = {
         permission: MANAGE,
         tone: "secondary",
       },
+      RECALL,
       NO_SHOW,
     ],
   },
@@ -167,6 +193,7 @@ export const TOKEN_WORKFLOWS: Record<string, TokenWorkflow> = {
         permission: MANAGE,
         tone: "secondary",
       },
+      RECALL,
       NO_SHOW,
     ],
   },
@@ -203,6 +230,7 @@ export const TOKEN_WORKFLOWS: Record<string, TokenWorkflow> = {
         permission: MANAGE,
         tone: "secondary",
       },
+      RECALL,
       NO_SHOW,
     ],
   },
@@ -239,6 +267,7 @@ export const TOKEN_WORKFLOWS: Record<string, TokenWorkflow> = {
         permission: MANAGE,
         tone: "secondary",
       },
+      RECALL,
       NO_SHOW,
     ],
   },
