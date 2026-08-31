@@ -66,6 +66,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.len() >= 3 && args[1] == "audit" && args[2] == "verify-chain" {
         return run_verify_chain(&config, &args[3..]).await;
     }
+    // Hybrid mode ships outbox events and audit-log entries from on-prem
+    // to the cloud. `medbrains_core::boundary_filter` exists to strip PHI
+    // on that egress path, and `DeployMode::requires_boundary_filter()`
+    // declares the mode demands it — but nothing in this repo constructs
+    // a `BoundaryFilter`, so the egress would run unredacted.
+    //
+    // Fail closed. The filter's own stated design is fail-closed ("better
+    // to drop an event than leak Aadhaar"); booting a mode that silently
+    // skips it is the opposite of that. Aadhaar and clinical data would
+    // cross an organisational boundary with nothing filtering them, and
+    // the only signal would be a `true` returned by a function nobody
+    // calls.
+    //
+    // Delete this guard in the change that wires BoundaryFilter into the
+    // outbox worker and the audit forwarder.
+    let deploy_mode = medbrains_core::deploy_mode::DeployMode::from_env();
+    if deploy_mode.requires_boundary_filter() {
+        tracing::error!(
+            mode = %deploy_mode,
+            "refusing to start: deploy mode requires the PHI boundary filter \
+             on the on-prem to cloud egress path, and it is not wired yet"
+        );
+        return Err(format!(
+            "MEDBRAINS_DEPLOY_MODE={deploy_mode} requires the PHI boundary filter \
+             on the on-prem to cloud egress path (outbox worker and audit \
+             forwarder). medbrains_core::boundary_filter is implemented but never \
+             invoked, so PHI would leave the boundary unredacted. Refusing to \
+             start rather than leak."
+        )
+        .into());
+    }
+
     tracing::info!(bind = %config.bind_addr(), "starting MedBrains server");
 
     // Connect to PostgreSQL
