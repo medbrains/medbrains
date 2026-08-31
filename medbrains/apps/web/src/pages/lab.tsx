@@ -1,6 +1,5 @@
 import { B2bTab } from "./lab/b2b";
 import { LabCatalogTab } from "./lab/catalog";
-import { CreateLabOrderDrawer } from "./lab/create-order-drawer";
 import { LabDispatchSection } from "./lab/dispatch";
 import { LabOrderDetail } from "./lab/order-detail";
 import { OrderStatusPipeline } from "./lab/order-status-pipeline";
@@ -13,7 +12,7 @@ import { printLabReportPacket, statusColors } from "./lab/shared";
 import { SpecializedReportsTab } from "./lab/specialized-reports";
 import "@mantine/charts/styles.css";
 import { Divider, Group, Select, Stack, Tabs, Text, TextInput, Tooltip } from "@mantine/core";
-import { useDebouncedValue, useDisclosure } from "@mantine/hooks";
+import { useDebouncedValue } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import type { LabCriticalAlert, LabOrder } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -75,7 +74,6 @@ function LabPageInner() {
   // to page 1 because results for "Sundaram" on page 4 of the unfiltered list
   // are nobody's search results.
   const [debouncedSearch] = useDebouncedValue(search, 300);
-  const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
 
   const params: Record<string, string> = { page: String(page), per_page: "20" };
   if (filterStatus) params.status = filterStatus;
@@ -328,7 +326,11 @@ function LabPageInner() {
             rowKey={(row) => row.id}
             tableActions={
               canCreateOrder ? (
-                <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
+                <Button
+                  tone="primary"
+                  leftSection={<IconPlus size={16} />}
+                  onClick={() => navigate("/lab/orders/new")}
+                >
                   New Order
                 </Button>
               ) : undefined
@@ -393,8 +395,6 @@ function LabPageInner() {
           </Stack>
         </Tabs.Panel>
       </Tabs>
-
-      <CreateLabOrderDrawer opened={createOpened} onClose={closeCreate} />
     </div>
   );
 }
