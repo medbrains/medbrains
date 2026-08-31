@@ -11,7 +11,8 @@ set -euo pipefail
 DOMAIN="${1:-}"
 ADMIN_EMAIL="${2:-}"
 # 3rd arg = S3 backup bucket name (passed by terraform). Optional —
-# omitted = no S3 backups (timer still installed but exits noisily).
+# omitted falls back to whatever /etc/medbrains/env already records, and
+# only when that is empty too is the backup timer disabled.
 BACKUP_BUCKET="${3:-${BACKUP_BUCKET:-}}"
 EDGE_PROXY="${4:-${EDGE_PROXY:-pingora}}"
 if [[ "$EDGE_PROXY" != "pingora" ]]; then
@@ -369,6 +370,10 @@ install -m 0644 "$DEPLOY_DIR/medbrains-archive.service" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-archive.timer" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-pg-backup.service" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-pg-backup.timer" /etc/systemd/system/
+install -m 0644 "$DEPLOY_DIR/medbrains-alert@.service" /etc/systemd/system/
+install -m 0644 "$DEPLOY_DIR/medbrains-host-check.service" /etc/systemd/system/
+install -m 0644 "$DEPLOY_DIR/medbrains-host-check.timer" /etc/systemd/system/
+install -m 0755 "$DEPLOY_DIR/medbrains-host-check" /usr/local/bin/medbrains-host-check
 install -m 0755 "$DEPLOY_DIR/medbrains-pg-backup" /usr/local/bin/medbrains-pg-backup
 install -m 0644 "$DEPLOY_DIR/medbrains-edge.service" /etc/systemd/system/
 install -m 0644 "$DEPLOY_DIR/medbrains-proxy.service" /etc/systemd/system/
@@ -422,6 +427,16 @@ if [[ -n "${BACKUP_BUCKET:-}" ]]; then
     fi
 fi
 
+# SNS topic the OnFailure= notifier publishes to. Absent on tiers with
+# no AWS notification path; medbrains-alert@.service no-ops without it.
+if [[ -n "${ALERT_TOPIC_ARN:-}" ]]; then
+    if grep -q '^ALERT_TOPIC_ARN=' /etc/medbrains/env 2>/dev/null; then
+        sed -i "s|^ALERT_TOPIC_ARN=.*|ALERT_TOPIC_ARN=$ALERT_TOPIC_ARN|" /etc/medbrains/env
+    else
+        echo "ALERT_TOPIC_ARN=$ALERT_TOPIC_ARN" >> /etc/medbrains/env
+    fi
+fi
+
 # Bound journald so logs can never fill the root volume silently.
 mkdir -p /etc/systemd/journald.conf.d
 cat > /etc/systemd/journald.conf.d/medbrains.conf <<'JOURNALD'
@@ -436,12 +451,14 @@ systemctl restart systemd-journald || true
 # shape runs Postgres in a container. When the host's own Postgres is
 # the database there is no docker, and Requires= would fail the unit.
 if [[ "$NEED_DOCKER" != "1" ]]; then
-    mkdir -p /etc/systemd/system/medbrains-server.service.d
-    cat > /etc/systemd/system/medbrains-server.service.d/attach.conf <<'DROPIN'
+    for unit in medbrains-server medbrains-pg-backup; do
+        mkdir -p "/etc/systemd/system/$unit.service.d"
+        cat > "/etc/systemd/system/$unit.service.d/attach.conf" <<'DROPIN'
 [Unit]
 Requires=
 After=network-online.target
 DROPIN
+    done
 fi
 
 systemctl daemon-reload
@@ -450,7 +467,21 @@ systemctl enable --now medbrains-server.service
 # BACKUP_BUCKET) AND re-run migrations if RESET_PGDATA=1 wiped them.
 systemctl restart medbrains-server.service
 systemctl enable --now medbrains-archive.timer
-systemctl enable --now medbrains-pg-backup.timer
+BACKUP_BUCKET="${BACKUP_BUCKET:-$(env_value BACKUP_BUCKET)}"
+if [[ -n "${BACKUP_BUCKET:-}" ]]; then
+    systemctl enable --now medbrains-pg-backup.timer
+else
+    systemctl disable --now medbrains-pg-backup.timer 2>/dev/null || true
+    echo "    WARNING: no BACKUP_BUCKET — postgres backups are NOT running."
+    echo "             The timer is disabled rather than left to fail nightly,"
+    echo "             because an enabled unit that always errors reads as a"
+    echo "             backup that is running."
+fi
+systemctl enable --now medbrains-host-check.timer
+if [[ -z "$(env_value ALERT_TOPIC_ARN)" ]]; then
+    echo "    WARNING: no ALERT_TOPIC_ARN — host checks run but CANNOT notify."
+    echo "             Disk-full and cert-expiry will fail silently into the journal."
+fi
 systemctl enable --now medbrains-edge.service
 systemctl restart medbrains-edge.service
 

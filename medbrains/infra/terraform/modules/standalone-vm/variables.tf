@@ -210,7 +210,7 @@ variable "ssh_allowed_cidrs" {
 }
 
 variable "alarm_email" {
-  description = "Email for CloudWatch alarm notifications (aws-ec2 kind)."
+  description = "Email for CloudWatch alarm notifications. Empty creates the topic without a subscriber - an alarm nobody receives."
   type        = string
   default     = ""
 }

@@ -45,4 +45,17 @@ dump_postgres \
     --content-type application/octet-stream \
     --metadata "host=${HOSTNAME_TAG},captured-utc=${DATE}"
 
+# ponytail: no separate integrity check here. `pg_dump | aws s3 cp` under
+# `set -o pipefail` already fails this unit when pg_dump dies mid-stream,
+# and OnFailure= pages with the journal tail - so a truncated upload is
+# never silent. What is NOT proven is that the bytes restore: pg_restore
+# --list only parses the table of contents and returns 0 on an archive
+# missing 6% of its data section, and reading the object back to check
+# even that costs a full re-download nightly.
+#
+# The real control is a restore test - restore yesterday's archive into a
+# scratch database and count rows. The repo already has that shape at
+# infra/k8s/cronjobs/pgbackrest-restore-test.yaml, pointed at a tier
+# nothing instantiates. Wire it to the tiers carrying patients; do not
+# approximate it here.
 echo "==> backup complete: s3://${BACKUP_BUCKET}/${KEY}"

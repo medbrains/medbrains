@@ -3,6 +3,9 @@ Description=MedBrains storage tier sweeper (one-shot)
 Documentation=https://github.com/DomnicAmalan/MedBrains
 After=medbrains-server.service
 Requires=medbrains-server.service
+# Silence from the storage sweeper reads as success and is discovered at restore
+# time. Publish the failure to the tier's alarm topic instead.
+OnFailure=medbrains-alert@%n.service
 
 [Service]
 Type=oneshot

@@ -1,7 +1,7 @@
 # External uptime synthetics for a single public endpoint (audit P1).
 #
 # Route53 health checkers probe /api/health from multiple AWS regions
-# (~$0.75/mo for HTTPS) — true outside-in monitoring, unlike instance
+# ($0.50 base + $1.00 HTTPS = ~$1.50/mo) — true outside-in monitoring, unlike instance
 # alarms which can't see a hung-but-running server. Route53 publishes
 # the HealthCheckStatus metric ONLY in us-east-1, so the alarm + SNS
 # topic live there via the aws.us_east_1 provider alias. Wire this
@@ -42,13 +42,22 @@ variable "alarm_email" {
 }
 
 resource "aws_route53_health_check" "api" {
+  # Several attributes here (measure_latency among them) force
+  # replacement. Without this, Terraform destroys the check before
+  # creating its replacement - and the alarm below treats missing data as
+  # breaching, so the gap pages as a site outage that never happened.
+  lifecycle {
+    create_before_destroy = true
+  }
+
   fqdn              = var.domain
   type              = "HTTPS"
   port              = 443
   resource_path     = var.resource_path
   request_interval  = 30
   failure_threshold = 3
-  measure_latency   = true
+  # Latency measurement is a $2.00/mo option and no alarm reads it.
+  measure_latency = false
 
   tags = {
     Name      = "${var.name}-uptime"

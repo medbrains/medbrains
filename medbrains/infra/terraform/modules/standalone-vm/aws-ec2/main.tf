@@ -240,30 +240,34 @@ EOT
 
 resource "null_resource" "bootstrap" {
   triggers = {
-    eip_id             = aws_eip.this.id
-    edge_proxy         = var.edge_proxy
-    spa_hash           = sha256(join("", [for f in sort(fileset(var.spa_dist_dir, "**")) : "${f}:${filesha256("${var.spa_dist_dir}/${f}")}"]))
-    binaries_hash      = filemd5("${var.binaries_dir}/medbrains-server")
-    archive_hash       = filemd5("${var.binaries_dir}/medbrains-archive")
-    proxy_hash         = filemd5("${var.binaries_dir}/medbrains-proxy")
-    edge_hash          = filemd5("${var.binaries_dir}/medbrains-edge")
-    install_hash       = filemd5("${var.deploy_kit_dir}/install.sh")
-    compose_hash       = filemd5("${var.deploy_kit_dir}/docker-compose.prod.yml")
-    pingora_toml_hash  = filemd5("${var.deploy_kit_dir}/PingoraProxy.toml.tmpl")
-    env_example_hash   = filemd5("${var.deploy_kit_dir}/env.example")
-    server_unit_hash   = filemd5("${var.deploy_kit_dir}/medbrains-server.service")
-    proxy_unit_hash    = filemd5("${var.deploy_kit_dir}/medbrains-proxy.service")
-    edge_unit_hash     = filemd5("${var.deploy_kit_dir}/medbrains-edge.service")
-    edge_config_hash   = filemd5("${var.deploy_kit_dir}/medbrains-edge.toml.tmpl")
-    archive_unit_hash  = filemd5("${var.deploy_kit_dir}/medbrains-archive.service")
-    archive_timer_hash = filemd5("${var.deploy_kit_dir}/medbrains-archive.timer")
-    backup_script_hash = filemd5("${var.deploy_kit_dir}/medbrains-pg-backup")
-    backup_unit_hash   = filemd5("${var.deploy_kit_dir}/medbrains-pg-backup.service")
-    backup_timer_hash  = filemd5("${var.deploy_kit_dir}/medbrains-pg-backup.timer")
-    proxy_cert_hook    = filemd5("${var.deploy_kit_dir}/copy-medbrains-proxy-cert")
-    proxy_stop_hook    = filemd5("${var.deploy_kit_dir}/stop-medbrains-proxy")
-    proxy_start_hook   = filemd5("${var.deploy_kit_dir}/start-medbrains-proxy")
-    backup_bucket      = aws_s3_bucket.backups.id
+    eip_id               = aws_eip.this.id
+    edge_proxy           = var.edge_proxy
+    spa_hash             = sha256(join("", [for f in sort(fileset(var.spa_dist_dir, "**")) : "${f}:${filesha256("${var.spa_dist_dir}/${f}")}"]))
+    binaries_hash        = filemd5("${var.binaries_dir}/medbrains-server")
+    archive_hash         = filemd5("${var.binaries_dir}/medbrains-archive")
+    proxy_hash           = filemd5("${var.binaries_dir}/medbrains-proxy")
+    edge_hash            = filemd5("${var.binaries_dir}/medbrains-edge")
+    install_hash         = filemd5("${var.deploy_kit_dir}/install.sh")
+    compose_hash         = filemd5("${var.deploy_kit_dir}/docker-compose.prod.yml")
+    pingora_toml_hash    = filemd5("${var.deploy_kit_dir}/PingoraProxy.toml.tmpl")
+    env_example_hash     = filemd5("${var.deploy_kit_dir}/env.example")
+    server_unit_hash     = filemd5("${var.deploy_kit_dir}/medbrains-server.service")
+    proxy_unit_hash      = filemd5("${var.deploy_kit_dir}/medbrains-proxy.service")
+    edge_unit_hash       = filemd5("${var.deploy_kit_dir}/medbrains-edge.service")
+    edge_config_hash     = filemd5("${var.deploy_kit_dir}/medbrains-edge.toml.tmpl")
+    archive_unit_hash    = filemd5("${var.deploy_kit_dir}/medbrains-archive.service")
+    archive_timer_hash   = filemd5("${var.deploy_kit_dir}/medbrains-archive.timer")
+    backup_script_hash   = filemd5("${var.deploy_kit_dir}/medbrains-pg-backup")
+    backup_unit_hash     = filemd5("${var.deploy_kit_dir}/medbrains-pg-backup.service")
+    backup_timer_hash    = filemd5("${var.deploy_kit_dir}/medbrains-pg-backup.timer")
+    proxy_cert_hook      = filemd5("${var.deploy_kit_dir}/copy-medbrains-proxy-cert")
+    proxy_stop_hook      = filemd5("${var.deploy_kit_dir}/stop-medbrains-proxy")
+    proxy_start_hook     = filemd5("${var.deploy_kit_dir}/start-medbrains-proxy")
+    alert_unit_hash      = filemd5("${var.deploy_kit_dir}/medbrains-alert@.service")
+    hostcheck_hash       = filemd5("${var.deploy_kit_dir}/medbrains-host-check")
+    hostcheck_unit_hash  = filemd5("${var.deploy_kit_dir}/medbrains-host-check.service")
+    hostcheck_timer_hash = filemd5("${var.deploy_kit_dir}/medbrains-host-check.timer")
+    backup_bucket        = aws_s3_bucket.backups.id
   }
 
   provisioner "local-exec" {
@@ -277,7 +281,7 @@ ssh -i "$KEY" -o StrictHostKeyChecking=no "$HOST" 'sudo rm -rf /tmp/standalone /
 scp -i "$KEY" -o StrictHostKeyChecking=no '${var.binaries_dir}/medbrains-server' '${var.binaries_dir}/medbrains-archive' '${var.binaries_dir}/medbrains-proxy' '${var.binaries_dir}/medbrains-edge' "$HOST:/tmp/"
 rsync -az --delete -e "ssh -i $KEY -o StrictHostKeyChecking=no" '${var.spa_dist_dir}/' "$HOST:/tmp/medbrains-web/"
 rsync -az --delete -e "ssh -i $KEY -o StrictHostKeyChecking=no" '${var.deploy_kit_dir}/' "$HOST:/tmp/standalone/"
-ssh -i "$KEY" -o StrictHostKeyChecking=no "$HOST" "chmod +x /tmp/medbrains-server /tmp/medbrains-archive /tmp/medbrains-proxy /tmp/medbrains-edge /tmp/standalone/install.sh /tmp/standalone/medbrains-pg-backup && sudo bash -c 'export RESET_PGDATA=${var.reset_pgdata ? "1" : "0"}; bash /tmp/standalone/install.sh ${var.domain} ${var.admin_email} ${aws_s3_bucket.backups.id} ${var.edge_proxy}'"
+ssh -i "$KEY" -o StrictHostKeyChecking=no "$HOST" "chmod +x /tmp/medbrains-server /tmp/medbrains-archive /tmp/medbrains-proxy /tmp/medbrains-edge /tmp/standalone/install.sh /tmp/standalone/medbrains-pg-backup && sudo bash -c 'export RESET_PGDATA=${var.reset_pgdata ? "1" : "0"}; export ALERT_TOPIC_ARN=${aws_sns_topic.alerts.arn}; bash /tmp/standalone/install.sh ${var.domain} ${var.admin_email} ${aws_s3_bucket.backups.id} ${var.edge_proxy}'"
 EOT
   }
 
@@ -398,6 +402,14 @@ resource "aws_iam_policy" "backup_writer" {
           aws_s3_bucket.backups.arn,
           "${aws_s3_bucket.backups.arn}/*",
         ]
+        },
+        # The host publishes its own failures. Without this the nightly
+        # dump can fail forever and the only witness is the journal on
+        # the box nobody logs into.
+        {
+          Effect   = "Allow"
+          Action   = ["sns:Publish"]
+          Resource = [aws_sns_topic.alerts.arn]
       }],
       local.backup_kms_key_arn == null ? [] : [{
         Effect = "Allow"

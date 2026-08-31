@@ -56,6 +56,7 @@ module "aws_fargate" {
   scale_to_zero_at_night = var.scale_to_zero_at_night
   hot_to_cold_days       = var.hot_to_cold_days
   kms_key_arns           = var.kms_key_arns
+  alarm_email            = var.alarm_email
 }
 
 module "aws_k3s" {
@@ -77,6 +78,7 @@ module "aws_k3s" {
   ghcr_pull_token    = var.ghcr_pull_token
   github_username    = var.github_username
   kms_key_arns       = var.kms_key_arns
+  alarm_email        = var.alarm_email
 }
 
 module "aws_eks" {
@@ -89,6 +91,7 @@ module "aws_eks" {
   image_uri        = var.image_uri
   hot_to_cold_days = var.hot_to_cold_days
   kms_key_arns     = var.kms_key_arns
+  alarm_email      = var.alarm_email
 }
 
 module "digitalocean" {

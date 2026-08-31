@@ -1,0 +1,9 @@
+[Unit]
+Description=MedBrains host check — disk headroom and certificate expiry
+Documentation=https://github.com/DomnicAmalan/MedBrains
+OnFailure=medbrains-alert@%n.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/medbrains/env
+ExecStart=/usr/local/bin/medbrains-host-check

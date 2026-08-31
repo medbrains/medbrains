@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# /usr/local/bin/medbrains-host-check — invoked by a systemd timer.
+#
+# Two failure modes that AWS cannot see and that kill a single-host
+# deployment silently:
+#
+#   Disk. The host has one root volume carrying Postgres, docker images,
+#   the journal AND all three object tiers (MEDBRAINS_OBJECTS_HOT/COLD/
+#   ARCHIVE all live under /var/lib/medbrains). AWS/EC2 publishes no disk
+#   metric and there is no CloudWatch agent here. A full disk puts
+#   Postgres read-only: writes fail, reads succeed, the screen looks
+#   alive and nothing is being recorded. A CT series clears 40 GB.
+#
+#   Certificate. certbot.timer renews unattended. When renewal fails -
+#   port 80 taken, DNS moved, rate limit - nothing says so until the cert
+#   expires and every browser refuses the hospital's own system.
+#
+# Exits non-zero on either, so OnFailure=medbrains-alert@ pages with the
+# journal tail. No agent, no custom metric, no AWS cost.
+
+set -euo pipefail
+
+DISK_MIN_PCT="${DISK_MIN_PCT:-15}"
+CERT_MIN_DAYS="${CERT_MIN_DAYS:-14}"
+DATA_PATH="${MEDBRAINS_DATA_PATH:-/var/lib/medbrains}"
+
+failed=0
+
+# df of the filesystem holding the data tree, not of / by name — they are
+# usually the same volume but need not be.
+used_pct="$(df --output=pcent "$DATA_PATH" | tail -1 | tr -dc '0-9')"
+free_pct=$((100 - used_pct))
+if [[ "$free_pct" -lt "$DISK_MIN_PCT" ]]; then
+    echo "DISK: only ${free_pct}% free on $(df --output=target "$DATA_PATH" | tail -1) (floor ${DISK_MIN_PCT}%)" >&2
+    df -h "$DATA_PATH" >&2
+    du -sh "$DATA_PATH"/* 2>/dev/null | sort -rh | head -5 >&2 || true
+    failed=1
+else
+    echo "disk: ${free_pct}% free"
+fi
+
+# Only meaningful where we terminate TLS ourselves. On the attach tier
+# the hospital's own proxy owns the certificate and its renewal.
+CERT="/etc/medbrains/tls/fullchain.pem"
+if [[ -r "$CERT" ]]; then
+    if ! openssl x509 -in "$CERT" -noout -checkend $((CERT_MIN_DAYS * 86400)) >/dev/null; then
+        expiry="$(openssl x509 -in "$CERT" -noout -enddate | cut -d= -f2)"
+        echo "CERT: expires $expiry (under ${CERT_MIN_DAYS} days) — certbot renewal is not working" >&2
+        systemctl status certbot.timer --no-pager -l 2>&1 | tail -5 >&2 || true
+        failed=1
+    else
+        echo "cert: valid beyond ${CERT_MIN_DAYS} days"
+    fi
+else
+    echo "cert: $CERT absent — TLS is not ours on this host, skipping"
+fi
+
+exit "$failed"

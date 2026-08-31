@@ -22,6 +22,14 @@ variable "domain" { type = string }
 variable "admin_email" { type = string }
 variable "image_uri" { type = string }
 variable "hot_to_cold_days" { type = number }
+
+# Declared so the tier router can pass one address everywhere. This shape
+# has no alarms.tf yet - its aws_db_instance is a documented placeholder
+# for modules/aurora, and an alarm keyed to it is written to be deleted.
+variable "alarm_email" {
+  type    = string
+  default = ""
+}
 variable "kms_key_arns" {
   description = "Optional hospital-scoped KMS CMKs by purpose: app, db, audit, secrets."
   type        = map(string)
@@ -206,11 +214,15 @@ variable "deletion_protection" {
 }
 
 resource "aws_db_instance" "this" {
-  identifier                = "${var.hostname}-pg"
-  engine                    = "postgres"
-  engine_version            = "17.2"
-  instance_class            = "db.t4g.small"
-  allocated_storage         = 50
+  identifier        = "${var.hostname}-pg"
+  engine            = "postgres"
+  engine_version    = "17.2"
+  instance_class    = "db.t4g.small"
+  allocated_storage = 50
+  # Storage-full puts Postgres read-only: writes fail, reads succeed, so
+  # the screen stays alive while nothing is being recorded. Autoscaling
+  # removes the failure mode; the alarm below only reports the ceiling.
+  max_allocated_storage     = 200
   storage_type              = "gp3"
   storage_encrypted         = true
   kms_key_id                = local.db_kms_key_arn

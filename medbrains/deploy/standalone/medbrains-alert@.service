@@ -1,0 +1,23 @@
+[Unit]
+Description=MedBrains failure notifier for %i
+Documentation=https://github.com/DomnicAmalan/MedBrains
+
+# Invoked by OnFailure= on the units whose failure is otherwise silent:
+# the nightly pg_dump and the storage sweeper. Both are timer-driven, so
+# nobody is watching when they break, and a backup that stopped running
+# looks exactly like a backup that is running.
+#
+# Publishes to the SNS topic the tier's alarms already use, so the page
+# arrives on the address somebody has already confirmed. Carries the
+# journal tail, so it is actionable rather than "something is wrong".
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/medbrains/env
+# No topic = a tier with no AWS notification path (attach, on-prem).
+# Exit 0 rather than fail: this unit failing would itself be silent.
+ExecStart=/bin/sh -c 'test -n "$ALERT_TOPIC_ARN" || { echo "no ALERT_TOPIC_ARN - cannot notify"; exit 0; }; \
+    aws sns publish --region "$(echo "$ALERT_TOPIC_ARN" | cut -d: -f4)" \
+        --topic-arn "$ALERT_TOPIC_ARN" \
+        --subject "MedBrains: %i failed on $(hostname)" \
+        --message "$(journalctl -u %i -n 40 --no-pager)"'

@@ -1,0 +1,14 @@
+[Unit]
+Description=Run the MedBrains host check twice daily
+
+[Timer]
+# Hourly. A certificate expires over weeks, but the disk this shares a
+# volume with can be cleared by one imaging upload — a twice-daily check
+# leaves a 12-hour window for the failure that reads as "the system is
+# up but nothing is being saved". df and openssl cost nothing.
+OnCalendar=hourly
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target

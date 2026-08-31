@@ -32,6 +32,11 @@ resource "aws_cloudwatch_metric_alarm" "system_status" {
   period              = 60
   evaluation_periods  = 2
 
+  # A terminated or stopped instance publishes no status metric at all.
+  # Without this the alarm goes INSUFFICIENT_DATA and fires nothing —
+  # silent on exactly the failure it exists to catch.
+  treat_missing_data = "breaching"
+
   dimensions = {
     InstanceId = aws_instance.this.id
   }
@@ -40,6 +45,7 @@ resource "aws_cloudwatch_metric_alarm" "system_status" {
     "arn:aws:automate:${data.aws_region.current.name}:ec2:recover",
     aws_sns_topic.alerts.arn,
   ]
+  ok_actions = [aws_sns_topic.alerts.arn]
 }
 
 # OS-level hang → reboot.
@@ -54,6 +60,11 @@ resource "aws_cloudwatch_metric_alarm" "instance_status" {
   period              = 60
   evaluation_periods  = 3
 
+  # A terminated or stopped instance publishes no status metric at all.
+  # Without this the alarm goes INSUFFICIENT_DATA and fires nothing —
+  # silent on exactly the failure it exists to catch.
+  treat_missing_data = "breaching"
+
   dimensions = {
     InstanceId = aws_instance.this.id
   }
@@ -62,6 +73,7 @@ resource "aws_cloudwatch_metric_alarm" "instance_status" {
     "arn:aws:automate:${data.aws_region.current.name}:ec2:reboot",
     aws_sns_topic.alerts.arn,
   ]
+  ok_actions = [aws_sns_topic.alerts.arn]
 }
 
 resource "aws_cloudwatch_metric_alarm" "cpu_high" {

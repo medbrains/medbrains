@@ -32,6 +32,12 @@ variable "ssh_private_key" {
 }
 variable "image_uri" { type = string }
 variable "rds_instance_class" { type = string }
+
+variable "alarm_email" {
+  description = "Email subscribed to this shape's alarm topic. Empty = topic with no subscriber."
+  type        = string
+  default     = ""
+}
 variable "hot_to_cold_days" { type = number }
 variable "kms_key_arns" {
   description = "Optional hospital-scoped KMS CMKs by purpose: app, db, audit, secrets."
@@ -71,7 +77,10 @@ data "aws_subnets" "default" {
 
 locals {
   is_arm = can(regex("^[a-z][0-9]+g[a-z]*\\.", var.instance_type))
-  arch   = local.is_arm ? "arm64" : "amd64"
+  # t-family nodes stall on exhausted CPU credits long before
+  # CPUUtilization looks alarming. Gates the credit alarm in alarms.tf.
+  is_burstable = can(regex("^t[0-9]", var.instance_type))
+  arch         = local.is_arm ? "arm64" : "amd64"
 }
 
 data "aws_ami" "ubuntu" {
@@ -246,11 +255,15 @@ variable "deletion_protection" {
 }
 
 resource "aws_db_instance" "this" {
-  identifier                = "${var.hostname}-pg"
-  engine                    = "postgres"
-  engine_version            = "17.2"
-  instance_class            = var.rds_instance_class
-  allocated_storage         = 20
+  identifier        = "${var.hostname}-pg"
+  engine            = "postgres"
+  engine_version    = "17.2"
+  instance_class    = var.rds_instance_class
+  allocated_storage = 20
+  # Storage-full puts Postgres read-only: writes fail, reads succeed, so
+  # the screen stays alive while nothing is being recorded. Autoscaling
+  # removes the failure mode; the alarm below only reports the ceiling.
+  max_allocated_storage     = 80
   storage_type              = "gp3"
   storage_encrypted         = true
   kms_key_id                = local.db_kms_key_arn

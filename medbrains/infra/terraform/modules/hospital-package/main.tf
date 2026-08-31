@@ -235,6 +235,8 @@ module "growth" {
   scale_to_zero_at_night = var.scale_to_zero_at_night
   hot_to_cold_days       = var.hot_to_cold_days
   kms_key_arns           = local.kms_key_arns
+
+  alarm_email = var.alarm_email != "" ? var.alarm_email : var.admin_email
 }
 
 # ── Enterprise-k3s (EC2 + k3s + RDS + S3 Glacier) — Phase 1 scaffold ─
@@ -260,6 +262,8 @@ module "enterprise_k3s" {
   ghcr_pull_token    = var.ghcr_pull_token
   github_username    = var.github_username
   kms_key_arns       = local.kms_key_arns
+
+  alarm_email = var.alarm_email != "" ? var.alarm_email : var.admin_email
 }
 
 # ── Enterprise (EKS + Aurora + S3 Glacier) — Phase 1 scaffold ────────
@@ -277,6 +281,8 @@ module "enterprise" {
   image_uri        = var.image_uri
   hot_to_cold_days = var.hot_to_cold_days
   kms_key_arns     = local.kms_key_arns
+
+  alarm_email = var.alarm_email != "" ? var.alarm_email : var.admin_email
 }
 
 # ── Patient uploads S3 bucket (all tiers) ─────────────────────────────────

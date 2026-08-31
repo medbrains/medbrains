@@ -21,6 +21,12 @@ variable "image_uri" { type = string }
 variable "fargate_task_cpu" { type = number }
 variable "fargate_task_memory" { type = number }
 variable "rds_instance_class" { type = string }
+
+variable "alarm_email" {
+  description = "Email subscribed to this shape's alarm topic. Empty = topic with no subscriber."
+  type        = string
+  default     = ""
+}
 variable "scale_to_zero_at_night" { type = bool }
 variable "hot_to_cold_days" { type = number }
 variable "kms_key_arns" {
@@ -291,6 +297,15 @@ resource "aws_ecs_service" "this" {
     container_port   = var.container_port
   }
 
+  # A bad image otherwise leaves desired_count = 1 crash-looping and the
+  # tier dark until somebody notices. This rolls the deploy back on its
+  # own - the only change here that removes an outage instead of paging
+  # about one.
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
   depends_on = [aws_lb_listener.http]
   tags       = local.tags
 }
@@ -417,11 +432,15 @@ variable "deletion_protection" {
 }
 
 resource "aws_db_instance" "this" {
-  identifier                = "${var.hostname}-pg"
-  engine                    = "postgres"
-  engine_version            = "17.2"
-  instance_class            = var.rds_instance_class
-  allocated_storage         = 20
+  identifier        = "${var.hostname}-pg"
+  engine            = "postgres"
+  engine_version    = "17.2"
+  instance_class    = var.rds_instance_class
+  allocated_storage = 20
+  # Storage-full puts Postgres read-only: writes fail, reads succeed, so
+  # the screen stays alive while nothing is being recorded. Autoscaling
+  # removes the failure mode; the alarm below only reports the ceiling.
+  max_allocated_storage     = 80
   storage_type              = "gp3"
   storage_encrypted         = true
   kms_key_id                = local.db_kms_key_arn
