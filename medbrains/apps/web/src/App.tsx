@@ -283,7 +283,9 @@ const CampScreeningCreatePage = lazy(() =>
   import("./pages/camp/screening-create").then((m) => ({ default: m.CampScreeningCreatePage })),
 );
 const CampLabSampleCreatePage = lazy(() =>
-  import("./pages/camp").then((m) => ({ default: m.CampLabSampleCreatePage })),
+  import("./pages/camp/lab-sample-create").then((m) => ({
+    default: m.CampLabSampleCreatePage,
+  })),
 );
 const CampTeamMemberAddPage = lazy(() =>
   import("./pages/camp").then((m) => ({ default: m.CampTeamMemberAddPage })),

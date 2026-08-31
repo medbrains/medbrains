@@ -215,6 +215,9 @@ export const campScreeningCreatePath = (
   return `/camp/${campId}/work/screenings/new${query}${join}registration_id=${registrationId}`;
 };
 
+export const campLabSampleCreatePath = (campId: string, patientId: string) =>
+  `/camp/${campId}/work/lab/new${patientContextQuery(patientId)}`;
+
 export const campClinicalRoutePath = (campId: string, registrationId: string, patientId: string) =>
   `/camp/${campId}/work/registrations/${registrationId}/clinical-route${patientContextQuery(
     patientId,
@@ -230,5 +233,14 @@ export const CAMP_SERVICE_LINE_OPTIONS = [
   { value: "pharmacy", label: "Pharmacy / medicines" },
   { value: "emergency", label: "Emergency" },
   { value: "follow_up", label: "Follow-up" },
+  { value: "other", label: "Other" },
+];
+
+/** Specimen kinds a camp bench collects. */
+export const CAMP_SAMPLE_TYPES = [
+  { value: "blood", label: "Blood" },
+  { value: "urine", label: "Urine" },
+  { value: "sputum", label: "Sputum" },
+  { value: "swab", label: "Swab" },
   { value: "other", label: "Other" },
 ];

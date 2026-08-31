@@ -1,49 +1,29 @@
 // CAMP ScreeningsTab — split from camp.tsx (pure move).
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Drawer, Group, Select, Stack, Text, TextInput } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
-import { notifications } from "@mantine/notifications";
-import type { CampLabSampleFormInput } from "@medbrains/schemas";
-import { campLabSampleFormSchema } from "@medbrains/schemas";
+import { Group, Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
-import type {
-  Camp,
-  CampLabSample,
-  CampScreening,
-  CreateCampLabSampleRequest,
-} from "@medbrains/types";
+import type { Camp, CampLabSample, CampScreening } from "@medbrains/types";
 import {
   CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY,
   CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY,
   P,
 } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { DataTable, useProtectedFieldAccess } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { Badge, Button } from "@/components/ui";
-import { campOptionalText } from "@/forms/camp.form";
 import { campService } from "@/services/camp.service";
 import {
-  campRegistrationOptionLabel,
+  campLabSampleCreatePath,
   campScreeningCreatePath,
   campWorkflowLabel,
   protectedCampParticipantName,
   protectedCampPhone,
 } from "./shared";
-
-const SAMPLE_TYPES = [
-  { value: "blood", label: "Blood" },
-  { value: "urine", label: "Urine" },
-  { value: "sputum", label: "Sputum" },
-  { value: "swab", label: "Swab" },
-  { value: "other", label: "Other" },
-];
 
 export function ScreeningsTab({
   campId,
@@ -58,8 +38,6 @@ export function ScreeningsTab({
   const canManageLab = useHasPermission(P.CAMP.LAB_MANAGE);
   const campNameAccess = useProtectedFieldAccess(CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY);
   const campPhoneAccess = useProtectedFieldAccess(CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY);
-  const qc = useQueryClient();
-  const [labOpen, labHandlers] = useDisclosure(false);
   const currentCampId = campId;
 
   const { data: screenings = [], isLoading: scrLoading } = useQuery({
@@ -82,41 +60,6 @@ export function ScreeningsTab({
     enabled: !!currentCampId,
   });
 
-  const labSampleDefaults: CampLabSampleFormInput = {
-    registration_id: "",
-    sample_type: "blood",
-    test_requested: "",
-    barcode: "",
-  };
-  const {
-    control: labControl,
-    register: registerLab,
-    reset: resetLab,
-    handleSubmit: handleSubmitLab,
-    formState: { errors: labErrors },
-  } = useForm<CampLabSampleFormInput>({
-    resolver: zodResolver(campLabSampleFormSchema),
-    defaultValues: labSampleDefaults,
-  });
-  const registrationOptions = useMemo(
-    () =>
-      registrations.map((registration) => ({
-        value: registration.id,
-        label: campRegistrationOptionLabel(registration, {
-          name: campNameAccess,
-          phone: campPhoneAccess,
-        }),
-      })),
-    [campNameAccess, campPhoneAccess, registrations],
-  );
-  const sampleTypeOptions = useMemo(
-    () =>
-      SAMPLE_TYPES.map((sampleType) => ({
-        value: sampleType.value,
-        label: t(`samples.type.${sampleType.value}`, { defaultValue: sampleType.label }),
-      })),
-    [t],
-  );
   const registrationsById = useMemo(
     () => new Map(registrations.map((registration) => [registration.id, registration])),
     [registrations],
@@ -149,29 +92,6 @@ export function ScreeningsTab({
         </Text>
       </Stack>
     );
-  };
-
-  const labMut = useMutation({
-    mutationFn: (data: CreateCampLabSampleRequest) => campService.createCampLabSample(data),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["camp-lab-samples"] });
-      labHandlers.close();
-      resetLab(labSampleDefaults);
-      notifications.show({
-        title: t("notify.sampleRecorded"),
-        message: t("notify.labSampleRecorded"),
-        color: "success",
-      });
-    },
-  });
-
-  const handleCreateLabSample = (values: CampLabSampleFormInput) => {
-    labMut.mutate({
-      registration_id: values.registration_id.trim(),
-      sample_type: values.sample_type.trim(),
-      test_requested: values.test_requested.trim(),
-      barcode: campOptionalText(values.barcode),
-    });
   };
 
   const scrCols: Column<CampScreening>[] = [
@@ -302,7 +222,7 @@ export function ScreeningsTab({
                 tone="primary"
                 size="xs"
                 leftSection={<IconPlus size={14} />}
-                onClick={labHandlers.open}
+                onClick={() => navigate(campLabSampleCreatePath(campId ?? "", ""))}
               >
                 {t("samples.actions.recordSample")}
               </Button>
@@ -324,59 +244,6 @@ export function ScreeningsTab({
       {/* Screening Drawer */}
 
       {/* Lab Sample Drawer */}
-      <Drawer
-        opened={labOpen}
-        onClose={labHandlers.close}
-        title={t("samples.drawer.title")}
-        position="right"
-        size="sm"
-      >
-        <Stack component="form" onSubmit={handleSubmitLab(handleCreateLabSample)}>
-          <Controller
-            control={labControl}
-            name="registration_id"
-            render={({ field }) => (
-              <Select
-                label={t("common.campParticipant")}
-                placeholder={t("common.searchRegistrationNamePhone")}
-                data={registrationOptions}
-                value={field.value || null}
-                onChange={(value) => field.onChange(value ?? "")}
-                required
-                searchable
-                error={labErrors.registration_id?.message}
-              />
-            )}
-          />
-          <Controller
-            control={labControl}
-            name="sample_type"
-            render={({ field }) => (
-              <Select
-                label={t("samples.form.sampleType")}
-                required
-                data={sampleTypeOptions}
-                value={field.value}
-                onChange={(value) => field.onChange(value ?? "blood")}
-                error={labErrors.sample_type?.message}
-              />
-            )}
-          />
-          <TextInput
-            label={t("samples.form.testRequested")}
-            error={labErrors.test_requested?.message}
-            {...registerLab("test_requested")}
-          />
-          <TextInput
-            label={t("samples.form.barcode")}
-            error={labErrors.barcode?.message}
-            {...registerLab("barcode")}
-          />
-          <Button tone="primary" type="submit" loading={labMut.isPending}>
-            {t("samples.actions.saveSample")}
-          </Button>
-        </Stack>
-      </Drawer>
     </>
   );
 }
